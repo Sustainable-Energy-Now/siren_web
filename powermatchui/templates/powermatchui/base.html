@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>{% block title %}SEN Siren Web{% endblock %}</title>
+    <!-- Add your common CSS stylesheets or links here -->
+</head>
+<body>
+    <header>
+        <!-- Your header content goes here -->
+        <h1>Siren Web Interface</h1>
+    </header>
+
+    <main>
+        {% block content %}
+        <!-- This block will be overridden by content from child templates -->
+        {% endblock %}
+    </main>
+
+    <footer>
+        <!-- Your footer content goes here -->
+        <p>&copy; 2024 Sustainable Energy Now. All rights reserved.</p>
+    </footer>
+</body>
+</html>

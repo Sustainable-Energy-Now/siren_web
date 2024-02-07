@@ -17,8 +17,19 @@ import toml
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 SECRETS_FILE = os.path.join(BASE_DIR, '.django', 'secrets.toml')
-with open(SECRETS_FILE) as f:
-    secrets = toml.load(f)
+
+# In development lLoad secrets from the secrets.toml file
+if os.path.exists(SECRETS_FILE):
+    with open(SECRETS_FILE) as f:
+        secrets = toml.load(f)
+else:
+    # In production load secrets from environment variables
+    secrets = {}
+    secrets['database']['name'] = os.environ.get('DB_NAME')
+    secrets['database']['user'] = os.environ.get('DB_USER')
+    secrets['database']['password'] = os.environ.get('DB_PASSWORD')
+    secrets['database']['host'] = os.environ.get('DB_HOST')
+    secrets['database']['port'] = os.environ.get('DB_PORT')
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.0/howto/deployment/checklist/
@@ -30,7 +41,6 @@ SECRET_KEY = "django-insecure-=*kw@9gn+-so2za+(9v+#kdsesb^*())q9l!qm^=o6i(!$&%=l
 DEBUG = True
 
 ALLOWED_HOSTS = []
-
 
 # Application definition
 
