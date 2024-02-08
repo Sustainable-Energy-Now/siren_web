@@ -1,9 +1,11 @@
+{% load static %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <title>{% block title %}SEN Siren Web{% endblock %}</title>
     <!-- Add your common CSS stylesheets or links here -->
+    <link rel="stylesheet" type="text/css" href="{% static 'front.css' %}">
 </head>
 <body>
     <header>
