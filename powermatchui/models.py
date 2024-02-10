@@ -1,228 +1,309 @@
+# This is an auto-generated Django model module.
+# You'll have to do the following manually to clean this up:
+#   * Rearrange models' order
+#   * Make sure each model has one field with primary_key=True
+#   * Make sure each ForeignKey and OneToOneField has `on_delete` set to the desired behavior
+#   * Remove `managed = False` lines if you wish to allow Django to create, modify, and delete the table
+# Feel free to rename the models, but don't rename db_table values or field names.
 from django.db import models
 
-from django.db import models
 
 class Analysis(models.Model):
-    idAnalysis = models.BigAutoField(primary_key=True)
-    idScenarios = models.ForeignKey('Scenarios', on_delete=models.RESTRICT)
-    Heading = models.CharField(max_length=45)
-    Component = models.CharField(max_length=45)
-    Basis = models.CharField(max_length=45)
-    Stage = models.CharField(max_length=45)
-    Quantity = models.CharField(max_length=300)
-    Units = models.CharField(max_length=10)
+    idanalysis = models.AutoField(db_column='idAnalysis', primary_key=True)  # Field name made lowercase.
+    idscenarios = models.ForeignKey('Scenarios', models.DO_NOTHING, db_column='idScenarios', blank=True, null=True)  # Field name made lowercase.
+    heading = models.CharField(db_column='Heading', max_length=45, blank=True, null=True)  # Field name made lowercase.
+    basis = models.CharField(db_column='Basis', max_length=45, blank=True, null=True)  # Field name made lowercase.
+    stage = models.CharField(db_column='Stage', max_length=45, blank=True, null=True)  # Field name made lowercase.
+    quantity = models.FloatField(db_column='Quantity', blank=True, null=True)  # Field name made lowercase.
+    units = models.CharField(db_column='Units', max_length=10, blank=True, null=True)  # Field name made lowercase.
 
     class Meta:
-        # Define the name of the database table explicitly
         db_table = 'Analysis'
 
-    def __str__(self):
-        return f"Setting for {self.Heading}: {self.Component} = {self.Stage}"
-
-class constraints(models.Model):
-    ID = models.BigAutoField(primary_key=True)
-    ConstraintName = models.CharField(max_length=45)
-    Image = models.CharField(max_length=50)
-    Category = models.CharField(max_length=45)
-    CapacityMax = models.IntegerField()
-    CapacityMin = models.IntegerField()    
-    DischargeLoss = models.IntegerField()
-    DischargeMax = models.DecimalField(max_digits=5, decimal_places=2)
-    ParasiticLoss = models.IntegerField()
-    RampdownMax = models.IntegerField()
-    RampupMax = models.IntegerField()
-    RechargeLoss = models.IntegerField()
-    RechargeMax = models.DecimalField(max_digits=5, decimal_places=2)
-    Renewable = models.BooleanField()
-    Description = models.CharField(max_length=500)
+class Constraints(models.Model):
+    id = models.AutoField(db_column='ID', primary_key=True)  # Field name made lowercase.
+    constraintname = models.CharField(db_column='ConstraintName', max_length=45, blank=True, null=True)  # Field name made lowercase.
+    image = models.CharField(db_column='Image', max_length=50, blank=True, null=True)  # Field name made lowercase.
+    category = models.CharField(db_column='Category', max_length=45, blank=True, null=True)  # Field name made lowercase.
+    capacitymax = models.IntegerField(db_column='CapacityMax', blank=True, null=True)  # Field name made lowercase.
+    capacitymin = models.IntegerField(db_column='CapacityMin', blank=True, null=True)  # Field name made lowercase.
+    dischargeloss = models.IntegerField(db_column='DischargeLoss', blank=True, null=True)  # Field name made lowercase.
+    dischargemax = models.DecimalField(db_column='DischargeMax', max_digits=5, decimal_places=2, blank=True, null=True)  # Field name made lowercase.
+    parasiticloss = models.IntegerField(db_column='ParasiticLoss', blank=True, null=True)  # Field name made lowercase.
+    rampdownmax = models.IntegerField(db_column='RampdownMax', blank=True, null=True)  # Field name made lowercase.
+    rampupmax = models.IntegerField(db_column='RampupMax', blank=True, null=True)  # Field name made lowercase.
+    rechargeloss = models.IntegerField(db_column='RechargeLoss', blank=True, null=True)  # Field name made lowercase.
+    rechargemax = models.DecimalField(db_column='RechargeMax', max_digits=5, decimal_places=2, blank=True, null=True)  # Field name made lowercase.
+    renewable = models.IntegerField(db_column='Renewable', blank=True, null=True)  # Field name made lowercase.
+    description = models.CharField(db_column='Description', max_length=500, blank=True, null=True)  # Field name made lowercase.
 
     class Meta:
-        # Define the name of the database table explicitly
         db_table = 'constraints'
 
-    def __str__(self):
-        return f"constraints for {self.ConstraintName}: {self.Description}"
-
 class Demand(models.Model):
-    idDemand = models.BigAutoField(primary_key=True)
-    ConstraintID = models.ForeignKey('constraints', on_delete=models.RESTRICT)
-    hour = models.IntegerField()
-    period = models.IntegerField()
-    load = models.DecimalField(max_digits=9, decimal_places=2) 
-    col = models.IntegerField()
+    iddemand = models.PositiveIntegerField(db_column='idDemand', primary_key=True)  # Field name made lowercase. The composite primary key (idDemand, ConstraintID, hour) found, that is not supported. The first column is selected.
+    constraintid = models.ForeignKey('Constraints', models.DO_NOTHING, db_column='ConstraintID')  # Field name made lowercase.
+    hour = models.PositiveIntegerField()
+    period = models.DateTimeField(blank=True, null=True)
+    load = models.DecimalField(max_digits=9, decimal_places=2, blank=True, null=True)
+    col = models.PositiveIntegerField(db_column='Col', blank=True, null=True)  # Field name made lowercase.
 
     class Meta:
-        # Define the name of the database table explicitly
         db_table = 'Demand'
+        unique_together = (('iddemand', 'constraintid', 'hour'),)
+        
+class Generators(models.Model):
+    id = models.PositiveIntegerField(db_column='ID', primary_key=True)  # Field name made lowercase. The composite primary key (ID, Year) found, that is not supported. The first column is selected.
+    year = models.IntegerField(db_column='Year')  # Field name made lowercase.
+    name = models.CharField(db_column='Name', max_length=45, blank=True, null=True)  # Field name made lowercase.
+    image = models.CharField(db_column='Image', max_length=65, blank=True, null=True)  # Field name made lowercase.
+    capacity = models.DecimalField(db_column='Capacity', max_digits=7, decimal_places=2, blank=True, null=True)  # Field name made lowercase.
+    constr = models.ForeignKey(Constraints, models.DO_NOTHING, db_column='Constr', blank=True, null=True)  # Field name made lowercase.
+    emissions = models.DecimalField(db_column='Emissions', max_digits=5, decimal_places=3, blank=True, null=True)  # Field name made lowercase.
+    initial = models.DecimalField(db_column='Initial', max_digits=5, decimal_places=2, blank=True, null=True)  # Field name made lowercase.
+    ord = models.IntegerField(db_column='Ord', blank=True, null=True)  # Field name made lowercase.
+    dispatchable = models.IntegerField(db_column='Dispatchable', blank=True, null=True)  # Field name made lowercase.
+    mult = models.FloatField(blank=True, null=True)
+    capex = models.DecimalField(db_column='Capex', max_digits=9, decimal_places=0, blank=True, null=True)  # Field name made lowercase.
+    fom = models.DecimalField(db_column='FOM', max_digits=9, decimal_places=0, blank=True, null=True)  # Field name made lowercase.
+    vom = models.DecimalField(db_column='VOM', max_digits=5, decimal_places=2, blank=True, null=True)  # Field name made lowercase.
+    fuel = models.DecimalField(db_column='Fuel', max_digits=5, decimal_places=2, blank=True, null=True)  # Field name made lowercase.
+    lifetime = models.DecimalField(db_column='Lifetime', max_digits=3, decimal_places=0, blank=True, null=True)  # Field name made lowercase.
+    discountrate = models.DecimalField(db_column='DiscountRate', max_digits=5, decimal_places=2, blank=True, null=True)  # Field name made lowercase.
 
-    def __str__(self):
-        return f"Demand"
-    
-class generators:
-    ID = models.BigAutoField(primary_key=True) 
-    Year = models.IntegerField()
-    Name = models.CharField(max_length=45)
-    Image = models.CharField(max_length=65)  
-    Capacity = models.DecimalField(max_digits=7, decimal_places=2)
-    Constr = models.IntegerField()
-    Emissions = models.DecimalField(max_digits=5, decimal_places=3)
-    Initial = models.DecimalField(max_digits=5, decimal_places=2)
-    Ord = models.IntegerField()
-    Dispatchable = models.BooleanField()
-    mult = models.FloatField()
-    Capex = models.DecimalField(max_digits=9, decimal_places=0)
-    FOM = models.DecimalField(max_digits=9, decimal_places=0)
-    VOM = models.DecimalField(max_digits=5, decimal_places=2)
-    Fuel = models.DecimalField(max_digits=5, decimal_places=2)
-    Lifetime = models.DecimalField(max_digits=3, decimal_places=0)
-    DiscountRate = models.DecimalField(max_digits=5, decimal_places=2)
     class Meta:
-        # Define the name of the database table explicitly
         db_table = 'generators'
-
-    def __str__(self):
-        return f"generators for {self.Name}"
-
-
-class GeneratorAttributes:
-    idGeneratorAttributes  = models.BigAutoField(primary_key=True)
-    idTechnologies = models.ForeignKey('Technologies', on_delete=models.RESTRICT)
+        unique_together = (('id', 'year'),)
+        
+class Generatorattributes(models.Model):
+    idgeneratorattributes = models.AutoField(db_column='idGeneratorAttributes', primary_key=True)  # Field name made lowercase.
+    idtechnologies = models.ForeignKey('Technologies', models.DO_NOTHING, db_column='idTechnologies')  # Field name made lowercase.
     year = models.IntegerField()
-    capacity = models.DecimalField(max_digits=7, decimal_places=2)
-    emissions = models.DecimalField(max_digits=5, decimal_places=3)
-    initial = models.DecimalField(max_digits=5, decimal_places=2)  
-    mult = models.FloatField() 
-    fuel = models.CharField(max_length=50)
-    
+    capacity = models.DecimalField(max_digits=7, decimal_places=2, blank=True, null=True)
+    emissions = models.DecimalField(max_digits=5, decimal_places=3, blank=True, null=True)
+    initial = models.DecimalField(max_digits=5, decimal_places=2, blank=True, null=True)
+    mult = models.FloatField(blank=True, null=True)
+    fuel = models.CharField(max_length=50, blank=True, null=True)
+
     class Meta:
-        # Define the name of the database table explicitly
         db_table = 'GeneratorAttributes'
 
-    def __str__(self):
-        return f"Generator Attributes"
-    
-class Genetics:
-    idGenetics = models.BigAutoField(primary_key=True) 
-    Parameter = models.CharField(max_length=30)
-    Weight = models.DecimalField(max_digits=5, decimal_places=2)  
-    Better = models.DecimalField(max_digits=5, decimal_places=2)  
-    Worse = models.DecimalField(max_digits=13, decimal_places=2)  
-    MinValue = models.DecimalField(max_digits=5, decimal_places=2)  
-    MaxValue = models.DecimalField(max_digits=5, decimal_places=2)  
-    Step = models.DecimalField(max_digits=5, decimal_places=2)  
-    BetterSpinner = models.BooleanField() 
-    WorseSpinner = models.BooleanField()
-    class Genetics:
-        # Define the name of the database table explicitly
-        db_table = 'Genetics'
 
-    def __str__(self):
-        return f"Genetics"
-
-class Optimisation:
-    idOptimisation = models.BigAutoField(primary_key=True) 
-    Name = models.CharField(max_length=45) 
-    Approach = models.CharField(max_length=45) 
-    Capacity = models.DecimalField(max_digits=7, decimal_places=1)  
-    CapacityMax = models.DecimalField(max_digits=7, decimal_places=1)  
-    CapacityMin = models.DecimalField(max_digits=7, decimal_places=1)  
-    CapacityStep = models.DecimalField(max_digits=7, decimal_places=1)
-    class Optimisation:
-        # Define the name of the database table explicitly
-        db_table = 'Optimisation'
-
-    def __str__(self):
-        return f"Optimisation"
-
-class Scenarios(models.Model):
-    idScenarios = models.BigAutoField(primary_key=True)
-    Title = models.CharField(max_length=45)
-    DateExported = models.DateField()
-    Year = models.IntegerField()
-    Description = models.CharField(max_length=500)
+class Genetics(models.Model):
+    idgenetics = models.PositiveIntegerField(db_column='idGenetics', primary_key=True)  # Field name made lowercase.
+    parameter = models.CharField(db_column='Parameter', max_length=30, blank=True, null=True)  # Field name made lowercase.
+    weight = models.DecimalField(db_column='Weight', max_digits=5, decimal_places=2, blank=True, null=True)  # Field name made lowercase.
+    better = models.DecimalField(db_column='Better', max_digits=5, decimal_places=2, blank=True, null=True)  # Field name made lowercase.
+    worse = models.DecimalField(db_column='Worse', max_digits=13, decimal_places=2, blank=True, null=True)  # Field name made lowercase.
+    minvalue = models.DecimalField(db_column='MinValue', max_digits=5, decimal_places=2, blank=True, null=True)  # Field name made lowercase.
+    maxvalue = models.DecimalField(db_column='MaxValue', max_digits=5, decimal_places=2, blank=True, null=True)  # Field name made lowercase.
+    step = models.DecimalField(db_column='Step', max_digits=5, decimal_places=2, blank=True, null=True)  # Field name made lowercase.
+    betterspinner = models.IntegerField(db_column='BetterSpinner', blank=True, null=True)  # Field name made lowercase.
+    worsespinner = models.IntegerField(db_column='WorseSpinner', blank=True, null=True)  # Field name made lowercase.
 
     class Meta:
-        # Define the name of the database table explicitly
+        db_table = 'Genetics'
+        db_table_comment = 'Parameters used for genetic optimisation'
+        
+class Optimisation(models.Model):
+    idoptimisation = models.PositiveIntegerField(db_column='idOptimisation', primary_key=True)  # Field name made lowercase.
+    name = models.CharField(db_column='Name', max_length=45, blank=True, null=True)  # Field name made lowercase.
+    approach = models.CharField(db_column='Approach', max_length=45, blank=True, null=True)  # Field name made lowercase.
+    capacity = models.DecimalField(db_column='Capacity', max_digits=7, decimal_places=1, blank=True, null=True)  # Field name made lowercase.
+    capacitymax = models.DecimalField(db_column='CapacityMax', max_digits=7, decimal_places=1, blank=True, null=True)  # Field name made lowercase.
+    capacitymin = models.DecimalField(db_column='CapacityMin', max_digits=7, decimal_places=1, blank=True, null=True)  # Field name made lowercase.
+    capacitystep = models.DecimalField(db_column='CapacityStep', max_digits=7, decimal_places=1, blank=True, null=True)  # Field name made lowercase.
+
+    class Meta:
+        db_table = 'Optimisation'
+        
+class Scenarios(models.Model):
+    idscenarios = models.AutoField(db_column='idScenarios', primary_key=True)  # Field name made lowercase.
+    title = models.CharField(db_column='Title', max_length=45, blank=True, null=True)  # Field name made lowercase.
+    dateexported = models.DateField(db_column='DateExported', blank=True, null=True)  # Field name made lowercase.
+    year = models.SmallIntegerField(db_column='Year', blank=True, null=True)  # Field name made lowercase.
+    description = models.CharField(db_column='Description', max_length=500, blank=True, null=True)  # Field name made lowercase.
+
+    class Meta:
         db_table = 'Scenarios'
 
-    def __str__(self):
-        return f"Scenario for {self.Title}: {self.Description}"
-    
+
 class Settings(models.Model):
-    idSettings = models.AutoField(primary_key=True)
-    context = models.CharField(max_length=20)
-    parameter = models.CharField(max_length=45)
-    value = models.CharField(max_length=300)
+    idsettings = models.PositiveIntegerField(db_column='idSettings', primary_key=True)  # Field name made lowercase.
+    context = models.CharField(max_length=20, blank=True, null=True)
+    parameter = models.CharField(max_length=45, blank=True, null=True)
+    value = models.CharField(max_length=300, blank=True, null=True)
 
     class Meta:
-        # Define the name of the database table explicitly
         db_table = 'Settings'
 
-    def __str__(self):
-        return f"Setting for {self.context}: {self.parameter} = {self.value}"
-
-class stations:
-    ID = models.BigAutoField(primary_key=True) 
-    name = models.CharField(max_length=45) 
-    technology = models.CharField(max_length=45) 
-    capacity = models.DecimalField(max_digits=7, decimal_places=2)  
-    capacityfactor = models.DecimalField(max_digits=5, decimal_places=2)  
-    generation = models.DecimalField(max_digits=9, decimal_places=0) 
-    transmitted = models.CharField(max_length=9)
+class Stations(models.Model):
+    id = models.PositiveIntegerField(db_column='ID', primary_key=True)  # Field name made lowercase.
+    name = models.CharField(max_length=45, blank=True, null=True)
+    technology = models.CharField(max_length=45, blank=True, null=True)
+    capacity = models.DecimalField(max_digits=7, decimal_places=2, blank=True, null=True)
+    capacityfactor = models.DecimalField(max_digits=5, decimal_places=2, blank=True, null=True)
+    generation = models.DecimalField(max_digits=9, decimal_places=0, blank=True, null=True)
+    transmitted = models.CharField(max_length=9, blank=True, null=True)
 
     class Meta:
-        # Define the name of the database table explicitly
         db_table = 'stations'
 
-    def __str__(self):
-        return f"station for {self.name}: {self.technology}"
-
-class StorageAttributes:
-    idStorageAttributes = models.BigAutoField(primary_key=True) 
-    idTechnologies = models.ForeignKey('Technologies', on_delete=models.RESTRICT)
-    capacity_max = models.IntegerField() 
-    capacity_min = models.IntegerField() 
-    discharge_loss = models.IntegerField() 
-    discharge_max = models.DecimalField(max_digits=5, decimal_places=2)  
-    parasitic_loss = models.IntegerField() 
-    rampdown_max = models.IntegerField() 
-    rampup_max = models.IntegerField() 
-    recharge_loss = models.IntegerField() 
-    recharge_max = models.DecimalField(max_digits=5, decimal_places=2)
+class Storageattributes(models.Model):
+    idstorageattributes = models.AutoField(db_column='idStorageAttributes', primary_key=True)  # Field name made lowercase.
+    idtechnologies = models.ForeignKey('Technologies', models.DO_NOTHING, db_column='idTechnologies', blank=True, null=True)  # Field name made lowercase.
+    capacity_max = models.IntegerField(blank=True, null=True)
+    capacity_min = models.IntegerField(blank=True, null=True)
+    discharge_loss = models.IntegerField(blank=True, null=True)
+    discharge_max = models.DecimalField(max_digits=5, decimal_places=2, blank=True, null=True)
+    parasitic_loss = models.IntegerField(blank=True, null=True)
+    rampdown_max = models.IntegerField(blank=True, null=True)
+    rampup_max = models.IntegerField(blank=True, null=True)
+    recharge_loss = models.IntegerField(blank=True, null=True)
+    recharge_max = models.DecimalField(max_digits=5, decimal_places=2, blank=True, null=True)
 
     class Meta:
-        # Define the name of the database table explicitly
         db_table = 'StorageAttributes'
 
-    def __str__(self):
-        return f"StorageAttributes"
-    
-class Technologies:
-    idTechnologies = models.BigAutoField(primary_key=True) 
-    technology_name = models.CharField(max_length=45) 
-    image = models.CharField(max_length=50) 
-    caption = models.CharField(max_length=50) 
-    category = models.CharField(max_length=45) 
-    renewable = models.BooleanField() 
-    dispatchable = models.BooleanField() 
-    merit_order = models.IntegerField() 
-    capex = models.DecimalField(max_digits=9, decimal_places=0) 
-    FOM = models.DecimalField(max_digits=9, decimal_places=0) 
-    VOM = models.DecimalField(max_digits=5, decimal_places=2)  
-    lifetime = models.DecimalField(max_digits=3, decimal_places=0) 
-    discount_rate = models.DecimalField(max_digits=5, decimal_places=2)  
-    description = models.CharField(max_length=1000)
+
+class Technologies(models.Model):
+    idtechnologies = models.AutoField(db_column='idTechnologies', primary_key=True)  # Field name made lowercase.
+    technology_name = models.CharField(max_length=45, blank=True, null=True)
+    image = models.CharField(max_length=50, blank=True, null=True)
+    caption = models.CharField(max_length=50, blank=True, null=True)
+    category = models.CharField(max_length=45, blank=True, null=True)
+    renewable = models.IntegerField(blank=True, null=True)
+    dispatchable = models.IntegerField(blank=True, null=True)
+    merit_order = models.IntegerField(blank=True, null=True)
+    capex = models.DecimalField(max_digits=9, decimal_places=0, blank=True, null=True)
+    fom = models.DecimalField(db_column='FOM', max_digits=9, decimal_places=0, blank=True, null=True)  # Field name made lowercase.
+    vom = models.DecimalField(db_column='VOM', max_digits=5, decimal_places=2, blank=True, null=True)  # Field name made lowercase.
+    lifetime = models.DecimalField(max_digits=3, decimal_places=0, blank=True, null=True)
+    discount_rate = models.DecimalField(max_digits=5, decimal_places=2, blank=True, null=True)
+    description = models.CharField(max_length=1000, db_collation='utf8mb4_0900_ai_ci', blank=True, null=True)
 
     class Meta:
-        # Define the name of the database table explicitly
         db_table = 'Technologies'
 
-    def __str__(self):
-        return f"Technologies {self.technology_name}"
-    
-class Zones:
-	idZones = models.BigAutoField(primary_key=True) 
-	idScenarios = models.ForeignKey('Scenarios', on_delete=models.RESTRICT) 
-	ConstraintID = models.ForeignKey('Constraints', on_delete=models.RESTRICT) 
-	existing = models.BooleanField() 
-	Capacity = models.DecimalField(max_digits=11, decimal_places=2) 
+class Zones(models.Model):
+    idzones = models.PositiveIntegerField(db_column='idZones', primary_key=True)  # Field name made lowercase.
+    idscenarios = models.PositiveIntegerField(db_column='idScenarios', blank=True, null=True)  # Field name made lowercase.
+    constraintid = models.ForeignKey('Constraints', models.DO_NOTHING, db_column='ConstraintID', blank=True, null=True)  # Field name made lowercase.
+    existing = models.IntegerField(blank=True, null=True)
+    capacity = models.DecimalField(db_column='Capacity', max_digits=11, decimal_places=2, blank=True, null=True)  # Field name made lowercase.
+
+    class Meta:
+        db_table = 'Zones'
+
+class AuthGroup(models.Model):
+    name = models.CharField(unique=True, max_length=150)
+
+    class Meta:
+        managed = False
+        db_table = 'auth_group'
+
+
+class AuthGroupPermissions(models.Model):
+    id = models.BigAutoField(primary_key=True)
+    group_id = models.IntegerField()
+    permission_id = models.IntegerField()
+
+    class Meta:
+        managed = False
+        db_table = 'auth_group_permissions'
+        unique_together = (('group_id', 'permission_id'),)
+
+
+class AuthPermission(models.Model):
+    name = models.CharField(max_length=255)
+    content_type_id = models.IntegerField()
+    codename = models.CharField(max_length=100)
+
+    class Meta:
+        managed = False
+        db_table = 'auth_permission'
+        unique_together = (('content_type_id', 'codename'),)
+
+
+class AuthUser(models.Model):
+    password = models.CharField(max_length=128)
+    last_login = models.DateTimeField(blank=True, null=True)
+    is_superuser = models.IntegerField()
+    username = models.CharField(unique=True, max_length=150)
+    first_name = models.CharField(max_length=150)
+    last_name = models.CharField(max_length=150)
+    email = models.CharField(max_length=254)
+    is_staff = models.IntegerField()
+    is_active = models.IntegerField()
+    date_joined = models.DateTimeField()
+
+    class Meta:
+        managed = False
+        db_table = 'auth_user'
+
+
+class AuthUserGroups(models.Model):
+    id = models.BigAutoField(primary_key=True)
+    user_id = models.IntegerField()
+    group_id = models.IntegerField()
+
+    class Meta:
+        managed = False
+        db_table = 'auth_user_groups'
+        unique_together = (('user_id', 'group_id'),)
+
+
+class AuthUserUserPermissions(models.Model):
+    id = models.BigAutoField(primary_key=True)
+    user_id = models.IntegerField()
+    permission_id = models.IntegerField()
+
+    class Meta:
+        managed = False
+        db_table = 'auth_user_user_permissions'
+        unique_together = (('user_id', 'permission_id'),)
+
+
+
+class DjangoAdminLog(models.Model):
+    action_time = models.DateTimeField()
+    object_id = models.TextField(blank=True, null=True)
+    object_repr = models.CharField(max_length=200)
+    action_flag = models.PositiveSmallIntegerField()
+    change_message = models.TextField()
+    content_type_id = models.IntegerField(blank=True, null=True)
+    user_id = models.IntegerField()
+
+    class Meta:
+        managed = False
+        db_table = 'django_admin_log'
+
+class DjangoContentType(models.Model):
+    app_label = models.CharField(max_length=100)
+    model = models.CharField(max_length=100)
+
+    class Meta:
+        managed = False
+        db_table = 'django_content_type'
+        unique_together = (('app_label', 'model'),)
+
+
+class DjangoMigrations(models.Model):
+    id = models.BigAutoField(primary_key=True)
+    app = models.CharField(max_length=255)
+    name = models.CharField(max_length=255)
+    applied = models.DateTimeField()
+
+    class Meta:
+        managed = False
+        db_table = 'django_migrations'
+
+
+class DjangoSession(models.Model):
+    session_key = models.CharField(primary_key=True, max_length=40)
+    session_data = models.TextField()
+    expire_date = models.DateTimeField()
+
+    class Meta:
+        managed = False
+        db_table = 'django_session'

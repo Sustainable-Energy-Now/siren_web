@@ -5,9 +5,19 @@
     <meta charset="UTF-8">
     <title>{% block title %}SEN Siren Web{% endblock %}</title>
     <!-- Add your common CSS stylesheets or links here -->
-    <link rel="stylesheet" type="text/css" href="{% static 'front.css' %}">
+    <link rel="stylesheet" type="text/css" href="{% static 'powermatchui/css/front.css' %}">
+    <figure class="size-full header-logo">
+        <a href="/"><img decoding="async" src="{% static 'powermatchui/img/SEN_LOGO_HERO.png' %}" alt="Logo" style="width: 200px; height: auto;"></a>
+    </figure>
 </head>
 <body>
+    <nav>
+        <ul>
+            <li><a href="/">Home</a></li>
+            <li><a href="/tableupdate/">TableUpdate</a></li>
+            <!-- Add more links as needed -->
+        </ul>
+    </nav>
     <header>
         <!-- Your header content goes here -->
         <h1>Siren Web Interface</h1>

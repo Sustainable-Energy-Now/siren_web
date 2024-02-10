@@ -1,0 +1,51 @@
+<!-- table_update_page.html -->
+{% extends 'base.html' %}  <!-- Assuming 'base.html' contains the common layout with the navigation bar -->
+
+{% block content %}
+<h1>Editable MySQL Table</h1>
+
+<form action="{% url 'table_update_page' %}" method="post">
+    {% csrf_token %}
+    <label for="table_selection">Select a table:</label>
+    <select name="table_selection" id="table_selection">
+        {% for table_name in table_names %}
+            <option value="{{ table_name }}">{{ table_name }}</option>
+        {% endfor %}
+    </select>
+    <button type="submit">Submit</button>
+</form>
+
+<!-- table_update_page.html -->
+
+<form method="post">
+    {% csrf_token %}
+    {% load custom_filters %}
+    <!-- Display the table entries here -->
+    <table>
+        <!-- Table header -->
+        <thead>
+            <tr>
+                {% for column_name in column_names %}
+                    <th>{{ column_name }}</th>
+                {% endfor %}
+            </tr>
+        </thead>
+        <!-- Table body -->
+        <tbody>
+            {% for entry in table_entries %}
+            <tr>
+                {% for column_name in column_names %}
+                    <td>{{ entry|get_dynamic_attr:column_name }}</td>
+                {% endfor %}
+                <td>
+                    <input type="text" name="{{ column_name }}" value="{{ entry|get_dynamic_attr:column_name }}">
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <button type="submit">Save Changes</button>
+</form>
+
+{% endblock %}
