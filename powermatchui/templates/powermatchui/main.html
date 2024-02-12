@@ -13,11 +13,18 @@
     <title>Welcome to Powermatch Web!</title>
 </head>
 <body>
-    <h1>Welcome to Powermatch Web!</h1>
+    <h2>Welcome to Powermatch Web!</h2>
     <form method="post">
         {% csrf_token %}
-        {{ form.as_p }}
-        <button type="submit">Submit</button>
+        {{ form.load_year.label_tag }}
+        {{ form.load_year }}
+        <br>
+        {{ form.level_of_detail.label_tag }}
+        {% for radio in form.level_of_detail %}
+            {{ radio }}
+        {% endfor %}
+        <br>
+        <button type="submit" class="btn-custom-swish2">Run Power Match</button>
     </form>
 </body>
 </html>

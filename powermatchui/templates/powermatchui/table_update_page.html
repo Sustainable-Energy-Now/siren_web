@@ -2,23 +2,26 @@
 {% extends 'base.html' %}  <!-- Assuming 'base.html' contains the common layout with the navigation bar -->
 
 {% block content %}
-<h1>Editable MySQL Table</h1>
+<h2>Editable MySQL Table</h2>
 
-<form action="{% url 'table_update_page' %}" method="post">
+<!-- Form for selecting the table and populating the page -->
+<form method="post" action="{% url 'table_update_page' %}">
     {% csrf_token %}
+    <input type="hidden" name="action" value="populate">  <!-- Hidden field to indicate the action -->
+    <!-- Other form fields or buttons for selecting the table -->
     <label for="table_selection">Select a table:</label>
     <select name="table_selection" id="table_selection">
         {% for table_name in table_names %}
             <option value="{{ table_name }}">{{ table_name }}</option>
         {% endfor %}
     </select>
-    <button type="submit">Submit</button>
+    <button type="submit" class="btn-custom-swish2">Submit</button>  <!-- Submit button for selecting the table -->
 </form>
-
-<!-- table_update_page.html -->
-
-<form method="post">
+<!-- Form for saving changes made to the table -->
+<form method="post" action="{% url 'table_update_page' %}">
     {% csrf_token %}
+    <input type="hidden" name="action" value="save">  <!-- Hidden field to indicate the action -->
+    <input type="hidden" name="selected_table_name" value="{{ selected_table_name }}">  <!-- Hidden field to hold the selected table -->
     {% load custom_filters %}
     <!-- Display the table entries here -->
     <table>
@@ -35,17 +38,20 @@
             {% for entry in table_entries %}
             <tr>
                 {% for column_name in column_names %}
-                    <td>{{ entry|get_dynamic_attr:column_name }}</td>
+                    <td>
+                        <input type="text" name="{{ column_name }}_{{ entry.pk }}" value="{{ entry|get_dynamic_attr:column_name }}">
+                    </td>
                 {% endfor %}
-                <td>
-                    <input type="text" name="{{ column_name }}" value="{{ entry|get_dynamic_attr:column_name }}">
-                </td>
             </tr>
             {% endfor %}
         </tbody>
     </table>
-
-    <button type="submit">Save Changes</button>
+    <button type="submit" class="btn-custom-swish2">Save Changes</button>  <!-- Submit button for saving changes -->
 </form>
+{% if success_message %}
+<div class="alert alert-success">
+    {{ success_message }}
+</div>
+{% endif %}
 
 {% endblock %}

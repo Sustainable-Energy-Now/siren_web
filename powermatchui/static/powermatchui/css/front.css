@@ -8,7 +8,13 @@ body {
       font-size: 20px;
     }
   }
-  
+  .alert {
+      background-color: #d4edda; /* Light green background */
+      color: #155724; /* Dark green text */
+      padding: 10px;
+      margin-top: 10px; /* Add margin to separate from the button */
+      display: inline-block; /* Display the alert message inline */
+  }
   .table-fixed {
     table-layout: fixed;
   }
