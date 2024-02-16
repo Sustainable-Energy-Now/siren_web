@@ -1,6 +1,6 @@
 # In powermatchui database operations
 from django.db import connection
-from .models import Constraints, Demand, Generators, Settings, Zones
+from .models import Constraints, Demand, Settings, Technologies, Zones
 from .powermatch.pmcore import Constraint, Facility, PM_Facility, Optimisation
 
 def fetch_constraints_data(request):
@@ -51,7 +51,7 @@ def fetch_demand_data(request, load_year):
             constraintid = demand_row.constraintid.id
             col = demand_row.col
             load = demand_row.load
-            if name not in pmss_data:
+            if col not in pmss_data:
                 pmss_data[col] = []
             pmss_data[col].append(load)
             if (name != 'Load'):
@@ -69,7 +69,8 @@ def fetch_demand_data(request, load_year):
         return HttpResponse(f"Error fetching demand data: {e}", status=500)
     
     # Store demand data in session
-    request.session['pmss_data'] = pmss_data, pmss_details
+    request.session['pmss_data'] = pmss_data
+    request.session['pmss_details'] = pmss_details
     return pmss_data, pmss_details
 
 def fetch_technologies_data(request, load_year):
@@ -78,13 +79,28 @@ def fetch_technologies_data(request, load_year):
         return request.session['generators'], request.session['dispatch_order'], request.session['re_order']
     try:
         # Define the SQL query
-        generators_query = f"""
-            SELECT G.ID as gen_ID, G.*, MAX(year) AS year, C.*
-            FROM senas316_pmdata.generators G
-            INNER JOIN senas316_pmdata.constraints C ON G.Constr = C.ID
-            WHERE G.year IN (0, {load_year}) AND G.Ord <= 99
-            GROUP BY G.name
-            ORDER BY G.Ord;
+        generators_query = \
+        f"""
+            WITH cte AS (
+            SELECT t.*, 
+            s.capacity_max, s.capacity_min, s.discharge_loss,
+            s.discharge_max, s.parasitic_loss, s.rampdown_max,
+            s.rampup_max, s.recharge_loss, s.recharge_max,
+            g.capacity, g.emissions,
+            g.initial,
+            g.mult,
+            g.fuel,
+            ROW_NUMBER() OVER (PARTITION BY t.technology_name ORDER BY t.year DESC) AS row_num
+            FROM senas316_pmdata.Technologies t
+            LEFT JOIN senas316_pmdata.StorageAttributes s ON t.idtechnologies = s.idtechnologies 
+                AND t.function = 'storage' AND t.year = s.year
+            LEFT JOIN senas316_pmdata.GeneratorAttributes g ON t.idtechnologies = g.idtechnologies 
+                AND t.function = 'generator' AND t.year = g.year
+            WHERE t.year IN (0, {load_year})
+            )
+            SELECT *
+            FROM cte
+            WHERE row_num = 1;
         """
         # Execute the SQL query
         with connection.cursor() as cursor:
@@ -142,6 +158,38 @@ def fetch_technologies_data(request, load_year):
     request.session['dispatch_order'] = dispatch_order
     request.session['re_order'] = re_order
     return generators, dispatch_order, re_order
+
+def fetch_dispatchables_data(request, load_year):
+    dispatchables = Technologies.objects.filter(dispatchable=True, year=load_year)
+    return dispatchables
+
+def fetch_merit_order_data(load_year):
+    merit_order_data = Technologies.objects.filter(dispatchable=True, year=load_year)
+    return merit_order_data
+
+def fetch_excluded_resources_data(load_year):
+    excluded_resources_data = Technologies.objects.filter(dispatchable=True, year=load_year)
+    return excluded_resources_data
+
+def fetch_dispatchables_data(load_year):
+    # Filter technologies based on dispatchable and merit_order conditions
+    candidate_technologies = Technologies.objects.filter(
+        year__in=[0, load_year]  # Use year__in to filter for both year=0 and year=load_year
+    ).order_by('merit_order', '-year')
+    merit_order_data = {}
+    excluded_resources_data = {}
+    seen_technologies = set()
+
+    # Create dictionaries with idtechnologies as keys and names as values
+    for tech in candidate_technologies:
+    # Filter out duplicate technology_name rows, keeping only the one with year = load_year
+        if tech.idtechnologies not in seen_technologies:
+            if (tech.merit_order <= 99):
+                merit_order_data[tech.idtechnologies] = tech.technology_name
+            else:
+                excluded_resources_data[tech.idtechnologies] = tech.technology_name
+            seen_technologies.add(tech.idtechnologies)
+    return merit_order_data, excluded_resources_data
 
 def fetch_settings_data(request):
     # Check if settings are already stored in session

@@ -17,6 +17,7 @@ def main(request):
         form = LoadYearForm(request.POST)
         if form.is_valid():
             load_year = form.cleaned_data['load_year']
+            request.session['load_year'] = load_year
             level_of_detail = form.cleaned_data['level_of_detail']
             # Perform necessary actions with the selected load year
             settings = fetch_settings_data(request)
@@ -33,7 +34,7 @@ def main(request):
             return HttpResponse("Submission successful!")
     else:
         form = LoadYearForm()
-    return render(request, 'main.html', {'form': form})
+    return render(request, 'home.html', {'form': form})
 
 def start_powermatch_task(request):
     # Start the Celery task asynchronously

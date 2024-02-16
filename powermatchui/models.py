@@ -169,9 +169,10 @@ class Storageattributes(models.Model):
 class Technologies(models.Model):
     idtechnologies = models.AutoField(db_column='idTechnologies', primary_key=True)  # Field name made lowercase.
     technology_name = models.CharField(max_length=45, blank=True, null=True)
+    year = models.IntegerField(default=0, null=True)
     image = models.CharField(max_length=50, blank=True, null=True)
     caption = models.CharField(max_length=50, blank=True, null=True)
-    category = models.CharField(max_length=45, blank=True, null=True)
+    function = models.CharField(max_length=45, blank=True, null=True)
     renewable = models.IntegerField(blank=True, null=True)
     dispatchable = models.IntegerField(blank=True, null=True)
     merit_order = models.IntegerField(blank=True, null=True)

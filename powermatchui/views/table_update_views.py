@@ -2,7 +2,6 @@ from decimal import Decimal
 from django.shortcuts import render, redirect
 from django.apps import apps
 from django.http import HttpResponse
-from django.urls import path
 
 # views.py
 def get_table_names():

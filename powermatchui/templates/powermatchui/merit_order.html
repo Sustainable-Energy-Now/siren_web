@@ -1,0 +1,86 @@
+{% extends 'base.html' %}
+
+{% block title %}Home | My Website{% endblock %}
+
+{% block content %}
+<form method="post">
+    {% csrf_token %}
+    <div id="root">
+        <div class="sortable-component vertical">
+            <div class="sortable-container" id="merit-order-container">
+                <div class="container-header">Merit Order</div>
+                <ul id="merit-order-list" class="sortable">
+                    {% for id, name in merit_order.items %}
+                    <div class="sortable-item-container" draggable="true" ondragstart="drag(event)">
+                        <li class="btn shadow-none sortable-item" id="{{ id }}">{{ name }}</li>
+                        <input type="hidden" name="merit_order[]" value="{{ id }}">
+                    </div>
+                    {% endfor %}
+                </ul>
+            </div>
+            <div class="sortable-container" id="excluded-resources-container">
+                <div class="container-header">Excluded Resources</div>
+                <ul id="excluded-resources-list" class="sortable">
+                    {% for id, name in excluded_resources.items %}
+                    <div class="sortable-item-container" draggable="true" ondragstart="drag(event)">
+                        <li class="btn shadow-none sortable-item" id="{{ id }}">{{ name }}</li>
+                        <input type="hidden" name="excluded_resources[]" value="{{ id }}">
+                    </div>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+    </div>
+    <button type="submit" class="btn-custom-swish2">Save Dispatch Order</button>
+</form>
+<!-- jQuery -->
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<!-- jQuery UI -->
+<script src="https://code.jquery.com/ui/1.13.1/jquery-ui.min.js"></script>
+
+<script>
+    $(function() {
+        // Make the containers sortable
+        $('.sortable').sortable({
+            connectWith: '.sortable', // Allow sorting between containers
+            tolerance: 'pointer', // Use pointer for more precise sorting
+            helper: 'clone', // Use a clone as the dragging helper
+            start: function(event, ui) {
+                // Add a class to the dragged item for styling
+                ui.item.addClass('dragging');
+            },
+            stop: function(event, ui) {
+                // Remove the dragging class when dragging stops
+                ui.item.removeClass('dragging');
+            },
+            receive: function(event, ui) {
+                // Handle the dropped item
+                var droppedItem = ui.item;
+                var targetList = droppedItem.parent();
+                var targetId = targetList.attr('id');
+                var itemId = droppedItem.find('li').attr('id');
+
+                // Update any associated hidden input fields
+                var inputField = $('input[name="' + targetId + '"][value="' + itemId + '"]');
+                if (inputField.length === 0) {
+                    // Create a new hidden input field if it doesn't exist
+                    $('<input>').attr({
+                        type: 'hidden',
+                        name: targetId,
+                        value: itemId
+                    }).appendTo('form');
+                }
+            }
+        });
+
+        // Prevent the default drag and drop behavior for the entire document
+        $(document).on('dragover', function(event) {
+            event.preventDefault();
+        });
+
+        $(document).on('drop', function(event) {
+            event.preventDefault();
+        });
+    });
+</script>
+{% endblock %}

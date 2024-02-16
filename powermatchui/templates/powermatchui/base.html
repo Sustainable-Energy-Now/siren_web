@@ -11,10 +11,12 @@
     </figure>
 </head>
 <body>
-    <nav>
+    <nav class="navbar-nav">
         <ul>
             <li><a href="/">Home</a></li>
-            <li><a href="/tableupdate/">TableUpdate</a></li>
+            <li><a href="/merit_order/">Set Merit Order</a></li>
+            <li><a href="/run_batch/">Run Batch</a></li>
+            <li><a href="/tableupdate/">Table Update</a></li>
             <!-- Add more links as needed -->
         </ul>
     </nav>
@@ -22,7 +24,11 @@
         <!-- Your header content goes here -->
         <h1>Siren Web Interface</h1>
     </header>
-
+    {% if success_message %}
+    <div class="alert alert-success">
+        {{ success_message }}
+    </div>
+    {% endif %}
     <main>
         {% block content %}
         <!-- This block will be overridden by content from child templates -->
