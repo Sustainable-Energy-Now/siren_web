@@ -1,6 +1,7 @@
 # In powermatchui database operations
 from django.db import connection
-from .models import Constraints, Demand, Settings, Technologies, Zones
+from django.http import HttpResponse
+from .models import Constraints, Demand, Scenarios, Settings, Technologies, Zones
 from .powermatch.pmcore import Constraint, Facility, PM_Facility, Optimisation
 
 def fetch_constraints_data(request):
@@ -171,11 +172,13 @@ def fetch_excluded_resources_data(load_year):
     excluded_resources_data = Technologies.objects.filter(dispatchable=True, year=load_year)
     return excluded_resources_data
 
-def fetch_dispatchables_data(load_year):
+def fetch_generation_storage_data(load_year):
     # Filter technologies based on dispatchable and merit_order conditions
     candidate_technologies = Technologies.objects.filter(
-        year__in=[0, load_year]  # Use year__in to filter for both year=0 and year=load_year
+        year__in=[0, load_year],
+        function__in=['Generation', 'Storage']  # Use double underscores for related field lookups
     ).order_by('merit_order', '-year')
+
     merit_order_data = {}
     excluded_resources_data = {}
     seen_technologies = set()
@@ -191,6 +194,27 @@ def fetch_dispatchables_data(load_year):
             seen_technologies.add(tech.idtechnologies)
     return merit_order_data, excluded_resources_data
 
+def fetch_scenarios_data():
+    try:
+        scenarios = {}
+        scenarios_query = Scenarios.objects.all()
+        for scenario in scenarios_query:
+            idscenarios = scenario.idscenarios
+            title = scenario.title
+            dateexported = scenario.dateexported
+            description = scenario.description
+            # scenarios[idscenarios] = Scenarios(idscenarios, title, dateexported, year, description)
+            scenarios[idscenarios] = {
+                'idscenarios': idscenarios,
+                'title': title,
+                'dateexported': dateexported,
+                'description': description
+            }
+        return scenarios
+    except Exception as e:
+        # Handle any errors that occur during the database query
+        return None
+    
 def fetch_settings_data(request):
     # Check if settings are already stored in session
     if 'settings' in request.session:

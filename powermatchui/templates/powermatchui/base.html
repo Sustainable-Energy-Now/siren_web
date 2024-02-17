@@ -29,6 +29,18 @@
         {{ success_message }}
     </div>
     {% endif %}
+    {% if load_year %}
+    <div class="form-group">
+        <label for="load_year" class="control-label">Load Year:</label>
+        <div id="load_year" class="form-control-static">{{ load_year }}</div>
+    </div>
+    {% endif %}
+    {% if scenario_title %}
+    <div class="form-group">
+        <label for="scenario" class="control-label">Scenario:</label>
+        <div id="scenario" class="form-control-static">{{ scenario }}</div>
+    </div>
+    {% endif %}
     <main>
         {% block content %}
         <!-- This block will be overridden by content from child templates -->

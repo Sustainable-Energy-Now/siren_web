@@ -1,4 +1,4 @@
-from ..database_operations import fetch_dispatchables_data
+from ..database_operations import fetch_generation_storage_data
 from django.shortcuts import render
 from django.http import HttpResponse
 from ..models import Technologies # Import the Scenario model
@@ -33,6 +33,6 @@ def set_merit_order(request):
 
     load_year = 0
     form = MeritOrderForm()
-    merit_order, excluded_resources = queryset= fetch_dispatchables_data(load_year)
+    merit_order, excluded_resources = queryset= fetch_generation_storage_data(load_year)
     context = {'merit_order': merit_order, 'excluded_resources': excluded_resources, 'success_message': success_message}
     return render(request, 'merit_order.html', context)

@@ -20,18 +20,17 @@
     The parameters passed to Power Match are stored in database tables that can bemaintained using the Table Update function above.
     In this main panel you can select the load year from the available data shown in the drop down list below.
     Select the level of detail and click submit to run Power Match.</p>
+<!-- home.html -->
     <form method="post">
         {% csrf_token %}
-        {{ form.load_year.label_tag }}
         {{ form.load_year }}
-        <br>
-        {{ form.level_of_detail.label_tag }}
-        {% for radio in form.level_of_detail %}
-            {{ radio }}
-        {% endfor %}
-        <br>
-        <button type="submit" class="btn-custom-swish2">Run Power Match</button>
+        {{ form.level_of_detail }}
+        {{ form.scenario.label_tag }}  <!-- Display the label for the scenario dropdown -->
+        {{ form.scenario }}
+        <button name="apply_settings" type="submit" class="btn-custom-swish2">Apply Settings</button>
     </form>
+    <br>
+    <button name="run_power_match" type="submit" class="btn-custom-swish2">Run Power Match</button>
 </body>
 </html>
 {% endblock %}

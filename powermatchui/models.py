@@ -121,7 +121,6 @@ class Scenarios(models.Model):
     idscenarios = models.AutoField(db_column='idScenarios', primary_key=True)  # Field name made lowercase.
     title = models.CharField(db_column='Title', max_length=45, blank=True, null=True)  # Field name made lowercase.
     dateexported = models.DateField(db_column='DateExported', blank=True, null=True)  # Field name made lowercase.
-    year = models.SmallIntegerField(db_column='Year', blank=True, null=True)  # Field name made lowercase.
     description = models.CharField(db_column='Description', max_length=500, blank=True, null=True)  # Field name made lowercase.
 
     class Meta:
