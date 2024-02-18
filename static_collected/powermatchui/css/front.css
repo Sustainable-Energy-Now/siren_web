@@ -465,3 +465,8 @@ body {
   .sortable-component.vertical .sortable-item {
       display: block;
   }
+
+  .form_input {
+    height: 35px; /* Set the input field height */
+    width: 250px; /* Set the input field width */
+  }

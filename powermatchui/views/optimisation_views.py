@@ -2,7 +2,7 @@ from ..database_operations import fetch_technologies_data
 from django.shortcuts import render
 from django.http import HttpResponse
 from ..models import Scenarios  # Import the Scenario model
-from ..forms import HomeForm
+from ..forms import RunOptimisationForm
 
 def home(request):
     scenarios = Scenarios.objects.all()  # Retrieve all scenarios from the database
@@ -13,10 +13,10 @@ def clear_scenario(request, scenario_id):
     return HttpResponse("Scenario has been cleared.")  # Return a response indicating success
 
 # Process form data
-def run_batch(request):
+def run_optimisation(request):
     load_year = request.session.get('load_year')
     scenario = request.session.get('scenario')
-    form = HomeForm(request.POST)
+    form = RunOptimisationForm(request.POST)
     success_message = ""
     if request.method == 'POST':
         # Handle form submission
@@ -35,7 +35,7 @@ def run_batch(request):
         # Render the form
         load_year = 2022
         technologies = fetch_technologies_data(request, load_year)
-        form = HomeForm()
+        form = RunOptimisationForm()
         
     context = {'form': form, 'technologies': technologies, 'load_year': load_year, 'scenario': scenario,'success_message': success_message}
     return render(request, 'batch.html', context)

@@ -6,7 +6,7 @@ from django.db.models import Max
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import render, redirect
 from django.urls import path
-from ..forms import RunBatchForm
+from ..forms import HomeForm
 from ..models import Constraints, Demand, Scenarios, Settings, Generators, Zones
 from ..powermatch import pmcore as pm
 from ..powermatch.pmcore import Optimisation, Facility, PM_Facility
@@ -18,21 +18,22 @@ def main(request):
     set_load_year =''
     set_scenario = ''
     if request.method == 'POST':
-        form = RunBatchForm(request.POST)
+        form = HomeForm(request.POST)
         if form.is_valid():
             load_year = form.cleaned_data['load_year']
             request.session['load_year'] = load_year
             level_of_detail = form.cleaned_data['level_of_detail']
             scenario = form.cleaned_data['scenario']
+            request.session['scenario'] = scenario # Assuming scenario is an instance of Scenarios
             # Perform necessary actions with the selected load year
             if 'run_power_match' in request.POST:  # Check if the 'Run Power Match' button was clicked
                 run_powermatch(load_year, level_of_detail)
             success_message = "Submission successful!"
     else:
-        form = RunBatchForm
-    #scenarios = fetch_scenarios_data()
-    #context = {'form': form, 'scenarios': scenarios, 'success_message': success_message, 'load_year': load_year, 'scenario': scenario}
-    context = {'form': form, 'success_message': success_message, 'set_load_year': set_load_year, 'set_scenario': set_scenario}
+        form = HomeForm
+    load_year = request.session.get('load_year', '')  # Get load_year and scenario from session or default to empty string
+    scenario= request.session.get('scenario', '')
+    context = {'form': form, 'success_message': success_message, 'load_year': load_year, 'scenario': scenario}
     return render(request, 'home.html', context)
 
 def run_powermatch(request, load_year, level_of_detail):

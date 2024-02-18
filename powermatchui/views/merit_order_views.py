@@ -5,6 +5,8 @@ from ..models import Technologies # Import the Scenario model
 from ..forms import MeritOrderForm
 
 def set_merit_order(request):
+    load_year = request.session.get('load_year')
+    scenario = request.session.get('scenario')
     context = {}  # Initialize context with an empty dictionary
     success_message = ""
     
@@ -31,8 +33,7 @@ def set_merit_order(request):
             technology.save()
         success_message = "Merit Order has been updated."
 
-    load_year = 0
     form = MeritOrderForm()
     merit_order, excluded_resources = queryset= fetch_generation_storage_data(load_year)
-    context = {'merit_order': merit_order, 'excluded_resources': excluded_resources, 'success_message': success_message}
+    context = {'merit_order': merit_order, 'excluded_resources': excluded_resources, 'success_message': success_message, 'load_year': load_year, 'scenario': scenario}
     return render(request, 'merit_order.html', context)

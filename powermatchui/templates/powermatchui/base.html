@@ -15,7 +15,8 @@
         <ul>
             <li><a href="/">Home</a></li>
             <li><a href="/merit_order/">Set Merit Order</a></li>
-            <li><a href="/run_batch/">Run Batch</a></li>
+            <li><a href="/batch/">Run Batch</a></li>
+            <li><a href="/optimisation/">Run Optimisation</a></li>
             <li><a href="/tableupdate/">Table Update</a></li>
             <!-- Add more links as needed -->
         </ul>
@@ -24,29 +25,21 @@
         <!-- Your header content goes here -->
         <h1>Siren Web Interface</h1>
     </header>
-    {% if success_message %}
-    <div class="alert alert-success">
-        {{ success_message }}
-    </div>
-    {% endif %}
-    {% if load_year %}
-    <div class="form-group">
-        <label for="load_year" class="control-label">Load Year:</label>
-        <div id="load_year" class="form-control-static">{{ load_year }}</div>
-    </div>
-    {% endif %}
-    {% if scenario_title %}
-    <div class="form-group">
-        <label for="scenario" class="control-label">Scenario:</label>
-        <div id="scenario" class="form-control-static">{{ scenario }}</div>
-    </div>
-    {% endif %}
-    <main>
-        {% block content %}
-        <!-- This block will be overridden by content from child templates -->
-        {% endblock %}
-    </main>
-
+    <body>
+        <div class="top-bar">
+            <p>Load Year: {{ load_year }}</p>
+            <p>Scenario: {{ scenario }}</p>
+        </div>
+        {% if success_message %}
+        <div class="alert alert-success">
+            {{ success_message }}
+        </div>
+        {% endif %}
+        <div class="content">
+            {% block content %}
+            {% endblock %}
+        </div>
+    </body>
     <footer>
         <!-- Your footer content goes here -->
         <p>&copy; 2024 Sustainable Energy Now. All rights reserved.</p>

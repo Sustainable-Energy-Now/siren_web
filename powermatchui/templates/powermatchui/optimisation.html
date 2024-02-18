@@ -1,0 +1,54 @@
+<!-- run_batch.html -->
+{% extends 'base.html' %}
+
+{% block title %}Home | My Website{% endblock %}
+
+{% block content %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Run Powermatch</title>
+</head>
+<body>
+    <h3>Run Powermatch in Optimisation Mode</h3>
+    <p>The genetic optimisation function of Powermatch is called.</p>
+    <h3>To run Powermatch in Optimisation mode:</h3>
+    <ol>
+        <li>Select a Scenario. New scenarios can be added by going to the Maintain Scenarios page.</li>
+        <li>Set the step change value for each technology.</li>
+        <li>Set the number of iterations required.</li>
+        <li>Click the 'Submit' button.</li>
+    </ol>
+    <p>The values returned will be saved to the database for use in the Plot function.</p>
+    <h3>To set the step change value for a technology:</h3>
+    <ol>
+        <li>Click the down arrow to expand a technology.</li>
+        <li>Set the required step change value.</li>
+        <li>Click the 'Save' button.</li>
+    </ol>
+    <!-- Form for running Powermatch -->
+    <form method="post">
+        {% csrf_token %}
+        <input type="hidden" name="scenario_id" value="{{ selected_scenario_id }}">
+        <!-- Additional form fields for setting step change value, number of iterations, etc. -->
+        {% for technology in technologies %}
+        <details>
+            <summary>{{ technology.name }}</summary>  <!-- Display the technology name -->
+            <label for="capacity_{{ technology.id }}">Capacity:</label>
+            <input type="text" id="capacity_{{ technology.id }}" name="capacity_{{ technology.id }}">
+            <br>
+            <label for="multiplier_{{ technology.id }}">Multiplier:</label>
+            <input type="text" id="multiplier_{{ technology.id }}" name="multiplier_{{ technology.id }}">
+            <br>
+            <label for="step_{{ technology.id }}">Step:</label>
+            <input type="text" id="step_{{ technology.id }}" name="step_{{ technology.id }}">
+        </details>
+        {% endfor %}
+        <button type="submit" class="btn-custom-swish2">Submit</button>
+    </form>
+</body>
+</html>
+
+{% endblock %}
