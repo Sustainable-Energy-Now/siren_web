@@ -5,33 +5,41 @@
 {% block content %}
 <form method="post">
     {% csrf_token %}
-    <div id="root">
-        <div class="sortable-component vertical">
-            <div class="sortable-container" id="merit-order-container">
-                <div class="container-header">Merit Order</div>
-                <ul id="merit-order-list" class="sortable">
-                    {% for id, name in merit_order.items %}
-                    <div class="sortable-item-container" draggable="true" ondragstart="drag(event)">
-                        <li class="btn shadow-none sortable-item" id="{{ id }}">{{ name }}</li>
-                        <input type="hidden" name="merit_order[]" value="{{ id }}">
+    <div class="container">
+        <div class="row">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">Merit Order</div>
+                    <div class="card-body">
+                        <ul id="merit-order-list" class="list-group">
+                            {% for id, values in merit_order.items %}
+                                {% with name=values.0 emissions=values.1 %}
+                                    <li class="list-group-item" id="{{ id }}" draggable="true" data-emissions="{{ emissions }}">{{ name }}</li>
+                                    <input type="hidden" name="merit_order[]" value="{{ id }}">
+                                {% endwith %}
+                            {% endfor %}
+                        </ul>
                     </div>
-                    {% endfor %}
-                </ul>
+                </div>
             </div>
-            <div class="sortable-container" id="excluded-resources-container">
-                <div class="container-header">Excluded Resources</div>
-                <ul id="excluded-resources-list" class="sortable">
-                    {% for id, name in excluded_resources.items %}
-                    <div class="sortable-item-container" draggable="true" ondragstart="drag(event)">
-                        <li class="btn shadow-none sortable-item" id="{{ id }}">{{ name }}</li>
-                        <input type="hidden" name="excluded_resources[]" value="{{ id }}">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">Excluded Resources</div>
+                    <div class="card-body">
+                        <ul id="excluded-resources-list" class="list-group">
+                            {% for id, values in excluded_resources.items %}
+                                {% with name=values.0 emissions=values.1 %}
+                                    <li class="list-group-item" id="{{ id }}" draggable="true" data-emissions="{{ emissions }}">{{ name }}</li>
+                                    <input type="hidden" name="merit_order[]" value="{{ id }}">
+                                {% endwith %}
+                            {% endfor %}
+                        </ul>
                     </div>
-                    {% endfor %}
-                </ul>
+                </div>
             </div>
         </div>
     </div>
-    <button type="submit" class="btn-custom-swish2">Save Merit Order</button>
+    <button type="submit" class="btn btn-primary mt-3">Save Merit Order</button>
 </form>
 <!-- jQuery -->
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
@@ -39,10 +47,21 @@
 <script src="https://code.jquery.com/ui/1.13.1/jquery-ui.min.js"></script>
 
 <script>
+    document.querySelectorAll('.list-group-item').forEach(item => {
+        item.addEventListener('dragstart', event => {
+            event.dataTransfer.setData('text/plain', item.id);
+        });
+        document.querySelectorAll('.list-group-item').forEach(item => {
+            let emissions = item.getAttribute('data-emissions');
+            let hexColor = emissions;  // Keep the color code as a string
+            item.style.setProperty('--bs-list-group-bg', hexColor);
+        });
+    });
+
     $(function() {
         // Make the containers sortable
-        $('.sortable').sortable({
-            connectWith: '.sortable', // Allow sorting between containers
+        $('.list-group').sortable({
+            connectWith: '.list-group', // Allow sorting between containers
             tolerance: 'pointer', // Use pointer for more precise sorting
             helper: 'clone', // Use a clone as the dragging helper
             start: function(event, ui) {
@@ -58,7 +77,7 @@
                 var droppedItem = ui.item;
                 var targetList = droppedItem.parent();
                 var targetId = targetList.attr('id');
-                var itemId = droppedItem.find('li').attr('id');
+                var itemId = droppedItem.attr('id');
 
                 // Update any associated hidden input fields
                 var inputField = $('input[name="' + targetId + '"][value="' + itemId + '"]');

@@ -1,5 +1,5 @@
 # homes_views.py
-from ..database_operations import fetch_constraints_data, fetch_demand_data, fetch_scenarios_data, fetch_settings_data,  fetch_technologies_data
+from ..database_operations import fetch_constraints_data, fetch_demand_data, fetch_scenarios_data, fetch_settings_data,  fetch_full_generator_storage_data
 from decimal import Decimal
 from django.apps import apps
 from django.db.models import Max
@@ -13,11 +13,12 @@ from ..powermatch.pmcore import Optimisation, Facility, PM_Facility
 from ..tasks import run_powermatch_task
 
 
-def main(request):
+def home(request):
+    load_year = request.session.get('load_year', '')  # Get load_year and scenario from session or default to empty string
+    scenario= request.session.get('scenario', '')
     success_message = ""
-    set_load_year =''
-    set_scenario = ''
     if request.method == 'POST':
+        # Handle form submission
         form = HomeForm(request.POST)
         if form.is_valid():
             load_year = form.cleaned_data['load_year']
@@ -31,15 +32,55 @@ def main(request):
             success_message = "Submission successful!"
     else:
         form = HomeForm
-    load_year = request.session.get('load_year', '')  # Get load_year and scenario from session or default to empty string
-    scenario= request.session.get('scenario', '')
+
     context = {'form': form, 'success_message': success_message, 'load_year': load_year, 'scenario': scenario}
     return render(request, 'home.html', context)
 
 def run_powermatch(request, load_year, level_of_detail):
     settings = fetch_settings_data(request)
     constraints = fetch_constraints_data(request)
-    generators, dispatch_order, re_order = fetch_technologies_data(request, load_year)
+    if 'generators' in request.session:
+        generators = request.session['generators']
+        dispatch_order = request.session['dispatch_order']
+        re_order = request.session['re_order']
+    else:
+        generators_result, column_names= fetch_full_generator_storage_data(request, load_year)
+        generators = {}
+        dispatch_order = []
+        re_order = ['Load']
+        pmss_details = {}
+        # Process the results
+        for generator_row in generators_result:
+            # Create a dictionary to store the attributes by name
+            attributes_by_name = {}
+            for i, value in enumerate(generator_row):
+                attributes_by_name[column_names[i]] = value
+
+            name = attributes_by_name['Name']
+            if name not in generators:
+                generators[name] = {}
+            generators[name] = Facility(
+                generator_name=name, capacity=attributes_by_name['Capacity'], constr=attributes_by_name['ConstraintName'],
+                emissions=attributes_by_name['Emissions'], initial=attributes_by_name['Initial'], order=attributes_by_name['Ord'], 
+                capex=attributes_by_name['Capex'], fixed_om=attributes_by_name['FOM'], variable_om=attributes_by_name['VOM'],
+                fuel=attributes_by_name['Fuel'], lifetime=attributes_by_name['Lifetime'], disc_rate=attributes_by_name['DiscountRate'],
+                lcoe=None, lcoe_cfs=None )
+ 
+            dispatchable=attributes_by_name['Dispatchable']
+            if (dispatchable):
+                if (name not in dispatch_order):
+                    dispatch_order.append(name)
+            renewable = attributes_by_name['Renewable']
+            category = attributes_by_name['Category']
+            if (renewable and category != 'Storage'):
+                if (name not in re_order):
+                    re_order.append(name)
+            capacity = attributes_by_name['Capacity']
+            if name not in pmss_details: # type: ignore
+                pmss_details[name] = PM_Facility(name, name, capacity, 'S', -1, 1)
+            else:
+                pmss_details[name].capacity = capacity
+
     ex = pm.powerMatch(settings=settings, constraints=constraints, generators=generators)
     pmss_data, pmss_details = fetch_demand_data(request, load_year)
     option = level_of_detail[0]

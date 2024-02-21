@@ -17,7 +17,7 @@ def select_table(request):
     table_names = get_table_names()
     return render(request, 'table_update_page.html', {'table_names': table_names})
 
-def table_update_page(request):
+def update_table(request):
     load_year = request.session.get('load_year')
     scenario = request.session.get('scenario')
     if request.method == 'POST':

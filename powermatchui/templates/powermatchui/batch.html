@@ -16,37 +16,36 @@
     <p>The batch function calls Powermatch iteratively while varying the capacity of one or more of the generation or storage technologies.</p>
     <h3>To run Powermatch in Batch mode:</h3>
     <ol>
-        <li>Select a Scenario. New scenarios can be added by going to the Maintain Scenarios page.</li>
+        <li>The current Scenario is displayed at the top of the page or a new scenarios can be added by updating the Scenarios table.</li>
         <li>Set the step change value for each technology.</li>
         <li>Set the number of iterations required.</li>
-        <li>Click the 'Submit' button.</li>
+        <li>Click the 'Submit Batch Run' button.</li>
     </ol>
     <p>The values returned will be saved to the database for use in the Plot function.</p>
     <h3>To set the step change value for a technology:</h3>
     <ol>
         <li>Click the down arrow to expand a technology.</li>
         <li>Set the required step change value.</li>
-        <li>Click the 'Save' button.</li>
     </ol>
     <!-- Form for running Powermatch -->
     <form method="post">
         {% csrf_token %}
-        <input type="hidden" name="scenario_id" value="{{ selected_scenario_id }}">
         <!-- Additional form fields for setting step change value, number of iterations, etc. -->
-        {% for technology in technologies %}
+        {% for idtechnology, values in technologies.items %}
         <details>
-            <summary>{{ technology.name }}</summary>  <!-- Display the technology name -->
-            <label for="capacity_{{ technology.id }}">Capacity:</label>
-            <input type="text" id="capacity_{{ technology.id }}" name="capacity_{{ technology.id }}">
+            <summary>{{ values.0 }}</summary>  <!-- Display the technology name -->
+            <label for="capacity_{{ idtechnology }}">Capacity:</label>
+            <input type="number" id="capacity_{{ idtechnology }}" name="capacity_{{ idtechnology }}" value=" {{ values.1 }}">
             <br>
-            <label for="multiplier_{{ technology.id }}">Multiplier:</label>
-            <input type="text" id="multiplier_{{ technology.id }}" name="multiplier_{{ technology.id }}">
+            <label for="multiplier_{{ idtechnology }}">Multiplier:</label>
+            <input type="number" id="multiplier_{{ idtechnology }}" name="multiplier_{{ idtechnology }}" value="{{ values.2 }}">
             <br>
-            <label for="step_{{ technology.id }}">Step:</label>
-            <input type="text" id="step_{{ technology.id }}" name="step_{{ technology.id }}">
+            <label for="step_{{ idtechnology }}">Step:</label>
+            <input type="number" id="step_{{ idtechnology }}" name="step_{{ idtechnology }}" value="{{ values.3 }}">
         </details>
         {% endfor %}
-        <button type="submit" class="btn-custom-swish2">Submit</button>
+        <input type="number" id="iterations" name="iterations" min="1" value="1">
+        <button type="submit" class="btn-custom-swish2">Submit Batch Run</button>
     </form>
 </body>
 </html>

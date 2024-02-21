@@ -5,6 +5,21 @@
     <meta charset="UTF-8">
     <title>{% block title %}SEN Siren Web{% endblock %}</title>
     <!-- Add your common CSS stylesheets or links here -->
+    <style>
+        .settings-box {
+            background-color: #cda2a2;
+            border: 2px solid #464545;
+            padding: 10px;
+            margin-bottom: 20px;
+            font-family: Arial, sans-serif;
+            color: #333;
+        }
+    </style>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- jQuery -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <!-- Bootstrap JavaScript -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <link rel="stylesheet" type="text/css" href="{% static 'powermatchui/css/front.css' %}">
     <figure class="size-full header-logo">
         <a href="/"><img decoding="async" src="{% static 'powermatchui/img/SEN_LOGO_HERO.png' %}" alt="Logo" style="width: 200px; height: auto;"></a>
@@ -17,6 +32,7 @@
             <li><a href="/merit_order/">Set Merit Order</a></li>
             <li><a href="/batch/">Run Batch</a></li>
             <li><a href="/optimisation/">Run Optimisation</a></li>
+            <li><a href="/technologies/">Technologies</a></li>
             <li><a href="/tableupdate/">Table Update</a></li>
             <!-- Add more links as needed -->
         </ul>
@@ -26,9 +42,9 @@
         <h1>Siren Web Interface</h1>
     </header>
     <body>
-        <div class="top-bar">
-            <p>Load Year: {{ load_year }}</p>
-            <p>Scenario: {{ scenario }}</p>
+        <div class="settings-box">
+            <strong>Load Year: </strong>{{ load_year }}<br>
+            <strong>Scenario:   </strong> {{ scenario }}
         </div>
         {% if success_message %}
         <div class="alert alert-success">

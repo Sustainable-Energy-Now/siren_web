@@ -23,15 +23,26 @@ class HomeForm(forms.Form):
     ]
     
     level_of_detail = forms.ChoiceField(choices=LEVEL_OF_DETAIL_CHOICES, initial='Summary', widget=forms.RadioSelect)
-
-
+     
 class RunBatchForm(forms.Form):
-    LEVEL_OF_DETAIL_CHOICES = [
-    ('Summary', 'Summary'),
-    ('Detailed', 'Detailed'),
-    ]
-    
-    level_of_detail = forms.ChoiceField(choices=LEVEL_OF_DETAIL_CHOICES, initial='Summary', widget=forms.RadioSelect)
+    iterations = forms.IntegerField(min_value=1, initial=1)
+    # Define fields for each technology
+    def __init__(self, *args, **kwargs):
+        technologies = kwargs.pop('technologies')
+        super(RunBatchForm, self).__init__(*args, **kwargs)
+        for technology, values in technologies.items():
+            self.fields[f'capacity_{technology}'] = forms.IntegerField(initial=values[1], required=False)
+            self.fields[f'multiplier_{technology}'] = forms.FloatField(initial=values[2], required=False)
+            self.fields[f'step_{technology}'] = forms.FloatField(required=False)
+        
+    def clean(self):
+        cleaned_data = super().clean()
+        # Check if at least one 'step' field has a value
+        steps = [value for key, value in cleaned_data.items() if key.startswith('step_') and value is not None]
+        if not steps:
+            raise forms.ValidationError("At least one step value is required")
+        return cleaned_data
+
 
 class RunOptimisationForm(forms.Form):
     LEVEL_OF_DETAIL_CHOICES = [

@@ -1,4 +1,4 @@
-from ..database_operations import fetch_technologies_data
+from ..database_operations import fetch_full_generator_storage_data
 from django.shortcuts import render
 from django.http import HttpResponse
 from ..models import Scenarios  # Import the Scenario model
@@ -34,7 +34,7 @@ def run_optimisation(request):
     else:
         # Render the form
         load_year = 2022
-        technologies = fetch_technologies_data(request, load_year)
+        technologies = fetch_full_generator_storage_data(request, load_year)
         form = RunOptimisationForm()
         
     context = {'form': form, 'technologies': technologies, 'load_year': load_year, 'scenario': scenario,'success_message': success_message}

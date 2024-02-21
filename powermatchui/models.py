@@ -79,15 +79,11 @@ class Generatorattributes(models.Model):
     idgeneratorattributes = models.AutoField(db_column='idGeneratorAttributes', primary_key=True)  # Field name made lowercase.
     idtechnologies = models.ForeignKey('Technologies', models.DO_NOTHING, db_column='idTechnologies')  # Field name made lowercase.
     year = models.IntegerField()
-    capacity = models.DecimalField(max_digits=7, decimal_places=2, blank=True, null=True)
-    emissions = models.DecimalField(max_digits=5, decimal_places=3, blank=True, null=True)
     initial = models.DecimalField(max_digits=5, decimal_places=2, blank=True, null=True)
-    mult = models.FloatField(blank=True, null=True)
     fuel = models.CharField(max_length=50, blank=True, null=True)
 
     class Meta:
         db_table = 'GeneratorAttributes'
-
 
 class Genetics(models.Model):
     idgenetics = models.PositiveIntegerField(db_column='idGenetics', primary_key=True)  # Field name made lowercase.
@@ -164,7 +160,6 @@ class Storageattributes(models.Model):
     class Meta:
         db_table = 'StorageAttributes'
 
-
 class Technologies(models.Model):
     idtechnologies = models.AutoField(db_column='idTechnologies', primary_key=True)  # Field name made lowercase.
     technology_name = models.CharField(max_length=45, blank=True, null=True)
@@ -181,6 +176,9 @@ class Technologies(models.Model):
     lifetime = models.DecimalField(max_digits=3, decimal_places=0, blank=True, null=True)
     discount_rate = models.DecimalField(max_digits=5, decimal_places=2, blank=True, null=True)
     description = models.CharField(max_length=1000, db_collation='utf8mb4_0900_ai_ci', blank=True, null=True)
+    capacity = models.DecimalField(max_digits=7, decimal_places=2, blank=True, null=True)
+    mult = models.FloatField(default=1, null=False)
+    emissions = models.DecimalField(max_digits=5, decimal_places=3, blank=True, null=True)
 
     class Meta:
         db_table = 'Technologies'

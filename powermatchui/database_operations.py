@@ -31,7 +31,7 @@ def fetch_constraints_data(request):
     request.session['constraints'] = constraints
     return constraints
 
-def fetch_demand_data(request, load_year):
+def fetch_demand_data(load_year):
     # Check if demand is already stored in session
     if 'pmss_data' in request.session:
         return request.session['pmss_data'], request.session['pmss_details']
@@ -69,130 +69,148 @@ def fetch_demand_data(request, load_year):
         # Handle any errors that occur during the database query
         return HttpResponse(f"Error fetching demand data: {e}", status=500)
     
-    # Store demand data in session
-    request.session['pmss_data'] = pmss_data
-    request.session['pmss_details'] = pmss_details
-    return pmss_data, pmss_details
-
-def fetch_technologies_data(request, load_year):
-    # Check if generators are already stored in session
-    if 'generators' in request.session:
-        return request.session['generators'], request.session['dispatch_order'], request.session['re_order']
-    try:
-        # Define the SQL query
-        generators_query = \
-        f"""
-            WITH cte AS (
-            SELECT t.*, 
-            s.capacity_max, s.capacity_min, s.discharge_loss,
-            s.discharge_max, s.parasitic_loss, s.rampdown_max,
-            s.rampup_max, s.recharge_loss, s.recharge_max,
-            g.capacity, g.emissions,
-            g.initial,
-            g.mult,
-            g.fuel,
-            ROW_NUMBER() OVER (PARTITION BY t.technology_name ORDER BY t.year DESC) AS row_num
-            FROM senas316_pmdata.Technologies t
-            LEFT JOIN senas316_pmdata.StorageAttributes s ON t.idtechnologies = s.idtechnologies 
-                AND t.function = 'storage' AND t.year = s.year
-            LEFT JOIN senas316_pmdata.GeneratorAttributes g ON t.idtechnologies = g.idtechnologies 
-                AND t.function = 'generator' AND t.year = g.year
-            WHERE t.year IN (0, {load_year})
-            )
-            SELECT *
-            FROM cte
-            WHERE row_num = 1;
-        """
-        # Execute the SQL query
-        with connection.cursor() as cursor:
-            cursor.execute(generators_query)
-            # Fetch the results
-            generators_result = cursor.fetchall()
-            column_names = [desc[0] for desc in cursor.description]
-                    
-    except Exception as e:
-        print("Error executing query:", e)
-        # Get the column names
-    try:
-        # Get the column names
-        generators = {}
-        dispatch_order = []
-        re_order = ['Load']
-        pmss_details = {}
-        # Process the results
-        for generator_row in generators_result:
-            # Create a dictionary to store the attributes by name
-            attributes_by_name = {}
-            for i, value in enumerate(generator_row):
-                attributes_by_name[column_names[i]] = value
-
-            name = attributes_by_name['Name']
-            if name not in generators:
-                generators[name] = {}
-            generators[name] = Facility(
-                generator_name=name, capacity=attributes_by_name['Capacity'], constr=attributes_by_name['ConstraintName'],
-                emissions=attributes_by_name['Emissions'], initial=attributes_by_name['Initial'], order=attributes_by_name['Ord'], 
-                capex=attributes_by_name['Capex'], fixed_om=attributes_by_name['FOM'], variable_om=attributes_by_name['VOM'],
-                fuel=attributes_by_name['Fuel'], lifetime=attributes_by_name['Lifetime'], disc_rate=attributes_by_name['DiscountRate'],
-                lcoe=None, lcoe_cfs=None )
+    # Read Technologies from the database.    
  
-            dispatchable=attributes_by_name['Dispatchable']
+    technologies_df = fetch_full_generator_storage_data(load_year)
+
+    ordered_technologies_df = technologies_df.sort_values(by='merit_order', ascending=True)
+    
+    # Create a dictionary of technologies and their constraints for the chosen year from the dataframe in cache.
+    # exclude any where merit_order > 99
+    generators = {}
+    dispatch_order = []
+    re_order = ['Load']
+
+    for technology_row in ordered_technologies_df.itertuples():  
+        order=technology_row.merit_order
+        if (order <= 99):
+            name = technology_row.technology_name
+            if (name not in generators):
+                generators[name] = Facility(
+                    generator_name=name, capacity=technology_row.capacity, constr=name,
+                    emissions=technology_row.emissions, initial=technology_row.initial, order=technology_row.merit_order, 
+                    capex=technology_row.capex, fixed_om=technology_row.FOM, variable_om=technology_row.VOM,
+                    fuel=technology_row.fuel, lifetime=technology_row.lifetime, disc_rate=technology_row.discount_rate,
+                    lcoe=None, lcoe_cfs=None )
+            dispatchable=technology_row.dispatchable
             if (dispatchable):
                 if (name not in dispatch_order):
                     dispatch_order.append(name)
-            renewable = attributes_by_name['Renewable']
-            category = attributes_by_name['Category']
-            if (renewable and category != 'Storage'):
+            renewable = technology_row.renewable
+            function = technology_row.function
+            if (renewable and function != 'Storage'):
                 if (name not in re_order):
                     re_order.append(name)
-            capacity = attributes_by_name['Capacity']
+            capacity = technology_row.capacity
             if name not in pmss_details: # type: ignore
                 pmss_details[name] = PM_Facility(name, name, capacity, 'S', -1, 1)
             else:
                 pmss_details[name].capacity = capacity
+   
+    # Store demand data in session
+    return pmss_data, pmss_details, dispatch_order, re_order
+
+def fetch_full_generator_storage_data(request, load_year):
+    # Define the SQL query
+    generators_query = \
+    f"""
+        WITH cte AS (
+        SELECT t.*,
+        s.capacity, s.mult,
+        s.capacity_max, s.capacity_min, s.discharge_loss,
+        s.discharge_max, s.parasitic_loss, s.rampdown_max,
+        s.rampup_max, s.recharge_loss, s.recharge_max,
+        g.capacity, g.emissions,
+        g.initial,
+        g.mult,
+        g.fuel,
+        ROW_NUMBER() OVER (PARTITION BY t.technology_name ORDER BY t.year DESC) AS row_num
+        FROM senas316_pmdata.Technologies t
+        LEFT JOIN senas316_pmdata.StorageAttributes s ON t.idtechnologies = s.idtechnologies 
+            AND t.function = 'storage' AND t.year = s.year
+        LEFT JOIN senas316_pmdata.GeneratorAttributes g ON t.idtechnologies = g.idtechnologies 
+            AND t.function = 'generator' AND t.year = g.year
+        WHERE t.year IN (0, {load_year})
+        )
+        SELECT *
+        FROM cte
+        WHERE row_num = 1;
+    """
+    # Execute the SQL query
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(generators_query)
+            # Fetch the results
+            generators_result = cursor.fetchall()
+            if generators_result is None:
+                # Handle the case where fetchall() returns None
+                print("No results found.")
+                return None, None  # or handle this case appropriately
+            column_names = [desc[0] for desc in cursor.description]
+        return generators_result, column_names
+                    
     except Exception as e:
-        # Handle any errors that occur during the database query
-        return HttpResponse(f"Error fetching generators data: {e}", status=500), None, None
+        print("Error executing query:", e)
+        # Get the column names
+
+def get_emission_color(emissions):
+    if emissions < 0.3:
+        return '#c8e6c9'  # Light green
+    elif emissions < 0.5:
+        return '#81c784'  # Green
+    elif emissions < 0.7:
+        return '#4caf50'  # Dark green
+    elif emissions < 0.9:
+        return '#388e3c'  # Greenish black
+    else:
+        return '#1b5e20'  # Black
     
-    # Store generators data in session
-    request.session['generators'] = generators
-    request.session['dispatch_order'] = dispatch_order
-    request.session['re_order'] = re_order
-    return generators, dispatch_order, re_order
-
-def fetch_dispatchables_data(request, load_year):
-    dispatchables = Technologies.objects.filter(dispatchable=True, year=load_year)
-    return dispatchables
-
-def fetch_merit_order_data(load_year):
-    merit_order_data = Technologies.objects.filter(dispatchable=True, year=load_year)
-    return merit_order_data
-
-def fetch_excluded_resources_data(load_year):
-    excluded_resources_data = Technologies.objects.filter(dispatchable=True, year=load_year)
-    return excluded_resources_data
-
-def fetch_generation_storage_data(load_year):
-    # Filter technologies based on dispatchable and merit_order conditions
-    candidate_technologies = Technologies.objects.filter(
-        year__in=[0, load_year],
-        function__in=['Generation', 'Storage']  # Use double underscores for related field lookups
-    ).order_by('merit_order', '-year')
-
+def fetch_merit_order_technologies(load_year):
+    candidate_technologies = fetch_generation_storage_data(load_year)
     merit_order_data = {}
     excluded_resources_data = {}
-    seen_technologies = set()
-
     # Create dictionaries with idtechnologies as keys and names as values
+    seen_technologies = set()
+    for tech in candidate_technologies:
+    # Filter out duplicate technology_name rows, keeping only the one with year = load_year
+        if tech not in seen_technologies:
+            if (candidate_technologies[tech][1] <= 99):
+                merit_order_data[tech] = [candidate_technologies[tech][0], get_emission_color(candidate_technologies[tech][2])]
+            else:
+                excluded_resources_data[tech] = [candidate_technologies[tech][0], get_emission_color(candidate_technologies[tech][2])]
+            seen_technologies.add(tech)
+    return merit_order_data, excluded_resources_data
+
+def fetch_generation_storage_data(load_year):
+    # Filter technologies based on merit_order conditions
+    candidate_technologies = Technologies.objects.filter(
+        year__in=[0, load_year],
+        function__in=['Generator', 'Storage']  # Use double underscores for related field lookups
+    ).order_by('merit_order', '-year')
+    seen_technologies = set()
+    technologies = {}
     for tech in candidate_technologies:
     # Filter out duplicate technology_name rows, keeping only the one with year = load_year
         if tech.idtechnologies not in seen_technologies:
-            if (tech.merit_order <= 99):
-                merit_order_data[tech.idtechnologies] = tech.technology_name
-            else:
-                excluded_resources_data[tech.idtechnologies] = tech.technology_name
+            technologies[tech.idtechnologies] = [tech.technology_name, tech.merit_order, tech.emissions]
             seen_technologies.add(tech.idtechnologies)
-    return merit_order_data, excluded_resources_data
+    return technologies
+
+def fetch_included_technologies_data(load_year):
+    # Filter technologies based on merit_order conditions
+    candidate_technologies = Technologies.objects.filter(
+        year__in=[0, load_year],
+        function__in=['Generation', 'Storage'],  # Use double underscores for related field lookups
+        merit_order__lte=99
+    ).order_by('merit_order', '-year')
+    seen_technologies = set()
+    technologies = {}
+    for tech in candidate_technologies:
+    # Filter out duplicate technology_name rows, keeping only the one with year = load_year
+        if tech.technology_name not in seen_technologies:
+            technologies[str(tech.idtechnologies)] = [tech.technology_name, tech.capacity, tech.mult]
+            seen_technologies.add(tech.technology_name)
+    return technologies
 
 def fetch_scenarios_data():
     try:
