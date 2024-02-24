@@ -343,8 +343,9 @@ class powerMatch():
 
     def quitClicked(self):
         self.close()
-
-    def doDispatch(self, year, option, pmss_details, pmss_data, re_order, dispatch_order,
+        
+    @staticmethod
+    def doDispatch(year, option, pmss_details, pmss_data, re_order, dispatch_order,
                    pm_data_file, data_file, title=None):
         def calcLCOE(annual_output, capital_cost, annual_operating_cost, discount_rate, lifetime):
             # Compute levelised cost of electricity

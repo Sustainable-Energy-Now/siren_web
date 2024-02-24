@@ -28,7 +28,9 @@ def setup_batch(request):
                     step = cleaned_data.get(f'step_{idtechnology}', None)
                     updated_technologies[idtechnology] = [capacity, mult, step]
             # Process technologies dictionary as needed
+            run_batch(load_year, iterations)
             success_message = "Batch Parameters have been updated."
+            
     context = {'form': form, 'technologies': technologies, 'load_year': load_year, 'scenario': scenario, 'success_message': success_message}
     return render(request, 'batch.html', context)
 
@@ -106,7 +108,7 @@ def insert_data(df_message, Scenario, Basis, Stage):
                 Units=Units
             )
 
-def run_batch(load_year, iterations) -> None:
+def run_batch(load_year, scenario, iterations) -> None:
     pmss_details, pmss_data, dispatch_order, re_order = fetch_demand_data(load_year)
     option = 'B'
     pm_data_file = 'G:/Shared drives/SEN Modelling/modelling/SWIS/Powermatch_data_actual.xlsx'

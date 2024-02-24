@@ -1,5 +1,6 @@
 from ..database_operations import fetch_merit_order_technologies
 from django.http import JsonResponse, HttpResponse
+from django.db.models import IntegerField
 from django.shortcuts import render
 from django.views.decorators.http import require_POST
 from ..forms import MeritOrderForm
@@ -11,6 +12,8 @@ def set_merit_order(request):
     scenario = request.session.get('scenario')
     context = {}  # Initialize context with an empty dictionary
     success_message = ""
+    merit_order = {}
+    excluded_resources = {}
     
     if request.method == 'POST':
         # Handle form submission
@@ -19,24 +22,25 @@ def set_merit_order(request):
         # Process form data
         #selected_scenario = form.cleaned_data['scenario']
         # Perform further actions with the selected scenario
-        data = json.loads(request.body)
-        merit_order_ids = data.get('meritOrderIds', [])
-        excluded_resources_ids = data.get('excludedResourcesIds', [])
-        merit_order = request.POST.getlist('merit_order[]')
-        excluded_resources = request.POST.getlist('excluded_resources[]')
+        try:
+            data = {}
+            if request.body:
+                data = json.loads(request.body)
+            merit_order = data.get('meritOrderIds', [])
+            excluded_resources = data.get('excludedResourcesIds', [])
+        except Exception as e:
+            print(f"Error saving order: {e}")
 
+        # Process the IDs as needed, e.g., update the order of items in the database
         # Update the merit_order attribute for technologies in the 'Merit Order' column
-        for index, tech_id in enumerate(merit_order, start=1):
-            technology = Technologies.objects.get(idtechnologies=tech_id)
-            technology.merit_order = index
-            technology.save()
+        # Create a list of Cases to update the merit_order field based on tech_id
 
-        # Update the merit_order attribute for technologies in the 'Excluded Resources' column
+        for index, tech_id in enumerate(merit_order, start=1):
+            Technologies.objects.filter(idtechnologies=tech_id).update(merit_order=index)
+            # Update the merit_order attribute for technologies in the 'Excluded Resources' column
         for tech_id in excluded_resources:
-            technology = Technologies.objects.get(idtechnologies=tech_id)
-            technology.merit_order = 999
-            technology.save()
-        success_message = "Merit Order has been updated."
+            Technologies.objects.filter(idtechnologies=tech_id).update(merit_order=999)
+        success_message = "Merit order saved successfully"
 
     form = MeritOrderForm()
     merit_order, excluded_resources = queryset= fetch_merit_order_technologies(load_year)

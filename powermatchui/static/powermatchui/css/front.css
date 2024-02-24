@@ -471,8 +471,8 @@ body {
     width: 200px; /* Set the input field width */
   }
   .settings-box {
-    background-color: #f0f0f0;
-    border: 1px solid #ccc;
+    background-color: #95bdeb;
+    border: 2px solid #464545;
     padding: 10px;
     margin-bottom: 20px;
     font-family: Arial, sans-serif;
@@ -482,3 +482,11 @@ body {
     --bs-list-group-bg: green;
     color: white; /* Optional: set text color to white for better contrast */
   }
+.card-header.custom-sen {
+    background-color: rgb(236, 20, 186);
+    color: white;
+}
+
+.card-body.custom-sen {
+    background-color: rgb(239, 163, 221);
+}

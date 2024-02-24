@@ -9,13 +9,12 @@
         <div class="row">
             <div class="col-md-6">
                 <div class="card">
-                    <div class="card-header">Merit Order</div>
-                    <div class="card-body">
+                    <div class="card-header custom-sen">Merit Order</div>
+                    <div class="card-body custom-sen">
                         <ul id="merit-order-list" class="list-group">
                             {% for id, values in merit_order.items %}
                                 {% with name=values.0 emissions=values.1 %}
-                                    <li class="list-group-item" id="{{ id }}" draggable="true" data-emissions="{{ emissions }}">{{ name }}</li>
-                                    <input type="hidden" name="merit_order[]" value="{{ id }}">
+                                    <li class="list-group-item" id="{{ id }}" data-id="{{ id }}" draggable="true" data-emissions="{{ emissions }}">{{ name }}</li>
                                 {% endwith %}
                             {% endfor %}
                         </ul>
@@ -24,13 +23,12 @@
             </div>
             <div class="col-md-6">
                 <div class="card">
-                    <div class="card-header">Excluded Resources</div>
-                    <div class="card-body">
+                    <div class="card-header custom-sen"">Excluded Resources</div>
+                    <div class="card-body custom-sen">
                         <ul id="excluded-resources-list" class="list-group">
                             {% for id, values in excluded_resources.items %}
                                 {% with name=values.0 emissions=values.1 %}
-                                    <li class="list-group-item" id="{{ id }}" draggable="true" data-emissions="{{ emissions }}">{{ name }}</li>
-                                    <input type="hidden" name="merit_order[]" value="{{ id }}">
+                                    <li class="list-group-item" id="{{ id }}" data-id="{{ id }}" draggable="true" data-emissions="{{ emissions }}">{{ name }}</li>
                                 {% endwith %}
                             {% endfor %}
                         </ul>
@@ -39,8 +37,9 @@
             </div>
         </div>
     </div>
-    <button type="submit" class="btn btn-primary mt-3">Save Merit Order</button>
+    <button type="submit" class="btn btn-primary mt-3" id ="save-order-button">Save Merit Order</button>
 </form>
+
 <!-- jQuery -->
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <!-- jQuery UI -->
@@ -101,5 +100,47 @@
             event.preventDefault();
         });
     });
-</script>
+
+    document.getElementById('save-order-button').addEventListener('click', async function() {
+        var meritOrderList = document.getElementById('merit-order-list');
+        var excludedResourcesList = document.getElementById('excluded-resources-list');
+    
+        var meritOrderIds = [];
+        var excludedResourcesIds = [];
+    
+        meritOrderList.querySelectorAll('li').forEach(function(item) {
+            meritOrderIds.push(item.getAttribute('data-id'));
+        });
+    
+        excludedResourcesList.querySelectorAll('li').forEach(function(item) {
+            excludedResourcesIds.push(item.getAttribute('data-id'));
+        });
+    
+        // Get the CSRF token from a hidden input field in your HTML
+        var csrfToken = document.querySelector('input[name="csrfmiddlewaretoken"]').value;
+    
+        try {
+            // Send the data to your Django backend using fetch
+            const response = await fetch('/save_order/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken
+                },
+                body: JSON.stringify({
+                    meritOrderIds: meritOrderIds,
+                    excludedResourcesIds: excludedResourcesIds
+                })
+            });
+    
+            if (response.ok) {
+                console.log('Response ok');
+            } else {
+                console.log('Response not ok:', response);
+            }
+        } catch (error) {
+            console.error('An error occurred:', error);
+        }
+    });
+    </script>
 {% endblock %}

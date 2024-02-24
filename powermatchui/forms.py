@@ -4,8 +4,8 @@ from .models import Scenarios, Technologies
 
 class HomeForm(forms.Form):
     load_year = forms.ChoiceField(
-        choices=[('2021', '2021'), ('2022', '2022')],
-        initial='2022',
+        choices=[('2022', '2022'), ('2023', '2023')],
+        initial='2023',
         widget=forms.Select(attrs={'class': 'form_input'})
         )
 
@@ -17,13 +17,19 @@ class HomeForm(forms.Form):
         widget=forms.Select(attrs={'class': 'form_input'})
     )
 
+class RunPowermatchForm(forms.Form):
     LEVEL_OF_DETAIL_CHOICES = [
     ('Summary', 'Summary'),
     ('Detailed', 'Detailed'),
     ]
     
-    level_of_detail = forms.ChoiceField(choices=LEVEL_OF_DETAIL_CHOICES, initial='Summary', widget=forms.RadioSelect)
-     
+    level_of_detail = forms.ChoiceField(
+        choices=LEVEL_OF_DETAIL_CHOICES,
+        initial='Summary',
+        widget=forms.RadioSelect,
+        required=False  # Make the field optional
+        )
+    
 class RunBatchForm(forms.Form):
     iterations = forms.IntegerField(min_value=1, initial=1)
     # Define fields for each technology

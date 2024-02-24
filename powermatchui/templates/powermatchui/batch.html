@@ -14,15 +14,15 @@
 <body>
     <h3>Run Powermatch in Batch Mode</h3>
     <p>The batch function calls Powermatch iteratively while varying the capacity of one or more of the generation or storage technologies.</p>
-    <h3>To run Powermatch in Batch mode:</h3>
+    <h4>To run Powermatch in Batch mode:</h3>
     <ol>
         <li>The current Scenario is displayed at the top of the page or a new scenarios can be added by updating the Scenarios table.</li>
         <li>Set the step change value for each technology.</li>
         <li>Set the number of iterations required.</li>
         <li>Click the 'Submit Batch Run' button.</li>
     </ol>
-    <p>The values returned will be saved to the database for use in the Plot function.</p>
-    <h3>To set the step change value for a technology:</h3>
+    <p>The values returned will be saved to the database Analysis table for use in the Plot function.</p>
+    <h4>To set the step change value for a technology:</h3>
     <ol>
         <li>Click the down arrow to expand a technology.</li>
         <li>Set the required step change value.</li>
@@ -35,7 +35,7 @@
         <details>
             <summary>{{ values.0 }}</summary>  <!-- Display the technology name -->
             <label for="capacity_{{ idtechnology }}">Capacity:</label>
-            <input type="number" id="capacity_{{ idtechnology }}" name="capacity_{{ idtechnology }}" value=" {{ values.1 }}">
+            <input type="number" id="capacity_{{ idtechnology }}" name="capacity_{{ idtechnology }}" value="{{ values.1 }}">
             <br>
             <label for="multiplier_{{ idtechnology }}">Multiplier:</label>
             <input type="number" id="multiplier_{{ idtechnology }}" name="multiplier_{{ idtechnology }}" value="{{ values.2 }}">

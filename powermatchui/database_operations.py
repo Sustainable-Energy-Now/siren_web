@@ -31,7 +31,7 @@ def fetch_constraints_data(request):
     request.session['constraints'] = constraints
     return constraints
 
-def fetch_demand_data(load_year):
+def fetch_demand_data(request, load_year):
     # Check if demand is already stored in session
     if 'pmss_data' in request.session:
         return request.session['pmss_data'], request.session['pmss_details']
@@ -67,13 +67,11 @@ def fetch_demand_data(load_year):
                     pmss_details[name] = PM_Facility(name, name, capacity, 'R', col, 1)
     except Exception as e:
         # Handle any errors that occur during the database query
-        return HttpResponse(f"Error fetching demand data: {e}", status=500)
+        return HttpResponse(f"Error fetching demand data: {e}", status=500), None
     
     # Read Technologies from the database.    
  
-    technologies_df = fetch_full_generator_storage_data(load_year)
-
-    ordered_technologies_df = technologies_df.sort_values(by='merit_order', ascending=True)
+    technologies_result, column_names = fetch_full_generator_storage_data(request, load_year)
     
     # Create a dictionary of technologies and their constraints for the chosen year from the dataframe in cache.
     # exclude any where merit_order > 99
@@ -81,27 +79,31 @@ def fetch_demand_data(load_year):
     dispatch_order = []
     re_order = ['Load']
 
-    for technology_row in ordered_technologies_df.itertuples():  
-        order=technology_row.merit_order
+    for technology_row in technologies_result:
+        # Create a dictionary to store the attributes by name
+        attributes_by_name = {}
+        for i, value in enumerate(technology_row):
+            attributes_by_name[column_names[i]] = value
+        order = attributes_by_name['merit_order']
         if (order <= 99):
-            name = technology_row.technology_name
+            name = attributes_by_name['technology_name']
             if (name not in generators):
                 generators[name] = Facility(
-                    generator_name=name, capacity=technology_row.capacity, constr=name,
-                    emissions=technology_row.emissions, initial=technology_row.initial, order=technology_row.merit_order, 
-                    capex=technology_row.capex, fixed_om=technology_row.FOM, variable_om=technology_row.VOM,
-                    fuel=technology_row.fuel, lifetime=technology_row.lifetime, disc_rate=technology_row.discount_rate,
+                    generator_name=name, capacity=attributes_by_name['capacity'], constr=name,
+                    emissions=attributes_by_name['emissions'], initial=attributes_by_name['initial'], order=order, 
+                    capex=attributes_by_name['capex'], fixed_om=attributes_by_name['FOM'], variable_om=attributes_by_name['VOM'],
+                    fuel=attributes_by_name['fuel'], lifetime=attributes_by_name['lifetime'], disc_rate=attributes_by_name['discount_rate'],
                     lcoe=None, lcoe_cfs=None )
-            dispatchable=technology_row.dispatchable
+            dispatchable=attributes_by_name['dispatchable']
             if (dispatchable):
                 if (name not in dispatch_order):
                     dispatch_order.append(name)
-            renewable = technology_row.renewable
-            function = technology_row.function
-            if (renewable and function != 'Storage'):
+            renewable = attributes_by_name['renewable']
+            category = attributes_by_name['category']
+            if (renewable and category != 'Storage'):
                 if (name not in re_order):
                     re_order.append(name)
-            capacity = technology_row.capacity
+            capacity = attributes_by_name['capacity']
             if name not in pmss_details: # type: ignore
                 pmss_details[name] = PM_Facility(name, name, capacity, 'S', -1, 1)
             else:
@@ -116,20 +118,16 @@ def fetch_full_generator_storage_data(request, load_year):
     f"""
         WITH cte AS (
         SELECT t.*,
-        s.capacity, s.mult,
         s.capacity_max, s.capacity_min, s.discharge_loss,
         s.discharge_max, s.parasitic_loss, s.rampdown_max,
         s.rampup_max, s.recharge_loss, s.recharge_max,
-        g.capacity, g.emissions,
-        g.initial,
-        g.mult,
-        g.fuel,
-        ROW_NUMBER() OVER (PARTITION BY t.technology_name ORDER BY t.year DESC) AS row_num
+        g.initial, g.fuel,
+        ROW_NUMBER() OVER (PARTITION BY t.technology_name ORDER BY t.merit_order, t.year DESC) AS row_num
         FROM senas316_pmdata.Technologies t
         LEFT JOIN senas316_pmdata.StorageAttributes s ON t.idtechnologies = s.idtechnologies 
-            AND t.function = 'storage' AND t.year = s.year
+            AND t.category = 'Storage' AND t.year = s.year
         LEFT JOIN senas316_pmdata.GeneratorAttributes g ON t.idtechnologies = g.idtechnologies 
-            AND t.function = 'generator' AND t.year = g.year
+            AND t.category = 'Generator' AND t.year = g.year
         WHERE t.year IN (0, {load_year})
         )
         SELECT *
@@ -173,19 +171,19 @@ def fetch_merit_order_technologies(load_year):
     seen_technologies = set()
     for tech in candidate_technologies:
     # Filter out duplicate technology_name rows, keeping only the one with year = load_year
-        if tech not in seen_technologies:
+        if candidate_technologies[tech][0] not in seen_technologies:
             if (candidate_technologies[tech][1] <= 99):
                 merit_order_data[tech] = [candidate_technologies[tech][0], get_emission_color(candidate_technologies[tech][2])]
             else:
                 excluded_resources_data[tech] = [candidate_technologies[tech][0], get_emission_color(candidate_technologies[tech][2])]
-            seen_technologies.add(tech)
+            seen_technologies.add(candidate_technologies[tech][0])
     return merit_order_data, excluded_resources_data
 
 def fetch_generation_storage_data(load_year):
     # Filter technologies based on merit_order conditions
     candidate_technologies = Technologies.objects.filter(
         year__in=[0, load_year],
-        function__in=['Generator', 'Storage']  # Use double underscores for related field lookups
+        category__in=['Generator', 'Storage']  # Use double underscores for related field lookups
     ).order_by('merit_order', '-year')
     seen_technologies = set()
     technologies = {}
@@ -200,7 +198,7 @@ def fetch_included_technologies_data(load_year):
     # Filter technologies based on merit_order conditions
     candidate_technologies = Technologies.objects.filter(
         year__in=[0, load_year],
-        function__in=['Generation', 'Storage'],  # Use double underscores for related field lookups
+        category__in=['Generator', 'Storage'],  # Use double underscores for related field lookups
         merit_order__lte=99
     ).order_by('merit_order', '-year')
     seen_technologies = set()
