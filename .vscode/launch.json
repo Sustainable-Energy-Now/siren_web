@@ -9,6 +9,14 @@
             "type": "debugpy",
             "request": "launch",
             "program": "${workspaceFolder}\\manage.py",
+            "env": {
+                "DB_HOST": "siren-web.sen.asn.au",
+                "DB_NAME": "senasnau_siren",
+                "DB_USER": "senasnau_user",
+                "DB_PASSWORD": "Ubewdy!0",
+                "DB_PORT": "3306",
+                "DJANGO_SECRET_KEY": "django-insecure-=*kw@9gn+-so2za+(9v+#kdsesb^*())q9l!qm^=o6i(!$&%=l"
+            },
             "args": [
                 "runserver"
             ],

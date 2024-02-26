@@ -1,6 +1,7 @@
 # In powermatchui database operations
 from django.db import connection
 from django.http import HttpResponse
+import logging
 from .models import Constraints, Demand, Scenarios, Settings, Technologies, Zones
 from .powermatch.pmcore import Constraint, Facility, PM_Facility, Optimisation
 
@@ -123,10 +124,10 @@ def fetch_full_generator_storage_data(request, load_year):
         s.rampup_max, s.recharge_loss, s.recharge_max,
         g.initial, g.fuel,
         ROW_NUMBER() OVER (PARTITION BY t.technology_name ORDER BY t.merit_order, t.year DESC) AS row_num
-        FROM senas316_pmdata.Technologies t
-        LEFT JOIN senas316_pmdata.StorageAttributes s ON t.idtechnologies = s.idtechnologies 
+        FROM senasnau_siren.Technologies t
+        LEFT JOIN senasnau_siren.StorageAttributes s ON t.idtechnologies = s.idtechnologies 
             AND t.category = 'Storage' AND t.year = s.year
-        LEFT JOIN senas316_pmdata.GeneratorAttributes g ON t.idtechnologies = g.idtechnologies 
+        LEFT JOIN senasnau_siren.GeneratorAttributes g ON t.idtechnologies = g.idtechnologies 
             AND t.category = 'Generator' AND t.year = g.year
         WHERE t.year IN (0, {load_year})
         )
@@ -142,7 +143,8 @@ def fetch_full_generator_storage_data(request, load_year):
             generators_result = cursor.fetchall()
             if generators_result is None:
                 # Handle the case where fetchall() returns None
-                print("No results found.")
+                logger = logging.getLogger(__name__)
+                logger.debug('No results found.')
                 return None, None  # or handle this case appropriately
             column_names = [desc[0] for desc in cursor.description]
         return generators_result, column_names

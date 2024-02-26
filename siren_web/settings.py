@@ -9,10 +9,38 @@ https://docs.djangoproject.com/en/5.0/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.0/ref/settings/
 """
-
+import logging
 from pathlib import Path
-import os
+import os, sys
 import toml
+
+# Set up logging
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
+
+# Configure logging for Django
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {
+        'console': {
+            'level': 'DEBUG',
+            'class': 'logging.StreamHandler',
+            'formatter': 'simple'
+        },
+    },
+    'formatters': {
+        'simple': {
+            'format': '%(asctime)s - %(levelname)s - %(message)s'
+        },
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['console'],
+            'level': 'DEBUG',
+            'propagate': True,
+        },
+    },
+}
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -23,24 +51,35 @@ if os.path.exists(SECRETS_FILE):
     with open(SECRETS_FILE) as f:
         secrets = toml.load(f)
 else:
-    # In production load secrets from environment variables
+        # In production load secrets from environment variables
     secrets = {}
-    secrets['database']['name'] = os.environ.get('DB_NAME')
-    secrets['database']['user'] = os.environ.get('DB_USER')
-    secrets['database']['password'] = os.environ.get('DB_PASSWORD')
-    secrets['database']['host'] = os.environ.get('DB_HOST')
-    secrets['database']['port'] = os.environ.get('DB_PORT')
+    logger = logging.getLogger(__name__)
+    try:
+        secrets['database'] = {
+            'name': os.environ['DB_NAME'],
+            'user': os.environ['DB_USER'],
+            'password': os.environ['DB_PASSWORD'],
+            'host': os.environ['DB_HOST'],
+            'port': int(os.environ['DB_PORT'])
+        }
+        secrets['django'] = {'secret_key': os.environ['DJANGO_SECRET_KEY']}
+    except KeyError as e:
+        logger.debug(f"Error: Environment variable {e} not set.")
+        sys.exit(1)
+    except ValueError as e:
+        logger.debug(f"Error: Invalid value for environment variable {e}.")
+        sys.exit(1)
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = "django-insecure-=*kw@9gn+-so2za+(9v+#kdsesb^*())q9l!qm^=o6i(!$&%=l"
+SECRET_KEY = secrets['django']['secret_key']
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['127.0.0.1', 'siren-web.sen.asn.au']
 
 # Application definition
 

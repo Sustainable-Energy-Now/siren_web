@@ -1,0 +1,44 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<!-- Example image map with two clickable areas -->
+<!-- In your template -->
+<div id="siren-system-view" data-url="{% url 'siren_system_view' %}"></div>
+{% load static %}
+<img src="{% static 'powermatchui/img/siren_system.jpg' %}" usemap="#image-map">
+
+<map name="image-map">
+    <area target="_self" alt="Powermap" title="Powermap" href="/siren_system/" coords="1168,577,1552,709" shape="rect" onclick="showtable('Powermap' )">
+    <area target="_self" alt="Powermatch" title="Powermatch" href="/siren_system/" coords="1115,1114,1605,1233" shape="rect" onclick="showtable('Powermatch')">
+    <area target="_self" alt="Powerplot" title="Powerplot" href="/siren_system/" coords="1117,1608,1603,1735" shape="rect" onclick="showtable('Powerplot')">
+    <area target="_self" alt="SAM" title="SAM" href="/siren_system/" coords="2180,630,2503,752" shape="rect" onclick="showtable('SAM')">
+    <area target="_self" alt="MAP" title="MAP" href="/siren_system/" coords="1916,453,1992,426,2077,426,2169,453,2174,573,2084,589,1973,577,1916,566" shape="poly" onclick="showtable('MAP')">
+    <area target="_self" alt="Weather" title="Weather" href="/siren_system/" coords="1628,315,1702,290,1810,294,1895,315,1893,421,1819,442,1702,444,1633,421" shape="poly" onclick="showtable('Weather')">
+    <area target="_self" alt="Demand" title="Demand" href="/siren_system/" coords="1246,327,1334,299,1439,299,1502,322,1499,435,1439,451,1304,449,1253,439" shape="poly" onclick="showtable('Demand')">
+    <area target="_self" alt="Facilities" title="Facilities" href="/siren_system/" coords="834,421,910,396,1018,396,1087,423,1092,529,1011,552,892,552,836,531" shape="poly" onclick="showtable('Facilities')">
+    <area target="_self" alt="Scenarios" title="Scenarios" href="/siren_system/" coords="517,577,593,548,733,548,793,575,795,681,717,704,570,699,517,681" shape="poly" onclick="showtable('Scenarios')">
+    <area target="_self" alt="Technologies" title="Technologies" href="/siren_system/" coords="406,860,510,833,685,833,763,860,761,966,692,985,491,987,402,966" shape="poly" onclick="showtable('Technologies')">
+    <area target="_self" alt="SupplyFactors" title="SupplyFactors" href="/siren_system/" coords="1168,854,1288,824,1456,824,1545,854,1541,957,1474,978,1265,982,1163,959" shape="poly" onclick="showtable('SupplyFactors')">
+    <area target="_self" alt="Optimisation" title="Optimisation" href="/siren_system/" coords="289,1376,392,1344,574,1350,645,1378,643,1486,553,1505,372,1502,291,1482" shape="poly" onclick="showtable('Optimisation')">
+    <area target="_self" alt="Analysis" title="Analysis" href="/siren_system/" coords="1179,1429,1276,1408,1442,1403,1536,1433,1536,1546,1426,1564,1246,1555,1177,1537" shape="poly" onclick="showtable('Analysis')">
+    <area target="_self" alt="Variations" title="Variations" href="/siren_system/" coords="1759,1275,1842,1249,2035,1247,2114,1275,2114,1380,2006,1403,1831,1399,1755,1383" shape="poly" onclick="showtable('Variations')">
+</map>
+
+<script>
+    function showtable(table) {
+        var sirenSystemViewUrl = document.getElementById('siren-system-view').getAttribute('data-url');
+        // Call a Django view using AJAX
+        $.ajax({
+            url: sirenSystemViewUrl,
+            type: 'POST',
+            data: {
+                'table': table // Pass the title as a parameter
+            },
+            success: function(data) {
+                // Handle the response
+            }
+        });
+    }
+    
+</script>
+{% endblock %}

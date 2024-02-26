@@ -1,4 +1,4 @@
- <!-- base.html -->
+<!-- base.html -->
 {% load static %}
 <!DOCTYPE html>
 <html lang="en">
@@ -25,6 +25,7 @@
             <li><a href="/merit_order/">Set Merit Order</a></li>
             <li><a href="/batch/">Run Batch</a></li>
             <li><a href="/optimisation/">Run Optimisation</a></li>
+            <li><a href="/siren_system/">View Siren System Diagram</a></li>
             <li><a href="/technologies/">Technologies</a></li>
             <li><a href="/tableupdate/">Table Update</a></li>
             <!-- Add more links as needed -->
@@ -34,21 +35,19 @@
         <!-- Your header content goes here -->
         <h1>Siren Web Interface</h1>
     </header>
-    <body>
-        <div class="settings-box">
-            <strong>Load Year: </strong>{{ load_year }}<br>
-            <strong>Scenario:   </strong> {{ scenario }}
-        </div>
-        {% if success_message %}
-        <div class="alert alert-success">
-            {{ success_message }}
-        </div>
-        {% endif %}
-        <div class="content">
-            {% block content %}
-            {% endblock %}
-        </div>
-    </body>
+    <div class="settings-box">
+        <strong>Load Year: </strong>{{ load_year }}<br>
+        <strong>Scenario:   </strong> {{ scenario }}
+    </div>
+    {% if success_message %}
+    <div class="alert alert-success">
+        {{ success_message }}
+    </div>
+    {% endif %}
+    <div class="content">
+        {% block content %}
+        {% endblock %}
+    </div>
     <footer>
         <!-- Your footer content goes here -->
         <p>&copy; 2024 Sustainable Energy Now. All rights reserved.</p>
