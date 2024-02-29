@@ -147,7 +147,14 @@ class Settings(models.Model):
 
     class Meta:
         db_table = 'Settings'
-
+        
+class sirensystem(models.Model):
+    name = models.CharField(max_length=30, primary_key=True)
+    description = models.CharField(max_length=500, blank=True, null=True)
+    
+    class Meta:
+        db_table = 'sirensystem'
+    
 class Stations(models.Model):
     id = models.PositiveIntegerField(db_column='ID', primary_key=True)  # Field name made lowercase.
     name = models.CharField(max_length=45, blank=True, null=True)

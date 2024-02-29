@@ -2,7 +2,18 @@ from django.db.models import Model
 from django.shortcuts import render, get_object_or_404
 from django.urls import reverse
 from django.http import HttpResponse, JsonResponse
-from ..models import Analysis, Demand, facilities, Generatorattributes, Genetics, Optimisation, Scenarios, Settings, Storageattributes, Technologies, Zones
+from ..models import Analysis, Demand, facilities, Generatorattributes, \
+    Genetics, Optimisation, sirensystem, Scenarios, Settings, Storageattributes, supplyfactors, Technologies, Zones
+
+def get_description(name, sirensystem_model):
+    try:
+        # Use get_object_or_404 for efficient retrieval and handling of non-existent objects
+        sirensystem = get_object_or_404(sirensystem_model, name=name)
+        description = sirensystem.description
+    except sirensystem.DoesNotExist:
+        # Handle the case where the object with the given name doesn't exist
+        description = "No description available."  # Or set a custom error message
+    return description
 
 def siren_system_view(request):
     load_year = request.session.get('load_year')
@@ -28,6 +39,7 @@ def siren_system_view(request):
             'Scenarios': Scenarios,
             'Settings': Settings,
             'Storageattributes': Storageattributes,
+            'SupplyFactors': supplyfactors,
             'Technologies': Technologies,
             'Zones': Zones,
         }
@@ -38,23 +50,12 @@ def siren_system_view(request):
         if model_class and issubclass(model_class, Model):  # Check if it's a valid model class
             # Get a sample of the model
             sample_data = [list(row) for row in model_class.objects.all()[:5].values_list()]
-            # sample_data = [['A','B','C','D'],['D','E','F','G'],['G','H','I','J'],['J','K','L','M'],['M','N','O','P']]
-            # # column_names = [field.name for field in model_class._meta.get_fields()]
-            column_names = [field.name for field in model_class._meta.fields]
-            
-            # Construct a list of dictionaries from the sample rows
-            # sample_data = []
-            # for row in sample_rows:
-            #     data_row = {}
-            #     for column_name in column_names:
-            #         data_row[column_name] = getattr(row, column_name)
-            #     sample_data.append(data_row)
-            # Add model information and sample rows to the context
-            context['model_name'] = table
-            context['model_description'] = model_class._meta.verbose_name_plural.capitalize()  # Assuming models have a verbose_name_plural set
-            context['sample_data'] = sample_data
-            # column_names = [field.verbose_name.capitalize() for field in model_class._meta.fields]
+
             # Get the column names of the model
+            column_names = [field.name for field in model_class._meta.fields]
+            context['model_name'] = table
+            context['model_description'] = get_description(table, sirensystem)
+            context['sample_data'] = sample_data
 
             context['column_names'] = column_names
             context['load_year'] = load_year
