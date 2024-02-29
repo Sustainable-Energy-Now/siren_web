@@ -8,6 +8,7 @@ def get_dynamic_attr(obj, attr_name):
     Custom template filter to dynamically access attributes of an object.
     """
     try:
-        return getattr(obj, attr_name)
+        value = getattr(obj, attr_name)
+        return str(value) if value is not None else ""
     except AttributeError:
         return None

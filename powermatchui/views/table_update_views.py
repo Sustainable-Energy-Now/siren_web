@@ -1,4 +1,5 @@
 from decimal import Decimal
+from django.contrib.auth.decorators import login_required
 from django.shortcuts import render, redirect
 from django.apps import apps
 from django.http import HttpResponse
@@ -17,6 +18,7 @@ def select_table(request):
     table_names = get_table_names()
     return render(request, 'table_update_page.html', {'table_names': table_names})
 
+@login_required
 def update_table(request):
     load_year = request.session.get('load_year')
     scenario = request.session.get('scenario')
@@ -31,8 +33,6 @@ def update_table(request):
             # Fetch column names dynamically
             column_names = [field.name for field in selected_model._meta.fields]
             # Fetch rows for all column names
-            #table_entries = selected_model.objects.values(*[field.name for field in selected_model._meta.fields if not field.is_relation])
-            #table_rows = selected_model.objects.values()
             table_entries = selected_model.objects.all()
             return render(request, 'table_update_page.html', {'selected_table_name': selected_table_name, 'primary_key_name': primary_key_name, 'column_names': column_names, 'table_entries': table_entries})
         elif action == 'save':

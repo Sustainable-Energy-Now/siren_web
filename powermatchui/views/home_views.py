@@ -2,6 +2,7 @@
 from ..database_operations import fetch_constraints_data, fetch_demand_data, fetch_scenarios_data, fetch_settings_data,  fetch_full_generator_storage_data
 from decimal import Decimal
 from django.apps import apps
+from django.contrib.auth.decorators import login_required
 from django.db.models import Max
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import render, redirect
@@ -11,6 +12,7 @@ from ..models import Constraints, Demand, Scenarios, Settings, Generators, Zones
 from ..powermatch import pmcore as pm
 from ..powermatch.pmcore import Facility, Optimisation, PM_Facility, powerMatch
 
+@login_required
 def home(request):
     load_year = request.session.get('load_year', '')  # Get load_year and scenario from session or default to empty string
     scenario= request.session.get('scenario', '')

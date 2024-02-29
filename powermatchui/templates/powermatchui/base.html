@@ -28,6 +28,8 @@
             <li><a href="/siren_system/">View Siren System Diagram</a></li>
             <li><a href="/technologies/">Technologies</a></li>
             <li><a href="/tableupdate/">Table Update</a></li>
+            <li><a href="/accounts/login/">Login</a></li>
+            <li><a href="/accounts/logout/">Logout</a></li>
             <!-- Add more links as needed -->
         </ul>
     </nav>
@@ -36,7 +38,7 @@
         <h1>Siren Web Interface</h1>
     </header>
     <div class="settings-box">
-        <strong>Load Year: </strong>{{ load_year }}<br>
+        <strong>Demand Year: </strong>{{ load_year }}<br>
         <strong>Scenario:   </strong> {{ scenario }}
     </div>
     {% if success_message %}

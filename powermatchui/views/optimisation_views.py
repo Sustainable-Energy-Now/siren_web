@@ -1,4 +1,5 @@
 from ..database_operations import fetch_full_generator_storage_data
+from django.contrib.auth.decorators import login_required
 from django.shortcuts import render
 from django.http import HttpResponse
 from ..models import Scenarios  # Import the Scenario model
@@ -13,6 +14,7 @@ def clear_scenario(request, scenario_id):
     return HttpResponse("Scenario has been cleared.")  # Return a response indicating success
 
 # Process form data
+@login_required
 def run_optimisation(request):
     load_year = request.session.get('load_year')
     scenario = request.session.get('scenario')

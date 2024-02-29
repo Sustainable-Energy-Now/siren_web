@@ -1,5 +1,6 @@
 # urls.py
-from django.urls import path
+from django.urls import path, include
+from django.contrib.auth import views as auth_views
 from .views import batch_views, home_views, merit_order_views, optimisation_views,  \
     siren_system_views, table_update_views, technologies_views
 from django.views.generic import TemplateView

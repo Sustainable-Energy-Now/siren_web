@@ -23,7 +23,7 @@ LOGGING = {
     'disable_existing_loggers': False,
     'handlers': {
         'console': {
-            'level': 'DEBUG',
+            'level': 'INFO',
             'class': 'logging.StreamHandler',
             'formatter': 'simple'
         },
@@ -36,7 +36,7 @@ LOGGING = {
     'loggers': {
         'django': {
             'handlers': ['console'],
-            'level': 'DEBUG',
+            'level': 'INFO',
             'propagate': True,
         },
     },
@@ -109,7 +109,8 @@ TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
         'DIRS': [
-            os.path.join(BASE_DIR, 'powermatchui/templates/powermatchui'), 
+            os.path.join(BASE_DIR, 'powermatchui/templates/powermatchui'),
+            os.path.join(BASE_DIR, 'siren_web/templates'),
             os.path.join(BASE_DIR, 'templates'),
             ],
         "APP_DIRS": True,
@@ -158,6 +159,9 @@ AUTH_PASSWORD_VALIDATORS = [
         "NAME": "django.contrib.auth.password_validation.NumericPasswordValidator",
     },
 ]
+LOGIN_URL = '/accounts/login/'
+LOGOUT_URL = '/accounts/logout/'
+
 
 
 # Internationalization
@@ -182,3 +186,6 @@ STATIC_URL = "static/"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 STATIC_ROOT = BASE_DIR / 'static_collected'
+# Redirect to home URL after login (Default redirects to /accounts/profile/)
+LOGIN_REDIRECT_URL = "home"
+LOGOUT_REDIRECT_URL = "home" 

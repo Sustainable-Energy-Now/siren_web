@@ -1,4 +1,5 @@
 from ..database_operations import fetch_merit_order_technologies
+from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse, HttpResponse
 from django.db.models import IntegerField
 from django.shortcuts import render
@@ -7,6 +8,7 @@ from ..forms import MeritOrderForm
 import json
 from ..models import Technologies # Import the Scenario model
 
+@login_required
 def set_merit_order(request):
     load_year = request.session.get('load_year')
     scenario = request.session.get('scenario')

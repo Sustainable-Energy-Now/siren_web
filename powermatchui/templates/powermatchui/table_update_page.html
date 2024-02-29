@@ -5,7 +5,7 @@
 <h2>Editable MySQL Table</h2>
 
 <!-- Form for selecting the table and populating the page -->
-<form method="post" action="{% url 'table_update_page' %}">
+<form method="post" action="{% url 'table_update' %}">
     {% csrf_token %}
     <input type="hidden" name="action" value="populate">  <!-- Hidden field to indicate the action -->
     <!-- Other form fields or buttons for selecting the table -->
@@ -18,7 +18,7 @@
     <button type="submit" class="btn-custom-swish2">Submit</button>  <!-- Submit button for selecting the table -->
 </form>
 <!-- Form for saving changes made to the table -->
-<form method="post" action="{% url 'table_update_page' %}">
+<form method="post" action="{% url 'table_update' %}">
     {% csrf_token %}
     <input type="hidden" name="action" value="save">  <!-- Hidden field to indicate the action -->
     <input type="hidden" name="selected_table_name" value="{{ selected_table_name }}">  <!-- Hidden field to hold the selected table -->

@@ -1,5 +1,6 @@
 #  batch_views.py
 from ..database_operations import fetch_included_technologies_data, fetch_demand_data
+from django.contrib.auth.decorators import login_required
 from datetime import datetime
 from django.shortcuts import render
 from django.http import HttpResponse
@@ -7,6 +8,7 @@ from ..models import Analysis, Scenarios  # Import the Scenario model
 from ..forms import RunBatchForm
 
 # Process form data
+@login_required
 def setup_batch(request):
     load_year = request.session.get('load_year')
     scenario = request.session.get('scenario')
