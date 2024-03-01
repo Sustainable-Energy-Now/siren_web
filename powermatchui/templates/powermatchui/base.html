@@ -29,9 +29,12 @@
             <li><a href="/technologies/">Technologies</a></li>
             <li><a href="/tableupdate/">Table Update</a></li>
             <li><a href="/accounts/login/">Login</a></li>
-            <li><a href="/accounts/logout/">Logout</a></li>
             <!-- Add more links as needed -->
         </ul>
+        <form action="{% url 'logout' %}" method="post">
+            {% csrf_token %}
+            <button type="submit">Logout</button>
+        </form>        
     </nav>
     <header>
         <!-- Your header content goes here -->

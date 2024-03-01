@@ -26,9 +26,8 @@ def home(request):
             scenario = home_form.cleaned_data['scenario']
             request.session['scenario'] = scenario # Assuming scenario is an instance of Scenarios
             success_message = "Settings updated."
-    else:
-        home_form = HomeForm()
-        runpowermatch_form = RunPowermatchForm()
+    home_form = HomeForm()
+    runpowermatch_form = RunPowermatchForm()
 
     context = {
         'home_form': home_form, 'runpowermatch_form': runpowermatch_form,

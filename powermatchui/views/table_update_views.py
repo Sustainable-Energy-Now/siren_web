@@ -14,6 +14,7 @@ def get_table_names():
     ]
     return table_names
 
+@login_required
 def select_table(request):
     table_names = get_table_names()
     return render(request, 'table_update_page.html', {'table_names': table_names})
