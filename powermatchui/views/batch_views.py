@@ -10,10 +10,10 @@ from ..forms import RunBatchForm
 # Process form data
 @login_required
 def setup_batch(request):
-    load_year = request.session.get('load_year')
+    demand_year = request.session.get('demand_year')
     scenario = request.session.get('scenario')
     success_message = ""
-    technologies= fetch_included_technologies_data(load_year)
+    technologies= fetch_included_technologies_data(demand_year)
     form = RunBatchForm(technologies=technologies)
     if request.method == 'POST':
         # Handle form submission
@@ -30,10 +30,10 @@ def setup_batch(request):
                     step = cleaned_data.get(f'step_{idtechnology}', None)
                     updated_technologies[idtechnology] = [capacity, mult, step]
             # Process technologies dictionary as needed
-            run_batch(load_year, iterations)
+            run_batch(demand_year, iterations)
             success_message = "Batch Parameters have been updated."
             
-    context = {'form': form, 'technologies': technologies, 'load_year': load_year, 'scenario': scenario, 'success_message': success_message}
+    context = {'form': form, 'technologies': technologies, 'demand_year': demand_year, 'scenario': scenario, 'success_message': success_message}
     return render(request, 'batch.html', context)
 
 def clearScenario(id: int) -> None:
@@ -110,8 +110,8 @@ def insert_data(df_message, Scenario, Basis, Stage):
                 Units=Units
             )
 
-def run_batch(load_year, scenario, iterations) -> None:
-    pmss_details, pmss_data, dispatch_order, re_order = fetch_demand_data(load_year)
+def run_batch(demand_year, scenario, iterations) -> None:
+    pmss_details, pmss_data, dispatch_order, re_order = fetch_demand_data(demand_year)
     option = 'B'
     pm_data_file = 'G:/Shared drives/SEN Modelling/modelling/SWIS/Powermatch_data_actual.xlsx'
     data_file = 'Powermatch_results_actual.xlsx'
@@ -120,7 +120,7 @@ def run_batch(load_year, scenario, iterations) -> None:
     # Iterate and call doDispatch
     for i in range(iterations):
         # Call doDispatch with option 'B'
-        df_message = ex.doDispatch(load_year, option, pmss_details, pmss_data, re_order, dispatch_order,
+        df_message = ex.doDispatch(demand_year, option, pmss_details, pmss_data, re_order, dispatch_order,
                     pm_data_file, data_file, title=None)
         # 0 Facility
         # 1 Capacity (Gen, MW Stor, MWh)  

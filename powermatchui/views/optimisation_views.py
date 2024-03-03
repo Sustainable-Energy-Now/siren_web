@@ -16,7 +16,7 @@ def clear_scenario(request, scenario_id):
 # Process form data
 @login_required
 def run_optimisation(request):
-    load_year = request.session.get('load_year')
+    demand_year = request.session.get('demand_year')
     scenario = request.session.get('scenario')
     form = RunOptimisationForm(request.POST)
     success_message = ""
@@ -35,9 +35,9 @@ def run_optimisation(request):
         success_message = "Batch Parameters have been updated."
     else:
         # Render the form
-        load_year = 2022
-        technologies = fetch_full_generator_storage_data(request, load_year)
+        demand_year = 2022
+        technologies = fetch_full_generator_storage_data(request, demand_year)
         form = RunOptimisationForm()
         
-    context = {'form': form, 'technologies': technologies, 'load_year': load_year, 'scenario': scenario,'success_message': success_message}
+    context = {'form': form, 'technologies': technologies, 'demand_year': demand_year, 'scenario': scenario,'success_message': success_message}
     return render(request, 'batch.html', context)

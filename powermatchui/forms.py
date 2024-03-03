@@ -3,7 +3,7 @@ from django import forms
 from .models import Scenarios, Technologies
 
 class HomeForm(forms.Form):
-    load_year = forms.ChoiceField(
+    demand_year = forms.ChoiceField(
         choices=[('2022', '2022'), ('2023', '2023')],
         initial='2023',
         widget=forms.Select(attrs={'class': 'form_input'})

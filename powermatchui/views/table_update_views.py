@@ -21,7 +21,7 @@ def select_table(request):
 
 @login_required
 def update_table(request):
-    load_year = request.session.get('load_year')
+    demand_year = request.session.get('demand_year')
     scenario = request.session.get('scenario')
     if request.method == 'POST':
         action = request.POST.get('action')  # Get the value of the "action" field
@@ -72,7 +72,7 @@ def update_table(request):
 
          # Render the template with the populated table and success message (if any)
             return render(request, 'table_update_page.html', \
-                {'column_names': column_names, 'table_entries': table_entries, 'success_message': 'Table has been updated.', 'load_year': load_year, 'scenario': scenario})
+                {'column_names': column_names, 'table_entries': table_entries, 'success_message': 'Table has been updated.', 'demand_year': demand_year, 'scenario': scenario})
 
     # If the request method is not POST or action is not specified, render the initial page
     # This may include rendering the table initially without any changes

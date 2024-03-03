@@ -20,29 +20,8 @@ class Analysis(models.Model):
     class Meta:
         db_table = 'Analysis'
 
-class Constraints(models.Model):
-    id = models.AutoField(db_column='ID', primary_key=True)  # Field name made lowercase.
-    constraintname = models.CharField(db_column='ConstraintName', max_length=45, blank=True, null=True)  # Field name made lowercase.
-    image = models.CharField(db_column='Image', max_length=50, blank=True, null=True)  # Field name made lowercase.
-    category = models.CharField(db_column='Category', max_length=45, blank=True, null=True)  # Field name made lowercase.
-    capacitymax = models.IntegerField(db_column='CapacityMax', blank=True, null=True)  # Field name made lowercase.
-    capacitymin = models.IntegerField(db_column='CapacityMin', blank=True, null=True)  # Field name made lowercase.
-    dischargeloss = models.IntegerField(db_column='DischargeLoss', blank=True, null=True)  # Field name made lowercase.
-    dischargemax = models.DecimalField(db_column='DischargeMax', max_digits=5, decimal_places=2, blank=True, null=True)  # Field name made lowercase.
-    parasiticloss = models.IntegerField(db_column='ParasiticLoss', blank=True, null=True)  # Field name made lowercase.
-    rampdownmax = models.IntegerField(db_column='RampdownMax', blank=True, null=True)  # Field name made lowercase.
-    rampupmax = models.IntegerField(db_column='RampupMax', blank=True, null=True)  # Field name made lowercase.
-    rechargeloss = models.IntegerField(db_column='RechargeLoss', blank=True, null=True)  # Field name made lowercase.
-    rechargemax = models.DecimalField(db_column='RechargeMax', max_digits=5, decimal_places=2, blank=True, null=True)  # Field name made lowercase.
-    renewable = models.IntegerField(db_column='Renewable', blank=True, null=True)  # Field name made lowercase.
-    description = models.CharField(db_column='Description', max_length=500, blank=True, null=True)  # Field name made lowercase.
-
-    class Meta:
-        db_table = 'constraints'
-
 class Demand(models.Model):
-    iddemand = models.PositiveIntegerField(db_column='idDemand', primary_key=True)  # Field name made lowercase. The composite primary key (idDemand, ConstraintID, hour) found, that is not supported. The first column is selected.
-    constraintid = models.ForeignKey('Constraints', models.DO_NOTHING, db_column='ConstraintID')  # Field name made lowercase.
+    iddemand = models.PositiveIntegerField(db_column='idDemand', primary_key=True)  # Field name made lowercase. The composite primary key (idDemand, idtechnologies, hour) found, that is not supported. The first column is selected.
     idtechnologies = models.ForeignKey('Technologies', models.DO_NOTHING, db_column='idTechnologies')  # Field name made lowercase.
     idscenarios = models.ForeignKey('Scenarios', models.DO_NOTHING, db_column='idScenarios')  # Field name made lowercase.
     hour = models.PositiveIntegerField()
@@ -52,10 +31,9 @@ class Demand(models.Model):
 
     class Meta:
         db_table = 'Demand'
-        unique_together = (('iddemand', 'constraintid', 'hour'),)
         
 class facilities(models.Model):
-    idfacilities = models.PositiveIntegerField(db_column='idfacilities', primary_key=True)  # Field name made lowercase. The composite primary key (idDemand, ConstraintID, hour) found, that is not supported. The first column is selected.
+    idfacilities = models.PositiveIntegerField(db_column='idfacilities', primary_key=True)  # Field name made lowercase. 
     facility_name = models.CharField(db_column='facility_name', max_length=45, blank=True, null=True)  # Field name made lowercase.
     idtechnologies = models.ForeignKey('Technologies', models.DO_NOTHING, db_column='idtechnologies')  # Field name made lowercase.
     idzones = models.ForeignKey('Zones', models.DO_NOTHING, db_column='idzones', blank=True, null=True)  # Field name made lowercase.
@@ -75,7 +53,6 @@ class Generators(models.Model):
     name = models.CharField(db_column='Name', max_length=45, blank=True, null=True)  # Field name made lowercase.
     image = models.CharField(db_column='Image', max_length=65, blank=True, null=True)  # Field name made lowercase.
     capacity = models.DecimalField(db_column='Capacity', max_digits=7, decimal_places=2, blank=True, null=True)  # Field name made lowercase.
-    constr = models.ForeignKey(Constraints, models.DO_NOTHING, db_column='Constr', blank=True, null=True)  # Field name made lowercase.
     emissions = models.DecimalField(db_column='Emissions', max_digits=5, decimal_places=3, blank=True, null=True)  # Field name made lowercase.
     initial = models.DecimalField(db_column='Initial', max_digits=5, decimal_places=2, blank=True, null=True)  # Field name made lowercase.
     ord = models.IntegerField(db_column='Ord', blank=True, null=True)  # Field name made lowercase.
@@ -96,8 +73,7 @@ class Generatorattributes(models.Model):
     idgeneratorattributes = models.AutoField(db_column='idGeneratorAttributes', primary_key=True)  # Field name made lowercase.
     idtechnologies = models.ForeignKey('Technologies', models.DO_NOTHING, db_column='idTechnologies')  # Field name made lowercase.
     year = models.IntegerField()
-    initial = models.DecimalField(max_digits=5, decimal_places=2, blank=True, null=True)
-    fuel = models.CharField(max_length=50, blank=True, null=True)
+    fuel = models.DecimalField(max_digits=7, decimal_places=2, blank=True, null=True)
 
     class Meta:
         db_table = 'GeneratorAttributes'
@@ -170,8 +146,6 @@ class Stations(models.Model):
 class Storageattributes(models.Model):
     idstorageattributes = models.AutoField(db_column='idStorageAttributes', primary_key=True)  # Field name made lowercase.
     idtechnologies = models.ForeignKey('Technologies', models.DO_NOTHING, db_column='idTechnologies', blank=True, null=True)  # Field name made lowercase.
-    capacity_max = models.IntegerField(blank=True, null=True)
-    capacity_min = models.IntegerField(blank=True, null=True)
     discharge_loss = models.IntegerField(blank=True, null=True)
     discharge_max = models.DecimalField(max_digits=5, decimal_places=2, blank=True, null=True)
     parasitic_loss = models.IntegerField(blank=True, null=True)
@@ -179,7 +153,8 @@ class Storageattributes(models.Model):
     rampup_max = models.IntegerField(blank=True, null=True)
     recharge_loss = models.IntegerField(blank=True, null=True)
     recharge_max = models.DecimalField(max_digits=5, decimal_places=2, blank=True, null=True)
-
+    min_runtime = models.DecimalField(max_digits=5, decimal_places=2, blank=True, null=True)
+    warm_time = models.DecimalField(max_digits=5, decimal_places=2, blank=True, null=True)
     class Meta:
         db_table = 'StorageAttributes'
 
@@ -205,15 +180,20 @@ class Technologies(models.Model):
     renewable = models.IntegerField(blank=True, null=True)
     dispatchable = models.IntegerField(blank=True, null=True)
     merit_order = models.IntegerField(blank=True, null=True)
-    capex = models.DecimalField(max_digits=9, decimal_places=0, blank=True, null=True)
-    fom = models.DecimalField(db_column='FOM', max_digits=9, decimal_places=0, blank=True, null=True)  # Field name made lowercase.
-    vom = models.DecimalField(db_column='VOM', max_digits=5, decimal_places=2, blank=True, null=True)  # Field name made lowercase.
+    capex = models.DecimalField(max_digits=9, decimal_places=2, blank=True, null=True)
+    fom = models.DecimalField(db_column='FOM', max_digits=9, decimal_places=2, blank=True, null=True)  # Field name made lowercase.
+    vom = models.DecimalField(db_column='VOM', max_digits=7, decimal_places=2, blank=True, null=True)  # Field name made lowercase.
     lifetime = models.DecimalField(max_digits=3, decimal_places=0, blank=True, null=True)
     discount_rate = models.DecimalField(max_digits=5, decimal_places=2, blank=True, null=True)
     description = models.CharField(max_length=1000, db_collation='utf8mb4_0900_ai_ci', blank=True, null=True)
-    capacity = models.DecimalField(max_digits=7, decimal_places=2, blank=True, null=True)
-    mult = models.FloatField(default=1, null=False)
-    emissions = models.DecimalField(max_digits=5, decimal_places=3, blank=True, null=True)
+    capacity = models.DecimalField(max_digits=9, decimal_places=2, blank=True, null=True)
+    mult = models.DecimalField(max_digits=5, decimal_places=2, blank=True, null=True)
+    capacity_max = models.DecimalField(max_digits=9, decimal_places=2, blank=True, null=True)
+    capacity_min = models.DecimalField(max_digits=9, decimal_places=2, blank=True, null=True)
+    emissions = models.DecimalField(max_digits=7, decimal_places=3, blank=True, null=True)
+    initial = models.DecimalField(max_digits=7, decimal_places=2, blank=True, null=True)
+    lcoe = models.DecimalField(max_digits=7, decimal_places=2, blank=True, null=True)
+    lcoe_cf = models.DecimalField(max_digits=7, decimal_places=2, blank=True, null=True)
 
     class Meta:
         db_table = 'Technologies'

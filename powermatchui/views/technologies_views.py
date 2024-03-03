@@ -7,6 +7,6 @@ from django.http import HttpResponse
 # technologies_views.py
 @login_required
 def display_technologies(request):
-    load_year = request.session.get('load_year')
+    demand_year = request.session.get('demand_year')
     scenario = request.session.get('scenario')
     return render(request, 'under_construction.html')

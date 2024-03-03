@@ -16,7 +16,7 @@ def get_description(name, sirensystem_model):
     return description
 
 def siren_system_view(request):
-    load_year = request.session.get('load_year')
+    demand_year = request.session.get('demand_year')
     scenario = request.session.get('scenario')
     success_message = ""
     context = {
@@ -58,7 +58,7 @@ def siren_system_view(request):
             context['sample_data'] = sample_data
 
             context['column_names'] = column_names
-            context['load_year'] = load_year
+            context['demand_year'] = demand_year
             context['scenario'] = scenario
             context['status'] = 'success'
 

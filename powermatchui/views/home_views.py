@@ -1,5 +1,5 @@
 # homes_views.py
-from ..database_operations import fetch_constraints_data, fetch_demand_data, fetch_scenarios_data, fetch_settings_data,  fetch_full_generator_storage_data
+from ..database_operations import fetch_demand_data, fetch_scenarios_data, fetch_settings_data,  fetch_full_generator_storage_data
 from decimal import Decimal
 from django.apps import apps
 from django.contrib.auth.decorators import login_required
@@ -8,21 +8,21 @@ from django.http import HttpResponse, JsonResponse
 from django.shortcuts import render, redirect
 from django.urls import path
 from ..forms import HomeForm, RunPowermatchForm
-from ..models import Constraints, Demand, Scenarios, Settings, Generators, Zones
+from ..models import Demand, Scenarios, Settings, Generators, Zones
 from ..powermatch import pmcore as pm
 from ..powermatch.pmcore import Facility, Optimisation, PM_Facility, powerMatch
 
 @login_required
 def home(request):
-    load_year = request.session.get('load_year', '')  # Get load_year and scenario from session or default to empty string
+    demand_year = request.session.get('demand_year', '')  # Get demand_year and scenario from session or default to empty string
     scenario= request.session.get('scenario', '')
     success_message = ""
     if request.method == 'POST':
         # Handle form submission
         home_form = HomeForm(request.POST)
         if home_form.is_valid():
-            load_year = home_form.cleaned_data['load_year']
-            request.session['load_year'] = load_year
+            demand_year = home_form.cleaned_data['demand_year']
+            request.session['demand_year'] = demand_year
             scenario = home_form.cleaned_data['scenario']
             request.session['scenario'] = scenario # Assuming scenario is an instance of Scenarios
             success_message = "Settings updated."
@@ -31,12 +31,12 @@ def home(request):
 
     context = {
         'home_form': home_form, 'runpowermatch_form': runpowermatch_form,
-        'success_message': success_message, 'load_year': load_year, 'scenario': scenario
+        'success_message': success_message, 'demand_year': demand_year, 'scenario': scenario
         }
     return render(request, 'home.html', context)
 
 def run_powermatch(request):
-    load_year = request.session.get('load_year', '')  # Get load_year and scenario from session or default to empty string
+    demand_year = request.session.get('demand_year', '')  # Get demand_year and scenario from session or default to empty string
     scenario= request.session.get('scenario', '')
     success_message = ""
     if request.method == 'POST':
@@ -45,13 +45,12 @@ def run_powermatch(request):
             level_of_detail = runpowermatch_form.cleaned_data['level_of_detail']
         
             settings = fetch_settings_data(request)
-            constraints = fetch_constraints_data(request)
             if 'generators' in request.session:
                 generators = request.session['generators']
                 dispatch_order = request.session['dispatch_order']
                 re_order = request.session['re_order']
             else:
-                generators_result, column_names= fetch_full_generator_storage_data(request, load_year)
+                generators_result, column_names= fetch_full_generator_storage_data(request, demand_year)
                 generators = {}
                 dispatch_order = []
                 re_order = ['Load']
@@ -67,11 +66,17 @@ def run_powermatch(request):
                     if name not in generators:
                         generators[name] = {}
                     generators[name] = Facility(
-                        generator_name=name, capacity=attributes_by_name['capacity'], constr=attributes_by_name['technology_name'],
+                        generator_name=name, category=attributes_by_name['category'], capacity=attributes_by_name['capacity'],
+                        constr=attributes_by_name['technology_name'],
+                        capacity_max=attributes_by_name['capacity_max'], capacity_min=attributes_by_name['capacity_min'],
+                        recharge_max=attributes_by_name['recharge_max'], recharge_loss=attributes_by_name['recharge_loss'],
+                        min_runtime=attributes_by_name['min_runtime'], warm_time=attributes_by_name['warm_time'],
+                        discharge_max=attributes_by_name['discharge_max'],
+                        discharge_loss=attributes_by_name['discharge_loss'], parasitic_loss=attributes_by_name['parasitic_loss'],
                         emissions=attributes_by_name['emissions'], initial=attributes_by_name['initial'], order=attributes_by_name['merit_order'], 
                         capex=attributes_by_name['capex'], fixed_om=attributes_by_name['FOM'], variable_om=attributes_by_name['VOM'],
                         fuel=attributes_by_name['fuel'], lifetime=attributes_by_name['lifetime'], disc_rate=attributes_by_name['discount_rate'],
-                        lcoe=None, lcoe_cfs=None )
+                        lcoe=attributes_by_name['lcoe'], lcoe_cfs=attributes_by_name['lcoe_cf'] )
         
                     dispatchable=attributes_by_name['dispatchable']
                     if (dispatchable):
@@ -84,20 +89,21 @@ def run_powermatch(request):
                             re_order.append(name)
                     capacity = attributes_by_name['capacity']
                     if name not in pmss_details: # type: ignore
-                        pmss_details[name] = PM_Facility(name, name, capacity, 'S', -1, 1)
+                        if (category == 'Storage'):
+                            pmss_details[name] = PM_Facility(name, name, capacity, 'S', -1, 1)
                     else:
                         pmss_details[name].capacity = capacity
 
             # ex = pm.powerMatch(settings=settings, constraints=constraints, generators=generators)
-            pmss_data, pmss_details, dispatch_order, re_order = fetch_demand_data(request, load_year)
+            pmss_data, pmss_details, dispatch_order, re_order = fetch_demand_data(request, demand_year)
             # Call the static method directly
 
             option = level_of_detail[0]
             pm_data_file = 'G:/Shared drives/SEN Modelling/modelling/SWIS/Powermatch_data_actual.xlsx'
             data_file = 'Powermatch_results_actual.xlsx'
-            # df_message = ex.doDispatch(load_year, option, pmss_details, pmss_data, re_order, dispatch_order,
+            # df_message = ex.doDispatch(demand_year, option, pmss_details, pmss_data, re_order, dispatch_order,
             #     pm_data_file, data_file, title=None)
-            df_message = powerMatch.doDispatch(load_year, option, pmss_details, pmss_data, re_order, 
+            df_message = powerMatch.doDispatch(settings, demand_year, option, pmss_details, pmss_data, generators, re_order, 
                 dispatch_order,
                 pm_data_file, data_file, title=None)
         else:
@@ -105,13 +111,13 @@ def run_powermatch(request):
             runpowermatch_form = RunPowermatchForm()
         context = {
             'home_form': home_form,'runpowermatch_form': runpowermatch_form,
-            'success_message': success_message, 'load_year': load_year, 'scenario': scenario
+            'success_message': success_message, 'demand_year': demand_year, 'scenario': scenario
             }
         return render(request, 'home.html', context)
             
 def start_powermatch_task(request):
     # Start the Celery task asynchronously
-    task = run_powermatch_task.delay(settings, constraints, generators, load_year, option, pmss_details, pmss_data, re_order, dispatch_order, pm_data_file, data_file)
+    task = run_powermatch_task.delay(settings, generators, demand_year, option, pmss_details, pmss_data, re_order, dispatch_order, pm_data_file, data_file)
     return JsonResponse({'task_id': task.id})
 
 def get_task_progress(request, task_id):

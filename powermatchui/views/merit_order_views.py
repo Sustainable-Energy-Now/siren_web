@@ -10,7 +10,7 @@ from ..models import Technologies # Import the Scenario model
 
 @login_required
 def set_merit_order(request):
-    load_year = request.session.get('load_year')
+    demand_year = request.session.get('demand_year')
     scenario = request.session.get('scenario')
     context = {}  # Initialize context with an empty dictionary
     success_message = ""
@@ -45,6 +45,6 @@ def set_merit_order(request):
         success_message = "Merit order saved successfully"
 
     form = MeritOrderForm()
-    merit_order, excluded_resources = queryset= fetch_merit_order_technologies(load_year)
-    context = {'merit_order': merit_order, 'excluded_resources': excluded_resources, 'success_message': success_message, 'load_year': load_year, 'scenario': scenario}
+    merit_order, excluded_resources = queryset= fetch_merit_order_technologies(demand_year)
+    context = {'merit_order': merit_order, 'excluded_resources': excluded_resources, 'success_message': success_message, 'demand_year': demand_year, 'scenario': scenario}
     return render(request, 'merit_order.html', context)
