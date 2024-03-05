@@ -47,7 +47,7 @@ def run_powermatch(request):
         elif runpowermatch_form.is_valid():
             level_of_detail = runpowermatch_form.cleaned_data['level_of_detail']
             option = level_of_detail[0]
-            sp_data, headers, sp_pts = submit_powermatch(demand_year, option)
+            sp_data, headers, sp_pts = submit_powermatch(demand_year, scenario, option, 1, None)
             context = {
                 'sp_data': sp_data, 'headers': headers, 'sp_pts': sp_pts,
                 'success_message': success_message, 'demand_year': demand_year, 'scenario': scenario
