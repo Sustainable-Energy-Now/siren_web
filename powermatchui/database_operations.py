@@ -5,10 +5,8 @@ import logging
 from .models import Demand, Scenarios, Settings, Technologies, Zones
 from .powermatch.pmcore import Facility, PM_Facility, Optimisation
 
-def fetch_demand_data(request, demand_year):
+def fetch_demand_data(demand_year):
     # Check if demand is already stored in session
-    if 'pmss_data' in request.session:
-        return request.session['pmss_data'], request.session['pmss_details']
     try:
         # Read demand table using Django ORM
         demand_query = Demand.objects.filter(
@@ -39,7 +37,7 @@ def fetch_demand_data(request, demand_year):
     
     # Read Technologies from the database.    
  
-    technologies_result, column_names = fetch_full_generator_storage_data(request, demand_year)
+    technologies_result, column_names = fetch_full_generator_storage_data(demand_year)
     
     # Create a dictionary of technologies and their attributes for the chosen year.
     # exclude any where merit_order > 99
@@ -80,7 +78,7 @@ def fetch_demand_data(request, demand_year):
     # Store demand data in session
     return pmss_data, pmss_details, dispatch_order, re_order
 
-def fetch_full_generator_storage_data(request, demand_year):
+def fetch_full_generator_storage_data(demand_year):
     # Define the SQL query
     generators_query = \
     f"""
@@ -202,10 +200,7 @@ def fetch_scenarios_data():
         # Handle any errors that occur during the database query
         return None
     
-def fetch_settings_data(request):
-    # Check if settings are already stored in session
-    if 'settings' in request.session:
-        return request.session['settings']
+def fetch_settings_data():
     try:
         settings = {}
         settings_query = Settings.objects.all()
@@ -219,7 +214,4 @@ def fetch_settings_data(request):
     except Exception as e:
         # Handle any errors that occur during the database query
         return None
-    
-    # Store settings data in session
-    request.session['settings'] = settings
     return settings

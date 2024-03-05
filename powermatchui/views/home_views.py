@@ -11,6 +11,7 @@ from ..forms import HomeForm, RunPowermatchForm
 from ..models import Demand, Scenarios, Settings, Generators, Zones
 from ..powermatch import pmcore as pm
 from ..powermatch.pmcore import Facility, Optimisation, PM_Facility, powerMatch
+from powermatchui.views.exec_powermatch import submit_powermatch
 
 @login_required
 def home(request):
@@ -41,71 +42,17 @@ def run_powermatch(request):
     success_message = ""
     if request.method == 'POST':
         runpowermatch_form = RunPowermatchForm(request.POST)
-        if runpowermatch_form.is_valid():
+        if not demand_year:
+            success_message = "Set the demand year and scenario first."
+        elif runpowermatch_form.is_valid():
             level_of_detail = runpowermatch_form.cleaned_data['level_of_detail']
-        
-            settings = fetch_settings_data(request)
-            if 'generators' in request.session:
-                generators = request.session['generators']
-                dispatch_order = request.session['dispatch_order']
-                re_order = request.session['re_order']
-            else:
-                generators_result, column_names= fetch_full_generator_storage_data(request, demand_year)
-                generators = {}
-                dispatch_order = []
-                re_order = ['Load']
-                pmss_details = {}
-                # Process the results
-                for generator_row in generators_result:
-                    # Create a dictionary to store the attributes by name
-                    attributes_by_name = {}
-                    for i, value in enumerate(generator_row):
-                        attributes_by_name[column_names[i]] = value
-
-                    name = attributes_by_name['technology_name']
-                    if name not in generators:
-                        generators[name] = {}
-                    generators[name] = Facility(
-                        generator_name=name, category=attributes_by_name['category'], capacity=attributes_by_name['capacity'],
-                        constr=attributes_by_name['technology_name'],
-                        capacity_max=attributes_by_name['capacity_max'], capacity_min=attributes_by_name['capacity_min'],
-                        recharge_max=attributes_by_name['recharge_max'], recharge_loss=attributes_by_name['recharge_loss'],
-                        min_runtime=attributes_by_name['min_runtime'], warm_time=attributes_by_name['warm_time'],
-                        discharge_max=attributes_by_name['discharge_max'],
-                        discharge_loss=attributes_by_name['discharge_loss'], parasitic_loss=attributes_by_name['parasitic_loss'],
-                        emissions=attributes_by_name['emissions'], initial=attributes_by_name['initial'], order=attributes_by_name['merit_order'], 
-                        capex=attributes_by_name['capex'], fixed_om=attributes_by_name['FOM'], variable_om=attributes_by_name['VOM'],
-                        fuel=attributes_by_name['fuel'], lifetime=attributes_by_name['lifetime'], disc_rate=attributes_by_name['discount_rate'],
-                        lcoe=attributes_by_name['lcoe'], lcoe_cfs=attributes_by_name['lcoe_cf'] )
-        
-                    dispatchable=attributes_by_name['dispatchable']
-                    if (dispatchable):
-                        if (name not in dispatch_order):
-                            dispatch_order.append(name)
-                    renewable = attributes_by_name['renewable']
-                    category = attributes_by_name['category']
-                    if (renewable and category != 'Storage'):
-                        if (name not in re_order):
-                            re_order.append(name)
-                    capacity = attributes_by_name['capacity']
-                    if name not in pmss_details: # type: ignore
-                        if (category == 'Storage'):
-                            pmss_details[name] = PM_Facility(name, name, capacity, 'S', -1, 1)
-                    else:
-                        pmss_details[name].capacity = capacity
-
-            # ex = pm.powerMatch(settings=settings, constraints=constraints, generators=generators)
-            pmss_data, pmss_details, dispatch_order, re_order = fetch_demand_data(request, demand_year)
-            # Call the static method directly
-
             option = level_of_detail[0]
-            pm_data_file = 'G:/Shared drives/SEN Modelling/modelling/SWIS/Powermatch_data_actual.xlsx'
-            data_file = 'Powermatch_results_actual.xlsx'
-            # df_message = ex.doDispatch(demand_year, option, pmss_details, pmss_data, re_order, dispatch_order,
-            #     pm_data_file, data_file, title=None)
-            df_message = powerMatch.doDispatch(settings, demand_year, option, pmss_details, pmss_data, generators, re_order, 
-                dispatch_order,
-                pm_data_file, data_file, title=None)
+            sp_data, headers, sp_pts = submit_powermatch(demand_year, option)
+            context = {
+                'sp_data': sp_data, 'headers': headers, 'sp_pts': sp_pts,
+                'success_message': success_message, 'demand_year': demand_year, 'scenario': scenario
+            }
+            return render(request, 'display_table.html', context)
         else:
             home_form = HomeForm()
             runpowermatch_form = RunPowermatchForm()

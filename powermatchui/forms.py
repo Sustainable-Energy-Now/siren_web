@@ -5,6 +5,7 @@ from .models import Scenarios, Technologies
 class HomeForm(forms.Form):
     demand_year = forms.ChoiceField(
         choices=[('2022', '2022'), ('2023', '2023')],
+        label='Select a Demand Year',
         initial='2023',
         widget=forms.Select(attrs={'class': 'form_input'})
         )

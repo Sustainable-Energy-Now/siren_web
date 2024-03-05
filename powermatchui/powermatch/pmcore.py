@@ -27,7 +27,7 @@ import matplotlib
 import numpy as np
 import openpyxl as oxl
 import sys
-from . import displaytable as disptab
+
 # This import registers the 3D projection, but is otherwise unused.
 
 tech_names = ['Load', 'Onshore Wind', 'Offshore Wind', 'Rooftop PV', 'Fixed PV', 'Single Axis PV',
@@ -379,14 +379,14 @@ class powerMatch():
              #   sp_d[st_fac] = 'RE Direct Contribution to ' + title + 'Load'
                 sp_d[st_fac] = 'RE %age'
                 re_pct = (tml_sum - sto_sum - ff_sum) / tml_sum
-                sp_d[st_cap] = '{:.1f}%'.format(re_pct * 100.)
+                sp_d[st_cap] = '{:.1f}%'.format(re_pct * Decimal(100))
                 sp_d[st_tml] = tml_sum - ff_sum - sto_sum
                 sp_data.append(sp_d)
                 if sto_sum > 0:
                     sp_d = [' '] * len(headers)
                  #   sp_d[st_fac] = 'RE Contribution to ' + title + 'Load via Storage'
                     sp_d[st_fac] = 'Storage %age'
-                    sp_d[st_cap] = '{:.1f}%'.format(sto_sum * 100. / tml_sum)
+                    sp_d[st_cap] = '{:.1f}%'.format(sto_sum * Decimal(100) / tml_sum)
                     sp_d[st_tml] = sto_sum
                     sp_data.append(sp_d)
             sp_data.append([' '])
@@ -427,7 +427,7 @@ class powerMatch():
                     sp_data.append(sp_d)
                 sp_d = [' '] * len(headers)
                 sp_d[st_fac] = 'RE %age of Total ' + title + 'Load'
-                sp_d[st_cap] = '{:.1f}%'.format((sp_load - sf_sums[0] - ff_sum) * 100. / sp_load)
+                sp_d[st_cap] = '{:.1f}%'.format((sp_load - sf_sums[0] - ff_sum) * Decimal(100) / sp_load)
                 sp_data.append(sp_d)
                 sp_data.append(' ')
                 if tot_sto_loss != 0:
@@ -1615,7 +1615,8 @@ class powerMatch():
                         sp_data[sp][st_lco] = sp_data[sp][st_cst] / (sp_data[sp][st_tml] + (sto_sum * sp_data[sp][st_tml] / fac_tml_sum))
                     else:
                         sp_data[sp][st_lco] = sp_data[sp][st_lcg]
-                    cost_sum += sp_data[sp][st_cst]
+                    if sp_data[sp][st_cst] != ' ':
+                        cost_sum += sp_data[sp][st_cst]
                     sp_data[sp][st_cac] = capex
                 elif generators[gen].lcoe > 0:
                     if generators[gen].lcoe_cf > 0:
@@ -1626,23 +1627,25 @@ class powerMatch():
                     if sp_data[sp][st_cfa] > 0:
                         sp_data[sp][st_lcg] = sp_data[sp][st_cst] / sp_data[sp][ndx]
                         sp_data[sp][st_lco] = sp_data[sp][st_lcg]
-                    sp_data[sp][st_cfa] = '{:.1f}%'.format(sp_data[sp][st_cfa] * 100.)
+                    sp_data[sp][st_cfa] = '{:.1f}%'.format(sp_data[sp][st_cfa] * Decimal(100))
                     cost_sum += sp_data[sp][st_cst]
                     sp_data[sp][st_rlc] = generators[gen].lcoe
-                    sp_data[sp][st_rcf] = '{:.1f}%'.format(lcoe_cf * 100.)
+                    sp_data[sp][st_rcf] = '{:.1f}%'.format(lcoe_cf * Decimal(100))
                 elif generators[gen].lcoe_cf == 0: # no cost facility
                     lcoe_cf = sp_data[sp][st_cfa]
                     sp_data[sp][st_cst] = 0
                     cost_sum += sp_data[sp][st_cst]
-                sp_data[sp][st_lic] = sp_data[sp][st_cst] * max_lifetime
-                lifetime_sum += sp_data[sp][st_lic]
+                if sp_data[sp][st_cst] != ' ':
+                    sp_data[sp][st_lic] = sp_data[sp][st_cst] * max_lifetime
+                if sp_data[sp][st_lic] != ' ':
+                    lifetime_sum += sp_data[sp][st_lic]
                 if generators[gen].emissions > 0:
                     sp_data[sp][st_emi] = sp_data[sp][ndx] * generators[gen].emissions
                     co2_sum += sp_data[sp][st_emi]
                     sp_data[sp][st_emc] = sp_data[sp][st_emi] * carbon_price
                     if sp_data[sp][st_cst] == 0:
                         sp_data[sp][st_lcc] = sp_data[sp][st_emc] / sp_data[sp][st_tml]
-                    else:
+                    elif sp_data[sp][st_cst] != ' ':
                         sp_data[sp][st_lcc] = sp_data[sp][st_lco] * ((sp_data[sp][st_cst] + sp_data[sp][st_emc]) / sp_data[sp][st_cst])
                     co2_cost_sum += sp_data[sp][st_emc]
                     sp_data[sp][st_lie] = sp_data[sp][st_emi] * max_lifetime
@@ -1699,7 +1702,7 @@ class powerMatch():
                     sp_d[st_sub] = sp_d[st_tml]
                     gen_sum += sp_d[st_tml]
                     sp_load += sp_d[st_tml]
-                    sp_d[st_cfa] = '{:.1f}%'.format(sp_d[st_sub] / sp_d[st_cap] / 8760 * 100.)
+                    sp_d[st_cfa] = '{:.1f}%'.format(sp_d[st_sub] / sp_d[st_cap] / 8760 * Decimal(100))
                     sp_d[st_max] = max(pmss_data[pmss_details[fac].col]) * pmss_details[fac].multiplier
                     if generators[gen].capex > 0 or generators[gen].fixed_om > 0 \
                       or generators[gen].variable_om > 0 or generators[gen].fuel > 0:
@@ -1727,9 +1730,9 @@ class powerMatch():
                         if sp_d[st_cfa] > 0:
                             sp_d[st_lcg] = sp_d[st_cst] / sp_d[st_tml]
                             sp_d[st_lco] = sp_d[st_lcg]
-                        sp_d[st_cfa] = '{:.1f}%'.format(sp_d[st_cfa] * 100.)
+                        sp_d[st_cfa] = '{:.1f}%'.format(sp_d[st_cfa] * Decimal(100))
                         sp_d[st_rlc] = generators[gen].lcoe
-                        sp_d[st_rcf] = '{:.1f}%'.format(lcoe_cf * 100.)
+                        sp_d[st_rcf] = '{:.1f}%'.format(lcoe_cf * Decimal(100))
                     elif generators[gen].lcoe_cf == 0: # no cost facility
                         sp_d[st_cst] = 0
                         sp_d[st_lcg] = 0
@@ -1803,7 +1806,7 @@ class powerMatch():
                     dialog = displaytable.Table(sp_data, title=title, fields=headers,
                              save_folder=scenarios, sortby='', decpts=sp_pts)
                     dialog.exec_()
-                return sp_data
+                # return sp_data
             if option == 'O' or option == '1':
                 op_load_tot = pmss_details['Load'].capacity * pmss_details['Load'].multiplier
                 if gswc != '':
@@ -1846,13 +1849,8 @@ class powerMatch():
 
             #dialog = displaytable.Table(sp_data, title='title', fields=headers,
             #         save_folder=scenarios, sortby='', decpts=sp_pts)
-            #dialog.exec_()
-            # self.progressbar.progress(80, text=progress_text)
-            summary_df = disptab.dataframe(sp_data, title='title', fields=headers, decpts=sp_pts)
 
-            # self.progressbar.progress(90, text=progress_text)
-            # self.progressbar.empty()
-            return # finish if not detailed spreadsheet
+            return sp_data, headers, sp_pts# finish if not detailed spreadsheet
         col = next_col + 1
         is_storage = False
         ss_sto_rows = []
@@ -2598,7 +2596,7 @@ class powerMatch():
                     elif multi_order[axis] == 'co2':
                         data[axis].append(multi[multi_order[axis]] / divisor[1]) # co2
                     elif multi_order[axis][-4:] == '_pct': # percentage
-                        data[axis].append(multi[multi_order[axis]] * 100.)
+                        data[axis].append(multi[multi_order[axis]] * Decimal(100))
                     else:
                         data[axis].append(multi[multi_order[axis]])
             # create colour map
@@ -3228,7 +3226,7 @@ class powerMatch():
             elif key == 'co2':
                 amt = score_data[h][0][key] / divisor[1] # co2
             elif key[-4:] == '_pct': # percentage
-                amt = score_data[h][0][key] * 100.
+                amt = score_data[h][0][key] * Decimal(100)
             else:
                 amt = score_data[h][0][key]
             txt = self.targets[key][5]
