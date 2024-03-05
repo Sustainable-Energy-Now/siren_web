@@ -47,7 +47,17 @@ def run_powermatch(request):
         elif runpowermatch_form.is_valid():
             level_of_detail = runpowermatch_form.cleaned_data['level_of_detail']
             option = level_of_detail[0]
-            sp_data, headers, sp_pts = submit_powermatch(demand_year, scenario, option, 1, None)
+            sp_output, headers, sp_pts = submit_powermatch(demand_year, scenario, option, 1, None)
+            sp_data = []
+            for row in sp_output:
+                formatted_row = []
+                for item in row:
+                    if isinstance(item, Decimal):
+                        formatted_row.append('{:,.2f}'.format(item))
+                    else:
+                        formatted_row.append(item)
+                sp_data.append(formatted_row)
+
             context = {
                 'sp_data': sp_data, 'headers': headers, 'sp_pts': sp_pts,
                 'success_message': success_message, 'demand_year': demand_year, 'scenario': scenario
