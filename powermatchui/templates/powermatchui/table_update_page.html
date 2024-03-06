@@ -18,7 +18,7 @@
     <button type="submit" class="btn-custom-swish2">Submit</button>  <!-- Submit button for selecting the table -->
 </form>
 <!-- Form for saving changes made to the table -->
-<form method="post" action="{% url 'table_update' %}">
+<form method="post" action="{% url 'table_update_process' %}">
     {% csrf_token %}
     <input type="hidden" name="action" value="save">  <!-- Hidden field to indicate the action -->
     <input type="hidden" name="selected_table_name" value="{{ selected_table_name }}">  <!-- Hidden field to hold the selected table -->

@@ -16,8 +16,8 @@ urlpatterns = [
     path('optimisation/', under_construction_views.under_construction, name='under_construction'),
     path('siren_system/', siren_system_views.siren_system_view, name='siren_system_view'),
     path('technologies/', technologies_views.display_technologies, name='run_technologies'),
-    path('tableupdate/', under_construction_views.under_construction, name='under_construction'),
-    # path('tableupdate/', table_update_views.select_table, name='table_update'),
-    # path('tableupdate/process/', table_update_views.update_table, name='table_update_process'),
+    # path('tableupdate/', under_construction_views.under_construction, name='under_construction'),
+    path('tableupdate/', table_update_views.select_table, name='table_update'),
+    path('tableupdate/process/', table_update_views.update_table, name='table_update_process'),
     # Add additional URL patterns here if needed
 ]
