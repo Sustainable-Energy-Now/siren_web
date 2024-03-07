@@ -8,7 +8,7 @@ from django.http import HttpResponse, JsonResponse
 from django.shortcuts import render, redirect
 from django.urls import path
 from ..forms import HomeForm, RunPowermatchForm
-from ..models import Demand, Scenarios, Settings, Generators, Zones
+from ..models import Demand
 from ..powermatch import pmcore as pm
 from ..powermatch.pmcore import Facility, Optimisation, PM_Facility, powerMatch
 from powermatchui.views.exec_powermatch import submit_powermatch

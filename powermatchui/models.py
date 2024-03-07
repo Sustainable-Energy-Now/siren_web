@@ -20,7 +20,19 @@ class Analysis(models.Model):
 
     class Meta:
         db_table = 'Analysis'
-
+        
+class capacities(models.Model):
+    idcapacities = models.AutoField(primary_key=True)
+    idtechnologies = models.ForeignKey('Technologies', models.DO_NOTHING, db_column='idTechnologies')  # Field name made lowercase.
+    idscenarios = models.ForeignKey('Scenarios', models.DO_NOTHING, db_column='idScenarios', blank=True, null=True)  # Field name made lowercase.
+    capacity = models.DecimalField(max_digits=9, decimal_places=2, blank=True, null=True)
+    mult = models.DecimalField(max_digits=5, decimal_places=2, blank=True, null=True)
+    capacity_max = models.DecimalField(max_digits=9, decimal_places=2, blank=True, null=True)
+    capacity_min = models.DecimalField(max_digits=9, decimal_places=2, blank=True, null=True)
+    
+    class Meta:
+        db_table = 'capacities'
+        
 class Demand(models.Model):
     iddemand = models.PositiveIntegerField(db_column='idDemand', primary_key=True)  # Field name made lowercase. The composite primary key (idDemand, idtechnologies, hour) found, that is not supported. The first column is selected.
     idtechnologies = models.ForeignKey('Technologies', models.DO_NOTHING, db_column='idTechnologies')  # Field name made lowercase.
@@ -47,29 +59,7 @@ class facilities(models.Model):
     
     class Meta:
         db_table = 'facilities'
-
-class Generators(models.Model):
-    id = models.PositiveIntegerField(db_column='ID', primary_key=True)  # Field name made lowercase. The composite primary key (ID, Year) found, that is not supported. The first column is selected.
-    year = models.IntegerField(db_column='Year')  # Field name made lowercase.
-    name = models.CharField(db_column='Name', max_length=45, blank=True, null=True)  # Field name made lowercase.
-    image = models.CharField(db_column='Image', max_length=65, blank=True, null=True)  # Field name made lowercase.
-    capacity = models.DecimalField(db_column='Capacity', max_digits=7, decimal_places=2, blank=True, null=True)  # Field name made lowercase.
-    emissions = models.DecimalField(db_column='Emissions', max_digits=5, decimal_places=3, blank=True, null=True)  # Field name made lowercase.
-    initial = models.DecimalField(db_column='Initial', max_digits=5, decimal_places=2, blank=True, null=True)  # Field name made lowercase.
-    ord = models.IntegerField(db_column='Ord', blank=True, null=True)  # Field name made lowercase.
-    dispatchable = models.IntegerField(db_column='Dispatchable', blank=True, null=True)  # Field name made lowercase.
-    mult = models.FloatField(blank=True, null=True)
-    capex = models.DecimalField(db_column='Capex', max_digits=9, decimal_places=0, blank=True, null=True)  # Field name made lowercase.
-    fom = models.DecimalField(db_column='FOM', max_digits=9, decimal_places=0, blank=True, null=True)  # Field name made lowercase.
-    vom = models.DecimalField(db_column='VOM', max_digits=5, decimal_places=2, blank=True, null=True)  # Field name made lowercase.
-    fuel = models.DecimalField(db_column='Fuel', max_digits=5, decimal_places=2, blank=True, null=True)  # Field name made lowercase.
-    lifetime = models.DecimalField(db_column='Lifetime', max_digits=3, decimal_places=0, blank=True, null=True)  # Field name made lowercase.
-    discountrate = models.DecimalField(db_column='DiscountRate', max_digits=5, decimal_places=2, blank=True, null=True)  # Field name made lowercase.
-
-    class Meta:
-        db_table = 'generators'
-        unique_together = (('id', 'year'),)
-        
+ 
 class Generatorattributes(models.Model):
     idgeneratorattributes = models.AutoField(db_column='idGeneratorAttributes', primary_key=True)  # Field name made lowercase.
     idtechnologies = models.ForeignKey('Technologies', models.DO_NOTHING, db_column='idTechnologies')  # Field name made lowercase.
@@ -132,18 +122,6 @@ class sirensystem(models.Model):
     class Meta:
         db_table = 'sirensystem'
     
-class Stations(models.Model):
-    id = models.PositiveIntegerField(db_column='ID', primary_key=True)  # Field name made lowercase.
-    name = models.CharField(max_length=45, blank=True, null=True)
-    technology = models.CharField(max_length=45, blank=True, null=True)
-    capacity = models.DecimalField(max_digits=7, decimal_places=2, blank=True, null=True)
-    capacityfactor = models.DecimalField(max_digits=5, decimal_places=2, blank=True, null=True)
-    generation = models.DecimalField(max_digits=9, decimal_places=0, blank=True, null=True)
-    transmitted = models.CharField(max_length=9, blank=True, null=True)
-
-    class Meta:
-        db_table = 'stations'
-
 class Storageattributes(models.Model):
     idstorageattributes = models.AutoField(db_column='idStorageAttributes', primary_key=True)  # Field name made lowercase.
     idtechnologies = models.ForeignKey('Technologies', models.DO_NOTHING, db_column='idTechnologies', blank=True, null=True)  # Field name made lowercase.
@@ -199,6 +177,14 @@ class Technologies(models.Model):
     class Meta:
         db_table = 'Technologies'
 
+class variations(models.Model):
+    idvariations = models.AutoField(db_column='idvariations', primary_key=True)  # Field name made lowercase.
+    variation_name = models.CharField(max_length=45, blank=True, null=True)
+    variation_description = models.CharField(max_length=250, blank=True, null=True)
+    
+    class Meta:
+        db_table = 'variations'
+        
 class Zones(models.Model):
     idzones = models.PositiveIntegerField(db_column='idZones', primary_key=True)  # Field name made lowercase.
     name = models.CharField(max_length=45, db_collation='utf8mb4_0900_ai_ci', blank=True, null=True)

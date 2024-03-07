@@ -1,5 +1,5 @@
 <!-- table_update_page.html -->
-{% extends 'base.html' %}  <!-- Assuming 'base.html' contains the common layout with the navigation bar -->
+{% extends 'base.html' %}
 
 {% block content %}
 <h2>Editable MySQL Table</h2>
@@ -7,38 +7,60 @@
 <!-- Form for selecting the table and populating the page -->
 <form method="post" action="{% url 'table_update' %}">
     {% csrf_token %}
-    <input type="hidden" name="action" value="populate">  <!-- Hidden field to indicate the action -->
-    <!-- Other form fields or buttons for selecting the table -->
+    <input type="hidden" name="action" value="populate">
     <label for="table_selection">Select a table:</label>
     <select name="table_selection" id="table_selection">
         {% for table_name in table_names %}
             <option value="{{ table_name }}">{{ table_name }}</option>
         {% endfor %}
     </select>
-    <button type="submit" class="btn-custom-swish2">Submit</button>  <!-- Submit button for selecting the table -->
+    <button type="submit" class="btn-custom-swish2">Submit</button>
 </form>
+
 <!-- Form for saving changes made to the table -->
 <form method="post" action="{% url 'table_update_process' %}">
     {% csrf_token %}
-    <input type="hidden" name="action" value="save">  <!-- Hidden field to indicate the action -->
-    <input type="hidden" name="selected_table_name" value="{{ selected_table_name }}">  <!-- Hidden field to hold the selected table -->
+    <input type="hidden" name="action" value="save">
+    <input type="hidden" name="selected_table_name" value="{{ selected_table_name }}">
     {% load custom_filters %}
+    <!-- Add button to toggle all columns -->
+    <div>
+        <strong>Toggle</strong>
+        <strong>All:</strong>
+        <label><input type="checkbox" id="toggle-all-columns" checked></label>
+    </div>
+    <!-- Add buttons to toggle visibility of columns -->
+    <div>
+        <strong>Columns:</strong>
+        {% for column_name in column_names %}
+            <label><input type="checkbox" class="toggle-column" data-column="{{ column_name }}" checked>{{ column_name }}</label>
+        {% endfor %}
+    </div>
+    
+    <!-- Add buttons to toggle visibility of rows -->
+    <div>
+        <strong>Rows:</strong>
+        {% for entry in table_entries %}
+            <label><input type="checkbox" class="toggle-row" data-row="{{ entry.pk }}" checked>Row {{ entry.pk }}</label>
+        {% endfor %}
+    </div>
+    
     <!-- Display the table entries here -->
-    <table>
+    <table id="data-table">
         <!-- Table header -->
         <thead>
             <tr>
                 {% for column_name in column_names %}
-                    <th>{{ column_name }}</th>
+                    <th class="column-header" data-column="{{ column_name }}">{{ column_name }}</th>
                 {% endfor %}
             </tr>
         </thead>
         <!-- Table body -->
         <tbody>
             {% for entry in table_entries %}
-            <tr>
+            <tr class="data-row" data-row="{{ entry.pk }}">
                 {% for column_name in column_names %}
-                    <td>
+                    <td class="data-column" data-column="{{ column_name }}">
                         <input type="text" name="{{ column_name }}_{{ entry.pk }}" value="{{ entry|get_dynamic_attr:column_name }}">
                     </td>
                 {% endfor %}
@@ -46,6 +68,48 @@
             {% endfor %}
         </tbody>
     </table>
-    <button type="submit" class="btn-custom-swish2">Save Changes</button>  <!-- Submit button for saving changes -->
+    <button type="submit" class="btn-custom-swish2">Save Changes</button>
 </form>
+
+<script>
+    // JavaScript for toggling column visibility
+    document.querySelectorAll('.toggle-column').forEach(function(checkbox) {
+        checkbox.addEventListener('change', function() {
+            let column = this.dataset.column;
+            let cells = document.querySelectorAll('.data-column[data-column="' + column + '"]');
+            cells.forEach(function(cell) {
+                cell.style.display = checkbox.checked ? '' : 'none';
+            });
+            let header = document.querySelector('.column-header[data-column="' + column + '"]');
+            header.style.display = checkbox.checked ? '' : 'none';
+        });
+    });
+
+    // JavaScript for toggling row visibility
+    document.querySelectorAll('.toggle-row').forEach(function(checkbox) {
+        checkbox.addEventListener('change', function() {
+            let row = this.dataset.row;
+            let cells = document.querySelectorAll('.data-row[data-row="' + row + '"] .data-column');
+            cells.forEach(function(cell) {
+                cell.style.display = checkbox.checked ? '' : 'none';
+            });
+        });
+    });
+
+    // JavaScript for toggling all columns
+    document.getElementById('toggle-all-columns').addEventListener('change', function() {
+        let isChecked = this.checked;
+        let columns = document.querySelectorAll('.toggle-column');
+        columns.forEach(function(column) {
+            column.checked = isChecked;
+            let cells = document.querySelectorAll('.data-column[data-column="' + column.dataset.column + '"]');
+            cells.forEach(function(cell) {
+                cell.style.display = isChecked ? '' : 'none';
+            });
+            let header = document.querySelector('.column-header[data-column="' + column.dataset.column + '"]');
+            header.style.display = isChecked ? '' : 'none';
+        });
+    });
+</script>
+
 {% endblock %}

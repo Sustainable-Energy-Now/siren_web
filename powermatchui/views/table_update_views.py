@@ -20,6 +20,7 @@ def select_table(request):
     scenario= request.session.get('scenario', '')
     success_message = ""
     table_names = get_table_names()
+    selected_table_name = ''
     if request.method == 'POST':
         # Code to handle selecting the table and populating the page
         # This code will be executed when the "Submit" button is clicked
@@ -33,7 +34,8 @@ def select_table(request):
         context = {
             'success_message': success_message, 'demand_year': demand_year, 'scenario': scenario,
             'table_names': table_names, 'selected_table_name': selected_table_name, 
-            'primary_key_name': primary_key_name, 'column_names': column_names, 'table_entries': table_entries
+            'primary_key_name': primary_key_name, 'column_names': column_names, 'table_entries': table_entries,
+            'selected_table_name': selected_table_name,
         }
         return render(request, 'table_update_page.html', context)
     else:
@@ -70,7 +72,7 @@ def update_table(request):
                 field_type = entry._meta.get_field(column_name).get_internal_type()
                 # Check if the new value is different from the current value
                 # Convert new_value to the appropriate data type based on the field type
-                if (field_type != 'ForeignKey' and field_type != 'ManyToManyField') or (field_type == 'AutoField'):
+                if (field_type != 'ForeignKey' and field_type != 'ManyToManyField') and (field_type != 'AutoField'):
                     if field_type == 'DecimalField':
                         new_value = Decimal(new_value)
                     elif field_type == 'IntegerField' or field_type == 'PositiveSmallIntegerField':
@@ -85,14 +87,14 @@ def update_table(request):
                         entry.save()  # Save the changes to the database
 
          # Render the template with the populated table and success message (if any)
-            success_message = f'Successfully updated {selected_table_name} table.'
-            table_names = get_table_names()
-            context = {
-                'column_names': column_names, 'table_entries': table_entries,
-                'success_message': success_message, 'demand_year': demand_year, 'scenario': scenario,
-                'table_names': table_names
-            }
-            return render(request, 'table_update_page.html', context)
+        success_message = f'Successfully updated {selected_table_name} table.'
+        table_names = get_table_names()
+        context = {
+            'column_names': column_names, 'table_entries': table_entries,
+            'success_message': success_message, 'demand_year': demand_year, 'scenario': scenario,
+            'table_names': table_names, 'selected_table_name' : selected_table_name,
+        }
+        return render(request, 'table_update_page.html', context)
 
     # If the request method is not POST or action is not specified, render the initial page
     # This may include rendering the table initially without any changes
