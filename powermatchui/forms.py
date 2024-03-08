@@ -2,6 +2,19 @@
 from django import forms
 from .models import Scenarios, Technologies
 
+class ScenarioForm(forms.ModelForm):
+    class Meta:
+        model = Scenarios
+        fields = ['title', 'description']
+        labels = {
+            'title': 'Scenario Title',
+            'description': 'Scenario Description',
+        }
+        widgets = {
+            'title': forms.TextInput(attrs={'class': 'form-control'}),
+            'description': forms.Textarea(attrs={'class': 'form-control'}),
+        }
+        
 class HomeForm(forms.Form):
     demand_year = forms.ChoiceField(
         choices=[('2022', '2022'), ('2023', '2023')],

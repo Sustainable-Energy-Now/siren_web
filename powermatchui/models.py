@@ -21,18 +21,6 @@ class Analysis(models.Model):
     class Meta:
         db_table = 'Analysis'
         
-class capacities(models.Model):
-    idcapacities = models.AutoField(primary_key=True)
-    idtechnologies = models.ForeignKey('Technologies', models.DO_NOTHING, db_column='idTechnologies')  # Field name made lowercase.
-    idscenarios = models.ForeignKey('Scenarios', models.DO_NOTHING, db_column='idScenarios', blank=True, null=True)  # Field name made lowercase.
-    capacity = models.DecimalField(max_digits=9, decimal_places=2, blank=True, null=True)
-    mult = models.DecimalField(max_digits=5, decimal_places=2, blank=True, null=True)
-    capacity_max = models.DecimalField(max_digits=9, decimal_places=2, blank=True, null=True)
-    capacity_min = models.DecimalField(max_digits=9, decimal_places=2, blank=True, null=True)
-    
-    class Meta:
-        db_table = 'capacities'
-        
 class Demand(models.Model):
     iddemand = models.PositiveIntegerField(db_column='idDemand', primary_key=True)  # Field name made lowercase. The composite primary key (idDemand, idtechnologies, hour) found, that is not supported. The first column is selected.
     idtechnologies = models.ForeignKey('Technologies', models.DO_NOTHING, db_column='idTechnologies')  # Field name made lowercase.
@@ -105,7 +93,15 @@ class Scenarios(models.Model):
 
     class Meta:
         db_table = 'Scenarios'
+        
+class ScenariosFacilities(models.Model):
+    idscenariosfacilities = models.AutoField(primary_key=True)  # Field name made lowercase.
+    idscenarios = models.ForeignKey('Scenarios', models.DO_NOTHING, db_column='idScenarios')
+    idfacilities = models.ForeignKey('facilities', models.DO_NOTHING, db_column='idfacilities')
 
+    class Meta:
+        db_table = 'ScenariosFacilities'
+        
 class Settings(models.Model):
     idsettings = models.PositiveIntegerField(db_column='idSettings', primary_key=True)  # Field name made lowercase.
     context = models.CharField(max_length=20, blank=True, null=True)

@@ -1,0 +1,47 @@
+{% extends 'base.html' %}
+
+{% block content %}
+  <h1>Facilities</h1>
+
+  <form method="get">
+    <label for="scenario">Filter by Scenario:</label>
+    <select name="scenario" id="scenario">
+      <option value="">All</option>
+      {% for scenario in scenarios %}
+        <option value="{{ scenario.idscenarios }}" {% if selected_scenario == scenario.idscenarios %}selected{% endif %}>{{ scenario.title }}</option>
+      {% endfor %}
+    </select>
+    <button type="submit">Filter</button>
+  </form>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Facility Name</th>
+        <th>Technology</th>
+        <th>Zone</th>
+        <th>Capacity</th>
+        <th>Capacity Factor</th>
+        <th>Generation</th>
+        <th>Transmitted</th>
+        <th>Latitude</th>
+        <th>Longitude</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for facility in facilities %}
+        <tr>
+          <td>{{ facility.facility_name }}</td>
+          <td>{{ facility.idtechnologies.technology_name }}</td>
+          <td>{{ facility.idzones.name }}</td>
+          <td>{{ facility.capacity }}</td>
+          <td>{{ facility.capacityfactor }}</td>
+          <td>{{ facility.generation }}</td>
+          <td>{{ facility.transmitted }}</td>
+          <td>{{ facility.latitude }}</td>
+          <td>{{ facility.longitude }}</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endblock %}

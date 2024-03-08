@@ -9,6 +9,7 @@ https://docs.djangoproject.com/en/5.0/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.0/ref/settings/
 """
+import crispy_bootstrap5
 import logging
 from pathlib import Path
 import os, sys
@@ -92,6 +93,7 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "django.contrib.humanize",
     "powermatchui",
+    "crispy_forms",
 ]
 
 MIDDLEWARE = [
@@ -113,6 +115,7 @@ TEMPLATES = [
             os.path.join(BASE_DIR, 'powermatchui/templates/powermatchui'),
             os.path.join(BASE_DIR, 'siren_web/templates'),
             os.path.join(BASE_DIR, 'templates'),
+            os.path.join(os.path.dirname(crispy_bootstrap5.__file__), 'templates')
             ],
         "APP_DIRS": True,
         "OPTIONS": {
@@ -194,4 +197,6 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 STATIC_ROOT = BASE_DIR / 'static_collected'
 # Redirect to home URL after login (Default redirects to /accounts/profile/)
 LOGIN_REDIRECT_URL = "home"
-LOGOUT_REDIRECT_URL = "home" 
+LOGOUT_REDIRECT_URL = "home"
+CRISPY_ALLOWED_TEMPLATE_PACKS = "bootstrap5"
+CRISPY_TEMPLATE_PACK = "bootstrap5"
