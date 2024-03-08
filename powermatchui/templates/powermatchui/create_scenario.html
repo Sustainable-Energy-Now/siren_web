@@ -1,32 +1,54 @@
-
-
-
-    <h2>Welcome to Powermatch Web!</h2>
-    <p>Siren Web is a web interface to Power Match, an open source python app for matching and balancing
-    Renewable Energy resources to the load on the South West Interconnected system(SWIS).
-    Power Match takes as input load and generation data from Powermap. Powermatch quantifies and costs the dispatchable energy generation, storage and CO2-e emissions. 
-    The parameters passed to Power Match are stored in database tables that can be maintained using the Table Update function above.
-    In this main panel you can select the Demand Year from the available data shown in the drop down list below.
-    Select the level of detail and click submit to run Power Match.</p>
-
-
 <!-- create_scenario.html -->
-
+<!-- update_facility_associations.html -->
 {% extends 'base.html' %}
-
-{% block content %}
-<h2>Scenarios</h2>
-<p>Create a scenario and associate facilities with it.</p>
-
 {% load crispy_forms_tags %}
 
-<form method="post">
+{% block content %}
+<h2>Manage Scenarios and Facilities</h2>
+
+<h3>Update Facility Associations</h3>
+{% load custom_filters %}
+<form method="post" action="{% url 'update_scenario' %}">
     {% csrf_token %}
-    {{ scenario_form|crispy }}
-    {{ facility_formset.management_form }}
-    {% for form in facility_formset %}
-        {{ form|crispy }}
-    {% endfor %}
-    <button type="submit">Save</button>
+    <button type="submit">Save Associations</button>
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Facility</th>
+                {% for scenario in all_scenarios %}
+                    <th>
+                        <input type="checkbox" class="toggle-column" data-scenario-id="{{ scenario.idscenarios }}">
+                        {{ scenario.title }}
+                    </th>
+                {% endfor %}
+            </tr>
+        </thead>
+        <tbody>
+            {% for facility in all_facilities %}
+            <tr>
+                <td>{{ facility.facility_name }}</td>
+                {% for scenario in all_scenarios %}
+                <td>
+                    <input type="checkbox"
+                    id="scenario_{{ scenario.idscenarios }}_facility_{{ facility.idfacilities }}"
+                    name="scenario_{{ scenario.idscenarios }}_facilities"
+                    value="{{ facility.idfacilities }}"
+                    {% if checkbox_status|get_dict_item:facility.idfacilities|get_dict_item:scenario.idscenarios %}checked{% endif %}
+                    class="facility-checkbox" data-scenario-id="{{ scenario.idscenarios }}">
+                </td>
+                {% endfor %}
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
 </form>
+<script>
+    $(document).ready(function() {
+        $('.toggle-column').change(function() {
+            var scenarioId = $(this).data('scenario-id');
+            var checked = $(this).prop('checked');
+            $('input[name="scenario_' + scenarioId + '_facilities"]').prop('checked', checked);
+        });
+    });
+</script>
 {% endblock %}

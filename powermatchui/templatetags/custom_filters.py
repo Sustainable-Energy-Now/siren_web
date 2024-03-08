@@ -12,3 +12,10 @@ def get_dynamic_attr(obj, attr_name):
         return str(value) if value is not None else ""
     except AttributeError:
         return None
+
+@register.filter
+def get_dict_item(dictionary, key):
+    """
+    Returns the value from a dictionary for the given key, or None if the key doesn't exist.
+    """
+    return dictionary.get(key)

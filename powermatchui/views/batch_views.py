@@ -33,7 +33,10 @@ def setup_batch(request):
             run_batch(demand_year, scenario, iterations, updated_technologies)
             success_message = "Batch Parameters have been updated."
             
-    context = {'form': form, 'technologies': technologies, 'demand_year': demand_year, 'scenario': scenario, 'success_message': success_message}
+    context = {
+        'form': form, 'technologies': technologies,
+        'demand_year': demand_year, 'scenario': scenario, 'success_message': success_message
+        }
     return render(request, 'batch.html', context)
 
 def clearScenario(id: int) -> None:
