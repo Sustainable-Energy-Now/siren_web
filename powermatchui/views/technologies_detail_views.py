@@ -18,9 +18,9 @@ def technologies_detail(request):
         Prefetch('generatorattributes_set', queryset=Generatorattributes.objects.filter(idtechnologies__year=demand_year))
     )
     attribute_explain = {
-        'capacity': 'The maxiumum storage capacity in mWhs.',
-        'capacity_max':'The maximum capacity of the technology.',
-        'capacity_min':'The minimum capacity of the technology.',
+        'capacity': 'The capacity of the technology in mW (generation) or MWhs (storage).',
+        'capacity_max':'The maximum capacity of the technology in mW (generation) or MWhs (storage).',
+        'capacity_min':'The minimum capacity of the technology in mW (generation) or MWhs (storage).',
         'function':'The role it plays in the grid.',
         'capex':'The initial capital expenditure for the technology.',
         'discharge_loss':'The percentage capacity that is lost in discharging.',
@@ -29,8 +29,10 @@ def technologies_detail(request):
         'dispatchable':'The technology can be dispatched at any time when required.',
         'emissions':'CO2 emmissions in kg/mWh',
         'fuel': 'The type of fuel consumed by the technology.',
-        'FOM':'The fixed operating cost of the technology.',
+        'fom':'The fixed operating cost of the technology.',
         'initial': 'The initial value.',
+        'lcoe':'The levelised cost of energy.',
+        'lcoe_cf':'The levelised cost of energy capacity factor.',
         'lifetime':'The operational lifetime of the technology.',
         'mult':'The capacity multiplier.',
         'merit_order':'The merit order in which the technology is dispatched to meet load.',
@@ -41,7 +43,7 @@ def technologies_detail(request):
         'recharge_max':'The maximum recharge rate of the technology.',
         'renewable':'Whether the technology can be renewed.',
         'row_num':'sort field.',
-        'VOM':'The variable operating cost of the technology.',
+        'vom':'The variable operating cost of the technology.',
         'year':'The year of reference.',
         }
     context = {
