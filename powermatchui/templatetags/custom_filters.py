@@ -19,3 +19,11 @@ def get_dict_item(dictionary, key):
     Returns the value from a dictionary for the given key, or None if the key doesn't exist.
     """
     return dictionary.get(key)
+
+@register.filter
+def replace_underscore(value):
+    return value.replace('_', ' ')
+
+@register.filter
+def explain_attr(dictionary, key):
+    return dictionary.get(key, '')

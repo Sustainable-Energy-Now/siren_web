@@ -2,6 +2,9 @@ from django.shortcuts import render
 from ..models import facilities, Scenarios, ScenariosFacilities
 
 def facilities_list(request):
+    demand_year = request.session.get('demand_year', '')  # Get demand_year and scenario from session or default to empty string
+    scenario= request.session.get('scenario', '')
+    success_message = ""
     scenarios = Scenarios.objects.all()
 
     # Filter facilities by scenario
@@ -17,5 +20,6 @@ def facilities_list(request):
         'facilities': facs,
         'scenarios': scenarios,
         'selected_scenario': int(selected_scenario) if selected_scenario else None,
+        'success_message': success_message, 'demand_year': demand_year, 'scenario': scenario
     }
     return render(request, 'facilities_list.html', context)

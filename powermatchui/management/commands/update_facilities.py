@@ -9,7 +9,7 @@ class Command(BaseCommand):
     help = 'Updates facilities model from a CSV file'
 
     def handle(self, *args, **options):
-        # Assuming the CSV file is named 'data.csv' in the same directory as this script
+        # Assuming the CSV file is named 'Facilities.csv' in the same directory as this script
         file_path = 'Facilities.csv'
         file_path = os.path.join(os.path.dirname(__file__), '..', '..', 'data', 'Facilities.csv')
 

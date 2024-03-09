@@ -1,0 +1,19 @@
+﻿Name,Category,Capacity Max,Capacity Min,Discharge Loss,Discharge Max,Parasitic Loss,Rampdown Max,Rampup Max,Recharge Loss,Recharge Max
+Existing.Battery (8hr),Storage,100%,0%,8%,12.5%,0%,100%,100%,8%,12.5%
+Existing.Battery (4hr),Storage,100%,0%,8%,25%,0%,100%,100%,8%,25%
+Existing.Battery (2hr),Storage,100%,0%,8%,50%,0%,100%,100%,8%,50%
+Existing.Battery (1hr),Storage,100%,0%,8%,100%,0%,100%,100%,8%,100%
+Battery (8hr),Storage,100%,0%,8%,12.5%,0%,100%,100%,8%,12.5%
+Battery (4hr),Storage,100%,0%,8%,25%,0%,100%,100%,8%,25%
+Battery (2hr),Storage,100%,0%,8%,50%,0%,100%,100%,8%,50%
+Battery (1hr),Storage,100%,0%,8%,100%,0%,100%,100%,8%,100%
+Optimised.Battery (8hr),Storage,100%,0%,8%,12.5%,0%,100%,100%,8%,12.5%
+Optimised.Battery (4hr),Storage,100%,0%,8%,25%,0%,100%,100%,8%,25%
+Optimised.Battery (2hr),Storage,100%,0%,8%,50%,0%,100%,100%,8%,50%
+Optimised.Battery (1hr),Storage,100%,0%,8%,100%,0%,100%,100%,8%,100%
+PHES (48hr),Storage,100%,0%,10%,2.1%,0%,100%,100%,10%,2.1%
+PHES (24hr),Storage,100%,0%,10%,4.2%,0%,100%,100%,10%,4.2%
+Hydrogen,Generator,100%,0%,0%,100%,0%,100%,100%,0%,100%
+Biomass,Generator,100%,0%,0%,100%,0%,100%,100%,0%,100%
+Coal,Generator,100%,0%,0%,100%,0%,100%,100%,0%,100%
+Gas,Generator,100%,0%,0%,100%,0%,100%,100%,0%,100%

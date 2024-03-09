@@ -98,6 +98,7 @@ class ScenariosFacilities(models.Model):
     idscenariosfacilities = models.AutoField(primary_key=True)  # Field name made lowercase.
     idscenarios = models.ForeignKey('Scenarios', models.DO_NOTHING, db_column='idScenarios')
     idfacilities = models.ForeignKey('facilities', models.DO_NOTHING, db_column='idfacilities')
+    merit_order = models.IntegerField(blank=True, null=True)
 
     class Meta:
         db_table = 'ScenariosFacilities'

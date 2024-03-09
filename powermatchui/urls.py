@@ -2,7 +2,7 @@
 from django.urls import path, include
 from django.contrib.auth import views as auth_views
 from .views import batch_views, create_scenario_views, facilities_list_views, home_views, merit_order_views, optimisation_views,  \
-    siren_system_views, table_update_views, technologies_views, under_construction_views
+    siren_system_views, table_update_views, technologies_detail_views, technologies_list_views, under_construction_views
 from django.views.generic import TemplateView
 
 urlpatterns = [
@@ -18,8 +18,8 @@ urlpatterns = [
     # path('optimisation/', optimisation_views.run_optimisation, name='run_optimisation'),
     path('optimisation/', under_construction_views.under_construction, name='under_construction'),
     path('siren_system/', siren_system_views.siren_system_view, name='siren_system_view'),
-    path('technologies/', technologies_views.display_technologies, name='run_technologies'),
-    # path('tableupdate/', under_construction_views.under_construction, name='under_construction'),
+    path('technologies/', technologies_list_views.display_technologies, name='display_technologies'),
+    path('technologies_detail/', technologies_detail_views.technologies_detail, name='technologies_detail'),
     path('tableupdate/', table_update_views.select_table, name='table_update'),
     path('tableupdate/process/', table_update_views.update_table, name='table_update_process'),
     # Add additional URL patterns here if needed
