@@ -46,6 +46,14 @@ def technologies_detail(request):
         'vom':'The variable operating cost of the technology.',
         'year':'The year of reference.',
         }
+    data = []
+    for obj in technology_queryset:
+        obj_data = {}
+        for field in obj._meta.fields:
+            value = getattr(obj, field.name)
+            obj_data[field.name] = value
+        data.append(obj_data)
+        explanation = attribute_explain[field.name]
     context = {
         'technology_queryset': technology_queryset,
         'attribute_explain': attribute_explain,
