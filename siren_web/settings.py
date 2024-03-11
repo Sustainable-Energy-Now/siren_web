@@ -112,7 +112,7 @@ TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
         'DIRS': [
-            os.path.join(BASE_DIR, 'powermatchui/templates/powermatchui'),
+            os.path.join(BASE_DIR, 'powermatchui/templates'),
             os.path.join(BASE_DIR, 'siren_web/templates'),
             os.path.join(BASE_DIR, 'templates'),
             os.path.join(os.path.dirname(crispy_bootstrap5.__file__), 'templates')
