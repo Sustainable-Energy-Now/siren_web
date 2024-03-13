@@ -1,0 +1,55 @@
+<!-- powerplotui/templates/plot_landing.html -->
+
+{% extends 'powerplotui_base.html' %}
+
+{% block powerplotui_content %}
+<p>Welcome to the PowerPlotUI app! Here you can generate various interactive plots and charts to visualize your data.</p>
+
+<table>
+    <thead>
+        <tr>
+            {% for field in analysis_data.0.keys %}
+            <th>{{ field }}</th>
+            {% endfor %}
+        </tr>
+    </thead>
+    <tbody>
+        {% for row in analysis_data %}
+        <tr>
+            {% for value in row.values %}
+            <td>{{ value }}</td>
+            {% endfor %}
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<form method="post">
+    {% csrf_token %}
+    <label for="x_column">Select column for x-axis:</label>
+    <select name="x_column" id="x_column">
+      {% for heading in headings %}
+      <option value="{{ heading }}">{{ heading }}</option>
+      {% endfor %}
+    </select>
+
+    <label for="y_column">Select column for y-axis:</label>
+    <select name="y_column" id="y_column">
+      {% for heading in headings %}
+      <option value="{{ heading }}">{{ heading }}</option>
+      {% endfor %}
+    </select>
+
+    <label for="chart_type">Select chart type:</label>
+    <select name="chart_type" id="chart_type">
+        <option value="line">Line</option>
+        <option value="bar">Bar</option>
+        <option value="area">Area</option>
+    </select>
+
+    <button type="submit" name="plot_type" value="echarts">ECharts</button>
+    <!-- <a href="{% url 'echarts' %}" class="btn btn-primary">ECharts</a> -->
+    <!-- <button type="submit" name="plot_type" value="matplotlib">Matplotlib</button>
+    <button type="submit" name="plot_type" value="altair">Altair</button> -->
+</form>
+{% endblock %}

@@ -1,0 +1,96 @@
+<!-- powerplotui/templates/some_template.html -->
+
+{% extends 'powerplotui_base.html' %}
+
+{% block powerplotui_content %}
+  
+<!-- Load Echarts library -->
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.4.1/dist/echarts.min.js"></script>
+
+<!-- Create a container for the plot -->
+<div id="analysis-plot" style="width: 800px; height: 600px;"></div>
+
+<script>
+    // Function to fetch data from the Django view
+    function fetchAnalysisData() {
+        const x_column = '{{ x_column }}';
+        const y_column = '{{ y_column }}';
+
+        const url = `/get_analysis_data/?x_column=${x_column}&y_column=${y_column}`;
+        return fetch(url)
+            .then(response => response.json())
+            .catch(error => console.error('Error fetching data:', error));
+    }
+
+    // Function to create the Echarts plot
+    function createAnalysisPlot(data) {
+        const exampleData = {
+            x_axis: [
+                'Existing', 'Proposed', 'Q3 2023', 'Q4 2023', 'Q1 2024', 'Q2 2024', 'Q3 2024',
+                'Q4 2024', 'Q1 2025', 'Q2 2025', 'Q3 2025', 'Q4 2025', 'Q1 2026', 'Q2 2026'
+            ],
+            series1: [
+                180.11, 145.07, 122.51, 120.76, 110.74, 110.18, 109.59, 109.51, 109.42,
+                109.42, 109.39, 109.39, 109.35, 109.35
+            ],
+            series2: [
+                0, 20.4, 44.1, 46.2, 58.5, 59.2, 60, 60.1, 60.2, 60.2, 60.3, 60.3, 60.4, 60.4
+            ]
+        };
+        const chartDom = document.getElementById('analysis-plot');
+        const myChart = echarts.init(chartDom);
+        const option = {
+            title: {
+                text: 'ECharts Example'
+            },
+            legend: {
+                exampleData: ['LCOE incl. Carbon Cost', 'RE %age of Total Load']
+            },
+            xAxis: {
+                type: 'category',
+                exampleData: exampleData.x_axis
+            },
+            yAxis: [{
+                type: 'value',
+                min: 0, 
+                max: 200,
+                name: 'LCOE incl. Carbon Cost',
+                axisLabel: {
+                formatter: '{value} units'
+                },
+            },
+            {
+                type: 'value',
+                min: 0, 
+                max: 100,
+                name: 'RE %age of Total Load',
+                axisLabel: {
+                formatter: '{value} %'
+                },
+                position: 'right' // Position the second y-axis on the right
+            }],
+            series: [
+                {
+                name: 'LCOE incl. Carbon Cost',
+                type: 'line',
+                data: exampleData.series1,
+                yAxisIndex: 0 // Bind this series to the first y-axis
+                },
+                {
+                    name: 'RE %age of Total Load',
+                    type: 'line',
+                    data: exampleData.series2,
+                    yAxisIndex: 1 // Bind this series to the second y-axis
+                }
+            ]
+        };
+        myChart.setOption(option);
+    }
+
+    // Call the fetchAnalysisData function
+    fetchAnalysisData()
+        .then(data => createAnalysisPlot(data))
+        .catch(error => console.error('Error creating plot:', error));
+</script>
+
+{% endblock %}

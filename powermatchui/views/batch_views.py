@@ -1,9 +1,9 @@
 #  batch_views.py
-from ..database_operations import fetch_included_technologies_data, fetch_demand_data
+from siren_web.database_operations import fetch_included_technologies_data, fetch_demand_data
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import render
 from django.http import HttpResponse
-from ..models import Analysis, Scenarios  # Import the Scenario model
+from siren_web.models import Analysis, Scenarios  # Import the Scenario model
 from ..forms import RunBatchForm
 from powermatchui.views.exec_powermatch import submit_powermatch
 

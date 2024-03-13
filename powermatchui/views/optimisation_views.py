@@ -1,8 +1,8 @@
-from ..database_operations import fetch_full_generator_storage_data
+from siren_web.database_operations import fetch_full_generator_storage_data
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import render
 from django.http import HttpResponse
-from ..models import Scenarios  # Import the Scenario model
+from siren_web.models import Scenarios  # Import the Scenario model
 from ..forms import RunOptimisationForm
 
 def home(request):

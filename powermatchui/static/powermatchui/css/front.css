@@ -490,3 +490,7 @@ body {
 .card-body.custom-sen {
     background-color: rgb(239, 163, 221);
 }
+
+.navbar li {
+  margin-right: 20px; 
+}

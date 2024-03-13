@@ -92,7 +92,10 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "django.contrib.humanize",
+    "siren_web",
+    "powermapui",
     "powermatchui",
+    "powerplotui",
     "crispy_forms",
 ]
 
@@ -112,7 +115,9 @@ TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
         'DIRS': [
+            os.path.join(BASE_DIR, 'powermapui/templates'),
             os.path.join(BASE_DIR, 'powermatchui/templates'),
+            os.path.join(BASE_DIR, 'powerplotui/templates'),
             os.path.join(BASE_DIR, 'siren_web/templates'),
             os.path.join(BASE_DIR, 'templates'),
             os.path.join(os.path.dirname(crispy_bootstrap5.__file__), 'templates')

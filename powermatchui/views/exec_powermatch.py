@@ -1,11 +1,11 @@
 # run_powermatch.py
-from ..database_operations import fetch_demand_data, fetch_full_generator_storage_data, fetch_settings_data
+from siren_web.database_operations import fetch_demand_data, fetch_full_generator_storage_data, fetch_settings_data
 from datetime import datetime
 from decimal import Decimal
 from django.contrib.auth.decorators import login_required
 from django.db.models import Max
 from django.http import JsonResponse
-from ..models import Analysis, Scenarios
+from siren_web.models import Analysis, Scenarios
 from ..powermatch import pmcore as pm
 from ..powermatch.pmcore import Facility, PM_Facility, powerMatch
 

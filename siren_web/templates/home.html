@@ -1,0 +1,120 @@
+<!-- home.html -->
+
+{% extends 'base.html' %}
+
+{% block content %}
+    <h2>Welcome to Siren Web!</h2>
+    <p>This is a web interface to Power Match, an open source python app for matching and balancing
+    Renewable Energy resources to the load on the South West Interconnected system(SWIS).
+    Power Match takes as input load and generation data from Powermap. Powermatch quantifies and costs the dispatchable energy generation, storage and CO2-e emissions. 
+    The parameters passed to Power Match are stored in database tables that can be maintained using the Table Update function above.
+    In this main panel you can select the Demand Year from the available data shown in the drop down list below.
+    Select the level of detail and click submit to run Power Match.</p>
+
+{% load static %}
+
+{% csrf_token %}
+<div style="max-width: 100vw; overflow: auto;">
+    <img id="siren-image" src="{% static 'powermatchui/img/siren_system.jpg' %}" usemap="#image-map" style="max-width: 100%;">
+
+    <map name="image-map">
+        <area target="_self" alt="Powermap" title="Powermap" coords="1168,577,1552,709" shape="rect" onclick="showtable('Powermap' )">
+        <area target="_self" alt="Powermatch" title="Powermatch" coords="1115,1114,1605,1233" shape="rect" onclick="showtable('Powermatch')">
+        <area target="_self" alt="Powerplot" title="Powerplot" coords="1117,1608,1603,1735" shape="rect" onclick="showtable('Powerplot')">
+        <area target="_self" alt="SAM" title="SAM" coords="2180,630,2503,752" shape="rect" onclick="showtable('SAM')">
+        <area target="_self" alt="MAP" title="MAP" coords="1916,453,1992,426,2077,426,2169,453,2174,573,2084,589,1973,577,1916,566" shape="poly" onclick="showtable('MAP')">
+        <area target="_self" alt="Weather" title="Weather" coords="1628,315,1702,290,1810,294,1895,315,1893,421,1819,442,1702,444,1633,421" shape="poly" onclick="showtable('Weather')">
+        <area target="_self" alt="Demand" title="Demand" coords="1246,327,1334,299,1439,299,1502,322,1499,435,1439,451,1304,449,1253,439" shape="poly" onclick="showtable('Demand')">
+        <area target="_self" alt="Facilities" title="Facilities" coords="834,421,910,396,1018,396,1087,423,1092,529,1011,552,892,552,836,531" shape="poly" onclick="showtable('Facilities')">
+        <area target="_self" alt="Scenarios" title="Scenarios" coords="517,577,593,548,733,548,793,575,795,681,717,704,570,699,517,681" shape="poly" onclick="showtable('Scenarios')">
+        <area target="_self" alt="Technologies" title="Technologies" coords="406,860,510,833,685,833,763,860,761,966,692,985,491,987,402,966" shape="poly" onclick="showtable('Technologies')">
+        <area target="_self" alt="SupplyFactors" title="SupplyFactors" coords="1168,854,1288,824,1456,824,1545,854,1541,957,1474,978,1265,982,1163,959" shape="poly" onclick="showtable('SupplyFactors')">
+        <area target="_self" alt="Optimisation" title="Optimisation" coords="289,1376,392,1344,574,1350,645,1378,643,1486,553,1505,372,1502,291,1482" shape="poly" onclick="showtable('Optimisation')">
+        <area target="_self" alt="Analysis" title="Analysis" coords="1179,1429,1276,1408,1442,1403,1536,1433,1536,1546,1426,1564,1246,1555,1177,1537" shape="poly" onclick="showtable('Analysis')">
+        <area target="_self" alt="Variations" title="Variations" coords="1759,1275,1842,1249,2035,1247,2114,1275,2114,1380,2006,1403,1831,1399,1755,1383" shape="poly" onclick="showtable('Variations')">
+    </map>
+</div>
+<!-- Modal HTML -->
+<div class="modal fade" id="modelModal" tabindex="-1" aria-labelledby="modelModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <!-- Modal content goes here (your model_modal.html) -->
+            {% include 'model_modal.html' %}
+        </div>
+    </div>
+</div>
+
+<script>
+    function showtable(table) {
+        var sirenSystemViewUrl = document.getElementById('siren-image').getAttribute('data-url');
+        // Get the CSRF token from hidden input field
+        var csrfToken = document.querySelector('input[name="csrfmiddlewaretoken"]').value;
+        // Call a Django view using AJAX
+        $.ajax({
+            url: sirenSystemViewUrl,
+            type: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            },
+            data: {
+                'table': table // Pass the title as a parameter
+            },
+            success: function(data) {
+                if (data.status !== 'no_action') {
+                    document.getElementById('model_name').innerHTML = data.model_name;
+                    document.getElementById('model_description').innerHTML = data.model_description;
+
+                    let columnNames = data.column_names;
+                    let sampleData = data.sample_data;
+                    // Clear existing table rows
+                    document.getElementById('headerRow').innerHTML = '';
+                    document.getElementById('bodyRows').innerHTML = '';
+                    // Populate the table header
+                    let headerRow = document.getElementById('headerRow');
+                    columnNames.forEach(function(columnName) {
+                        let th = document.createElement('th');
+                        th.textContent = columnName;
+                        headerRow.appendChild(th);
+                    });
+                    // Populate the table body
+                    let bodyRows = document.getElementById('bodyRows');
+                    sampleData.forEach(function(row) {
+                        let tr = document.createElement('tr');
+                        row.forEach(function(value) {
+                            let td = document.createElement('td');
+                            td.textContent = value;
+                            tr.appendChild(td);
+                        });
+                        bodyRows.appendChild(tr);
+                    });
+                    $('#modelModal').modal('show'); // Show the modal
+                }
+            }
+        });
+    }
+    window.addEventListener('load', function() {
+        var originalImageWidth = 2605; // Original image width
+        var originalImageHeight = 1760; // Original image height
+    
+        var image = document.getElementById('siren-image');
+        var imageWidth = image.width;
+        var imageHeight = image.height;
+    
+        if (imageWidth !== originalImageWidth || imageHeight !== originalImageHeight) {
+            $('area').each(function() {
+                var coords = $(this).attr('coords').split(',').map(Number); // Convert strings to numbers
+                for (var i = 0; i < coords.length; i++) {
+                    if (i % 2 === 0) {
+                        coords[i] = Math.round(coords[i] * (imageWidth / originalImageWidth));
+                    } else {
+                        coords[i] = Math.round(coords[i] * (imageHeight / originalImageHeight));
+                    }
+                }
+                $(this).attr('coords', coords.join(','));
+            });
+        }
+    });
+
+</script>
+{% endblock %}
