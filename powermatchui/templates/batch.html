@@ -4,7 +4,6 @@
 {% block powermatchui_content %}
 
 <body>
-    <h3>Run Powermatch in Batch Mode</h3>
     <p>The batch function calls Powermatch iteratively while varying the capacity of one or more of the generation or storage technologies.</p>
     <h4>To run Powermatch in Batch mode:</h3>
     <ol>
@@ -20,25 +19,23 @@
         <li>Set the required step change value.</li>
     </ol>
     <!-- Form for running Powermatch -->
+    {% load crispy_forms_tags %}
     <form method="post">
         {% csrf_token %}
-        <!-- Additional form fields for setting step change value, number of iterations, etc. -->
-        {% for idtechnology, values in technologies.items %}
-        <details>
-            <summary>{{ values.0 }}</summary>  <!-- Display the technology name -->
-            <label for="capacity_{{ idtechnology }}">Capacity:</label>
-            <input type="number" id="capacity_{{ idtechnology }}" name="capacity_{{ idtechnology }}" value="{{ values.1 }}">
-            <br>
-            <label for="multiplier_{{ idtechnology }}">Multiplier:</label>
-            <input type="number" id="multiplier_{{ idtechnology }}" name="multiplier_{{ idtechnology }}" value="{{ values.2 }}">
-            <br>
-            <label for="step_{{ idtechnology }}">Step:</label>
-            <input type="number" id="step_{{ idtechnology }}" name="step_{{ idtechnology }}" value="{{ values.3 }}">
-        </details>
-        {% endfor %}
-        <input type="number" id="iterations" name="iterations" min="1" value="1">
+        {{ form|crispy }}
         <button type="submit" class="btn-custom-swish2">Submit Batch Run</button>
     </form>
+    <script>
+        // Show/hide the new variation fields based on the selected option
+        document.getElementById('variation').addEventListener('change', function() {
+            const newVariationFields = document.getElementById('new-variation-fields');
+            if (this.value === 'new') {
+                newVariationFields.style.display = 'block';
+            } else {
+                newVariationFields.style.display = 'none';
+            }
+        });
+    </script>
 </body>
 </html>
 

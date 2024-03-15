@@ -176,7 +176,7 @@ class Technologies(models.Model):
 
 class variations(models.Model):
     idvariations = models.AutoField(db_column='idvariations', primary_key=True)  # Field name made lowercase.
-    idtechnologies = models.ForeignKey('Technologies', models.DO_NOTHING)  # Field name made lowercase.
+    idtechnologies = models.ForeignKey('Technologies', models.DO_NOTHING, db_column='idTechnologies')  # Field name made lowercase.
     variation_name = models.CharField(max_length=45, blank=True, null=True)
     variation_description = models.CharField(max_length=250, blank=True, null=True)
     dimension = models.CharField(max_length=30, blank=True, null=True)

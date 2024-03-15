@@ -27,3 +27,11 @@ def replace_underscore(value):
 @register.filter
 def explain_attr(dictionary, key):
     return dictionary.get(key, '')
+
+@register.filter
+def get_field_value(form, field_name):
+    try:
+        value = form.fields[field_name].value()
+    except KeyError:
+        value = None
+    return value

@@ -175,7 +175,9 @@ def fetch_included_technologies_data(demand_year):
     for tech in candidate_technologies:
     # Filter out duplicate technology_name rows, keeping only the one with year = demand_year
         if tech.technology_name not in seen_technologies:
-            technologies[str(tech.idtechnologies)] = [tech.technology_name, tech.capacity, tech.mult]
+            technologies[str(tech.idtechnologies)] = [
+                tech.technology_name, tech.capacity, tech.capex, tech.fom, tech.vom, tech.lifetime, tech.discount_rate
+                ]
             seen_technologies.add(tech.technology_name)
     return technologies
 
