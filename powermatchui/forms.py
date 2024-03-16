@@ -5,6 +5,22 @@ from django.template.loader import render_to_string
 from crispy_forms.helper import FormHelper
 from crispy_forms.layout import Layout, Div, Field
 
+class DemandYearScenario(forms.Form):
+    demand_year = forms.ChoiceField(
+        choices=[('2022', '2022'), ('2023', '2023')],
+        label='Select a Demand Year',
+        initial='2023',
+        widget=forms.Select(attrs={'class': 'form_input'})
+        )
+
+    scenario = forms.ModelChoiceField(
+        queryset=Scenarios.objects.all().values_list('title', flat=True),
+        empty_label=None,
+        label='Select a Scenario',  # Add a label for the dropdown
+        to_field_name='title',  # Use 'title' as the value for the selected choice
+        widget=forms.Select(attrs={'class': 'form_input'})
+    )
+    
 class RunPowermatchForm(forms.Form):
     LEVEL_OF_DETAIL_CHOICES = [
     ('Summary', 'Summary'),
@@ -35,15 +51,16 @@ class RunBatchForm(forms.Form):
 
         form_fields = []
         for technology, values in technologies.items():
-            tech_key = f"{technology.pk}"
+            tech_key = f"{technology}"
+            tech_name = values[0]
             display_fields = [
-                Field(f"capacity_{tech_key}", readonly=True, css_class='form-group col-md-2', label=f"Capacity for {technology.name}", value=technology.capacity),
-                Field(f"multiplier_{tech_key}", readonly=True, css_class='form-group col-md-2', label=f"Multiplier for {technology.name}", value=technology.multiplier),
-                Field(f"capex_{tech_key}", readonly=True, css_class='form-group col-md-2', label=f"Capex for {technology.name}", value=technology.capex),
-                Field(f"fom_{tech_key}", readonly=True, css_class='form-group col-md-2', label=f"FOM for {technology.name}", value=technology.fom),
-                Field(f"vom_{tech_key}", readonly=True, css_class='form-group col-md-2', label=f"VOM for {technology.name}", value=technology.vom),
-                Field(f"lifetime_{tech_key}", readonly=True, css_class='form-group col-md-2', label=f"Lifetime for {technology.name}", value=technology.lifetime),
-                Field(f"discount_rate_{tech_key}", readonly=True, css_class='form-group col-md-2', label=f"Discount Rate for {technology.name}", value=technology.discount_rate),
+                Field(f"capacity_{tech_key}", readonly=True, css_class='form-group col-md-2', label=f"Capacity for {tech_name}", value=values[1]),
+                Field(f"multiplier_{tech_key}", readonly=True, css_class='form-group col-md-2', label=f"Multiplier for {tech_name}", value=values[2]),
+                Field(f"capex_{tech_key}", readonly=True, css_class='form-group col-md-2', label=f"Capex for {tech_name}", value=values[3]),
+                Field(f"fom_{tech_key}", readonly=True, css_class='form-group col-md-2', label=f"FOM for {tech_name}", value=values[4]),
+                Field(f"vom_{tech_key}", readonly=True, css_class='form-group col-md-2', label=f"VOM for {tech_name}", value=values[5]),
+                Field(f"lifetime_{tech_key}", readonly=True, css_class='form-group col-md-2', label=f"Lifetime for {tech_name}", value=values[6]),
+                Field(f"discount_rate_{tech_key}", readonly=True, css_class='form-group col-md-2', label=f"Discount Rate for {tech_name}", value=values[7]),
                 Field(f"step_{tech_key}", css_class='form-group col-md-2'),
                 Field(f"dimension_{tech_key}", css_class='form-group col-md-2'),
             ]

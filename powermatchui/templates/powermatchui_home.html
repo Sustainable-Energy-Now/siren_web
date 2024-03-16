@@ -12,9 +12,9 @@
 
     <form method="post">
         {% csrf_token %}
-        {{ home_form.demand_year }}
-        {{ home_form.scenario.label_tag }}  <!-- Display the label for the scenario dropdown -->
-        {{ home_form.scenario }}
+        {{ demand_year_scenario.demand_year }}
+        {{ demand_year_scenario.scenario.label_tag }}  <!-- Display the label for the scenario dropdown -->
+        {{ demand_year_scenario.scenario }}
         <button name="apply_settings" type="submit" class="btn-custom-swish2">Apply Settings</button>
     </form>
     <br>

@@ -12,7 +12,7 @@ from django.db.models import Max
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import render, redirect
 from django.urls import path
-from ..forms import HomeForm, RunPowermatchForm
+from ..forms import DemandYearScenario, RunPowermatchForm
 from siren_web.database_operations import fetch_demand_data, fetch_scenarios_data, fetch_settings_data,  fetch_full_generator_storage_data
 from siren_web.models import Demand
 from powermatchui.powermatch.pmcore import Facility, Optimisation, PM_Facility, powerMatch
@@ -25,18 +25,18 @@ def powermatchui_home(request):
     success_message = ""
     if request.method == 'POST':
         # Handle form submission
-        home_form = HomeForm(request.POST)
-        if home_form.is_valid():
-            demand_year = home_form.cleaned_data['demand_year']
+        demand_year_scenario = DemandYearScenario(request.POST)
+        if demand_year_scenario.is_valid():
+            demand_year = demand_year_scenario.cleaned_data['demand_year']
             request.session['demand_year'] = demand_year
-            scenario = home_form.cleaned_data['scenario']
+            scenario = demand_year_scenario.cleaned_data['scenario']
             request.session['scenario'] = scenario # Assuming scenario is an instance of Scenarios
             success_message = "Settings updated."
-    home_form = HomeForm()
+    demand_year_scenario = DemandYearScenario()
     runpowermatch_form = RunPowermatchForm()
 
     context = {
-        'home_form': home_form, 'runpowermatch_form': runpowermatch_form,
+        'demand_year_scenario': demand_year_scenario, 'runpowermatch_form': runpowermatch_form,
         'success_message': success_message, 'demand_year': demand_year, 'scenario': scenario
         }
     return render(request, 'powermatchui_home.html', context)
@@ -69,10 +69,10 @@ def run_powermatch(request):
             }
             return render(request, 'display_table.html', context)
         else:
-            home_form = HomeForm()
+            demand_year_scenario = DemandYearScenario()
             runpowermatch_form = RunPowermatchForm()
         context = {
-            'home_form': home_form,'runpowermatch_form': runpowermatch_form,
+            'demand_year_scenario': demand_year_scenario,'runpowermatch_form': runpowermatch_form,
             'success_message': success_message, 'demand_year': demand_year, 'scenario': scenario
             }
         return render(request, 'powermatchui_home.html', context)
