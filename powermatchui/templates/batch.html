@@ -19,12 +19,9 @@
         <li>Set the required step change value.</li>
     </ol>
     <!-- Form for running Powermatch -->
+    {% csrf_token %}
     {% load crispy_forms_tags %}
-    <form method="post">
-        {% csrf_token %}
-        {{ form|crispy }}
-        <button type="submit" class="btn-custom-swish2">Submit Batch Run</button>
-    </form>
+    {% crispy form %}
     <script>
         // Show/hide the new variation fields based on the selected option
         document.getElementById('variation').addEventListener('change', function() {
