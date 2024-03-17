@@ -3,7 +3,9 @@ from django import forms
 from siren_web.models import Scenarios, Technologies, variations
 from django.template.loader import render_to_string
 from crispy_forms.helper import FormHelper
-from crispy_forms.layout import Layout, Div, Field
+from crispy_forms.layout import Layout, Div, Field, Fieldset, Submit, HTML, Button, Row, Column, ButtonHolder
+from crispy_bootstrap5.bootstrap5 import Accordion
+from crispy_forms.bootstrap import AccordionGroup, FormActions
 
 class DemandYearScenario(forms.Form):
     demand_year = forms.ChoiceField(
@@ -36,10 +38,18 @@ class RunPowermatchForm(forms.Form):
     
 class RunBatchForm(forms.Form):
     def __init__(self, *args, **kwargs):
+        DIMENSION_CHOICES = [
+            ('capacity', 'Capacity'),
+            ('multiplier', 'Multiplier'),
+            ('capex', 'Capex'),
+            ('fom', 'FOM'),
+            ('vom', 'VOM'),
+            ('lifetime', 'Lifetime'),
+            ('discount_rate', 'Discount Rate'),
+        ]
         technologies = kwargs.pop('technologies')
         super(RunBatchForm, self).__init__(*args, **kwargs)
 
-        self.helper = FormHelper()
         self.fields['iterations'] = forms.IntegerField(required=True)
 
         variations_list = variations.objects.values_list('variation_name', flat=True)
@@ -47,33 +57,64 @@ class RunBatchForm(forms.Form):
         variations_choices.append(('new', 'Create a new variation'))
         self.fields['variation'] = forms.ChoiceField(choices=variations_choices, required=True)
 
-        self.fields['variation_name'] = forms.CharField(max_length=45, required=False)
+        self.fields['variation_name'] = forms.CharField(
+            max_length=45, required=False,
+            widget=forms.TextInput(attrs={'style': 'display: block'}),
+            )
 
-        form_fields = []
+        accordion_groups = []
         for technology, values in technologies.items():
             tech_key = f"{technology}"
             tech_name = values[0]
-            display_fields = [
-                Field(f"capacity_{tech_key}", readonly=True, css_class='form-group col-md-2', label=f"Capacity for {tech_name}", value=values[1]),
-                Field(f"multiplier_{tech_key}", readonly=True, css_class='form-group col-md-2', label=f"Multiplier for {tech_name}", value=values[2]),
-                Field(f"capex_{tech_key}", readonly=True, css_class='form-group col-md-2', label=f"Capex for {tech_name}", value=values[3]),
-                Field(f"fom_{tech_key}", readonly=True, css_class='form-group col-md-2', label=f"FOM for {tech_name}", value=values[4]),
-                Field(f"vom_{tech_key}", readonly=True, css_class='form-group col-md-2', label=f"VOM for {tech_name}", value=values[5]),
-                Field(f"lifetime_{tech_key}", readonly=True, css_class='form-group col-md-2', label=f"Lifetime for {tech_name}", value=values[6]),
-                Field(f"discount_rate_{tech_key}", readonly=True, css_class='form-group col-md-2', label=f"Discount Rate for {tech_name}", value=values[7]),
-                Field(f"step_{tech_key}", css_class='form-group col-md-2'),
-                Field(f"dimension_{tech_key}", css_class='form-group col-md-2'),
+            self.fields[f"capacity_{tech_key}"] = forms.Field(initial=values[1], label=f"Capacity")
+            self.fields[f"multiplier_{tech_key}"] = forms.Field(initial=values[2], label=f"Multiplier")
+            self.fields[f"capex_{tech_key}"] = forms.FloatField(initial=values[3], label=f"Capex")
+            self.fields[f"fom_{tech_key}"] = forms.FloatField(initial=values[3], label=f"FOM")
+            self.fields[f"vom_{tech_key}"] = forms.FloatField(initial=values[3], label=f"VOM")            
+            self.fields[f"lifetime_{tech_key}"] = forms.FloatField(initial=values[3], label=f"Lifetime")
+            self.fields[f"discount_rate_{tech_key}"] = forms.FloatField(initial=values[3], label=f"Discount Rate", required=False)
+            self.fields[f"step_{tech_key}"] = forms.FloatField(label=f"Step", required=False)
+            self.fields[f"dimension_{tech_key}"] = forms.ChoiceField(
+                choices=DIMENSION_CHOICES,
+                label=f"Dimension",
+                required=False
+            )
+            accordion_group_fields = [
+                # Div(f"{tech_name} details",
+                Div(Field(f"capacity_{tech_key}", readonly=True, css_class='row col-md-4'),
+                    Field(f"multiplier_{tech_key}", readonly=True, css_class='row col-md-4'),
+                    Field(f"capex_{tech_key}", readonly=True, css_class='row col-md-4'),
+                    Field(f"fom_{tech_key}", readonly=True, css_class='row col-md-4'),
+                    Field(f"vom_{tech_key}", readonly=True, css_class='row col-md-4'),
+                    Field(f"lifetime_{tech_key}", readonly=True, css_class='row col-md-4'),
+                    Field(f"discount_rate_{tech_key}", readonly=True, css_class='row col-md-4'),
+                    HTML("<hr>"),
+                ),
+                Div(
+                    HTML('<legend>Step and Dimension</legend>'),
+                    Row(
+                        Field(f"step_{tech_key}", css_class='col-md-4'),
+                        Field(f"dimension_{tech_key}", css_class='col-md-4'),
+                    ),
+                    css_class='row',
+                ),
+                HTML("<hr>")
             ]
-            form_fields.extend(display_fields)
-
+            
+            accordion_groups.append(AccordionGroup(f"{tech_name} Details", *accordion_group_fields)) 
+        self.helper = FormHelper()
+        self.helper.form_action = '/batch/'
         self.helper.layout = Layout(
             Div(
-                Field('iterations', css_class='form-group col-md-4'),
-                Field('variation', css_class='form-group col-md-4'),
-                Field('variation_name', css_class='form-group col-md-4'),
-                css_class='form-row'
+                Field('iterations', css_class='row col-md-4'),
+                Field('variation', css_class='row col-md-4'),
+                Field('variation_name', css_class='row col-md-4'),
+                css_class='row',
             ),
-            *form_fields
+            Accordion(*accordion_groups),
+            FormActions(
+                Submit('submit', 'Submit'),
+            )
         )
         
     def clean(self):
@@ -90,10 +131,13 @@ class RunBatchForm(forms.Form):
             tech_key = tech_field.split('_')[1]
             step_field = f"step_{tech_key}"
             dimension_field = f"dimension_{tech_key}"
-
-            if cleaned_data.get(step_field) and cleaned_data.get(dimension_field):
-                self.add_error(step_field, 'Only one of step or dimension should be specified for each technology.')
-                self.add_error(dimension_field, 'Only one of step or dimension should be specified for each technology.')
+            
+            step_value = cleaned_data.get(step_field)
+            dimension_value = cleaned_data.get(dimension_field)
+            
+            if (step_value and not dimension_value) or (dimension_value and not step_value):
+                self.add_error(step_field, 'Both step and dimension must be specified for a technology.')
+                self.add_error(dimension_field, 'Both step and dimension must be specified for a technology.')
                 break
         return cleaned_data
 

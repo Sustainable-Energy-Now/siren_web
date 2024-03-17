@@ -494,3 +494,7 @@ body {
 .navbar li {
   margin-right: 20px; 
 }
+
+.row > * {
+  display: flex !important;
+}
