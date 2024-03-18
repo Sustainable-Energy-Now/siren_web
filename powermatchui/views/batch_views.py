@@ -27,23 +27,35 @@ def setup_batch(request):
             updated_technologies = {}
             for idtechnology, values in technologies.items():
                 dimension = cleaned_data.get(f'dimension_{idtechnology}', None)
-                startval = values[3] if dimension == 'capex' else values[4] if dimension == 'fom' else values[5] if dimension == 'vom' else values[6] if dimension == 'lifetime' else values[7]
+                startval = values[1] if dimension == 'capacity' \
+                else values[2] if dimension == 'multiplier' \
+                else values[3] if dimension == 'capex' \
+                else values[4] if dimension == 'fom' \
+                else values[5] if dimension == 'vom' \
+                else values[6] if dimension == 'lifetime' \
+                else values[7]
                 step = cleaned_data.get(f'step_{idtechnology}', None)
-                updated_technologies[idtechnology] = [dimension, startval, step]
-                
-            for key in cleaned_data:
-                if key.startswith('capacity_'):
-                    idtechnology = key.replace('capacity_', '')
+                if step:
+                    updated_technologies[idtechnology] = [dimension, startval, step]
+                    idtech = idtechnology
+                    break
 
-                    
             # Create a new variation if variation_name is provided
             if variation_name:
-                technology = Technologies.objects.get(idtechnologies=list(updated_technologies.keys())[0])  # Get the first technology
-                variation_description = f"A variation for {technology.technology_name} with {updated_technologies[technology.idtechnologies][3]} changed by {updated_technologies[technology.idtechnologies][2]} over {iterations} iterations."
-                variation = variations.objects.create(variation_name=variation_name, variation_description=variation_description)
-
+                technology = Technologies.objects.get(idtechnologies=idtech)  # Get the first technology
+                variation_description = \
+                    f"A variation for {technology.technology_name} with {dimension} changed by {str(step)} over {str(iterations)} iterations."
+                variation = variations.objects.create(
+                    idtechnologies=technology,
+                    variation_name=variation_name,
+                    variation_description=variation_description,
+                    dimension=dimension,
+                    startval=startval,
+                    step=step,
+                    iterations=iterations,
+                )
             # Process technologies dictionary as needed
-            run_batch(demand_year, scenario, iterations, updated_technologies)
+            run_batch(request, demand_year, scenario, iterations, updated_technologies)
             success_message = "Batch run has completed."
             
     context = {
@@ -55,12 +67,13 @@ def setup_batch(request):
 def clearScenario(id: int) -> None:
     Analysis.objects.filter(idScenarios=id).delete()
     
-def run_batch(demand_year, scenario, iterations, updated_technologies) -> None:
+def run_batch(request, demand_year, scenario, iterations, updated_technologies) -> HttpResponse:
     # pmss_details, pmss_data, dispatch_order, re_order = fetch_demand_data(demand_year)
     option = 'B'
     # clearScenario(Scenario)
     # Iterate and call doDispatch
     sp_data, headers, sp_pts = submit_powermatch(demand_year, scenario, option, iterations, updated_technologies)
+    success_message = 'Batch run has completed.'
     context = {
         'sp_data': sp_data, 'headers': headers, 'sp_pts': sp_pts,
         'success_message': success_message, 'demand_year': demand_year, 'scenario': scenario

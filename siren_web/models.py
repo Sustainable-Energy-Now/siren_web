@@ -148,7 +148,8 @@ class supplyfactors(models.Model):
         
 class Technologies(models.Model):
     idtechnologies = models.AutoField(db_column='idTechnologies', primary_key=True)  # Field name made lowercase.
-    technology_name = models.CharField(max_length=45, blank=True, null=True)
+    technology_name = models.CharField(max_length=45)
+    technology_signature = models.CharField(max_length=20)
     year = models.IntegerField(default=0, null=True)
     image = models.CharField(max_length=50, blank=True, null=True)
     caption = models.CharField(max_length=50, blank=True, null=True)
