@@ -3,7 +3,7 @@ from django.db import connection
 from django.http import HttpResponse
 import logging
 from django.db.models import Q, F
-from siren_web.models import Demand, facilities, Scenarios, Settings, Technologies, Zones
+from siren_web.models import Demand, facilities, Scenarios, ScenariosTechnologies, Settings, Technologies, Zones
 from powermatchui.powermatch.pmcore import Facility, PM_Facility, Optimisation
 
 def fetch_demand_data(demand_year):
@@ -78,43 +78,44 @@ def fetch_demand_data(demand_year):
    
     # Store demand data in session
     return pmss_data, pmss_details, dispatch_order, re_order
-
-def fetch_facilities_full_sql(scenariosid):
-    facilities_query = \
-    f"""
-        SELECT DISTINCT f.idTechnologies
-        FROM facilities f
-        JOIN ScenariosFacilities sf ON f.idFacilities = sf.idFacilities
-        JOIN Scenarios s ON sf.idScenarios = s.idScenarios
-        JOIN Technologies t ON f.idTechnologies = t.idTechnologies
-        WHERE s.idScenarios = {scenariosid}
-        AND t.category IN ('Generator', 'Storage');
-    """
-        # Execute the SQL query
-    try:
-        with connection.cursor() as cursor:
-            cursor.execute(facilities_query)
-            # Fetch the results
-            facilities_result = cursor.fetchall()
-            if facilities_result is None:
-                # Handle the case where fetchall() returns None
-                logger = logging.getLogger(__name__)
-                logger.debug('No results found.')
-                return None, None  # or handle this case appropriately
-            column_names = [desc[0] for desc in cursor.description]
-        return facilities_result, column_names
-                    
-    except Exception as e:
-        print("Error executing query:", e)
         
-def fetch_facilities_full_orm(scenariosid):
+def relate_technologies_to_scenario(idscenarios):
     # Query to fetch distinct idTechnologies from facilities for a given scenario
-    technologies = facilities.objects.filter(
-        ScenariosFacilities__idScenarios=scenariosid
-    ).filter(
-        Q(technologies__category='Generator') | Q(technologies__category='Storage')
-    ).values_list('idTechnologies', flat=True).distinct()
+    try:
+        scenario = Scenarios.objects.get(idscenarios=idscenarios)
+        # Get the distinct technologies for facilities that have the given scenario
+        distinct_tech_ids = facilities.objects.filter(
+             scenarios=idscenarios
+         ).values_list(
+             'idtechnologies', flat=True).distinct()
+        # distinct_tech_ids = facilities.objects.filter(
+        #     scenarios=idscenarios
+        # ).filter(Q(technologies__category='Generator') | Q(technologies__category='Storage')).values_list(
+        #     'idtechnologies', flat=True).distinct()
+        # Get the Technology instances for the distinct ids
+        technologies = Technologies.objects.filter(idtechnologies__in=distinct_tech_ids)
+        # Remove existing relationships for technologies not in the list
+        ScenariosTechnologies.objects.filter(
+            idscenarios=scenario
+        ).exclude(
+            idtechnologies__in=technologies
+        ).delete()
+            # Create relationships for technologies not already associated
+        existing_relationships = ScenariosTechnologies.objects.filter(
+            idscenarios=scenario
+        ).values_list('idtechnologies', flat=True)
 
+        for tech in technologies:
+            if tech.idtechnologies not in existing_relationships:
+                ScenariosTechnologies.objects.create(
+                    idscenarios=scenario,
+                    idtechnologies=tech
+                )
+
+        return technologies
+    except Exception as e:
+        return None
+    
 def fetch_full_generator_storage_data(demand_year):
     # Define the SQL query
     generators_query = \

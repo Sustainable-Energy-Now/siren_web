@@ -33,10 +33,20 @@ class Demand(models.Model):
     class Meta:
         db_table = 'Demand'
         
+class Scenarios(models.Model):
+    idscenarios = models.AutoField(db_column='idScenarios', primary_key=True)  # Field name made lowercase.
+    title = models.CharField(db_column='Title', max_length=45, blank=True, null=True)  # Field name made lowercase.
+    dateexported = models.DateField(db_column='DateExported', blank=True, null=True)  # Field name made lowercase.
+    description = models.CharField(db_column='Description', max_length=500, blank=True, null=True)  # Field name made lowercase.
+
+    class Meta:
+        db_table = 'Scenarios'
+
 class facilities(models.Model):
     idfacilities = models.PositiveIntegerField(db_column='idfacilities', primary_key=True)  # Field name made lowercase. 
     facility_name = models.CharField(db_column='facility_name', max_length=45, blank=True, null=True)  # Field name made lowercase.
     idtechnologies = models.ForeignKey('Technologies', models.DO_NOTHING, db_column='idtechnologies')  # Field name made lowercase.
+    scenarios = models.ManyToManyField(Scenarios, through='ScenariosFacilities', blank=True)
     idzones = models.ForeignKey('Zones', models.DO_NOTHING, db_column='idzones', blank=True, null=True)  # Field name made lowercase.
     capacity = models.DecimalField(db_column='capacity', max_digits=7, decimal_places=2, blank=True, null=True)  # Field name made lowercase.
     capacityfactor = models.DecimalField(db_column='capacityfactor', max_digits=5, decimal_places=2, blank=True, null=True)  # Field name made lowercase.
@@ -44,7 +54,7 @@ class facilities(models.Model):
     transmitted = models.DecimalField(db_column='transmitted', max_digits=9, decimal_places=0, blank=True, null=True)  # Field name made lowercase.
     latitude = models.FloatField(blank=True, null=True)
     longitude = models.FloatField(blank=True, null=True)
-    
+
     class Meta:
         db_table = 'facilities'
  
@@ -85,23 +95,22 @@ class Optimisation(models.Model):
     class Meta:
         db_table = 'Optimisation'
         
-class Scenarios(models.Model):
-    idscenarios = models.AutoField(db_column='idScenarios', primary_key=True)  # Field name made lowercase.
-    title = models.CharField(db_column='Title', max_length=45, blank=True, null=True)  # Field name made lowercase.
-    dateexported = models.DateField(db_column='DateExported', blank=True, null=True)  # Field name made lowercase.
-    description = models.CharField(db_column='Description', max_length=500, blank=True, null=True)  # Field name made lowercase.
-
-    class Meta:
-        db_table = 'Scenarios'
-        
 class ScenariosFacilities(models.Model):
     idscenariosfacilities = models.AutoField(primary_key=True)  # Field name made lowercase.
-    idscenarios = models.ForeignKey('Scenarios', models.DO_NOTHING, db_column='idScenarios')
-    idfacilities = models.ForeignKey('facilities', models.DO_NOTHING, db_column='idfacilities')
-    merit_order = models.IntegerField(blank=True, null=True)
+    idscenarios = models.ForeignKey('Scenarios', on_delete=models.RESTRICT, db_column='idScenarios')
+    idfacilities = models.ForeignKey('facilities', on_delete=models.RESTRICT, db_column='idfacilities')
 
     class Meta:
         db_table = 'ScenariosFacilities'
+        
+class ScenariosTechnologies(models.Model):
+    idscenariostechnologies = models.AutoField(primary_key=True)  # Field name made lowercase.
+    idscenarios = models.ForeignKey('Scenarios', on_delete=models.RESTRICT)
+    idtechnologies = models.ForeignKey('Technologies', on_delete=models.RESTRICT)
+    merit_order = models.IntegerField(null=True)
+
+    class Meta:
+        db_table = 'ScenariosTechnologies'
         
 class Settings(models.Model):
     idsettings = models.PositiveIntegerField(db_column='idSettings', primary_key=True)  # Field name made lowercase.
@@ -151,12 +160,12 @@ class Technologies(models.Model):
     technology_name = models.CharField(max_length=45)
     technology_signature = models.CharField(max_length=20)
     year = models.IntegerField(default=0, null=True)
+    scenarios = models.ManyToManyField(Scenarios, through='ScenariosTechnologies', blank=True)
     image = models.CharField(max_length=50, blank=True, null=True)
     caption = models.CharField(max_length=50, blank=True, null=True)
     category = models.CharField(max_length=45, blank=True, null=True)
     renewable = models.IntegerField(blank=True, null=True)
     dispatchable = models.IntegerField(blank=True, null=True)
-    merit_order = models.IntegerField(blank=True, null=True)
     capex = models.DecimalField(max_digits=9, decimal_places=2, blank=True, null=True)
     fom = models.DecimalField(db_column='FOM', max_digits=9, decimal_places=2, blank=True, null=True)  # Field name made lowercase.
     vom = models.DecimalField(db_column='VOM', max_digits=7, decimal_places=2, blank=True, null=True)  # Field name made lowercase.
@@ -171,6 +180,7 @@ class Technologies(models.Model):
     initial = models.DecimalField(max_digits=7, decimal_places=2, blank=True, null=True)
     lcoe = models.DecimalField(max_digits=7, decimal_places=2, blank=True, null=True)
     lcoe_cf = models.DecimalField(max_digits=7, decimal_places=2, blank=True, null=True)
+
 
     class Meta:
         db_table = 'Technologies'

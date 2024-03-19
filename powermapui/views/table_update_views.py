@@ -25,7 +25,7 @@ def select_table(request):
         # Code to handle selecting the table and populating the page
         # This code will be executed when the "Submit" button is clicked
         selected_table_name = request.POST.get('table_selection')
-        selected_model = apps.get_model('powermatchui', selected_table_name)
+        selected_model = apps.get_model('siren_web', selected_table_name)
         primary_key_name = selected_model._meta.pk.name
         # Fetch column names dynamically
         column_names = [field.name for field in selected_model._meta.fields]
@@ -58,7 +58,7 @@ def update_table(request):
         
         # Handle form submission for updating the table
         selected_table_name = request.POST.get('selected_table_name')  # Get the value of the "selected_model" field
-        selected_model = apps.get_model('powermatchui', selected_table_name)
+        selected_model = apps.get_model('siren_web', selected_table_name)
         table_entries = selected_model.objects.all() # Fetch all objects from the database
         primary_key_field_name = selected_model._meta.pk.name
         column_names = [field.name for field in selected_model._meta.fields]

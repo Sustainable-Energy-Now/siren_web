@@ -1,11 +1,8 @@
 <!-- create_scenario.html -->
 {% extends 'powermapui_base.html' %}
+{% block powermapui_content %}
+<h3>Manage Scenarios and Facilities</h3>
 {% load crispy_forms_tags %}
-
-{% block content %}
-<h2>Manage Scenarios and Facilities</h2>
-
-<h3>Update Facility Associations</h3>
 {% load custom_filters %}
 <form method="post" action="{% url 'update_scenario' %}">
     {% csrf_token %}

@@ -18,6 +18,14 @@
         <button name="apply_settings" type="submit" class="btn-custom-swish2">Apply Settings</button>
     </form>
     <br>
+    {% if scenario %}
+    <form method="post" action="{% url 'generate_facilities' %}">
+        {% csrf_token %}
+        <button name="generate_facilities" type="submit" class="btn-custom-swish2">Relate Technologies to Scenario</button>
+    </form>
+    {% else %}
+        <p>Demand Year and Scenario must be specified.</p>
+    {% endif %}
     <form method="post" action="{% url 'run_powermatch' %}">
         {% csrf_token %}
         {{ runpowermatch_form.level_of_detail }}
