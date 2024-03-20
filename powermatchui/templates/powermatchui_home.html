@@ -19,9 +19,9 @@
     </form>
     <br>
     {% if scenario %}
-    <form method="post" action="{% url 'generate_facilities' %}">
+    <form method="post" action="{% url 'relate_technologies' %}">
         {% csrf_token %}
-        <button name="generate_facilities" type="submit" class="btn-custom-swish2">Relate Technologies to Scenario</button>
+        <button name="relate_technologies" type="submit" class="btn-custom-swish2">Relate Technologies to Scenario</button>
     </form>
     {% else %}
         <p>Demand Year and Scenario must be specified.</p>

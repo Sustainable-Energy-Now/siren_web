@@ -2,7 +2,6 @@
 
 {% block powermatchui_content %}
 
-{% block content %}
 <form method="post">
     {% csrf_token %}
     <div class="container">
@@ -14,7 +13,8 @@
                         <ul id="merit-order-list" class="list-group">
                             {% for id, values in merit_order.items %}
                                 {% with name=values.0 emissions=values.1 %}
-                                    <li class="list-group-item" id="{{ id }}" data-id="{{ id }}" draggable="true" data-emissions="{{ emissions }}">{{ name }}</li>
+                                    <li class="list-group-item" id="{{ id }}" data-id="{{ id }}" draggable="true" 
+                                        data-emissions="{{ emissions }}">{{ name }}</li>
                                 {% endwith %}
                             {% endfor %}
                         </ul>
@@ -59,8 +59,9 @@
 
     $(function() {
         // Make the containers sortable
-        $('.list-group').sortable({
-            connectWith: '.list-group', // Allow sorting between containers
+        $('ul.list-group').sortable({
+            connectWith: '.list-group', // Allow sorting between lists within .list-group-container
+            dropOnEmpty: true, // Allow dropping on empty lists
             tolerance: 'pointer', // Use pointer for more precise sorting
             helper: 'clone', // Use a clone as the dragging helper
             start: function(event, ui) {
@@ -73,31 +74,27 @@
             },
             receive: function(event, ui) {
                 // Handle the dropped item
+                debugger;
                 var droppedItem = ui.item;
                 var targetList = droppedItem.parent();
-                var targetId = targetList.attr('id');
+                var sourceList = ui.sender; // Get the source list
+    
+                // Move the item to the target list
+                droppedItem.detach().appendTo(targetList);
+    
+                // Remove any associated hidden input fields from the source list
                 var itemId = droppedItem.attr('id');
-
-                // Update any associated hidden input fields
-                var inputField = $('input[name="' + targetId + '"][value="' + itemId + '"]');
-                if (inputField.length === 0) {
-                    // Create a new hidden input field if it doesn't exist
-                    $('<input>').attr({
-                        type: 'hidden',
-                        name: targetId,
-                        value: itemId
-                    }).appendTo('form');
-                }
+                var sourceInputField = $('input[name="' + sourceList.attr('id') + '"][value="' + itemId + '"]');
+                sourceInputField.remove();
+    
+                // Add a new hidden input field to the target list
+                var targetId = targetList.attr('id');
+                $('<input>').attr({
+                    type: 'hidden',
+                    name: targetId,
+                    value: itemId
+                }).appendTo('form');
             }
-        });
-
-        // Prevent the default drag and drop behavior for the entire document
-        $(document).on('dragover', function(event) {
-            event.preventDefault();
-        });
-
-        $(document).on('drop', function(event) {
-            event.preventDefault();
         });
     });
 

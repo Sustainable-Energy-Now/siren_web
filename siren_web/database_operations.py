@@ -170,20 +170,27 @@ def get_emission_color(emissions):
     else:
         return '#1b5e20'  # Black
     
-def fetch_merit_order_technologies(demand_year):
+def fetch_merit_order_technologies(demand_year, idscenarios):
     candidate_technologies = fetch_generation_storage_data(demand_year)
     merit_order_data = {}
     excluded_resources_data = {}
-    # Create dictionaries with idtechnologies as keys and names as values
     seen_technologies = set()
+
+    # Get the TechnologiesScenarios objects for the given scenario
+    technologies_scenarios = ScenariosTechnologies.objects.filter(idscenarios=idscenarios)
+
     for tech in candidate_technologies:
-    # Filter out duplicate technology_name rows, keeping only the one with year = demand_year
+        # Filter out duplicate technology_name rows, keeping only the one with year = demand_year
         if candidate_technologies[tech][0] not in seen_technologies:
-            if (candidate_technologies[tech][1] <= 99):
-                merit_order_data[tech] = [candidate_technologies[tech][0], get_emission_color(candidate_technologies[tech][2])]
-            else:
-                excluded_resources_data[tech] = [candidate_technologies[tech][0], get_emission_color(candidate_technologies[tech][2])]
+            technology_scenario = technologies_scenarios.filter(idtechnologies=tech).first()
+            if technology_scenario:
+                merit_order = technology_scenario.merit_order
+                if merit_order is not None and merit_order <= 99:
+                    merit_order_data[tech] = [candidate_technologies[tech][0], get_emission_color(candidate_technologies[tech][1])]
+                else:
+                    excluded_resources_data[tech] = [candidate_technologies[tech][0], get_emission_color(candidate_technologies[tech][1])]
             seen_technologies.add(candidate_technologies[tech][0])
+
     return merit_order_data, excluded_resources_data
 
 def fetch_generation_storage_data(demand_year):
@@ -191,13 +198,13 @@ def fetch_generation_storage_data(demand_year):
     candidate_technologies = Technologies.objects.filter(
         year__in=[0, demand_year],
         category__in=['Generator', 'Storage']  # Use double underscores for related field lookups
-    ).order_by('merit_order', '-year')
+    ).order_by('-year')
     seen_technologies = set()
     technologies = {}
     for tech in candidate_technologies:
     # Filter out duplicate technology_name rows, keeping only the one with year = demand_year
         if tech.idtechnologies not in seen_technologies:
-            technologies[tech.idtechnologies] = [tech.technology_name, tech.merit_order, tech.emissions]
+            technologies[tech.idtechnologies] = [tech.technology_name, tech.emissions]
             seen_technologies.add(tech.idtechnologies)
     return technologies
 
@@ -205,9 +212,8 @@ def fetch_included_technologies_data(demand_year):
     # Filter technologies based on merit_order conditions
     candidate_technologies = Technologies.objects.filter(
         year__in=[0, demand_year],
-        category__in=['Generator', 'Storage'],  # Use double underscores for related field lookups
-        merit_order__lte=99
-    ).order_by('merit_order', '-year')
+        category__in=['Generator', 'Storage']  # Use double underscores for related field lookups
+    ).order_by('-year')
     seen_technologies = set()
     technologies = {}
     for tech in candidate_technologies:
