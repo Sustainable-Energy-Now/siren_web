@@ -498,3 +498,7 @@ body {
 .row > * {
   display: flex !important;
 }
+
+.non-draggable {
+  display: none;
+}

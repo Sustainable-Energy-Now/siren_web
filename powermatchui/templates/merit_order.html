@@ -13,10 +13,11 @@
                         <ul id="merit-order-list" class="list-group">
                             {% for id, values in merit_order.items %}
                                 {% with name=values.0 emissions=values.1 %}
-                                    <li class="list-group-item" id="{{ id }}" data-id="{{ id }}" draggable="true" 
+                                    <li class="list-group-item" id="{{ id }}" data-id="{{ id }}"
                                         data-emissions="{{ emissions }}">{{ name }}</li>
                                 {% endwith %}
                             {% endfor %}
+                            <li class="non-draggable"></li>
                         </ul>
                     </div>
                 </div>
@@ -28,9 +29,10 @@
                         <ul id="excluded-resources-list" class="list-group">
                             {% for id, values in excluded_resources.items %}
                                 {% with name=values.0 emissions=values.1 %}
-                                    <li class="list-group-item" id="{{ id }}" data-id="{{ id }}" draggable="true" data-emissions="{{ emissions }}">{{ name }}</li>
+                                    <li class="list-group-item" id="{{ id }}" data-id="{{ id }}" data-emissions="{{ emissions }}">{{ name }}</li>
                                 {% endwith %}
                             {% endfor %}
+                            <li class="non-draggable"></li>
                         </ul>
                     </div>
                 </div>
@@ -42,14 +44,10 @@
 
 <!-- jQuery -->
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-<!-- jQuery UI -->
-<script src="https://code.jquery.com/ui/1.13.1/jquery-ui.min.js"></script>
+<script src="https://code.jquery.com/ui/1.13.2/jquery-ui.min.js"></script>
 
 <script>
     document.querySelectorAll('.list-group-item').forEach(item => {
-        item.addEventListener('dragstart', event => {
-            event.dataTransfer.setData('text/plain', item.id);
-        });
         document.querySelectorAll('.list-group-item').forEach(item => {
             let emissions = item.getAttribute('data-emissions');
             let hexColor = emissions;  // Keep the color code as a string
@@ -58,43 +56,10 @@
     });
 
     $(function() {
-        // Make the containers sortable
-        $('ul.list-group').sortable({
-            connectWith: '.list-group', // Allow sorting between lists within .list-group-container
-            dropOnEmpty: true, // Allow dropping on empty lists
-            tolerance: 'pointer', // Use pointer for more precise sorting
-            helper: 'clone', // Use a clone as the dragging helper
-            start: function(event, ui) {
-                // Add a class to the dragged item for styling
-                ui.item.addClass('dragging');
-            },
-            stop: function(event, ui) {
-                // Remove the dragging class when dragging stops
-                ui.item.removeClass('dragging');
-            },
-            receive: function(event, ui) {
-                // Handle the dropped item
-                debugger;
-                var droppedItem = ui.item;
-                var targetList = droppedItem.parent();
-                var sourceList = ui.sender; // Get the source list
-    
-                // Move the item to the target list
-                droppedItem.detach().appendTo(targetList);
-    
-                // Remove any associated hidden input fields from the source list
-                var itemId = droppedItem.attr('id');
-                var sourceInputField = $('input[name="' + sourceList.attr('id') + '"][value="' + itemId + '"]');
-                sourceInputField.remove();
-    
-                // Add a new hidden input field to the target list
-                var targetId = targetList.attr('id');
-                $('<input>').attr({
-                    type: 'hidden',
-                    name: targetId,
-                    value: itemId
-                }).appendTo('form');
-            }
+        $('.list-group').sortable({
+          connectWith: '.list-group',
+          items: '> .list-group-item:not(.non-draggable)', // Only allow dragging of .list-group-item elements that don't have the .non-draggable class
+          placeholder: '' // Remove the placeholder marker
         });
     });
 
