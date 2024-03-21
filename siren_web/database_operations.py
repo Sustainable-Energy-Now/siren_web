@@ -36,48 +36,7 @@ def fetch_demand_data(demand_year):
         # Handle any errors that occur during the database query
         return HttpResponse(f"Error fetching demand data: {e}", status=500), None
     
-    # Read Technologies from the database.    
- 
-    technologies_result, column_names = fetch_full_generator_storage_data(demand_year)
-    
-    # Create a dictionary of technologies and their attributes for the chosen year.
-    # exclude any where merit_order > 99
-    generators = {}
-    dispatch_order = []
-    re_order = ['Load']
-
-    for technology_row in technologies_result:
-        # Create a dictionary to store the attributes by name
-        attributes_by_name = {}
-        for i, value in enumerate(technology_row):
-            attributes_by_name[column_names[i]] = value
-        order = attributes_by_name['merit_order']
-        if (order <= 99):
-            name = attributes_by_name['technology_name']
-            if (name not in generators):
-                generators[name] = Facility(
-                    generator_name=name, capacity=attributes_by_name['capacity'], constr=name,
-                    emissions=attributes_by_name['emissions'], initial=attributes_by_name['initial'], order=order, 
-                    capex=attributes_by_name['capex'], fixed_om=attributes_by_name['FOM'], variable_om=attributes_by_name['VOM'],
-                    fuel=attributes_by_name['fuel'], lifetime=attributes_by_name['lifetime'], disc_rate=attributes_by_name['discount_rate'],
-                    lcoe=None, lcoe_cfs=None )
-            dispatchable=attributes_by_name['dispatchable']
-            if (dispatchable):
-                if (name not in dispatch_order):
-                    dispatch_order.append(name)
-            renewable = attributes_by_name['renewable']
-            category = attributes_by_name['category']
-            if (renewable and category != 'Storage'):
-                if (name not in re_order):
-                    re_order.append(name)
-            capacity = attributes_by_name['capacity']
-            if name not in pmss_details: # type: ignore
-                pmss_details[name] = PM_Facility(name, name, capacity, 'S', -1, 1)
-            else:
-                pmss_details[name].capacity = capacity
-   
-    # Store demand data in session
-    return pmss_data, pmss_details, dispatch_order, re_order
+    return pmss_data, pmss_details
         
 def relate_technologies_to_scenario(idscenarios):
     # Query to fetch distinct idTechnologies from facilities for a given scenario
@@ -171,27 +130,39 @@ def get_emission_color(emissions):
         return '#1b5e20'  # Black
     
 def fetch_merit_order_technologies(demand_year, idscenarios):
-    candidate_technologies = fetch_generation_storage_data(demand_year)
     merit_order_data = {}
     excluded_resources_data = {}
-    seen_technologies = set()
 
     # Get the TechnologiesScenarios objects for the given scenario
-    technologies_scenarios = ScenariosTechnologies.objects.filter(idscenarios=idscenarios)
+    technologies_scenarios = ScenariosTechnologies.objects.filter(idscenarios=idscenarios).order_by(
+            'merit_order'  # Order the results by merit_order
+        )
 
-    for tech in candidate_technologies:
-        # Filter out duplicate technology_name rows, keeping only the one with year = demand_year
-        if candidate_technologies[tech][0] not in seen_technologies:
-            technology_scenario = technologies_scenarios.filter(idtechnologies=tech).first()
-            if technology_scenario:
+    for technology_scenario in technologies_scenarios:
+        if technology_scenario:
+            technology_obj = technology_scenario.idtechnologies
+            tech_category = technology_obj.category
+            if (tech_category in ['Generator', 'Storage']):
+                tech_id = technology_obj.idtechnologies
+                emissions = technology_obj.emissions
+                tech_name = technology_obj.technology_name
                 merit_order = technology_scenario.merit_order
                 if merit_order is not None and merit_order <= 99:
-                    merit_order_data[tech] = [candidate_technologies[tech][0], get_emission_color(candidate_technologies[tech][1])]
+                    merit_order_data[tech_id] = [tech_name, get_emission_color(emissions)]
                 else:
-                    excluded_resources_data[tech] = [candidate_technologies[tech][0], get_emission_color(candidate_technologies[tech][1])]
-            seen_technologies.add(candidate_technologies[tech][0])
+                    excluded_resources_data[tech_id] = [tech_name, get_emission_color(emissions)]
 
     return merit_order_data, excluded_resources_data
+
+def fetch_included_technologies_data(scenario):
+    # Get the list of included technologies
+    scenario_obj = Scenarios.objects.get(title=scenario)
+    technologies_list = Technologies.objects.filter(
+        scenarios=scenario_obj,
+        category__in=['Generator', 'Storage'],  # Use double underscores for related field lookups
+        scenariostechnologies__merit_order__lt=100
+    ).order_by('scenariostechnologies__merit_order')
+    return technologies_list
 
 def fetch_generation_storage_data(demand_year):
     # Filter technologies based on merit_order conditions
@@ -208,22 +179,13 @@ def fetch_generation_storage_data(demand_year):
             seen_technologies.add(tech.idtechnologies)
     return technologies
 
-def fetch_included_technologies_data(demand_year):
-    # Filter technologies based on merit_order conditions
-    candidate_technologies = Technologies.objects.filter(
-        year__in=[0, demand_year],
-        category__in=['Generator', 'Storage']  # Use double underscores for related field lookups
-    ).order_by('-year')
-    seen_technologies = set()
-    technologies = {}
-    for tech in candidate_technologies:
-    # Filter out duplicate technology_name rows, keeping only the one with year = demand_year
-        if tech.technology_name not in seen_technologies:
-            technologies[str(tech.idtechnologies)] = [
-                tech.technology_name, tech.capacity, tech.mult, tech.capex, tech.fom, tech.vom, tech.lifetime, tech.discount_rate
-                ]
-            seen_technologies.add(tech.technology_name)
-    return technologies
+def fetch_Storage_IDs_list(demand_year):
+    storage_technologies = Technologies.objects.filter(
+        category='Storage',
+        year__in=[0, demand_year]
+    ).values_list(
+             'idtechnologies', flat=True).distinct()
+    return storage_technologies
 
 def fetch_scenarios_data():
     try:

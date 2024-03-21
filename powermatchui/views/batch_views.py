@@ -13,7 +13,7 @@ def setup_batch(request):
     demand_year = request.session.get('demand_year')
     scenario = request.session.get('scenario')
     success_message = ""
-    technologies= fetch_included_technologies_data(demand_year)
+    technologies= fetch_included_technologies_data(scenario)
     form = RunBatchForm(technologies=technologies)
     if request.method == 'POST':
         # Handle form submission
@@ -25,19 +25,19 @@ def setup_batch(request):
             variation = cleaned_data.get('variation', None)
             
             updated_technologies = {}
-            for idtechnology, values in technologies.items():
-                dimension = cleaned_data.get(f'dimension_{idtechnology}', None)
-                startval = values[1] if dimension == 'capacity' \
-                else values[2] if dimension == 'multiplier' \
-                else values[3] if dimension == 'capex' \
-                else values[4] if dimension == 'fom' \
-                else values[5] if dimension == 'vom' \
-                else values[6] if dimension == 'lifetime' \
-                else values[7]
-                step = cleaned_data.get(f'step_{idtechnology}', None)
+            for technology in technologies:
+                idtech = technology.idtechnologies
+                dimension = cleaned_data.get(f'dimension_{idtech}', None)
+                startval = technology.capacity if dimension == 'capacity' \
+                else technology.mult if dimension == 'multiplier' \
+                else technology.capex if dimension == 'capex' \
+                else technology.fom if dimension == 'fom' \
+                else technology.vom if dimension == 'vom' \
+                else technology.lifetime if dimension == 'lifetime' \
+                else technology.discount_rate
+                step = cleaned_data.get(f'step_{idtech}', None)
                 if step:
-                    updated_technologies[idtechnology] = [dimension, startval, step]
-                    idtech = idtechnology
+                    updated_technologies[idtech] = [dimension, startval, step]
                     break
 
             # Create a new variation if variation_name is provided

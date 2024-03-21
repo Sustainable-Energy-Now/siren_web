@@ -29,13 +29,15 @@ def set_merit_order(request):
         # Process the IDs as needed, e.g., update the order of items in the database
         # Update the merit_order attribute for technologies in the 'Merit Order' column
         for index, tech_id in enumerate(merit_order, start=1):
-            technology = Technologies.objects.get(idtechnologies=tech_id)
-            ScenariosTechnologies.objects.filter(technologies=technology, scenarios=scenario_obj.pk).update(merit_order=index)
+            if tech_id:
+                technology = Technologies.objects.get(idtechnologies=tech_id)
+                ScenariosTechnologies.objects.filter(idtechnologies=technology, idscenarios=scenario_obj.pk).update(merit_order=index)
 
         # Update the merit_order attribute for technologies in the 'Excluded Resources' column
-        for tech_id in excluded_resources:
-            technology = Technologies.objects.get(idtechnologies=tech_id)
-            ScenariosTechnologies.objects.filter(technologies=technology, scenarios=scenario_obj.pk).update(merit_order=999)
+        for index, tech_id in enumerate(excluded_resources, start=800):
+            if tech_id:
+                technology = Technologies.objects.get(idtechnologies=tech_id)
+                ScenariosTechnologies.objects.filter(idtechnologies=technology, idscenarios=scenario_obj.pk).update(merit_order=index)
 
         success_message = "Merit order saved successfully"
     idscenarios = scenario_obj.pk

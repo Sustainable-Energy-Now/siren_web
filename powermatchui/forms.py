@@ -63,16 +63,16 @@ class RunBatchForm(forms.Form):
             )
 
         accordion_groups = []
-        for technology, values in technologies.items():
-            tech_key = f"{technology}"
-            tech_name = values[0]
-            self.fields[f"capacity_{tech_key}"] = forms.Field(initial=values[1], label=f"Capacity")
-            self.fields[f"multiplier_{tech_key}"] = forms.Field(initial=values[2], label=f"Multiplier")
-            self.fields[f"capex_{tech_key}"] = forms.FloatField(initial=values[3], label=f"Capex")
-            self.fields[f"fom_{tech_key}"] = forms.FloatField(initial=values[3], label=f"FOM")
-            self.fields[f"vom_{tech_key}"] = forms.FloatField(initial=values[3], label=f"VOM")            
-            self.fields[f"lifetime_{tech_key}"] = forms.FloatField(initial=values[3], label=f"Lifetime")
-            self.fields[f"discount_rate_{tech_key}"] = forms.FloatField(initial=values[3], label=f"Discount Rate", required=False)
+        for technology in technologies:
+            tech_key = f"{technology.pk}"
+            tech_name = technology.technology_name
+            self.fields[f"capacity_{tech_key}"] = forms.Field(initial=technology.capacity, label=f"Capacity")
+            self.fields[f"mult_{tech_key}"] = forms.Field(initial=technology.mult, label=f"Multiplier")
+            self.fields[f"capex_{tech_key}"] = forms.FloatField(initial=technology.capex, label=f"Capex")
+            self.fields[f"fom_{tech_key}"] = forms.FloatField(initial=technology.fom, label=f"FOM")
+            self.fields[f"vom_{tech_key}"] = forms.FloatField(initial=technology.vom, label=f"VOM")            
+            self.fields[f"lifetime_{tech_key}"] = forms.FloatField(initial=technology.lifetime, label=f"Lifetime")
+            self.fields[f"discount_rate_{tech_key}"] = forms.FloatField(initial=technology.discount_rate, label=f"Discount Rate", required=False)
             self.fields[f"step_{tech_key}"] = forms.FloatField(label=f"Step", required=False)
             self.fields[f"dimension_{tech_key}"] = forms.ChoiceField(
                 choices=DIMENSION_CHOICES,
@@ -82,7 +82,7 @@ class RunBatchForm(forms.Form):
             accordion_group_fields = [
                 # Div(f"{tech_name} details",
                 Div(Field(f"capacity_{tech_key}", readonly=True, css_class='row col-md-4'),
-                    Field(f"multiplier_{tech_key}", readonly=True, css_class='row col-md-4'),
+                    Field(f"mult_{tech_key}", readonly=True, css_class='row col-md-4'),
                     Field(f"capex_{tech_key}", readonly=True, css_class='row col-md-4'),
                     Field(f"fom_{tech_key}", readonly=True, css_class='row col-md-4'),
                     Field(f"vom_{tech_key}", readonly=True, css_class='row col-md-4'),

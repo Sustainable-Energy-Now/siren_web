@@ -131,6 +131,7 @@ class sirensystem(models.Model):
 class Storageattributes(models.Model):
     idstorageattributes = models.AutoField(db_column='idStorageAttributes', primary_key=True)  # Field name made lowercase.
     idtechnologies = models.ForeignKey('Technologies', models.DO_NOTHING, db_column='idTechnologies', blank=True, null=True)  # Field name made lowercase.
+    year = models.IntegerField()
     discharge_loss = models.IntegerField(blank=True, null=True)
     discharge_max = models.DecimalField(max_digits=5, decimal_places=2, blank=True, null=True)
     parasitic_loss = models.IntegerField(blank=True, null=True)

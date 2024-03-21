@@ -25,7 +25,6 @@
     <script>
         // Show/hide the new variation fields based on the selected option
         document.getElementById('id_variation').addEventListener('change', function() {
-            debugger;
             const newVariationFields = document.getElementById('id_variation_name');
             if (this.value === 'new') {
                 newVariationFields.style.display = 'block';
