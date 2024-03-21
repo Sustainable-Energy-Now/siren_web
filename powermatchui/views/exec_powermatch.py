@@ -93,13 +93,16 @@ def insert_data(i, sp_data, scenario_obj, Basis, Stage):
 
 def submit_powermatch(demand_year, scenario, option, iterations, updated_technologies):
     settings = fetch_settings_data()
+    pmss_data, pmss_details = \
+    fetch_demand_data(demand_year)
+    
     generators_result = fetch_included_technologies_data(scenario)
     
     # generators_result, column_names= fetch_full_generator_storage_data(demand_year)
     generators = {}
     dispatch_order = []
     re_order = ['Load']
-    pmss_details = {}
+
     # Process the results
     fuel = None
     recharge_max = None
@@ -107,14 +110,14 @@ def submit_powermatch(demand_year, scenario, option, iterations, updated_technol
     discharge_max = None
     discharge_loss = None
     parasitic_loss = None
-    for generator_row in generators_result:      # Create a dictionary of Facilities objects
-        name = generator_row.technology_name
+    for technology_row in generators_result:      # Create a dictionary of Facilities objects
+        name = technology_row.technology_name
         if name not in generators:
             generators[name] = {}
-        if (generator_row.category == 'Generator'):
+        if (technology_row.category == 'Generator'):
             try:
                 generator_qs = Generatorattributes.objects.filter(
-                    idtechnologies=generator_row,
+                    idtechnologies=technology_row,
                     year__in=[0, demand_year],
                 ).order_by('-year')
                 generator = generator_qs[0]
@@ -123,10 +126,10 @@ def submit_powermatch(demand_year, scenario, option, iterations, updated_technol
                 # Handle the case where no matching generator object is found
                 generator = None
 
-        elif (generator_row.category == 'Storage'):
+        elif (technology_row.category == 'Storage'):
             try:
                 storage_qs = Storageattributes.objects.filter(
-                    idtechnologies=generator_row,
+                    idtechnologies=technology_row,
                     year__in=[0, demand_year],
                 ).order_by('-year')
                 storage= storage_qs[0]
@@ -142,39 +145,40 @@ def submit_powermatch(demand_year, scenario, option, iterations, updated_technol
         scenario_obj = Scenarios.objects.get(title=scenario)
         merit_order = ScenariosTechnologies.objects.filter(
             idscenarios=scenario_obj,
-            idtechnologies=generator_row
+            idtechnologies=technology_row
             ).values_list('merit_order', flat=True)
         generators[name] = Facility(
-            generator_name=name, category=generator_row.category, capacity=generator_row.capacity,
-            constr=generator_row.technology_name,
-            capacity_max=generator_row.capacity_max, capacity_min=generator_row.capacity_min,
+            generator_name=name, category=technology_row.category, capacity=technology_row.capacity,
+            constr=technology_row.technology_name,
+            capacity_max=technology_row.capacity_max, capacity_min=technology_row.capacity_min,
             recharge_max=recharge_max, recharge_loss=recharge_loss,
             min_runtime=0, warm_time=0,
             discharge_max=discharge_max,
             discharge_loss=discharge_loss, parasitic_loss=parasitic_loss,
-            emissions=generator_row.emissions, initial=generator_row.initial, order=merit_order[0], 
-            capex=generator_row.capex, fixed_om=generator_row.fom, variable_om=generator_row.vom,
-            fuel=fuel, lifetime=generator_row.lifetime, disc_rate=generator_row.discount_rate,
-            lcoe=generator_row.lcoe, lcoe_cfs=generator_row.lcoe_cf )
+            emissions=technology_row.emissions, initial=technology_row.initial, order=merit_order[0], 
+            capex=technology_row.capex, fixed_om=technology_row.fom, variable_om=technology_row.vom,
+            fuel=fuel, lifetime=technology_row.lifetime, disc_rate=technology_row.discount_rate,
+            lcoe=technology_row.lcoe, lcoe_cfs=technology_row.lcoe_cf )
 
-    dispatchable=generator_row.dispatchable
+    dispatchable=technology_row.dispatchable
     if (dispatchable):
         if (name not in dispatch_order):
             dispatch_order.append(name)
-    renewable = generator_row.renewable
-    category = generator_row.category
+    renewable = technology_row.renewable
+    category = technology_row.category
     if (renewable and category != 'Storage'):
         if (name not in re_order):
             re_order.append(name)
-    capacity = generator_row.capacity
-    if name not in pmss_details: # type: ignore
+    capacity = technology_row.capacity
+    if name not in pmss_details: # if not already included
         if (category == 'Storage'):
             pmss_details[name] = PM_Facility(name, name, capacity, 'S', -1, 1)
-    else:
-        pmss_details[name].capacity = capacity
-    # Call the static method directly
-    pmss_data, pmss_details = \
-        fetch_demand_data(demand_year)
+        else:
+            typ = 'G'
+            if renewable:
+                typ = 'R'
+            pmss_details[name] = PM_Facility(name, name, capacity, typ, -1, 1)
+
     pm_data_file = 'G:/Shared drives/SEN Modelling/modelling/SWIS/Powermatch_data_actual.xlsx'
     data_file = 'Powermatch_results_actual.xlsx'
     for i in range(iterations):
