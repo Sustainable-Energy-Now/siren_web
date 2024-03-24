@@ -213,12 +213,12 @@ def fetch_settings_data():
         settings = {}
         settings_query = Settings.objects.all()
         for setting in settings_query:
-            context = setting.context
+            sw_context = setting.sw_context
             parameter = setting.parameter
             value = setting.value
-            if context not in settings:
-                settings[context] = {}
-            settings[context][parameter] = value
+            if sw_context not in settings:
+                settings[sw_context] = {}
+            settings[sw_context][parameter] = value
     except Exception as e:
         # Handle any errors that occur during the database query
         return None

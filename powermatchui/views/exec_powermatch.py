@@ -96,9 +96,8 @@ def submit_powermatch(demand_year, scenario, option, iterations, updated_technol
     pmss_data, pmss_details = \
     fetch_demand_data(demand_year)
     
-    generators_result = fetch_included_technologies_data(scenario)
+    technologies_result = fetch_included_technologies_data(scenario)
     
-    # generators_result, column_names= fetch_full_generator_storage_data(demand_year)
     generators = {}
     dispatch_order = []
     re_order = ['Load']
@@ -110,7 +109,7 @@ def submit_powermatch(demand_year, scenario, option, iterations, updated_technol
     discharge_max = None
     discharge_loss = None
     parasitic_loss = None
-    for technology_row in generators_result:      # Create a dictionary of Facilities objects
+    for technology_row in technologies_result:      # Create a dictionary of Facilities objects
         name = technology_row.technology_name
         if name not in generators:
             generators[name] = {}
@@ -160,24 +159,24 @@ def submit_powermatch(demand_year, scenario, option, iterations, updated_technol
             fuel=fuel, lifetime=technology_row.lifetime, disc_rate=technology_row.discount_rate,
             lcoe=technology_row.lcoe, lcoe_cfs=technology_row.lcoe_cf )
 
-    dispatchable=technology_row.dispatchable
-    if (dispatchable):
-        if (name not in dispatch_order):
-            dispatch_order.append(name)
-    renewable = technology_row.renewable
-    category = technology_row.category
-    if (renewable and category != 'Storage'):
-        if (name not in re_order):
-            re_order.append(name)
-    capacity = technology_row.capacity
-    if name not in pmss_details: # if not already included
-        if (category == 'Storage'):
-            pmss_details[name] = PM_Facility(name, name, capacity, 'S', -1, 1)
-        else:
-            typ = 'G'
-            if renewable:
-                typ = 'R'
-            pmss_details[name] = PM_Facility(name, name, capacity, typ, -1, 1)
+        dispatchable=technology_row.dispatchable
+        if (dispatchable):
+            if (name not in dispatch_order):
+                dispatch_order.append(name)
+        renewable = technology_row.renewable
+        category = technology_row.category
+        if (renewable and category != 'Storage'):
+            if (name not in re_order):
+                re_order.append(name)
+        capacity = technology_row.capacity
+        if name not in pmss_details: # if not already included
+            if (category == 'Storage'):
+                pmss_details[name] = PM_Facility(name, name, capacity, 'S', -1, 1)
+            else:
+                typ = 'G'
+                if renewable:
+                    typ = 'R'
+                pmss_details[name] = PM_Facility(name, name, capacity, typ, -1, 1)
 
     pm_data_file = 'G:/Shared drives/SEN Modelling/modelling/SWIS/Powermatch_data_actual.xlsx'
     data_file = 'Powermatch_results_actual.xlsx'

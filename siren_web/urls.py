@@ -17,7 +17,7 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import include, path
 from django.contrib.staticfiles.urls import staticfiles_urlpatterns
-from .views import home_views
+from .views import home_views, settings_views
 
 urlpatterns = [
     path('', home_views.home_view, name='home_view'),
@@ -26,5 +26,8 @@ urlpatterns = [
     path("", include("powerplotui.urls")),
     path("admin/", admin.site.urls),
     path('accounts/', include('django.contrib.auth.urls')),
+    path('settings/<str:sw_context>/', settings_views.settings_view, name='settings'),
+    path('settings/<str:sw_context>/update/<int:pk>/', settings_views.settings_view, name='settings_update'),
+    path('settings/<str:sw_context>/delete/<int:pk>/', settings_views.settings_view, name='settings_delete'),
 ]
 urlpatterns += staticfiles_urlpatterns()

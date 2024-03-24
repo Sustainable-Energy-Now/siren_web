@@ -359,7 +359,7 @@ class powerMatch():
             sp_d[st_lie] = lifetime_co2_sum
             sp_d[st_lec] = lifetime_co2_cost
             sp_data.append(sp_d)
-            if (carbon_price > 0 or option == 'B'):
+            if (carbon_price > 0 or option == 'B'): # Add Total incl. Carbon Cost
                 sp_d = [' '] * len(headers)
                 cc = co2_sum * carbon_price
                 cl = cc * max_lifetime
@@ -374,7 +374,7 @@ class powerMatch():
                 sp_d[st_cst] = cost_sum + cc
                 sp_d[st_lic] = lifetime_sum + cl
                 sp_data.append(sp_d)
-            if tml_sum > 0:
+            if tml_sum > 0:   # Add RE %age
                 sp_d = [' '] * len(headers)
              #   sp_d[st_fac] = 'RE Direct Contribution to ' + title + 'Load'
                 sp_d[st_fac] = 'RE %age'
@@ -397,12 +397,12 @@ class powerMatch():
                 load_pct = (sp_load - sf_sums[0]) / sp_load
                 sp_d[st_cap] = '{:.1f}%'.format(load_pct * 100)
                 sp_d[st_tml] = sp_load - sf_sums[0]
-                sp_data.append(sp_d)
+                sp_data.append(sp_d)   # Add Load Met
                 sp_d = [' '] * len(headers)
                 sp_d[st_fac] = 'Shortfall'
                 sp_d[st_cap] = '{:.1f}%'.format(sf_sums[0] * 100 / sp_load)
                 sp_d[st_tml] = sf_sums[0]
-                sp_data.append(sp_d)
+                sp_data.append(sp_d)   # Add Shortfall
                 if option == 'B':
                     sp_d = [' '] * len(headers)
                     sp_d[st_fac] = title + 'Total Load'
@@ -424,11 +424,11 @@ class powerMatch():
                     if title == '' or option == 'S':
                         sp_d[st_max] = load_max
                         sp_d[st_bal] = ' (' + format_period(load_hr)[5:] + ')'
-                    sp_data.append(sp_d)
+                    sp_data.append(sp_d)  # Add Total Load 
                 sp_d = [' '] * len(headers)
                 sp_d[st_fac] = 'RE %age of Total ' + title + 'Load'
                 sp_d[st_cap] = '{:.1f}%'.format((sp_load - sf_sums[0] - ff_sum) * Decimal(100) / sp_load)
-                sp_data.append(sp_d)
+                sp_data.append(sp_d)  # Add RE %age of Total Load 
                 sp_data.append(' ')
                 if tot_sto_loss != 0:
                     sp_d = [' '] * len(headers)
@@ -440,8 +440,7 @@ class powerMatch():
                 surp_pct = -sf_sums[1] / sp_load
                 sp_d[st_cap] = '{:.1f}%'.format(surp_pct * 100)
                 sp_d[st_sub] = -sf_sums[1]
-                sp_data.append(sp_d)
-            else:
+                sp_data.append(sp_d) # Add Surplus
                 load_pct = 0
                 surp_pct = 0
                 re_pct = 0
@@ -455,7 +454,7 @@ class powerMatch():
                 sp_d[st_fac] = 'Largest Shortfall'
                 sp_d[st_sub] = round(max_short[1], 2)
                 sp_d[st_cfa] = ' (' + format_period(max_short[0])[5:] + ')'
-                sp_data.append(sp_d)
+                sp_data.append(sp_d)  # Add Largest Shortfall
             if option == 'O' or option == '1':
                 return load_pct, surp_pct, re_pct
 
@@ -902,7 +901,7 @@ class powerMatch():
              #   gen = key.split('.')[-1]
                 gen = pmss_details[key].generator
                 max_lifetime = max(max_lifetime, generators[gen].lifetime)
-        for key in pmss_details.keys():
+        for key in pmss_details.keys():  # If any generatorhas '.' then set do_zone to true
             if key.find('.') > 0:
                 do_zone = True
                 break
@@ -924,8 +923,8 @@ class powerMatch():
             elif fac in underlying:
                 underlying_facs.append(fac)
                 continue
-        load_col = pmss_details['Load'].col
-        for h in range(len(pmss_data[0])):
+        load_col = pmss_details['Load'].col  # Get the total load data
+        for h in range(len(pmss_data[0])):  # Work through hour by hour
             load_h = pmss_data[load_col][h] * pmss_details['Load'].multiplier
             shortfall[h] = load_h
             for fac in fac_tml.keys():
@@ -943,7 +942,7 @@ class powerMatch():
                     pmss_data[pmss_details[fac].col][h] * pmss_details[fac].multiplier * alloc
             line = ''
         fac_tml_sum = 0
-        for fac in fac_tml.keys():
+        for fac in fac_tml.keys():  # Sum To Meet Load
             fac_tml_sum += fac_tml[fac]
         if show_correlation:
             col = pmss_details['Load'].col
@@ -1179,7 +1178,7 @@ class powerMatch():
                     continue
                 if pmss_details[fac].capacity * pmss_details[fac].multiplier == 0:
                     continue
-                sp_d = [' '] * len(headers)
+                sp_d = [' '] * len(headers)   # Allow enough space for headers
                 sp_d[st_fac] = fac
                 sp_d[st_cap] = pmss_details[fac].capacity * pmss_details[fac].multiplier
                 try:
@@ -1205,7 +1204,7 @@ class powerMatch():
         short_taken = {}
         short_taken_tot = 0
         for gen in dispatch_order:
-            if pmss_details[gen].fac_type == 'G': # generators
+            if pmss_details[gen].fac_type == 'G': # For generators get minimum capacity if exists
                 if generators[gen].capacity_min != 0:
                     try:
                         short_taken[gen] = pmss_details[gen].capacity * pmss_details[gen].multiplier * \

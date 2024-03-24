@@ -114,7 +114,7 @@ class ScenariosTechnologies(models.Model):
         
 class Settings(models.Model):
     idsettings = models.PositiveIntegerField(db_column='idSettings', primary_key=True)  # Field name made lowercase.
-    context = models.CharField(max_length=20, blank=True, null=True)
+    sw_context = models.CharField(max_length=20, blank=True, null=True)
     parameter = models.CharField(max_length=45, blank=True, null=True)
     value = models.CharField(max_length=300, blank=True, null=True)
 
