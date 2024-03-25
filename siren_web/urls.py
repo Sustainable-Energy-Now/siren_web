@@ -17,7 +17,7 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import include, path
 from django.contrib.staticfiles.urls import staticfiles_urlpatterns
-from .views import home_views, settings_views
+from .views import home_views, settings_views, dynamic_fields_views
 
 urlpatterns = [
     path('', home_views.home_view, name='home_view'),

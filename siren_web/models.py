@@ -22,7 +22,7 @@ class Analysis(models.Model):
         db_table = 'Analysis'
         
 class Demand(models.Model):
-    iddemand = models.PositiveIntegerField(db_column='idDemand', primary_key=True)  # Field name made lowercase. The composite primary key (idDemand, idtechnologies, hour) found, that is not supported. The first column is selected.
+    iddemand = models.AutoField(db_column='idDemand', primary_key=True)  # Field name made lowercase. The composite primary key (idDemand, idtechnologies, hour) found, that is not supported. The first column is selected.
     idtechnologies = models.ForeignKey('Technologies', models.DO_NOTHING, db_column='idTechnologies')  # Field name made lowercase.
     idscenarios = models.ForeignKey('Scenarios', models.DO_NOTHING, db_column='idScenarios')  # Field name made lowercase.
     hour = models.PositiveIntegerField()
@@ -43,7 +43,7 @@ class Scenarios(models.Model):
         db_table = 'Scenarios'
 
 class facilities(models.Model):
-    idfacilities = models.PositiveIntegerField(db_column='idfacilities', primary_key=True)  # Field name made lowercase. 
+    idfacilities = models.AutoField(db_column='idfacilities', primary_key=True)  # Field name made lowercase. 
     facility_name = models.CharField(db_column='facility_name', max_length=45, blank=True, null=True)  # Field name made lowercase.
     idtechnologies = models.ForeignKey('Technologies', models.DO_NOTHING, db_column='idtechnologies')  # Field name made lowercase.
     scenarios = models.ManyToManyField(Scenarios, through='ScenariosFacilities', blank=True)
@@ -68,7 +68,7 @@ class Generatorattributes(models.Model):
         db_table = 'GeneratorAttributes'
 
 class Genetics(models.Model):
-    idgenetics = models.PositiveIntegerField(db_column='idGenetics', primary_key=True)  # Field name made lowercase.
+    idgenetics = models.AutoField(db_column='idGenetics', primary_key=True)  # Field name made lowercase.
     parameter = models.CharField(db_column='Parameter', max_length=30, blank=True, null=True)  # Field name made lowercase.
     weight = models.DecimalField(db_column='Weight', max_digits=5, decimal_places=2, blank=True, null=True)  # Field name made lowercase.
     better = models.DecimalField(db_column='Better', max_digits=5, decimal_places=2, blank=True, null=True)  # Field name made lowercase.
@@ -84,7 +84,7 @@ class Genetics(models.Model):
         db_table_comment = 'Parameters used for genetic optimisation'
         
 class Optimisation(models.Model):
-    idoptimisation = models.PositiveIntegerField(db_column='idOptimisation', primary_key=True)  # Field name made lowercase.
+    idoptimisation = models.AutoField(db_column='idOptimisation', primary_key=True)  # Field name made lowercase.
     name = models.CharField(db_column='Name', max_length=45, blank=True, null=True)  # Field name made lowercase.
     approach = models.CharField(db_column='Approach', max_length=45, blank=True, null=True)  # Field name made lowercase.
     capacity = models.DecimalField(db_column='Capacity', max_digits=7, decimal_places=1, blank=True, null=True)  # Field name made lowercase.
@@ -112,8 +112,19 @@ class ScenariosTechnologies(models.Model):
     class Meta:
         db_table = 'ScenariosTechnologies'
         
+class ScenariosSettings(models.Model):
+    idscenariossettings = models.AutoField(primary_key=True)
+    idscenarios = models.ForeignKey('Scenarios', on_delete=models.RESTRICT)
+    sw_context = models.CharField(max_length=20, blank=True, null=True)
+    parameter = models.CharField(max_length=45, blank=True, null=True)
+    value = models.CharField(max_length=300, blank=True, null=True)
+    units = models.CharField(max_length=10, blank=True, null=True) 
+
+    class Meta:
+        db_table = 'ScenariosSettings'
+        
 class Settings(models.Model):
-    idsettings = models.PositiveIntegerField(db_column='idSettings', primary_key=True)  # Field name made lowercase.
+    idsettings = models.AutoField(db_column='idSettings', primary_key=True)  # Field name made lowercase.
     sw_context = models.CharField(max_length=20, blank=True, null=True)
     parameter = models.CharField(max_length=45, blank=True, null=True)
     value = models.CharField(max_length=300, blank=True, null=True)

@@ -1,0 +1,17 @@
+{% extends 'powermatchui_base.html' %}
+
+{% block powermatchui_content %}
+{% load crispy_forms_tags %}
+
+  <h3>Baseline Scenario</h3>
+
+  {% csrf_token %}
+  {% load crispy_forms_tags %}
+  {% crispy baseline_form %}
+
+  <form method="post" action="{% url 'run_baseline' %}">
+    {% csrf_token %}
+    {{ runpowermatch_form.level_of_detail }}
+    <button name="run_power_match" type="submit" class="btn-custom-swish2">Run Power Match</button>
+</form>
+{% endblock %}

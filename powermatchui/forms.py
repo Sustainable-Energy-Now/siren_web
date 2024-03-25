@@ -22,7 +22,54 @@ class DemandYearScenario(forms.Form):
         to_field_name='title',  # Use 'title' as the value for the selected choice
         widget=forms.Select(attrs={'class': 'form_input'})
     )
-    
+
+class BaselineScenarioForm(forms.Form):
+    carbon_price = forms.DecimalField(label='Carbon Price', required=False)
+    discount_rate = forms.DecimalField(label='Discount Rate', required=False)
+
+    def __init__(self, *args, **kwargs):
+        self.technologies = kwargs.pop('technologies', [])
+        self.carbon_price = kwargs.pop('carbon_price', None)
+        self.discount_rate = kwargs.pop('discount_rate', None)
+        super().__init__(*args, **kwargs)
+        self.helper = FormHelper()
+        self.helper.layout = Layout()
+        
+        # Create fields for Carbon Price and Discount Rate
+        self.fields['carbon_price'] = forms.DecimalField(
+            label='Carbon Price',
+            initial=self.carbon_price,
+            required=False
+        )
+        self.fields['discount_rate'] = forms.DecimalField(
+            label='Discount Rate',
+            initial=self.discount_rate,
+            required=False
+        )
+        self.helper.layout.fields.append(Div(
+            Field('carbon_price', css_class='form-control'),
+            Field('discount_rate', css_class='form-control'),
+            css_class='form-group'
+        ))
+        
+        # Create fields for each technology
+        for technology in self.technologies:
+            tech_key = f"{technology.pk}"
+            field_name = f'capacity_{tech_key}'
+            self.fields[field_name] = forms.DecimalField(
+                label=technology.technology_name,
+                initial=technology.capacity,
+                required=False
+            )
+            self.helper.layout.fields.append(Div(
+                Field(field_name, css_class='form-control'),
+                css_class='form-group'
+            ))
+            
+        self.helper.layout.append(FormActions(
+            Submit('submit', 'Submit', css_class='btn btn-primary')
+        ))
+
 class RunPowermatchForm(forms.Form):
     LEVEL_OF_DETAIL_CHOICES = [
     ('Summary', 'Summary'),

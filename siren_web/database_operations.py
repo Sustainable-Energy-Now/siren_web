@@ -3,8 +3,13 @@ from django.db import connection
 from django.http import HttpResponse
 import logging
 from django.db.models import Q, F
-from siren_web.models import Demand, facilities, Scenarios, ScenariosTechnologies, Settings, Technologies, Zones
+from siren_web.models import Analysis, Demand, facilities, Scenarios, ScenariosTechnologies, ScenariosSettings, Settings, Technologies, Zones
 from powermatchui.powermatch.pmcore import Facility, PM_Facility, Optimisation
+
+def delete_analysis_scenario(idscenario):
+    Analysis.objects.filter(
+        idscenarios=idscenario
+    ).delete()
 
 def fetch_demand_data(demand_year):
     # Check if demand is already stored in session
@@ -208,7 +213,7 @@ def fetch_scenarios_data():
         # Handle any errors that occur during the database query
         return None
     
-def fetch_settings_data():
+def fetch_all_settings_data():
     try:
         settings = {}
         settings_query = Settings.objects.all()
@@ -219,6 +224,38 @@ def fetch_settings_data():
             if sw_context not in settings:
                 settings[sw_context] = {}
             settings[sw_context][parameter] = value
+    except Exception as e:
+        # Handle any errors that occur during the database query
+        return None
+    return settings
+
+def fetch_module_settings_data(sw_context):
+    try:
+        settings = {}
+        settings_query = Settings.objects.filter(sw_context=sw_context)
+        for setting in settings_query:
+            sw_context = setting.sw_context
+            parameter = setting.parameter
+            value = setting.value
+            settings[parameter] = value
+    except Exception as e:
+        # Handle any errors that occur during the database query
+        return None
+    return settings
+
+def fetch_scenario_settings_data(scenario):
+    try:
+        scenario_obj = Scenarios.objects.get(title=scenario)
+        settings = {}
+        settings_query = ScenariosSettings.objects.filter(
+            sw_context='Powermatch',
+            scenarios=scenario_obj,
+        )
+        for setting in settings_query:
+            sw_context = setting.sw_context
+            parameter = setting.parameter
+            value = setting.value
+            settings[parameter] = value
     except Exception as e:
         # Handle any errors that occur during the database query
         return None

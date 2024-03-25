@@ -5,13 +5,15 @@ from django.contrib.auth.decorators import login_required
 from django.db.models import Max
 from django.http import JsonResponse
 from siren_web.database_operations import fetch_demand_data, \
-    fetch_full_generator_storage_data, fetch_settings_data, fetch_included_technologies_data
-from siren_web.models import Analysis, Generatorattributes, Scenarios, ScenariosTechnologies, Storageattributes
+    fetch_full_generator_storage_data, fetch_all_settings_data, fetch_included_technologies_data
+from siren_web.models import Analysis, Generatorattributes, Scenarios, ScenariosSettings, ScenariosTechnologies, Storageattributes
 from ..powermatch import pmcore as pm
 from ..powermatch.pmcore import Facility, PM_Facility, powerMatch
 
 def insert_data(i, sp_data, scenario_obj, Basis, Stage):
-    for row in sp_data:
+    for count, row in enumerate(sp_data):
+        if not row[0]:
+            pass
         if row[0] not in [' ', 'Load Analysis', 'Total incl. Carbon Cost', \
             'RE %age', 'Load Analysis', 'Load met', 'Shortfall', \
             'Total Load', 'RE %age of Total Load', 'Surplus', 'Static Variables', \
@@ -45,17 +47,20 @@ def insert_data(i, sp_data, scenario_obj, Basis, Stage):
                     quantity=Quantity,
                     units=Units
                 )
-
+        if row[0] == 'Load Analysis':
+                LA_index = count + 1
+                
     # Write out Load Analysis statistics and Static Variables
+
     LoadAnalysis = [
-        ('Load met', 'Load Analysis', sp_data[14][1], '%'),
-        ('Load met', 'Load Analysis', sp_data[14][2], 'mWh'),
-        ('Shortfall', 'Load Analysis', sp_data[15][1], '%'),
-        ('Shortfall', 'Load Analysis', sp_data[15][2], 'mWh'),
-        ('Total Load', 'Load Analysis', sp_data[16][2], 'mWh'),
-        ('RE %age of Total Load', 'Load Analysis', sp_data[17][2], '%'),
-        ('Surplus', 'Load Analysis', sp_data[19][2], '%'),
-        ('Surplus', 'Load Analysis', sp_data[19][3], 'mWh')
+        ('Load met', 'Load Analysis', sp_data[LA_index][1], '%'),
+        ('Load met', 'Load Analysis', sp_data[LA_index][2], 'mWh'),
+        ('Shortfall', 'Load Analysis', sp_data[LA_index + 1][1], '%'),
+        ('Shortfall', 'Load Analysis', sp_data[LA_index + 1][2], 'mWh'),
+        ('Total Load', 'Load Analysis', sp_data[LA_index + 2][2], 'mWh'),
+        ('RE %age of Total Load', 'Load Analysis', sp_data[LA_index + 3][2], '%'),
+        ('Surplus', 'Load Analysis', sp_data[LA_index + 5][2], '%'),
+        ('Surplus', 'Load Analysis', sp_data[LA_index + 5][3], 'mWh')
     ]
     for Heading, Component, Quantity, Units in LoadAnalysis:
         try:
@@ -73,26 +78,24 @@ def insert_data(i, sp_data, scenario_obj, Basis, Stage):
             units=Units
         )
 
-    # Insert Static Variables only in the first iteration (i.e., when i == 0)
+    # If the first iteration insert Static Variables into the ScenariosSettings table
     if i == 0:
+        
         StaticVariables = [
-            ('Carbon Price', 'Static Variables', sp_data[22][1], '$/tCO2e'),
-            ('Lifetime', 'Static Variables', sp_data[23][1], 'years'), 
-            ('Discount Rate', 'Static Variables', sp_data[24][1], '%'),
+            ('carbon_price', sp_data[LA_index + 9][1], '$/tCO2e'),
+            ('discount_rate', sp_data[LA_index + 11][1], '%'),
         ]
-        for Heading, Component, Quantity, Units in StaticVariables:
-            Analysis.objects.create(
-                Scenario=Scenario,
-                Heading=Heading,
-                Component=Component,
-                Basis=Basis,
-                Stage=Stage,
-                Quantity=Quantity,
-                Units=Units
+        for Parameter, Value, Units in StaticVariables:
+            ScenariosSettings.objects.create(
+                idscenarios=scenario_obj,
+                sw_context='Powermatch',
+                parameter=Parameter,
+                value=Value,
+                units=Units,
             )
 
 def submit_powermatch(demand_year, scenario, option, iterations, updated_technologies):
-    settings = fetch_settings_data()
+    settings = fetch_all_settings_data()
     pmss_data, pmss_details = \
     fetch_demand_data(demand_year)
     
@@ -204,18 +207,23 @@ def submit_powermatch(demand_year, scenario, option, iterations, updated_technol
         sp_data, headers, sp_pts = powerMatch.doDispatch(settings, demand_year, option, pmss_details, pmss_data, generators, re_order, 
             dispatch_order, pm_data_file, data_file, title=None)
         
-        if option == 'B':
-            current_datetime = datetime.now()
-            Stage = current_datetime.strftime('%m-%d %H:%M:%S')
+        if i == 0:
+            Basis = 'Baseline'
+        else:
             Basis = 'Optimisation'
-            try:
-                scenario_obj = Scenarios.objects.get(title=scenario)
-                # Use the scenario object here
-            except Scenarios.DoesNotExist:
-                # Handle the case where the scenario with the given title does not exist
-                pass
-            insert_data(i, sp_data, scenario_obj, Basis, Stage)
-            # Adjust capacity by step value
+        current_datetime = datetime.now()
+        Stage = current_datetime.strftime('%m-%d %H:%M:%S')
+
+
+        try:
+            scenario_obj = Scenarios.objects.get(title=scenario)
+            # Use the scenario object here
+        except Scenarios.DoesNotExist:
+            # Handle the case where the scenario with the given title does not exist
+            pass
+        insert_data(i, sp_data, scenario_obj, Basis, Stage)
+        # Adjust capacity by step value
+        if updated_technologies:
             for key, value in pmss_details.items():
                 if key in updated_technologies:
                     pmss_details[key] = PM_Facility(value.name, value.name, value.capacity + updated_technologies[key], 'R', value.col, value.multiplier)

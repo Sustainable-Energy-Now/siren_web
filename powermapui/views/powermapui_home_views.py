@@ -6,7 +6,7 @@ from django.db.models import Max
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import render, redirect
 from django.urls import path
-from siren_web.database_operations import fetch_demand_data, fetch_scenarios_data, fetch_settings_data,  fetch_full_generator_storage_data
+from siren_web.database_operations import fetch_demand_data, fetch_scenarios_data, fetch_full_generator_storage_data
 from siren_web.models import Demand
 from powermatchui.powermatch.pmcore import Facility, Optimisation, PM_Facility, powerMatch
 from powermatchui.views.exec_powermatch import submit_powermatch
