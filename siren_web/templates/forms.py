@@ -1,8 +1,10 @@
 # forms.py
 from django import forms
+from django.forms import modelformset_factory
 from crispy_forms.helper import FormHelper
-from crispy_forms.layout import Layout, Div, Field, Submit
+from crispy_forms.layout import Layout, Div, Field, Submit, Fieldset, Row, Column
 from crispy_forms.bootstrap import FormActions, InlineCheckboxes
+from .models import Settings
 
 class SettingsForm(forms.Form):
     new_parameter = forms.CharField(max_length=45, label='New Parameter', required=False)
@@ -26,14 +28,14 @@ class SettingsForm(forms.Form):
                 label=setting.parameter,
                 initial=setting.value,
                 required=False
-            ),
+            )
             self.fields[f'delete_{setting.idsettings}'] = forms.BooleanField(
                 label='Delete',
                 required=False
             )
             self.helper.layout.fields.append(Div(
                 Field(f'field_{setting.idsettings}', css_class='form-control'),
-                InlineCheckboxes(f'delete_{setting.idsettings}'),
+                Field(f'delete_{setting.idsettings}', css_class='form-control'),
                 css_class='form-group'
             ))
 

@@ -3,7 +3,7 @@ from decimal import Decimal
 import os
 import csv
 from django.core.management.base import BaseCommand
-from .siren_web.models import Technologies
+from siren_web.models import Technologies
 
 class Command(BaseCommand):
     help = 'Load technologies from a CSV file'

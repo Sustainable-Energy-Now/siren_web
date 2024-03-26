@@ -3,7 +3,7 @@ from decimal import Decimal
 import os
 import csv
 from django.core.management.base import BaseCommand
-from .siren_web.models import supplyfactors, Scenarios, Technologies, Zones
+from siren_web.models import supplyfactors, Scenarios, Technologies, Zones
 
 class Command(BaseCommand):
     help = 'Updates Supplyfactors model from a CSV file'
