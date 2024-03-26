@@ -68,11 +68,11 @@ def run_powermatch(request):
                 'success_message': success_message, 'demand_year': demand_year, 'scenario': scenario
             }
             return render(request, 'display_table.html', context)
-        else:
-            demand_year_scenario = DemandYearScenario()
-            runpowermatch_form = RunPowermatchForm()
-        context = {
-            'demand_year_scenario': demand_year_scenario,'runpowermatch_form': runpowermatch_form,
-            'success_message': success_message, 'demand_year': demand_year, 'scenario': scenario
-            }
-        return render(request, 'powermatchui_home.html', context)
+    else:
+        demand_year_scenario = DemandYearScenario()
+        runpowermatch_form = RunPowermatchForm()
+    context = {
+        'demand_year_scenario': demand_year_scenario,'runpowermatch_form': runpowermatch_form,
+        'success_message': success_message, 'demand_year': demand_year, 'scenario': scenario
+        }
+    return render(request, 'powermatchui_home.html', context)
