@@ -162,15 +162,16 @@ def submit_powermatch(demand_year, scenario, option, iterations, updated_technol
             fuel=fuel, lifetime=technology_row.lifetime, disc_rate=technology_row.discount_rate,
             lcoe=technology_row.lcoe, lcoe_cfs=technology_row.lcoe_cf )
 
-        dispatchable=technology_row.dispatchable
-        if (dispatchable):
-            if (name not in dispatch_order):
-                dispatch_order.append(name)
         renewable = technology_row.renewable
         category = technology_row.category
         if (renewable and category != 'Storage'):
             if (name not in re_order):
                 re_order.append(name)
+                
+        dispatchable=technology_row.dispatchable
+        if (dispatchable):
+            if (name not in dispatch_order) and (name not in re_order):
+                dispatch_order.append(name)
         capacity = technology_row.capacity
         if name not in pmss_details: # if not already included
             if (category == 'Storage'):

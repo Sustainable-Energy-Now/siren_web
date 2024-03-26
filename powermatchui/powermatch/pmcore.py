@@ -373,7 +373,7 @@ class powerMatch():
                 sp_d[st_fac] = title + 'Total incl. Carbon Cost'
                 sp_d[st_cst] = cost_sum + cc
                 sp_d[st_lic] = lifetime_sum + cl
-                sp_data.append(sp_d)
+                sp_data.append(sp_d)  # Add total includiing carbon cost
             if tml_sum > 0:   # Add RE %age
                 sp_d = [' '] * len(headers)
              #   sp_d[st_fac] = 'RE Direct Contribution to ' + title + 'Load'
@@ -381,7 +381,7 @@ class powerMatch():
                 re_pct = (tml_sum - sto_sum - ff_sum) / tml_sum
                 sp_d[st_cap] = '{:.1f}%'.format(re_pct * Decimal(100))
                 sp_d[st_tml] = tml_sum - ff_sum - sto_sum
-                sp_data.append(sp_d)
+                sp_data.append(sp_d)   # RE %age
                 if sto_sum > 0:
                     sp_d = [' '] * len(headers)
                  #   sp_d[st_fac] = 'RE Contribution to ' + title + 'Load via Storage'
@@ -1189,7 +1189,7 @@ class powerMatch():
                     pass
                 sp_d[st_sub] = sum(pmss_data[pmss_details[fac].col]) * pmss_details[fac].multiplier
                 sp_d[st_max] = max(pmss_data[pmss_details[fac].col]) * pmss_details[fac].multiplier
-                sp_data.append(sp_d)
+                sp_data.append(sp_d)  # sp_d contains the data for a technology e.g. Fixed PV
             for h in range(len(shortfall)):
                 if shortfall[h] < 0:
                     tml += Decimal(pmss_data[load_col][h]) * Decimal(pmss_details['Load'].multiplier)
