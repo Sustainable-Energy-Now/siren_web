@@ -67,7 +67,7 @@ class BaselineScenarioForm(forms.Form):
             ))
             
         self.helper.layout.append(FormActions(
-            Submit('submit', 'Submit', css_class='btn btn-primary')
+            Submit('save', 'Save Runtime Parameters', css_class='btn btn-primary')
         ))
 
 class RunPowermatchForm(forms.Form):

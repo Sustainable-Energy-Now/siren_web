@@ -878,6 +878,8 @@ class powerMatch():
         scenarios = 'C:/Users/Paul/Local Sites/Powermatch/'
         results_prefix = ''
         save_tables = settings['Powermatch']['save_tables']
+        file_labels = ['Constraints', 'Generators', 'Optimisation', 'Data', 'Results', 'Batch']
+        sheets = file_labels[:]
         # if (self.progressbar is None):
         #     self.progressbar = st.progress(0, text=progress_text)
         if surplus_sign < 0:
@@ -2209,7 +2211,7 @@ class powerMatch():
             for gen in dispatch_order:
                 gens.append(gen)
                 cons.append(generators[gen].constr)
-            gs = wb.create_sheet(self.sheets[G])
+            gs = wb.create_sheet(sheets[G])
             fields = []
             col = 1
             row = 1
@@ -2269,7 +2271,7 @@ class powerMatch():
             fields = []
             col = 1
             row = 1
-            cs = wb.create_sheet(self.sheets[C])
+            cs = wb.create_sheet(sheets[C])
             if hasattr(self.constraints[list(self.constraints.keys())[0]], 'name'):
                 fields.append('name')
                 cs.cell(row=row, column=col).value = 'Name'
@@ -2316,20 +2318,13 @@ class powerMatch():
             cs.freeze_panes = 'B2'
             cs.activeCell = 'B2'
         wb.save(data_file)
-        self.progressbar.progress(20, text=progress_text)
         j = data_file.rfind('/')
         data_file = data_file[j + 1:]
         msg = '%s created (%.2f seconds)' % (data_file, time.time() - start_time)
         msg = '%s created.' % data_file
-        self.progressbar.empty()
 
     def setStatus(self, text):
         print(text)
-
-    def exit(self):
-        self.updated = False
-        self.close()
-        
 
     def optClicked(self, in_year, in_option, in_pmss_details, in_pmss_data, in_re_order,
                    in_dispatch_order, OptParms, optimisation, pm_data_file, data_file):

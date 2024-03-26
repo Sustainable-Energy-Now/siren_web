@@ -4,7 +4,7 @@ from siren_web.database_operations import delete_analysis_scenario, fetch_includ
     fetch_module_settings_data, fetch_scenario_settings_data
 from django.shortcuts import render
 from siren_web.models import Technologies, Scenarios, ScenariosSettings, Settings
-from ..forms import BaselineScenarioForm
+from ..forms import BaselineScenarioForm, RunPowermatchForm
 from ..views import exec_powermatch as ex_pm
 
 def baseline_scenario(request):
@@ -12,7 +12,8 @@ def baseline_scenario(request):
     scenario = request.session.get('scenario')
     success_message = ""
     technologies= fetch_included_technologies_data(scenario)
-    form = BaselineScenarioForm(technologies=technologies)
+    baseline_form = BaselineScenarioForm(technologies=technologies)
+    runpowermatch_form = RunPowermatchForm()
     scenario_settings = {}
     scenario_settings = fetch_module_settings_data('Powermatch')
     if not scenario_settings:
@@ -20,7 +21,7 @@ def baseline_scenario(request):
 
     if request.method == 'POST':
         baseline_form = BaselineScenarioForm(request.POST)
-        if form.is_valid():
+        if baseline_form.is_valid():
             carbon_price = form.cleaned_data.get('carbon_price')
             discount_rate = form.cleaned_data.get('discount_rate')
             parameters_updated = False
@@ -51,6 +52,7 @@ def baseline_scenario(request):
 
     context = {
         'baseline_form': baseline_form,
+        'runpowermatch_form': runpowermatch_form,
         'technologies': technologies,
         'scenario_settings': scenario_settings,
         'demand_year': demand_year, 'scenario': scenario, 'success_message': success_message
@@ -61,19 +63,28 @@ def run_baseline(request):
     demand_year = request.session.get('demand_year')
     scenario = request.session.get('scenario')
     success_message = ""
-    scenario_obj = Scenarios.objects.get(title=scenario)
-    delete_analysis_scenario(scenario_obj)
-    ex_pm.submit_powermatch(demand_year, scenario, 'S', 1, None)
+    if request.method == 'POST':
+        scenario_obj = Scenarios.objects.get(title=scenario)
+        runpowermatch_form = RunPowermatchForm()
+        if not demand_year:
+            success_message = "Set the demand year and scenario first."
+        elif runpowermatch_form.is_valid():
+            level_of_detail = runpowermatch_form.cleaned_data['level_of_detail']
+            option = level_of_detail[0]
+            
+            delete_analysis_scenario(scenario_obj)
+            ex_pm.submit_powermatch(demand_year, scenario, 'S', 1, None)
+            success_message = "Baseline re-established"
+            technologies= fetch_included_technologies_data(scenario)
+            baseline_form = BaselineScenarioForm(technologies=technologies)
 
-    success_message = "Baseline re-established"
-    technologies= fetch_included_technologies_data(scenario)
-    baseline_form = BaselineScenarioForm(technologies=technologies)
-    scenario_settings = {}
-    scenario_settings = fetch_scenario_settings_data(scenario)
-    context = {
-        'baseline_form': baseline_form,
-        'technologies': technologies,
-        'scenario_settings': scenario_settings,
-        'demand_year': demand_year, 'scenario': scenario, 'success_message': success_message
-    }
-    return render(request, 'baseline_scenario.html', context)
+            scenario_settings = {}
+            scenario_settings = fetch_scenario_settings_data(scenario)
+            context = {
+                'baseline_form': baseline_form,
+                'runpowermatch_form': runpowermatch_form,
+                'technologies': technologies,
+                'scenario_settings': scenario_settings,
+                'demand_year': demand_year, 'scenario': scenario, 'success_message': success_message
+            }
+            return render(request, 'baseline_scenario.html', context)

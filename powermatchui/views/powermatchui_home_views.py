@@ -76,21 +76,3 @@ def run_powermatch(request):
             'success_message': success_message, 'demand_year': demand_year, 'scenario': scenario
             }
         return render(request, 'powermatchui_home.html', context)
-            
-def start_powermatch_task(request):
-    # Start the Celery task asynchronously
-    task = run_powermatch_task.delay(settings, generators, demand_year, option, pmss_details, pmss_data, re_order, dispatch_order, pm_data_file, data_file)
-    return JsonResponse({'task_id': task.id})
-
-def get_task_progress(request, task_id):
-    # Get progress of the Celery task
-    task = run_powermatch_task.AsyncResult(task_id)
-    if task.state == 'SUCCESS':
-        return JsonResponse({'progress': 100, 'message': 'Task completed successfully'})
-    elif task.state == 'FAILURE':
-        return JsonResponse({'progress': 0, 'message': 'Task failed'})
-    else:
-        # Get task progress from task.info dictionary (if available)
-        progress = task.info.get('progress', 0)
-        message = task.info.get('message', 'Task in progress')
-        return JsonResponse({'progress': progress, 'message': message})

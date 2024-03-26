@@ -4,18 +4,14 @@
 
 {% block content %}
     <h2>Welcome to Siren Web!</h2>
-    <p>This is a web interface to Power Match, an open source python app for matching and balancing
-    Renewable Energy resources to the load on the South West Interconnected system(SWIS).
-    Power Match takes as input load and generation data from Powermap. Powermatch quantifies and costs the dispatchable energy generation, storage and CO2-e emissions. 
-    The parameters passed to Power Match are stored in database tables that can be maintained using the Table Update function above.
-    In this main panel you can select the Demand Year from the available data shown in the drop down list below.
-    Select the level of detail and click submit to run Power Match.</p>
+    <p>This is a web interface to Siren, an open source python app for modelling renewable energy for the South West Interconnected system(SWIS).
+    Siren consists of four main modues Powermap, Powermatch and Powerplot that share a common database. You can navigate to each module using the menu options above. The Siren system architecture is illustrated below. Click on a database table or a module to see further information.</p>
 
 {% load static %}
 
 {% csrf_token %}
 <div style="max-width: 100vw; overflow: auto;">
-    <img id="siren-image" src="{% static 'powermatchui/img/siren_system.jpg' %}" usemap="#image-map" style="max-width: 100%;">
+    <img id="siren-image" src="{% static '/img/siren_system.jpg' %}" usemap="#image-map" style="max-width: 100%;">
 
     <map name="image-map">
         <area target="_self" alt="Powermap" title="Powermap" coords="1168,577,1552,709" shape="rect" onclick="showtable('Powermap' )">
