@@ -6,7 +6,6 @@ from django.views.generic import TemplateView
 
 urlpatterns = [
     path('powermatchui/', powermatchui_home_views.powermatchui_home, name='powermatchui_home'),
-    path('run_powermatch/', powermatchui_home_views.run_powermatch, name='run_powermatch'),
     path('run_baseline/', baseline_scenario_views.run_baseline, name='run_baseline'),
     path('relate_technologies/', relate_technologies_to_scenario_views.relate_technologies, name='relate_technologies'), # Maps the root URL to the main view
     path('batch/', batch_views.setup_batch, name='setup_batch'),

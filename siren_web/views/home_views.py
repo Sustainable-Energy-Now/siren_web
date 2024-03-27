@@ -20,7 +20,7 @@ def home_view(request):
     scenario = request.session.get('scenario')
     success_message = ""
     context = {
-        'home_view_url': reverse('home_view')
+        'home_view_url': reverse('home')
     }
 
     # Handle the request

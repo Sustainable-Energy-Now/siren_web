@@ -13,9 +13,9 @@ def set_merit_order(request):
     success_message = ""
     merit_order = {}
     excluded_resources = {}
-    scenario_obj = Scenarios.objects.get(title=scenario)
     
-    if request.method == 'POST':
+    if (request.method == 'POST' and demand_year):
+        scenario_obj = Scenarios.objects.get(title=scenario)
         # Process form data
         try:
             data = {}
@@ -40,7 +40,15 @@ def set_merit_order(request):
                 ScenariosTechnologies.objects.filter(idtechnologies=technology, idscenarios=scenario_obj.pk).update(merit_order=index)
 
         success_message = "Merit order saved successfully"
-    idscenarios = scenario_obj.pk
-    merit_order, excluded_resources = fetch_merit_order_technologies(demand_year, idscenarios)
+        
+    if not demand_year:
+        success_message = "Set the demand year and scenario in the home page first."
+    else:
+        scenario_obj = Scenarios.objects.get(title=scenario)
+        idscenarios = scenario_obj.pk
+        merit_order, excluded_resources = fetch_merit_order_technologies(demand_year, idscenarios)
+        if not len(merit_order) and not len(excluded_resources):
+            success_message = "Relate the demand technologies to the Scenario in the home page."
+            
     context = {'merit_order': merit_order, 'excluded_resources': excluded_resources, 'success_message': success_message, 'demand_year': demand_year, 'scenario': scenario}
     return render(request, 'merit_order.html', context)

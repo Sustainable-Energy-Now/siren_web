@@ -20,7 +20,7 @@ from django.contrib.staticfiles.urls import staticfiles_urlpatterns
 from .views import home_views, settings_views
 
 urlpatterns = [
-    path('', home_views.home_view, name='home_view'),
+    path('', home_views.home_view, name='home'),
     path("", include("powermapui.urls")),
     path("", include("powermatchui.urls")),
     path("", include("powerplotui.urls")),

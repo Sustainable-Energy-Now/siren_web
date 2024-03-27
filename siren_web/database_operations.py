@@ -10,6 +10,13 @@ def delete_analysis_scenario(idscenario):
     Analysis.objects.filter(
         idscenarios=idscenario
     ).delete()
+    return None
+
+def fetch_analysis_scenario(idscenario):
+    analysis_list = Analysis.objects.filter(
+        idscenarios=idscenario
+    ).all()
+    return analysis_list
 
 def fetch_demand_data(demand_year):
     # Check if demand is already stored in session
