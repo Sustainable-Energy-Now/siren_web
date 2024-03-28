@@ -9,14 +9,14 @@ from django.db import models
 
 
 class Analysis(models.Model):
-    idanalysis = models.AutoField(db_column='idAnalysis', primary_key=True)  # Field name made lowercase.
-    idscenarios = models.ForeignKey('Scenarios', models.DO_NOTHING, db_column='idScenarios', blank=True, null=True)  # Field name made lowercase.
-    heading = models.CharField(max_length=45, blank=True, null=True)  # Field name made lowercase.
+    idanalysis = models.AutoField(db_column='idAnalysis', primary_key=True)
+    idscenarios = models.ForeignKey('Scenarios', models.RESTRICT, db_column='idScenarios', blank=True, null=True)
+    variation = models.CharField(max_length=45, blank=True, null=True) 
+    heading = models.CharField(max_length=45, blank=True, null=True)
     component = models.CharField(max_length=45, blank=True, null=True)
-    basis = models.CharField(db_column='Basis', max_length=45, blank=True, null=True)  # Field name made lowercase.
-    stage = models.CharField(db_column='Stage', max_length=45, blank=True, null=True)  # Field name made lowercase.
-    quantity = models.FloatField(db_column='Quantity', blank=True, null=True)  # Field name made lowercase.
-    units = models.CharField(db_column='Units', max_length=10, blank=True, null=True)  # Field name made lowercase.
+    stage = models.CharField(db_column='Stage', max_length=45, blank=True, null=True) 
+    quantity = models.FloatField(db_column='Quantity', blank=True, null=True)
+    units = models.CharField(db_column='Units', max_length=10, blank=True, null=True)
 
     class Meta:
         db_table = 'Analysis'
@@ -199,7 +199,8 @@ class Technologies(models.Model):
 
 class variations(models.Model):
     idvariations = models.AutoField(db_column='idvariations', primary_key=True)  # Field name made lowercase.
-    idtechnologies = models.ForeignKey('Technologies', models.DO_NOTHING, db_column='idTechnologies')  # Field name made lowercase.
+    idscenarios = models.ForeignKey('Scenarios', models.DO_NOTHING, db_column='idScenarios', blank=True, null=True)
+    idtechnologies = models.ForeignKey('Technologies', models.RESTRICT, db_column='idTechnologies')  # Field name made lowercase.
     variation_name = models.CharField(max_length=45, blank=True, null=True)
     variation_description = models.CharField(max_length=250, blank=True, null=True)
     dimension = models.CharField(max_length=30, blank=True, null=True)

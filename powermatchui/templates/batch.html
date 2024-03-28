@@ -21,18 +21,8 @@
     <!-- Form for running Powermatch -->
     {% csrf_token %}
     {% load crispy_forms_tags %}
-    {% crispy form %}
-    <script>
-        // Show/hide the new variation fields based on the selected option
-        document.getElementById('id_variation').addEventListener('change', function() {
-            const newVariationFields = document.getElementById('id_variation_name');
-            if (this.value === 'new') {
-                newVariationFields.style.display = 'block';
-            } else {
-                newVariationFields.style.display = 'none';
-            }
-        });
-    </script>
+    {% crispy variation_form %}
+    {% crispy batch_form %}
 </body>
 </html>
 

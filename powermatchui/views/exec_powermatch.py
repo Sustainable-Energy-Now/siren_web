@@ -10,7 +10,7 @@ from siren_web.models import Analysis, Generatorattributes, Scenarios, Scenarios
 from ..powermatch import pmcore as pm
 from ..powermatch.pmcore import Facility, PM_Facility, powerMatch
 
-def insert_data(i, sp_data, scenario_obj, Basis, Stage):
+def insert_data(i, sp_data, scenario_obj, variation, Stage):
     for count, row in enumerate(sp_data):
         if not row[0]:
             pass
@@ -42,7 +42,7 @@ def insert_data(i, sp_data, scenario_obj, Basis, Stage):
                     idscenarios=scenario_obj,
                     heading=Heading,
                     component=Component,
-                    basis=Basis,
+                    variation=variation,
                     stage=Stage,
                     quantity=Quantity,
                     units=Units
@@ -72,7 +72,7 @@ def insert_data(i, sp_data, scenario_obj, Basis, Stage):
             idscenarios=scenario_obj,
             heading=Heading,
             component=Component,
-            basis=Basis,
+            variation=variation,
             stage=Stage,
             quantity=Quantity,
             units=Units
@@ -94,7 +94,7 @@ def insert_data(i, sp_data, scenario_obj, Basis, Stage):
                 units=Units,
             )
 
-def submit_powermatch(demand_year, scenario, option, iterations, updated_technologies):
+def submit_powermatch(demand_year, scenario, option, iterations, variation_inst):
     settings = fetch_all_settings_data()
     pmss_data, pmss_details = \
     fetch_demand_data(demand_year)
@@ -204,17 +204,28 @@ def submit_powermatch(demand_year, scenario, option, iterations, updated_technol
         # 16 Lifetime Emissions Cost
         # 17 Reference LCOE
         # 18 Reference CF
+                
+        # If dimension is capacity then adjust capacity by step value each iteration
+        if variation_inst:
+            technology = variation_inst.idtechnologies
+            dimension = variation_inst.dimension
+            step = variation_inst.step
+            idtechnologies = variation_inst.idtechnologies
+            technology_name = idtechnologies.technology_name
+            pmss_details[technology_name] = PM_Facility(
+                pmss_details[technology_name].name, 
+                pmss_details[technology_name].name, 
+                pmss_details[technology_name].capacity + step, 'R', 
+                pmss_details[technology_name].col, 
+                pmss_details[technology_name].multiplier
+                )
 
         sp_data, headers, sp_pts = powerMatch.doDispatch(settings, demand_year, option, pmss_details, pmss_data, generators, re_order, 
             dispatch_order, pm_data_file, data_file, title=None)
         
-        if i == 0:
-            Basis = 'Baseline'
-        else:
-            Basis = 'Optimisation'
+        variation = variation_inst.variation_name
         current_datetime = datetime.now()
         Stage = current_datetime.strftime('%m-%d %H:%M:%S')
-
 
         try:
             scenario_obj = Scenarios.objects.get(title=scenario)
@@ -222,12 +233,7 @@ def submit_powermatch(demand_year, scenario, option, iterations, updated_technol
         except Scenarios.DoesNotExist:
             # Handle the case where the scenario with the given title does not exist
             pass
-        insert_data(i, sp_data, scenario_obj, Basis, Stage)
-        # Adjust capacity by step value
-        if updated_technologies:
-            for key, value in pmss_details.items():
-                if key in updated_technologies:
-                    pmss_details[key] = PM_Facility(value.name, value.name, value.capacity + updated_technologies[key], 'R', value.col, value.multiplier)
+        insert_data(i, sp_data, scenario_obj, variation, Stage)
 
     return sp_data, headers, sp_pts
 

@@ -3,7 +3,8 @@ from django.db import connection
 from django.http import HttpResponse
 import logging
 from django.db.models import Q, F
-from siren_web.models import Analysis, Demand, facilities, Scenarios, ScenariosTechnologies, ScenariosSettings, Settings, Technologies, Zones
+from siren_web.models import Analysis, Demand, facilities, Scenarios, ScenariosTechnologies, ScenariosSettings, \
+    Settings, Technologies, variations, Zones
 from powermatchui.powermatch.pmcore import Facility, PM_Facility, Optimisation
 
 def delete_analysis_scenario(idscenario):
@@ -17,6 +18,14 @@ def fetch_analysis_scenario(idscenario):
         idscenarios=idscenario
     ).all()
     return analysis_list
+
+def check_analysis_baseline(scenario):
+    scenario_obj = Scenarios.objects.get(title=scenario)
+    baseline = Analysis.objects.filter(
+        idscenarios=scenario_obj,
+        variation='Baseline'
+    )[:1]
+    return baseline
 
 def fetch_demand_data(demand_year):
     # Check if demand is already stored in session
@@ -171,7 +180,7 @@ def fetch_included_technologies_data(scenario):
     scenario_obj = Scenarios.objects.get(title=scenario)
     technologies_list = Technologies.objects.filter(
         scenarios=scenario_obj,
-        category__in=['Generator', 'Storage'],  # Use double underscores for related field lookups
+        # category__in=['Generator', 'Storage'],  # Use double underscores for related field lookups
         scenariostechnologies__merit_order__lt=100
     ).order_by('scenariostechnologies__merit_order')
     return technologies_list
@@ -267,3 +276,21 @@ def fetch_scenario_settings_data(scenario):
         # Handle any errors that occur during the database query
         return None
     return settings
+
+def fetch_variations_list(scenario):
+    try:
+        variations_list = variations.objects.all('variation_name')
+    except Exception as e:
+        # Handle any errors that occur during the database query
+        return None
+    return variations_list
+
+def fetch_variation(variation):
+    try:
+        variation = variations.objects.filter(
+            'variation_name'
+        )
+    except Exception as e:
+        # Handle any errors that occur during the database query
+        return None
+    return variation

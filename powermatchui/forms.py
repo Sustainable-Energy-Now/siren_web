@@ -82,7 +82,50 @@ class RunPowermatchForm(forms.Form):
         widget=forms.RadioSelect,
         required=False  # Make the field optional
         )
-    
+
+class SelectVariationForm(forms.Form):
+    def __init__(self, *args, **kwargs):
+        selected_variation = kwargs.pop('selected_variation', None)
+        super(SelectVariationForm, self).__init__(*args, **kwargs)
+        variations_queryset = variations.objects.all()
+        variations_list = [variation.variation_name for variation in variations_queryset]
+        variation_description_dict = {variation.variation_name: variation.variation_description for variation in variations_queryset}
+
+        variations_choices = [('Baseline', 'Baseline')] + [(variation_name, variation_name) for variation_name in variations_list]
+        variations_choices.append(('new', 'Create a new variation'))
+
+        self.fields['variation_name'] = forms.ChoiceField(choices=variations_choices, required=True)
+
+        if selected_variation:  # if a variation is passed set it as selected
+            self.fields['variation_name'].initial = selected_variation
+            if selected_variation != 'Baseline' and selected_variation != 'new':
+                self.fields['variation_description'] = forms.CharField(
+                    max_length=250,
+                    required=False,
+                    widget=forms.TextInput(attrs={'readonly': True}),
+                    initial=variation_description_dict.get(selected_variation, '')
+                )
+        else:
+            self.fields['variation_name'].initial = 'Baseline'
+            self.fields['variation_description'] = forms.CharField(
+                max_length=250,
+                required=False,
+                widget=forms.TextInput(attrs={'readonly': True})
+            )
+        
+        self.helper = FormHelper()
+        self.helper.form_action = '/variation/'
+        self.helper.layout = Layout(
+            Div(
+                Field('variation_name', css_class='row col-md-4'),
+                Field('variation_description', css_class='row col-md-4'),
+                css_class='row',
+            ),
+            FormActions(
+                Submit('refresh', 'Refresh'),
+            )
+        )
+
 class RunBatchForm(forms.Form):
     def __init__(self, *args, **kwargs):
         DIMENSION_CHOICES = [
@@ -95,18 +138,21 @@ class RunBatchForm(forms.Form):
             ('discount_rate', 'Discount Rate'),
         ]
         technologies = kwargs.pop('technologies')
+        variation_data = kwargs.pop('variation_data', None)
+        
         super(RunBatchForm, self).__init__(*args, **kwargs)
-
-        self.fields['iterations'] = forms.IntegerField(required=True)
-
-        variations_list = variations.objects.values_list('variation_name', flat=True)
-        variations_choices = [(variation, variation) for variation in variations_list]
-        variations_choices.append(('new', 'Create a new variation'))
-        self.fields['variation'] = forms.ChoiceField(choices=variations_choices, required=True)
-
-        self.fields['variation_name'] = forms.CharField(
-            max_length=45, required=False,
-            widget=forms.TextInput(attrs={'style': 'display: block'}),
+        if variation_data:
+            self.fields['iterations'] = forms.IntegerField(required=True, initial=variation_data.get('iterations'))
+            self.fields['variation_name'] = forms.CharField(
+                required=True,
+                widget=forms.HiddenInput(),
+                initial=variation_data.get('variation_name'),
+            )
+        else:
+            self.fields['iterations'] = forms.IntegerField(required=True)
+            self.fields['variation_name'] = forms.CharField(
+                required=True,
+                widget=forms.HiddenInput(),
             )
 
         accordion_groups = []
@@ -120,12 +166,23 @@ class RunBatchForm(forms.Form):
             self.fields[f"vom_{tech_key}"] = forms.FloatField(initial=technology.vom, label=f"VOM")            
             self.fields[f"lifetime_{tech_key}"] = forms.FloatField(initial=technology.lifetime, label=f"Lifetime")
             self.fields[f"discount_rate_{tech_key}"] = forms.FloatField(initial=technology.discount_rate, label=f"Discount Rate", required=False)
-            self.fields[f"step_{tech_key}"] = forms.FloatField(label=f"Step", required=False)
-            self.fields[f"dimension_{tech_key}"] = forms.ChoiceField(
-                choices=DIMENSION_CHOICES,
-                label=f"Dimension",
-                required=False
-            )
+            if variation_data and variation_data.get('idtechnologies').idtechnologies == int(tech_key):
+                dimension_value = variation_data.get('dimension')
+                self.fields[f"dimension_{tech_key}"] = forms.ChoiceField(
+                    choices=DIMENSION_CHOICES,
+                    label=f"Dimension",
+                    required=False,
+                    initial=dimension_value if dimension_value else ''
+                )
+                self.fields[f"step_{tech_key}"] = forms.FloatField(initial=variation_data.get('step'), label=f"Step", required=False)
+            else:
+                self.fields[f"dimension_{tech_key}"] = forms.ChoiceField(
+                    choices=DIMENSION_CHOICES,
+                    label=f"Dimension",
+                    required=False
+                )
+                self.fields[f"step_{tech_key}"] = forms.FloatField(label=f"Step", required=False)
+                
             accordion_group_fields = [
                 # Div(f"{tech_name} details",
                 Div(Field(f"capacity_{tech_key}", readonly=True, css_class='row col-md-4'),
@@ -152,12 +209,8 @@ class RunBatchForm(forms.Form):
         self.helper = FormHelper()
         self.helper.form_action = '/batch/'
         self.helper.layout = Layout(
-            Div(
-                Field('iterations', css_class='row col-md-4'),
-                Field('variation', css_class='row col-md-4'),
-                Field('variation_name', css_class='row col-md-4'),
-                css_class='row',
-            ),
+            Field('iterations', css_class='row col-md-4'),
+            Field('variation_name'),
             Accordion(*accordion_groups),
             FormActions(
                 Submit('submit', 'Submit'),
@@ -166,14 +219,13 @@ class RunBatchForm(forms.Form):
         
     def clean(self):
         cleaned_data = super().clean()
-        variation = cleaned_data.get('variation')
-        variation_name = cleaned_data.get('variation_name')
-
-        if variation == 'new' and not variation_name:
-            self.add_error('variation_name', 'Please provide a name for the new variation.')
-
-        technology_fields = [field for field in cleaned_data.keys() if field.endswith('_step') or field.endswith('_dimension')]
-
+        updated_data= {}
+        updated_data['variation_name'] = self.cleaned_data.get('variation_name')
+        updated_data['iterations'] = self.cleaned_data.get('iterations')
+        technology_fields = [field for field in cleaned_data.keys() if field.startswith('step_') or field.startswith('dimension_')]
+        
+        updated_technologies = {}
+        
         for tech_field in technology_fields:
             tech_key = tech_field.split('_')[1]
             step_field = f"step_{tech_key}"
@@ -182,11 +234,12 @@ class RunBatchForm(forms.Form):
             step_value = cleaned_data.get(step_field)
             dimension_value = cleaned_data.get(dimension_field)
             
-            if (step_value and not dimension_value) or (dimension_value and not step_value):
-                self.add_error(step_field, 'Both step and dimension must be specified for a technology.')
-                self.add_error(dimension_field, 'Both step and dimension must be specified for a technology.')
-                break
-        return cleaned_data
+            if step_value and dimension_value:
+                updated_data['step'] = step_value
+                updated_data['dimension'] = dimension_value
+                updated_data['idtechnologies'] = tech_key
+
+        return updated_data
 
 class RunOptimisationForm(forms.Form):
     LEVEL_OF_DETAIL_CHOICES = [

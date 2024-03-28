@@ -75,9 +75,11 @@ def run_baseline(request):
     demand_year = request.session.get('demand_year')
     scenario = request.session.get('scenario')
     success_message = ""
+
     if request.method == 'POST':
+        runpowermatch_form = RunPowermatchForm(request.POST)
         scenario_obj = Scenarios.objects.get(title=scenario)
-        runpowermatch_form = RunPowermatchForm()
+
         if not demand_year:
             success_message = "Set the demand year and scenario first."
         elif runpowermatch_form.is_valid():

@@ -1,6 +1,6 @@
 # forms.py
 from django import forms
-from siren_web.models import Scenarios, Technologies, variations
+from siren_web.models import Scenarios
 from crispy_forms.helper import FormHelper
 from crispy_forms.layout import Layout, Div, Field
 

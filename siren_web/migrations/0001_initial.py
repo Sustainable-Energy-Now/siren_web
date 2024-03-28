@@ -614,7 +614,7 @@ class Migration(migrations.Migration):
                     ),
                 ),
                 (
-                    "basis",
+                    "variation",
                     models.CharField(
                         blank=True, db_column="Basis", max_length=45, null=True
                     ),

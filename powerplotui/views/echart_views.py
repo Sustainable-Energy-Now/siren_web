@@ -10,7 +10,7 @@ class eChartView(TemplateView):
 
     def get(self, request):
         # code to handle GET request
-        # Get the selected heading, component, and basis combinations from the request
+        # Get the selected heading, component, and variation combinations from the request
         x_column = ''
         y_column = ''
         data = {}

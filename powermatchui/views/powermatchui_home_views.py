@@ -12,7 +12,7 @@ from django.db.models import Max
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import render
 from django.urls import path
-from ..forms import DemandYearScenario, RunPowermatchForm
+from ..forms import DemandYearScenario
 from siren_web.models import Demand
 
 @login_required
@@ -30,10 +30,9 @@ def powermatchui_home(request):
             request.session['scenario'] = scenario # Assuming scenario is an instance of Scenarios
             success_message = "Settings updated."
     demand_year_scenario = DemandYearScenario()
-    runpowermatch_form = RunPowermatchForm()
 
     context = {
-        'demand_year_scenario': demand_year_scenario, 'runpowermatch_form': runpowermatch_form,
+        'demand_year_scenario': demand_year_scenario,
         'success_message': success_message, 'demand_year': demand_year, 'scenario': scenario
         }
     return render(request, 'powermatchui_home.html', context)
