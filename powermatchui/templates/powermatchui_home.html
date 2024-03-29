@@ -6,9 +6,17 @@
     <p>This is a web interface to Powermatch, an open source python app for matching and balancing
     Renewable Energy resources to the load on the South West Interconnected system(SWIS).
     Powermatch takes as input load and generation data from Powermap. Powermatch quantifies and costs the dispatchable energy generation, storage and CO2-e emissions. 
-    The parameters passed to Power Match are stored in database tables that can be maintained using the Table Update function above.
+    The parameters passed to Powermatch are stored in database tables.
+    The objective of Powermatch is to take the raw output from Powermap for a demand year and scenario and 
+    establish a baseline that scenario. Begin by setting the merit order for the technologies, then create a baseline
+    with those settings.  Finally by various means we creates variants to the baseline.
+    Variants are created by varying the capacity or other attributes of the various renewable technologies used
+    in a scenario.  The objective of creating variants is to optimise  specified outcomes such as emissions or 
+    levelised cost of energy (LCOE).
     In this main panel you can select the Demand Year from the available data shown in the drop down list below.
-    Select the level of detail and click submit to run Power Match.</p>
+    Select the level of detail and click submit to run Power Match.  This will both create and store the scenario
+    baseline and display the outcome.  This is a pre-requisite to creating variants.
+</p>
 
     <form method="post">
         {% csrf_token %}

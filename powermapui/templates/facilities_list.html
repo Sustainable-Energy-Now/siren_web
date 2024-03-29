@@ -2,8 +2,11 @@
 {% extends 'powermapui_base.html' %}
 
 {% block powermapui_content %}
-  <h1>Facilities</h1>
-  <p>This is a display of the full set of defined Facilities.
+  <h3>Facilities</h3>
+  <p>This is a display of the defined Facilities.  Facilities represent plant that comprise the grid infrastructure.
+    Initial displays shows all defined facilities for all scenrios.  You can choose a scenario from the drop down list to
+    filter the list by the selected scenario.  Every facilities has a technology taxonomy.  Where  more than one
+    defined technology is used in the same location they handled as a separate facility for each technology.
   </p>
   <form method="get">
     <label for="scenario">Filter by Scenario:</label>

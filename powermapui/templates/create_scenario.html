@@ -2,7 +2,10 @@
 {% extends 'powermapui_base.html' %}
 {% block powermapui_content %}
 <h3>Manage Scenarios and Facilities</h3>
-<p>Associate Facilities with a Scenario using this function.  Facilities can be real or proposed.
+<p> A scenario is grouping of Facilities that can be real or proposed.  This page displays a list of currently defined
+    facilities. Currently defined Scenarios are shown in columns going across the page. 
+    Checkboxes below each scenario indicate whether the corresponding facility is part of the scenario.  
+    The checkbox in the scenario column header can be used to toggle all the checkboxes below on or off. 
 </p>
 {% load crispy_forms_tags %}
 {% load custom_filters %}

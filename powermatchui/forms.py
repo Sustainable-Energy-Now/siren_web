@@ -92,7 +92,7 @@ class SelectVariationForm(forms.Form):
         variation_description_dict = {variation.variation_name: variation.variation_description for variation in variations_queryset}
 
         variations_choices = [('Baseline', 'Baseline')] + [(variation_name, variation_name) for variation_name in variations_list]
-        variations_choices.append(('new', 'Create a new variation'))
+        variations_choices.append(('new', 'Create a new variant'))
 
         self.fields['variation_name'] = forms.ChoiceField(choices=variations_choices, required=True)
 
