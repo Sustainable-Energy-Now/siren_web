@@ -279,7 +279,7 @@ def fetch_scenario_settings_data(scenario):
 
 def fetch_variations_list(scenario):
     try:
-        variations_list = variations.objects.all('variation_name')
+        variations_list = variations.objects.all()
     except Exception as e:
         # Handle any errors that occur during the database query
         return None
@@ -288,7 +288,7 @@ def fetch_variations_list(scenario):
 def fetch_variation(variation):
     try:
         variation = variations.objects.filter(
-            'variation_name'
+            variation_name=variation
         )
     except Exception as e:
         # Handle any errors that occur during the database query

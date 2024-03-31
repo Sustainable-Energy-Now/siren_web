@@ -1,47 +1,54 @@
 from django.shortcuts import render
 from django.http import JsonResponse
-from django.views.generic import TemplateView
+from django.views.generic import View
+from django.core.serializers import serialize
 
 # Create your views here.
-from siren_web.models import Analysis
+from siren_web.models import Analysis, variations
 
-class eChartView(TemplateView):
-    template_name = 'echarts.html'
-
+class eChartView(View):
     def get(self, request):
-        # code to handle GET request
-        # Get the selected heading, component, and variation combinations from the request
-        x_column = ''
-        y_column = ''
-        data = {}
-        if 'x_column' in request.GET and 'y_column' in request.GET:
-            # Query the Analysis model to get the data
-            x_column = request.GET.get('x_column')
-            y_column = request.GET.get('y_column')
-            analysis_data1 = Analysis.objects.filter(heading=x_column, component='Total').values('stage', 'quantity')
-            analysis_data2 = Analysis.objects.filter(heading=y_column, component='Total').values('stage', 'quantity')
+        series_1 = request.GET.get('series_1')
+        series_2 = request.GET.get('series_2')
+        scenario = request.GET.get('scenario')
+        variant = request.GET.get('variant')
 
-        # Prepare the data for the Echarts plot
-            data = {
-                'x_axis': list(set([data['stage'] for data in analysis_data1] + [data['stage'] for data in analysis_data2])),
-                'series1': [{'name': f'{x_column}', 'data': [data['quantity'] for data in analysis_data1]}],
-                'series2': [{'name': f'{y_column}', 'data': [data['quantity'] for data in analysis_data2]}]
-            }
-            # data = {
-            #     'x_axis': ['Jan', 'Feb', 'Mar'], 
-            #     'series1': [{'name': 'Capacity', 'data': [30000, 50000, 40000]}],
-            #     'series2': [{'name': 'LCOE', 'data': [20000, 30000, 35000]}]
-            #     }
+        if not all([series_1, series_2, scenario, variant]):
+            # If any of the required parameters are missing, render the template without data
+            return JsonResponse({'error': 'Missing required parameters'}, status=400)
 
-            return JsonResponse(data)
-        context = {
-           'x_column': x_column,
-            'y_column': y_column,
-            'chart_data': data
-            }
-        return render(request, 'echarts.html', context)
+        variation = variations.objects.get(pk=variant)
 
-  # post method
+        analysis_queryset_1 = Analysis.objects.filter(
+            idscenarios=scenario,
+            variation__in=[variation.variation_name, 'Baseline'],
+            heading=series_1,
+            component__in=['Total', 'Load Analysis']
+        )
+
+        analysis_queryset_2 = Analysis.objects.filter(
+            idscenarios=scenario,
+            variation__in=[variation.variation_name, 'Baseline'],
+            heading=series_2,
+            component__in=['Total', 'Load Analysis']
+        )
+
+        data_analysis = []
+
+        for analysis_obj_1 in analysis_queryset_1:
+            for analysis_obj_2 in analysis_queryset_2:
+                if analysis_obj_1.stage == analysis_obj_2.stage:
+                    data_analysis.append({
+                        'stage': analysis_obj_1.stage,
+                        'series_1_name': series_1,
+                        'series_1_value': analysis_obj_1.quantity,
+                        'series_2_name': series_2,
+                        'series_2_value': analysis_obj_2.quantity
+                    })
+
+        return JsonResponse(list(data_analysis), safe=False)
+
+    # post method
     def post(self, request, *args, **kwargs):
         # code to handle POST request
         pass

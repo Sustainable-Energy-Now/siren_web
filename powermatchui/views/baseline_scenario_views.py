@@ -54,7 +54,7 @@ def baseline_scenario(request):
             scenario_obj = Scenarios.objects.get(title=scenario)
             analysis_list = fetch_analysis_scenario(scenario_obj)
             if analysis_list:
-                success_message = "Existing baseline and variants will be overridden."
+                success_message = "Existing baseline and variants will be overwritten."
             carbon_price= scenario_settings['carbon_price']
             discount_rate= scenario_settings['discount_rate']
         baseline_form = BaselineScenarioForm(

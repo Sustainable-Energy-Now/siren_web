@@ -1,4 +1,4 @@
-<!-- powerplotui/templates/some_template.html -->
+<!-- powerplotui/templates/echarts.html -->
 
 {% extends 'powerplotui_base.html' %}
 
@@ -13,73 +13,61 @@
 <script>
     // Function to fetch data from the Django view
     function fetchAnalysisData() {
-        const x_column = '{{ x_column }}';
-        const y_column = '{{ y_column }}';
+        const series_1 = '{{ series_1 }}';
+        const series_2 = '{{ series_2 }}';
+        const scenario = '{{ scenario }}';
+        const variant = '{{ variant }}';
 
-        const url = `/get_analysis_data/?x_column=${x_column}&y_column=${y_column}`;
+        const url = `/get_analysis_data/?series_1=${series_1}&series_2=${series_2}&scenario=${scenario}&variant=${variant}`;
+        console.log('Fetching data from:', url);
         return fetch(url)
-            .then(response => response.json())
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error ${response.status}`);
+                }
+                return response.json();
+            })
             .catch(error => console.error('Error fetching data:', error));
     }
 
     // Function to create the Echarts plot
-    function createAnalysisPlot(data) {
-        const exampleData = {
-            x_axis: [
-                'Existing', 'Proposed', 'Q3 2023', 'Q4 2023', 'Q1 2024', 'Q2 2024', 'Q3 2024',
-                'Q4 2024', 'Q1 2025', 'Q2 2025', 'Q3 2025', 'Q4 2025', 'Q1 2026', 'Q2 2026'
-            ],
-            series1: [
-                180.11, 145.07, 122.51, 120.76, 110.74, 110.18, 109.59, 109.51, 109.42,
-                109.42, 109.39, 109.39, 109.35, 109.35
-            ],
-            series2: [
-                0, 20.4, 44.1, 46.2, 58.5, 59.2, 60, 60.1, 60.2, 60.2, 60.3, 60.3, 60.4, 60.4
-            ]
-        };
+    function createAnalysisPlot(analysis_data) {
         const chartDom = document.getElementById('analysis-plot');
         const myChart = echarts.init(chartDom);
+
         const option = {
             title: {
-                text: 'ECharts Example'
+                text: 'Analysis Plot'
             },
             legend: {
-                exampleData: ['LCOE incl. Carbon Cost', 'RE %age of Total Load']
+                data: [analysis_data[0].series_1_name, analysis_data[0].series_2_name]
             },
             xAxis: {
                 type: 'category',
-                exampleData: exampleData.x_axis
+                data: analysis_data.map(item => item.stage)
             },
-            yAxis: [{
-                type: 'value',
-                min: 0, 
-                max: 200,
-                name: 'LCOE incl. Carbon Cost',
-                axisLabel: {
-                formatter: '{value} units'
+            yAxis: [
+                {
+                    type: 'value',
+                    name: analysis_data[0].series_1_name,
                 },
-            },
-            {
-                type: 'value',
-                min: 0, 
-                max: 100,
-                name: 'RE %age of Total Load',
-                axisLabel: {
-                formatter: '{value} %'
-                },
-                position: 'right' // Position the second y-axis on the right
-            }],
+                {
+                    type: 'value',
+                    name: analysis_data[0].series_2_name,
+                    position: 'right' // Position the second y-axis on the right
+                }
+            ],
             series: [
                 {
-                name: 'LCOE incl. Carbon Cost',
-                type: 'line',
-                data: exampleData.series1,
-                yAxisIndex: 0 // Bind this series to the first y-axis
+                    name: analysis_data[0].series_1_name,
+                    type: 'line',
+                    data: analysis_data.map(item => item.series_1_value),
+                    yAxisIndex: 0 // Bind this series to the first y-axis
                 },
                 {
-                    name: 'RE %age of Total Load',
+                    name: analysis_data[0].series_2_name,
                     type: 'line',
-                    data: exampleData.series2,
+                    data: analysis_data.map(item => item.series_2_value),
                     yAxisIndex: 1 // Bind this series to the second y-axis
                 }
             ]
@@ -89,7 +77,7 @@
 
     // Call the fetchAnalysisData function
     fetchAnalysisData()
-        .then(data => createAnalysisPlot(data))
+        .then(analysis_data => createAnalysisPlot(analysis_data))
         .catch(error => console.error('Error creating plot:', error));
 </script>
 
