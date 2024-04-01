@@ -1,0 +1,14 @@
+<!-- display_table.html -->
+{% extends 'powermatchui_base.html' %}
+
+{% block powermatchui_content %}
+  <h2>Confirm Overwrite</h2>
+  <p>Existing baseline and variants will be overwritten. Proceed?</p>
+
+  <form method="get" action="{% url 'baseline_scenario' %}">
+    <input type="hidden" name="proceed" value="">
+    <button type="submit" name="proceed" value="Yes">Yes</button>
+    <button type="submit" name="proceed" value="No">No</button>
+  </form>
+
+{% endblock %}

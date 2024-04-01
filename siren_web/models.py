@@ -25,6 +25,7 @@ class Demand(models.Model):
     iddemand = models.AutoField(db_column='idDemand', primary_key=True)  # Field name made lowercase. The composite primary key (idDemand, idtechnologies, hour) found, that is not supported. The first column is selected.
     idtechnologies = models.ForeignKey('Technologies', models.DO_NOTHING, db_column='idTechnologies')  # Field name made lowercase.
     idscenarios = models.ForeignKey('Scenarios', models.DO_NOTHING, db_column='idScenarios')  # Field name made lowercase.
+    year = models.PositiveIntegerField()
     hour = models.PositiveIntegerField()
     period = models.DateTimeField(blank=True, null=True)
     load = models.DecimalField(max_digits=9, decimal_places=2, blank=True, null=True)
@@ -184,10 +185,10 @@ class Technologies(models.Model):
     lifetime = models.DecimalField(max_digits=3, decimal_places=0, blank=True, null=True)
     discount_rate = models.DecimalField(max_digits=5, decimal_places=2, blank=True, null=True)
     description = models.CharField(max_length=1000, db_collation='utf8mb4_0900_ai_ci', blank=True, null=True)
-    capacity = models.DecimalField(max_digits=9, decimal_places=2, blank=True, null=True)
+    capacity = models.DecimalField(max_digits=11, decimal_places=2, blank=True, null=True)
     mult = models.DecimalField(max_digits=5, decimal_places=2, blank=True, null=True)
-    capacity_max = models.DecimalField(max_digits=9, decimal_places=2, blank=True, null=True)
-    capacity_min = models.DecimalField(max_digits=9, decimal_places=2, blank=True, null=True)
+    capacity_max = models.DecimalField(max_digits=11, decimal_places=2, blank=True, null=True)
+    capacity_min = models.DecimalField(max_digits=11, decimal_places=2, blank=True, null=True)
     emissions = models.DecimalField(max_digits=7, decimal_places=3, blank=True, null=True)
     initial = models.DecimalField(max_digits=7, decimal_places=2, blank=True, null=True)
     lcoe = models.DecimalField(max_digits=7, decimal_places=2, blank=True, null=True)

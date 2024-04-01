@@ -185,6 +185,12 @@ def fetch_included_technologies_data(scenario):
     ).order_by('scenariostechnologies__merit_order')
     return technologies_list
 
+def fetch_technology_by_id(idtechnologies):
+    technologies = Technologies.objects.filter(
+        idtechnologies=idtechnologies
+    ).order_by('-year')
+    return technologies
+    
 def fetch_generation_storage_data(demand_year):
     # Filter technologies based on merit_order conditions
     candidate_technologies = Technologies.objects.filter(
