@@ -10,7 +10,7 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         # Assuming the CSV file is named 'data.csv' in the same directory as this script
-        file_path = 'SupplyFactors.csv'
+        file_path = 'SupplyFactors2.csv'
         file_path = os.path.join(os.path.dirname(__file__), '..', '..', 'data', 'SupplyFactors.csv')
 
 
@@ -31,7 +31,7 @@ class Command(BaseCommand):
         scenario_instance = Scenarios.objects.get(idscenarios=scenario_id)
         
         # Open CSV file and read rows
-        for column in range(3, 8):
+        for column in range(1, 8):
             with open(file_path, 'r') as file:
                 csv_reader = csv.reader(file)
                 next(csv_reader)  # Skip header row

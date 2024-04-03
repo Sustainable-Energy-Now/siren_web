@@ -13,7 +13,7 @@ from django.http import HttpResponse, JsonResponse
 from django.shortcuts import render
 from django.urls import path
 from ..forms import DemandYearScenario
-from siren_web.models import Demand
+from siren_web.models import Demand, supplyfactors
 
 @login_required
 def powermatchui_home(request):

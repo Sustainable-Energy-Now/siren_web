@@ -1247,7 +1247,7 @@ class powerMatch():
                     storage[3] = capacity * generators[gen].capacity_max
                 else:
                     storage[3] = capacity
-                recharge = [0., 0.] # cap, loss
+                recharge:list[Decimal] = [Decimal(0.), Decimal(0.)] # cap, loss
                 if generators[gen].recharge_max > 0:
                     recharge[0] = capacity * generators[gen].recharge_max
                 else:
@@ -1290,14 +1290,14 @@ class powerMatch():
                             in_run[0] = False
                         if warm_time > 0:
                             in_run[1] = False
-                        can_use = - (storage[0] - storage_carry) * (1 / (1 - recharge[1]))
+                        can_use = - (storage[0] - storage_carry) * Decimal(1 / (1 - recharge[1]))
                         if can_use < 0: # can use some
                             if shortfall[row] > can_use:
                                 can_use = shortfall[row]
-                            if can_use < - recharge[0] * (1 / (1 - recharge[1])):
+                            if can_use < - recharge[0] * Decimal(1 / (1 - recharge[1])):
                                 can_use = - recharge[0]
                         else:
-                            can_use = 0.
+                            can_use = Decimal(0.)
                         # for later: record recharge loss
                         storage_losses += can_use * recharge[1]
                         storage_carry -= (can_use * (1 - recharge[1]))

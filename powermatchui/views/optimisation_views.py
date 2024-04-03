@@ -35,7 +35,7 @@ def run_optimisation(request):
         success_message = "Batch Parameters have been updated."
     else:
         # Render the form
-        demand_year = 2023
+        demand_year = 2022
         technologies = fetch_full_generator_storage_data(request, demand_year)
         form = RunOptimisationForm()
         

@@ -2,9 +2,9 @@
 from django.db import connection
 from django.http import HttpResponse
 import logging
-from django.db.models import Q, F
+from django.db.models import Q, F, Sum
 from siren_web.models import Analysis, Demand, facilities, Scenarios, ScenariosTechnologies, ScenariosSettings, \
-    Settings, Technologies, variations, Zones
+    Settings, supplyfactors, Technologies, variations, Zones
 from powermatchui.powermatch.pmcore import Facility, PM_Facility, Optimisation
 
 def delete_analysis_scenario(idscenario):
@@ -58,7 +58,51 @@ def fetch_demand_data(demand_year):
         return HttpResponse(f"Error fetching demand data: {e}", status=500), None
     
     return pmss_data, pmss_details
-        
+
+def get_supply_by_technology(demand_year, scenario):
+    # Get the scenario object
+    scenario_obj = Scenarios.objects.get(title=scenario)
+
+    # Filter the Demand objects for the given demand_year and scenario
+    supplyfactors_queryset = supplyfactors.objects.filter(year=demand_year, idscenarios=scenario_obj)
+
+    # Calculate the total load by technology
+    total_supply_by_technology = \
+        supplyfactors_queryset.values('idtechnologies').annotate(total_supply=Sum('quantum'))
+
+    return total_supply_by_technology
+
+def fetch_supplyfactors_data(demand_year):
+    try:
+        # Read supplyfactors table using Django ORM
+        supplyfactors_query = supplyfactors.objects.filter(
+        ).select_related(
+            'idtechnologies'  # Perform join with Technologies
+        ).order_by(
+            'col', 'hour'  # Order the results by col and hour
+        )
+        # Create a dictionary of supplyfactors from the model 
+        pmss_data = {}
+        pmss_details = {} # contains name, generator, capacity, fac_type, col, multiplier
+        pmss_details['Load'] = PM_Facility('Load', 'Load', 1, 'L', 0, 1)
+        for supplyfactors_row in supplyfactors_query:
+            name = supplyfactors_row.idtechnologies.technology_name
+            idtechnologies = supplyfactors_row.idtechnologies.idtechnologies
+            col = supplyfactors_row.col
+            load = supplyfactors_row.quantum
+            if col not in pmss_data:
+                pmss_data[col] = []
+            pmss_data[col].append(load)
+            if (name != 'Load'):
+                if name not in pmss_details: # type: ignore
+                    capacity = supplyfactors_row.idtechnologies.capacity
+                    pmss_details[name] = PM_Facility(name, name, capacity, 'R', col, 1)
+    except Exception as e:
+        # Handle any errors that occur during the database query
+        return HttpResponse(f"Error fetching supplyfactors data: {e}", status=500), None
+    
+    return pmss_data, pmss_details
+
 def relate_technologies_to_scenario(idscenarios):
     # Query to fetch distinct idTechnologies from facilities for a given scenario
     try:

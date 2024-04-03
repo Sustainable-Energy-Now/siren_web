@@ -5,6 +5,17 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "Python Debugger: Django Custom Management",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}\\manage.py",
+            "args": [
+                "load_supplyfactors", "powermatchui/data/SupplyFactors3.csv"
+            ],
+            "django": true,
+            "autoStartBrowser": false
+        },
+        {
             "name": "Python Debugger: Django",
             "type": "debugpy",
             "request": "launch",

@@ -9,9 +9,9 @@ from crispy_forms.bootstrap import AccordionGroup, FormActions
 
 class DemandYearScenario(forms.Form):
     demand_year = forms.ChoiceField(
-        choices=[('2022', '2022'), ('2023', '2023')],
+        choices=[('2022', '2022'), ('2022', '2022')],
         label='Select a Demand Year',
-        initial='2023',
+        initial='2022',
         widget=forms.Select(attrs={'class': 'form_input'})
         )
 
@@ -166,7 +166,8 @@ class RunBatchForm(forms.Form):
             self.fields[f"vom_{tech_key}"] = forms.FloatField(initial=technology.vom, label=f"VOM")            
             self.fields[f"lifetime_{tech_key}"] = forms.FloatField(initial=technology.lifetime, label=f"Lifetime")
             self.fields[f"discount_rate_{tech_key}"] = forms.FloatField(initial=technology.discount_rate, label=f"Discount Rate", required=False)
-            if variation_data and variation_data.get('idtechnologies').idtechnologies == int(tech_key):
+            if variation_data and variation_data.get('variation_name') != 'new' and \
+                variation_data.get('idtechnologies').idtechnologies == int(tech_key):
                 dimension_value = variation_data.get('dimension')
                 self.fields[f"dimension_{tech_key}"] = forms.ChoiceField(
                     choices=DIMENSION_CHOICES,

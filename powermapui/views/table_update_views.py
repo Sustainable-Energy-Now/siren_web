@@ -6,7 +6,7 @@ from django.http import HttpResponse
 
 # views.py
 def get_table_names():
-    prefixes_excluded = ['auth_', 'Demand', 'django_']  # List of Tables with prefixes to be excluded
+    prefixes_excluded = ['auth_', 'Demand', 'supplyfactors', 'django_']  # List of Tables with prefixes to be excluded
     table_names = [
         model._meta.db_table 
         for model in apps.get_models() 

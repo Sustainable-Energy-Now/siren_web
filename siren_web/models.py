@@ -161,9 +161,12 @@ class supplyfactors(models.Model):
     idscenarios = models.ForeignKey('Scenarios', models.DO_NOTHING, db_column='idscenarios', blank=True, null=True)  # Field name made lowercase.
     idtechnologies = models.ForeignKey('Technologies', models.DO_NOTHING, db_column='idtechnologies', blank=True, null=True)  # Field name made lowercase.
     idzones = models.ForeignKey('Zones', models.DO_NOTHING, db_column='idzones', blank=True, null=True)  # Field name made lowercase.
+    idscenarios = models.ForeignKey('Scenarios', models.DO_NOTHING, db_column='idScenarios')  # Field name made lowercase.
+    year = models.PositiveIntegerField()
     hour = models.IntegerField(blank=True, null=True)
     supply = models.IntegerField(blank=True, null=True)
     quantum = models.DecimalField(max_digits=9, decimal_places=2, blank=True, null=True)
+    col = models.PositiveIntegerField(db_column='Col', blank=True, null=True)  # Field name made lowercase.
 
     class Meta:
         db_table = 'supplyfactors'

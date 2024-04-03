@@ -5,7 +5,8 @@ from django.contrib.auth.decorators import login_required
 from django.db.models import Max
 from django.http import JsonResponse
 from siren_web.database_operations import fetch_demand_data, \
-    fetch_full_generator_storage_data, fetch_all_settings_data, fetch_included_technologies_data
+    fetch_full_generator_storage_data, fetch_all_settings_data, fetch_included_technologies_data, \
+    fetch_supplyfactors_data
 from siren_web.models import Analysis, Generatorattributes, Scenarios, ScenariosSettings, ScenariosTechnologies, Storageattributes
 from ..powermatch import pmcore as pm
 from ..powermatch.pmcore import Facility, PM_Facility, powerMatch
@@ -82,8 +83,8 @@ def insert_data(i, sp_data, scenario_obj, variation, Stage):
     if i == 0:
         
         StaticVariables = [
-            ('carbon_price', sp_data[LA_index + 9][1], '$/tCO2e'),
-            ('discount_rate', sp_data[LA_index + 11][1], '%'),
+            ('carbon_price', sp_data[LA_index + 8][1], '$/tCO2e'),
+            ('discount_rate', sp_data[LA_index + 10][1], '%'),
         ]
         for Parameter, Value, Units in StaticVariables:
             ScenariosSettings.objects.create(
@@ -97,7 +98,7 @@ def insert_data(i, sp_data, scenario_obj, variation, Stage):
 def submit_powermatch(demand_year, scenario, option, iterations, variation_inst):
     settings = fetch_all_settings_data()
     pmss_data, pmss_details = \
-    fetch_demand_data(demand_year)
+    fetch_supplyfactors_data(demand_year)
     
     technologies_result = fetch_included_technologies_data(scenario)
     
@@ -223,7 +224,10 @@ def submit_powermatch(demand_year, scenario, option, iterations, variation_inst)
         sp_data, headers, sp_pts = powerMatch.doDispatch(settings, demand_year, option, pmss_details, pmss_data, generators, re_order, 
             dispatch_order, pm_data_file, data_file, title=None)
         
-        variation = variation_inst.variation_name
+        if variation_inst:
+            variation = variation_inst.variation_name
+        else:
+            variation = 'Baseline'
         current_datetime = datetime.now()
         Stage = current_datetime.strftime('%m-%d %H:%M:%S')
 

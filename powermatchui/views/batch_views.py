@@ -76,10 +76,12 @@ def run_batch(request) -> HttpResponse:
             variation_description = \
                 f"A variation for {technology.technology_name} with {dimension} changed by {str(step)} over {str(iterations)} iterations."
             scenario_obj = Scenarios.objects.get(title=scenario)
+            if dimension == 'capacity':
+                startval = technology.capacity
             if variation_name == 'new':
                 variation = variations.objects.create(
                 idscenarios=scenario_obj,
-                idtechnologies=idtechnologies,
+                idtechnologies=technology,
                 variation_name=variation_gen_name,
                 variation_description=variation_description,
                 dimension=dimension,
