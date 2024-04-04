@@ -1,0 +1,13 @@
+{% extends 'powermatchui_base.html' %}
+
+{% block powermatchui_content %}
+{% load crispy_forms_tags %}
+
+  <h3>Extract Technologies</h3>
+  <p>The technologies present in the output file from powermatch will taken up into the Technologies file 
+    for the demand year.</p>
+
+  {% csrf_token %}
+  {% crispy extract_technologies_form %}
+
+{% endblock %}

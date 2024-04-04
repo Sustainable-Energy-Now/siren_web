@@ -248,4 +248,18 @@ class RunOptimisationForm(forms.Form):
     ('Detailed', 'Detailed'),
     ]
     
-    level_of_detail = forms.ChoiceField(choices=LEVEL_OF_DETAIL_CHOICES, initial='Summary', widget=forms.RadioSelect)
+    level_of_detail = forms.ChoiceField(
+        choices=LEVEL_OF_DETAIL_CHOICES, 
+        initial='Summary', widget=forms.RadioSelect
+        )
+
+class ExtractTechnologiesForm(forms.Form):
+    def __init__(self, *args, **kwargs):
+        super(ExtractTechnologiesForm, self).__init__(*args, **kwargs)
+        self.helper = FormHelper()
+        self.helper.form_action = '/extract_technologies/'
+        self.helper.layout = Layout(
+            FormActions(
+                Submit('submit', 'Extract Technologies'),
+            )
+        )

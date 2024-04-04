@@ -150,3 +150,4 @@ dmypy.json
 .pytype/
 
 .django/secrets.toml
+data

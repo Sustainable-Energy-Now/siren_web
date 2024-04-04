@@ -199,7 +199,9 @@ def fetch_merit_order_technologies(demand_year, idscenarios):
     excluded_resources_data = {}
 
     # Get the TechnologiesScenarios objects for the given scenario
-    technologies_scenarios = ScenariosTechnologies.objects.filter(idscenarios=idscenarios).order_by(
+    technologies_scenarios = ScenariosTechnologies.objects.filter(
+        idscenarios=idscenarios
+        ).order_by(
             'merit_order'  # Order the results by merit_order
         )
 
