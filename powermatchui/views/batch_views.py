@@ -100,7 +100,6 @@ def run_batch(request) -> HttpResponse:
                 variation_inst.dimension = dimension
                 variation_inst.save()
 
-                # pmss_details, pmss_data, dispatch_order, re_order = fetch_demand_data(demand_year)
                 option = 'B'
                 scenario_obj = Scenarios.objects.get(title=scenario)
                 clearScenario(scenario_obj, variation_name)

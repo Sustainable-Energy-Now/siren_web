@@ -4,8 +4,7 @@ from decimal import Decimal
 from django.contrib.auth.decorators import login_required
 from django.db.models import Max
 from django.http import JsonResponse
-from siren_web.database_operations import fetch_demand_data, \
-    fetch_full_generator_storage_data, fetch_all_settings_data, fetch_included_technologies_data, \
+from siren_web.database_operations import fetch_all_settings_data, fetch_included_technologies_data, \
     fetch_supplyfactors_data
 from siren_web.models import Analysis, Generatorattributes, Scenarios, ScenariosSettings, ScenariosTechnologies, Storageattributes
 from ..powermatch import pmcore as pm
@@ -126,6 +125,7 @@ def submit_powermatch(demand_year, scenario,
                 ).order_by('-year')
                 generator = generator_qs[0]
                 fuel = generator.fuel
+                area = generator.area
             except Generatorattributes.DoesNotExist:
                 # Handle the case where no matching generator object is found
                 generator = None
@@ -161,7 +161,7 @@ def submit_powermatch(demand_year, scenario,
             discharge_loss=discharge_loss, parasitic_loss=parasitic_loss,
             emissions=technology_row.emissions, initial=technology_row.initial, order=merit_order[0], 
             capex=technology_row.capex, fixed_om=technology_row.fom, variable_om=technology_row.vom,
-            fuel=fuel, lifetime=technology_row.lifetime, disc_rate=technology_row.discount_rate,
+            fuel=fuel, lifetime=technology_row.lifetime, area=area, disc_rate=technology_row.discount_rate,
             lcoe=technology_row.lcoe, lcoe_cfs=technology_row.lcoe_cf )
 
         renewable = technology_row.renewable

@@ -27,38 +27,6 @@ def check_analysis_baseline(scenario):
     )[:1]
     return baseline
 
-def fetch_demand_data(demand_year):
-    # Check if demand is already stored in session
-    try:
-        # Read demand table using Django ORM
-        demand_query = Demand.objects.filter(
-        ).select_related(
-            'idtechnologies'  # Perform join with Technologies
-        ).order_by(
-            'col', 'hour'  # Order the results by col and hour
-        )
-        # Create a dictionary of Demand from the model 
-        pmss_data = {}
-        pmss_details = {} # contains name, generator, capacity, fac_type, col, multiplier
-        pmss_details['Load'] = PM_Facility('Load', 'Load', 1, 'L', 0, 1)
-        for demand_row in demand_query:
-            name = demand_row.idtechnologies.technology_name
-            idtechnologies = demand_row.idtechnologies.idtechnologies
-            col = demand_row.col
-            load = demand_row.load
-            if col not in pmss_data:
-                pmss_data[col] = []
-            pmss_data[col].append(load)
-            if (name != 'SWIS'):
-                if name not in pmss_details: # type: ignore
-                    capacity = demand_row.idtechnologies.capacity
-                    pmss_details[name] = PM_Facility(name, name, capacity, 'R', col, 1)
-    except Exception as e:
-        # Handle any errors that occur during the database query
-        return HttpResponse(f"Error fetching demand data: {e}", status=500), None
-    
-    return pmss_data, pmss_details
-
 def get_supply_by_technology(demand_year, scenario):
     # Get the scenario object
     scenario_obj = Scenarios.objects.get(title=scenario)

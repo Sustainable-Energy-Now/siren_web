@@ -139,20 +139,21 @@ class Constraint:
                     self.warm_time = self.warm_time * 24
         except:
             self.warm_time = 0
-
+                    
 class Facility:
     def __init__(self, **kwargs):
         kwargs = {**kwargs}
       #  return
         self.name = ''
-        self.constr = ''
+        self.constraint = ''
         self.order = 0
         self.lifetime = 20
-        for attr in ['category', 'capacity', 'lcoe', 'lcoe_cf', 'emissions', 'initial', 'capex',
-                     'fixed_om', 'variable_om', 'fuel', 'disc_rate', 'lifetime']:
+        self.area = None
+        for attr in ['capacity', 'lcoe', 'lcoe_cf', 'emissions', 'initial', 'capex',
+                     'fixed_om', 'variable_om', 'fuel', 'disc_rate', 'lifetime', 'area']:
             setattr(self, attr, 0.)
         for key, value in kwargs.items():
-            if value != '':
+            if value != '' and value is not None:
                 if key == 'lifetime' and value == 0:
                     setattr(self, key, 20)
                 else:
@@ -182,7 +183,7 @@ class Optimisation:
             for cap in caps:
                 try:
                     self.capacities.append(Decimal(cap))
-                    cap_max += Decimal(cap)
+                    cap_max += cap
                 except:
                     pass
             self.capacity_min = 0
@@ -191,15 +192,15 @@ class Optimisation:
         elif approach == 'Range':
             caps = values.split()
             try:
-                self.capacity_min = Decimal(caps[0])
+                self.capacity_min = caps[0]
             except:
                 self.capacity_min = 0.
             try:
-                self.capacity_max = Decimal(caps[1])
+                self.capacity_max = caps[1]
             except:
                 self.capacity_max = 0.
             try:
-                self.capacity_step = Decimal(caps[2])
+                self.capacity_step = caps[2]
             except:
                 self.capacity_step = 0.
             self.capacities = None
@@ -323,6 +324,7 @@ class powerMatch():
         self.close()
         
     @staticmethod
+    
     def doDispatch(settings, year, option, pmss_details, pmss_data, generators, re_order, dispatch_order,
                    pm_data_file, data_file, title=None):
         def calcLCOE(annual_output, capital_cost, annual_operating_cost, discount_rate, lifetime):
@@ -360,6 +362,7 @@ class powerMatch():
             sp_d[st_lic] = lifetime_sum
             sp_d[st_lie] = lifetime_co2_sum
             sp_d[st_lec] = lifetime_co2_cost
+            sp_d[st_are] = total_area
             sp_data.append(sp_d)
             if (carbon_price > 0 or option == 'B'): # Add Total incl. Carbon Cost
                 sp_d = [' '] * len(headers)
@@ -381,14 +384,14 @@ class powerMatch():
              #   sp_d[st_fac] = 'RE Direct Contribution to ' + title + 'Load'
                 sp_d[st_fac] = 'RE %age'
                 re_pct = (tml_sum - sto_sum - ff_sum) / tml_sum
-                sp_d[st_cap] = '{:.1f}%'.format(re_pct * Decimal(100))
+                sp_d[st_cap] = '{:.1f}%'.format(re_pct * 100.)
                 sp_d[st_tml] = tml_sum - ff_sum - sto_sum
                 sp_data.append(sp_d)   # RE %age
                 if sto_sum > 0:
                     sp_d = [' '] * len(headers)
                  #   sp_d[st_fac] = 'RE Contribution to ' + title + 'Load via Storage'
                     sp_d[st_fac] = 'Storage %age'
-                    sp_d[st_cap] = '{:.1f}%'.format(sto_sum * Decimal(100) / tml_sum)
+                    sp_d[st_cap] = '{:.1f}%'.format(sto_sum * 100. / tml_sum)
                     sp_d[st_tml] = sto_sum
                     sp_data.append(sp_d)
             sp_data.append([' '])
@@ -421,7 +424,7 @@ class powerMatch():
                     except:
                         pass
                     sp_d = [' '] * len(headers)
-                    sp_d[st_fac] = 'Total ' + title + 'Load - ' + str(year) + load_mult
+                    sp_d[st_fac] = 'Total ' + title + 'Load - ' + year + load_mult
                     sp_d[st_tml] = sp_load
                     if title == '' or option == 'S':
                         sp_d[st_max] = load_max
@@ -429,7 +432,7 @@ class powerMatch():
                     sp_data.append(sp_d)  # Add Total Load 
                 sp_d = [' '] * len(headers)
                 sp_d[st_fac] = 'RE %age of Total ' + title + 'Load'
-                sp_d[st_cap] = '{:.1f}%'.format((sp_load - sf_sums[0] - ff_sum) * Decimal(100) / sp_load)
+                sp_d[st_cap] = '{:.1f}%'.format((sp_load - sf_sums[0] - ff_sum) * 100. / sp_load)
                 sp_data.append(sp_d)  # Add RE %age of Total Load 
                 sp_data.append(' ')
                 if tot_sto_loss != 0:
@@ -599,7 +602,11 @@ class powerMatch():
                     pwr_calc = 'POWER(1+' + str(disc_rate) + ',' + str(generators[gen].lifetime) + ')'
                     cst_calc = '*' + str(disc_rate) + '*' + pwr_calc + '/SUM(' + pwr_calc + ',-1)'
                 # cost / yr
-                ss.cell(row=ss_row, column=st_cst+1).value = '=Detail!' + ss_col(col) + str(cost_row)
+                if remove_cost:
+                    ss.cell(row=ss_row, column=st_cst+1).value = '=IF(Detail!' + ss_col(col) + str(sum_row) \
+                            + '>0,Detail!' + ss_col(col) + str(cost_row) + ',"")'
+                else:
+                    ss.cell(row=ss_row, column=st_cst+1).value = '=Detail!' + ss_col(col) + str(cost_row)
                 ss.cell(row=ss_row, column=st_cst+1).number_format = '$#,##0'
                 # lcog
                 ss.cell(row=ss_row, column=st_lcg+1).value = '=IF(Detail!' + ss_col(col) + str(lcoe_row) \
@@ -612,7 +619,11 @@ class powerMatch():
                 ss.cell(row=ss_row, column=st_cac+1).number_format = '$#,##0'
             elif generators[gen].lcoe > 0:
                 # cost / yr
-                ss.cell(row=ss_row, column=st_cst+1).value = '=Detail!' + ss_col(col) + str(cost_row)
+                if remove_cost:
+                    ss.cell(row=ss_row, column=st_cst+1).value = '=IF(Detail!' + ss_col(col) + str(sum_row) \
+                            + '>0,Detail!' + ss_col(col) + str(cost_row) + ',"")'
+                else:
+                    ss.cell(row=ss_row, column=st_cst+1).value = '=Detail!' + ss_col(col) + str(cost_row)
                 ss.cell(row=ss_row, column=st_cst+1).number_format = '$#,##0'
                 # lcog
                 ss.cell(row=ss_row, column=st_lcg+1).value = '=Detail!' + ss_col(col) + str(lcoe_row)
@@ -625,7 +636,11 @@ class powerMatch():
                 ss.cell(row=ss_row, column=st_rcf+1).number_format = '#,##0.0%'
             elif generators[gen].lcoe_cf == 0: # no cost facility
                 # cost / yr
-                ss.cell(row=ss_row, column=st_cst+1).value = '=Detail!' + ss_col(col) + str(cost_row)
+                if remove_cost:
+                    ss.cell(row=ss_row, column=st_cst+1).value = '=IF(Detail!' + ss_col(col) + str(sum_row) \
+                            + '>0,Detail!' + ss_col(col) + str(cost_row) + ',"")'
+                else:
+                    ss.cell(row=ss_row, column=st_cst+1).value = '=Detail!' + ss_col(col) + str(cost_row)
                 ss.cell(row=ss_row, column=st_cst+1).number_format = '$#,##0'
                 # lcog
                 ss.cell(row=ss_row, column=st_lcg+1).value = '=Detail!' + ss_col(col) + str(lcoe_row)
@@ -645,7 +660,11 @@ class powerMatch():
                                                    + '>0,Detail!' + ss_col(col) + str(max_row) + ',"")'
             ss.cell(row=ss_row, column=st_max+1).number_format = '#,##0.00'
             if generators[gen].emissions > 0:
-                ss.cell(row=ss_row, column=st_emi+1).value = '=Detail!' + ss_col(col) + str(emi_row)
+                if remove_cost:
+                    ss.cell(row=ss_row, column=st_emi+1).value = '=IF(Detail!' + ss_col(col) + str(sum_row) \
+                            + '>0,Detail!' + ss_col(col) + str(emi_row) + ',"")'
+                else:
+                    ss.cell(row=ss_row, column=st_emi+1).value = '=Detail!' + ss_col(col) + str(emi_row)
                 ss.cell(row=ss_row, column=st_emi+1).number_format = '#,##0'
                 if carbon_price > 0:
                     ss.cell(row=ss_row, column=st_emc+1).value = '=IF(AND(' + ss_col(st_emi+1) + str(ss_row) + '<>"",' + \
@@ -660,6 +679,10 @@ class powerMatch():
                                                          ss_col(st_emi+1) + str(ss_row) + '>0),' + \
                                                          ss_col(st_emc+1) + str(ss_row) + '*lifetime,"")'
             ss.cell(row=ss_row, column=st_lec+1).number_format = '$#,##0'
+            if generators[gen].area > 0:
+                ss.cell(row=ss_row, column=st_are+1).value = '=Detail!' + ss_col(col) + str(cap_row) +\
+                                                             '*' + str(generators[gen].area)
+                ss.cell(row=ss_row, column=st_are+1).number_format = '#,##0.00'
             return dd_tml_sum, dd_re_sum
 
         def detail_summary_total(ss_row, title='', base_row='', back_row=''):
@@ -668,14 +691,14 @@ class powerMatch():
             for col in range(1, len(headers) + 1):
                 ss.cell(row=3, column=col).font = bold
                 ss.cell(row=ss_row, column=col).font = bold
-            for col in [st_cap, st_tml, st_sub, st_cst, st_emi, st_emc, st_cac, st_lic, st_lie, st_lec]:
+            for col in [st_cap, st_tml, st_sub, st_cst, st_emi, st_emc, st_cac, st_lic, st_lie, st_lec, st_are]:
                 if back_row != '':
                     strt = ss_col(col, base=0) + back_row + '+'
                 else:
                     strt = ''
                 ss.cell(row=ss_row, column=col+1).value = '=' + strt + 'SUM(' + ss_col(col, base=0) + \
                         base_row + ':' + ss_col(col, base=0) + str(ss_row - 1) + ')'
-                if col in [st_cap]:
+                if col in [st_cap, st_are]:
                     ss.cell(row=ss_row, column=col+1).number_format = '#,##0.00'
                 elif col in [st_tml, st_sub, st_emi, st_lie]:
                     ss.cell(row=ss_row, column=col+1).number_format = '#,##0'
@@ -712,6 +735,7 @@ class powerMatch():
                                                          ss_col(st_tml+1) + str(ss_row - r)
             ss.cell(row=ss_row, column=st_cap+1).number_format = '#,##0.0%'
             ss_re_row = ss_row
+            ss_sto_row = -1
             # if storage
             if ns_sto_sum != '':
                 ss_row += 1
@@ -727,13 +751,15 @@ class powerMatch():
                 base_col = 'C'
                 if ss_sto_row >= 0:
                     for rw in range(ss_re_fst_row, ss_re_lst_row + 1):
-                        ss.cell(row=rw, column=st_lco+1).value = '=IF(' + ss_col(st_lcg+1) + str(rw) + '>0,' + \
+                        ss.cell(row=rw, column=st_lco+1).value = '=IF(AND(' + ss_col(st_lcg+1) + str(rw) + '<>"",' + \
+                                ss_col(st_lcg+1) + str(rw) + '>0),' + \
                                 ss_col(st_cst+1) + str(rw) + '/(' + ss_col(st_tml+1) + str(rw) + '+(' + \
                                 ss_col(st_tml+1) + '$' + str(ss_sto_row) + '*' + ss_col(st_tml+1) + str(rw) + \
                                 ')/' + ss_col(st_tml+1) + '$' + str(ss_re_row) + '),"")'
                         ss.cell(row=rw, column=st_lco+1).number_format = '$#,##0.00'
                         if carbon_price > 0:
-                            ss.cell(row=rw, column=st_lcc+1).value = '=IF(' + ss_col(st_emc+1) + str(rw) + '>0,(' + \
+                            ss.cell(row=rw, column=st_lcc+1).value = '=IF(AND(' + ss_col(st_emc+1) + str(rw) + '<>"",' + \
+                                    ss_col(st_emc+1) + str(rw) + '>0),(' + \
                                     ss_col(st_cst+1) + str(rw) + '+' + ss_col(st_emc+1) + str(rw) + ')/(' + \
                                     ss_col(st_tml+1) + str(rw) + '+(' + ss_col(st_tml+1) + '$' + str(ss_sto_row) + \
                                     '*' + ss_col(st_tml+1) + str(rw) + ')/' + ss_col(st_tml+1) + '$' + \
@@ -745,15 +771,19 @@ class powerMatch():
                                 ss_col(st_cst+1) + str(rw) + '/' + ss_col(st_tml+1) + str(rw) + '),"")'
                         ss.cell(row=rw, column=st_lco+1).number_format = '$#,##0.00'
                         if carbon_price > 0:
-                            ss.cell(row=rw, column=st_lcc+1).value = '=IF(' + ss_col(st_emc+1) + str(rw) + '>0,(' + \
+                            ss.cell(row=rw, column=st_lcc+1).value = '=IF(AND(' + ss_col(st_emc+1) + str(rw) + '<>"",' + \
+                                    ss_col(st_emc+1) + str(rw) + '>0),(' + \
                                     ss_col(st_cst+1) + str(rw) + ss_col(st_emc+1) + str(rw) + ')/' + \
                                     ss_col(st_tml+1) + str(rw) + '),"")'
                             ss.cell(row=rw, column=st_lcc+1).number_format = '$#,##0.00'
                 for rw in range(ss_re_lst_row + 1, ss_lst_row + 1):
-                    ss.cell(row=rw, column=st_lco+1).value = '=' + ss_col(st_lcg+1) + str(rw)
+                    ss.cell(row=rw, column=st_lco+1).value = '=IF(AND(' + ss_col(st_tml+1) + str(rw) + '<>"",' + \
+                                    ss_col(st_tml+1) + str(rw) + '>0),' + ss_col(st_cst+1) + str(rw) + \
+                                                             '/' + ss_col(st_tml+1) + str(rw) + ',"")'
                     ss.cell(row=rw, column=st_lco+1).number_format = '$#,##0.00'
                     if carbon_price > 0:
-                        ss.cell(row=rw, column=st_lcc+1).value = '=IF(' + ss_col(st_emc+1) + str(rw) + '>0,(' + \
+                        ss.cell(row=rw, column=st_lcc+1).value = '=IF(AND(' + ss_col(st_emc+1) + str(rw) + '<>"",' + \
+                                    ss_col(st_emc+1) + str(rw) + '>0),(' + \
                                 ss_col(st_cst+1) + str(rw) + '+' + ss_col(st_emc+1) + str(rw) + ')/' + \
                                 ss_col(st_tml+1) + str(rw) + ',"")'
                         ss.cell(row=rw, column=st_lcc+1).number_format = '$#,##0.00'
@@ -874,8 +904,8 @@ class powerMatch():
         underlying = ['Rooftop PV']
         operational = []
         show_correlation = False
-        carbon_price = Decimal(settings['Powermatch']['carbon_price'])
-        discount_rate = Decimal(settings['Powermatch']['discount_rate'])
+        carbon_price = float(settings['Powermatch']['carbon_price'])
+        discount_rate = float(settings['Powermatch']['discount_rate'])
         adjusted_lcoe = True
         optimise_debug = False
         scenarios = 'C:/Users/Paul/Local Sites/Powermatch/'
@@ -883,8 +913,7 @@ class powerMatch():
         save_tables = settings['Powermatch']['save_tables']
         file_labels = ['Constraints', 'Generators', 'Optimisation', 'Data', 'Results', 'Batch']
         sheets = file_labels[:]
-        # if (self.progressbar is None):
-        #     self.progressbar = st.progress(0, text=progress_text)
+        remove_cost = True
         if surplus_sign < 0:
             sf_test = ['>', '<']
             sf_sign = ['+', '-']
@@ -893,7 +922,7 @@ class powerMatch():
             sf_sign = ['-', '+']
         sp_cols = []
         sp_cap = []
-        shortfall = [Decimal(0)] * 8760
+        shortfall = [0.] * 8760
         re_tml_sum = 0. # keep tabs on how much RE is used
         start_time = time.time()
         do_zone = False # could pass as a parameter
@@ -937,14 +966,14 @@ class powerMatch():
                     continue
                 shortfall[h] -= pmss_data[pmss_details[fac].col][h] * pmss_details[fac].multiplier
             if shortfall[h] >= 0:
-                alloc = Decimal(1)
+                alloc = 1.
             else:
                 alloc = load_h / (load_h - shortfall[h])
             for fac in fac_tml.keys():
                 if fac in underlying_facs:
                     fac_tml[fac] += pmss_data[pmss_details[fac].col][h] * pmss_details[fac].multiplier
                 else:
-                    pmss_data[pmss_details[fac].col][h] * pmss_details[fac].multiplier * alloc
+                    fac_tml[fac] += pmss_data[pmss_details[fac].col][h] * pmss_details[fac].multiplier * alloc
             line = ''
         fac_tml_sum = 0
         for fac in fac_tml.keys():  # Sum To Meet Load
@@ -956,7 +985,7 @@ class powerMatch():
             else:
                 tgt = []
                 for h in range(len(pmss_data[col])):
-                    tgt.append(pmss_data[col][h] * Decimal(pmss_details['Load'].multiplier))
+                    tgt.append(pmss_data[col][h] * pmss_details['Load'].multiplier)
                 df1 = tgt
             corr_src = []
             for h in range(len(shortfall)):
@@ -967,11 +996,11 @@ class powerMatch():
             try:
                 corr = np.corrcoef(df1, corr_src)
                 if np.isnan(corr.item((0, 1))):
-                    corr = Decimal(0)
+                    corr = 0
                 else:
                     corr = corr.item((0, 1))
             except:
-                corr = Decimal(0)
+                corr = 0
             corr_data = [['Correlation To Load']]
             corr_data.append(['RE Contribution', corr])
         else:
@@ -1022,6 +1051,7 @@ class powerMatch():
             ss.cell(row=3, column=st_lic+1).value = headers[st_lic] # lifetime cost
             ss.cell(row=3, column=st_lie+1).value = headers[st_lie] # lifetime emissions
             ss.cell(row=3, column=st_lec+1).value = headers[st_lec] # lifetime emissions cost
+            ss.cell(row=3, column=st_are+1).value = headers[st_are] # area
             ss.cell(row=3, column=st_rlc+1).value = headers[st_rlc] # reference lcoe
             ss.cell(row=3, column=st_rcf+1).value = headers[st_rcf] # reference cf
             ss_row = 3
@@ -1162,12 +1192,12 @@ class powerMatch():
             col += 1
         else:
             sp_data = []
-            sp_load = Decimal(0) # load from load curve
+            sp_load = 0. # load from load curve
             hrows = 10
-            load_max = Decimal(0)
-            load_hr = Decimal(0)
-            load_col = Decimal(0)
-            tml = Decimal(0)
+            load_max = 0
+            load_hr = 0
+            load_col = 0
+            tml = 0.
             for fac in re_order:
                 if fac in underlying_facs:
                     continue
@@ -1195,15 +1225,9 @@ class powerMatch():
                 sp_data.append(sp_d)  # sp_d contains the data for a technology e.g. Fixed PV
             for h in range(len(shortfall)):
                 if shortfall[h] < 0:
-                    tml += Decimal(pmss_data[load_col][h]) * Decimal(pmss_details['Load'].multiplier)
+                    tml += pmss_data[load_col][h] * pmss_details['Load'].multiplier
                 else:
-                    tml += Decimal(pmss_data[load_col][h]) * Decimal(pmss_details['Load'].multiplier) - Decimal(shortfall[h])
-        if option not in ['O', '1', 'B']:
-            progress_text = "Operation in progress. Please wait."
-        elif (option == 'O'):
-            progress_text = "Optimisation in progress. Please wait."
-        else:
-            progress_text = "Iterative Batch run in progress. Please wait."
+                    tml += pmss_data[load_col][h] * pmss_details['Load'].multiplier - shortfall[h]
         storage_names = []
         # find any minimum generation for generators
         short_taken = {}
@@ -1220,7 +1244,7 @@ class powerMatch():
                     short_taken_tot += short_taken[gen]
                     for row in range(8760):
                         shortfall[row] = shortfall[row] - short_taken[gen]
-        tot_sto_loss = Decimal(0)
+        tot_sto_loss = 0.
         for gen in dispatch_order:
          #   min_after = [0, 0, -1, 0, 0, 0] # initial, low balance, period, final, low after, period
          #  Min_after is there to see if storage is as full at the end as at the beginning
@@ -1235,7 +1259,7 @@ class powerMatch():
                 continue
             if generators[gen].category == 'Storage': # storage
                 storage_names.append(gen)
-                storage = [Decimal(0), Decimal(0), Decimal(0), Decimal(0)] # capacity, initial, min level, max drain
+                storage = [0., 0., 0., 0.] # capacity, initial, min level, max drain
                 storage[0] = capacity
                 if option == 'D':
                     ns.cell(row=cap_row, column=col + 2).value = capacity
@@ -1250,14 +1274,14 @@ class powerMatch():
                     storage[3] = capacity * generators[gen].capacity_max
                 else:
                     storage[3] = capacity
-                recharge:list[Decimal] = [Decimal(0.), Decimal(0.)] # cap, loss
+                recharge = [0., 0.] # cap, loss
                 if generators[gen].recharge_max > 0:
                     recharge[0] = capacity * generators[gen].recharge_max
                 else:
                     recharge[0] = capacity
                 if generators[gen].recharge_loss > 0:
                     recharge[1] = generators[gen].recharge_loss
-                discharge = [Decimal(0), Decimal(0)] # cap, loss
+                discharge = [0, 0] # cap, loss
                 if generators[gen].discharge_max > 0:
                     discharge[0] = capacity * generators[gen].discharge_max
                 if generators[gen].discharge_loss > 0:
@@ -1265,7 +1289,7 @@ class powerMatch():
                 if generators[gen].parasitic_loss > 0:
                     parasite = generators[gen].parasitic_loss / 24.
                 else:
-                    parasite = Decimal(0)
+                    parasite = 0.
                 in_run = [False, False]
                 min_run_time = generators[gen].min_runtime
                 in_run[0] = True # start off in_run
@@ -1277,12 +1301,12 @@ class powerMatch():
                     ns.cell(row=ini_row, column=col + 2).value = storage_carry
                     ns.cell(row=ini_row, column=col + 2).number_format = '#,##0.00'
                 storage_bal = []
-                storage_can = Decimal(0)
-                use_max = [Decimal(0), None]
+                storage_can = 0.
+                use_max = [0, None]
                 sto_max = storage_carry
                 for row in range(8760):
-                    storage_loss = Decimal(0)
-                    storage_losses = Decimal(0)
+                    storage_loss = 0.
+                    storage_losses = 0.
                     if storage_carry > 0:
                         loss = storage_carry * parasite
                         # for later: record parasitic loss
@@ -1293,14 +1317,14 @@ class powerMatch():
                             in_run[0] = False
                         if warm_time > 0:
                             in_run[1] = False
-                        can_use = - (storage[0] - storage_carry) * Decimal(1 / (1 - recharge[1]))
+                        can_use = - (storage[0] - storage_carry) * (1 / (1 - recharge[1]))
                         if can_use < 0: # can use some
                             if shortfall[row] > can_use:
                                 can_use = shortfall[row]
-                            if can_use < - recharge[0] * Decimal(1 / (1 - recharge[1])):
+                            if can_use < - recharge[0] * (1 / (1 - recharge[1])):
                                 can_use = - recharge[0]
                         else:
-                            can_use = Decimal(0.)
+                            can_use = 0.
                         # for later: record recharge loss
                         storage_losses += can_use * recharge[1]
                         storage_carry -= (can_use * (1 - recharge[1]))
@@ -1335,9 +1359,9 @@ class powerMatch():
                             if corr_data is not None:
                                 corr_src[row] += can_use
                             if storage_carry < 0:
-                                storage_carry = Decimal(0)
+                                storage_carry = 0
                         else:
-                            can_use = Decimal(0)
+                            can_use = 0.
                     if can_use < 0:
                         if use_max[1] is None or can_use < use_max[1]:
                             use_max[1] = can_use
@@ -1451,8 +1475,8 @@ class powerMatch():
                     ns.cell(row=hrs_row, column=col + 1).number_format = '#,##0.0%'
                     col += 2
                 else:
-                    gen_can = Decimal(0)
-                    gen_max = Decimal(0)
+                    gen_can = 0.
+                    gen_max = 0
                     for row in range(8760):
                         if shortfall[row] >= 0: # shortfall?
                             if shortfall[row] >= cap_capacity:
@@ -1498,11 +1522,11 @@ class powerMatch():
             try:
                 corr = np.corrcoef(df1, corr_src)
                 if np.isnan(corr.item((0, 1))):
-                    corr = Decimal(0)
+                    corr = 0
                 else:
                     corr = corr.item((0, 1))
             except:
-                corr = Decimal(0)
+                corr = 0
             corr_data.append(['RE plus Storage', corr])
             col = pmss_details['Load'].col
             corr_src = []
@@ -1514,11 +1538,11 @@ class powerMatch():
             try:
                 corr = np.corrcoef(df1, corr_src)
                 if np.isnan(corr.item((0, 1))):
-                    corr = Decimal(0)
+                    corr = 0
                 else:
                     corr = corr.item((0, 1))
             except:
-                corr = Decimal(0)
+                corr = 0
             corr_data.append(['To Meet Load', corr])
             for c in range(1, len(corr_data)):
                 if abs(corr_data[c][1]) < 0.1:
@@ -1535,19 +1559,20 @@ class powerMatch():
                     corr_data[c].append('Very high')
         if option != 'D':
             load_col = pmss_details['Load'].col
-            cap_sum = Decimal(0)
-            gen_sum = Decimal(0)
-            re_sum = Decimal(0)
-            tml_sum = Decimal(0)
-            ff_sum = Decimal(0)
-            sto_sum = Decimal(0)
-            cost_sum = Decimal(0)
-            co2_sum = Decimal(0.0)
-            co2_cost_sum = Decimal(0)
-            capex_sum = Decimal(0)
-            lifetime_sum = Decimal(0)
-            lifetime_co2_sum = Decimal(0)
-            lifetime_co2_cost = Decimal(0)
+            cap_sum = 0.
+            gen_sum = 0.
+            re_sum = 0.
+            tml_sum = 0.
+            ff_sum = 0.
+            sto_sum = 0.
+            cost_sum = 0.
+            co2_sum = 0.
+            co2_cost_sum = 0.
+            capex_sum = 0.
+            lifetime_sum = 0.
+            lifetime_co2_sum = 0.
+            lifetime_co2_cost = 0.
+            total_area = 0.
             for sp in range(len(sp_data)):
                 gen = sp_data[sp][st_fac]
                 if gen in storage_names:
@@ -1599,9 +1624,12 @@ class powerMatch():
                     if gen not in tech_names and gen2 not in tech_names:
                         ff_sum += sp_data[sp][ndx]
                 if not generators[gen].fuel:
-                    generators[gen].fuel = Decimal(0)
+                    generators[gen].fuel = 0
                 if generators[gen].capex > 0 or generators[gen].fixed_om > 0 \
                   or generators[gen].variable_om > 0 or generators[gen].fuel > 0:
+                    if remove_cost and sp_data[sp][ndx] == 0:
+                        sp_data[sp][st_cst] = 0
+                        continue
                     capex = sp_data[sp][st_cap] * generators[gen].capex
                     capex_sum += capex
                     opex = sp_data[sp][st_cap] * generators[gen].fixed_om \
@@ -1609,20 +1637,22 @@ class powerMatch():
                            + sp_data[sp][ndx] * generators[gen].fuel
                     disc_rate = generators[gen].disc_rate
                     if disc_rate == 0:
-                        disc_rate = Decimal(settings['Powermatch']['discount_rate'])
+                        disc_rate = float(settings['Powermatch']['discount_rate'])
                     lifetime = generators[gen].lifetime
                     if sp_data[sp][ndx] > 0:
                         sp_data[sp][st_lcg] = calcLCOE(sp_data[sp][ndx], capex, opex, disc_rate, lifetime)
                     if sp_data[sp][st_lcg] != ' ':
                         sp_data[sp][st_cst] = sp_data[sp][ndx] * sp_data[sp][st_lcg]
-                    if (gen in tech_names and fac_tml_sum > 0):
+                    if gen in tech_names:
                         sp_data[sp][st_lco] = sp_data[sp][st_cst] / (sp_data[sp][st_tml] + (sto_sum * sp_data[sp][st_tml] / fac_tml_sum))
                     else:
                         sp_data[sp][st_lco] = sp_data[sp][st_lcg]
-                    if sp_data[sp][st_cst] != ' ':
-                        cost_sum += sp_data[sp][st_cst]
+                    cost_sum += sp_data[sp][st_cst]
                     sp_data[sp][st_cac] = capex
                 elif generators[gen].lcoe > 0:
+                    if remove_cost and sp_data[sp][ndx] == 0:
+                        sp_data[sp][st_cst] = 0
+                        continue
                     if generators[gen].lcoe_cf > 0:
                         lcoe_cf = generators[gen].lcoe_cf
                     else:
@@ -1631,25 +1661,26 @@ class powerMatch():
                     if sp_data[sp][st_cfa] > 0:
                         sp_data[sp][st_lcg] = sp_data[sp][st_cst] / sp_data[sp][ndx]
                         sp_data[sp][st_lco] = sp_data[sp][st_lcg]
-                    sp_data[sp][st_cfa] = '{:.1f}%'.format(sp_data[sp][st_cfa] * Decimal(100))
+                    sp_data[sp][st_cfa] = '{:.1f}%'.format(sp_data[sp][st_cfa] * 100.)
                     cost_sum += sp_data[sp][st_cst]
                     sp_data[sp][st_rlc] = generators[gen].lcoe
-                    sp_data[sp][st_rcf] = '{:.1f}%'.format(lcoe_cf * Decimal(100))
+                    sp_data[sp][st_rcf] = '{:.1f}%'.format(lcoe_cf * 100.)
                 elif generators[gen].lcoe_cf == 0: # no cost facility
+                    if remove_cost and sp_data[sp][ndx] == 0:
+                        sp_data[sp][st_cst] = 0
+                        continue
                     lcoe_cf = sp_data[sp][st_cfa]
                     sp_data[sp][st_cst] = 0
                     cost_sum += sp_data[sp][st_cst]
-                if sp_data[sp][st_cst] != ' ':
-                    sp_data[sp][st_lic] = sp_data[sp][st_cst] * max_lifetime
-                if sp_data[sp][st_lic] != ' ':
-                    lifetime_sum += sp_data[sp][st_lic]
+                sp_data[sp][st_lic] = sp_data[sp][st_cst] * max_lifetime
+                lifetime_sum += sp_data[sp][st_lic]
                 if generators[gen].emissions > 0:
                     sp_data[sp][st_emi] = sp_data[sp][ndx] * generators[gen].emissions
                     co2_sum += sp_data[sp][st_emi]
                     sp_data[sp][st_emc] = sp_data[sp][st_emi] * carbon_price
                     if sp_data[sp][st_cst] == 0:
                         sp_data[sp][st_lcc] = sp_data[sp][st_emc] / sp_data[sp][st_tml]
-                    elif sp_data[sp][st_cst] != ' ':
+                    else:
                         sp_data[sp][st_lcc] = sp_data[sp][st_lco] * ((sp_data[sp][st_cst] + sp_data[sp][st_emc]) / sp_data[sp][st_cst])
                     co2_cost_sum += sp_data[sp][st_emc]
                     sp_data[sp][st_lie] = sp_data[sp][st_emi] * max_lifetime
@@ -1658,7 +1689,10 @@ class powerMatch():
                     lifetime_co2_cost += sp_data[sp][st_lec]
                 else:
                     sp_data[sp][st_lcc] = sp_data[sp][st_lco]
-            sf_sums = [Decimal(0), Decimal(0), Decimal(0)]
+                if generators[gen].area > 0:
+                    sp_data[sp][st_are] = sp_data[sp][st_cap] * generators[gen].area
+                    total_area += sp_data[sp][st_are]
+            sf_sums = [0., 0., 0.]
             for sf in range(len(shortfall)):
                 if shortfall[sf] > 0:
                     sf_sums[0] += shortfall[sf]
@@ -1706,7 +1740,7 @@ class powerMatch():
                     sp_d[st_sub] = sp_d[st_tml]
                     gen_sum += sp_d[st_tml]
                     sp_load += sp_d[st_tml]
-                    sp_d[st_cfa] = '{:.1f}%'.format(sp_d[st_sub] / sp_d[st_cap] / 8760 * Decimal(100))
+                    sp_d[st_cfa] = '{:.1f}%'.format(sp_d[st_sub] / sp_d[st_cap] / 8760 * 100.)
                     sp_d[st_max] = max(pmss_data[pmss_details[fac].col]) * pmss_details[fac].multiplier
                     if generators[gen].capex > 0 or generators[gen].fixed_om > 0 \
                       or generators[gen].variable_om > 0 or generators[gen].fuel > 0:
@@ -1734,9 +1768,9 @@ class powerMatch():
                         if sp_d[st_cfa] > 0:
                             sp_d[st_lcg] = sp_d[st_cst] / sp_d[st_tml]
                             sp_d[st_lco] = sp_d[st_lcg]
-                        sp_d[st_cfa] = '{:.1f}%'.format(sp_d[st_cfa] * Decimal(100))
+                        sp_d[st_cfa] = '{:.1f}%'.format(sp_d[st_cfa] * 100.)
                         sp_d[st_rlc] = generators[gen].lcoe
-                        sp_d[st_rcf] = '{:.1f}%'.format(lcoe_cf * Decimal(100))
+                        sp_d[st_rcf] = '{:.1f}%'.format(lcoe_cf * 100.)
                     elif generators[gen].lcoe_cf == 0: # no cost facility
                         sp_d[st_cst] = 0
                         sp_d[st_lcg] = 0
@@ -1759,6 +1793,8 @@ class powerMatch():
                         lifetime_co2_cost += sp_d[st_lec]
                     else:
                         sp_d[st_lcc] = sp_d[st_lco]
+                    if generators[gen].area > 0:
+                        sp_d[st_are] = sp_d[st_cap] * generators[gen].area
                     sp_data.append(sp_d)
                 if gen_sum > 0:
                     gs = cost_sum / gen_sum
@@ -1803,14 +1839,14 @@ class powerMatch():
             if option == 'B':
                 if optimise_debug:
                     sp_pts = [0] * len(headers)
-                    for p in [st_cap, st_lcg, st_lco, st_lcc, st_max, st_bal, st_rlc]:
+                    for p in [st_cap, st_lcg, st_lco, st_lcc, st_max, st_bal, st_rlc, st_are]:
                         sp_pts[p] = 2
                     if corr_data is not None:
                         sp_pts[st_cap] = 3 # compromise between capacity (2) and correlation (4)
                     dialog = displaytable.Table(sp_data, title=title, fields=headers,
                              save_folder=scenarios, sortby='', decpts=sp_pts)
                     dialog.exec_()
-                # return sp_data
+                return sp_data
             if option == 'O' or option == '1':
                 op_load_tot = pmss_details['Load'].capacity * pmss_details['Load'].multiplier
                 if gswc != '':
@@ -1837,10 +1873,10 @@ class powerMatch():
                     extra = [gsw, op_load_tot, sto_sum, re_sum, re_pct, sf_sums]
                     return multi_value, sp_data, extra
         #    list(map(list, list(zip(*sp_data))))
-
+            span = None
         #    list(map(list, list(zip(*sp_data))))
             sp_pts = [0] * len(headers)
-            for p in [st_cap, st_lcg, st_lco, st_lcc, st_max, st_bal, st_rlc]:
+            for p in [st_cap, st_lcg, st_lco, st_lcc, st_max, st_bal, st_rlc, st_are]:
                 sp_pts[p] = 2
             if corr_data is not None:
                 sp_pts[st_cap] = 3 # compromise between capacity (2) and correlation (4)
@@ -1923,7 +1959,11 @@ class powerMatch():
                         '),0)'
                 ns.cell(row=cost_row, column=col + nc).number_format = '$#,##0'
                 # cost / yr
-                ss.cell(row=ss_row, column=st_cst+1).value = '=Detail!' + ss_col(col + nc) + str(cost_row)
+                if remove_cost:
+                    ss.cell(row=ss_row, column=st_cst+1).value = '=IF(Detail!' + ss_col(col + nc) + str(sum_row) \
+                            + '>0,Detail!' + ss_col(col + nc) + str(cost_row) + ',"")'
+                else:
+                    ss.cell(row=ss_row, column=st_cst+1).value = '=Detail!' + ss_col(col + nc) + str(cost_row)
                 ss.cell(row=ss_row, column=st_cst+1).number_format = '$#,##0'
                 ns.cell(row=lcoe_row, column=col + nc).value = '=IF(AND(' + ss_col(col + nc) + str(cf_row) + \
                         '>0,' + ss_col(col + nc) + str(cap_row) + '>0),' + ss_col(col + nc) + \
@@ -1946,7 +1986,11 @@ class powerMatch():
                         '*Summary!' + ss_col(st_rcf + 1) + str(ss_row) + '/' + ss_col(col + nc) + str(cf_row) + ',0)'
                 ns.cell(row=cost_row, column=col + nc).number_format = '$#,##0'
                 # cost / yr
-                ss.cell(row=ss_row, column=st_cst+1).value = '=Detail!' + ss_col(col + nc) + str(cost_row)
+                if remove_cost:
+                    ss.cell(row=ss_row, column=st_cst+1).value = '=IF(Detail!' + ss_col(col + nc) + str(sum_row) \
+                            + '>0,Detail!' + ss_col(col + nc) + str(cost_row) + ',"")'
+                else:
+                    ss.cell(row=ss_row, column=st_cst+1).value = '=Detail!' + ss_col(col + nc) + str(cost_row)
                 ss.cell(row=ss_row, column=st_cst+1).number_format = '$#,##0'
                 ns.cell(row=lcoe_row, column=col + nc).value = '=IF(AND(' + ss_col(col + nc) + str(cf_row) + '>0,' \
                             + ss_col(col + nc) + str(cap_row) + '>0),' + ss_col(col + nc) + str(cost_row) + '/8760/' \
@@ -1973,7 +2017,11 @@ class powerMatch():
                         '*Summary!' + ss_col(st_rcf + 1) + str(ss_row) + '/' + ss_col(col + nc) + str(cf_row) + ',0)'
                 ns.cell(row=cost_row, column=col + nc).number_format = '$#,##0'
                 # cost / yr
-                ss.cell(row=ss_row, column=st_cst+1).value = '=Detail!' + ss_col(col + nc) + str(cost_row)
+                if remove_cost:
+                    ss.cell(row=ss_row, column=st_cst+1).value = '=IF(Detail!' + ss_col(col + nc) + str(sum_row) \
+                            + '>0,Detail!' + ss_col(col + nc) + str(cost_row) + ',"")'
+                else:
+                    ss.cell(row=ss_row, column=st_cst+1).value = '=Detail!' + ss_col(col + nc) + str(cost_row)
                 ss.cell(row=ss_row, column=st_cst+1).number_format = '$#,##0'
                 ns.cell(row=lcoe_row, column=col + nc).value = '=IF(AND(' + ss_col(col + nc) + str(cf_row) + '>0,' \
                             + ss_col(col + nc) + str(cap_row) + '>0),' + ss_col(col + nc) + str(cost_row) + '/8760/' \
@@ -1999,10 +2047,15 @@ class powerMatch():
                         + '*' + str(generators[gen].emissions)
                 ns.cell(row=emi_row, column=col + nc).number_format = '#,##0'
                 # emissions
-                ss.cell(row=ss_row, column=st_emi+1).value = '=Detail!' + ss_col(col + nc) + str(emi_row)
+                if remove_cost:
+                    ss.cell(row=ss_row, column=st_emi+1).value = '=IF(Detail!' + ss_col(col + nc) + str(sum_row) \
+                            + '>0,Detail!' + ss_col(col + nc) + str(emi_row) + ',"")'
+                else:
+                    ss.cell(row=ss_row, column=st_emi+1).value = '=Detail!' + ss_col(col + nc) + str(emi_row)
                 ss.cell(row=ss_row, column=st_emi+1).number_format = '#,##0'
                 if carbon_price > 0:
-                    ss.cell(row=ss_row, column=st_emc+1).value = '=IF(' + ss_col(st_emi+1) + str(ss_row) + '>0,' + \
+                    ss.cell(row=ss_row, column=st_emc+1).value = '=IF(AND(' + ss_col(st_emi+1) + str(ss_row) + '<>"",' + \
+                                                                 ss_col(st_emi+1) + str(ss_row) + '>0),' + \
                                                                  ss_col(st_emi+1) + str(ss_row) + '*carbon_price,"")'
                     ss.cell(row=ss_row, column=st_emc+1).number_format = '$#,##0'
             # max mwh
@@ -2044,10 +2097,12 @@ class powerMatch():
                         ',"' + sf_test[0] + '0")'
                 ns.cell(row=fall_row, column=col + 1).number_format = '#,##0'
                 col += 2
-            ss.cell(row=ss_row, column=st_lie+1).value = '=IF(' + ss_col(st_emi+1) + str(ss_row) + '>0,' + \
+            ss.cell(row=ss_row, column=st_lie+1).value = '=IF(AND(' + ss_col(st_emi+1) + str(ss_row) + '<>"",' + \
+                                                         ss_col(st_emi+1) + str(ss_row) + '>0),' + \
                                                          ss_col(st_emi+1) + str(ss_row) + '*lifetime,"")'
             ss.cell(row=ss_row, column=st_lie+1).number_format = '#,##0'
-            ss.cell(row=ss_row, column=st_lec+1).value = '=IF(' + ss_col(st_emc+1) + str(ss_row) + '>0,' + \
+            ss.cell(row=ss_row, column=st_lec+1).value = '=IF(AND(' + ss_col(st_emi+1) + str(ss_row) + '<>"",' + \
+                                                         ss_col(st_emi+1) + str(ss_row) + '>0),' + \
                                                          ss_col(st_emc+1) + str(ss_row) + '*lifetime,"")'
             ss.cell(row=ss_row, column=st_lec+1).number_format = '$#,##0'
         if is_storage:
@@ -2112,7 +2167,6 @@ class powerMatch():
                     ns.cell(row=row, column=col).font = normal
                 except:
                     pass
-        # self.progressbar.progress(12, text=progress_text)
         ns.row_dimensions[what_row].height = 30
         ns.freeze_panes = 'C' + str(hrows)
         ns.activeCell = 'C' + str(hrows)
@@ -2123,7 +2177,7 @@ class powerMatch():
         ss.cell(row=1, column=1).font = bold
         ss_lst_row = ss_row + 1
         ss_row, ss_re_row = detail_summary_total(ss_row, base_row='4')
-        if len(nsul_sum_cols) > 0:
+        if len(nsul_sum_cols) > 1: # if we have underlying there'll be more than one column
             ss_row += 2
             ss.cell(row=ss_row, column=1).value = 'Additional Underlying Load'
             ss.cell(row=ss_row, column=1).font = bold
@@ -2188,7 +2242,6 @@ class powerMatch():
         ss.cell(row=ss_row, column=st_cap+1).value = discount_rate
         ss.cell(row=ss_row, column=st_cap+1).number_format = '#,##0.00%'
         ss_row += 2
-        # self.progressbar.progress(14, text=progress_text)
         for row in range(1, ss_row + 1):
             for col in range(1, len(headers) + 1):
                 try:
@@ -2274,12 +2327,12 @@ class powerMatch():
             fields = []
             col = 1
             row = 1
-            cs = wb.create_sheet(sheets[C])
-            if hasattr(self.constraints[list(self.constraints.keys())[0]], 'name'):
+            cs = wb.create_sheet(sheets[C].currentText())
+            if hasattr(constraints[list(constraints.keys())[0]], 'name'):
                 fields.append('name')
                 cs.cell(row=row, column=col).value = 'Name'
                 col += 1
-            for prop in dir(self.constraints[list(self.constraints.keys())[0]]):
+            for prop in dir(constraints[list(constraints.keys())[0]]):
                 if prop[:2] != '__' and prop[-2:] != '__':
                     if prop != 'name':
                         fields.append(prop)
@@ -2291,7 +2344,7 @@ class powerMatch():
                         col += 1
             nme_width = 4
             cat_width = 4
-            for key, value in self.constraints.items():
+            for key, value in constraints.items():
                 if key in cons:
                     row += 1
                     col = 1
@@ -2593,7 +2646,7 @@ class powerMatch():
                     elif multi_order[axis] == 'co2':
                         data[axis].append(multi[multi_order[axis]] / divisor[1]) # co2
                     elif multi_order[axis][-4:] == '_pct': # percentage
-                        data[axis].append(multi[multi_order[axis]] * Decimal(100))
+                        data[axis].append(multi[multi_order[axis]] * 100)
                     else:
                         data[axis].append(multi[multi_order[axis]])
             # create colour map
@@ -3223,7 +3276,7 @@ class powerMatch():
             elif key == 'co2':
                 amt = score_data[h][0][key] / divisor[1] # co2
             elif key[-4:] == '_pct': # percentage
-                amt = score_data[h][0][key] * Decimal(100)
+                amt = score_data[h][0][key] * 100
             else:
                 amt = score_data[h][0][key]
             txt = self.targets[key][5]

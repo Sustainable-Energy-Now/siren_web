@@ -49,10 +49,10 @@ class facilities(models.Model):
     idtechnologies = models.ForeignKey('Technologies', models.DO_NOTHING, db_column='idtechnologies')  
     scenarios = models.ManyToManyField(Scenarios, through='ScenariosFacilities', blank=True)
     idzones = models.ForeignKey('Zones', models.DO_NOTHING, db_column='idzones', blank=True, null=True)  
-    capacity = models.DecimalField(db_column='capacity', max_digits=7, decimal_places=2, blank=True, null=True)  
-    capacityfactor = models.DecimalField(db_column='capacityfactor', max_digits=5, decimal_places=2, blank=True, null=True)  
-    generation = models.DecimalField(db_column='generation', max_digits=9, decimal_places=0, blank=True, null=True)  
-    transmitted = models.DecimalField(db_column='transmitted', max_digits=9, decimal_places=0, blank=True, null=True)  
+    capacity = models.FloatField(null=True)  
+    capacityfactor = models.FloatField(null=True)  
+    generation = models.FloatField(null=True)  
+    transmitted = models.FloatField(null=True)  
     latitude = models.FloatField(blank=True, null=True)
     longitude = models.FloatField(blank=True, null=True)
 
@@ -63,8 +63,9 @@ class Generatorattributes(models.Model):
     idgeneratorattributes = models.AutoField(db_column='idGeneratorAttributes', primary_key=True)  
     idtechnologies = models.ForeignKey('Technologies', models.CASCADE, db_column='idTechnologies')  
     year = models.IntegerField()
-    fuel = models.DecimalField(max_digits=7, decimal_places=2, blank=True, null=True)
-    generated = models.DecimalField(max_digits=11, decimal_places=2, null=True)  
+    fuel = models.FloatField(null=True)
+    generated = models.FloatField(null=True)
+    area = models.FloatField(null=True)
 
     class Meta:
         db_table = 'GeneratorAttributes'
@@ -72,12 +73,12 @@ class Generatorattributes(models.Model):
 class Genetics(models.Model):
     idgenetics = models.AutoField(db_column='idGenetics', primary_key=True)  
     parameter = models.CharField(db_column='Parameter', max_length=30, blank=True, null=True)  
-    weight = models.DecimalField(db_column='Weight', max_digits=5, decimal_places=2, blank=True, null=True)  
-    better = models.DecimalField(db_column='Better', max_digits=5, decimal_places=2, blank=True, null=True)  
-    worse = models.DecimalField(db_column='Worse', max_digits=13, decimal_places=2, blank=True, null=True)  
-    minvalue = models.DecimalField(db_column='MinValue', max_digits=5, decimal_places=2, blank=True, null=True)  
-    maxvalue = models.DecimalField(db_column='MaxValue', max_digits=5, decimal_places=2, blank=True, null=True)  
-    step = models.DecimalField(db_column='Step', max_digits=5, decimal_places=2, blank=True, null=True)  
+    weight = models.FloatField(db_column='Weight', null=True)  
+    better = models.FloatField(db_column='Better', null=True)  
+    worse = models.FloatField(db_column='Worse', null=True)  
+    minvalue = models.FloatField(db_column='MinValue', null=True)  
+    maxvalue = models.FloatField(db_column='MaxValue', null=True)  
+    step = models.FloatField(db_column='Step', null=True)  
     betterspinner = models.IntegerField(db_column='BetterSpinner', blank=True, null=True)  
     worsespinner = models.IntegerField(db_column='WorseSpinner', blank=True, null=True)  
 
@@ -89,10 +90,10 @@ class Optimisation(models.Model):
     idoptimisation = models.AutoField(db_column='idOptimisation', primary_key=True)  
     name = models.CharField(db_column='Name', max_length=45, blank=True, null=True)  
     approach = models.CharField(db_column='Approach', max_length=45, blank=True, null=True)  
-    capacity = models.DecimalField(db_column='Capacity', max_digits=7, decimal_places=1, blank=True, null=True)  
-    capacitymax = models.DecimalField(db_column='CapacityMax', max_digits=7, decimal_places=1, blank=True, null=True)  
-    capacitymin = models.DecimalField(db_column='CapacityMin', max_digits=7, decimal_places=1, blank=True, null=True)  
-    capacitystep = models.DecimalField(db_column='CapacityStep', max_digits=7, decimal_places=1, blank=True, null=True)  
+    capacity = models.FloatField(db_column='Capacity', null=True)  
+    capacitymax = models.FloatField(db_column='CapacityMax', null=True)  
+    capacitymin = models.FloatField(db_column='CapacityMin', null=True)  
+    capacitystep = models.FloatField(db_column='CapacityStep', null=True)  
 
     class Meta:
         db_table = 'Optimisation'
@@ -146,14 +147,14 @@ class Storageattributes(models.Model):
     idtechnologies = models.ForeignKey('Technologies', models.CASCADE, db_column='idTechnologies', blank=True, null=True)  
     year = models.IntegerField()
     discharge_loss = models.IntegerField(blank=True, null=True)
-    discharge_max = models.DecimalField(max_digits=5, decimal_places=2, blank=True, null=True)
+    discharge_max = models.FloatField(null=True)
     parasitic_loss = models.IntegerField(blank=True, null=True)
     rampdown_max = models.IntegerField(blank=True, null=True)
     rampup_max = models.IntegerField(blank=True, null=True)
     recharge_loss = models.IntegerField(blank=True, null=True)
-    recharge_max = models.DecimalField(max_digits=5, decimal_places=2, blank=True, null=True)
-    min_runtime = models.DecimalField(max_digits=5, decimal_places=2, blank=True, null=True)
-    warm_time = models.DecimalField(max_digits=5, decimal_places=2, blank=True, null=True)
+    recharge_max = models.FloatField(null=True)
+    min_runtime = models.FloatField(null=True)
+    warm_time = models.FloatField( null=True)
     class Meta:
         db_table = 'StorageAttributes'
 
@@ -166,7 +167,7 @@ class supplyfactors(models.Model):
     year = models.PositiveIntegerField()
     hour = models.IntegerField(blank=True, null=True)
     supply = models.IntegerField(blank=True, null=True)
-    quantum = models.DecimalField(max_digits=9, decimal_places=2, blank=True, null=True)
+    quantum = models.FloatField(null=True)
     col = models.PositiveIntegerField(db_column='Col', blank=True, null=True)  
 
     class Meta:
@@ -183,22 +184,21 @@ class Technologies(models.Model):
     category = models.CharField(max_length=45, blank=True, null=True)
     renewable = models.IntegerField(blank=True, null=True)
     dispatchable = models.IntegerField(blank=True, null=True)
-    capex = models.DecimalField(max_digits=9, decimal_places=2, blank=True, null=True)
-    fom = models.DecimalField(db_column='FOM', max_digits=9, decimal_places=2, blank=True, null=True)  
-    vom = models.DecimalField(db_column='VOM', max_digits=7, decimal_places=2, blank=True, null=True)  
-    lifetime = models.DecimalField(max_digits=3, decimal_places=0, blank=True, null=True)
-    discount_rate = models.DecimalField(max_digits=5, decimal_places=2, blank=True, null=True)
+    capex = models.FloatField(null=True)
+    fom = models.FloatField(db_column='FOM', null=True)  
+    vom = models.FloatField(db_column='VOM', null=True)  
+    lifetime = models.FloatField(null=True)
+    discount_rate = models.FloatField(null=True)
     description = models.CharField(max_length=1000, db_collation='utf8mb4_0900_ai_ci', blank=True, null=True)
-    capacity = models.DecimalField(max_digits=11, decimal_places=2, blank=True, null=True)
-    capacity_factor = models.DecimalField(max_digits=5, decimal_places=2, null=True)
-    mult = models.DecimalField(max_digits=5, decimal_places=2, blank=True, null=True)
-    capacity_max = models.DecimalField(max_digits=11, decimal_places=2, blank=True, null=True)
-    capacity_min = models.DecimalField(max_digits=11, decimal_places=2, blank=True, null=True)
-    emissions = models.DecimalField(max_digits=7, decimal_places=3, blank=True, null=True)
-    initial = models.DecimalField(max_digits=7, decimal_places=2, blank=True, null=True)
-    lcoe = models.DecimalField(max_digits=7, decimal_places=2, blank=True, null=True)
-    lcoe_cf = models.DecimalField(max_digits=7, decimal_places=2, blank=True, null=True)
-
+    capacity = models.FloatField(null=True)
+    capacity_factor = models.FloatField(null=True)
+    mult = models.FloatField(null=True)
+    capacity_max = models.FloatField(null=True)
+    capacity_min = models.FloatField(null=True)
+    emissions = models.FloatField(null=True)
+    initial = models.FloatField(null=True)
+    lcoe = models.FloatField(null=True)
+    lcoe_cf = models.FloatField(null=True)
 
     class Meta:
         db_table = 'Technologies'
@@ -210,10 +210,10 @@ class variations(models.Model):
     variation_name = models.CharField(max_length=45, blank=True, null=True)
     variation_description = models.CharField(max_length=250, blank=True, null=True)
     dimension = models.CharField(max_length=30, blank=True, null=True)
-    startval = models.DecimalField(max_digits=9, decimal_places=2, blank=True, null=True)  
-    step = models.DecimalField(max_digits=7, decimal_places=2, blank=True, null=True)
+    startval = models.FloatField(null=True)  
+    step = models.FloatField(null=True)
     iterations = models.IntegerField(blank=True, null=True)
-    endval = models.DecimalField(max_digits=9, decimal_places=2, blank=True, null=True)  
+    endval = models.FloatField(null=True)  
 
     class Meta:
         db_table = 'variations'
