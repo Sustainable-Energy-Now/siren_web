@@ -70,59 +70,43 @@ class BaselineScenarioForm(forms.Form):
             Submit('save', 'Save Runtime Parameters', css_class='btn btn-primary')
         ))
 
-class RunPowermatchForm(forms.Form):
-    LEVEL_OF_DETAIL_CHOICES = [
-    ('Summary', 'Summary'),
-    ('Detailed', 'Detailed'),
-    ]
-    
-    level_of_detail = forms.ChoiceField(
-        choices=LEVEL_OF_DETAIL_CHOICES,
-        initial='Summary',
-        widget=forms.RadioSelect,
-        required=False  # Make the field optional
-        )
-
-class SelectVariationForm(forms.Form):
+class ExtractTechnologiesForm(forms.Form):
     def __init__(self, *args, **kwargs):
-        selected_variation = kwargs.pop('selected_variation', None)
-        super(SelectVariationForm, self).__init__(*args, **kwargs)
-        variations_queryset = variations.objects.all()
-        variations_list = [variation.variation_name for variation in variations_queryset]
-        variation_description_dict = {variation.variation_name: variation.variation_description for variation in variations_queryset}
-
-        variations_choices = [('Baseline', 'Baseline')] + [(variation_name, variation_name) for variation_name in variations_list]
-        variations_choices.append(('new', 'Create a new variant'))
-
-        self.fields['variation_name'] = forms.ChoiceField(choices=variations_choices, required=True)
-
-        if selected_variation:  # if a variation is passed set it as selected
-            self.fields['variation_name'].initial = selected_variation
-            if selected_variation != 'Baseline' and selected_variation != 'new':
-                self.fields['variation_description'] = forms.CharField(
-                    max_length=250,
-                    required=False,
-                    widget=forms.TextInput(attrs={'readonly': True}),
-                    initial=variation_description_dict.get(selected_variation, '')
-                )
-        else:
-            self.fields['variation_name'].initial = 'Baseline'
-            self.fields['variation_description'] = forms.CharField(
-                max_length=250,
-                required=False,
-                widget=forms.TextInput(attrs={'readonly': True})
+        super(ExtractTechnologiesForm, self).__init__(*args, **kwargs)
+        self.helper = FormHelper()
+        self.helper.form_action = '/extract_technologies/'
+        self.helper.layout = Layout(
+            FormActions(
+                Submit('submit', 'Extract Technologies'),
+            )
+        )
+class RunPowermatchForm(forms.Form):
+    def __init__(self, *args, **kwargs):
+        super(RunPowermatchForm, self).__init__(*args, **kwargs)
+        LEVEL_OF_DETAIL_CHOICES = [
+        ('Summary', 'Summary'),
+        ('Detailed', 'Detailed'),
+        ]
+        
+        self.fields['level_of_detail'] = forms.ChoiceField(
+            choices=LEVEL_OF_DETAIL_CHOICES,
+            initial='Summary',
+            widget=forms.RadioSelect,
+            required=False  # Make the field optional
+            )
+        self.fields['save_baseline'] = forms.BooleanField(
+            label='Save Baseline',
+            initial=False,
+            required=False
             )
         
         self.helper = FormHelper()
-        self.helper.form_action = '/variation/'
+        self.helper.form_action = '/run_baseline/'
         self.helper.layout = Layout(
-            Div(
-                Field('variation_name', css_class='row col-md-4'),
-                Field('variation_description', css_class='row col-md-4'),
-                css_class='row',
-            ),
+            Field('level_of_detail'),
+            Field('save_baseline'),
             FormActions(
-                Submit('refresh', 'Refresh'),
+                Submit('submit', 'Run Powermatch',  css_class='btn btn-primary'),
             )
         )
 
@@ -253,13 +237,45 @@ class RunOptimisationForm(forms.Form):
         initial='Summary', widget=forms.RadioSelect
         )
 
-class ExtractTechnologiesForm(forms.Form):
+class SelectVariationForm(forms.Form):
     def __init__(self, *args, **kwargs):
-        super(ExtractTechnologiesForm, self).__init__(*args, **kwargs)
+        selected_variation = kwargs.pop('selected_variation', None)
+        super(SelectVariationForm, self).__init__(*args, **kwargs)
+        variations_queryset = variations.objects.all()
+        variations_list = [variation.variation_name for variation in variations_queryset]
+        variation_description_dict = {variation.variation_name: variation.variation_description for variation in variations_queryset}
+
+        variations_choices = [('Baseline', 'Baseline')] + [(variation_name, variation_name) for variation_name in variations_list]
+        variations_choices.append(('new', 'Create a new variant'))
+
+        self.fields['variation_name'] = forms.ChoiceField(choices=variations_choices, required=True)
+
+        if selected_variation:  # if a variation is passed set it as selected
+            self.fields['variation_name'].initial = selected_variation
+            if selected_variation != 'Baseline' and selected_variation != 'new':
+                self.fields['variation_description'] = forms.CharField(
+                    max_length=250,
+                    required=False,
+                    widget=forms.TextInput(attrs={'readonly': True}),
+                    initial=variation_description_dict.get(selected_variation, '')
+                )
+        else:
+            self.fields['variation_name'].initial = 'Baseline'
+            self.fields['variation_description'] = forms.CharField(
+                max_length=250,
+                required=False,
+                widget=forms.TextInput(attrs={'readonly': True})
+            )
+        
         self.helper = FormHelper()
-        self.helper.form_action = '/extract_technologies/'
+        self.helper.form_action = '/variation/'
         self.helper.layout = Layout(
+            Div(
+                Field('variation_name', css_class='row col-md-4'),
+                Field('variation_description', css_class='row col-md-4'),
+                css_class='row',
+            ),
             FormActions(
-                Submit('submit', 'Extract Technologies'),
+                Submit('refresh', 'Refresh'),
             )
         )

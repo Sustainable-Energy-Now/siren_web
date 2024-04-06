@@ -40,28 +40,30 @@ headers = ['Facility', 'Capacity\n(Gen, MW;\nStor, MWh)', 'To meet\nLoad (MWh)',
            'Subtotal\n(MWh)', 'CF', 'Cost ($/yr)', 'LCOG\nCost\n($/MWh)', 'LCOE\nCost\n($/MWh)',
            'Emissions\n(tCO2e)', 'Emissions\nCost', 'LCOE With\nCO2 Cost\n($/MWh)', 'Max.\nMWH',
            'Max.\nBalance', 'Capital\nCost', 'Lifetime\nCost', 'Lifetime\nEmissions',
-           'Lifetime\nEmissions\nCost', 'Reference\nLCOE', 'Reference\nCF']
+           'Lifetime\nEmissions\nCost', 'Area (km^2)', 'Reference\nLCOE', 'Reference\nCF']
 # set up columns for summary table. Hopefully to make it easier to add / alter columns
-st_fac = 0
-st_cap = 1
-st_tml = 2
-st_sub = 3
-st_cfa = 4
-st_cst = 5
-st_lcg = 6
-st_lco = 7
-st_emi = 8
-st_emc = 9
-st_lcc = 10
-st_max = 11
-st_bal = 12
-st_cac = 13
-st_lic = 14
-st_lie = 15
-st_lec = 16
-st_rlc = 17
-st_rcf = 18
+st_fac = 0 # Facility
+st_cap = 1 # Capacity\n(Gen, MW;\nStor, MWh)
+st_tml = 2 # To meet\nLoad (MWh)
+st_sub = 3 # Subtotal\n(MWh)
+st_cfa = 4 # CF
+st_cst = 5 # Cost ($/yr)
+st_lcg = 6 # LCOG\nCost\n($/MWh)
+st_lco = 7 # LCOE\nCost\n($/MWh)
+st_emi = 8 # Emissions\n(tCO2e)
+st_emc = 9 # Emissions\nCost
+st_lcc = 10 # LCOE With\nCO2 Cost\n($/MWh)
+st_max = 11 # Max.\nMWH
+st_bal = 12 # Max.\nBalance'
+st_cac = 13 # Capital\nCost'
+st_lic = 14 # Lifetime\nCost'
+st_lie = 15 # Lifetime\nEmissions
+st_lec = 16 # Lifetime\nEmissions\nCost
+st_are = 17 # Area (km^2)
+st_rlc = 18 # Reference\nLCOE
+st_rcf = 19 # Reference\nCF
 
+# same order as self.file_labels
 C = 0 # Constraints - xls or xlsx
 G = 1 # Generators - xls or xlsx
 O = 2 # Optimisation - xls or xlsx
@@ -441,6 +443,7 @@ class powerMatch():
                 sp_d[st_cap] = '{:.1f}%'.format(surp_pct * 100)
                 sp_d[st_sub] = -sf_sums[1]
                 sp_data.append(sp_d) # Add Surplus
+            else:
                 load_pct = 0
                 surp_pct = 0
                 re_pct = 0

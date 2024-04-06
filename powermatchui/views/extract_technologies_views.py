@@ -91,7 +91,7 @@ def extract_technologies(request):
                                     ).update(
                                         idtechnologies=technology_obj
                                     )
-                                # Update the technology foreign keys in ScenariosTechnologies
+                                # Update/create the technology foreign keys in ScenariosTechnologies
                                 ScenariosTechnologies.objects.filter(
                                     idscenarios=scenario_obj,
                                     idtechnologies=technologies_qs[0]

@@ -6,13 +6,11 @@
   <h3>Baseline Scenario</h3>
   <p>Select the level of detail and click submit to run Power Match.</p>
 
-  {% csrf_token %}
   {% load crispy_forms_tags %}
+  {% csrf_token %}
   {% crispy baseline_form %}
 
-  <form method="post" action="{% url 'run_baseline' %}">
-    {% csrf_token %}
-    {{ runpowermatch_form.level_of_detail }}
-    <button name="baseline_scenario" type="submit" class="btn-custom-swish2">Baseline Scenario</button>
-</form>
+  {% csrf_token %}
+  {% crispy runpowermatch_form %}
+
 {% endblock %}

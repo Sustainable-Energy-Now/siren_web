@@ -105,7 +105,11 @@ def run_batch(request) -> HttpResponse:
                 scenario_obj = Scenarios.objects.get(title=scenario)
                 clearScenario(scenario_obj, variation_name)
                 # Iterate and call doDispatch
-                sp_data, headers, sp_pts = submit_powermatch(demand_year, scenario, option, iterations, variation_inst)
+                save_data = False
+                sp_data, headers, sp_pts = submit_powermatch(
+                    demand_year, scenario, option, iterations, variation_inst,
+                    save_data,
+                    )
                 success_message = 'Batch run has completed.'
                 context = {
                     'sp_data': sp_data, 'headers': headers, 'sp_pts': sp_pts,

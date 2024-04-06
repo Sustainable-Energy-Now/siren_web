@@ -95,7 +95,8 @@ def insert_data(i, sp_data, scenario_obj, variation, Stage):
                 units=Units,
             )
 
-def submit_powermatch(demand_year, scenario, option, iterations, variation_inst):
+def submit_powermatch(demand_year, scenario, 
+                      option, iterations, variation_inst, save_data):
     settings = fetch_all_settings_data()
     pmss_data, pmss_details = \
     fetch_supplyfactors_data(demand_year)
@@ -237,7 +238,8 @@ def submit_powermatch(demand_year, scenario, option, iterations, variation_inst)
         except Scenarios.DoesNotExist:
             # Handle the case where the scenario with the given title does not exist
             pass
-        insert_data(i, sp_data, scenario_obj, variation, Stage)
+        if save_data:
+            insert_data(i, sp_data, scenario_obj, variation, Stage)
 
     return sp_data, headers, sp_pts
 

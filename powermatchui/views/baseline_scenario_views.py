@@ -106,10 +106,14 @@ def run_baseline(request):
             success_message = "Set the demand year and scenario first."
         elif runpowermatch_form.is_valid():
             level_of_detail = runpowermatch_form.cleaned_data['level_of_detail']
+            save_baseline = runpowermatch_form.cleaned_data['save_baseline']
             option = level_of_detail[0]
             
             delete_analysis_scenario(scenario_obj)
-            sp_output, headers, sp_pts = submit_powermatch(demand_year, scenario, 'S', 1, None)
+            sp_output, headers, sp_pts = submit_powermatch(
+                demand_year, scenario, 'S', 1, 
+                None, save_baseline
+                )
             sp_data = []
             for row in sp_output:
                 formatted_row = []
