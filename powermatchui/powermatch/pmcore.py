@@ -1618,7 +1618,8 @@ class powerMatch():
                     ndx = 2
                 else:
                     try:
-                        gen2 = gen[gen.find('.') + 1:]
+                        # gen2 = gen[gen.find('.') + 1:]
+                        gen2 = gen.replace('Existing ', '').replace('Proposed ', '')
                     except:
                         gen2 = gen
                     if gen not in tech_names and gen2 not in tech_names:

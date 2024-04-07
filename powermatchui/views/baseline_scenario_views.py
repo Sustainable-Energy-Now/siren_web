@@ -109,7 +109,8 @@ def run_baseline(request):
             save_baseline = runpowermatch_form.cleaned_data['save_baseline']
             option = level_of_detail[0]
             
-            delete_analysis_scenario(scenario_obj)
+            if save_baseline:
+                delete_analysis_scenario(scenario_obj)
             sp_output, headers, sp_pts = submit_powermatch(
                 demand_year, scenario, 'S', 1, 
                 None, save_baseline
@@ -118,13 +119,15 @@ def run_baseline(request):
             for row in sp_output:
                 formatted_row = []
                 for item in row:
-                    if isinstance(item, Decimal):
+                    if isinstance(item, float):
                         formatted_row.append('{:,.2f}'.format(item))
                     else:
                         formatted_row.append(item)
                 sp_data.append(formatted_row)
-                
-            success_message = "Baseline re-established"
+            if save_baseline:
+                success_message = "Baseline re-established"
+            else:
+                success_message = "Baseline run complete"
             context = {
                 'sp_data': sp_data, 'headers': headers, 'sp_pts': sp_pts,
                 'success_message': success_message, 'demand_year': demand_year, 'scenario': scenario

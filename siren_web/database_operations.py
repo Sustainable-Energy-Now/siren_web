@@ -2,7 +2,7 @@
 from django.db import connection
 from django.http import HttpResponse
 import logging
-from django.db.models import Q, F, Sum
+from django.db.models import Q, F, Sum, Count
 from siren_web.models import Analysis, Demand, facilities, Scenarios, ScenariosTechnologies, ScenariosSettings, \
     Settings, supplyfactors, Technologies, variations, Zones
 from powermatchui.powermatch.pmcore import Facility, PM_Facility, Optimisation
@@ -26,6 +26,19 @@ def check_analysis_baseline(scenario):
         variation='Baseline'
     )[:1]
     return baseline
+
+def get_supply_unique_technology(demand_year, scenario):
+    # Get the scenario object
+    scenario_obj = Scenarios.objects.get(title=scenario)
+
+    # Filter the Demand objects for the given demand_year and scenario
+    unique_technologies = Technologies.objects.filter(
+        id__in=supplyfactors.objects.values('idtechnologies')
+                                    .annotate(count=Count('idtechnologies'))
+                                    .filter(count__gt=0, year=demand_year, idscenarios=scenario_obj)
+                                    .distinct()
+    )
+    return unique_technologies
 
 def get_supply_by_technology(demand_year, scenario):
     # Get the scenario object
