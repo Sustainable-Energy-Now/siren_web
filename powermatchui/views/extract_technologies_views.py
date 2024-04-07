@@ -35,44 +35,40 @@ def extract_technologies(request):
                         technology_obj, created = Technologies.objects.update_or_create(
                             idtechnologies=technology,
                             year=demand_year,
-                            defaults={
-                                'capacity': capacity,
-                                },
                             create_defaults={
                                 'idtechnologies': None,
-                                'technology_name': technologies_qs[0].technology_name,
-                                'technology_signature': technologies_qs[0].technology_signature,
-                                # 'scenarios': technologies_qs[0].scenarios,
-                                'image': technologies_qs[0].image,
-                                'caption': technologies_qs[0].caption,
-                                'category': technologies_qs[0].category,
-                                'renewable': technologies_qs[0].renewable,
-                                'dispatchable': technologies_qs[0].dispatchable,
-                                'capex': technologies_qs[0].capex,
-                                'fom': technologies_qs[0].fom,
-                                'vom': technologies_qs[0].vom,
-                                'lifetime': technologies_qs[0].lifetime,
-                                'discount_rate': technologies_qs[0].discount_rate,
-                                'description': technologies_qs[0].description,
-                                'mult': technologies_qs[0].mult,
-                                'capacity': capacity,
-                                'capacity_max': technologies_qs[0].capacity_max,
-                                'capacity_min': technologies_qs[0].capacity_min,
-                                'emissions': technologies_qs[0].emissions,
-                                'initial': technologies_qs[0].initial,
-                                'lcoe': technologies_qs[0].lcoe,
-                                'lcoe_cf': technologies_qs[0].lcoe_cf,
+                                'technology_name': technology.technology_name,
+                                'technology_signature': technology.technology_signature,
+                                # 'scenarios': technology.scenarios,
+                                'image': technology.image,
+                                'caption': technology.caption,
+                                'category': technology.category,
+                                'renewable': technology.renewable,
+                                'dispatchable': technology.dispatchable,
+                                'capex': technology.capex,
+                                'fom': technology.fom,
+                                'vom': technology.vom,
+                                'lifetime': technology.lifetime,
+                                'discount_rate': technology.discount_rate,
+                                'description': technology.description,
+                                'mult': technology.mult,
+                                'capacity': technology.capacity,
+                                'capacity_max': technology.capacity_max,
+                                'capacity_min': technology.capacity_min,
+                                'emissions': technology.emissions,
+                                'initial': technology.initial,
+                                'lcoe': technology.lcoe,
+                                'lcoe_cf': technology.lcoe_cf,
                             }
                         )
-                            
+
                         if created:
-                            # If the object was not created, copy scenarios from the existing object
-                            for scenario in technologies_qs[0].scenarios.all():
-                                technology_obj.scenarios.add(scenario)
+                            # Add the scenario
+                            technology_obj.scenarios.add(scenario_obj)
                             # if the created technology is a Generator also create the GeneratorAttributes
-                            if technologies_qs[0].category == 'Generator':
+                            if technology.category == 'Generator':
                                 old_genattr = Generatorattributes(
-                                    idtechnologies=technologies_qs[0]
+                                    idtechnologies=technology
                                 )
                                 new_genattr = Generatorattributes.objects.create(
                                     idtechnologies=technology_obj,
@@ -82,7 +78,7 @@ def extract_technologies(request):
                             
                             # Update the technology foreign keys in SupplyFactors
                             supplyfactors.objects.filter(
-                                idtechnologies=technologies_qs[0],
+                                idtechnologies=technology,
                                 year=demand_year
                                 ).update(
                                     idtechnologies=technology_obj
@@ -90,7 +86,7 @@ def extract_technologies(request):
                             # Update/create the technology foreign keys in ScenariosTechnologies
                             ScenariosTechnologies.objects.filter(
                                 idscenarios=scenario_obj,
-                                idtechnologies=technologies_qs[0]
+                                idtechnologies=technology
                                 ).update(
                                     idtechnologies=technology_obj
                                 )

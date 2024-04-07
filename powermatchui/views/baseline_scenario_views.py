@@ -6,7 +6,7 @@ from django.contrib import messages
 from django.shortcuts import render, redirect
 from siren_web.database_operations import delete_analysis_scenario, fetch_analysis_scenario, \
     fetch_included_technologies_data, fetch_module_settings_data, fetch_scenario_settings_data, \
-    fetch_technology_by_id, get_supply_by_technology
+    get_supply_unique_technology
 from siren_web.models import Demand, Generatorattributes, Technologies, Scenarios, ScenariosSettings, \
     ScenariosTechnologies, Settings, supplyfactors
 from ..forms import BaselineScenarioForm, RunPowermatchForm
@@ -37,11 +37,12 @@ def baseline_scenario(request):
                     scenario_settings['carbon_price'] = carbon_price
                     scenario_settings.save()
                     
-            if (discount_rate != Decimal(scenarios_settings['discount_rate'])):
+            if (discount_rate != Decimal(scenario_settings['discount_rate'])):
                     scenario_settings['discount_rate'] = discount_rate
                     scenario_settings.save()
                     
             for technology in technologies:
+                idtechnologies = technology.idtechnologies
                 capacity = baseline_form.cleaned_data.get(f'capacity_{idtechnologies}')
                 if (technology.capacity != capacity):
                     technology.capacity = capacity
@@ -70,8 +71,6 @@ def baseline_scenario(request):
                     }
                     return render(request, 'confirm_overwrite.html', context)
                 
-            total_supply_by_technology = \
-                get_supply_by_technology(demand_year, scenario)
             
             delete_analysis_scenario(scenario_obj)
             technologies = {}

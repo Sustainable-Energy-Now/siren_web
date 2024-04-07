@@ -3,9 +3,10 @@ from django.db import connection
 from django.http import HttpResponse
 import logging
 from django.db.models import Q, F, Sum, Count
-from siren_web.models import Analysis, Demand, facilities, Scenarios, ScenariosTechnologies, ScenariosSettings, \
-    Settings, supplyfactors, Technologies, variations, Zones
-from powermatchui.powermatch.pmcore import Facility, PM_Facility, Optimisation
+from siren_web.models import Analysis, Demand, facilities, Generatorattributes, Scenarios, \
+    ScenariosTechnologies, ScenariosSettings, Settings, Storageattributes, supplyfactors, \
+    Technologies, variations, Zones
+from powermatchui.powermatch.pmcore import PM_Facility, Optimisation
 
 def delete_analysis_scenario(idscenario):
     Analysis.objects.filter(
@@ -83,6 +84,84 @@ def fetch_supplyfactors_data(demand_year):
         return HttpResponse(f"Error fetching supplyfactors data: {e}", status=500), None
     
     return pmss_data, pmss_details
+
+def copy_technologies_from_year0(idtechnologies, demand_year, scenario):
+    scenario_obj = Scenarios.objects.get(title=scenario)
+    try:
+        technology_year0 = Technologies.objects.get(
+            idtechnologies=idtechnologies,
+            year=0
+            )
+    except Exception as e:
+        # Assume it is the demand_year
+        return idtechnologies
+    technology_new, created = Technologies.objects.get_or_create(
+        technology_name=technology_year0.technology_name,
+        year=demand_year,
+        defaults={
+            'idtechnologies': None,
+            'technology_name': technology_year0.technology_name,
+            'technology_signature': technology_year0.technology_signature,
+            # 'scenarios': technology_year0.scenarios,
+            'image': technology_year0.image,
+            'caption': technology_year0.caption,
+            'category': technology_year0.category,
+            'renewable': technology_year0.renewable,
+            'dispatchable': technology_year0.dispatchable,
+            'capex': technology_year0.capex,
+            'fom': technology_year0.fom,
+            'vom': technology_year0.vom,
+            'lifetime': technology_year0.lifetime,
+            'discount_rate': technology_year0.discount_rate,
+            'description': technology_year0.description,
+            'mult': technology_year0.mult,
+            'capacity': technology_year0.capacity,
+            'capacity_max': technology_year0.capacity_max,
+            'capacity_min': technology_year0.capacity_min,
+            'emissions': technology_year0.emissions,
+            'initial': technology_year0.initial,
+            'lcoe': technology_year0.lcoe,
+            'lcoe_cf': technology_year0.lcoe_cf,
+        }
+    )
+    if created:
+    # Add the scenario
+        technology_new.scenarios.add(scenario_obj)
+        # if the created technology is a Generator also create the GeneratorAttributes
+        if technology_new.category == 'Generator':
+            old_genattr = Generatorattributes(
+                idtechnologies=technology_year0
+            )
+            new_genattr = Generatorattributes.objects.create(
+                idtechnologies=technology_new,
+                year=demand_year,
+                fuel=old_genattr.fuel
+            )
+        if technology_new.category == 'Storage':
+            old_storattr = Storageattributes(
+                idtechnologies=technology_year0
+            )
+            new_storattr = Storageattributes.objects.create(
+                idtechnologies=technology_new,
+                year=demand_year,
+                discharge_loss=old_storattr.discharge_loss,
+                discharge_max=old_storattr.discharge_max,
+                parasitic_loss=old_storattr.parasitic_loss,
+                rampdown_max=old_storattr.rampdown_max,
+                rampup_max=old_storattr.rampup_max,
+                recharge_loss=old_storattr.recharge_loss,
+                recharge_max=old_storattr.recharge_max,
+                min_runtime=old_storattr.min_runtime,
+                warm_time=old_storattr.warm_time,
+            )
+            # Update/create the technology foreign keys in ScenariosTechnologies
+            ScenariosTechnologies.objects.filter(
+                idscenarios=scenario_obj,
+                idtechnologies=technology_year0
+                ).update(
+                    idtechnologies=technology_new
+                )
+    return technology_new
 
 def relate_technologies_to_scenario(idscenarios):
     # Query to fetch distinct idTechnologies from facilities for a given scenario

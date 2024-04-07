@@ -3,6 +3,7 @@ from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse, HttpResponse
 from django.shortcuts import render
 import json
+from siren_web.database_operations import copy_technologies_from_year0
 from siren_web.models import Technologies, ScenariosTechnologies, Scenarios
 
 @login_required
@@ -32,6 +33,7 @@ def set_merit_order(request):
             if tech_id:
                 technology = Technologies.objects.get(idtechnologies=tech_id)
                 ScenariosTechnologies.objects.filter(idtechnologies=technology, idscenarios=scenario_obj.pk).update(merit_order=index)
+                Tech_new = copy_technologies_from_year0(tech_id, demand_year, scenario)
 
         # Update the merit_order attribute for technologies in the 'Excluded Resources' column
         for index, tech_id in enumerate(excluded_resources, start=800):
