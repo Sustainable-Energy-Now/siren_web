@@ -24,27 +24,31 @@ class eChartView(View):
             variation__in=[variation.variation_name, 'Baseline'],
             heading=series_1,
             component__in=['Total', 'Load Analysis']
-        )
+        ).order_by('stage')
 
         analysis_queryset_2 = Analysis.objects.filter(
             idscenarios=scenario,
             variation__in=[variation.variation_name, 'Baseline'],
             heading=series_2,
             component__in=['Total', 'Load Analysis']
-        )
+        ).order_by('stage')
 
         data_analysis = []
+        
+        # Create a dictionary from analysis_queryset_2 with stage as the key
+        stage_dict = {obj.stage: obj for obj in analysis_queryset_2}
 
         for analysis_obj_1 in analysis_queryset_1:
-            for analysis_obj_2 in analysis_queryset_2:
-                if analysis_obj_1.stage == analysis_obj_2.stage:
-                    data_analysis.append({
-                        'stage': analysis_obj_1.stage,
-                        'series_1_name': series_1,
-                        'series_1_value': analysis_obj_1.quantity,
-                        'series_2_name': series_2,
-                        'series_2_value': analysis_obj_2.quantity
-                    })
+            # Check if the stage exists in the dictionary
+            if analysis_obj_1.stage in stage_dict:
+                analysis_obj_2 = stage_dict[analysis_obj_1.stage]
+                data_analysis.append({
+                    'stage': analysis_obj_1.stage,
+                    'series_1_name': series_1,
+                    'series_1_value': analysis_obj_1.quantity,
+                    'series_2_name': series_2,
+                    'series_2_value': analysis_obj_2.quantity
+                })
 
         return JsonResponse(list(data_analysis), safe=False)
 

@@ -64,7 +64,7 @@ def insert_data(i, sp_data, scenario_obj, variation, Stage):
         ('RE %age of Total Load', 'Load Analysis', sp_data[LA_index + 3][1], '%'),
         ('Surplus', 'Load Analysis', sp_data[LA_index + 5][1], '%'),
         ('Surplus', 'Load Analysis', sp_data[LA_index + 5][3], 'mWh'),
-        ('Largest Shortfall', 'Load Analysis', sp_data[LA_index + 6][3], 'mWh')
+        # ('Largest Shortfall', 'Load Analysis', sp_data[LA_index + 6][3], 'mWh')
     ]
     for Heading, Component, Quantity, Units in LoadAnalysis:
         try:

@@ -51,12 +51,12 @@ class PowerPlotHomeView(TemplateView):
                 'analysis_data': analysis_data,
             }
         elif 'echart' in request.POST:
-            analysis_queryset = \
-                Analysis.objects.filter(
-                    idscenarios_id=idscenarios, 
-                    variation__in=[variant[0].variation_name, 'Baseline']
-                    )
-            analysis_data = self.get_analysis_data(analysis_queryset)
+            # analysis_queryset = \
+            #     Analysis.objects.filter(
+            #         idscenarios_id=idscenarios, 
+            #         variation__in=[variant[0].variation_name, 'Baseline']
+            #         )
+            # analysis_data = self.get_analysis_data(analysis_queryset)
             # Get the selected values from the request.GET
             series_1 = request.POST.get('series_1')
             series_2 = request.POST.get('series_2')

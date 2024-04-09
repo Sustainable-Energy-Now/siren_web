@@ -59,7 +59,7 @@ def baseline_scenario(request):
                     else:
                         # User chose not to proceed
                         messages.warning(request, "Operation canceled.")
-                        return redirect('baseline_scenario')
+                        return redirect('powermatchui_home')
                 else:
                     # Render a template with the warning message
                     context = {
@@ -68,7 +68,6 @@ def baseline_scenario(request):
                         'success_message': success_message
                     }
                     return render(request, 'confirm_overwrite.html', context)
-            delete_analysis_scenario(scenario_obj)
             
     technologies = {}
     technologies= fetch_included_technologies_data(scenario)

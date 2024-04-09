@@ -98,6 +98,8 @@ def run_batch(request) -> HttpResponse:
                 variation_inst.variation_description = variation_description
                 variation_inst.variation_name = variation_gen_name
                 variation_inst.dimension = dimension
+                variation_inst.step=step
+                variation_inst.iterations=iterations
                 variation_inst.save()
 
                 option = 'S'
