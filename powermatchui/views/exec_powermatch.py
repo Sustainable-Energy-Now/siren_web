@@ -14,27 +14,30 @@ def insert_data(i, sp_data, scenario_obj, variation, Stage):
     for count, row in enumerate(sp_data):
         if not row[0]:
             pass
-        if row[0] not in [' ', 'Load Analysis', 'Total incl. Carbon Cost', \
-            'RE %age', 'Load Analysis', 'Load met', 'Shortfall', \
-            'Total Load', 'RE %age of Total Load', 'Surplus', 'Static Variables', \
-            'Carbon Price ($/tCO2e)', 'Lifetime (years)', 'Discount Rate']:
+        if row[0] not in [' ', 'Additional Underlying Load', 'Carbon Price ($/tCO2e)', 'Load Analysis', 'Total incl. Carbon Cost', 'RE %age', \
+            'Load Analysis', 'Load met', 'Shortfall', 'Total Load', 'RE %age of Total Load', 'Static Variables', \
+            'Storage %age', 'Storage Losses', 'Surplus', 'Largest Shortfall', 'Lifetime (years)', 'Discount Rate']:
             results = [
                 ('Capacity', row[0], row[1], 'MW'),
-                ('To meet Load', row[0], row[2], 'MWh'),
+                ('To Meet Load', row[0], row[2], 'MWh'),
+                ('CF', row[0], row[4], '%'),
                 ('Cost', row[0], row[5], '$/yr'),
-                ('LCOE', row[0], row[7], '$/MWh'),
+                ('LCOG Cost', row[0], row[6], '$/MWh'),
+                ('LCOE Cost', row[0], row[7], '$/MWh'),
                 ('Emissions', row[0], row[8], 'tCO2e'),
                 ('Emissions Cost', row[0], row[9], '$'),
-                ('LCOE incl. Carbon Cost', row[0], row[10], '$/MWh'), 
-                ('Max.', row[0], row[13], 'MWh'),
+                ('LCOE with CO2 Cost', row[0], row[10], '$/MWh'), 
+                ('Max.', row[0], row[11], 'MWh'),
                 ('Capital Cost', row[0], row[13], '$'),
                 ('Lifetime Cost', row[0], row[14], '$'),
-                ('Lifetime Emissions', row[0], row[14], 'tCO2e'),
-                ('Lifetime Emissions Cost', row[0], row[14], '$'),
+                ('Lifetime Emissions', row[0], row[15], 'tCO2e'),
+                ('Lifetime Emissions Cost', row[0], row[16], '$'),
             ]
             for Heading, Component, Quantity, Units in results:
                 try:
-                    Decimal(Quantity)
+                    if isinstance(Quantity, str):
+                        Quantity = Quantity.replace('%', '')
+                        float(Quantity)
                     pass
                 except:
                     Quantity = 0
@@ -58,13 +61,16 @@ def insert_data(i, sp_data, scenario_obj, variation, Stage):
         ('Shortfall', 'Load Analysis', sp_data[LA_index + 1][1], '%'),
         ('Shortfall', 'Load Analysis', sp_data[LA_index + 1][2], 'mWh'),
         ('Total Load', 'Load Analysis', sp_data[LA_index + 2][2], 'mWh'),
-        ('RE %age of Total Load', 'Load Analysis', sp_data[LA_index + 3][2], '%'),
-        ('Surplus', 'Load Analysis', sp_data[LA_index + 5][2], '%'),
-        ('Surplus', 'Load Analysis', sp_data[LA_index + 5][3], 'mWh')
+        ('RE %age of Total Load', 'Load Analysis', sp_data[LA_index + 3][1], '%'),
+        ('Surplus', 'Load Analysis', sp_data[LA_index + 5][1], '%'),
+        ('Surplus', 'Load Analysis', sp_data[LA_index + 5][3], 'mWh'),
+        ('Largest Shortfall', 'Load Analysis', sp_data[LA_index + 6][3], 'mWh')
     ]
     for Heading, Component, Quantity, Units in LoadAnalysis:
         try:
-            Decimal(Quantity)
+            if isinstance(Quantity, str):
+                Quantity = Quantity.replace('%', '')
+                float(Quantity)
             pass
         except:
             Quantity = 0
