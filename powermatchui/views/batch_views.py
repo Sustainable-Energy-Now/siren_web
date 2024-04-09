@@ -100,11 +100,11 @@ def run_batch(request) -> HttpResponse:
                 variation_inst.dimension = dimension
                 variation_inst.save()
 
-                option = 'B'
+                option = 'S'
                 scenario_obj = Scenarios.objects.get(title=scenario)
                 clearScenario(scenario_obj, variation_name)
                 # Iterate and call doDispatch
-                save_data = False
+                save_data = True
                 sp_data, headers, sp_pts = submit_powermatch(
                     demand_year, scenario, option, iterations, variation_inst,
                     save_data,
