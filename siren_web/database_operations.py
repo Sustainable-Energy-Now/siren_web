@@ -389,6 +389,20 @@ def fetch_scenario_settings_data(scenario):
         return None
     return settings
 
+def update_scenario_settings_data(scenario, sw_context, parameter, value):
+    try:
+        scenario_obj = Scenarios.objects.get(title=scenario)
+        scenario_setting_new, created = ScenariosSettings.objects.update_or_create(
+                sw_context=sw_context,
+                idscenarios=scenario_obj,
+                parameter=parameter,
+                defaults={'value': value}
+            )
+    except Exception as e:
+        # Handle any errors that occur during the database query
+        return None
+    return scenario_setting_new
+
 def fetch_variations_list(scenario):
     try:
         variations_list = variations.objects.all()

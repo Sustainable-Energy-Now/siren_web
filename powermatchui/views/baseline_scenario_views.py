@@ -5,8 +5,7 @@ from django.db.models import Sum
 from django.contrib import messages
 from django.shortcuts import render, redirect
 from siren_web.database_operations import delete_analysis_scenario, fetch_analysis_scenario, \
-    fetch_included_technologies_data, fetch_module_settings_data, fetch_scenario_settings_data, \
-    get_supply_unique_technology
+    fetch_included_technologies_data, fetch_module_settings_data, fetch_scenario_settings_data, update_scenario_settings_data
 from siren_web.models import Demand, Generatorattributes, Technologies, Scenarios, ScenariosSettings, \
     ScenariosTechnologies, Settings, supplyfactors
 from ..forms import BaselineScenarioForm, RunPowermatchForm
@@ -30,23 +29,22 @@ def baseline_scenario(request):
 
     if request.method == 'POST' and demand_year:
         baseline_form = BaselineScenarioForm(request.POST)
-        if baseline_form.is_valid():
-            carbon_price = baseline_form.cleaned_data.get('carbon_price')
-            discount_rate = baseline_form.cleaned_data.get('discount_rate')
-            if (carbon_price != Decimal(scenario_settings['carbon_price'])):
-                    scenario_settings['carbon_price'] = carbon_price
-                    scenario_settings.save()
-                    
-            if (discount_rate != Decimal(scenario_settings['discount_rate'])):
-                    scenario_settings['discount_rate'] = discount_rate
-                    scenario_settings.save()
-                    
-            for technology in technologies:
-                idtechnologies = technology.idtechnologies
-                capacity = baseline_form.cleaned_data.get(f'capacity_{idtechnologies}')
-                if (technology.capacity != capacity):
-                    technology.capacity = capacity
-                    technology.save()
+
+        carbon_price = request.POST.get('carbon_price')
+        discount_rate = request.POST.get('discount_rate')
+        if (carbon_price != Decimal(scenario_settings['carbon_price'])):
+                update_scenario_settings_data(scenario, 'Powermatch', 'carbon price', carbon_price)
+                
+        if (discount_rate != Decimal(scenario_settings['discount_rate'])):
+                update_scenario_settings_data(scenario, 'Powermatch', 'carbon price', discount_rate)
+        success_message = "No changes were made."
+        for technology in technologies:
+            idtechnologies = technology.idtechnologies
+            capacity = request.POST.get(f'capacity_{idtechnologies}')
+            if (technology.capacity != float(capacity)):
+                technology.capacity = float(capacity)
+                technology.save()
+                success_message = "Runtime parameters updated."
 
     else:
         if demand_year:
@@ -70,18 +68,17 @@ def baseline_scenario(request):
                         'success_message': success_message
                     }
                     return render(request, 'confirm_overwrite.html', context)
-                
-            
             delete_analysis_scenario(scenario_obj)
-            technologies = {}
-            technologies= fetch_included_technologies_data(scenario)
-            carbon_price= scenario_settings['carbon_price']
-            discount_rate= scenario_settings['discount_rate']
             
-        baseline_form = BaselineScenarioForm(
-            technologies=technologies, 
-            carbon_price=carbon_price, 
-            discount_rate=discount_rate)
+    technologies = {}
+    technologies= fetch_included_technologies_data(scenario)
+    carbon_price= scenario_settings['carbon_price']
+    discount_rate= scenario_settings['discount_rate']
+        
+    baseline_form = BaselineScenarioForm(
+        technologies=technologies, 
+        carbon_price=carbon_price, 
+        discount_rate=discount_rate)
 
     context = {
         'baseline_form': baseline_form,
