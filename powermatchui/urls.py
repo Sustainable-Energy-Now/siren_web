@@ -1,7 +1,7 @@
 # urls.py
 from django.urls import path, include
 from django.contrib.auth import views as auth_views
-from .views import batch_views, baseline_scenario_views, extract_technologies_views, \
+from .views import variations_views, baseline_scenario_views, extract_technologies_views, \
     relate_technologies_to_scenario_views, merit_order_views, optimisation_views, \
     powermatchui_home_views, under_construction_views
 from django.views.generic import TemplateView
@@ -13,8 +13,8 @@ urlpatterns = [
     path('extract_technologies/', extract_technologies_views.extract_technologies, name='extract_technologies'),
     path('run_baseline/', baseline_scenario_views.run_baseline, name='run_baseline'),
     path('relate_technologies/', relate_technologies_to_scenario_views.relate_technologies, name='relate_technologies'), # Maps the root URL to the main view
-    path('variation/', batch_views.setup_variation, name='setup_variation'),
-    path('batch/', batch_views.run_batch, name='run_batch'),
+    path('variation/', variations_views.setup_variation, name='setup_variation'),
+    path('variations/', variations_views.run_variations, name='run_variations'),
     path('baseline_scenario/', baseline_scenario_views.baseline_scenario, name='baseline_scenario'),
     path('save_order/', merit_order_views.set_merit_order, name='merit_order'),
     # path('optimisation/', optimisation_views.run_optimisation, name='run_optimisation'),

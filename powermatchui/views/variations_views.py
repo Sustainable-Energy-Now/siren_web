@@ -1,10 +1,10 @@
-#  batch_views.py
+#  variations_views.py
 from siren_web.database_operations import fetch_included_technologies_data, check_analysis_baseline
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import render
 from django.http import HttpResponse
 from siren_web.models import Analysis, Scenarios, Technologies, variations  # Import the Scenario model
-from ..forms import RunBatchForm, SelectVariationForm
+from ..forms import RunVariationForm, SelectVariationForm
 from powermatchui.views.exec_powermatch import submit_powermatch
 
 # Process form data
@@ -37,33 +37,33 @@ def setup_variation(request):
                 'variation_name': variation_name,
             }
         variation_form = SelectVariationForm(selected_variation=variation_name)
-        batch_form = RunBatchForm(technologies=technologies, variation_data=variation_data)
+        variations_form = RunVariationForm(technologies=technologies, variation_data=variation_data)
     else:
         variation_form = SelectVariationForm()
-        batch_form = RunBatchForm(technologies=technologies)
+        variations_form = RunVariationForm(technologies=technologies)
             
     context = {
         'variation_form': variation_form,
-        'batch_form': batch_form, 'technologies': technologies,
+        'variations_form': variations_form, 'technologies': technologies,
         'demand_year': demand_year, 'scenario': scenario, 'success_message': success_message
         }
-    return render(request, 'batch.html', context)
+    return render(request, 'variations.html', context)
 
 def clearScenario(scenario_obj, variation_name) -> None:
     Analysis.objects.filter(idscenarios=scenario_obj,
                             variation=variation_name,
                             ).delete()
     
-def run_batch(request) -> HttpResponse:
+def run_variations(request) -> HttpResponse:
     if request.method == 'POST':
     # Handle form submission
         demand_year = request.session.get('demand_year')
         scenario = request.session.get('scenario')
         success_message = ""
         technologies= fetch_included_technologies_data(scenario)
-        batch_form = RunBatchForm(request.POST, technologies=technologies)
-        if batch_form.is_valid():
-            cleaned_data = batch_form.cleaned_data
+        variations_form = RunVariationForm(request.POST, technologies=technologies)
+        if variations_form.is_valid():
+            cleaned_data = variations_form.cleaned_data
             iterations = cleaned_data['iterations']
             
             # Refresh the existing variation or create a new one if selected.
@@ -124,7 +124,7 @@ def run_batch(request) -> HttpResponse:
                         else:
                             formatted_row.append(item)
                     sp_data.append(formatted_row)
-                success_message = 'Batch run has completed.'
+                success_message = 'Create variations run has completed.'
                 context = {
                     'sp_data': sp_data, 'headers': headers, 'sp_pts': sp_pts,
                     'success_message': success_message, 'demand_year': demand_year, 'scenario': scenario
@@ -135,7 +135,7 @@ def run_batch(request) -> HttpResponse:
     success_message = 'Select a variation and hit the Refresh button first.'
     context = {
         'variation_form': variation_form,
-        'batch_form': batch_form, 'technologies': technologies,
+        'variations_form': variations_form, 'technologies': technologies,
         'demand_year': demand_year, 'scenario': scenario, 'success_message': success_message
         }
-    return render(request, 'batch.html', context)
+    return render(request, 'variations.html', context)

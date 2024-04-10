@@ -32,7 +32,7 @@ def run_optimisation(request):
             technology = Technologies.objects.get(idtechnologies=tech_id)
             technology.merit_order = index
             technology.save()
-        success_message = "Batch Parameters have been updated."
+        success_message = "Optimisation Parameters have been updated."
     else:
         # Render the form
         demand_year = 2022
@@ -40,4 +40,4 @@ def run_optimisation(request):
         form = RunOptimisationForm()
         
     context = {'form': form, 'technologies': technologies, 'demand_year': demand_year, 'scenario': scenario,'success_message': success_message}
-    return render(request, 'batch.html', context)
+    return render(request, 'variations.html', context)

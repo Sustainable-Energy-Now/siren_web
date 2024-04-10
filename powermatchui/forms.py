@@ -110,7 +110,7 @@ class RunPowermatchForm(forms.Form):
             )
         )
 
-class RunBatchForm(forms.Form):
+class RunVariationForm(forms.Form):
     def __init__(self, *args, **kwargs):
         DIMENSION_CHOICES = [
             ('capacity', 'Capacity'),
@@ -124,7 +124,7 @@ class RunBatchForm(forms.Form):
         technologies = kwargs.pop('technologies')
         variation_data = kwargs.pop('variation_data', None)
         
-        super(RunBatchForm, self).__init__(*args, **kwargs)
+        super(RunVariationForm, self).__init__(*args, **kwargs)
         if variation_data:
             self.fields['iterations'] = forms.IntegerField(required=True, initial=variation_data.get('iterations'))
             self.fields['variation_name'] = forms.CharField(
@@ -192,7 +192,7 @@ class RunBatchForm(forms.Form):
             
             accordion_groups.append(AccordionGroup(f"{tech_name} Details", *accordion_group_fields)) 
         self.helper = FormHelper()
-        self.helper.form_action = '/batch/'
+        self.helper.form_action = '/variations/'
         self.helper.layout = Layout(
             Field('iterations', css_class='row col-md-4'),
             Field('variation_name', id='batch_variation_name_field'),
