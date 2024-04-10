@@ -79,17 +79,21 @@ def run_batch(request) -> HttpResponse:
             if dimension == 'capacity':
                 startval = technology.capacity
             if variation_name == 'new':
-                variation = variations.objects.create(
-                idscenarios=scenario_obj,
-                idtechnologies=technology,
-                variation_name=variation_gen_name,
-                variation_description=variation_description,
-                dimension=dimension,
-                startval=startval,
-                step=step,
-                iterations=iterations,
-            )
-            elif variation_name != 'Baseline':
+                try:
+                    variation = variations.objects.create(
+                        idscenarios=scenario_obj,
+                        idtechnologies=technology,
+                        variation_name=variation_gen_name,
+                        variation_description=variation_description,
+                        dimension=dimension,
+                        startval=startval,
+                        step=step,
+                        iterations=iterations,
+                    )
+                except Exception as e:
+                    success_message = 'Variation creation failed.'
+                variation_name = variation_gen_name
+            if variation_name != 'Baseline':
                 variation_inst = variations.objects.get(
                     variation_name=variation_name,
                     idscenarios=scenario_obj,
@@ -107,13 +111,31 @@ def run_batch(request) -> HttpResponse:
                 clearScenario(scenario_obj, variation_name)
                 # Iterate and call doDispatch
                 save_data = True
-                sp_data, headers, sp_pts = submit_powermatch(
+                sp_output, headers, sp_pts = submit_powermatch(
                     demand_year, scenario, option, iterations, variation_inst,
                     save_data,
                     )
+                sp_data = []
+                for row in sp_output:
+                    formatted_row = []
+                    for item in row:
+                        if isinstance(item, float):
+                            formatted_row.append('{:,.2f}'.format(item))
+                        else:
+                            formatted_row.append(item)
+                    sp_data.append(formatted_row)
                 success_message = 'Batch run has completed.'
                 context = {
                     'sp_data': sp_data, 'headers': headers, 'sp_pts': sp_pts,
                     'success_message': success_message, 'demand_year': demand_year, 'scenario': scenario
                 }
                 return render(request, 'display_table.html', context)
+    variation_name = request.POST.get('variation_name')
+    variation_form = SelectVariationForm(selected_variation=variation_name)
+    success_message = 'Select a variation and hit the Refresh button first.'
+    context = {
+        'variation_form': variation_form,
+        'batch_form': batch_form, 'technologies': technologies,
+        'demand_year': demand_year, 'scenario': scenario, 'success_message': success_message
+        }
+    return render(request, 'batch.html', context)

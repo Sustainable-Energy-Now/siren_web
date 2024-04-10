@@ -195,7 +195,7 @@ class RunBatchForm(forms.Form):
         self.helper.form_action = '/batch/'
         self.helper.layout = Layout(
             Field('iterations', css_class='row col-md-4'),
-            Field('variation_name'),
+            Field('variation_name', id='batch_variation_name_field'),
             Accordion(*accordion_groups),
             FormActions(
                 Submit('submit', 'Submit'),
@@ -272,10 +272,15 @@ class SelectVariationForm(forms.Form):
         self.helper.layout = Layout(
             Div(
                 Field('variation_name', css_class='row col-md-4'),
-                Field('variation_description', css_class='row col-md-4'),
-                css_class='row',
+                css_class='row', id='variation_name_field'
             ),
-            FormActions(
-                Submit('refresh', 'Refresh'),
-            )
         )
+        if selected_variation != 'Baseline' and selected_variation != 'new':
+            self.helper.layout.fields.append(Div(
+                    Field('variation_description', css_class='row col-md-4'),
+                    css_class='row',
+                )
+            )
+        self.helper.layout.append(FormActions(
+            Submit('refresh', 'Refresh', css_class='btn btn-primary')
+        ))
