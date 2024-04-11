@@ -78,6 +78,8 @@ def run_variations(request) -> HttpResponse:
             scenario_obj = Scenarios.objects.get(title=scenario)
             if dimension == 'capacity':
                 startval = technology.capacity
+            elif dimension == 'lifetime':
+                startval = technology.lifetime
             if variation_name == 'new':
                 try:
                     variation = variations.objects.create(

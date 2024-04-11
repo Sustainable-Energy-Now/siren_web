@@ -220,13 +220,32 @@ def submit_powermatch(demand_year, scenario,
             step = variation_inst.step
             idtechnologies = variation_inst.idtechnologies
             technology_name = idtechnologies.technology_name
-            pmss_details[technology_name] = PM_Facility(
-                pmss_details[technology_name].name, 
-                pmss_details[technology_name].name, 
-                pmss_details[technology_name].capacity + step, 'R', 
-                pmss_details[technology_name].col, 
-                pmss_details[technology_name].multiplier
-                )
+            lifetime_step = 0
+            if (dimension == 'capacity'):
+                pmss_details[technology_name] = PM_Facility(
+                    pmss_details[technology_name].name, 
+                    pmss_details[technology_name].name, 
+                    pmss_details[technology_name].capacity + step, 'R', 
+                    pmss_details[technology_name].col, 
+                    pmss_details[technology_name].multiplier
+                    )
+            elif (dimension == 'capex'):
+                capex_step = technology_row.capex + step
+            elif (dimension == 'lifetime'):
+                lifetime_step = technology_row.lifetime + step
+                
+            generators[technology_name] = Facility(
+                generator_name=name, category=technology_row.category, capacity=technology_row.capacity,
+                constr=technology_row.technology_name,
+                capacity_max=technology_row.capacity_max, capacity_min=technology_row.capacity_min,
+                recharge_max=recharge_max, recharge_loss=recharge_loss,
+                min_runtime=0, warm_time=0,
+                discharge_max=discharge_max,
+                discharge_loss=discharge_loss, parasitic_loss=parasitic_loss,
+                emissions=technology_row.emissions, initial=technology_row.initial, order=merit_order[0], 
+                capex=capex_step, fixed_om=technology_row.fom, variable_om=technology_row.vom,
+                fuel=fuel, lifetime=lifetime_step, area=area, disc_rate=technology_row.discount_rate,
+                lcoe=technology_row.lcoe, lcoe_cfs=technology_row.lcoe_cf )
 
         sp_data, headers, sp_pts = powerMatch.doDispatch(settings, demand_year, option, pmss_details, pmss_data, generators, re_order, 
             dispatch_order, pm_data_file, data_file, title=None)

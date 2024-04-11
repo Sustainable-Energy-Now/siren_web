@@ -1,9 +1,12 @@
+from django.conf import settings
+from django.contrib.auth import authenticate, login
 from django.db.models import Model
 from django.shortcuts import render, get_object_or_404
 from django.urls import reverse
 from django.http import HttpResponse, JsonResponse
 from siren_web.models import Analysis, Demand, facilities, Generatorattributes, \
     Genetics, Optimisation, sirensystem, Scenarios, Settings, Storageattributes, supplyfactors, Technologies, Zones
+
 
 def get_description(name, sirensystem_model):
     try:
@@ -19,6 +22,36 @@ def home_view(request):
     demand_year = request.session.get('demand_year')
     scenario = request.session.get('scenario')
     success_message = ""
+    member_name = request.GET.get('member_name', '')
+    email_address = request.GET.get('email_address', '')
+    membership_status = request.GET.get('membership_status', '')
+
+    user = authenticate(request, username='webmaster', password='SenMdl!0')
+    # if user is not None:
+    #     login(request, user)
+    #     # Redirect to a success page
+    # else:
+        # Handle authentication failure
+    # Handle the membership status and grant access accordingly
+    # if (membership_status):
+    #     if membership_status == 'active':
+    #         # Grant full access
+    #         access_level = 'full'
+    #     elif membership_status == 'lapsed':
+    #         # Grant limited access
+    #         access_level = 'limited'
+    #     else:
+    #         # Grant no access (non-member)
+    #         access_level = 'none'
+    #     context = {
+    #         'member_name': member_name,
+    #         'email_address': email_address,
+    #         'membership_status': membership_status,
+    #         'access_level': access_level,
+    #     }
+    # if not request.user.is_authenticated:
+    # user = authenticate(request, username=user_name, password=password)
+        
     context = {
         'home_view_url': reverse('home')
     }

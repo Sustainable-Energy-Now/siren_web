@@ -2,7 +2,8 @@
 from django import forms
 from siren_web.models import Scenarios
 from crispy_forms.helper import FormHelper
-from crispy_forms.layout import Layout, Div, Field
+from crispy_forms.layout import Layout, Div, Field, Submit
+from crispy_forms.bootstrap import FormActions
 
 class ScenarioForm(forms.ModelForm):
     class Meta:
@@ -16,3 +17,22 @@ class ScenarioForm(forms.ModelForm):
             'title': forms.TextInput(attrs={'class': 'form-control'}),
             'description': forms.Textarea(attrs={'class': 'form-control'}),
         }
+
+class DemandYearForm(forms.Form):
+    def __init__(self, *args, **kwargs):
+        super(DemandYearForm, self).__init__(*args, **kwargs)
+        self.helper = FormHelper()
+        self.form_action = '/technologies/'
+        self.layout = Layout(
+            Div(
+                Field('demand_year', css_class='row col-md-4'),
+                css_class='row'
+            ),
+            FormActions(
+                Submit('refresh', 'Refresh', css_class='btn btn-primary')
+            )
+        )
+        self.fields['demand_year'] = forms.ChoiceField(
+            choices=[('0', '0'), ('2022', '2022')],
+            required=True
+        )

@@ -1,0 +1,228 @@
+<!-- technologies.html -->
+{% extends 'powermapui_base.html' %}
+{% load static %}
+{% load custom_filters %}
+{% load crispy_forms_tags %}
+{% block powermapui_content %}
+<head>
+    <title>Generation and Storage Technologies</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <style>
+        body {
+            background-color: #f8f9fa;
+            color: #343a40;
+        }
+        .navbar {
+            background-color: #007bff;
+        }
+        .navbar-brand {
+            color: #fff;
+        }
+        .card {
+            box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.2);
+            transition: 0.3s;
+            border-radius: 10px;
+            background-color: #fff;
+        }
+        .card:hover {
+            box-shadow: 0 8px 16px 0 rgba(0, 0, 0, 0.2);
+        }
+    </style>
+</head>
+<nav class="navbar navbar-expand-lg navbar-dark">
+    <div class="container">
+        <a class="navbar-brand" href="#">
+            Generation and Storage Technologies
+        </a>
+    </div>
+</nav>
+<div class="container mt-4">
+    <p>These are the technologies that are relevant to modelling the decarbonisation of the SWIS.</p>
+    {% csrf_token %}
+    {% crispy demand_year_form %}
+    {% for technology in technology_queryset %}
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">{{ technology.technology_name }}</h5>
+                    {% if technology.image %}
+                    <img src="https://sen.asn.au/wp-content/uploads/{{ technology.image }}" class="card-img" alt="{{ technology.caption }}">
+                    {% else %}
+                    <p class="text-center">No image available</p>
+                    {% endif %}
+                    <p class="card-text">{{ technology.description }}</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Technology Attributes</h5>
+                    <table class="table table-striped">
+                        <tbody>
+                            <tr>
+                                <th>Year</th>
+                                <td>{{ technology.year }}</td>
+                                <td>
+                                    <p style="color:blue;">{{ attribute_explain|explain_attr:'year' }}</p>
+                                </td>
+                            </tr>
+                            <tr>
+                                <th>Renewable?</th>
+                                <td>{{ technology.renewable|yesno:"True,False" }}</td>
+                                <td>
+                                    <p style="color:blue;">{{ attribute_explain|explain_attr:'renewable' }}</p>
+                                </td>
+                            </tr>
+                            <tr>
+                                <th>Dispatchable?</th>
+                                <td>{{ technology.dispatchable|yesno:"True,False" }}</td>
+                                <td>
+                                    <p style="color:blue;">{{ attribute_explain|explain_attr:'dispatchable' }}</p>
+                                </td>
+                            </tr>
+                            <tr>
+                                <th>Merit Order</th>
+                                <td>{{ technology.merit_order }}</td>
+                                <td>
+                                    <p style="color:blue;">{{ attribute_explain|explain_attr:'merit_order' }}</p>
+                                </td>
+                            </tr>
+                            <tr>
+                                <th>Capex</th>
+                                <td>{{ technology.capex }}</td>
+                                <td>
+                                    <p style="color:blue;">{{ attribute_explain|explain_attr:'capex' }}</p>
+                                </td>
+                            </tr>
+                            <tr>
+                                <th>FOM</th>
+                                <td>{{ technology.fom }}</td>
+                                <td>
+                                    <p style="color:blue;">{{ attribute_explain|explain_attr:'fom' }}</p>
+                                </td>
+                            </tr>
+                            <tr>
+                            <th>VOM</th>
+                                <td>{{ technology.vom }}</td>
+                                <td>
+                                    <p style="color:blue;">{{ attribute_explain|explain_attr:'vom' }}</p>
+                                </td>
+                            </tr>
+                            <tr>
+                                <th>Lifetime</th>
+                                <td>{{ technology.lifetime }}</td>
+                                <td>
+                                    <p style="color:blue;">{{ attribute_explain|explain_attr:'lifetime' }}</p>
+                                </td>
+                            </tr>
+                            <tr>
+                                <th>Discount Rate</th>
+                                <td>{{ technology.discount_rate }}</td>
+                                <td>
+                                    <p style="color:blue;">{{ attribute_explain|explain_attr:'discount_rate' }}</p>
+                                </td>
+                            </tr>
+                            <tr>
+                                <th>Capacity</th>
+                                <td>{{ technology.capacity }}</td>
+                                <td>
+                                    <p style="color:blue;">{{ attribute_explain|explain_attr:'capacity' }}</p>
+                                </td>
+                            </tr>
+                            capacity_max
+                            capacity_min
+                            <tr>
+                                <th>Multiplier</th>
+                                <td>{{ technology.mult }}</td>
+                                <td>
+                                    <p style="color:blue;">{{ attribute_explain|explain_attr:'mult' }}</p>
+                                </td>
+                            </tr>
+                            <tr>
+                                <th>Emissions</th>
+                                <td>{{ technology.emissions }}</td>
+                                <td>
+                                    <p style="color:blue;">{{ attribute_explain|explain_attr:'emissions' }}</p>
+                                </td>
+                            </tr>
+                            <tr>
+                                <th>Initial</th>
+                                <td>{{ technology.initial }}</td>
+                                <td>
+                                    <p style="color:blue;">{{ attribute_explain|explain_attr:'initial' }}</p>
+                                </td>
+                            </tr>
+                            <tr>
+                                <th>lcoe</th>
+                                <td>{{ technology.lcoe }}</td>
+                                <td>
+                                    <p style="color:blue;">{{ attribute_explain|explain_attr:'lcoe' }}</p>
+                                </td>
+                            </tr>
+                            <tr>
+                                <th>lcoe_cf</th>
+                                <td>{{ technology.lcoe_cf }}</td>
+                                <td>
+                                    <p style="color:blue;">{{ attribute_explain|explain_attr:'lcoe_cf' }}</p>
+                                </td>
+                            </tr>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        {% with generator_attributes=technology.generatorattributes_set.first %}
+            {% if generator_attributes %}
+                <div class="col-md-4">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title">Generator Attributes</h5>
+                            <table class="table table-striped">
+                                <tr>
+                                    <th>Fuel</th>
+                                    <td>{{ generator_attributes.fuel }}</td>
+                                    <td>
+                                        <p style="color:blue;">{{ attribute_explain|explain_attr:'fuel' }}</p>
+                                    </td>
+                                </tr>
+                                <!-- Add other generator attributes fields here -->
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            {% endif %}
+        {% endwith %}
+        {% with storage_attributes=technology.storageattributes_set.first %}
+            {% if storage_attributes %}
+                <div class="col-md-4">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title">Storage Attributes</h5>
+                            <table class="table table-striped">
+                                <tr>
+                                    <th>Discharge Loss</th>
+                                    <td>{{ storage_attributes.discharge_loss }}</td>
+                                    <td>
+                                        <p style="color:blue;">{{ attribute_explain|explain_attr:'discharge_loss' }}</p>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <th>Discharge Max</th>
+                                    <td>{{ storage_attributes.discharge_max }}</td>
+                                    <td>
+                                        <p style="color:blue;">{{ attribute_explain|explain_attr:'discharge_max' }}</p>
+                                    </td>
+                                </tr>
+                                <!-- Add other storage attributes fields here -->
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            {% endif %}
+        {% endwith %}
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}
