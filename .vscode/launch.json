@@ -37,7 +37,10 @@
                 "DB_USER": "senasnau_user",
                 "DB_PASSWORD": "Ubewdy!0",
                 "DB_PORT": "3306",
-                "DJANGO_SECRET_KEY": "django-insecure-=*kw@9gn+-so2za+(9v+#kdsesb^*())q9l!qm^=o6i(!$&%=l"
+                "DJANGO_SECRET_KEY": "django-insecure-=*kw@9gn+-so2za+(9v+#kdsesb^*())q9l!qm^=o6i(!$&%=l",
+                "MEMBER_PASS": "ActSenMemb",
+                "LAPSED_PASS": "LapsedSenMemb",
+                "SUBSCRIBER_PASS": "JustFollow",
             },
             "args": [
                 "runserver"

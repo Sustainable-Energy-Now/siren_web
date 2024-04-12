@@ -1,9 +1,19 @@
 # views.py
+from django.contrib.auth.decorators import login_required
 from django.shortcuts import render, redirect, get_object_or_404
 from siren_web.models import Settings
 from siren_web.forms import SettingsForm
 
+@login_required
 def settings_view(request, sw_context):
+    if request.user.groups.filter(name='modellers').exists():
+        pass
+    else:
+        success_message = "Access not allowed."
+        context = {
+            'success_message': success_message,
+        }
+        return render(request, 'home.html', context)
     success_message = ""
     settings = Settings.objects.filter(sw_context=sw_context)
     if request.method == 'POST':

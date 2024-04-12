@@ -1,4 +1,5 @@
 # extract_technologies_views.py
+from django.contrib.auth.decorators import login_required
 from django.db import transaction
 from decimal import Decimal
 from django.db.models import Sum
@@ -12,7 +13,16 @@ from siren_web.models import Demand, Generatorattributes, Technologies, Scenario
 from ..forms import BaselineScenarioForm, ExtractTechnologiesForm
 from powermatchui.views.exec_powermatch import submit_powermatch
 
+@login_required
 def extract_technologies(request):
+    if request.user.groups.filter(name='modellers').exists():
+        pass
+    else:
+        success_message = "Access not allowed."
+        context = {
+            'success_message': success_message,
+        }
+        return render(request, 'powermatchui_home.html', context)
     demand_year = request.session.get('demand_year')
     scenario = request.session.get('scenario')
     success_message = ""

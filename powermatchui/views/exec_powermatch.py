@@ -220,6 +220,7 @@ def submit_powermatch(demand_year, scenario,
             step = variation_inst.step
             idtechnologies = variation_inst.idtechnologies
             technology_name = idtechnologies.technology_name
+            capex_step = 0
             lifetime_step = 0
             if (dimension == 'capacity'):
                 pmss_details[technology_name] = PM_Facility(
@@ -243,8 +244,8 @@ def submit_powermatch(demand_year, scenario,
                 discharge_max=discharge_max,
                 discharge_loss=discharge_loss, parasitic_loss=parasitic_loss,
                 emissions=technology_row.emissions, initial=technology_row.initial, order=merit_order[0], 
-                capex=capex_step, fixed_om=technology_row.fom, variable_om=technology_row.vom,
-                fuel=fuel, lifetime=lifetime_step, area=area, disc_rate=technology_row.discount_rate,
+                capex=technology_row.capex + capex_step, fixed_om=technology_row.fom, variable_om=technology_row.vom,
+                fuel=fuel, lifetime=technology_row.lifetime + lifetime_step, area=area, disc_rate=technology_row.discount_rate,
                 lcoe=technology_row.lcoe, lcoe_cfs=technology_row.lcoe_cf )
 
         sp_data, headers, sp_pts = powerMatch.doDispatch(settings, demand_year, option, pmss_details, pmss_data, generators, re_order, 

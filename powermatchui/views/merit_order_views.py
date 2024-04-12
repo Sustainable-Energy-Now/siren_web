@@ -1,13 +1,20 @@
-from siren_web.database_operations import fetch_merit_order_technologies
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse, HttpResponse
 from django.shortcuts import render
 import json
-from siren_web.database_operations import copy_technologies_from_year0
+from siren_web.database_operations import copy_technologies_from_year0, fetch_merit_order_technologies
 from siren_web.models import Technologies, ScenariosTechnologies, Scenarios
 
 @login_required
 def set_merit_order(request):
+    if request.user.groups.filter(name='modellers').exists():
+        pass
+    else:
+        success_message = "Access not allowed."
+        context = {
+            'success_message': success_message,
+        }
+        return render(request, 'powermatchui_home.html', context)
     demand_year = request.session.get('demand_year')
     scenario = request.session.get('scenario')
     context = {}  # Initialize context with an empty dictionary

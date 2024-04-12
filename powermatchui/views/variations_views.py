@@ -10,6 +10,15 @@ from powermatchui.views.exec_powermatch import submit_powermatch
 # Process form data
 @login_required
 def setup_variation(request):
+    if request.user.groups.filter(name='modellers').exists():
+        pass
+    else:
+        success_message = "Access not allowed."
+        context = {
+            'success_message': success_message,
+        }
+        return render(request, 'powermatchui_home.html', context)
+
     demand_year = request.session.get('demand_year')
     scenario = request.session.get('scenario')
     success_message = ""
@@ -62,7 +71,7 @@ def clearScenario(scenario_obj, variation_name) -> None:
     Analysis.objects.filter(idscenarios=scenario_obj,
                             variation=variation_name,
                             ).delete()
-    
+@login_required
 def run_variations(request) -> HttpResponse:
     if request.method == 'POST':
     # Handle form submission

@@ -1,7 +1,6 @@
 # baseline_scenario_views.py
-from django.db import transaction
+from django.contrib.auth.decorators import login_required
 from decimal import Decimal
-from django.db.models import Sum
 from django.contrib import messages
 from django.shortcuts import render, redirect
 from siren_web.database_operations import delete_analysis_scenario, fetch_analysis_scenario, \
@@ -11,7 +10,16 @@ from siren_web.models import Demand, Generatorattributes, Technologies, Scenario
 from ..forms import BaselineScenarioForm, RunPowermatchForm
 from powermatchui.views.exec_powermatch import submit_powermatch
 
+@login_required
 def baseline_scenario(request):
+    if request.user.groups.filter(name='modellers').exists():
+        pass
+    else:
+        success_message = "Access not allowed."
+        context = {
+            'success_message': success_message,
+        }
+        return render(request, 'powermatchui_home.html', context)
     demand_year = request.session.get('demand_year')
     scenario = request.session.get('scenario')
     success_message = ""
