@@ -69,10 +69,14 @@ def baseline_scenario(request):
                     }
                     return render(request, 'confirm_overwrite.html', context)
             
-    technologies = {}
-    technologies= fetch_included_technologies_data(scenario)
-    carbon_price= scenario_settings['carbon_price']
-    discount_rate= scenario_settings['discount_rate']
+    if demand_year:
+        technologies= fetch_included_technologies_data(scenario)
+        carbon_price= scenario_settings['carbon_price']
+        discount_rate= scenario_settings['discount_rate']
+    else:
+        technologies = {}
+        carbon_price= None
+        discount_rate = None
         
     baseline_form = BaselineScenarioForm(
         technologies=technologies, 

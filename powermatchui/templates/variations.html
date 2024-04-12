@@ -28,8 +28,10 @@
 </ol>
 <!-- Form for running Powermatch -->
 {% csrf_token %}
-{% load crispy_forms_tags %}
-{% crispy variation_form %}
-{% crispy variations_form %}
+{% if variation_form %}
+    {% load crispy_forms_tags %}
+    {% crispy variation_form %}
+    {% crispy variations_form %}
+{% endif %}
 
 {% endblock %}

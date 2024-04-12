@@ -25,31 +25,33 @@ def home_view(request):
     member_name = request.GET.get('member_name', '')
     email_address = request.GET.get('email_address', '')
     membership_status = request.GET.get('membership_status', '')
-
-    user = authenticate(request, username='webmaster', password='SenMdl!0')
-    # if user is not None:
-    #     login(request, user)
-    #     # Redirect to a success page
-    # else:
-        # Handle authentication failure
+    if not request.user.is_authenticated:
+        if (membership_status):
+            if membership_status == 'Active':
+                # Grant full access
+                user_name = 'member'
+                user_password = settings.USER_PASS['member_pass']
+            elif membership_status == 'Lapsed':
+                # Grant limited access
+                user_name = 'lapsed'
+                user_password = settings.USER_PASS['lapsed_pass']
+            elif membership_status == 'Non member':
+                # Grant no access (non-member)
+                user_name = 'subscriber'
+                user_password = settings.USER_PASS['subscriber_pass']
+            else:
+            # Handle authentication failure
+                pass
+            user = authenticate(request, username=user_name, password=user_password)
+            if user is not None:
+                login(request, user)
     # Handle the membership status and grant access accordingly
-    # if (membership_status):
-    #     if membership_status == 'active':
-    #         # Grant full access
-    #         access_level = 'full'
-    #     elif membership_status == 'lapsed':
-    #         # Grant limited access
-    #         access_level = 'limited'
-    #     else:
-    #         # Grant no access (non-member)
-    #         access_level = 'none'
     #     context = {
     #         'member_name': member_name,
     #         'email_address': email_address,
     #         'membership_status': membership_status,
     #         'access_level': access_level,
     #     }
-    # if not request.user.is_authenticated:
     # user = authenticate(request, username=user_name, password=password)
         
     context = {

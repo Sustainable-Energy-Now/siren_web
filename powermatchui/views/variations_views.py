@@ -13,10 +13,15 @@ def setup_variation(request):
     demand_year = request.session.get('demand_year')
     scenario = request.session.get('scenario')
     success_message = ""
-    baseline = check_analysis_baseline(scenario)
-    technologies= fetch_included_technologies_data(scenario)
-    if not baseline:
-        success_message = "Baseline the scenario first."
+    if demand_year:
+        baseline = check_analysis_baseline(scenario)
+        technologies= fetch_included_technologies_data(scenario)
+        if not baseline:
+            success_message = "Baseline the scenario first."
+    else:
+        technologies = {}
+        baseline = None
+        success_message = "Set the demand year and scenario in the home page first."
 
     if baseline and request.method == 'POST':
         # Handle form submission
@@ -39,8 +44,12 @@ def setup_variation(request):
         variation_form = SelectVariationForm(selected_variation=variation_name)
         variations_form = RunVariationForm(technologies=technologies, variation_data=variation_data)
     else:
-        variation_form = SelectVariationForm()
-        variations_form = RunVariationForm(technologies=technologies)
+        if demand_year:
+            variation_form = SelectVariationForm()
+            variations_form = RunVariationForm(technologies=technologies)
+        else:
+            variation_form = None
+            variations_form = None
             
     context = {
         'variation_form': variation_form,

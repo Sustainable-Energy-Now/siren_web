@@ -64,6 +64,11 @@ else:
             'port': int(os.environ['DB_PORT'])
         }
         secrets['django'] = {'secret_key': os.environ['DJANGO_SECRET_KEY']}
+        secrets['authenticate'] = {
+            'member_pass': os.environ['MEMBER_PASS'],
+            'lapsed_pass': os.environ['LAPSED_PASS'],
+            'subscriber_pass': os.environ['SUBSCRIBER_PASS'],
+        }
     except KeyError as e:
         logger.debug(f"Error: Environment variable {e} not set.")
         sys.exit(1)
@@ -152,7 +157,11 @@ DATABASES = {
         # 'sql_mode': 'STRICT_TRANS_TABLES',
     }
 }
-
+USER_PASS = {
+    'member_pass': secrets['authenticate']['member_pass'],
+    'lapsed_pass': secrets['authenticate']['lapsed_pass'],
+    'subscriber_pass': secrets['authenticate']['subscriber_pass'],
+}
 # Password validation
 # https://docs.djangoproject.com/en/5.0/ref/settings/#auth-password-validators
 
