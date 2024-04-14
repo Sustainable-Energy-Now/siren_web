@@ -1,5 +1,4 @@
 <!-- powerplotui/templates/echarts.html -->
-
 {% extends 'powerplotui_base.html' %}
 
 {% block powerplotui_content %}
@@ -17,9 +16,11 @@
         const series_2 = '{{ series_2 }}';
         const scenario = '{{ scenario }}';
         const variant = '{{ variant }}';
+        const chart_type = '{{ chart_type }}';
+        const chart_specialization = '{{ chart_specialization }}';
 
-        const url = `/get_analysis_data/?series_1=${series_1}&series_2=${series_2}&scenario=${scenario}&variant=${variant}`;
-        console.log('Fetching data from:', url);
+        const url = 
+            `/get_analysis_data/?series_1=${series_1}&series_2=${series_2}&scenario=${scenario}&variant=${variant}&chart_type=${chart_type}&chart_specialization=${chart_specialization}`;
         return fetch(url)
             .then(response => {
                 if (!response.ok) {
@@ -32,6 +33,7 @@
 
     // Function to create the Echarts plot
     function createAnalysisPlot(analysis_data) {
+        debugger;
         const chartDom = document.getElementById('analysis-plot');
         const myChart = echarts.init(chartDom);
 
@@ -60,19 +62,61 @@
             series: [
                 {
                     name: analysis_data[0].series_1_name,
-                    type: 'line',
+                    type: analysis_data[0].chart_type,
                     data: analysis_data.map(item => item.series_1_value),
-                    yAxisIndex: 0 // Bind this series to the first y-axis
+                    yAxisIndex: 0,
+                    ...getLineChartOptions(analysis_data[0].chart_specialization, 0)
                 },
                 {
                     name: analysis_data[0].series_2_name,
-                    type: 'line',
+                    type: analysis_data[0].chart_type,
                     data: analysis_data.map(item => item.series_2_value),
-                    yAxisIndex: 1 // Bind this series to the second y-axis
+                    yAxisIndex: 1,
+                    ...getLineChartOptions(analysis_data[0].chart_specialization, 1)
                 }
             ]
         };
         myChart.setOption(option);
+    }
+
+    // Helper function to determine the line chart options based on the chart specialization
+    function getLineChartOptions(chart_specialization, seriesIndex) {
+        switch (chart_specialization) {
+            case 'Stacked Line':
+            case 'Stacked Bar':
+                return {
+                    stack: 'x'
+                };
+            case 'Smoothed Line':
+                return {
+                    smooth: true
+                };
+            case 'Step Line':
+                return {
+                    step: 'start'
+                };
+            case 'Area Chart':
+                return {
+                    areaStyle: getAreaStyle(true, seriesIndex)
+                };
+            default:
+                return {};
+        }
+    }
+
+    // Helper function to determine the series type based on chart_type and chart_specialization
+    function getAreaStyle(isAreaChart, seriesIndex) {
+        if (isAreaChart) {
+            if (seriesIndex === 0) {
+                return {}; // Default area style for the first series
+            } else {
+                return {
+                    color: '#ff0',
+                    opacity: 0.5
+                };
+            }
+        }
+        return null;
     }
 
     // Call the fetchAnalysisData function

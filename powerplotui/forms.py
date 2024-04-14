@@ -22,11 +22,26 @@ class PlotForm(forms.Form):
     )
     
     heading_choices = [(heading, heading) for heading in Analysis.objects.values_list('heading', flat=True).distinct()]
-    series_1 = forms.ChoiceField(choices=heading_choices, label='Select column for x-axis')
-    series_2 = forms.ChoiceField(choices=heading_choices, label='Select column for y-axis')
+    series_1 = forms.ChoiceField(choices=heading_choices, label='Select column for series 1')
+    series_2 = forms.ChoiceField(choices=heading_choices, label='Select column for series 2')
     
-    chart_type = forms.ChoiceField(choices=[('line', 'Line'), ('bar', 'Bar'), ('area', 'Area')], label='Select chart type')
-
+    chart_type = forms.ChoiceField(
+        choices=[('line', 'Line'), ('bar', 'Bar')], label='Select chart type'
+        )
+    chart_specialization = forms.ChoiceField(
+        choices=[
+            ('', 'Select chart specialization'),
+            ('Basic Line', 'Basic Line'),
+            ('Stacked Line', 'Stacked Line'),
+            ('Area Chart', 'Area Chart'),
+            ('Smoothed Line', 'Smoothed Line'),
+            ('Step Line', 'Step Line'),
+            ('Basic Bar', 'Basic Bar'),
+            ('Stacked Bar', 'Stacked Bar'),
+        ],
+        label='Select chart specialization',
+        required=False,
+    )
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         if 'scenario' in self.data:
@@ -41,19 +56,22 @@ class PlotForm(forms.Form):
         self.helper.layout = Layout(
             HTML("<hr>"),
             Row(
-                Column('scenario', css_class='form-group col-md-6 mb-0'),
-                Column('variant', css_class='form-group col-md-6 mb-0'),
-                Column('series_1', css_class='form-group col-md-6 mb-0'),
+                Column('scenario', css_class='form-group col-md-4 mb-0'),
+                Column('series_1', css_class='form-group col-md-4 mb-0'),
+                Column('chart_type', css_class='form-group col-md-4 mb-0'),
                 css_class='form-row'
             ),
             Row(
-                Column('series_2', css_class='form-group col-md-6 mb-0'),
-                Column('chart_type', css_class='form-group col-md-6 mb-0'),
+                Column('variant', css_class='form-group col-md-4 mb-0'),
+                Column('series_2', css_class='form-group col-md-4 mb-0'),
+                Column('chart_specialization', css_class='form-group col-md-4 mb-0'),
                 css_class='form-row'
             ),
             HTML("<hr>"),
             FormActions(
                 Submit('filter', 'Filter', formnovalidate='formnovalidate'),
-                Submit('echart', 'Echart', formnovalidate='formnovalidate'),
+                Submit('plot_type', 'Echart', formnovalidate='formnovalidate'),
+                Submit('plot_type', 'Altair', formnovalidate='formnovalidate'),
+                Submit('plot_type', 'Matplotlib', formnovalidate='formnovalidate'),
             )
         )

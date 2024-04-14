@@ -2,8 +2,6 @@ from django.shortcuts import render
 from django.http import JsonResponse
 from django.views.generic import View
 from django.core.serializers import serialize
-
-# Create your views here.
 from siren_web.models import Analysis, variations
 
 class eChartView(View):
@@ -12,6 +10,8 @@ class eChartView(View):
         series_2 = request.GET.get('series_2')
         scenario = request.GET.get('scenario')
         variant = request.GET.get('variant')
+        chart_type = request.GET.get('chart_type', 'line')
+        chart_specialization = request.GET.get('chart_specialization', '')
 
         if not all([series_1, series_2, scenario, variant]):
             # If any of the required parameters are missing, render the template without data
@@ -47,7 +47,9 @@ class eChartView(View):
                     'series_1_name': series_1,
                     'series_1_value': analysis_obj_1.quantity,
                     'series_2_name': series_2,
-                    'series_2_value': analysis_obj_2.quantity
+                    'series_2_value': analysis_obj_2.quantity,
+                    'chart_type': chart_type,
+                    'chart_specialization': chart_specialization
                 })
 
         return JsonResponse(list(data_analysis), safe=False)
