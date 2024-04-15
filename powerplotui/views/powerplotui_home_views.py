@@ -117,7 +117,7 @@ class PowerPlotHomeView(TemplateView):
             return render(request, 'matplotlib.html', context)
         
     def get(self, request):
-        analysis_queryset = Analysis.objects.all()[:6]
+        analysis_queryset = Analysis.objects.all()[:8]
         analysis_data = self.get_analysis_data(analysis_queryset)
             
         plotform = PlotForm()
@@ -137,9 +137,10 @@ class PowerPlotHomeView(TemplateView):
             # Filter the Analysis data based on the selected scenario and variant
             analysis_queryset = \
                 Analysis.objects.filter(
-                    idscenarios_id=idscenarios, 
-                    variation__in=[variant[0].variation_name, 'Baseline']
-                    )[:6]
+                    idscenarios_id=idscenarios,
+                    stage__in=[0, 1],
+                    variation__in=[variant[0].variation_name, 'Baseline'],
+                    ).order_by('stage')
             analysis_data = self.get_analysis_data(analysis_queryset)
             context = {
                 'plotform': plotform,
@@ -167,4 +168,4 @@ class PowerPlotHomeView(TemplateView):
             elif plot_type == 'Echart':
                 return render(request, 'echarts.html', context)
 
-        # return render(request, 'powerplotui_home.html', context)
+        return render(request, 'powerplotui_home.html', context)

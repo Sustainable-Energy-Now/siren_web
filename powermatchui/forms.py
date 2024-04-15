@@ -126,14 +126,14 @@ class RunVariationForm(forms.Form):
         
         super(RunVariationForm, self).__init__(*args, **kwargs)
         if variation_data:
-            self.fields['iterations'] = forms.IntegerField(required=True, initial=variation_data.get('iterations'))
+            self.fields['stages'] = forms.IntegerField(required=True, initial=variation_data.get('stages'))
             self.fields['variation_name'] = forms.CharField(
                 required=True,
                 widget=forms.HiddenInput(),
                 initial=variation_data.get('variation_name'),
             )
         else:
-            self.fields['iterations'] = forms.IntegerField(required=True)
+            self.fields['stages'] = forms.IntegerField(required=True)
             self.fields['variation_name'] = forms.CharField(
                 required=True,
                 widget=forms.HiddenInput(),
@@ -194,7 +194,7 @@ class RunVariationForm(forms.Form):
         self.helper = FormHelper()
         self.helper.form_action = '/variations/'
         self.helper.layout = Layout(
-            Field('iterations', css_class='row col-md-4'),
+            Field('stages', css_class='row col-md-4'),
             Field('variation_name', id='batch_variation_name_field'),
             Accordion(*accordion_groups),
             FormActions(
@@ -206,7 +206,7 @@ class RunVariationForm(forms.Form):
         cleaned_data = super().clean()
         updated_data= {}
         updated_data['variation_name'] = self.cleaned_data.get('variation_name')
-        updated_data['iterations'] = self.cleaned_data.get('iterations')
+        updated_data['stages'] = self.cleaned_data.get('stages')
         technology_fields = [field for field in cleaned_data.keys() if field.startswith('step_') or field.startswith('dimension_')]
         
         updated_technologies = {}

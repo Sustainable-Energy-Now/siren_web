@@ -144,7 +144,7 @@ def run_variations(request) -> HttpResponse:
                         else:
                             formatted_row.append(item)
                     sp_data.append(formatted_row)
-                success_message = 'Create variations run has completed.'
+                success_message = 'Create variants run has completed.'
                 context = {
                     'sp_data': sp_data, 'headers': headers, 'sp_pts': sp_pts,
                     'success_message': success_message, 'demand_year': demand_year, 'scenario': scenario

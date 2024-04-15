@@ -14,7 +14,7 @@ class Analysis(models.Model):
     variation = models.CharField(max_length=45, blank=True, null=True) 
     heading = models.CharField(max_length=45, blank=True, null=True)
     component = models.CharField(max_length=45, blank=True, null=True)
-    stage = models.IntegerField(max_length=45, blank=True, null=True) 
+    stage = models.IntegerField(null=True)
     quantity = models.FloatField(db_column='Quantity', blank=True, null=True)
     units = models.CharField(db_column='Units', max_length=10, blank=True, null=True)
 

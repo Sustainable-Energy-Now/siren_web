@@ -56,13 +56,13 @@ def insert_data(i, sp_data, scenario_obj, variation, Stage):
     # Write out Load Analysis statistics and Static Variables
 
     LoadAnalysis = [
-        ('Load met', 'Load Analysis', sp_data[LA_index][1], '%'),
+        ('% Load met', 'Load Analysis', sp_data[LA_index][1], '%'),
         ('Load met', 'Load Analysis', sp_data[LA_index][2], 'mWh'),
-        ('Shortfall', 'Load Analysis', sp_data[LA_index + 1][1], '%'),
+        ('% Shortfall', 'Load Analysis', sp_data[LA_index + 1][1], '%'),
         ('Shortfall', 'Load Analysis', sp_data[LA_index + 1][2], 'mWh'),
         ('Total Load', 'Load Analysis', sp_data[LA_index + 2][2], 'mWh'),
         ('RE %age of Total Load', 'Load Analysis', sp_data[LA_index + 3][1], '%'),
-        ('Surplus', 'Load Analysis', sp_data[LA_index + 5][1], '%'),
+        ('% Surplus', 'Load Analysis', sp_data[LA_index + 5][1], '%'),
         ('Surplus', 'Load Analysis', sp_data[LA_index + 5][3], 'mWh'),
         # ('Largest Shortfall', 'Load Analysis', sp_data[LA_index + 6][3], 'mWh')
     ]
