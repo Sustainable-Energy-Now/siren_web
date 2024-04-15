@@ -147,25 +147,24 @@ class PowerPlotHomeView(TemplateView):
                 'analysis_data': analysis_data,
             }
         elif plot_type:
-            # Get the selected values from the request.GET
-            series_1 = request.POST.get('series_1')
-            series_2 = request.POST.get('series_2')
-            chart_type = request.POST.get('chart_type')
-            chart_specialization = request.POST.get('chart_specialization')
-
-        # Prepare the context with the selected values
-            context = {
-                'series_1': series_1,
-                'series_2': series_2,
-                'scenario': idscenarios,
-                'variant': idvariant,
-                'chart_type': chart_type,
-                'chart_specialization': chart_specialization,
-            }
             # Render the appropriate template based on the selected plot_type
             if plot_type in ['Altair', 'Matplotlib']:
                 return self.create_chart(request, plot_type)
             elif plot_type == 'Echart':
+                # Get the selected values from the request.GET
+                series_1 = request.POST.get('series_1')
+                series_2 = request.POST.get('series_2')
+                chart_type = request.POST.get('chart_type')
+                chart_specialization = request.POST.get('chart_specialization')
+                # Prepare the context with the selected values
+                context = {
+                    'series_1': series_1,
+                    'series_2': series_2,
+                    'scenario': idscenarios,
+                    'variant': idvariant,
+                    'chart_type': chart_type,
+                    'chart_specialization': chart_specialization,
+                }
                 return render(request, 'echarts.html', context)
 
         return render(request, 'powerplotui_home.html', context)
