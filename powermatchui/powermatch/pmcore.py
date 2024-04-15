@@ -2888,7 +2888,7 @@ class powerMatch():
         if do_multi:
             multi_best = [] # list of six variables for best weight
             multi_best_popn = [] # list of chromosomes for best weight
-        progress_text = "Process Optimisation iterations"
+        progress_text = "Process Optimisation stages"
         #self.progressbar = st.progress(0, text=progress_text)
         start_time = time.time()
         # Create starting population

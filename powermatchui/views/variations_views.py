@@ -42,7 +42,7 @@ def setup_variation(request):
             variation_data = {
                 'variation_name': variation_name,
                 'idtechnologies': variation_inst.idtechnologies,
-                'iterations': variation_inst.iterations,
+                'stages': variation_inst.stages,
                 'dimension': variation_inst.dimension,
                 'step': variation_inst.step
             }
@@ -82,7 +82,7 @@ def run_variations(request) -> HttpResponse:
         variations_form = RunVariationForm(request.POST, technologies=technologies)
         if variations_form.is_valid():
             cleaned_data = variations_form.cleaned_data
-            iterations = cleaned_data['iterations']
+            stages = cleaned_data['stages']
             
             # Refresh the existing variation or create a new one if selected.
             variation_name = cleaned_data['variation_name']
@@ -90,9 +90,9 @@ def run_variations(request) -> HttpResponse:
             dimension = cleaned_data['dimension']
             step = cleaned_data['step']
             technology = Technologies.objects.get(idtechnologies=idtechnologies)  # Get the first technology
-            variation_gen_name = f"{technology.technology_signature}{dimension[:3]}{str(step)}.{str(iterations)}"
+            variation_gen_name = f"{technology.technology_signature}{dimension[:3]}{str(step)}.{str(stages)}"
             variation_description = \
-                f"A variation for {technology.technology_name} with {dimension} changed by {str(step)} over {str(iterations)} iterations."
+                f"A variation for {technology.technology_name} with {dimension} changed by {str(step)} over {str(stages)} stages."
             scenario_obj = Scenarios.objects.get(title=scenario)
             if dimension == 'capacity':
                 startval = technology.capacity
@@ -108,7 +108,7 @@ def run_variations(request) -> HttpResponse:
                         dimension=dimension,
                         startval=startval,
                         step=step,
-                        iterations=iterations,
+                        stages=stages,
                     )
                 except Exception as e:
                     success_message = 'Variation creation failed.'
@@ -123,7 +123,7 @@ def run_variations(request) -> HttpResponse:
                 variation_inst.variation_name = variation_gen_name
                 variation_inst.dimension = dimension
                 variation_inst.step=step
-                variation_inst.iterations=iterations
+                variation_inst.stages=stages
                 variation_inst.save()
 
                 option = 'S'
@@ -132,7 +132,7 @@ def run_variations(request) -> HttpResponse:
                 # Iterate and call doDispatch
                 save_data = True
                 sp_output, headers, sp_pts = submit_powermatch(
-                    demand_year, scenario, option, iterations, variation_inst,
+                    demand_year, scenario, option, stages, variation_inst,
                     save_data,
                     )
                 sp_data = []

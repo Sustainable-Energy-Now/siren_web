@@ -101,7 +101,7 @@ def insert_data(i, sp_data, scenario_obj, variation, Stage):
             )
 
 def submit_powermatch(demand_year, scenario, 
-                      option, iterations, variation_inst, save_data):
+                      option, stages, variation_inst, save_data):
     settings = fetch_all_settings_data()
     pmss_data, pmss_details = \
     fetch_supplyfactors_data(demand_year)
@@ -192,7 +192,7 @@ def submit_powermatch(demand_year, scenario,
 
     pm_data_file = 'G:/Shared drives/SEN Modelling/modelling/SWIS/Powermatch_data_actual.xlsx'
     data_file = 'Powermatch_results_actual.xlsx'
-    for i in range(iterations):
+    for i in range(stages):
         # 0 Facility
         # 1 Capacity (Gen, MW Stor, MWh)  
         # 2 To meet Load (MWh)
@@ -253,10 +253,12 @@ def submit_powermatch(demand_year, scenario,
         
         if variation_inst:
             variation = variation_inst.variation_name
+            Stage = i + 1
         else:
             variation = 'Baseline'
-        current_datetime = datetime.now()
-        Stage = current_datetime.strftime('%m-%d %H:%M:%S')
+            Stage = 0
+        # current_datetime = datetime.now()
+        # Stage = current_datetime.strftime('%m-%d %H:%M:%S')
 
         try:
             scenario_obj = Scenarios.objects.get(title=scenario)

@@ -212,7 +212,7 @@ class variations(models.Model):
     dimension = models.CharField(max_length=30, blank=True, null=True)
     startval = models.FloatField(null=True)  
     step = models.FloatField(null=True)
-    iterations = models.IntegerField(blank=True, null=True)
+    stages = models.IntegerField(blank=True, null=True)
     endval = models.FloatField(null=True)  
 
     class Meta:

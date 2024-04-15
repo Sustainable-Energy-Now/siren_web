@@ -12,6 +12,9 @@ def delete_analysis_scenario(idscenario):
     Analysis.objects.filter(
         idscenarios=idscenario
     ).delete()
+    variations.objects.filter(
+        idscenarios=idscenario
+    ).delete()
     return None
 
 def fetch_analysis_scenario(idscenario):
