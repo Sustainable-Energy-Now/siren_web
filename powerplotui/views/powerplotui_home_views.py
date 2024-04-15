@@ -9,8 +9,6 @@ import matplotlib
 matplotlib.use('Agg')  # Use the 'Agg' backend for non-interactive plotting
 import matplotlib.pyplot as plt
 import logging
-from ..views.altair_views import AltairChartView
-from ..views.matplotlib_views import MatplotlibChartView
 import pandas as pd
 
 class PowerPlotHomeView(TemplateView):
