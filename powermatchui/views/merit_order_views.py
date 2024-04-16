@@ -55,7 +55,7 @@ def set_merit_order(request):
     else:
         scenario_obj = Scenarios.objects.get(title=scenario)
         idscenarios = scenario_obj.pk
-        merit_order, excluded_resources = fetch_merit_order_technologies(demand_year, idscenarios)
+        merit_order, excluded_resources = fetch_merit_order_technologies(idscenarios)
         if not len(merit_order) and not len(excluded_resources):
             success_message = "Relate the demand technologies to the Scenario in the home page."
             

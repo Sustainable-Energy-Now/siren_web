@@ -257,13 +257,13 @@ def get_emission_color(emissions):
     else:
         return '#1b5e20'  # Black
     
-def fetch_merit_order_technologies(demand_year, idscenarios):
+def fetch_merit_order_technologies(idscenarios):
     merit_order_data = {}
     excluded_resources_data = {}
 
     # Get the TechnologiesScenarios objects for the given scenario
     technologies_scenarios = ScenariosTechnologies.objects.filter(
-        idscenarios=idscenarios
+        idscenarios=idscenarios,
         ).order_by(
             'merit_order'  # Order the results by merit_order
         )
