@@ -34,6 +34,8 @@ class PowerPlotHomeView(TemplateView):
     def create_chart(self, request, plot_type):
         series_1 = request.POST.get('series_1')
         series_2 = request.POST.get('series_2')
+        series_1_component = request.POST.get('series_1_component')
+        series_2_component = request.POST.get('series_2_component')
         scenario = request.POST.get('scenario')
         variant = request.POST.get('variant')
         chart_type = request.POST.get('chart_type', 'line')
@@ -44,14 +46,14 @@ class PowerPlotHomeView(TemplateView):
             idscenarios=scenario,
             variation__in=[variation.variation_name, 'Baseline'],
             heading=series_1,
-            component__in=['Total', 'Load Analysis']
+            component=series_1_component,
         ).order_by('stage')
 
         analysis_queryset_2 = Analysis.objects.filter(
             idscenarios=scenario,
             variation__in=[variation.variation_name, 'Baseline'],
             heading=series_2,
-            component__in=['Total', 'Load Analysis']
+            component=series_2_component,
         ).order_by('stage')
         
         analysis_data = []
@@ -132,6 +134,10 @@ class PowerPlotHomeView(TemplateView):
         idscenarios = request.POST.get('scenario')
         idvariant  = request.POST.get('variant')
         variant  = variations.objects.filter(pk=idvariant)
+        series_1 = request.POST.get('series_1')
+        series_2 = request.POST.get('series_2')
+        series_1_component = request.POST.get('series_1_component')
+        series_2_component = request.POST.get('series_2_component')
         plot_type = request.POST.get('plot_type', '')
         if 'filter' in request.POST:
             # Filter the Analysis data based on the selected scenario and variant
@@ -140,6 +146,8 @@ class PowerPlotHomeView(TemplateView):
                     idscenarios_id=idscenarios,
                     stage__in=[0, 1],
                     variation__in=[variant[0].variation_name, 'Baseline'],
+                    heading__in=[series_1, series_2],
+                    component__in=[series_1_component, series_2_component],
                     ).order_by('stage')
             analysis_data = self.get_analysis_data(analysis_queryset)
             context = {

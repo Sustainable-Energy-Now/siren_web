@@ -8,6 +8,8 @@ class eChartView(View):
     def get(self, request):
         series_1 = request.GET.get('series_1')
         series_2 = request.GET.get('series_2')
+        series_1_component = request.GET.get('series_1_component')
+        series_2_component = request.GET.get('series_2_component')
         scenario = request.GET.get('scenario')
         variant = request.GET.get('variant')
         chart_type = request.GET.get('chart_type', 'line')
@@ -44,9 +46,9 @@ class eChartView(View):
                 analysis_obj_2 = stage_dict[analysis_obj_1.stage]
                 data_analysis.append({
                     'stage': analysis_obj_1.stage,
-                    'series_1_name': series_1,
+                    'series_1_name': series_1 + ' of ' + series_1_component,
                     'series_1_value': analysis_obj_1.quantity,
-                    'series_2_name': series_2,
+                    'series_2_name': series_2 + ' of ' + series_2_component,
                     'series_2_value': analysis_obj_2.quantity,
                     'chart_type': chart_type,
                     'chart_specialization': chart_specialization

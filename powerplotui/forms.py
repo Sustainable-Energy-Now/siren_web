@@ -22,8 +22,12 @@ class PlotForm(forms.Form):
     )
     
     heading_choices = [(heading, heading) for heading in Analysis.objects.values_list('heading', flat=True).distinct()]
-    series_1 = forms.ChoiceField(choices=heading_choices, label='Select column for series 1')
-    series_2 = forms.ChoiceField(choices=heading_choices, label='Select column for series 2')
+    series_1 = forms.ChoiceField(choices=heading_choices, label='Select statistic for series 1')
+    series_2 = forms.ChoiceField(choices=heading_choices, label='Select statistic for series 2')
+    
+    component_choices = [(component, component) for component in Analysis.objects.values_list('component', flat=True).distinct()]
+    series_1_component = forms.ChoiceField(choices=component_choices, label='Select component for series 1')
+    series_2_component = forms.ChoiceField(choices=component_choices, label='Select component for series 2')
     
     chart_type = forms.ChoiceField(
         choices=[('line', 'Line'), ('bar', 'Bar')], label='Select chart type'
@@ -56,15 +60,17 @@ class PlotForm(forms.Form):
         self.helper.layout = Layout(
             HTML("<hr>"),
             Row(
-                Column('scenario', css_class='form-group col-md-4 mb-0'),
-                Column('series_1', css_class='form-group col-md-4 mb-0'),
-                Column('chart_type', css_class='form-group col-md-4 mb-0'),
+                Column('scenario', css_class='form-group col-md-3 mb-0'),
+                Column('series_1', css_class='form-group col-md-3 mb-0'),
+                Column('series_1_component', css_class='form-group col-md-3 mb-0'),
+                Column('chart_type', css_class='form-group col-md-3 mb-0'),
                 css_class='form-row'
             ),
             Row(
-                Column('variant', css_class='form-group col-md-4 mb-0'),
-                Column('series_2', css_class='form-group col-md-4 mb-0'),
-                Column('chart_specialization', css_class='form-group col-md-4 mb-0'),
+                Column('variant', css_class='form-group col-md-3 mb-0'),
+                Column('series_2', css_class='form-group col-md-3 mb-0'),
+                Column('series_2_component', css_class='form-group col-md-3 mb-0'),
+                Column('chart_specialization', css_class='form-group col-md-3 mb-0'),
                 css_class='form-row'
             ),
             HTML("<hr>"),
