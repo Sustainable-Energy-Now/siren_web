@@ -162,12 +162,16 @@ class PowerPlotHomeView(TemplateView):
                 # Get the selected values from the request.GET
                 series_1 = request.POST.get('series_1')
                 series_2 = request.POST.get('series_2')
+                series_1_component = request.POST.get('series_1_component')
+                series_2_component = request.POST.get('series_2_component')
                 chart_type = request.POST.get('chart_type')
                 chart_specialization = request.POST.get('chart_specialization')
                 # Prepare the context with the selected values
                 context = {
                     'series_1': series_1,
                     'series_2': series_2,
+                    'series_1_component': series_1_component,
+                    'series_2_component': series_2_component,
                     'scenario': idscenarios,
                     'variant': idvariant,
                     'chart_type': chart_type,

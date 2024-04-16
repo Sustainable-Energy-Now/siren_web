@@ -46,9 +46,9 @@ class eChartView(View):
                 analysis_obj_2 = stage_dict[analysis_obj_1.stage]
                 data_analysis.append({
                     'stage': analysis_obj_1.stage,
-                    'series_1_name': series_1 + ' of ' + series_1_component,
+                    'series_1_name': series_1_component + ' ' + series_1,
                     'series_1_value': analysis_obj_1.quantity,
-                    'series_2_name': series_2 + ' of ' + series_2_component,
+                    'series_2_name': series_2_component + ' ' + series_2,
                     'series_2_value': analysis_obj_2.quantity,
                     'chart_type': chart_type,
                     'chart_specialization': chart_specialization

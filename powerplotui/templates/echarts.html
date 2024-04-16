@@ -14,13 +14,18 @@
     function fetchAnalysisData() {
         const series_1 = '{{ series_1 }}';
         const series_2 = '{{ series_2 }}';
+        const series_1_component = '{{ series_1_component }}';
+        const series_2_component = '{{ series_2_component }}';
         const scenario = '{{ scenario }}';
         const variant = '{{ variant }}';
         const chart_type = '{{ chart_type }}';
         const chart_specialization = '{{ chart_specialization }}';
 
         const url = 
-            `/get_analysis_data/?series_1=${series_1}&series_2=${series_2}&scenario=${scenario}&variant=${variant}&chart_type=${chart_type}&chart_specialization=${chart_specialization}`;
+            `/get_analysis_data/?series_1=${series_1}&series_1_component=${series_1_component}` +
+            `&series_2=${series_2}&series_2_component=${series_2_component}` +
+            `&scenario=${scenario}&variant=${variant}&chart_type=${chart_type}` +
+            `&chart_specialization=${chart_specialization}`;
         return fetch(url)
             .then(response => {
                 if (!response.ok) {
