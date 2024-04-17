@@ -71,12 +71,13 @@ def fetch_supplyfactors_data(demand_year):
         pmss_details = {} # contains name, generator, capacity, fac_type, col, multiplier
         pmss_details['Load'] = PM_Facility('Load', 'Load', 1, 'L', 0, 1)
         for supplyfactors_row in supplyfactors_query:
-            name = supplyfactors_row.idtechnologies.technology_name
+            name = supplyfactors_row.idtechnologies.technology_name # type: ignore
             idtechnologies = supplyfactors_row.idtechnologies.idtechnologies
             col = supplyfactors_row.col
             load = supplyfactors_row.quantum
             if col not in pmss_data:
                 pmss_data[col] = []
+                max_col = col
             pmss_data[col].append(load)
             if (name != 'Load'):
                 if name not in pmss_details: # type: ignore
@@ -86,7 +87,7 @@ def fetch_supplyfactors_data(demand_year):
         # Handle any errors that occur during the database query
         return HttpResponse(f"Error fetching supplyfactors data: {e}", status=500), None
     
-    return pmss_data, pmss_details
+    return pmss_data, pmss_details, max_col
 
 def copy_technologies_from_year0(idtechnologies, demand_year, scenario):
     scenario_obj = Scenarios.objects.get(title=scenario)

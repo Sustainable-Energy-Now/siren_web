@@ -103,7 +103,7 @@ def insert_data(i, sp_data, scenario_obj, variation, Stage):
 def submit_powermatch(demand_year, scenario, 
                       option, stages, variation_inst, save_data):
     settings = fetch_all_settings_data()
-    pmss_data, pmss_details = \
+    pmss_data, pmss_details, max_col = \
     fetch_supplyfactors_data(demand_year)
     
     technologies_result = fetch_included_technologies_data(scenario)
@@ -188,7 +188,7 @@ def submit_powermatch(demand_year, scenario,
                 typ = 'G'
                 if renewable:
                     typ = 'R'
-                pmss_details[name] = PM_Facility(name, name, capacity, typ, -1, 1)
+                pmss_details[name] = PM_Facility(name, name, capacity, typ, ++max_col, 1)
 
     pm_data_file = 'G:/Shared drives/SEN Modelling/modelling/SWIS/Powermatch_data_actual.xlsx'
     data_file = 'Powermatch_results_actual.xlsx'
