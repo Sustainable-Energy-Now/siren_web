@@ -8,10 +8,12 @@ from crispy_bootstrap5.bootstrap5 import Accordion
 from crispy_forms.bootstrap import AccordionGroup, FormActions
 
 class DemandYearScenario(forms.Form):
+    year_choices = [(year, year) for year in Technologies.objects.values_list('year', flat=True).distinct()]
     demand_year = forms.ChoiceField(
-        choices=[('2022', '2022'), ('2022', '2022')],
+        choices=year_choices,
         label='Select a Demand Year',
-        initial='2022',
+        initial='2023',
+        required=True,
         widget=forms.Select(attrs={'class': 'form_input'})
         )
 
@@ -70,16 +72,6 @@ class BaselineScenarioForm(forms.Form):
             Submit('save', 'Save Runtime Parameters', css_class='btn btn-primary')
         ))
 
-class ExtractTechnologiesForm(forms.Form):
-    def __init__(self, *args, **kwargs):
-        super(ExtractTechnologiesForm, self).__init__(*args, **kwargs)
-        self.helper = FormHelper()
-        self.helper.form_action = '/extract_technologies/'
-        self.helper.layout = Layout(
-            FormActions(
-                Submit('submit', 'Extract Technologies'),
-            )
-        )
 class RunPowermatchForm(forms.Form):
     def __init__(self, *args, **kwargs):
         super(RunPowermatchForm, self).__init__(*args, **kwargs)

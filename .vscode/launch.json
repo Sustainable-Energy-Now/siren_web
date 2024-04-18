@@ -5,12 +5,12 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Python Debugger: load_supplyfactors",
+            "name": "Python Debugger: load_supplyfactors_xlsx",
             "type": "debugpy",
             "request": "launch",
             "program": "${workspaceFolder}\\manage.py",
             "args": [
-                "load_supplyfactorsx"
+                "load_supplyfactors_xlsx", "powermatchui/data/Powermatch_data_2024_2zones_dpv.xlsx"
             ],
             "django": true,
             "autoStartBrowser": false

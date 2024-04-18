@@ -1,6 +1,6 @@
 # forms.py
 from django import forms
-from siren_web.models import Scenarios
+from siren_web.models import Scenarios, Technologies
 from crispy_forms.helper import FormHelper
 from crispy_forms.layout import Layout, Div, Field, Submit
 from crispy_forms.bootstrap import FormActions
@@ -32,7 +32,9 @@ class DemandYearForm(forms.Form):
                 Submit('refresh', 'Refresh', css_class='btn btn-primary')
             )
         )
+        
+        year_choices = [(year, year) for year in Technologies.objects.values_list('year', flat=True).distinct()]
         self.fields['demand_year'] = forms.ChoiceField(
-            choices=[('0', '0'), ('2022', '2022')],
+            choices=year_choices,
             required=True
         )

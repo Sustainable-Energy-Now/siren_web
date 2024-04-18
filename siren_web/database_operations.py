@@ -89,18 +89,18 @@ def fetch_supplyfactors_data(demand_year):
     
     return pmss_data, pmss_details, max_col
 
-def copy_technologies_from_year0(idtechnologies, demand_year, scenario):
+def copy_technologies_from_year0(technology_name, demand_year, scenario):
     scenario_obj = Scenarios.objects.get(title=scenario)
     try:
         technology_year0 = Technologies.objects.get(
-            idtechnologies=idtechnologies,
+            technology_name=technology_name,
             year=0
             )
     except Exception as e:
         # Assume it is the demand_year
-        return idtechnologies
+        return None
     technology_new, created = Technologies.objects.get_or_create(
-        technology_name=technology_year0.technology_name,
+        technology_name=technology_name,
         year=demand_year,
         defaults={
             'idtechnologies': None,
@@ -129,7 +129,8 @@ def copy_technologies_from_year0(idtechnologies, demand_year, scenario):
         }
     )
     if created:
-    # Add the scenario
+    # Remove the scenario from the year0 technology and add to the new
+        technology_year0.scenarios.remove(scenario_obj)
         technology_new.scenarios.add(scenario_obj)
         # if the created technology is a Generator also create the GeneratorAttributes
         if technology_new.category == 'Generator':
@@ -158,12 +159,11 @@ def copy_technologies_from_year0(idtechnologies, demand_year, scenario):
                 min_runtime=old_storattr.min_runtime,
                 warm_time=old_storattr.warm_time,
             )
-            # Update/create the technology foreign keys in ScenariosTechnologies
-            ScenariosTechnologies.objects.filter(
+            # Create a ScenariosTechnologies instance
+            ScenariosTechnologies.objects.create(
                 idscenarios=scenario_obj,
-                idtechnologies=technology_year0
-                ).update(
-                    idtechnologies=technology_new
+                idtechnologies=technology_new,
+                merit_order=1,
                 )
     return technology_new
 
