@@ -2,7 +2,7 @@
 
 {% block powermatchui_content %}
 
-<form method="post">
+<form id="merit-order-form">
     {% csrf_token %}
     <div class="container">
         <div class="row">
@@ -39,7 +39,7 @@
             </div>
         </div>
     </div>
-    <button type="submit" class="btn btn-primary mt-3" id ="save-order-button">Save Merit Order</button>
+    <button type="button" class="btn btn-primary mt-3" id="save-order-button">Save Merit Order</button>
 </form>
 <form method="post" action="{% url 'reload_technologies' %}">
     {% csrf_token %}
