@@ -60,7 +60,7 @@ def get_supply_by_technology(demand_year, scenario):
 def fetch_supplyfactors_data(demand_year):
     try:
         # Read supplyfactors table using Django ORM
-        supplyfactors_query = supplyfactors.objects.filter(
+        supplyfactors_query = supplyfactors.objects.filter(year=demand_year
         ).select_related(
             'idtechnologies'  # Perform join with Technologies
         ).order_by(

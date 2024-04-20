@@ -42,18 +42,17 @@ def set_merit_order(request):
 
         # Process the IDs as needed, e.g., update the order of items in the database
         # Update the merit_order attribute for technologies in the 'Merit Order' column
-        with transaction.atomic():
-            for index, tech_id in enumerate(merit_order, start=1):
-                if tech_id:
-                    technology = Technologies.objects.get(idtechnologies=tech_id)
-                    Tech_new = copy_technologies_from_year0(technology.technology_name, demand_year, scenario)
-                    ScenariosTechnologies.objects.filter(idtechnologies=Tech_new, idscenarios=scenario_obj.pk).update(merit_order=index)
+        for index, tech_id in enumerate(merit_order, start=1):
+            if tech_id:
+                technology = Technologies.objects.get(idtechnologies=tech_id)
+                Tech_new = copy_technologies_from_year0(technology.technology_name, demand_year, scenario)
+                ScenariosTechnologies.objects.filter(idtechnologies=Tech_new, idscenarios=scenario_obj.pk).update(merit_order=index)
 
-            # Update the merit_order attribute for technologies in the 'Excluded Resources' column
-            for index, tech_id in enumerate(excluded_resources, start=800):
-                if tech_id:
-                    technology = Technologies.objects.get(idtechnologies=tech_id)
-                    ScenariosTechnologies.objects.filter(idtechnologies=technology, idscenarios=scenario_obj.pk).update(merit_order=index)
+        # Update the merit_order attribute for technologies in the 'Excluded Resources' column
+        for index, tech_id in enumerate(excluded_resources, start=800):
+            if tech_id:
+                technology = Technologies.objects.get(idtechnologies=tech_id)
+                ScenariosTechnologies.objects.filter(idtechnologies=technology, idscenarios=scenario_obj.pk).update(merit_order=index)
 
         # Redirect back to the merit order view
         success_message = "Merit Order Updated."

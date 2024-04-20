@@ -21,6 +21,7 @@ class DemandYearScenario(forms.Form):
         queryset=Scenarios.objects.all().values_list('title', flat=True),
         empty_label=None,
         label='Select a Scenario',  # Add a label for the dropdown
+        initial='Scen2023_Existing',
         to_field_name='title',  # Use 'title' as the value for the selected choice
         widget=forms.Select(attrs={'class': 'form_input'})
     )

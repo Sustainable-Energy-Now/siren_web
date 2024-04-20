@@ -127,7 +127,7 @@ def submit_powermatch(demand_year, scenario,
             try:
                 generator_qs = Generatorattributes.objects.filter(
                     idtechnologies=technology_row,
-                    year__in=[0, demand_year],
+                    year=demand_year,
                 ).order_by('-year')
                 generator = generator_qs[0]
                 fuel = generator.fuel
@@ -140,7 +140,7 @@ def submit_powermatch(demand_year, scenario,
             try:
                 storage_qs = Storageattributes.objects.filter(
                     idtechnologies=technology_row,
-                    year__in=[0, demand_year],
+                    year=demand_year,
                 ).order_by('-year')
                 storage= storage_qs[0]
                 recharge_max = storage.recharge_max
