@@ -54,7 +54,8 @@ def setup_variation(request):
         variations_form = RunVariationForm(technologies=technologies, variation_data=variation_data)
     else:
         if demand_year:
-            variation_form = SelectVariationForm()
+            scenario_obj = Scenarios.objects.get(title=scenario)
+            variation_form = SelectVariationForm(scenario=scenario_obj)
             variations_form = RunVariationForm(technologies=technologies)
         else:
             variation_form = None

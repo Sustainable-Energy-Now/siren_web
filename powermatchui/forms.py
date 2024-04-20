@@ -232,9 +232,13 @@ class RunOptimisationForm(forms.Form):
 
 class SelectVariationForm(forms.Form):
     def __init__(self, *args, **kwargs):
+        scenario = kwargs.pop('scenario', None)
         selected_variation = kwargs.pop('selected_variation', None)
         super(SelectVariationForm, self).__init__(*args, **kwargs)
-        variations_queryset = variations.objects.all()
+        if scenario:
+            variations_queryset = variations.objects.filter(idscenarios=scenario)
+        else:
+            variations_queryset = variations.objects.none()
         variations_list = [variation.variation_name for variation in variations_queryset]
         variation_description_dict = {variation.variation_name: variation.variation_description for variation in variations_queryset}
 

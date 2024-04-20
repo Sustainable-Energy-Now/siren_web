@@ -51,8 +51,9 @@ def insert_data(i, sp_data, scenario_obj, variation, Stage):
                     units=Units
                 )
         if row[0] == 'Load Analysis':
-                LA_index = count + 1
-                
+            LA_index = count + 1
+        if row[0] == 'Static Variables':
+            SV_index = count + 1
     # Write out Load Analysis statistics and Static Variables
 
     LoadAnalysis = [
@@ -88,8 +89,8 @@ def insert_data(i, sp_data, scenario_obj, variation, Stage):
     if i == 0:
         
         StaticVariables = [
-            ('carbon_price', sp_data[LA_index + 8][1], '$/tCO2e'),
-            ('discount_rate', sp_data[LA_index + 10][1], '%'),
+            ('carbon_price', sp_data[SV_index][1], '$/tCO2e'),
+            ('discount_rate', sp_data[SV_index + 2][1], '%'),
         ]
         for Parameter, Value, Units in StaticVariables:
             ScenariosSettings.objects.create(
