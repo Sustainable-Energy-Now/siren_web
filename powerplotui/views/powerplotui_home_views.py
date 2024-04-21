@@ -162,12 +162,13 @@ class PowerPlotHomeView(TemplateView):
             row = row + 1
 
         # Set the response headers
+        file_name = Scenarios.objects.get(pk=idscenarios).title + '_' + variations.objects.get(pk=idvariant).variation_name
         response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-        response['Content-Disposition'] = 'attachment; filename=analysis_data.xlsx'
+        # response['Content-Disposition'] = 'attachment; filename=analysis_data.xlsx'
+        response['Content-Disposition'] = f"attachment; filename={file_name}.xlsx"
 
         # Save the workbook to the response
         workbook.save(response)
-
         return response
         
     def get(self, request):
