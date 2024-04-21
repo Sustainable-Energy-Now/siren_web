@@ -3,7 +3,9 @@
 {% extends 'powerplotui_base.html' %}
 
 {% block powerplotui_content %}
-    <p>Here you can generate various interactive plots and charts to visualize your data.</p>
+    <p>Here you can generate various plots and charts to visualize your data.  You can also export a selected Scenario/ Variant to an excel
+        spreadsheet for further processing.
+    </p>
         <div style="height: 300px; overflow-y: scroll;">
         <table class="table table-striped table-bordered">
             <thead>
@@ -27,5 +29,4 @@
     {% csrf_token %}
     {% load crispy_forms_tags %}
     {% crispy plotform %}
-
 {% endblock %}

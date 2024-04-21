@@ -10,28 +10,28 @@ class PlotForm(forms.Form):
     scenario_choices = [(scenario.idscenarios, scenario.title) for scenario in Scenarios.objects.all()]
     scenario = forms.ChoiceField(
         choices=scenario_choices,
-        initial="Select a Scenario",
-        label="Choose a Scenario",
         required=False,
+        label="Choose a Scenario",
     )
+
     variant_choices = [(variant.idvariations, variant.variation_name) for variant in variations.objects.all()]
     variant = forms.ChoiceField(
-        choices=variant_choices,
+        choices=[],
         initial="Select a Variant",
-        label="Choose a Variant"  # Custom label
+        label="Choose a Variant"
     )
-    
+
     heading_choices = [(heading, heading) for heading in Analysis.objects.values_list('heading', flat=True).distinct()]
     series_1 = forms.ChoiceField(choices=heading_choices, label='Select statistic for series 1')
     series_2 = forms.ChoiceField(choices=heading_choices, label='Select statistic for series 2')
-    
+
     component_choices = [(component, component) for component in Analysis.objects.values_list('component', flat=True).distinct()]
     series_1_component = forms.ChoiceField(choices=component_choices, label='Select component for series 1')
     series_2_component = forms.ChoiceField(choices=component_choices, label='Select component for series 2')
-    
+
     chart_type = forms.ChoiceField(
         choices=[('line', 'Line'), ('bar', 'Bar')], label='Select chart type'
-        )
+    )
     chart_specialization = forms.ChoiceField(
         choices=[
             ('', 'Select chart specialization'),
@@ -46,14 +46,18 @@ class PlotForm(forms.Form):
         label='Select chart specialization',
         required=False,
     )
+
     def __init__(self, *args, **kwargs):
+        selected_scenario = kwargs.pop('selected_scenario', None)
         super().__init__(*args, **kwargs)
-        if 'scenario' in self.data:
-            try:
-                scenario_id = int(self.data.get('scenario'))
-                self.fields['variant'].queryset = variations.objects.filter(idscenarios=scenario_id)
-            except (ValueError, TypeError):
-                pass
+
+        if selected_scenario:
+            variant_queryset = variations.objects.filter(idscenarios=selected_scenario)
+            self.fields['variant'].choices = [(variant.idvariations, variant.variation_name) for variant in variant_queryset]
+            self.fields['scenario'].initial = selected_scenario
+        else:
+            self.fields['variant'].choices = self.variant_choices
+            self.fields['scenario'].initial = "Select a Scenario"
 
         self.helper = FormHelper()
         self.helper.form_action = '/powerplotui/'
@@ -79,5 +83,6 @@ class PlotForm(forms.Form):
                 Submit('plot_type', 'Echart', formnovalidate='formnovalidate'),
                 Submit('plot_type', 'Altair', formnovalidate='formnovalidate'),
                 Submit('plot_type', 'Matplotlib', formnovalidate='formnovalidate'),
+                Submit('export', 'Export', formnovalidate='formnovalidate'),
             )
         )

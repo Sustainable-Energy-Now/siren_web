@@ -1,14 +1,16 @@
 import altair as alt
 import base64
+from django.http import HttpResponse
 from django.views.generic import TemplateView
 from django.shortcuts import render, redirect
-import io
-from siren_web.models import Analysis, Scenarios, variations
 from ..forms import PlotForm
+import io
+import logging
 import matplotlib
 matplotlib.use('Agg')  # Use the 'Agg' backend for non-interactive plotting
 import matplotlib.pyplot as plt
-import logging
+from siren_web.models import Analysis, Scenarios, variations
+import openpyxl
 import pandas as pd
 
 class PowerPlotHomeView(TemplateView):
@@ -118,6 +120,56 @@ class PowerPlotHomeView(TemplateView):
 
             return render(request, 'matplotlib.html', context)
         
+    def export_to_excel(self, request):
+        # Get the selected parameters from the request.POST
+        idscenarios = request.POST.get('scenario')
+        idvariant = request.POST.get('variant')
+
+        # Filter the Analysis data based on the selected parameters
+        analysis_queryset = Analysis.objects.filter(
+            idscenarios_id=idscenarios,
+            variation__in=[variations.objects.get(pk=idvariant).variation_name, 'Baseline'],
+        ).order_by('idanalysis')
+        stages = Analysis.objects.filter(
+            idscenarios_id=idscenarios,
+            variation__in=[variations.objects.get(pk=idvariant).variation_name, 'Baseline'],
+        ).values_list('stage', flat=True).distinct().order_by('stage')
+        # Create a new workbook and worksheet
+        workbook = openpyxl.Workbook()
+        worksheet = workbook.active
+
+        # Write the column headers
+        headers = [field.name for field in Analysis._meta.fields if field.name not in ['idanalysis', 'idscenarios']]
+        # stages = analysis_queryset.values_list('stage', flat=True).distinct()
+        headers = ['Statistic', 'Component']
+        headers.extend(['Stage ' + str(stage) for stage in stages])
+        worksheet.append(headers)
+
+        # Write the data rows
+        last_column = 0
+        for analysis in analysis_queryset:
+            column = analysis.stage + 3
+            if column != last_column:
+                row = 2
+                last_column = column
+            if column == 3:
+                cell = worksheet.cell(row=row, column=1)
+                cell.value = analysis.heading
+                cell = worksheet.cell(row=row, column=2)
+                cell.value = analysis.component
+            cell = worksheet.cell(row=row, column=column)
+            cell.value = analysis.quantity  # Set the value of the new column
+            row = row + 1
+
+        # Set the response headers
+        response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        response['Content-Disposition'] = 'attachment; filename=analysis_data.xlsx'
+
+        # Save the workbook to the response
+        workbook.save(response)
+
+        return response
+        
     def get(self, request):
         analysis_queryset = Analysis.objects.all()[:8]
         analysis_data = self.get_analysis_data(analysis_queryset)
@@ -150,6 +202,7 @@ class PowerPlotHomeView(TemplateView):
                     component__in=[series_1_component, series_2_component],
                     ).order_by('stage')
             analysis_data = self.get_analysis_data(analysis_queryset)
+            plotform = PlotForm(selected_scenario=idscenarios)
             context = {
                 'plotform': plotform,
                 'analysis_data': analysis_data,
@@ -178,5 +231,7 @@ class PowerPlotHomeView(TemplateView):
                     'chart_specialization': chart_specialization,
                 }
                 return render(request, 'echarts.html', context)
-
+        elif 'export' in request.POST:
+            return self.export_to_excel(request)
+        
         return render(request, 'powerplotui_home.html', context)
