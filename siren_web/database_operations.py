@@ -167,43 +167,6 @@ def copy_technologies_from_year0(technology_name, demand_year, scenario):
                 )
     return technology_new
 
-def relate_technologies_to_scenario(idscenarios):
-    # Query to fetch distinct idTechnologies from facilities for a given scenario
-    try:
-        scenario = Scenarios.objects.get(idscenarios=idscenarios)
-        # Get the distinct technologies for facilities that have the given scenario
-        distinct_tech_ids = facilities.objects.filter(
-             scenarios=idscenarios
-         ).values_list(
-             'idtechnologies', flat=True).distinct()
-        # distinct_tech_ids = facilities.objects.filter(
-        #     scenarios=idscenarios
-        # ).filter(Q(technologies__category='Generator') | Q(technologies__category='Storage')).values_list(
-        #     'idtechnologies', flat=True).distinct()
-        # Get the Technology instances for the distinct ids
-        technologies = Technologies.objects.filter(idtechnologies__in=distinct_tech_ids)
-        # Remove existing relationships for technologies not in the list
-        ScenariosTechnologies.objects.filter(
-            idscenarios=scenario
-        ).exclude(
-            idtechnologies__in=technologies
-        ).delete()
-            # Create relationships for technologies not already associated
-        existing_relationships = ScenariosTechnologies.objects.filter(
-            idscenarios=scenario
-        ).values_list('idtechnologies', flat=True)
-
-        for tech in technologies:
-            if tech.idtechnologies not in existing_relationships:
-                ScenariosTechnologies.objects.create(
-                    idscenarios=scenario,
-                    idtechnologies=tech
-                )
-
-        return technologies
-    except Exception as e:
-        return None
-    
 def fetch_full_generator_storage_data(demand_year):
     # Define the SQL query
     generators_query = \
@@ -315,14 +278,6 @@ def fetch_generation_storage_data(demand_year):
             technologies[tech.idtechnologies] = [tech.technology_name, tech.emissions]
             seen_technologies.add(tech.idtechnologies)
     return technologies
-
-def fetch_Storage_IDs_list(demand_year):
-    storage_technologies = Technologies.objects.filter(
-        category='Storage',
-        year__in=[0, demand_year]
-    ).values_list(
-             'idtechnologies', flat=True).distinct()
-    return storage_technologies
 
 def fetch_scenarios_data():
     try:
