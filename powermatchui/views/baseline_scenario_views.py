@@ -36,24 +36,45 @@ def baseline_scenario(request):
     runpowermatch_form = RunPowermatchForm()
 
     if request.method == 'POST' and demand_year:
-        baseline_form = BaselineScenarioForm(request.POST)
+        baseline_form = BaselineScenarioForm(request.POST, technologies=technologies)
+        if baseline_form.is_valid():
+            cleaned_data = baseline_form.cleaned_data
+            carbon_price = cleaned_data.get('carbon_price')
+            discount_rate = cleaned_data.get('discount_rate')
+            if (carbon_price != Decimal(scenario_settings['carbon_price'])):
+                    update_scenario_settings_data(scenario, 'Powermatch', 'carbon price', carbon_price)
+                    
+            if (discount_rate != Decimal(scenario_settings['discount_rate'])):
+                    update_scenario_settings_data(scenario, 'Powermatch', 'carbon price', discount_rate)
+            success_message = "No changes were made."
+            for technology in technologies:
+                idtechnologies = technology.idtechnologies
+                tech_key = f"capacity_{idtechnologies}"
+                capacity = cleaned_data.get(tech_key)
+                if (technology.capacity != float(capacity)):
+                    technology.capacity = float(capacity)
+                    technology.save()
+                    success_message = "Runtime parameters updated."
+        else:
+            # Render the form with errors
+            technologies = fetch_included_technologies_data(scenario)
+            scenario_settings = fetch_module_settings_data('Powermatch')
+            if not scenario_settings:
+                scenario_settings = fetch_scenario_settings_data(scenario)
 
-        carbon_price = request.POST.get('carbon_price')
-        discount_rate = request.POST.get('discount_rate')
-        if (carbon_price != Decimal(scenario_settings['carbon_price'])):
-                update_scenario_settings_data(scenario, 'Powermatch', 'carbon price', carbon_price)
-                
-        if (discount_rate != Decimal(scenario_settings['discount_rate'])):
-                update_scenario_settings_data(scenario, 'Powermatch', 'carbon price', discount_rate)
-        success_message = "No changes were made."
-        for technology in technologies:
-            idtechnologies = technology.idtechnologies
-            capacity = request.POST.get(f'capacity_{idtechnologies}')
-            if (technology.capacity != float(capacity)):
-                technology.capacity = float(capacity)
-                technology.save()
-                success_message = "Runtime parameters updated."
+            carbon_price = scenario_settings.get('carbon_price', None)
+            discount_rate = scenario_settings.get('discount_rate', None)
 
+            context = {
+                'baseline_form': baseline_form,
+                'runpowermatch_form': RunPowermatchForm(),
+                'technologies': technologies,
+                'scenario_settings': scenario_settings,
+                'demand_year': demand_year,
+                'scenario': scenario,
+                'success_message': 'Correct errors and resubmit.',
+            }
+            return render(request, 'baseline_scenario.html', context)
     else:
         if demand_year:
             scenario_obj = Scenarios.objects.get(title=scenario)

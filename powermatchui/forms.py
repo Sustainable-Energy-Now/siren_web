@@ -73,6 +73,28 @@ class BaselineScenarioForm(forms.Form):
             Submit('save', 'Save Runtime Parameters', css_class='btn btn-primary')
         ))
 
+    def clean(self):
+        cleaned_data = super().clean()
+
+        # Validate carbon_price
+        carbon_price = cleaned_data.get('carbon_price')
+        if carbon_price is None:
+            self.add_error('carbon_price', 'This field is required.')
+
+        # Validate discount_rate
+        discount_rate = cleaned_data.get('discount_rate')
+        if discount_rate is None:
+            self.add_error('discount_rate', 'This field is required.')
+
+        # Validate capacity for each technology
+        for technology in self.technologies:
+            tech_key = f"{technology.pk}"
+            field_name = f'capacity_{tech_key}'
+            capacity = cleaned_data.get(field_name)
+            if capacity is None:
+                self.add_error(field_name, 'This field is required.')
+        return cleaned_data
+
 class RunPowermatchForm(forms.Form):
     def __init__(self, *args, **kwargs):
         super(RunPowermatchForm, self).__init__(*args, **kwargs)
