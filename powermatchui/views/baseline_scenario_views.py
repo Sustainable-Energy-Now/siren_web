@@ -2,6 +2,7 @@
 from django.contrib.auth.decorators import login_required
 from decimal import Decimal
 from django.contrib import messages
+from django.http import HttpResponse
 from django.shortcuts import render, redirect
 from siren_web.database_operations import delete_analysis_scenario, fetch_analysis_scenario, \
     fetch_included_technologies_data, fetch_module_settings_data, fetch_scenario_settings_data, update_scenario_settings_data
@@ -140,39 +141,45 @@ def run_baseline(request):
             if save_baseline:
                 delete_analysis_scenario(scenario_obj)
             sp_output, headers, sp_pts = submit_powermatch(
-                demand_year, scenario, 'S', 1, 
+                demand_year, scenario, option, 1, 
                 None, save_baseline
                 )
-            sp_data = []
-            for row in sp_output:
-                formatted_row = []
-                for item in row:
-                    if isinstance(item, float):
-                        formatted_row.append('{:,.2f}'.format(item))
-                    else:
-                        formatted_row.append(item)
-                sp_data.append(formatted_row)
-            if save_baseline:
-                success_message = "Baseline re-established"
+            if option == 'D':
+                data_file = f"{scenario}-baseline detailed results"
+                response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+                response['Content-Disposition'] = f"attachment; filename={data_file}.xlsx"
+                sp_output.save(response)
+                return response
             else:
-                success_message = "Baseline run complete"
-            context = {
-                'sp_data': sp_data, 'headers': headers, 'sp_pts': sp_pts,
-                'success_message': success_message, 'demand_year': demand_year, 'scenario': scenario
-            }
-            return render(request, 'display_table.html', context)
+                sp_data = []
+                for row in sp_output:
+                    formatted_row = []
+                    for item in row:
+                        if isinstance(item, float):
+                            formatted_row.append('{:,.2f}'.format(item))
+                        else:
+                            formatted_row.append(item)
+                    sp_data.append(formatted_row)
+                if save_baseline:
+                    success_message = "Baseline re-established"
+                else:
+                    success_message = "Baseline run complete"
+                context = {
+                    'sp_data': sp_data, 'headers': headers, 'sp_pts': sp_pts,
+                    'success_message': success_message, 'demand_year': demand_year, 'scenario': scenario
+                }
+                return render(request, 'display_table.html', context)
                 
-        else:
-            technologies= fetch_included_technologies_data(scenario)
-            baseline_form = BaselineScenarioForm(technologies=technologies)
+        technologies= fetch_included_technologies_data(scenario)
+        baseline_form = BaselineScenarioForm(technologies=technologies)
 
-            scenario_settings = {}
-            scenario_settings = fetch_scenario_settings_data(scenario)
-            context = {
-                'baseline_form': baseline_form,
-                'runpowermatch_form': runpowermatch_form,
-                'technologies': technologies,
-                'scenario_settings': scenario_settings,
-                'demand_year': demand_year, 'scenario': scenario, 'success_message': success_message
-            }
-            return render(request, 'baseline_scenario.html', context)
+        scenario_settings = {}
+        scenario_settings = fetch_scenario_settings_data(scenario)
+        context = {
+            'baseline_form': baseline_form,
+            'runpowermatch_form': runpowermatch_form,
+            'technologies': technologies,
+            'scenario_settings': scenario_settings,
+            'demand_year': demand_year, 'scenario': scenario, 'success_message': success_message
+        }
+        return render(request, 'baseline_scenario.html', context)

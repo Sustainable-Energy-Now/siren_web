@@ -252,23 +252,25 @@ def submit_powermatch(demand_year, scenario,
         sp_data, headers, sp_pts = powerMatch.doDispatch(settings, demand_year, option, pmss_details, pmss_data, generators, re_order, 
             dispatch_order, pm_data_file, data_file, title=None)
         
-        if variation_inst:
-            variation = variation_inst.variation_name
-            Stage = i + 1
-        else:
-            variation = 'Baseline'
-            Stage = 0
-        # current_datetime = datetime.now()
-        # Stage = current_datetime.strftime('%m-%d %H:%M:%S')
+        # If the detailed option was selected then sp_data is an excel work book to be downloaded.
+        if option != 'D':
+            if variation_inst:
+                variation = variation_inst.variation_name
+                Stage = i + 1
+            else:
+                variation = 'Baseline'
+                Stage = 0
+            # current_datetime = datetime.now()
+            # Stage = current_datetime.strftime('%m-%d %H:%M:%S')
 
-        try:
-            scenario_obj = Scenarios.objects.get(title=scenario)
-            # Use the scenario object here
-        except Scenarios.DoesNotExist:
-            # Handle the case where the scenario with the given title does not exist
-            pass
-        if save_data:
-            insert_data(i, sp_data, scenario_obj, variation, Stage)
+            try:
+                scenario_obj = Scenarios.objects.get(title=scenario)
+                # Use the scenario object here
+            except Scenarios.DoesNotExist:
+                # Handle the case where the scenario with the given title does not exist
+                pass
+            if save_data:
+                insert_data(i, sp_data, scenario_obj, variation, Stage)
 
     return sp_data, headers, sp_pts
 

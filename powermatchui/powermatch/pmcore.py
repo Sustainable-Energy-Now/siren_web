@@ -20,13 +20,16 @@
 #
 # Note: Batch process is all rather messy.
 from decimal import Decimal
-import random
-import time
+# from django.http import HttpResponse
+import openpyxl as oxl
 import matplotlib.pyplot as plt
 import matplotlib
 import numpy as np
-import openpyxl as oxl
+import random
 import sys
+import time
+
+
 
 # This import registers the 3D projection, but is otherwise unused.
 
@@ -2328,58 +2331,11 @@ class powerMatch():
             fields = []
             col = 1
             row = 1
-            cs = wb.create_sheet(sheets[C].currentText())
-            if hasattr(constraints[list(constraints.keys())[0]], 'name'):
-                fields.append('name')
-                cs.cell(row=row, column=col).value = 'Name'
-                col += 1
-            for prop in dir(constraints[list(constraints.keys())[0]]):
-                if prop[:2] != '__' and prop[-2:] != '__':
-                    if prop != 'name':
-                        fields.append(prop)
-                        if prop == 'warm_time':
-                            cs.cell(row=row, column=col).value = 'Warmup Time'
-                        else:
-                            cs.cell(row=row, column=col).value = prop.replace('_', ' ').title()
-                        cs.column_dimensions[ss_col(col)].width = max(len(prop) * 1.4, 10)
-                        col += 1
-            nme_width = 4
-            cat_width = 4
-            for key, value in constraints.items():
-                if key in cons:
-                    row += 1
-                    col = 1
-                    for field in fields:
-                        cs.cell(row=row, column=col).value = getattr(value, field)
-                        if field in ['name', 'category']:
-                            txt = getattr(value, field)
-                            if field == 'name':
-                                if len(txt) > nme_width:
-                                    nme_width = len(txt)
-                                    cs.column_dimensions[ss_col(col)].width = nme_width * 1.4
-                            else:
-                                if len(txt) > cat_width:
-                                    cat_width = len(txt)
-                                    cs.column_dimensions[ss_col(col)].width = cat_width * 1.4
-                        elif field == 'warm_time':
-                            cs.cell(row=row, column=col).number_format = '#0.00'
-                        elif field != 'category':
-                            cs.cell(row=row, column=col).number_format = '#,##0%'
-                        col += 1
-            for row in range(1, row + 1):
-                for col in range(1, len(fields) + 1):
-                    try:
-                        cs.cell(row=row, column=col).font = normal
-                    except:
-                        pass
-            cs.freeze_panes = 'B2'
-            cs.activeCell = 'B2'
-        wb.save(data_file)
+        # wb.save(data_file)
         j = data_file.rfind('/')
         data_file = data_file[j + 1:]
-        msg = '%s created (%.2f seconds)' % (data_file, time.time() - start_time)
-        msg = '%s created.' % data_file
-
+        return wb, None, None
+        
     def setStatus(self, text):
         print(text)
 
