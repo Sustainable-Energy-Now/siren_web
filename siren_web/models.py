@@ -87,7 +87,9 @@ class Genetics(models.Model):
         db_table_comment = 'Parameters used for genetic optimisation'
         
 class Optimisation(models.Model):
-    idoptimisation = models.AutoField(db_column='idOptimisation', primary_key=True)  
+    idoptimisation = models.AutoField(db_column='idOptimisation', primary_key=True)
+    idscenarios = models.ForeignKey('Scenarios', on_delete=models.CASCADE, db_column='idScenarios')
+    idtechnologies = models.ForeignKey('Technologies', on_delete=models.RESTRICT, db_column='idTechnologies')
     name = models.CharField(db_column='Name', max_length=45, blank=True, null=True)  
     approach = models.CharField(db_column='Approach', max_length=45, blank=True, null=True)  
     capacity = models.FloatField(db_column='Capacity', null=True)  
@@ -205,8 +207,8 @@ class Technologies(models.Model):
 
 class variations(models.Model):
     idvariations = models.AutoField(db_column='idvariations', primary_key=True)  
-    idscenarios = models.ForeignKey('Scenarios', models.DO_NOTHING, db_column='idScenarios', blank=True, null=True)
-    idtechnologies = models.ForeignKey('Technologies', models.RESTRICT, db_column='idTechnologies')  
+    idscenarios = models.ForeignKey('Scenarios', models.CASCADE, db_column='idScenarios', null=True)
+    idtechnologies = models.ForeignKey('Technologies', models.RESTRICT, db_column='idTechnologies')
     variation_name = models.CharField(max_length=45, blank=True, null=True)
     variation_description = models.CharField(max_length=250, blank=True, null=True)
     dimension = models.CharField(max_length=30, blank=True, null=True)

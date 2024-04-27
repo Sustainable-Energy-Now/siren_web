@@ -1,4 +1,5 @@
 # forms.py
+from decimal import Decimal
 from django import forms
 from siren_web.models import Scenarios, Technologies, variations
 from django.template.loader import render_to_string
@@ -49,29 +50,40 @@ class BaselineScenarioForm(forms.Form):
             initial=self.discount_rate,
             required=False
         )
-        self.helper.layout.fields.append(Div(
-            Field('carbon_price', css_class='form-control'),
-            Field('discount_rate', css_class='form-control'),
-            css_class='form-group'
-        ))
-        
-        # Create fields for each technology
-        for technology in self.technologies:
+        self.helper.layout.fields.append(
+            Div(
+                HTML("<hr>"),
+                Row(
+                    Column('carbon_price', css_class='form-group col-md-6 mb-0'),
+                    Column('discount_rate', css_class='form-group col-md-6 mb-0'),
+                    css_class='form-row'
+                    )
+                ),
+            )
+       # Create fields for each technology
+        rows = []
+        current_row = []
+        for i, technology in enumerate(self.technologies):
             tech_key = f"{technology.pk}"
             field_name = f'capacity_{tech_key}'
             self.fields[field_name] = forms.DecimalField(
-                label=technology.technology_name,
-                initial=technology.capacity,
-                required=False
+                label=technology.technology_name, initial=technology.capacity, required=False)
+            current_row.append(
+                Column(Field(field_name, css_class='form-control'), 
+                css_class='form-group col-md-3 mb-0')
             )
-            self.helper.layout.fields.append(Div(
-                Field(field_name, css_class='form-control'),
-                css_class='form-group'
-            ))
-            
-        self.helper.layout.append(FormActions(
-            Submit('save', 'Save Runtime Parameters', css_class='btn btn-primary')
-        ))
+            if (i + 1) % 4 == 0 or i == len(self.technologies) - 1:
+                rows.append(Row(*current_row, css_class='form-row'))
+                current_row = []
+
+        self.helper.layout.extend([
+            HTML("<hr>"),
+            *rows,
+            HTML("<hr>"),
+            FormActions(
+                Submit('save', 'Save Runtime Parameters', css_class='btn btn-primary')
+            )
+        ])
 
     def clean(self):
         cleaned_data = super().clean()
@@ -241,15 +253,68 @@ class RunVariationForm(forms.Form):
 
         return updated_data
 
-class RunOptimisationForm(forms.Form):
-    LEVEL_OF_DETAIL_CHOICES = [
-    ('Summary', 'Summary'),
-    ('Detailed', 'Detailed'),
-    ]
-    
-    level_of_detail = forms.ChoiceField(
-        choices=LEVEL_OF_DETAIL_CHOICES, 
-        initial='Summary', widget=forms.RadioSelect
+class OptimisationForm(forms.Form):
+    def __init__(self, *args, **kwargs):
+        self.technologies = kwargs.pop('technologies')
+        self.scenario_settings = kwargs.pop('scenario_settings')
+        super(OptimisationForm, self).__init__(*args, **kwargs)
+        self.fields['optimise_choice'] = forms.ChoiceField(
+            choices=[
+                ('LCOE', 'LCOE'), 
+                ('Multi', 'Multi'), 
+                ('Both', 'Both')
+            ], 
+            label='Optimisation Choice'
+        )
+        self.lcoe = self.scenario_settings['optimise_lcoe'].split(',')
+        self.fields['LCOE_Weight'] = forms.FloatField(label='LCOE Weight', initial=self.lcoe[0])
+        self.fields['LCOE_Better']  = forms.FloatField(label='LCOE Better', initial=self.lcoe[1])
+        self.fields['LCOE_Worse']  = forms.FloatField(label='LCOE Worse', initial=self.lcoe[2])
+        self.load_pct  = self.scenario_settings['optimise_load_pct'].split(',')
+        self.fields['Load_Weight']  = forms.FloatField(label='Load Weight', initial=self.load_pct[0])
+        self.fields['Load_Better']  = forms.FloatField(label='Load Better', initial=self.load_pct[1])
+        self.fields['Load_Worse']  = forms.FloatField(label='Load Worse', initial=self.load_pct[2])
+        self.surplus = self.scenario_settings['optimise_surplus'].split(',')
+        self.fields['Surplus_Weight']  = forms.FloatField(label='Surplus Weight', initial=self.surplus[0])
+        self.fields['Surplus_Better']  = forms.FloatField(label='Surplus Better', initial=self.surplus[1])
+        self.fields['Surplus_Worse']  = forms.FloatField(label='Surplus Worse', initial=self.surplus[2])
+        self.re_pct  = self.scenario_settings['optimise_re_pct'].split(',')
+        self.fields['RE_Weight']  = forms.FloatField(label='RE Weight', initial=self.re_pct[0])
+        self.fields['RE_Better']  = forms.FloatField(label='RE Better', initial=self.re_pct[1])
+        self.fields['RE_Worse']  = forms.FloatField(label='RE Worse', initial=self.re_pct[2])
+        self.cost = self.scenario_settings['optimise_cost'].split(',')
+        self.fields['Cost_Weight']  = forms.FloatField(label='Cost Weight', initial=self.cost[0])
+        self.fields['Cost_Better']  = forms.FloatField(label='Cost Better', initial=self.cost[1])
+        self.fields['Cost_Worse']  = forms.FloatField(label='Cost Worse', initial=self.cost[2])
+        self.co2  = self.scenario_settings['optimise_co2'].split(',')
+        self.fields['CO2_Weight']  = forms.FloatField(label='CO2 Weight', initial=self.co2[0])
+        self.fields['CO2_Better']  = forms.FloatField(label='CO2 Better', initial=self.co2[1])
+        self.fields['CO2_Worse']  = forms.FloatField(label='CO2 Worse', initial=self.co2[2])
+        self.helper = FormHelper()
+        self.helper.form_action = '/optimisation/'
+        self.helper.layout = Layout(
+            HTML("<hr>"),
+            Div(
+                Field('optimise_choice', css_class='form-control'),
+                css_class='form-group'
+            ),
+            HTML("<hr>"),
+            Row(
+                Column('LCOE_Weight', 'LCOE_Better', 'LCOE_Worse', css_class='form-group col-md-4 mb-0'),
+                Column('Load_Weight', 'Load_Better', 'Load_Worse', css_class='form-group col-md-4 mb-0'),
+                Column('Surplus_Weight', 'Surplus_Better', 'Surplus_Worse', css_class='form-group col-md-4 mb-0'),
+                css_class='form-row'
+            ),
+            Row(
+                Column('RE_Weight', 'RE_Better', 'RE_Worse', css_class='form-group col-md-4 mb-0'),
+                Column('Cost_Weight', 'Cost_Better', 'Cost_Worse', css_class='form-group col-md-4 mb-0'),
+                Column('CO2_Weight', 'CO2_Better', 'CO2_Worse', css_class='form-group col-md-4 mb-0'),
+                css_class='form-row'
+            ),
+            HTML("<hr>"),
+            FormActions(
+                Submit('submit', 'Run Optimisation',  css_class='btn btn-primary'),
+            )
         )
 
 class SelectVariationForm(forms.Form):

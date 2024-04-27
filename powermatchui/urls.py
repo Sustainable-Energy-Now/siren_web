@@ -15,7 +15,7 @@ urlpatterns = [
     path('variation/', variations_views.setup_variation, name='setup_variation'),
     path('variations/', variations_views.run_variations, name='run_variations'),
     path('baseline_scenario/', baseline_scenario_views.baseline_scenario, name='baseline_scenario'),
-    # path('optimisation/', optimisation_views.run_optimisation, name='run_optimisation'),
-    path('optimisation/', under_construction_views.under_construction, name='under_construction'),
+    path('optimisation/', optimisation_views.run_optimisation, name='run_optimisation'),
+    # path('optimisation/', under_construction_views.under_construction, name='under_construction'),
     # Add additional URL patterns here if needed
 ]
