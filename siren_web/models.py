@@ -86,7 +86,7 @@ class Genetics(models.Model):
         db_table = 'Genetics'
         db_table_comment = 'Parameters used for genetic optimisation'
         
-class Optimisation(models.Model):
+class Optimisations(models.Model):
     idoptimisation = models.AutoField(db_column='idOptimisation', primary_key=True)
     idscenarios = models.ForeignKey('Scenarios', on_delete=models.CASCADE, db_column='idScenarios')
     idtechnologies = models.ForeignKey('Technologies', on_delete=models.RESTRICT, db_column='idTechnologies')
@@ -98,7 +98,7 @@ class Optimisation(models.Model):
     capacitystep = models.FloatField(db_column='CapacityStep', null=True)  
 
     class Meta:
-        db_table = 'Optimisation'
+        db_table = 'Optimisations'
         
 class ScenariosFacilities(models.Model):
     idscenariosfacilities = models.AutoField(primary_key=True)  

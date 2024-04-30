@@ -251,7 +251,9 @@ def submit_powermatch(demand_year, scenario,
 
         sp_data, headers, sp_pts = powerMatch.doDispatch(settings, demand_year, option, pmss_details, pmss_data, generators, re_order, 
             dispatch_order, pm_data_file, data_file, title=None)
-        
+        # if option == 'O':
+        #     message = ex.optClicked(load_year, option, pmss_details, 
+        #     pmss_data, re_order, dispatch_order, OptParms, optimisation, None, None)
         # If the detailed option was selected then sp_data is an excel work book to be downloaded.
         if option != 'D':
             if variation_inst:

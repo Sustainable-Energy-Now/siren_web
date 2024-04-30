@@ -5,7 +5,7 @@ from django.shortcuts import render, get_object_or_404
 from django.urls import reverse
 from django.http import HttpResponse, JsonResponse
 from siren_web.models import Analysis, Demand, facilities, Generatorattributes, \
-    Genetics, Optimisation, sirensystem, Scenarios, Settings, Storageattributes, supplyfactors, Technologies, Zones
+    Genetics, Optimisations, sirensystem, Scenarios, Settings, Storageattributes, supplyfactors, Technologies, Zones
 
 
 def get_description(name, sirensystem_model):
@@ -70,7 +70,7 @@ def home_view(request):
             'Facilities': facilities,
             'Generatorattributes': Generatorattributes,
             'Genetics': Genetics,
-            'Optimisation': Optimisation,
+            'Optimisations': Optimisations,
             'Scenarios': Scenarios,
             'Settings': Settings,
             'Storageattributes': Storageattributes,

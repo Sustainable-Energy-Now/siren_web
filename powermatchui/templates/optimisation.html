@@ -16,5 +16,9 @@
     {% if optimisationform %}
         {% load crispy_forms_tags %}
         {% crispy optimisationform %}
+        <form method="post" action="{% url 'run_optimisation' %}">
+            {% csrf_token %}
+            <button type="submit" css_class='btn btn-primary'>Run Optimisation</button>
+        </form>
     {% endif %}
 {% endblock %}

@@ -3,10 +3,10 @@ from django.db import connection
 from django.http import HttpResponse
 import logging
 from django.db.models import Q, F, Sum, Count
-from siren_web.models import Analysis, Demand, facilities, Generatorattributes, Scenarios, \
-    ScenariosTechnologies, ScenariosSettings, Settings, Storageattributes, supplyfactors, \
+from siren_web.models import Analysis, Demand, facilities, Generatorattributes, Optimisations, \
+    Scenarios, ScenariosTechnologies, ScenariosSettings, Settings, Storageattributes, supplyfactors, \
     Technologies, variations, Zones
-from powermatchui.powermatch.pmcore import PM_Facility, Optimisation
+from powermatchui.powermatch.pmcore import Facility, PM_Facility, Optimisation
 
 def delete_analysis_scenario(idscenario):
     Analysis.objects.filter(
@@ -209,6 +209,91 @@ def fetch_full_generator_storage_data(demand_year):
         print("Error executing query:", e)
         # Get the column names
 
+def fetch_generators_parameter(demand_year, scenario, pmss_details, max_col):
+    generators = {}
+    dispatch_order = []
+    re_order = ['Load']
+    technologies_result = fetch_included_technologies_data(scenario)
+
+    # Process the results
+    fuel = None
+    recharge_max = None
+    recharge_loss = None
+    discharge_max = None
+    discharge_loss = None
+    parasitic_loss = None
+    for technology_row in technologies_result:      # Create a dictionary of Facilities objects
+        name = technology_row.technology_name
+        if name not in generators:
+            generators[name] = {}
+        if (technology_row.category == 'Generator'):
+            try:
+                generator_qs = Generatorattributes.objects.filter(
+                    idtechnologies=technology_row,
+                    year=demand_year,
+                ).order_by('-year')
+                generator = generator_qs[0]
+                fuel = generator.fuel
+                area = generator.area
+            except Generatorattributes.DoesNotExist:
+                # Handle the case where no matching generator object is found
+                generator = None
+
+        elif (technology_row.category == 'Storage'):
+            try:
+                storage_qs = Storageattributes.objects.filter(
+                    idtechnologies=technology_row,
+                    year=demand_year,
+                ).order_by('-year')
+                storage= storage_qs[0]
+                recharge_max = storage.recharge_max
+                recharge_loss = storage.recharge_loss
+                discharge_max = storage.discharge_max
+                discharge_loss = storage.discharge_loss
+                parasitic_loss = storage.parasitic_loss
+            except Storageattributes.DoesNotExist:
+                # Handle the case where no matching storage object is found
+                storage = None
+            
+        scenario_obj = Scenarios.objects.get(title=scenario)
+        merit_order = ScenariosTechnologies.objects.filter(
+            idscenarios=scenario_obj,
+            idtechnologies=technology_row
+            ).values_list('merit_order', flat=True)
+        generators[name] = Facility(
+            generator_name=name, category=technology_row.category, capacity=technology_row.capacity,
+            constr=technology_row.technology_name,
+            capacity_max=technology_row.capacity_max, capacity_min=technology_row.capacity_min,
+            recharge_max=recharge_max, recharge_loss=recharge_loss,
+            min_runtime=0, warm_time=0,
+            discharge_max=discharge_max,
+            discharge_loss=discharge_loss, parasitic_loss=parasitic_loss,
+            emissions=technology_row.emissions, initial=technology_row.initial, order=merit_order[0], 
+            capex=technology_row.capex, fixed_om=technology_row.fom, variable_om=technology_row.vom,
+            fuel=fuel, lifetime=technology_row.lifetime, area=area, disc_rate=technology_row.discount_rate,
+            lcoe=technology_row.lcoe, lcoe_cfs=technology_row.lcoe_cf )
+
+        renewable = technology_row.renewable
+        category = technology_row.category
+        if (renewable and category != 'Storage'):
+            if (name not in re_order):
+                re_order.append(name)
+                
+        dispatchable=technology_row.dispatchable
+        if (dispatchable):
+            if (name not in dispatch_order) and (name not in re_order):
+                dispatch_order.append(name)
+        capacity = technology_row.capacity
+        if name not in pmss_details: # if not already included
+            if (category == 'Storage'):
+                pmss_details[name] = PM_Facility(name, name, capacity, 'S', -1, 1)
+            else:
+                typ = 'G'
+                if renewable:
+                    typ = 'R'
+                pmss_details[name] = PM_Facility(name, name, capacity, typ, ++max_col, 1)
+    return generators, dispatch_order, re_order, pmss_details
+
 def get_emission_color(emissions):
     if emissions < 0.3:
         return '#c8e6c9'  # Light green
@@ -329,6 +414,15 @@ def fetch_module_settings_data(sw_context):
         # Handle any errors that occur during the database query
         return None
     return settings
+
+def fetch_optimisation_data(scenario):
+    try:
+        scenario_obj = Scenarios.objects.get(title=scenario)
+        optimisation_data = Optimisations.objects.filter(idscenarios=scenario_obj)
+    except Exception as e:
+        # Handle any errors that occur during the database query
+        return None
+    return optimisation_data
 
 def fetch_scenario_settings_data(scenario):
     try:
