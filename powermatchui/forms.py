@@ -256,7 +256,6 @@ class RunVariationForm(forms.Form):
 class OptimisationForm(forms.Form):
     def __init__(self, *args, **kwargs):
         self.scenario_settings = kwargs.pop('scenario_settings', [])
-        self.optimisation_data = kwargs.pop('optimisation_data', [])
         super(OptimisationForm, self).__init__(*args, **kwargs)
         self.helper = FormHelper()
         self.fields['choice'] = forms.ChoiceField(
@@ -269,26 +268,22 @@ class OptimisationForm(forms.Form):
             initial=self.scenario_settings['choice']
         )
 
-        self.fields['optGenn'] = forms.FloatField(label='Generations', initial=self.scenario_settings['optGenn'])
-        self.fields['mutation'] = forms.FloatField(label='Mutation', initial=self.scenario_settings['mutation'])
-        self.fields['optPopn'] = forms.FloatField(label='Population', initial=self.scenario_settings['optPopn'])
-        self.fields['stop'] = forms.FloatField(label='Stop', initial=self.scenario_settings['stop'])
-        self.fields['optLoad'] = forms.FloatField(label='OptLoad', initial=self.scenario_settings['optLoad'])
-        self.fields['optMutn'] = forms.FloatField(label='OptMutn', initial=self.scenario_settings['optMutn'])
-        self.fields['optStop'] = forms.FloatField(label='OptStop', initial=self.scenario_settings['optStop'])
+        self.fields['optGenn'] = forms.FloatField(label='Number of Generations', initial=self.scenario_settings['optGenn'])
+        self.fields['optPopn'] = forms.FloatField(label='Population size', initial=self.scenario_settings['optPopn'])
+        self.fields['optLoad'] = forms.FloatField(label='Adjust Load', initial=self.scenario_settings['optLoad'])
+        self.fields['MutnProb'] = forms.FloatField(label='Mutation Probability', initial=self.scenario_settings['MutnProb'])
+        self.fields['optStop'] = forms.FloatField(label='Exit if Stable', initial=self.scenario_settings['optStop'])
         self.helper.layout = Layout(
             HTML("<hr>"),
             Row(
                 Column('choice', css_class='form-group col-md-3 mb-0'),
                 Column('optGenn', css_class='form-group col-md-3 mb-0'),
-                Column('mutation', css_class='form-group col-md-3 mb-0'),
                 Column('optPopn', css_class='form-group col-md-3 mb-0'),
                 css_class='form-row'
             ),
             Row(
-                Column('stop', css_class='form-group col-md-3 mb-0'),
                 Column('optLoad', css_class='form-group col-md-3 mb-0'),
-                Column('optMutn', css_class='form-group col-md-3 mb-0'),
+                Column('MutnProb', css_class='form-group col-md-3 mb-0'),
                 Column('optStop', css_class='form-group col-md-3 mb-0'),
                 css_class='form-row'
             ),
@@ -333,72 +328,9 @@ class OptimisationForm(forms.Form):
                 css_class='form-row'
             ),
         ])
-        # Create Technology Optimisation model fields
-        for optimisation in self.optimisation_data:
-            tech_key = f"{optimisation.idtechnologies.pk}"
-            field_name = f'capacity_{tech_key}'
-            self.fields[field_name] = forms.FloatField(
-                label=optimisation.idtechnologies.technology_name,
-                initial=optimisation.capacity,
-                required=False
-            )
-            self.fields[f'capacitymax_{tech_key}'] = forms.FloatField(
-                label=f"{optimisation.idtechnologies.technology_name} Max Capacity",
-                initial=optimisation.capacitymax,
-                required=False
-            )
-            self.fields[f'capacitymin_{tech_key}'] = forms.FloatField(
-                label=f"{optimisation.idtechnologies.technology_name} Min Capacity",
-                initial=optimisation.capacitymin,
-                required=False
-            )
-            self.fields[f'capacitystep_{tech_key}'] = forms.FloatField(
-                label=f"{optimisation.idtechnologies.technology_name} Capacity Step",
-                initial=optimisation.capacitystep,
-                required=False
-            )
-
-        # Create fields for Optimisation model
-        optimisation_rows = []
-        current_row = []
-        for i, optimisation in enumerate(self.optimisation_data):
-            tech_key = f"{optimisation.idtechnologies.pk}"
-            self.fields[f'capacity_{tech_key}'] = forms.FloatField(
-                label=f"{optimisation.idtechnologies.technology_name} Capacity",
-                initial=optimisation.capacity,
-                required=False
-            )
-            self.fields[f'capacitymax_{tech_key}'] = forms.FloatField(
-                label=f"{optimisation.idtechnologies.technology_name} Max Capacity",
-                initial=optimisation.capacitymax,
-                required=False
-            )
-            self.fields[f'capacitymin_{tech_key}'] = forms.FloatField(
-                label=f"{optimisation.idtechnologies.technology_name} Min Capacity",
-                initial=optimisation.capacitymin,
-                required=False
-            )
-            self.fields[f'capacitystep_{tech_key}'] = forms.FloatField(
-                label=f"{optimisation.idtechnologies.technology_name} Capacity Step",
-                initial=optimisation.capacitystep,
-                required=False
-            )
-            current_row.append(Column(
-                Field(f'capacity_{tech_key}', css_class='form-control'),
-                Field(f'capacitymax_{tech_key}', css_class='form-control'),
-                Field(f'capacitymin_{tech_key}', css_class='form-control'),
-                Field(f'capacitystep_{tech_key}', css_class='form-control'),
-                css_class='form-group col-md-6 mb-0')
-            )
-
-            if (i + 1) % 2 == 0 or i == len(self.optimisation_data) - 1:
-                optimisation_rows.append(Row(*current_row, css_class='form-row'))
-                current_row = []
 
         self.helper.form_action = '/optimisation/'
         self.helper.layout.extend([
-            HTML("<hr>"),
-            *optimisation_rows,
             HTML("<hr>"),
             FormActions(
                 Submit('save', 'Save Runtime Parameters', css_class='btn btn-primary')
@@ -409,11 +341,9 @@ class OptimisationForm(forms.Form):
         cleaned_data = super().clean()
         choice = cleaned_data.get('choice')
         optGenn = cleaned_data.get('optGenn')
-        mutation = cleaned_data.get('mutation')
         optPopn = cleaned_data.get('optPopn')
-        stop = cleaned_data.get('stop')
         optLoad = cleaned_data.get('optLoad')
-        optMutn = cleaned_data.get('optMutn')
+        MutnProb = cleaned_data.get('MutnProb')
         optStop = cleaned_data.get('optStop')
 
         # Validate input fixed fields
@@ -442,19 +372,6 @@ class OptimisationForm(forms.Form):
         CO2_Worse = cleaned_data.get('CO2_Worse')
         # if CO2_Weight is None:
         #     self.add_error('CO2_Weight', 'This field is required.')
-        # Validate optimisation fields
-        for optimisation in self.optimisation_data:
-            tech_key = f"{optimisation.idtechnologies.pk}"
-            capacity_fn = f'capacity_{tech_key}'
-            capacity = cleaned_data.get(capacity_fn)
-            if capacity is None:
-                self.add_error(capacity_fn, 'This field is required.')
-            capacitymax_fn = f'capacity_{tech_key}'
-            capacitymax = cleaned_data.get(capacitymax_fn)
-            capacitymin_fn = f'capacity_{tech_key}'
-            capacitymin = cleaned_data.get(capacitymin_fn)
-            capacitystep_fn = f'capacity_{tech_key}'
-            capacitystep = cleaned_data.get(capacitystep_fn)
         return cleaned_data
     
 class SelectVariationForm(forms.Form):

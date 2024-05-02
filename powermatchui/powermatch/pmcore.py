@@ -2340,7 +2340,7 @@ class powerMatch():
         
     @staticmethod
     def optClicked(settings, in_year, in_option, in_pmss_details, in_pmss_data, generators, in_re_order,
-                   in_dispatch_order, OptParms, optimisation, pm_data_file, data_file):
+                   in_dispatch_order, OptParms, pm_data_file, data_file):
         def create_starting_population(individuals, chromosome_length):
             # Set up an initial array of all zeros
             population = np.zeros((individuals, chromosome_length))
@@ -2714,7 +2714,6 @@ class powerMatch():
         re_order = in_re_order[:]
         dispatch_order = in_dispatch_order[:]
         debug = False
-        optimisation
         optExit = False
         err_msg = ''
         optLoad = OptParms['optLoad']
@@ -2723,8 +2722,8 @@ class powerMatch():
         optimise_population = int(optPopn)
         optGenn = OptParms['optGenn']
         optimise_generations = optGenn
-        optMutn = OptParms['optMutn']
-        optimise_mutation = Decimal(optMutn)
+        MutnProb = OptParms['MutnProb']
+        optimise_mutation = Decimal(MutnProb)
         optimise_stop = int(OptParms['optStop'])
         optimise_choice = OptParms['choice']
         optimise_progress = 0

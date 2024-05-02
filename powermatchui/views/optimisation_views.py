@@ -14,18 +14,14 @@ def home(request):
     scenarios = Scenarios.objects.all()  # Retrieve all scenarios from the database
     return render(request, 'home.html', {'scenarios': scenarios})
 
-def clear_scenario(request, scenario_id):
-    # Logic to clear scenario with the given ID from the database
-    return HttpResponse("Scenario has been cleared.")  # Return a response indicating success
-
 def check_update_single_settings(scenario, cleaned_data, scenario_settings, parameter):
-    if (cleaned_data.get(parameter) != scenario_settings[parameter]):
-        update_scenario_settings_data(scenario, 'Optimisation', parameter, cleaned_data.get(parameter))
+    # if (cleaned_data.get(parameter) != scenario_settings[parameter]):
+    update_scenario_settings_data(scenario, 'Optimisation', parameter, cleaned_data.get(parameter))
 
 def check_update_triple_settings(scenario, scenario_settings, weight, better, worse, parameter):
     new_value = str(weight) + ',' + str(better) + ',' + str(worse)
-    if (new_value != scenario_settings[parameter]):
-        update_scenario_settings_data(scenario, 'Optimisation', parameter, new_value)
+    # if (new_value != scenario_settings[parameter]):
+    update_scenario_settings_data(scenario, 'Optimisation', parameter, new_value)
 
 # Process form data
 @login_required
@@ -38,32 +34,20 @@ def optimisation(request):
     if not demand_year:
         success_message = "Set the demand year and scenario in the home page first."
     else:
-        scenario_settings = fetch_module_settings_data('Optimisation')
+        scenario_settings = fetch_scenario_settings_data(scenario)
         if not scenario_settings:
-            scenario_settings = fetch_scenario_settings_data(scenario)
+            scenario_settings = fetch_module_settings_data('Optimisation')
         technologies = fetch_included_technologies_data(scenario)
-        optimisation_data = fetch_optimisation_data(scenario)
-        if not optimisation_data:
-            # If no optimisation data found, populate it using the capacities from technologies
-            optimisation_data = {}
-            for technology in technologies:
-                optimisation_instance = Optimisations(
-                    idscenarios=Scenarios.objects.get(idscenarios=scenario),
-                    idtechnologies=technology,
-                    capacity=technology.capacity
-                )
-                optimisation_data.append(optimisation_instance)
-        optimisationform = OptimisationForm(scenario_settings=scenario_settings, optimisation_data=optimisation_data)
+        optimisationform = OptimisationForm(scenario_settings=scenario_settings)
 
         if request.method == 'POST':
             # Handle form submission
-            optimisationform = OptimisationForm(request.POST, scenario_settings=scenario_settings, optimisation_data=optimisation_data)
+            optimisationform = OptimisationForm(request.POST, scenario_settings=scenario_settings)
             if optimisationform.is_valid():
                 # Process form data
                 cleaned_data = optimisationform.cleaned_data
                 for parameter in [
-                    'choice', 'optGenn', 'mutation', 
-                    'optPopn', 'stop', 'optLoad', 'optMutn', 'optStop'
+                    'choice', 'optGenn', 'optPopn', 'optLoad', 'MutnProb', 'optStop'
                     ]:
                     check_update_single_settings(
                         scenario,
@@ -71,13 +55,6 @@ def optimisation(request):
                         cleaned_data,
                         parameter
                     )
-                check_update_triple_settings(
-                    scenario,
-                    scenario_settings,
-                    cleaned_data.get('LCOE_Weight'), 
-                    cleaned_data.get('LCOE_Better'), 
-                    cleaned_data.get('LCOE_Worse'), 
-                    'lcoe')
                 check_update_triple_settings(
                     scenario,
                     scenario_settings,
@@ -109,30 +86,17 @@ def optimisation(request):
                 check_update_triple_settings(
                     scenario,
                     scenario_settings,
-                    cleaned_data.get('cost_Weight'), 
-                    cleaned_data.get('cost_Better'), 
-                    cleaned_data.get('cost_Worse'), 
+                    cleaned_data.get('Cost_Weight'), 
+                    cleaned_data.get('Cost_Better'), 
+                    cleaned_data.get('Cost_Worse'), 
                     'cost')
                 check_update_triple_settings(
                     scenario,
                     scenario_settings,
-                    cleaned_data.get('co2_Weight'), 
-                    cleaned_data.get('co2_Better'), 
-                    cleaned_data.get('co2_Worse'), 
+                    cleaned_data.get('CO2_Weight'), 
+                    cleaned_data.get('CO2_Better'), 
+                    cleaned_data.get('CO2_Worse'), 
                     'co2')
-            for optimisation in optimisation_data:
-                tech_key = f"{optimisation.idtechnologies.pk}"
-                if (
-                    cleaned_data.get(f'capacity_{tech_key}') != optimisation.capacity or
-                    cleaned_data.get(f'capacitymax_{tech_key}') != optimisation.capacitymax or
-                    cleaned_data.get(f'capacitymin_{tech_key}') != optimisation.capacitymin or
-                    cleaned_data.get(f'capacitystep_{tech_key}') != optimisation.capacitystep
-                ):
-                    optimisation.capacity = cleaned_data.get(f'capacity_{tech_key}')
-                    optimisation.capacitymax = cleaned_data.get(f'capacitymax_{tech_key}')
-                    optimisation.capacitymin = cleaned_data.get(f'capacitymin_{tech_key}')
-                    optimisation.capacitystep = cleaned_data.get(f'capacitystep_{tech_key}')
-                    optimisation.save()
                 
             success_message = "Optimisation Parameters have been updated."
 
@@ -163,10 +127,9 @@ def run_optimisation(request):
             Q(idscenarios=scenario_obj) & Q(sw_context='Optimisation')
         ).values('parameter', 'value')
         OptParms = {setting['parameter']: setting['value'] for setting in opt_settings_data}
-        optimisation_data = fetch_optimisation_data(scenario)
         message = powerMatch.optClicked(
             settings, demand_year, option, pmss_details, pmss_data, generators, re_order, 
-            dispatch_order, OptParms, optimisation_data, None, None
+            dispatch_order, OptParms, None, None
         )
 
     context = {
