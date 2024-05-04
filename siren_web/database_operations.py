@@ -69,10 +69,11 @@ def fetch_supplyfactors_data(demand_year):
         # Create a dictionary of supplyfactors from the model 
         pmss_data = {}
         pmss_details = {} # contains name, generator, capacity, fac_type, col, multiplier
-        pmss_details['Load'] = PM_Facility('Load', 'Load', 1, 'L', 0, 1)
+        pmss_details['Load'] = PM_Facility('Load', 'Load', 1, 'L', 0, float(1.0))
         for supplyfactors_row in supplyfactors_query:
             name = supplyfactors_row.idtechnologies.technology_name # type: ignore
             idtechnologies = supplyfactors_row.idtechnologies.idtechnologies
+            multiplier = float(supplyfactors_row.idtechnologies.mult)
             col = supplyfactors_row.col
             load = supplyfactors_row.quantum
             if col not in pmss_data:
@@ -82,7 +83,7 @@ def fetch_supplyfactors_data(demand_year):
             if (name != 'Load'):
                 if name not in pmss_details: # type: ignore
                     capacity = supplyfactors_row.idtechnologies.capacity
-                    pmss_details[name] = PM_Facility(name, name, capacity, 'R', col, 1)
+                    pmss_details[name] = PM_Facility(name, name, capacity, 'R', col, multiplier)
     except Exception as e:
         # Handle any errors that occur during the database query
         return HttpResponse(f"Error fetching supplyfactors data: {e}", status=500), None
@@ -263,7 +264,10 @@ def fetch_generators_parameter(demand_year, scenario, pmss_details, max_col):
         generators[name] = Facility(
             generator_name=name, category=technology_row.category, capacity=technology_row.capacity,
             constr=technology_row.technology_name,
+            approach=technology_row.approach,
             capacity_max=technology_row.capacity_max, capacity_min=technology_row.capacity_min,
+            multiplier=technology_row.mult,
+            capacity_step=technology_row.capacity_step,
             recharge_max=recharge_max, recharge_loss=recharge_loss,
             min_runtime=0, warm_time=0,
             discharge_max=discharge_max,
@@ -418,11 +422,31 @@ def fetch_module_settings_data(sw_context):
 def fetch_optimisation_data(scenario):
     try:
         scenario_obj = Scenarios.objects.get(title=scenario)
-        optimisation_data = Optimisations.objects.filter(idscenarios=scenario_obj)
+        # Get the list of included technologies
+        optimisation_data = Technologies.objects \
+            .values(
+                'idtechnologies', 'technology_name', 'approach', 'capacity', 'capacity_max','capacity_min', 
+                'capacity_step', 'capacities').filter(
+            scenarios=scenario_obj,
+            # category__in=['Generator', 'Storage'],  # Use double underscores for related field lookups
+            scenariostechnologies__merit_order__lt=100
+        ).order_by('scenariostechnologies__merit_order')
     except Exception as e:
         # Handle any errors that occur during the database query
         return None
     return optimisation_data
+
+def update_optimisation_data(scenario, idtechnologies, approach, capacity, capacity_max, capacity_min, capacity_step,
+    capacities):
+    Technology = Technologies.objects.get(idtechnologies=idtechnologies)
+    Technology.approach = approach
+    Technology.capacity = capacity
+    Technology.capacity_max = capacity_max
+    Technology.capacity_min = capacity_min
+    Technology.capacity_step = capacity_step
+    Technology.capacities = capacities
+    Technology.save
+    return Technology
 
 def fetch_scenario_settings_data(scenario):
     try:

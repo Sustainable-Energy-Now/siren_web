@@ -199,6 +199,7 @@ class Technologies(models.Model):
     capacity_max = models.FloatField(null=True)
     capacity_min = models.FloatField(null=True)
     capacity_step = models.FloatField(null=True)
+    capacities = models.CharField(max_length=50, blank=True, null=True)
     emissions = models.FloatField(null=True)
     initial = models.FloatField(null=True)
     lcoe = models.FloatField(null=True)

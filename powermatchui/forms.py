@@ -256,6 +256,7 @@ class RunVariationForm(forms.Form):
 class OptimisationForm(forms.Form):
     def __init__(self, *args, **kwargs):
         self.scenario_settings = kwargs.pop('scenario_settings', [])
+        self.optimisation_data = kwargs.pop('optimisation_data', [])
         super(OptimisationForm, self).__init__(*args, **kwargs)
         self.helper = FormHelper()
         self.fields['choice'] = forms.ChoiceField(
@@ -329,8 +330,59 @@ class OptimisationForm(forms.Form):
             ),
         ])
 
+        # Create fields for Optimisation model
+        optimisation_rows = []
+        current_row = []
+        for i, optimisation in enumerate(self.optimisation_data):
+            tech_key = f"{optimisation['idtechnologies']}"
+            self.fields[f'approach_{tech_key}'] = forms.CharField(
+                label=f"{optimisation['technology_name']} Approach",
+                initial=optimisation['approach'],
+                required=False
+            )
+            self.fields[f'capacity_{tech_key}'] = forms.FloatField(
+                label=f"{optimisation['technology_name']} Capacity",
+                initial=optimisation['capacity'],
+                required=False
+            )
+            self.fields[f'capacity_max_{tech_key}'] = forms.FloatField(
+                label=f"{optimisation['technology_name']} Max Capacity",
+                initial=optimisation['capacity_max'],
+                required=False
+            )
+            self.fields[f'capacity_min_{tech_key}'] = forms.FloatField(
+                label=f"{optimisation['technology_name']} Min Capacity",
+                initial=optimisation['capacity_min'],
+                required=False
+            )
+            self.fields[f'capacity_step_{tech_key}'] = forms.FloatField(
+                label=f"{optimisation['technology_name']} Capacity Step",
+                initial=optimisation['capacity_step'],
+                required=False
+            )
+            self.fields[f'capacities_{tech_key}'] = forms.FloatField(
+                label=f"{optimisation['technology_name']} Capacities",
+                initial=optimisation['capacities'],
+                required=False
+            )
+            current_row.append(Column(
+                Field(f'approach_{tech_key}', css_class='form-control'),
+                Field(f'capacity_{tech_key}', css_class='form-control'),
+                Field(f'capacity_max_{tech_key}', css_class='form-control'),
+                Field(f'capacity_min_{tech_key}', css_class='form-control'),
+                Field(f'capacity_step_{tech_key}', css_class='form-control'),
+                Field(f'capacities_{tech_key}', css_class='form-control'),
+                css_class='form-group col-md-6 mb-0')
+            )
+
+            if (i + 1) % 2 == 0 or i == len(self.optimisation_data) - 1:
+                optimisation_rows.append(Row(*current_row, css_class='form-row'))
+                current_row = []
+
         self.helper.form_action = '/optimisation/'
         self.helper.layout.extend([
+            HTML("<hr>"),
+            *optimisation_rows,
             HTML("<hr>"),
             FormActions(
                 Submit('save', 'Save Runtime Parameters', css_class='btn btn-primary')
@@ -372,6 +424,23 @@ class OptimisationForm(forms.Form):
         CO2_Worse = cleaned_data.get('CO2_Worse')
         # if CO2_Weight is None:
         #     self.add_error('CO2_Weight', 'This field is required.')
+        # Validate optimisation fields
+        for optimisation in self.optimisation_data:
+            tech_key = f"{optimisation['idtechnologies']}"
+            approach_fn = f'approach_{tech_key}'
+            approach = cleaned_data.get(approach_fn)
+            capacity_fn = f'capacity_{tech_key}'
+            capacity = cleaned_data.get(capacity_fn)
+            if capacity is None:
+                self.add_error(capacity_fn, 'This field is required.')
+            capacity_max_fn = f'capacity_{tech_key}'
+            capacity_max = cleaned_data.get(capacity_max_fn)
+            capacity_min_fn = f'capacity_{tech_key}'
+            capacity_min = cleaned_data.get(capacity_min_fn)
+            capacity_step_fn = f'capacity_{tech_key}'
+            capacity_step = cleaned_data.get(capacity_step_fn)
+            capacities_fn = f'capacity_{tech_key}'
+            capacities = cleaned_data.get(capacities_fn)
         return cleaned_data
     
 class SelectVariationForm(forms.Form):

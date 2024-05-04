@@ -1,7 +1,7 @@
 from decimal import Decimal
 from siren_web.database_operations import fetch_all_settings_data, fetch_generators_parameter, \
     fetch_included_technologies_data, fetch_module_settings_data, fetch_scenario_settings_data, \
-    fetch_optimisation_data, fetch_supplyfactors_data, update_scenario_settings_data
+    fetch_optimisation_data, fetch_supplyfactors_data, update_scenario_settings_data, update_optimisation_data
 from django.contrib.auth.decorators import login_required
 from django.db.models import Q
 from django.shortcuts import render
@@ -38,11 +38,12 @@ def optimisation(request):
         if not scenario_settings:
             scenario_settings = fetch_module_settings_data('Optimisation')
         technologies = fetch_included_technologies_data(scenario)
-        optimisationform = OptimisationForm(scenario_settings=scenario_settings)
+        optimisation_data = fetch_optimisation_data(scenario)
+        optimisationform = OptimisationForm(scenario_settings=scenario_settings, optimisation_data=optimisation_data)
 
         if request.method == 'POST':
             # Handle form submission
-            optimisationform = OptimisationForm(request.POST, scenario_settings=scenario_settings)
+            optimisationform = OptimisationForm(request.POST, scenario_settings=scenario_settings, optimisation_data=optimisation_data)
             if optimisationform.is_valid():
                 # Process form data
                 cleaned_data = optimisationform.cleaned_data
@@ -97,6 +98,25 @@ def optimisation(request):
                     cleaned_data.get('CO2_Better'), 
                     cleaned_data.get('CO2_Worse'), 
                     'co2')
+            for optimisation in optimisation_data:
+                tech_key = f"{optimisation.idtechnologies.pk}"
+                if (
+                    cleaned_data.get(f'approach_{tech_key}') != optimisation.approach or
+                    cleaned_data.get(f'capacity_{tech_key}') != optimisation.capacity or
+                    cleaned_data.get(f'capacity_max_{tech_key}') != optimisation.capacity_max or
+                    cleaned_data.get(f'capacity_min_{tech_key}') != optimisation.capacity_min or
+                    cleaned_data.get(f'capacity_step_{tech_key}') != optimisation.capacity_step or
+                    cleaned_data.get(f'capacities_{tech_key}') != optimisation.capacities
+                ):
+                    Technology = update_optimisation_data(scenario,
+                        tech_key,
+                        cleaned_data.get(f'approach_{tech_key}'),
+                        cleaned_data.get(f'capacity_{tech_key}'),
+                        cleaned_data.get(f'capacity_max_{tech_key}'),
+                        cleaned_data.get(f'capacity_min_{tech_key}'),
+                        cleaned_data.get(f'capacity_step_{tech_key}'),
+                        cleaned_data.get(f'capacities_{tech_key}')
+                    )
                 
             success_message = "Optimisation Parameters have been updated."
 
@@ -127,6 +147,7 @@ def run_optimisation(request):
             Q(idscenarios=scenario_obj) & Q(sw_context='Optimisation')
         ).values('parameter', 'value')
         OptParms = {setting['parameter']: setting['value'] for setting in opt_settings_data}
+        optimisation_data = fetch_optimisation_data(scenario)
         message = powerMatch.optClicked(
             settings, demand_year, option, pmss_details, pmss_data, generators, re_order, 
             dispatch_order, OptParms, None, None

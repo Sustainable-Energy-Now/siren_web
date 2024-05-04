@@ -220,7 +220,6 @@ class powerMatch():
         self.file_labels = ['Constraints', 'Generators', 'Optimisation', 'Data', 'Results', 'Batch']
         self.more_details = False
         self.constraints = constraints
-        optimisation = None
         self.adjustto = None # adjust capacity to this
         self.adjust_cap = 25
         self.adjust_gen = False
@@ -235,14 +234,14 @@ class powerMatch():
         # it's easier for the user to understand while for the program logic surplus is easier
         self.scenarios = 'C:/Users/Paul/Local Sites/Powermatch/'
         iorder = []
-        self.targets = {}
+        targets = {}
         optimise_progress = 0
         for t in range(len(target_keys)):
             if target_keys[t] in ['re_pct', 'surplus_pct']:
-                self.targets[target_keys[t]] = [target_names[t], 0., -1, 0., 0, target_fmats[t],
+                targets[target_keys[t]] = [target_names[t], 0., -1, 0., 0, target_fmats[t],
                                                  target_titles[t]]
             else:
-                self.targets[target_keys[t]] = [target_names[t], 0., 0., -1, 0, target_fmats[t],
+                targets[target_keys[t]] = [target_names[t], 0., 0., -1, 0, target_fmats[t],
                                                  target_titles[t]]
         try:
             items = settings['Powermatch']
@@ -473,7 +472,7 @@ class powerMatch():
                 gen = pmss_details[fac].generator
             col += 1
             sp_cols.append(fac)
-            sp_cap.append(pmss_details[fac].capacity * pmss_details[fac].multiplier)
+            sp_cap.append(pmss_details[fac].capacity * float(pmss_details[fac].multiplier))
             if do_zone and pmss_details[fac].zone != '':
                 ns.cell(row=zone_row, column=col).value = pmss_details[fac].zone
                 ns.cell(row=zone_row, column=col).alignment = oxl.styles.Alignment(wrap_text=True,
@@ -561,7 +560,7 @@ class powerMatch():
             else:
                 for row in range(hrows, 8760 + hrows):
                     ns.cell(row=row, column=col).value = pmss_data[di][row - hrows] * \
-                                                         pmss_details[fac].multiplier
+                                                         float(pmss_details[fac].multiplier)
                     ns.cell(row=row, column=col).number_format = '#,##0.00'
             return col
 
@@ -966,16 +965,16 @@ class powerMatch():
             for fac in fac_tml.keys():
                 if fac in underlying_facs:
                     continue
-                shortfall[h] -= pmss_data[pmss_details[fac].col][h] * pmss_details[fac].multiplier
+                shortfall[h] -= pmss_data[pmss_details[fac].col][h] * float(pmss_details[fac].multiplier)
             if shortfall[h] >= 0:
                 alloc = 1.
             else:
                 alloc = load_h / (load_h - shortfall[h])
             for fac in fac_tml.keys():
                 if fac in underlying_facs:
-                    fac_tml[fac] += pmss_data[pmss_details[fac].col][h] * pmss_details[fac].multiplier
+                    fac_tml[fac] += pmss_data[pmss_details[fac].col][h] * float(pmss_details[fac].multiplier)
                 else:
-                    fac_tml[fac] += pmss_data[pmss_details[fac].col][h] * pmss_details[fac].multiplier * alloc
+                    fac_tml[fac] += pmss_data[pmss_details[fac].col][h] * float(pmss_details[fac].multiplier) * alloc
             line = ''
         fac_tml_sum = 0
         for fac in fac_tml.keys():  # Sum To Meet Load
@@ -1168,7 +1167,7 @@ class powerMatch():
             nsul_sums = ['C']
             nsul_sum_cols = [3]
             for fac in underlying_facs:
-                if pmss_details[fac].capacity * pmss_details[fac].multiplier == 0:
+                if pmss_details[fac].capacity * float(pmss_details[fac].multiplier) == 0:
                     continue
                 col = do_detail(fac, col, -1)
                 nsul_sums.append(ss_col(col))
@@ -1205,25 +1204,25 @@ class powerMatch():
                     continue
                 if fac == 'Load':
                     load_col = pmss_details[fac].col
-                    sp_load = sum(pmss_data[load_col]) * pmss_details[fac].multiplier
+                    sp_load = sum(pmss_data[load_col]) * float(pmss_details[fac].multiplier)
                     load_max = 0
                     for h in range(len(pmss_data[0])):
-                        amt = pmss_data[load_col][h] * pmss_details[fac].multiplier
+                        amt = pmss_data[load_col][h] * float(pmss_details[fac].multiplier)
                         if amt > load_max:
                             load_max = amt
                             load_hr = h
                     continue
-                if pmss_details[fac].capacity * pmss_details[fac].multiplier == 0:
+                if pmss_details[fac].capacity * float(pmss_details[fac].multiplier) == 0:
                     continue
                 sp_d = [' '] * len(headers)   # Allow enough space for headers
                 sp_d[st_fac] = fac
-                sp_d[st_cap] = pmss_details[fac].capacity * pmss_details[fac].multiplier
+                sp_d[st_cap] = pmss_details[fac].capacity * float(pmss_details[fac].multiplier)
                 try:
                     sp_d[st_tml] = fac_tml[fac]
                 except:
                     pass
-                sp_d[st_sub] = sum(pmss_data[pmss_details[fac].col]) * pmss_details[fac].multiplier
-                sp_d[st_max] = max(pmss_data[pmss_details[fac].col]) * pmss_details[fac].multiplier
+                sp_d[st_sub] = sum(pmss_data[pmss_details[fac].col]) * float(pmss_details[fac].multiplier)
+                sp_d[st_max] = max(pmss_data[pmss_details[fac].col]) * float(pmss_details[fac].multiplier)
                 sp_data.append(sp_d)  # sp_d contains the data for a technology e.g. Fixed PV
             for h in range(len(shortfall)):
                 if shortfall[h] < 0:
@@ -1235,6 +1234,7 @@ class powerMatch():
         short_taken = {}
         short_taken_tot = 0
         for gen in dispatch_order:
+            pmss_details[gen].multiplier = float(pmss_details[gen].multiplier)
             if pmss_details[gen].fac_type == 'G': # For generators get minimum capacity if exists
                 if generators[gen].capacity_min != 0:
                     try:
@@ -1519,7 +1519,6 @@ class powerMatch():
 #                    ss_col(col-1) + str(hrows) + ':' + ss_col(col - 1) + str(hrows + 8759) + ')'
 #            ns.cell(row=max_row, column=col-1).number_format = '#,##0.00'
         # if option not in ['O', '1', 'B']:
-        #     self.progressbar.progress(8, text=progress_text)
         if corr_data is not None:
             try:
                 corr = np.corrcoef(df1, corr_src)
@@ -1720,14 +1719,14 @@ class powerMatch():
             do_underlying = False
             if len(underlying_facs) > 0:
                 for fac in underlying_facs:
-                    if pmss_details[fac].capacity * pmss_details[fac].multiplier > 0:
+                    if pmss_details[fac].capacity * float(pmss_details[fac].multiplier) > 0:
                         do_underlying = True
                         break
             if do_underlying:
                 sp_data.append(' ')
                 sp_data.append('Additional Underlying Load')
                 for fac in underlying_facs:
-                    if pmss_details[fac].capacity * pmss_details[fac].multiplier == 0:
+                    if pmss_details[fac].capacity * float(pmss_details[fac].multiplier) == 0:
                         continue
                     if fac in generators.keys():
                         gen = fac
@@ -1736,15 +1735,15 @@ class powerMatch():
                     col = pmss_details[fac].col
                     sp_d = [' '] * len(headers)
                     sp_d[st_fac] = fac
-                    sp_d[st_cap] = pmss_details[fac].capacity * pmss_details[fac].multiplier
+                    sp_d[st_cap] = pmss_details[fac].capacity * float(pmss_details[fac].multiplier)
                     cap_sum += sp_d[st_cap]
-                    sp_d[st_tml] = sum(pmss_data[pmss_details[fac].col]) * pmss_details[fac].multiplier
+                    sp_d[st_tml] = sum(pmss_data[pmss_details[fac].col]) * float(pmss_details[fac].multiplier)
                     tml_sum += sp_d[st_tml]
                     sp_d[st_sub] = sp_d[st_tml]
                     gen_sum += sp_d[st_tml]
                     sp_load += sp_d[st_tml]
                     sp_d[st_cfa] = '{:.1f}%'.format(sp_d[st_sub] / sp_d[st_cap] / 8760 * 100.)
-                    sp_d[st_max] = max(pmss_data[pmss_details[fac].col]) * pmss_details[fac].multiplier
+                    sp_d[st_max] = max(pmss_data[pmss_details[fac].col]) * float(pmss_details[fac].multiplier)
                     if generators[gen].capex > 0 or generators[gen].fixed_om > 0 \
                       or generators[gen].variable_om > 0 or generators[gen].fuel > 0:
                         capex = sp_d[st_cap] * generators[gen].capex
@@ -1816,7 +1815,7 @@ class powerMatch():
                     for h in range(len(pmss_data[0])):
                         amt = pmss_data[load_col][h] * pmss_details['Load'].multiplier
                         for fac in underlying_facs:
-                            amt += pmss_data[pmss_details[fac].col][h] * pmss_details[fac].multiplier
+                            amt += pmss_data[pmss_details[fac].col][h] * float(pmss_details[fac].multiplier)
                         if amt > load_max:
                             load_max = amt
                             load_hr = h
@@ -2418,7 +2417,6 @@ class powerMatch():
         #    random_mutation_boolean[0][:] = False # keep the best multi and lcoe
        #     random_mutation_boolean[1][:] = False
             population[random_mutation_boolean] = np.logical_not(population[random_mutation_boolean])
-            # Return mutation populationself.debug:
             return population
 
         def calculate_fitness(population):
@@ -2429,9 +2427,9 @@ class powerMatch():
                 option = '1'
             else:
                 option = 'O'
-            if self.debug:
-                self.popn += 1
-                self.chrom = 0
+            if optimise_debug:
+                popn += 1
+                chrom = 0
             for chromosome in population:
                 # now get random amount of generation per technology (both RE and non-RE)
                 for fac, value in opt_order.items():
@@ -2446,39 +2444,39 @@ class powerMatch():
                 multi_value, op_data, extra = powerMatch.doDispatch(
                     settings, year, option, pmss_details, pmss_data, generators, re_order,
                     dispatch_order, pm_data_file, data_file)
-                if multi_value['load_pct'] < self.targets['load_pct'][3]:
+                if multi_value['load_pct'] < targets['load_pct'][3]:
                     if multi_value['load_pct'] == 0:
-                        print('PME3:', multi_value['lcoe'], self.targets['load_pct'][3], multi_value['load_pct'])
+                        print('PME3:', multi_value['lcoe'], targets['load_pct'][3], multi_value['load_pct'])
                         lcoe_fitness_scores.append(1)
                     else:
                         try:
                             lcoe_fitness_scores.append(pow(multi_value['lcoe'],
-                                self.targets['load_pct'][3] / multi_value['load_pct']))
+                                targets['load_pct'][3] / multi_value['load_pct']))
                         except OverflowError as err:
                             setStatus(f"Overflow error: {err}; POW({multi_value['lcoe']:,}, " \
-                                         + f"{self.targets['load_pct'][3] / multi_value['load_pct']:,}) " \
-                                         + f"({self.targets['load_pct'][3]:,} / {multi_value['load_pct']:,} )")
+                                         + f"{targets['load_pct'][3] / multi_value['load_pct']:,}) " \
+                                         + f"({targets['load_pct'][3]:,} / {multi_value['load_pct']:,} )")
                         except:
                             pass
                 else:
                     lcoe_fitness_scores.append(multi_value['lcoe'])
                 multi_values.append(multi_value)
                 multi_fitness_scores.append(calc_weight(multi_value))
-                if self.debug:
-                    self.chrom += 1
-                    line = str(self.popn) + ',' + str(self.chrom) + ','
+                if optimise_debug:
+                    chrom += 1
+                    line = str(popn) + ',' + str(chrom) + ','
                     for fac, value in opt_order.items():
                         try:
-                            line += str(pmss_details[fac].capacity * pmss_details[fac].multiplier) + ','
+                            line += str(pmss_details[fac].capacity * float(pmss_details[fac].multiplier)) + ','
                         except:
                             line += ','
-                    for key in self.targets.keys():
+                    for key in targets.keys():
                         try:
                             line += '{:.3f},'.format(multi_value[key])
                         except:
                             line += multi_value[key] + ','
                     line += '{:.5f},'.format(multi_fitness_scores[-1])
-                    self.db_file.write(line + '\n')
+                    db_file.write(line + '\n')
             # alternative approach to calculating fitness
             multi_fitness_scores1 = []
             maxs = {}
@@ -2486,13 +2484,13 @@ class powerMatch():
             tgts = {}
             for key in multi_value.keys():
                 if key[-4:] == '_pct':
-                    tgts[key] = abs(self.targets[key][2] - self.targets[key][3])
+                    tgts[key] = abs(targets[key][2] - targets[key][3])
                 else:
                     maxs[key] = 0
                     mins[key] = -1
                     for popn in multi_values:
                         try:
-                            tgt = abs(self.targets[key][2] - popn[key])
+                            tgt = abs(targets[key][2] - popn[key])
                         except:
                             continue
                         if tgt > maxs[key]:
@@ -2502,25 +2500,25 @@ class powerMatch():
             for popn in multi_values:
                 weight = 0
                 for key, value in multi_value.items():
-                    if self.targets[key][1] <= 0:
+                    if targets[key][1] <= 0:
                         continue
                     try:
-                        tgt = abs(self.targets[key][2] - popn[key])
+                        tgt = abs(targets[key][2] - popn[key])
                     except:
                         continue
                     if key[-4:] == '_pct':
                         if tgts[key] != 0:
                             if tgt > tgts[key]:
-                                weight += 1 * self.targets[key][1]
+                                weight += 1 * targets[key][1]
                             else:
                                 try:
-                                    weight += 1 - ((tgt / tgts[key]) * self.targets[key][1])
+                                    weight += 1 - ((tgt / tgts[key]) * targets[key][1])
                                 except:
                                     pass
                     else:
                         try:
                             weight += 1 - (((maxs[key] - tgt) / (maxs[key] - mins[key])) \
-                                      * self.targets[key][1])
+                                      * targets[key][1])
                         except:
                             pass
                 multi_fitness_scores1.append(weight)
@@ -2536,7 +2534,7 @@ class powerMatch():
         def calc_weight(multi_value, calc=0):
             weight = [0., 0.]
             if calc == 0:
-                for key, value in self.targets.items():
+                for key, value in targets.items():
                     if multi_value[key] == '':
                         continue
                     if value[1] <= 0:
@@ -2562,7 +2560,7 @@ class powerMatch():
                             w = multi_value[key] / (value[3] - value[2])
                     weight[0] += w * value[1]
             elif calc == 1:
-                for key, value in self.targets.items():
+                for key, value in targets.items():
                     if multi_value[key] == '':
                         continue
                     if value[1] <= 0:
@@ -2594,8 +2592,8 @@ class powerMatch():
                         pwr_chr[m] = pwr_chrs[pwr]
                         divisor[m] = 1. * pow(10, pwr * 3)
                         break
-            self.targets['cost'][5] = self.targets['cost'][5].replace('pwr_chr', pwr_chr[0])
-            self.targets['co2'][5] = self.targets['co2'][5].replace('pwr_chr', pwr_chr[1])
+            targets['cost'][5] = targets['cost'][5].replace('pwr_chr', pwr_chr[0])
+            targets['co2'][5] = targets['co2'][5].replace('pwr_chr', pwr_chr[1])
             for multi in multi_best:
                 for axis in range(3): # only three axes in plot
                     if multi_order[axis] == 'cost':
@@ -2634,7 +2632,7 @@ class powerMatch():
                             mx.text(data[2][i], data[1][i], data[0][i], '%s' % str(j+1))
             except:
                 return
-            if self.optimise_multisurf:
+            if optimise_multisurf:
                 cvals_r  = [-1., 0, 1]
                 colors_r = ['red' ,'orange', 'green']
                 norm_r = plt.Normalize(min(cvals_r), max(cvals_r))
@@ -2643,12 +2641,12 @@ class powerMatch():
                 # https://www.fabrizioguerrieri.com/blog/surface-graphs-with-irregular-dataset/
                 triang = mtri.Triangulation(data[2], data[1])
                 mx.plot_trisurf(triang, data[0], cmap=cmap_r)
-            mx.xaxis.set_major_formatter(FormatStrFormatter(self.targets[multi_order[2]][5]))
-            mx.yaxis.set_major_formatter(FormatStrFormatter(self.targets[multi_order[1]][5]))
-            mx.zaxis.set_major_formatter(FormatStrFormatter(self.targets[multi_order[0]][5]))
-            mx.set_xlabel(self.targets[multi_order[2]][6])
-            mx.set_ylabel(self.targets[multi_order[1]][6])
-            mx.set_zlabel(self.targets[multi_order[0]][6])
+            mx.xaxis.set_major_formatter(FormatStrFormatter(targets[multi_order[2]][5]))
+            mx.yaxis.set_major_formatter(FormatStrFormatter(targets[multi_order[1]][5]))
+            mx.zaxis.set_major_formatter(FormatStrFormatter(targets[multi_order[0]][5]))
+            mx.set_xlabel(targets[multi_order[2]][6])
+            mx.set_ylabel(targets[multi_order[1]][6])
+            mx.set_zlabel(targets[multi_order[0]][6])
             plt.show()
 
         def show_multitable(best_score_progress, multi_best, multi_order, title):
@@ -2709,15 +2707,19 @@ class powerMatch():
         year = in_year
         option = in_option
         pmss_details = dict(in_pmss_details)
+        pmss_details['Load'].multiplier = pmss_details['Load'].multiplier
+        targets = {}
+        more_details = False
         # pmss_data = in_pmss_data[:]
         pmss_data = dict(in_pmss_data)
         re_order = in_re_order[:]
         dispatch_order = in_dispatch_order[:]
+        optimise_debug = False
         debug = False
         optExit = False
         err_msg = ''
         optLoad = OptParms['optLoad']
-        pmss_details['Load'].multiplier = optLoad
+        pmss_details['Load'].multiplier = float(optLoad)
         optPopn = OptParms['optPopn']
         optimise_population = int(optPopn)
         optGenn = OptParms['optGenn']
@@ -2799,30 +2801,30 @@ class powerMatch():
         for gen in opt_order.keys():
             opt_order[gen][0] = len(capacities) # first entry
             try:
-                if optimisation[gen].approach == 'Discrete':
-                    capacities.extend(optimisation[gen].capacities)
+                if generators[gen].approach == 'Discrete':
+                    capacities.extend(generators[gen].capacities)
                     opt_order[gen][1] = len(capacities) # last entry
-                elif optimisation[gen].approach == 'Range':
-                    if optimisation[gen].capacity_max == optimisation[gen].capacity_min:
+                elif generators[gen].approach == 'Range':
+                    if generators[gen].capacity_max == generators[gen].capacity_min:
                         capacities.extend([0])
                         opt_order[gen][1] = len(capacities)
-                        opt_order[gen][2] = optimisation[gen].capacity_min
+                        opt_order[gen][2] = generators[gen].capacity_min
                         continue
-                    ctr = int((optimisation[gen].capacity_max - optimisation[gen].capacity_min) / \
-                              optimisation[gen].capacity_step)
+                    ctr = int((generators[gen].capacity_max - generators[gen].capacity_min) / \
+                              generators[gen].capacity_step)
                     if ctr < 1:
-                        setStatus("Error with Optimisation table entry for '" + gen + "'")
+                        setStatus("Error with generators table entry for '" + gen + "'")
                         return
-                    capacities.extend([optimisation[gen].capacity_step] * ctr)
-                    tot = optimisation[gen].capacity_step * ctr + optimisation[gen].capacity_min
-                    if tot < optimisation[gen].capacity_max:
-                        capacities.append(optimisation[gen].capacity_max - tot)
+                    capacities.extend([generators[gen].capacity_step] * ctr)
+                    tot = generators[gen].capacity_step * ctr + generators[gen].capacity_min
+                    if tot < generators[gen].capacity_max:
+                        capacities.append(generators[gen].capacity_max - tot)
                     opt_order[gen][1] = len(capacities)
-                    opt_order[gen][2] = optimisation[gen].capacity_min
+                    opt_order[gen][2] = generators[gen].capacity_min
                 else:
                     opt_order[gen][1] = len(capacities)
             except KeyError as err:
-                setStatus('Key Error: No Optimisation entry for ' + str(err))
+                setStatus('Key Error: No generators entry for ' + str(err))
                 opt_order[gen] = [len(capacities), len(capacities) + 5, 0]
                 capacities.extend([pmss_details[gen].capacity / 5.] * 5)
             except ZeroDivisionError as err:
@@ -2832,11 +2834,9 @@ class powerMatch():
                       + str(opt_order[gen])
                 return
         # chromosome = [1] * int(len(capacities) / 2) + [0] * (len(capacities) - int(len(capacities) / 2))
-        # we have the original data - from here down we can do our multiple optimisations
+        # we have the original data - from here down we can do our multiple generatorss
         # Set general parameters
-        setStatus('Optimisation choice is ' + optimise_choice)
         chromosome_length = len(capacities)
-        setStatus(f'Chromosome length: {chromosome_length}; {pow(2, chromosome_length):,} permutations')
         population_size = optimise_population
         maximum_generation = int(optimise_generations)
         lcoe_scores = []
@@ -2847,19 +2847,17 @@ class powerMatch():
         if do_multi:
             multi_best = [] # list of six variables for best weight
             multi_best_popn = [] # list of chromosomes for best weight
-        progress_text = "Process Optimisation stages"
-        #self.progressbar = st.progress(0, text=progress_text)
+        progress_text = "Process generators stages"
         start_time = time.time()
         # Create starting population
         progress_text = "'Processing iteration 1'"
-        self.progressbar.progress(1, text=progress_text)
         population = create_starting_population(population_size, chromosome_length)
         # calculate best score(s) in starting population
         # if do_lcoe best_score = lowest non-zero lcoe
         # if do_multi best_multi = lowest weight and if not do_lcoe best_score also = best_weight
         if debug:
             filename = scenarios + 'opt_debug_' + '.csv'
-            self.db_file = open(filename, 'w')
+            db_file = open(filename, 'w')
             line0 = 'Popn,Chrom,'
             line1 = 'Weights,,'
             line2 = 'Targets,,'
@@ -2869,18 +2867,18 @@ class powerMatch():
                  line1 += ','
                  line2 += ','
                  line3 += ','
-            for key in self.targets.keys():
+            for key in targets.keys():
                  line0 += key + ','
-                 line1 += str(self.targets[key][1]) + ','
-                 line2 += str(self.targets[key][2]) + ','
+                 line1 += str(targets[key][1]) + ','
+                 line2 += str(targets[key][2]) + ','
                  if key[-4:] == '_pct':
-                     line3 += str(abs(self.targets[key][2] - self.targets[key][3])) + ','
+                     line3 += str(abs(targets[key][2] - targets[key][3])) + ','
                  else:
                      line3 += ','
             line0 += 'Score'
-            self.db_file.write(line0 + '\n' + line1 + '\n' + line2 + '\n' + line3 + '\n')
-            self.popn = 0
-            self.chrom = 0
+            db_file.write(line0 + '\n' + line1 + '\n' + line2 + '\n' + line3 + '\n')
+            popn = 0
+            chrom = 0
         lcoe_scores, multi_scores, multi_values = calculate_fitness(population)
         if do_lcoe:
             try:
@@ -2891,20 +2889,20 @@ class powerMatch():
             lowest_chrom = population[best_ndx]
             setStatus('Starting LCOE: $%.2f' % best_score)
         if do_multi:
-            if self.more_details: # display starting population ?
+            if more_details: # display starting population ?
                 pick = plot_multi(multi_scores, multi_values, multi_order, 'starting population')
             # want maximum from first round to set base upper limit
-            for key in self.targets.keys():
-                if self.targets[key][2] < 0: # want a maximum from first round
+            for key in targets.keys():
+                if targets[key][2] < 0: # want a maximum from first round
                     setit = 0
                     for multi in multi_values:
                         setit = max(multi[key], setit)
-                    self.targets[key][2] = setit
-                if self.targets[key][3] < 0: # want a maximum from first round
+                    targets[key][2] = setit
+                if targets[key][3] < 0: # want a maximum from first round
                     setit = 0
                     for multi in multi_values:
                         setit = max(multi[key], setit)
-                    self.targets[key][3] = setit
+                    targets[key][3] = setit
             # now we can find the best weighted result - lowest is best
             best_multi = np.min(multi_scores)
             best_mndx = multi_scores.index(best_multi)
@@ -2938,8 +2936,7 @@ class powerMatch():
                 tim = ' (%s%s %.1f secs)' % (lcoe_status, multi_status, tim)
             else:
                 tim = ' (%s%s %.2f mins)' % (lcoe_status, multi_status, tim / 60.)
-            progress_text = 'Processing iteration ' + str(generation + 1) + tim
-            self.progressbar.progress(generation + 1, text=progress_text)
+            progress_text = 'Processing iteration ' + str(generation + 1) + time
         # Create an empty list for new population
             new_population = []
         # Using elitism approach include best individual
@@ -3032,13 +3029,12 @@ class powerMatch():
                 last_multi_score = best_multi
         if debug:
             try:
-                self.db_file.close()
-                optimiseDebug(self.db_file.name)
-                os.remove(self.db_file.name)
+                db_file.close()
+                optimiseDebug(db_file.name)
+                os.remove(db_file.name)
             except:
                 pass
             debug = False
-        self.progressbar.empty()
         tim = (time.time() - start_time)
         if tim < 60:
             tim = '%.1f secs)' % tim
@@ -3055,7 +3051,6 @@ class powerMatch():
         if do_multi:
             op_data[1], score_data[1] = calculate_fitness([multi_lowest_chrom])
         setStatus(msg)
-        self.progressbar.empty()
         # GA has completed required generation
         if do_lcoe:
             setStatus('Final LCOE: $%.2f' % best_score)
@@ -3081,17 +3076,17 @@ class powerMatch():
         pick = None
         pickf = None
         if do_multi:
-            if self.optimise_multiplot:
+            if optimise_multiplot:
                 pick = plot_multi(best_multi_progress, multi_best, multi_order, 'best of each iteration')
-                if self.more_details:
+                if more_details:
                     pickf = plot_multi(multi_scores, multi_values, multi_order, 'final iteration')
-            if self.optimise_multitable:
+            if optimise_multitable:
                 pick2 = show_multitable(best_multi_progress, multi_best, multi_order, 'best of each iteration')
                 try:
                     pick = pick + pick2
                 except:
                     pick = pick2
-                if self.more_details:
+                if more_details:
                     pick2 = show_multitable(multi_scores, multi_values, multi_order, 'final iteration')
                     try:
                         pickf = pickf + pick2
@@ -3101,16 +3096,16 @@ class powerMatch():
         for p in [st_lcg, st_lco, st_lcc, st_max, st_bal, st_rlc]:
             op_pts[p] = 2
         op_pts[st_cap] = 3
-        if self.more_details:
+        if more_details:
             if do_lcoe:
                 list(map(list, list(zip(*op_data[0]))))
-                dialog = displaytable.Table(op_data[0], title=self.sender().text(), fields=headers,
+                dialog = displaytable.Table(op_data[0], title=sender().text(), fields=headers,
                          save_folder=scenarios, sortby='', decpts=op_pts)
                 dialog.exec_()
                 del dialog
             if do_multi:
                 list(map(list, list(zip(*op_data[1]))))
-                dialog = displaytable.Table(op_data[1], title='Multi_' + self.sender().text(), fields=headers,
+                dialog = displaytable.Table(op_data[1], title='Multi_' + sender().text(), fields=headers,
                          save_folder=scenarios, sortby='', decpts=op_pts)
                 dialog.exec_()
                 del dialog
@@ -3143,9 +3138,9 @@ class powerMatch():
             if len(pick) <= 3:
                 multi_lowest_chrom = multi_best_popn[pick[0][0]]
                 op_data[2], score_data[2] = calculate_fitness([multi_lowest_chrom])
-                if self.more_details:
+                if more_details:
                     list(map(list, list(zip(*op_data[2]))))
-                    dialog = displaytable.Table(op_data[2], title='Pick_' + self.sender().text(), fields=headers,
+                    dialog = displaytable.Table(op_data[2], title='Pick_' + sender().text(), fields=headers,
                              save_folder=scenarios, sortby='', decpts=op_pts)
                     dialog.exec_()
                     del dialog
@@ -3155,9 +3150,9 @@ class powerMatch():
                 if len(pick) >= 2:
                     multi_lowest_chrom = multi_best_popn[pick[1][0]]
                     op_data[3], score_data[3] = calculate_fitness([multi_lowest_chrom])
-                    if self.more_details:
+                    if more_details:
                         list(map(list, list(zip(*op_data[3]))))
-                        dialog = displaytable.Table(op_data[3], title='Pick_' + self.sender().text(), fields=headers,
+                        dialog = displaytable.Table(op_data[3], title='Pick_' + sender().text(), fields=headers,
                                  save_folder=scenarios, sortby='', decpts=op_pts)
                         dialog.exec_()
                         del dialog
@@ -3167,9 +3162,9 @@ class powerMatch():
                 if len(pick) == 3:
                     multi_lowest_chrom = multi_best_popn[pick[2][0]]
                     op_data[4], score_data[4] = calculate_fitness([multi_lowest_chrom])
-                    if self.more_details:
+                    if more_details:
                         list(map(list, list(zip(*op_data[4]))))
-                        dialog = displaytable.Table(op_data[4], title='Pick_' + self.sender().text(), fields=headers,
+                        dialog = displaytable.Table(op_data[4], title='Pick_' + sender().text(), fields=headers,
                                  save_folder=scenarios, sortby='', decpts=op_pts)
                         dialog.exec_()
                         del dialog
@@ -3185,9 +3180,9 @@ class powerMatch():
                 best_mndx = b.index(best_multi)
                 multi_lowest_chrom = picks[best_mndx]
                 op_data[2], score_data[2] = calculate_fitness([multi_lowest_chrom])
-                if self.more_details:
+                if more_details:
                     list(map(list, list(zip(*op_data[2]))))
-                    dialog = displaytable.Table(op_data[2], title='Pick_' + self.sender().text(), fields=headers,
+                    dialog = displaytable.Table(op_data[2], title='Pick_' + sender().text(), fields=headers,
                              save_folder=scenarios, sortby='', decpts=op_pts)
                     dialog.exec_()
                     del dialog
@@ -3218,19 +3213,19 @@ class powerMatch():
                     pwr_chr[m] = pwr_chrs[pwr]
                     divisor[m] = 1. * pow(10, pwr * 3)
                     break
-        self.targets['cost'][5] = self.targets['cost'][5].replace('pwr_chr', pwr_chr[0])
-        self.targets['co2'][5] = self.targets['co2'][5].replace('pwr_chr', pwr_chr[1])
+        targets['cost'][5] = targets['cost'][5].replace('pwr_chr', pwr_chr[0])
+        targets['co2'][5] = targets['co2'][5].replace('pwr_chr', pwr_chr[1])
 
      #  this is a big of a kluge but I couldn't get it to behave
-        self.opt_choice = ''
+        opt_choice = ''
         try:
-            h = chrom_hdrs.index(self.opt_choice)
+            h = chrom_hdrs.index(opt_choice)
         except:
             return
         op_data[h], score_data[h] = calculate_fitness([chroms[h]]) # make it current
         msg = chrom_hdrs[h] + ': '
         for key in multi_order[:3]:
-            msg += self.targets[key][0] + ': '
+            msg += targets[key][0] + ': '
             if key == 'cost':
                 amt = score_data[h][0][key] / divisor[0] # cost
             elif key == 'co2':
@@ -3239,7 +3234,7 @@ class powerMatch():
                 amt = score_data[h][0][key] * 100
             else:
                 amt = score_data[h][0][key]
-            txt = self.targets[key][5]
+            txt = targets[key][5]
             txt = txt % amt
             msg += txt + '; '
         setStatus(msg)
@@ -3257,16 +3252,16 @@ class powerMatch():
             op_data[h].append([])
             for j in range(4):
                 if j == 0:
-                    op_data[h][-1].append(self.targets[target_keys[i]][j])
+                    op_data[h][-1].append(targets[target_keys[i]][j])
                 else:
-                    op_data[h][-1].append('{:.2f}'.format(self.targets[target_keys[i]][j]))
+                    op_data[h][-1].append('{:.2f}'.format(targets[target_keys[i]][j]))
         op_max_row = len(op_data[h])
-        for key in optimisation.keys():
-            op_data[h].append(['Max. ' + key, optimisation[key].capacity_max])
-        dialog = displaytable.Table(op_data[h], title='Chosen_' + self.sender().text(), fields=headers,
+        for key in generators.keys():
+            op_data[h].append(['Max. ' + key, generators[key].capacity_max])
+        dialog = displaytable.Table(op_data[h], title='Chosen_' + sender().text(), fields=headers,
                  save_folder=scenarios, sortby='', decpts=op_pts)
-        if self.adjust.isChecked():
-            self.adjustto = {}
+        if adjust.isChecked():
+            adjustto = {}
             for fac, value in sorted(pmss_details.items()):
-                self.adjustto[fac] = value.capacity * value.multiplier
+                adjustto[fac] = value.capacity * value.multiplier
         return
