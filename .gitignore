@@ -151,3 +151,6 @@ dmypy.json
 
 .django/secrets.toml
 data
+
+# Excel spreadsheets
+*.xlsx
