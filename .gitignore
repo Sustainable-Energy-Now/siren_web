@@ -154,3 +154,5 @@ data
 
 # Excel spreadsheets
 *.xlsx
+
+siren_web/static/siren_data/

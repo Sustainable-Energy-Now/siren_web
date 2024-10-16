@@ -17,6 +17,13 @@ def delete_analysis_scenario(idscenario):
     ).delete()
     return None
 
+def fetch_facilities_scenario(scenario):
+    scenario_obj = Scenarios.objects.get(title=scenario)
+    facilities_list = facilities.objects.filter(
+        scenarios=scenario_obj
+    ).all()
+    return facilities_list
+ 
 def fetch_analysis_scenario(idscenario):
     analysis_list = Analysis.objects.filter(
         idscenarios=idscenario

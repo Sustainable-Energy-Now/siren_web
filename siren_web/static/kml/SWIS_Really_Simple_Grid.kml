@@ -1,0 +1,190 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+<Document>
+	<name>SWIS_Grid.kml</name>
+	<description><![CDATA[This KML file gives a simplified view of the SWIS with all grid lines ending in Perth]]></description>
+	<Style id="s_330kv">
+		<LineStyle>
+			<color>ff2daaf2</color>
+			<width>4</width>
+		</LineStyle>
+	</Style>
+	<Style id="s_220kv">
+		<LineStyle>
+			<color>ffff0000</color>
+			<width>3</width>
+		</LineStyle>
+	</Style>
+	<Style id="s_132kv">
+		<LineStyle>
+			<color>ff2d02e4</color>
+			<width>3</width>
+		</LineStyle>
+	</Style>
+	<Style id="s_66kv">
+		<LineStyle>
+			<color>ff104177</color>
+			<width>3</width>
+		</LineStyle>
+	</Style>
+	<Folder>
+		<name>330KV</name>
+		<Placemark>
+			<name>330kV_1</name>
+			<styleUrl>#s_330kv</styleUrl>
+			<LineString>
+				<tessellate>1</tessellate>
+				<coordinates>
+				116.3,-33.43,0 115.9,-33.1,0 115.884000,-31.923100,0
+				</coordinates>
+			</LineString>
+		</Placemark>
+		<Placemark>
+			<name>330kV_2</name>
+			<styleUrl>#s_330kv</styleUrl>
+			<LineString>
+				<tessellate>1</tessellate>
+				<coordinates>
+				116.7581,-29.1915,0 116.3493,-29.2278,0 115.754206,-29.570454,0
+				</coordinates>
+			</LineString>
+		</Placemark>
+		<Placemark>
+			<name>330kV_3</name>
+			<styleUrl>#s_330kv</styleUrl>
+			<LineString>
+				<tessellate>1</tessellate>
+				<coordinates>
+				116.3,-33.43,0 116.314438,-32.717338,0
+				</coordinates>
+			</LineString>
+		</Placemark>
+		<Placemark>
+			<name>330kV_4</name>
+			<styleUrl>#s_330kv</styleUrl>
+			<LineString>
+				<tessellate>1</tessellate>
+				<coordinates>
+				115.754206,-29.570454,0 115.320591,-29.977622,0 115.367314,-30.505461,0 115.803670,-31.201261,0 115.884,-31.9231,0
+				</coordinates>
+			</LineString>
+		</Placemark>
+	</Folder>
+	<Folder>
+		<name>220KV</name>
+		<Placemark>
+			<name>220kV_1</name>
+			<styleUrl>#s_220kv</styleUrl>
+			<LineString>
+				<tessellate>1</tessellate>
+				<coordinates>
+				121.526737,-30.749157,0 121.1595,-30.95,0 120.0,-31.28,0 118.284000,-31.522899,0 118.246187,-32.547290,0 116.362,-33.484,0 116.3,-33.43,0
+				</coordinates>
+			</LineString>
+		</Placemark>
+	</Folder>
+	<Folder>
+		<name>132KV</name>
+		<Placemark>
+			<name>132kV_1</name>
+			<styleUrl>#s_132kv</styleUrl>
+			<LineString>
+				<tessellate>1</tessellate>
+				<coordinates>
+				114.653152,-28.771285,0 115.754206,-29.570454,0 115.933168,-29.687667,0 115.8840000,-31.923100,0
+				</coordinates>
+			</LineString>
+		</Placemark>
+		<Placemark>
+			<name>132kV_2</name>
+			<styleUrl>#s_132kv</styleUrl>
+			<LineString>
+				<tessellate>1</tessellate>
+				<coordinates>
+				117.832837,-34.968727,0 117.132601,-33.784745,0 116.3,-33.43,0
+				</coordinates>
+			</LineString>
+		</Placemark>
+		<Placemark>
+			<name>132kV_3</name>
+			<styleUrl>#s_132kv</styleUrl>
+			<LineString>
+				<tessellate>1</tessellate>
+				<coordinates>
+				115.259839,-34.158058,0 116.171548,-34.319651,0 116.3,-33.43,0
+				</coordinates>
+			</LineString>
+		</Placemark>
+		<Placemark>
+			<name>132kV_4</name>
+			<styleUrl>#s_132kv</styleUrl>
+			<LineString>
+				<tessellate>1</tessellate>
+				<coordinates>
+				119.779018,-32.095293,0 118.246187,-32.547290,0
+				</coordinates>
+			</LineString>
+		</Placemark>
+		<Placemark>
+			<name>132kV_5</name>
+			<styleUrl>#s_132kv</styleUrl>
+			<LineString>
+				<tessellate>1</tessellate>
+				<coordinates>
+				118.284000,-31.522899,0 115.884000,-31.923100,0
+				</coordinates>
+			</LineString>
+		</Placemark>
+		<Placemark>
+			<name>132kV_6</name>
+			<styleUrl>#s_132kv</styleUrl>
+			<LineString>
+				<tessellate>1</tessellate>
+				<coordinates>
+				115.4876,-33.6576,0 115.9,-33.1,0
+				</coordinates>
+			</LineString>
+		</Placemark>
+		<Placemark>
+			<name>132kV_7</name>
+			<styleUrl>#s_132kv</styleUrl>
+			<LineString>
+				<tessellate>1</tessellate>
+				<coordinates>
+				121.526737,-30.749157,0 121.8023,-31.3698,0
+				</coordinates>
+			</LineString>
+		</Placemark>
+		<Placemark>
+			<name>132kV_8</name>
+			<styleUrl>#s_132kv</styleUrl>
+			<LineString>
+				<tessellate>1</tessellate>
+				<coordinates>
+				121.526737,-30.749157,0 121.2978,-30.4974,0
+				</coordinates>
+			</LineString>
+		</Placemark>
+		<Placemark>
+			<name>132kV_9</name>
+			<styleUrl>#s_132kv</styleUrl>
+			<LineString>
+				<tessellate>1</tessellate>
+				<coordinates>
+				116.944207,-28.736194,0 116.3493,-29.2278,0
+				</coordinates>
+			</LineString>
+		</Placemark>
+		<Placemark>
+			<name>132kV_10</name>
+			<styleUrl>#s_132kv</styleUrl>
+			<LineString>
+				<tessellate>1</tessellate>
+				<coordinates>
+				116.314438,-32.717338,0 116.318614,-32.241567,0 115.8840000,-31.923100,0
+				</coordinates>
+			</LineString>
+		</Placemark>
+	</Folder>
+</Document>
+</kml>

@@ -2,7 +2,7 @@
 from django.urls import path, include
 from django.contrib.auth import views as auth_views
 from powermapui.views import create_scenario_views, facilities_list_views, powermapui_home_views,  \
-    table_update_views, technologies_views
+    power_views, table_update_views, technologies_views
 from django.views.generic import TemplateView
 
 urlpatterns = [
@@ -13,5 +13,5 @@ urlpatterns = [
     path('technologies/', technologies_views.technologies, name='technologies'),
     path('tableupdate/', table_update_views.select_table, name='table_update'),
     path('tableupdate/process/', table_update_views.update_table, name='table_update_process'),
-    # Add additional URL patterns here if needed
+    path('power/', power_views.generate_power, name='generate_power'),
 ]

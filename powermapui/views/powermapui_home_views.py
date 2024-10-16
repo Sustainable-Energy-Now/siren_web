@@ -7,13 +7,29 @@ from django.http import HttpResponse, JsonResponse
 from django.shortcuts import render, redirect
 from django.urls import path
 from powermatchui.views.exec_powermatch import submit_powermatch
+from siren_web.database_operations import fetch_module_settings_data, fetch_scenario_settings_data
+from siren_web.models import facilities
+import json
+import os
 
 @login_required
 def home(request):
     demand_year = request.session.get('demand_year', '')  # Get demand_year and scenario from session or default to empty string
     scenario= request.session.get('scenario', '')
     success_message = ""
+    scenario_settings = {}
+    if not demand_year:
+        success_message = "Set the demand year and scenario in the home page first."
+    else:
+        scenario_settings = fetch_module_settings_data('Power')
+        if not scenario_settings:
+            scenario_settings = fetch_scenario_settings_data(scenario)
+    # Query all facilities with latitude and longitude available
+    facilities_data = facilities.objects.filter(latitude__isnull=False, longitude__isnull=False).values('facility_name', 'idtechnologies', 'latitude', 'longitude')
+    # Convert the queryset to a list and then to JSON
+    facilities_json = json.dumps(list(facilities_data))
     context = {
-        'success_message': success_message, 'demand_year': demand_year, 'scenario': scenario
+        'success_message': success_message, 'demand_year': demand_year, 'scenario': scenario,
+        'facilities_json': facilities_json,
         }
     return render(request, 'powermapui_home.html', context)

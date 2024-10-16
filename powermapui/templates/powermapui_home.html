@@ -1,6 +1,6 @@
 <!-- powermapui/templates/powermapui_home.html -->
 {% extends 'powermapui_base.html' %}
-
+{% load static %}
 {% block powermapui_content %}
 
 <p>This is a placeholder for a web interface to the Siren Powermap module. The purpose of this interface is to explain 
@@ -15,22 +15,176 @@
 <div id="map" style="height: 600px; width: 100%;"></div>
 
 <!-- Leaflet.js Library -->
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
-<script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
-
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+     integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+     crossorigin=""/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+crossorigin=""></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet-omnivore/0.3.4/leaflet-omnivore.min.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/shramov/leaflet-plugins/layer/vector/KML.js"></script>
 <script>
     // Initialize the map and set its view to South West of Western Australia
-    var map = L.map('map').setView([-33.45, 121.25], 8);  // Coordinates for South West WA
+    var map = L.map('map').setView([-33.45, 121.25], 7);  // Coordinates for South West WA
 
     // Add OpenStreetMap tiles to the map
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: 'Map data © <a href="https://openstreetmap.org">OpenStreetMap</a> contributors'
     }).addTo(map);
+    // Facility data passed from Django view
+    var facilities = {{ facilities_json|safe }};
+    // Define custom icons for each technology type
+    var bessIcon = L.icon({
+        iconUrl: "{% static 'icons/bess.png' %}",  // Path to your bess icon image
+        iconSize: [32, 32],
+    });
 
-    // Example of adding a marker for a facility (you can replace this with dynamic data later)
-    L.marker([-33.45, 121.25]).addTo(map)
-        .bindPopup('Example Facility Location')
-        .openPopup();
+    var biomassIcon = L.icon({
+        iconUrl: "{% static 'icons/biomass.png' %}",  // Path to your biomass icon image
+        iconSize: [32, 32],
+    });
+    var CCGTIcon = L.icon({
+        iconUrl: "{% static 'icons/CCGT.png' %}",  // Path to your CCGT icon image
+        iconSize: [32, 32],
+    });
+    var CSTIcon = L.icon({
+        iconUrl: "{% static 'icons/CST.png' %}",  // Path to your CST icon image
+        iconSize: [32, 32],
+    });
+
+    var coalIcon = L.icon({
+        iconUrl: "{% static 'icons/coal.png' %}",  // Path to your coal icon image
+        iconSize: [32, 32],
+    });
+
+    var geothermalIcon = L.icon({
+        iconUrl: "{% static 'icons/geothermal.png' %}",  // Path to your geothermal icon image
+        iconSize: [32, 32],
+    });
+
+    var nuclearIcon = L.icon({
+        iconUrl: "{% static 'icons/nuclear.png' %}",  // Path to your nuclear icon image
+        iconSize: [32, 32],
+    });
+    
+    var PHESIcon = L.icon({
+        iconUrl: "{% static 'icons/PHES.png' %}",  // Path to your PHES icon image
+        iconSize: [32, 32],
+    });
+    
+    var recipIcon = L.icon({
+        iconUrl: "{% static 'icons/recip.png' %}",  // Path to your recip icon image
+        iconSize: [32, 32],
+    });
+    var solarIcon = L.icon({
+        iconUrl: "{% static 'icons/solar.png' %}",  // Path to your solar icon image
+        iconSize: [32, 32],  // size of the icon
+    });
+
+    var windIcon = L.icon({
+        iconUrl: "{% static 'icons/wind.png' %}",  // Path to your wind icon image
+        iconSize: [32, 32],
+    });
+
+    var defaultIcon = L.icon({
+        iconUrl: "{% static 'icons/power_technology.png' %}",  // Fallback/default icon image
+        iconSize: [32, 32],
+    });
+    // Create a layer group for the facilities
+    var facilityLayer = L.layerGroup();
+    var gridLayer = L.layerGroup();
+    // Function to get the correct icon based on technology type
+    function getIconForTechnology(technologyId) {
+        switch (technologyId) {
+            case 1:  //  coal
+                return coalIcon;
+            case 2, 3, 4, 5, 29, 30, 31, 32, 40, 41, 42, 43:  //  bess
+                return bessIcon;
+            case 6:  //  biomass
+                return biomassIcon;
+            case 7:  //  CGT
+                return CCGTIcon;
+            case 8, 9:  //  PHES
+                return PHESIcon;
+            case 11, 13, 14, 107, 108, 110:  // solar
+                return solarIcon;
+            case 15, 16:  // wind
+                return windIcon;
+            case 19:  // Concentrated Solar Thermal
+                return CSTIcon;
+            case 20:  // Reciprocating Gas
+                return reciprocatinggasIcon;
+            default:
+                return defaultIcon;
+        }
+    }
+    // Loop through facilities and add markers to the map
+    facilities.forEach(function(facility) {
+        var icon = getIconForTechnology(facility.idtechnologies);
+        var marker = L.marker([facility.latitude, facility.longitude], { icon: icon })
+            .bindPopup(facility.facility_name);
+        facilityLayer.addLayer(marker);
+    });
+    // Add the facility layer to the map
+    facilityLayer.addTo(map)
+
+    // Create a layer group for all KML layers
+    //var gridLayer = L.layerGroup().addTo(map);
+
+    var boundaryLayer = new L.KML("{% static 'kml//SWIS_Boundary.kml' %}", {
+        async: true  // Load asynchronously to avoid blocking
+    });
+    boundaryLayer.on("loaded", function(e) {
+        map.fitBounds(e.target.getBounds());  // Adjust the map to fit the KML boundary
+    });
+    map.addLayer(boundaryLayer);
+    boundaryLayer.on("loaded", function(e) {
+        map.fitBounds(e.target.getBounds());  // Adjust the map to fit the bounds of the KML layer
+    
+        // Override polygon styles
+        e.target.eachLayer(function(layer) {
+            if (layer instanceof L.Polygon) {
+                layer.setStyle({
+                    fillColor: '#ddffcc',   // Light Green fill
+                    fillOpacity: 0.4,       // 70% opacity for fill
+                    color: '#ff7800',       // Orange border
+                    weight: 3,              // 3px border width
+                    opacity: 0.8,           // 80% opacity for border
+                    dashArray: '5, 5',      // Dashed border
+                    dashOffset: '0'         // No offset for dashes
+                });
+            }
+        });
+    });
+    
+    var gridLayer = new L.KML("{% static 'kml//SWIS_Grid.kml' %}", {
+        async: true  // Load asynchronously to avoid blocking
+    });
+    gridLayer.on("loaded", function(e) {
+        map.fitBounds(e.target.getBounds());  // Adjust the map to fit the KML boundary
+    });
+    map.addLayer(gridLayer);
+
+    var zoneLayer = new L.KML("{% static 'kml//SWIS_2023_Zones.kml' %}", {
+        async: true  // Load asynchronously to avoid blocking
+    });
+    zoneLayer.on("loaded", function(e) {
+        map.fitBounds(e.target.getBounds());  // Adjust the map to fit the KML zone
+    });
+    map.addLayer(zoneLayer);
+
+     // Add a layer control to toggle the facility layer on and off
+    var baseLayers = {};  // You can add any base layers here if needed
+    var overlays = {
+        "SWIS Boundary":boundaryLayer,
+        "Zones":zoneLayer,
+        "Power Generating Facilities": facilityLayer,
+        "Grid": gridLayer,
+
+    };
+
+    // Add layer control to the map
+    L.control.layers(baseLayers, overlays).addTo(map);
 </script>
 
 {% endblock %}
