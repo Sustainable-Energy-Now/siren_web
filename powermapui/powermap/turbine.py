@@ -1,0 +1,142 @@
+#!/usr/bin/python3
+#
+#  Copyright (C) 2015-2024 Sustainable Energy Now Inc., Angus King
+#
+#  turbine.py - This file is part of SIREN.
+#
+#  SIREN is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU Affero General Public License as
+#  published by the Free Software Foundation, either version 3 of
+#  the License, or (at your option) any later version.
+#
+#  SIREN is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU Affero General Public License for more details.
+#
+#  You should have received a copy of the GNU Affero General
+#  Public License along with SIREN.  If not, see
+#  <http://www.gnu.org/licenses/>.
+#
+
+import matplotlib.pyplot as plt
+import numpy as np
+import csv
+import os
+
+class Power_Curve:
+
+    def __init__(self, name, poly):
+        """Initializes the data."""
+        self.pow_dir = 'siren_web/static/siren_data/plant_data'
+        turb = name.split(';')
+        self.name = turb[0]
+        pow_file = self.pow_dir + '/' + self.name + '.pow'
+        if os.path.exists(pow_file):
+            tf = open(pow_file, 'r')
+            lines = tf.readlines()
+            tf.close()
+            self.capacity = 0.
+            self.cutin = float(lines[4].strip('" \t\n\r'))
+            self.rotor = float(lines[1].strip('" \t\n\r'))
+            x = []
+            y = []
+            last_valu = 0
+            for ln in range(5, len(lines)):
+                try:
+                    valu = float(lines[ln].strip('" \t\n\r'))
+                    if valu > 0 and self.cutin == 0:
+                        self.cutin = float(ln - 4)
+                    if valu < last_valu:
+                        if valu > 0 or ln > 5:
+                            break
+                    x.append(float(ln - 4))
+                    y.append(float(valu))
+                    last_valu = valu
+                except:
+                    break
+            self.cutout = ln - 5
+            self.power_curve = np.polyfit(x, y, poly)
+            self.capacity = last_valu
+        else:
+            print('No', pow_file)
+            return None
+
+    def Power(self, wind_speed):
+        """return power for wind speed."""
+        if wind_speed < self.cutin or wind_speed > self.cutout:
+            return 0.
+        reslt = np.polyval(self.power_curve, wind_speed)
+        if reslt < 0:
+            return 0.
+        if reslt > self.capacity:
+            return self.capacity
+        return reslt
+
+
+class Turbine:
+    """Specifications for a Wind Turbine (Power Curve, ...)."""
+
+    def __init__(self, name, poly=13):
+        """Initializes the data."""
+        self.sam_file = 'siren_web\\static\\siren_data\\plant_data\\Wind Turbines.csv'
+        self.name = name
+        self.maxp = 0
+        if os.path.exists(self.sam_file):
+             turb_fil = open(self.sam_file)
+             turbines = csv.DictReader(turb_fil)
+             for turbine in turbines:
+                 if turbine['Name'].strip()  == name:
+                     try:
+                         self.capacity = float(turbine['KW Rating'])
+                     except:
+                         self.capacity = float(turbine['kW Rating'])
+                     self.cutin = 0
+                     self.powers = turbine['Power Curve Array'].split('|')
+                     self.rotor = float(turbine['Rotor Diameter'])
+                     self.speeds = turbine['Wind Speed Array'].split('|')
+                     for i in range(len(self.powers)):
+                         self.speeds[i] = float(self.speeds[i])
+                         self.powers[i] = float(self.powers[i])
+                         if self.powers[i] > 0 and self.cutin == 0:
+                             self.cutin = self.speeds[i]
+                     self.wind_class = turbine['IEC Wind Speed Class']
+                     turb_fil.close()
+                     break
+             else:
+                 turb_fil.close()
+                 pow_turbine = Power_Curve(name, poly)
+                 if not hasattr(pow_turbine, 'capacity'):
+                     return None
+                 self.capacity = pow_turbine.capacity
+                 self.cutin = pow_turbine.cutin
+                 self.rotor = pow_turbine.rotor
+                 self.wind_class = '?'
+                 self.powers = []
+                 self.speeds = []
+                 last_pow = 0
+                 for ws in range(161):   # 0 to 40 by 0.25
+                     self.speeds.append(ws / 4.)
+                     powr = round(pow_turbine.Power(ws / 4.), 2)
+                     if powr > 0:
+                         if powr > last_pow:
+                             last_pow = powr
+                         self.powers.append(last_pow)
+                     else:
+                         self.powers.append(powr)
+
+
+    def Power(self):
+        """return power curve values for wind speed."""
+        return self.speeds, self.powers
+
+    def PowerCurve(self):
+        """plot power curve."""
+        if not hasattr(self, 'speeds'):
+            return None
+        plt.plot(self.speeds, self.powers, linewidth=2.0)
+        plt.title('Power Curve for ' + self.name)
+        plt.grid(True)
+        plt.xlabel('wind speed (m/s)')
+        plt.ylabel('generation (kW)')
+        plt.show(block=True)

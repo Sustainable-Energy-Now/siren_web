@@ -27,10 +27,22 @@
             "autoStartBrowser": false
         },
         {
+            "name": "Python Debugger: load_trading_prices",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}\\manage.py",
+            "args": [
+                "load_trading_prices", "siren_web/data/balancing-summary-2012.csv"
+            ],
+            "django": true,
+            "autoStartBrowser": false
+        },
+        {
             "name": "Python Debugger: Django",
             "type": "debugpy",
             "request": "launch",
             "program": "${workspaceFolder}\\manage.py",
+            "cwd": "${workspaceFolder}",
             "env": {
                 "DB_HOST": "siren-web.sen.asn.au",
                 "DB_NAME": "senasnau_siren",
@@ -41,6 +53,7 @@
                 "MEMBER_PASS": "ActSenMemb",
                 "LAPSED_PASS": "LapsedSenMemb",
                 "SUBSCRIBER_PASS": "JustFollow",
+                "PYTHONPATH": "${workspaceFolder}",
             },
             "args": [
                 "runserver"

@@ -1,0 +1,25 @@
+<!-- templates/trading_price_list.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Trading Prices</title>
+</head>
+<body>
+    <h1>Trading Prices</h1>
+    <table>
+        <tr>
+            <th>Trading Interval</th>
+            <th>Reference Price</th>
+            <th>Actions</th>
+        </tr>
+        {% for price in prices %}
+        <tr>
+            <td>{{ price.trading_interval }}</td>
+            <td>{{ price.reference_price }}</td>
+            <td><a href="{% url 'update_trading_price' price.pk %}">Edit</a></td>
+        </tr>
+        {% endfor %}
+    </table>
+</body>
+</html>

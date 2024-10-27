@@ -1,11 +1,13 @@
-# In powermatchui database operations
+# database operations
+from datetime import datetime, timedelta
 from django.db import connection
 from django.http import HttpResponse
 import logging
-from django.db.models import Q, F, Sum, Count
+from django.db.models import Avg, Q, F, Sum, Count, When, OuterRef, Subquery
+from django.db.models.functions import TruncDay
 from siren_web.models import Analysis, Demand, facilities, Generatorattributes, Optimisations, \
     Scenarios, ScenariosTechnologies, ScenariosSettings, Settings, Storageattributes, supplyfactors, \
-    Technologies, variations, Zones
+    Technologies, TradingPrice, variations, Zones
 from powermatchui.powermatch.pmcore import Facility, PM_Facility, Optimisation
 
 def delete_analysis_scenario(idscenario):
@@ -185,14 +187,16 @@ def fetch_full_generator_storage_data(demand_year):
         s.discharge_max, s.parasitic_loss, s.rampdown_max,
         s.rampup_max, s.recharge_loss, s.recharge_max,
         s.min_runtime, s.warm_time,
-        g.fuel,
-        ROW_NUMBER() OVER (PARTITION BY t.technology_name ORDER BY t.merit_order, t.year DESC) AS row_num
+        g.fuel, st.merit_order,
+        ROW_NUMBER() OVER (PARTITION BY t.technology_name ORDER BY st.merit_order, t.year DESC) AS row_num
         FROM senasnau_siren.Technologies t
+        INNER JOIN 
+		ScenariosTechnologies st ON t.idTechnologies = st.idtechnologies_id
         LEFT JOIN senasnau_siren.StorageAttributes s ON t.idtechnologies = s.idtechnologies 
             AND t.category = 'Storage' AND t.year = s.year
         LEFT JOIN senasnau_siren.GeneratorAttributes g ON t.idtechnologies = g.idtechnologies 
             AND t.category = 'Generator' AND t.year = g.year
-        WHERE t.year IN (0, {demand_year}) AND
+        WHERE t.year IN (0, %s) AND
         t.category != 'Load'
         )
         SELECT *
@@ -202,7 +206,7 @@ def fetch_full_generator_storage_data(demand_year):
     # Execute the SQL query
     try:
         with connection.cursor() as cursor:
-            cursor.execute(generators_query)
+            cursor.execute(generators_query, (demand_year))
             # Fetch the results
             generators_result = cursor.fetchall()
             if generators_result is None:
@@ -215,8 +219,57 @@ def fetch_full_generator_storage_data(demand_year):
                     
     except Exception as e:
         print("Error executing query:", e)
-        # Get the column names
 
+def fetch_full_facilities_data(demand_year, scenario):
+    idscenarios = Scenarios.objects.get(title=scenario).idscenarios
+    facilities_query = \
+    f"""
+    WITH fte AS (
+        SELECT 
+            f.*,  -- Select all fields from facilities
+            t.technology_name,  -- Select all fields from Technologies
+            ga.fuel, sa.discharge_loss,
+            COALESCE(sa.year, ga.year) AS year,
+            t.area,
+            ROW_NUMBER() OVER (PARTITION BY f.facility_name ORDER BY year DESC) AS row_num
+        FROM 
+            facilities f
+        INNER JOIN 
+            ScenariosFacilities sf ON f.idfacilities = sf.idfacilities
+        INNER JOIN 
+            Technologies t ON f.idTechnologies = t.idTechnologies
+        LEFT JOIN 
+            StorageAttributes sa ON t.idTechnologies = sa.idTechnologies 
+            AND t.year = sa.year
+            AND t.category = 'Storage'
+        LEFT JOIN 
+            GeneratorAttributes ga ON t.idTechnologies = ga.idTechnologies
+            AND t.year = ga.year
+            AND t.category = 'Generator'
+        WHERE 
+            sf.idscenarios = %s
+            AND t.year in (0, %s)
+        )
+    SELECT *
+    FROM fte
+    WHERE row_num = 1;
+    """
+    try:
+        with connection.cursor() as cursor:  
+            cursor.execute(facilities_query, (idscenarios, demand_year) )
+            # Fetch the results
+            facilities_result = cursor.fetchall()
+            if facilities_result is None:
+                # Handle the case where fetchall() returns None
+                logger = logging.getLogger(__name__)
+                logger.debug('No results found.')
+                return None  # or handle this case appropriately
+            column_names = [desc[0] for desc in cursor.description]
+        return [dict(zip(column_names, row)) for row in facilities_result]
+                    
+    except Exception as e:
+        print("Error executing query:", e)
+        
 def fetch_generators_parameter(demand_year, scenario, pmss_details, max_col):
     generators = {}
     dispatch_order = []
@@ -504,3 +557,15 @@ def fetch_variation(variation):
         # Handle any errors that occur during the database query
         return None
     return variation
+
+def get_monthly_average_reference_price():  
+    # Query to calculate daily average reference_price for each day within the specified month
+    average_prices = (
+        TradingPrice.objects
+        .all()
+        .annotate(day=TruncDay('trading_interval'))
+        .values('day')
+        .annotate(avg_price=Avg('reference_price'))
+        .order_by('day')
+    )
+    return average_prices

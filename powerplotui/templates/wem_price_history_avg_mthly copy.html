@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WEM Price History</title>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+</head>
+<body>
+    <h1>WEM Monthly Average Price History</h1>
+    <p>The data displayed below shows the trading prices updated every 30 minutes, fetched from AEMO's API.</p>
+
+    <!-- Render the Plotly chart here -->
+    <div id="price-chart">
+        {{ plot_div|safe }}
+    </div>
+</body>
+</html>

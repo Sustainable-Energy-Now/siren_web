@@ -20,7 +20,6 @@
 #
 
 import os
-from PyQt5 import QtGui, QtWidgets
 from shutil import copy
 import sys
 
@@ -34,17 +33,11 @@ def commonprefix(args, chr='/'):
 
 def getModelFile(*args):
     def set_models_locn(ini_file):
-        app = QtWidgets.QApplication.instance()
-        if app is None:
-            app = QtWidgets.QApplication(sys.argv)
         if sys.platform == 'win32' or sys.platform == 'cygwin':
             fldr_div = '\\'
         else:
             fldr_div = '/'
         siren_dir = '.' + fldr_div
-        newdir = QtWidgets.QFileDialog.getExistingDirectory(None,
-                 'SIREN. Choose location for SIREN Model (Preferences) files',
-                 '', QtWidgets.QFileDialog.ShowDirsOnly)
         if newdir != '':
             mydir = os.path.abspath(__file__)
             if sys.platform == 'win32' or sys.platform == 'cygwin':

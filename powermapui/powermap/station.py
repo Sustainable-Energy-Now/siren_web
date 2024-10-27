@@ -97,7 +97,7 @@ class Stations:
 
     def __init__(self, facilities):
         self.stations = []
-        self.sam_file = 'siren_web\\static\\siren_data\\plant_data\\Wind Turbines.csv'
+        self.sam_file = 'siren_web/static/siren_data/plant_data/Wind Turbines.csv'
         if os.path.exists(self.sam_file):
            sam = open(self.sam_file)
            sam_turbines = csv.DictReader(sam)
@@ -105,213 +105,181 @@ class Stations:
            sam = None
            sam_turbines = []
         for facility in facilities:
-            if facility.longitude != '':
-                if 'Facility Code' in facilities.fieldnames:   # IMO format
-                    bit = facility['Facility Code'].split('_')
-                    rotor = 0.
-                    hub_height = 0.
-                    turbine = ''
-                    no_turbines = 0
-                    if bit[-1][:2] == 'WW' or bit[-1][:2] == 'WF':
-                        tech = 'Wind'
-                        turbine = facility['Turbine']
-                        if turbine[:7] == 'Enercon':
-                            bit = turbine[9:].split(' _')
-                            if len(bit) == 1:
-                                rotor = bit[0].split('_')[0]
-                            else:
-                                bit = bit[0].split('_')
-                                if len(bit) == 1:
-                                    rotor = bit[0]
-                                else:
-                                    if bit[1][-1] == 'm':
-                                        rotor = bit[1][:-1]
-                                    else:
-                                        rotor = bit[0]
+            bit = facility['facility_code'].split('_')
+            rotor = 0.
+            hub_height = 0.
+            turbine = ''
+            no_turbines = 0
+            if 'Wind' in facility['technology_name']:
+                tech = 'Wind'
+                turbine = facility['Turbine']
+                if turbine[:7] == 'Enercon':
+                    bit = turbine[9:].split(' _')
+                    if len(bit) == 1:
+                        rotor = bit[0].split('_')[0]
+                    else:
+                        bit = bit[0].split('_')
+                        if len(bit) == 1:
+                            rotor = bit[0]
                         else:
-                            turb = turbine.split(';')
-                            if len(turb) > 1:
-                                turbine = turb[1]
+                            if bit[1][-1] == 'm':
+                                rotor = bit[1][:-1]
                             else:
-                                turbine = turb[0]
-                            if sam is not None:
-                                sam.seek(0)
+                                rotor = bit[0]
+                else:
+                    turb = turbine.split(';')
+                    if len(turb) > 1:
+                        turbine = turb[1]
+                    else:
+                        turbine = turb[0]
+                    if sam is not None:
+                        sam.seek(0)
+                    for turb in sam_turbines:
+                        if turb['Name'] == turbine:
+                            rotor = turb['Rotor Diameter']
+                            break
+                    else: # try and find .pow file
+                        pow_file = 'siren_web/static/siren_data/plant_data/' + turbine + '.pow'   
+                        if os.path.exists(pow_file):
+                            tf = open(pow_file, 'r')
+                            lines = tf.readlines()
+                            tf.close()
+                            rotor = float(lines[1].strip('" \t\n\r'))
+                            del lines
+                no_turbines = int(facility['no_turbines'])
+                try:
+                    rotor = float(rotor)
+                except:
+                    pass
+                area = facility['area'] * float(no_turbines) * pow((rotor * .001), 2)
+                try:
+                    hub_height = float(facility['Hub Height'])
+                except:
+                    pass
+            else:
+                tech = facility['technology_name']
+                tech.removeprefix('Existing ').removeprefix('Proposed ')
+                try:
+                    area = facility['area'] * float(facility['capacity'])
+                except:
+                    area = 0
+
+            nice_name = facility['facility_name']
+            if nice_name == '':
+                name_split = facility['facility_code'].split('_')
+                if len(name_split) > 1:
+                    nice_name = ''
+                    for i in range(len(name_split) - 1):
+                        nice_name += name_split[i].title() + '_'
+                    nice_name += name_split[-1]
+                else:
+                    nice_name = facility['facility_code']
+            stn = self.Get_Station(nice_name)
+            if stn is None:   # new station?
+                self.stations.append(Station(nice_name, tech,
+                    float(facility['latitude']), float(facility['longitude']),
+                    float(facility['capacity']), turbine, rotor, no_turbines, area, 'Existing'))
+                if tech == 'Fixed PV':
+                    try:
+                        if facility['tilt'] != '':
+                            self.stations[-1].tilt = float(facility['tilt'])
+                    except:
+                        pass
+            else:   # additional generator in existing station
+                if stn.technology != tech:
+                    if stn.technology[:6] == 'Fossil' and tech[:6] == 'Fossil':
+                        stn.technology = 'Fossil Mixed'
+                stn.capacity = stn.capacity + float(facility['capacity'])
+                stn.area += area
+                stn.no_turbines = stn.no_turbines + no_turbines
+            if tech == 'Wind' and hub_height > 0:
+                stn.hub_height = hub_height
+
+            self.stations.append(Station(facility['facility_name'],
+                            facility['technology_name'],
+                            float(facility['latitude']),
+                            float(facility['longitude']),
+                            float(facility['capacity']),
+                            facility['Turbine'],
+                            rotor,
+                            facility['no_turbines'],
+                            float(facility['area']),
+                            'Existing'))
+            if 'Wind' in self.stations[-1].technology:
+                if self.stations[-1].rotor == 0 or self.stations[-1].rotor == '':
+                    rotor = 0
+                    if self.stations[-1].turbine[:7] == 'Enercon':
+                        bit = self.stations[-1].turbine[9:].split(' _')
+                        if len(bit) == 1:
+                            rotor = bit[0].split('_')[0]
+                        else:
+                            bit = bit[0].split('_')
+                            if len(bit) == 1:
+                                rotor = bit[0]
+                            else:
+                                if bit[1][-1] == 'm':
+                                    rotor = bit[1][:-1]
+                                else:
+                                    rotor = bit[0]
+                    else:
+                        turb = self.stations[-1].turbine.split(';')
+                        if len(turb) > 1:
+                            sam.seek(0)
+                            turbine = turb[1]
                             for turb in sam_turbines:
                                 if turb['Name'] == turbine:
                                     rotor = turb['Rotor Diameter']
-                                    break
-                            else: # try and find .pow file
-                                pow_file = self.pow_dir + '/' + turbine + '.pow'
-                                if os.path.exists(pow_file):
-                                    tf = open(pow_file, 'r')
-                                    lines = tf.readlines()
-                                    tf.close()
-                                    rotor = float(lines[1].strip('" \t\n\r'))
-                                    del lines
-                        no_turbines = int(facility['No. turbines'])
-                        try:
-                            rotor = float(rotor)
-                        except:
-                            pass
-                        area = self.areas[tech] * float(no_turbines) * pow((rotor * .001), 2)
-                        try:
-                            hub_height = float(facility['Hub Height'])
-                        except:
-                            pass
-                    elif bit[-1][:3] == 'ESR':
-                        tech = 'BESS'
-                    elif bit[0] == 'NORTHAM' and bit[-1][:2] == 'PV':
-                        tech = 'Fixed PV'
-                        area = self.areas[tech] * float(facility['Maximum Capacity (MW)'])
-                    elif bit[-1][:2] == 'PV':
-                        tech = 'Single Axis PV'
-                        area = self.areas[tech] * float(facility['Maximum Capacity (MW)'])
-                    elif bit[-1] == 'PLANT' and bit[-2] == 'BIOMASS':
-                        tech = 'Biomass'
-                        area = self.areas[tech] * float(facility['Maximum Capacity (MW)'])
-                    elif facility['Participant Code'] in ['CTE', 'LNDFLLGP', 'PERTHNRGY', 'WGRES']:
-                        tech = 'Biomass'
-                        area = self.areas[tech] * float(facility['Maximum Capacity (MW)'])
-                    else:
-                        tech = 'Fossil '
-                        if 'Fossil' in facilities.fieldnames:
-                            tech += facility['Fossil']
-                        else:
-                            if bit[-1][:2] == 'GT' or bit[-1][0] == 'U':
-                                tech += 'OCGT'
-                            elif bit[-1][:2] == 'CC':
-                                tech += 'CCGT'
-                            elif bit[-1][:3] == 'COG':
-                                tech += 'Cogen'
-                            elif bit[0] == 'TESLA' or bit[-1] == 'WGP':
-                                tech += 'Distillate'
-                            elif bit[-2] == 'WGP':
-                                tech += 'Mixed'
-                            elif bit[-1][0] == 'G' and (bit[-1][1] >= '1' and bit[-1][1] <= '9'):
-                                tech += 'Coal'
-                            else:
-                                tech += 'Mixed'
-                                #  tech += 'Distillate'
-                        try:
-                            area = self.areas[tech] * float(facility['Maximum Capacity (MW)'])
-                        except:
-                            area = 0
-                    if code:
-                        nice_name = facility['Facility Code']
-                    else:
-                        nice_name = facility['Facility Name']
-                        if nice_name == '':
-                            name_split = facility['Facility Code'].split('_')
-                            if len(name_split) > 1:
-                                nice_name = ''
-                                for i in range(len(name_split) - 1):
-                                    nice_name += name_split[i].title() + '_'
-                                nice_name += name_split[-1]
-                            else:
-                                nice_name = facility['Facility Code']
-                    stn = self.Get_Station(nice_name)
-                    if stn is None:   # new station?
-                        self.stations.append(Station(nice_name, tech,
-                            float(facility['Latitude']), float(facility['Longitude']),
-                            float(facility['Maximum Capacity (MW)']), turbine, rotor, no_turbines, area, 'Existing'))
-                        if tech == 'Fixed PV':
-                            try:
-                                if facility['Tilt'] != '':
-                                    self.stations[-1].tilt = float(facility['Tilt'])
-                            except:
-                                pass
-                    else:   # additional generator in existing station
-                        if stn.technology != tech:
-                            if stn.technology[:6] == 'Fossil' and tech[:6] == 'Fossil':
-                                stn.technology = 'Fossil Mixed'
-                        stn.capacity = stn.capacity + float(facility['Maximum Capacity (MW)'])
-                        stn.area += area
-                        stn.no_turbines = stn.no_turbines + no_turbines
-                    if tech == 'Wind' and hub_height > 0:
-                        stn.hub_height = hub_height
-                else:   # SIREN format
-                    try:
-                        turbs = int(facility['No. turbines'])
-                    except:
-                        turbs = 0
-                    self.stations.append(Station(facility['Station Name'],
-                                    facility['Technology'],
-                                    float(facility['Latitude']),
-                                    float(facility['Longitude']),
-                                    float(facility['Maximum Capacity (MW)']),
-                                    facility['Turbine'],
-                                    0.,
-                                    turbs,
-                                    float(facility['Area']),
-                                    'Existing'))
+                try:
+                    self.stations[-1].rotor = float(rotor)
+                except:
+                    pass
+                try:
+                    if float(facility['hub_height']) > 0:
+                        self.stations[-1].hub_height = float(facility['hub_height'])
+                except:
+                    pass
+                if self.stations[-1].area == 0 or self.stations[-1].area == '':
+                    self.stations[-1].area = self.areas[self.stations[-1].technology] * \
+                                                float(self.stations[-1].no_turbines) * \
+                                                pow((self.stations[-1].rotor * .001), 2)
+            
+            try:
+                if self.stations[-1].area == 0 or self.stations[-1].area == '':
                     if 'Wind' in self.stations[-1].technology:
-                        if self.stations[-1].rotor == 0 or self.stations[-1].rotor == '':
-                            rotor = 0
-                            if self.stations[-1].turbine[:7] == 'Enercon':
-                                bit = self.stations[-1].turbine[9:].split(' _')
-                                if len(bit) == 1:
-                                    rotor = bit[0].split('_')[0]
-                                else:
-                                    bit = bit[0].split('_')
-                                    if len(bit) == 1:
-                                        rotor = bit[0]
-                                    else:
-                                        if bit[1][-1] == 'm':
-                                            rotor = bit[1][:-1]
-                                        else:
-                                            rotor = bit[0]
-                            else:
-                                turb = self.stations[-1].turbine.split(';')
-                                if len(turb) > 1:
-                                    sam.seek(0)
-                                    turbine = turb[1]
-                                    for turb in sam_turbines:
-                                        if turb['Name'] == turbine:
-                                            rotor = turb['Rotor Diameter']
-                        try:
-                            self.stations[-1].rotor = float(rotor)
-                        except:
-                            pass
-                        try:
-                            if float(facility['Hub Height']) > 0:
-                                self.stations[-1].hub_height = float(facility['Hub Height'])
-                        except:
-                            pass
-                        if self.stations[-1].area == 0 or self.stations[-1].area == '':
-                            self.stations[-1].area = self.areas[self.stations[-1].technology] * \
-                                                        float(self.stations[-1].no_turbines) * \
-                                                        pow((self.stations[-1].rotor * .001), 2)
-                    elif self.stations[-1].area == 0 or self.stations[-1].area == '':
                         self.stations[-1].area = self.areas[self.stations[-1].technology] * \
                                                     float(self.stations[-1].capacity)
-                    try:
-                        if facility['Power File'] != '':
-                            self.stations[-1].power_file = facility['Power File']
-                    except:
-                        pass
-                    try:
-                        if facility['Grid Line'] != '':
-                            self.stations[-1].grid_line = facility['Grid Line']
-                    except:
-                        pass
-                    if 'PV' in self.stations[-1].technology:
-                        try:
-                            if facility['Direction'] != '':
-                                self.stations[-1].direction = facility['Direction']
-                        except:
-                            pass
-                        try:
-                            if facility['Tilt'] != '':
-                                self.stations[-1].tilt = float(facility['Tilt'])
-                        except:
-                            pass
-                    if self.stations[-1].technology in ['CST', 'Solar Thermal']:
-                        try:
-                            if facility['Storage Hours'] != '':
-                                self.stations[-1].storage_hours = float(facility['Storage Hours'])
-                        except:
-                            pass
-        facile.close()
+                    else:
+                        self.stations[-1].area = self.areas[self.stations[-1].technology] * \
+                                                    float(self.stations[-1].capacity)
+            except:
+                self.stations[-1].area = 0.
+            try:
+                if facility['power_file'] != '':
+                    self.stations[-1].power_file = facility['power_file']
+            except:
+                pass
+            try:
+                if facility['grid_line'] != '':
+                    self.stations[-1].grid_line = facility['grid_line']
+            except:
+                pass
+            if 'PV' in self.stations[-1].technology:
+                try:
+                    if facility['direction'] != '':
+                        self.stations[-1].direction = facility['direction']
+                except:
+                    pass
+                try:
+                    if facility['tilt'] != '':
+                        self.stations[-1].tilt = float(facility['tilt'])
+                except:
+                    pass
+            if self.stations[-1].technology in ['CST', 'Solar Thermal']:
+                try:
+                    if facility['storage_hours']:
+                        self.stations[-1].storage_hours = float(facility['storage_hours'])
+                except:
+                    pass
         if sam is not None:
             sam.close()
 

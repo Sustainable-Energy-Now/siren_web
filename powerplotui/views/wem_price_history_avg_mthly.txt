@@ -1,0 +1,126 @@
+{% extends 'banner.html' %}
+{% block content %}
+<head>
+    <style>
+        /* Flex container for side-by-side layout */
+        .container {
+            display: flex;
+            flex-direction: row;
+            width: 100%;
+            height: 85vh; /* Full viewport height */
+            overflow-y: auto;
+            margin-top: 20px;
+        }
+        /* Left panel styling */
+        .left-panel {
+            flex: 1;
+            padding: 10px;
+            overflow-y: auto;
+        }
+        /* Right panel styling */
+        .right-panel {
+            flex-basis: 50%;
+            position: sticky;
+            top: 0; /* Keeps it fixed to the top of the viewport */
+            height: 100vh;
+            overflow-y: hidden; /* Prevent scrolling within the chart */
+        }
+    </style>
+    <script type="text/javascript">
+    function firstone() {
+        const queryString = window.location.search;
+        const urlParams = new URLSearchParams(queryString);
+        if (urlParams.has('print') || urlParams.has('a4')) {
+            w = document.getElementById("myDiv").offsetWidth;
+            if (w > 790) {
+                document.getElementById('myDiv').setAttribute("style","width:790px");
+            }
+        }
+    }
+    </script>
+</head>
+<body onload="firstone();">
+    <!-- Flex container for logo at the top, followed by text and chart side-by-side -->
+    <div class="container">
+        <!-- Left panel with text content -->
+        <div class="left-panel">
+            <h1>WEM Monthly Average Price History</h1>
+            <p>This 3D image shows average period wholesale energy prices in the WA Wholesale Electricity Market (WEM) ... are they increasing? Are they here to stay? Are they a good or bad thing? ...is the market broken?</p>
+            <h2>Negative prices - Causal factors:</h2>
+            <ol>
+                <li>Rooftop solar pushes down operational demand.</li>
+                <li>Generators bid to be dispatched on the lowest price for a smaller amount of energy.</li>
+                <li>Coal generators must stay operational 24/7, bidding negative prices to be dispatched.</li>
+                <li>Large-scale generation certificate (LGC) owners also bid in negative to receive LGCs, down to the level of $40-50 MWh.</li>
+            </ol>
+            <h2>So, what is the direction of travel?</h2>
+            <p>As coal exits and LGCs expire (nominally 2030), there will be fewer negative prices. As battery storage ramps up, it will flatten out day-night price volatility, smoothing operational demand and introducing a new 'baseload power 2.0'.</p>
+            <h2>Are negative prices good or bad?</h2>
+            <p>They are simply a feature of the market transition, encouraging battery storage investments, favoring first movers, and partially eating its own lunch.</p>
+            <p>Negative prices benefit users trading directly on the energy market, such as energy wholesalers, batteries, and heavy industry.</p>
+            <p>There is an optimal amount of storage to flatten operational demand and reduce shortage risk, though current incentives may not drive investment at that level.</p>
+        </div>
+
+        <!-- Right panel with chart -->
+        <div class="right-panel" id="myDiv">
+            <script type="text/javascript">window.PlotlyConfig = {MathJaxConfig: 'local'};</script>
+            <script src="https://cdn.plot.ly/plotly-2.32.0.min.js" charset="utf-8"></script>
+            <script type="text/javascript">
+                window.PLOTLYENV=window.PLOTLYENV || {};
+                function createArray(N) {
+                    let newArr = [];
+                    for (let i = 1; i <= N; i++) {
+                        newArr.push(i);
+                    }
+                    return newArr;
+                }
+                var avg_dirn = false;
+                const z2 = {{ z_values|safe }};
+                let x = createArray(48);
+                var x_tickvals = {{ x_tickvals|safe }};
+                let y = createArray(148);
+                var y_tickvals = {{ y_tickvals|safe }};
+                var y_textvals = {{ y_textvals|safe }};
+                avg_dirn = true;
+                var data2 = {
+                    x: x,
+                    y: y,
+                    z: z2,
+                    type: 'surface',
+                    showscale: false,
+                    reversescale: avg_dirn,
+                    colorscale: 'Jet'
+                };
+                var layout = {
+                    title: {
+                        text: "WEM Price History (Avg.)<br><sup><sub>(Data derived from: https://data.wa.aemo.com.au/#reference-trading-price)</sub></sup>",
+                        y: 0.85,
+                        font: {
+                            size: 25
+                        }
+                    },
+                    scene: {
+                        xaxis: {
+                            title: "Hour of the Day",
+                            tickmode: "array",
+                            tickvals: x_tickvals,
+                            ticktext: ['00:00', '04:00', '08:00', '12:00', '16:00', '20:00'],
+                            autorange: "reversed"
+                        },
+                        yaxis: {
+                            title: "Month",
+                            tickmode: "array",
+                            tickvals: y_tickvals,
+                            ticktext: y_textvals
+                        },
+                        zaxis: {
+                            title: "Price"
+                        }
+                    }
+                }
+                Plotly.newPlot('myDiv', [data2], layout);
+            </script>
+        </div>
+    </div>
+</body>
+{% endblock %}

@@ -44,17 +44,27 @@ class Scenarios(models.Model):
         db_table = 'Scenarios'
 
 class facilities(models.Model):
-    idfacilities = models.AutoField(db_column='idfacilities', primary_key=True)   
-    facility_name = models.CharField(db_column='facility_name', max_length=45, blank=True, null=True)  
-    idtechnologies = models.ForeignKey('Technologies', models.DO_NOTHING, db_column='idtechnologies')  
+    idfacilities = models.AutoField(db_column='idfacilities', primary_key=True)
+    facility_name = models.CharField(db_column='facility_name', max_length=45, blank=True, null=True)
+    facility_code = models.CharField(db_column='facility_code', max_length=20, blank=True, null=True)
+    participant_code = models.CharField(max_length=45, blank=True, null=True)
+    idtechnologies = models.ForeignKey('Technologies', models.DO_NOTHING, db_column='idtechnologies')
     scenarios = models.ManyToManyField(Scenarios, through='ScenariosFacilities', blank=True)
-    idzones = models.ForeignKey('Zones', models.DO_NOTHING, db_column='idzones', blank=True, null=True)  
-    capacity = models.FloatField(null=True)  
-    capacityfactor = models.FloatField(null=True)  
-    generation = models.FloatField(null=True)  
-    transmitted = models.FloatField(null=True)  
+    idzones = models.ForeignKey('Zones', models.DO_NOTHING, db_column='idzones', blank=True, null=True)
+    capacity = models.FloatField(null=True)
+    capacityfactor = models.FloatField(null=True)
+    generation = models.FloatField(null=True)
+    transmitted = models.FloatField(null=True)
     latitude = models.FloatField(blank=True, null=True)
     longitude = models.FloatField(blank=True, null=True)
+    turbine = models.CharField(db_column='turbine', max_length=45, blank=True, null=True)
+    hub_height = models.FloatField(blank=True, null=True)
+    no_turbines = models.IntegerField(null=True)
+    tilt = models.IntegerField(null=True)
+    storage_hours = models.FloatField(blank=True, null=True)
+    power_file = models.CharField( max_length=45, blank=True, null=True)
+    grid_line = models.CharField( max_length=45, blank=True, null=True)
+    direction = models.CharField( max_length=20, blank=True, null=True)
 
     class Meta:
         db_table = 'facilities'
@@ -122,7 +132,7 @@ class ScenariosSettings(models.Model):
     idscenarios = models.ForeignKey('Scenarios', on_delete=models.RESTRICT)
     sw_context = models.CharField(max_length=20, blank=True, null=True)
     parameter = models.CharField(max_length=45, blank=True, null=True)
-    value = models.CharField(max_length=300, blank=True, null=True)
+    value = models.CharField(max_length=600, blank=True, null=True)
     units = models.CharField(max_length=10, blank=True, null=True) 
 
     class Meta:
@@ -132,7 +142,7 @@ class Settings(models.Model):
     idsettings = models.AutoField(db_column='idSettings', primary_key=True)  
     sw_context = models.CharField(max_length=20, blank=True, null=True)
     parameter = models.CharField(max_length=45, blank=True, null=True)
-    value = models.CharField(max_length=300, blank=True, null=True)
+    value = models.CharField(max_length=600, blank=True, null=True)
 
     class Meta:
         db_table = 'Settings'
@@ -204,9 +214,18 @@ class Technologies(models.Model):
     initial = models.FloatField(null=True)
     lcoe = models.FloatField(null=True)
     lcoe_cf = models.FloatField(null=True)
+    area = models.FloatField(blank=True, null=True)
 
     class Meta:
         db_table = 'Technologies'
+
+class TradingPrice(models.Model):
+    id = models.AutoField(db_column='idTechnologies', primary_key=True)  
+    trading_interval = models.DateTimeField()
+    reference_price = models.FloatField()
+
+    class Meta:
+        db_table = 'tradingprice'
 
 class variations(models.Model):
     idvariations = models.AutoField(db_column='idvariations', primary_key=True)  
