@@ -2,28 +2,29 @@
 {% block content %}
 <style>
     .full-width-container {
-        width: 100%;
-        max-width: 100%;
-        padding: 20px;
-        box-sizing: border-box;
         display: flex;
-        gap: 2rem;
+        width: 100%;
+        height: 100vh;  /* Full viewport height */
     }
-
-    .content-panel {
-        flex: 1;
-        min-width: 0;  /* Prevents flex items from overflowing */
+    
+    .content-panel.left-panel {
+        flex: 0 0 30%;  /* Fixed width for left panel */
+        overflow-y: auto;  /* Scrollable if content is too long */
+        padding: 20px;
     }
-
-    .left-panel {
-        flex: 0 0 40%;  /* Takes up 40% of the container width */
-    }
-
+    
     .right-panel {
-        flex: 0 0 60%;  /* Takes up 60% of the container width */
-        position: sticky;
+        flex: 1;  /* Takes remaining space */
+        height: 100%;  /* Full height */
+        position: relative;
     }
-
+    
+    .right-panel > div {
+        position: absolute !important;  /* Override any Plotly positioning */
+        top: 0;
+        left: 0;
+        width: 100% !important;
+        height: 100% !important;
     h1 {
         font-size: 2rem;
         margin-bottom: 1.5rem;
@@ -81,65 +82,9 @@
         at that level.</p>
     </div>
 
-        <!-- Right panel with chart -->
-        <div class="right-panel" id="myDiv">
-            <script type="text/javascript">window.PlotlyConfig = {MathJaxConfig: 'local'};</script>
-            <script src="https://cdn.plot.ly/plotly-2.32.0.min.js" charset="utf-8"></script>
-            <script type="text/javascript">
-                window.PLOTLYENV=window.PLOTLYENV || {};
-                function createArray(N) {
-                    let newArr = [];
-                    for (let i = 1; i <= N; i++) {
-                        newArr.push(i);
-                    }
-                    return newArr;
-                }
-                var avg_dirn = false;
-                const z2 = {{ z_values|safe }};
-                let x = createArray(48);
-                var x_tickvals = {{ x_tickvals|safe }};
-                let y = createArray(148);
-                var y_tickvals = {{ y_tickvals|safe }};
-                var y_textvals = {{ y_textvals|safe }};
-                avg_dirn = true;
-                var data2 = {
-                    x: x,
-                    y: y,
-                    z: z2,
-                    type: 'surface',
-                    showscale: false,
-                    reversescale: avg_dirn,
-                    colorscale: 'Jet'
-                };
-                var layout = {
-                    title: {
-                        text: "WEM Price History (Avg.)<br><sup><sub>(Data derived from: https://data.wa.aemo.com.au/#reference-trading-price)</sub></sup>",
-                        y: 0.85,
-                        font: {
-                            size: 25
-                        }
-                    },
-                    scene: {
-                        xaxis: {
-                            title: "Hour of the Day",
-                            tickmode: "array",
-                            tickvals: x_tickvals,
-                            ticktext: ['00:00', '04:00', '08:00', '12:00', '16:00', '20:00'],
-                            autorange: "reversed"
-                        },
-                        yaxis: {
-                            title: "Month",
-                            tickmode: "array",
-                            tickvals: y_tickvals,
-                            ticktext: y_textvals
-                        },
-                        zaxis: {
-                            title: "Price"
-                        }
-                    }
-                }
-                Plotly.newPlot('myDiv', [data2], layout);
-            </script>
-        </div>
+    <div class="right-panel">
+        {{ plot_div|safe }}
+    </div>
 </div>
+
 {% endblock %}

@@ -1,46 +1,13 @@
-from django.shortcuts import render
 from django.db.models import Avg
 from django.db.models.functions import TruncMonth, TruncHour
-from siren_web.models import TradingPrice
+from django.shortcuts import render
+import plotly.graph_objs as go
+from plotly.utils import PlotlyJSONEncoder
+from plotly.offline import plot
+from siren_web.database_operations import get_monthly_average_reference_price
 
 def wem_price_history(request):
-    # Get monthly average data for each hour of the day across all months
-    #data = (
-    #    TradingPrice.objects
-    #    .annotate(month=TruncMonth('trading_interval'), hour=TruncHour('trading_interval'))
-    #    .values('month', 'hour')
-    #    .annotate(avg_price=Avg('reference_price'))
-    #    .order_by('month', 'hour')
-    #)
-
-    # Organize data into a format suitable for Plotly's heatmap
-    z_values = []
-    current_month = None
-    month_data = []
-    x_tickvals = []
-    y_tickvals = []
-    y_textvals = []
-    
-    # for entry in data:
-    #     month = entry['month']
-    #     if month != current_month:
-    #         if current_month:
-    #             z_values.append(month_data)
-    #             y_textvals.append(current_month.strftime('%Y-%m'))
-    #         current_month = month
-    #         month_data = []
-
-    #     hour_avg = entry['avg_price']
-    #     month_data.append(hour_avg)
-
-    # if month_data:
-    #     z_values.append(month_data)
-    #     y_textvals.append(current_month.strftime('%Y-%m'))
-
-    # # Set x-axis ticks for hours of the day
-    # x_tickvals = list(range(1, 49))  # half-hour intervals
-    # y_tickvals = list(range(8, 8 * len(y_textvals) + 1, 8))  # space rows apart
-
+    # Get data from the database
     z_values = [
         [49.03,53.33,49.84,47.57,47.32,47.95,50.11,51.21,53.96,52.22,53.11,63.21,78.39,95.79,169.34,136.95,83.90,82.15,72.94,68.98,65.38,55.82,59.83,56.02,54.05,54.25,52.86,53.70,53.94,59.15,67.68,65.99,101.40,118.06,162.33,194.72,141.09,99.55,85.17,84.76,84.59,76.46,79.76,63.51,46.65,44.41,45.48,48.38],
         [48.63,47.54,46.31,46.58,46.28,46.72,48.13,48.79,48.64,40.99,43.24,56.48,64.96,72.14,88.12,82.81,59.90,55.97,54.61,53.38,55.35,53.08,53.09,51.50,51.85,51.18,49.89,50.66,48.56,49.48,52.68,56.54,62.49,69.61,81.54,97.15,108.01,102.11,81.79,74.54,66.65,63.57,58.91,55.96,45.89,41.26,45.88,45.69],
@@ -191,14 +158,73 @@ def wem_price_history(request):
         [94.51,83.40,86.55,73.13,73.15,75.77,65.99,69.54,65.33,70.91,85.76,94.96,109.13,110.93,133.14,79.12,63.14,24.75,6.87,22.51,-68.15,-71.57,-141.51,-137.05,-182.93,-183.62,-159.07,-95.92,-53.14,-24.09,8.22,42.31,54.57,84.89,164.01,261.40,218.23,170.99,159.79,154.60,159.49,161.47,165.33,111.81,105.75,89.07,99.61,107.71],
         [129.18,127.24,120.79,116.10,120.03,157.53,149.04,160.91,153.74,120.73,115.16,181.41,193.21,137.05,145.39,75.01,77.70,70.05,57.79,-1.04,-28.78,-91.72,-116.60,-144.21,-198.54,-199.93,-166.42,-69.91,-70.63,16.43,60.99,85.91,97.07,119.80,135.18,219.23,273.74,224.48,216.21,200.34,187.66,153.37,191.77,174.77,176.50,151.45,132.82,116.63]
     ]
+
     x_tickvals = [1, 8, 16, 24, 32, 40]
     y_tickvals = [8, 32, 56, 80, 104, 128]
     y_textvals = ['2013-01', '2015-01', '2017-01', '2019-01', '2021-01', '2023-01']
+    
+    # Create the 3D surface plot
+    surface = go.Surface(
+        z=z_values,
+        colorscale='Jet',
+        colorbar=dict(
+            title='Price ($/MWh)',
+            titleside='right'
+        )
+    )
+    # Define the layout with responsive settings
+    layout = go.Layout(
+        title=dict(
+            text="WEM Price History (Avg.)<br><sup><sub>(Data derived from: https://data.wa.aemo.com.au/#reference-trading-price)</sub></sup>",
+            y=0.85,
+            x=0.5,  # Centers the title
+            xanchor='center',  # Anchors the title at its center
+            yanchor='top',    # Anchors the title at its top
+            font=dict(
+                size=25
+            )
+        ),
+        scene=dict(
+            camera=dict(
+                eye=dict(x=1.5, y=1.5, z=1.5)
+            ),
+            xaxis=dict(
+                title='Hour of Day',
+                tickvals=x_tickvals,
+                ticktext=['0', '4', '8', '12', '16', '20']
+            ),
+            yaxis=dict(
+                title='Month',
+                tickvals=y_tickvals,
+                ticktext=y_textvals
+            ),
+            zaxis=dict(
+                title='Price ($/MWh)'
+            )
+        ),
+        margin=dict(
+            l=65,
+            r=50,
+            b=65,
+            t=90
+        )
+    )
+
+    # Create the figure and generate the HTML
+    fig = go.Figure(data=[surface], layout=layout)
+    plot_div = plot(
+        fig,
+        output_type='div',
+        include_plotlyjs=True,
+        config={
+            'responsive': True,
+            'displayModeBar': True,
+            'displaylogo': False
+        }
+    )
+
     context = {
-        'z_values': z_values,
-        'x_tickvals': x_tickvals,
-        'y_tickvals': y_tickvals,
-        'y_textvals': y_textvals,
+        'plot_div': plot_div
     }
 
     return render(request, 'wem_price_history_avg_mthly.html', context)
