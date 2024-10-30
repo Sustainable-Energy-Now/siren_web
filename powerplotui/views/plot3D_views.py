@@ -190,11 +190,14 @@ def wem_price_history(request):
             ),
             xaxis=dict(
                 title='Hour of Day',
+                tickmode="array", # If "array", the placement of the ticks is set via `tickvals` and the tick text is `ticktext`.
                 tickvals=x_tickvals,
-                ticktext=['0', '4', '8', '12', '16', '20']
+                ticktext=['00:00', '04:00', '08:00', '12:00', '16:00', '20:00'],
+                autorange="reversed"
             ),
             yaxis=dict(
                 title='Month',
+                tickmode="array", # If "array", the placement of the ticks is set via `tickvals` and the tick text is `ticktext`.
                 tickvals=y_tickvals,
                 ticktext=y_textvals
             ),
@@ -212,6 +215,10 @@ def wem_price_history(request):
 
     # Create the figure and generate the HTML
     fig = go.Figure(data=[surface], layout=layout)
+    # Define layout with autosize enabled
+    fig.update_layout(
+        autosize=True
+    )
     plot_div = plot(
         fig,
         output_type='div',
