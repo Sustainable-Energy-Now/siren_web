@@ -43,7 +43,7 @@
             "request": "launch",
             "program": "${workspaceFolder}\\manage.py",
             "args": [
-                "load_trading_prices", "siren_web/data/balancing-summary-2012.csv"
+                "load_trading_prices"
             ],
             "django": true,
             "autoStartBrowser": false

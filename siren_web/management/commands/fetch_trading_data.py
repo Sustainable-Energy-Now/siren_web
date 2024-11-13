@@ -4,7 +4,7 @@ from siren_web.models import TradingPrice
 from datetime import datetime
 
 class Command(BaseCommand):
-    help = 'Fetch trading price data every 30 minutes'
+    help = 'Fetch trading price data and update every month'
 
     def handle(self, *args, **kwargs):
         url = 'https://data.wa.aemo.com.au/public/market-data/wemde/referenceTradingPrice/current'

@@ -98,6 +98,8 @@ class Stations:
     def __init__(self, facilities):
         self.stations = []
         self.sam_file = 'siren_web/static/siren_data/plant_data/Wind Turbines.csv'
+        self.areas = {}
+        self.areas['Wind'] = 0.0
         if os.path.exists(self.sam_file):
            sam = open(self.sam_file)
            sam_turbines = csv.DictReader(sam)
@@ -112,7 +114,7 @@ class Stations:
             no_turbines = 0
             if 'Wind' in facility['technology_name']:
                 tech = 'Wind'
-                turbine = facility['Turbine']
+                turbine = facility['turbine']
                 if turbine[:7] == 'Enercon':
                     bit = turbine[9:].split(' _')
                     if len(bit) == 1:
@@ -200,7 +202,7 @@ class Stations:
                             float(facility['latitude']),
                             float(facility['longitude']),
                             float(facility['capacity']),
-                            facility['Turbine'],
+                            facility['turbine'],
                             rotor,
                             facility['no_turbines'],
                             float(facility['area']),

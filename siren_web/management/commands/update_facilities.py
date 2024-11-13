@@ -10,7 +10,6 @@ class Command(BaseCommand):
     help = 'Updates facilities model from the AEMO data repository csv file'
 
     def handle(self, *args, **options):
-        # Assuming the CSV file is named 'Facilities.csv' in the same directory as this script
         url = 'https://data.wa.aemo.com.au/public/public-data/datafiles/facilities/facilities.csv'
         try:
             response = requests.get(url)

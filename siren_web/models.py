@@ -59,7 +59,7 @@ class facilities(models.Model):
     transmitted = models.FloatField(null=True)
     latitude = models.FloatField(blank=True, null=True)
     longitude = models.FloatField(blank=True, null=True)
-    turbine = models.CharField(db_column='turbine', max_length=45, blank=True, null=True)
+    turbine = models.CharField(db_column='turbine', max_length=70, blank=True, null=True)
     hub_height = models.FloatField(blank=True, null=True)
     no_turbines = models.IntegerField(null=True)
     tilt = models.IntegerField(null=True)
@@ -222,8 +222,9 @@ class Technologies(models.Model):
         db_table = 'Technologies'
 
 class TradingPrice(models.Model):
-    id = models.AutoField(db_column='idTechnologies', primary_key=True)  
-    trading_interval = models.DateTimeField()
+    id = models.AutoField(db_column='idTechnologies', primary_key=True)
+    trading_month = models.CharField(max_length=7, blank=True, null=True)
+    trading_interval = models.IntegerField(blank=True, null=True)
     reference_price = models.FloatField()
 
     class Meta:
