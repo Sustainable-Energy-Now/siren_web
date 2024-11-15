@@ -21,6 +21,16 @@ class Analysis(models.Model):
     class Meta:
         db_table = 'Analysis'
         
+class capacities(models.Model):
+    idcapacities = models.AutoField(db_column='idcapacities', primary_key=True)  
+    idfacilities = models.ForeignKey('facilities', models.RESTRICT, db_column='idfacilities', blank=True, null=True)  
+    year = models.PositiveIntegerField()
+    hour = models.IntegerField(blank=True, null=True)
+    quantum = models.FloatField(null=True) 
+
+    class Meta:
+        db_table = 'capacities'
+        
 class Demand(models.Model):
     iddemand = models.AutoField(db_column='idDemand', primary_key=True)
     idtechnologies = models.ForeignKey('Technologies', models.DO_NOTHING, db_column='idTechnologies')  
@@ -42,7 +52,7 @@ class Scenarios(models.Model):
 
     class Meta:
         db_table = 'Scenarios'
-
+        
 class facilities(models.Model):
     idfacilities = models.AutoField(db_column='idfacilities', primary_key=True)
     facility_name = models.CharField(db_column='facility_name', max_length=45, blank=True, null=True)
@@ -111,7 +121,7 @@ class Optimisations(models.Model):
 
     class Meta:
         db_table = 'Optimisations'
-        
+           
 class ScenariosFacilities(models.Model):
     idscenariosfacilities = models.AutoField(primary_key=True)  
     idscenarios = models.ForeignKey('Scenarios', on_delete=models.RESTRICT, db_column='idScenarios')
@@ -171,7 +181,7 @@ class Storageattributes(models.Model):
     warm_time = models.FloatField( null=True)
     class Meta:
         db_table = 'StorageAttributes'
-
+               
 class supplyfactors(models.Model):
     idsupplyfactors = models.AutoField(db_column='idsupplyfactors', primary_key=True)  
     idscenarios = models.ForeignKey('Scenarios', models.DO_NOTHING, db_column='idscenarios', blank=True, null=True)  

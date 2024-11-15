@@ -100,6 +100,7 @@ class Stations:
         self.sam_file = 'siren_web/static/siren_data/plant_data/Wind Turbines.csv'
         self.areas = {}
         self.areas['Wind'] = 0.0
+        self.areas['Onshore Wind'] = 0.0
         if os.path.exists(self.sam_file):
            sam = open(self.sam_file)
            sam_turbines = csv.DictReader(sam)

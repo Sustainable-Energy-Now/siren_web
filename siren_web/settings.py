@@ -154,7 +154,7 @@ DATABASES = {
         'PASSWORD': secrets['database']['password'],
         'HOST': secrets['database']['host'],
         'PORT': secrets['database']['port'],
-        # 'sql_mode': 'STRICT_TRANS_TABLES',
+        'sql_mode': 'STRICT_TRANS_TABLES',
     }
 }
 USER_PASS = {

@@ -3,6 +3,7 @@ from django.shortcuts import render, redirect
 from django.http import HttpResponse
 from siren_web.database_operations import fetch_full_facilities_data, \
     fetch_module_settings_data, fetch_scenario_settings_data
+from siren_web.models import capacities, facilities
 from powermapui.powermap.wascene import WAScene
 from powermapui.powermap.powermodel import PowerModel
 
@@ -19,10 +20,25 @@ def generate_power(request):
         scenario_settings = fetch_module_settings_data('Powermap')
         if not scenario_settings:
             scenario_settings = fetch_scenario_settings_data(scenario)
-        facilities = fetch_full_facilities_data(demand_year, scenario)
-        scene = WAScene(facilities)
+        facilities_list = fetch_full_facilities_data(demand_year, scenario)
+        scene = WAScene(facilities_list)
         power = PowerModel(scene._stations.stations, demand_year, scenario_settings)
         generated = power.getValues()
+        for station in power.stations:
+            try:
+                if (power.ly[station.name]):
+                    facility_obj = facilities.objects.get(facility_code=station.name)
+                    for index, interval in enumerate(power.ly[station.name]):          
+                    # for generation in power.ly: 
+                        capacities.objects.create(
+                            idfacilities=facility_obj,
+                            year=demand_year,
+                            hour=index,
+                            quantum=interval
+                        )
+            except:
+                pass
+        
     if request.method == 'POST':
         context = {
             'success_message': success_message, 'demand_year': demand_year, 'scenario': scenario,
