@@ -26,6 +26,7 @@ def technologies(request):
         ),
     )
     attribute_explain = {
+        'area': 'The area occupied by a technology.',
         'capacity': 'The capacity of the technology in mW (generation) or MWhs (storage).',
         'capacity_max':'The maximum capacity of the technology in mW (generation) or MWhs (storage).',
         'capacity_min':'The minimum capacity of the technology in mW (generation) or MWhs (storage).',

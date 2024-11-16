@@ -6,6 +6,7 @@ from django.db.models import Max
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import render, redirect
 from django.urls import path
+from powermatchui.forms import DemandYearScenario
 from powermatchui.views.exec_powermatch import submit_powermatch
 from siren_web.database_operations import fetch_module_settings_data, fetch_scenario_settings_data
 from siren_web.models import facilities
@@ -17,6 +18,16 @@ def home(request):
     demand_year = request.session.get('demand_year', '')  # Get demand_year and scenario from session or default to empty string
     scenario= request.session.get('scenario', '')
     success_message = ""
+    if request.method == 'POST':
+        # Handle form submission
+        demand_year_scenario = DemandYearScenario(request.POST)
+        if demand_year_scenario.is_valid():
+            demand_year = demand_year_scenario.cleaned_data['demand_year']
+            request.session['demand_year'] = demand_year
+            scenario = demand_year_scenario.cleaned_data['scenario']
+            request.session['scenario'] = scenario # Assuming scenario is an instance of Scenarios
+            success_message = "Settings updated."
+    demand_year_scenario = DemandYearScenario()
     scenario_settings = {}
     if not demand_year:
         success_message = "Set the demand year and scenario in the home page first."
@@ -29,6 +40,7 @@ def home(request):
     # Convert the queryset to a list and then to JSON
     facilities_json = json.dumps(list(facilities_data))
     context = {
+        'demand_year_scenario': demand_year_scenario,
         'success_message': success_message, 'demand_year': demand_year, 'scenario': scenario,
         'facilities_json': facilities_json,
         }
