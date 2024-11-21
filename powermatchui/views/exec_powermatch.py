@@ -7,8 +7,8 @@ from django.http import JsonResponse
 from siren_web.database_operations import fetch_all_settings_data, fetch_included_technologies_data, \
     fetch_supplyfactors_data
 from siren_web.models import Analysis, Generatorattributes, Scenarios, ScenariosSettings, ScenariosTechnologies, Storageattributes
-from ..powermatch import pmcore as pm
-from ..powermatch.pmcore import Facility, PM_Facility, powerMatch
+from siren_web.siren import pmcore as pm
+from siren_web.siren.pmcore import Facility, PM_Facility, powerMatch
 
 def insert_data(i, sp_data, scenario_obj, variation, Stage):
     for count, row in enumerate(sp_data):

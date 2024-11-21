@@ -8,7 +8,7 @@ from django.db.models.functions import TruncDay
 from siren_web.models import Analysis, Demand, facilities, Generatorattributes, Optimisations, \
     Scenarios, ScenariosTechnologies, ScenariosSettings, Settings, Storageattributes, supplyfactors, \
     Technologies, TradingPrice, variations, Zones
-from powermatchui.powermatch.pmcore import Facility, PM_Facility, Optimisation
+from .siren.pmcore import Facility, PM_Facility, Optimisation
 
 def delete_analysis_scenario(idscenario):
     Analysis.objects.filter(
