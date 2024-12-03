@@ -10,5 +10,6 @@ urlpatterns = [
     path('get_analysis_data/', eChartView.as_view(), name='get_analysis_data'),
     path('trading_prices/', tradingprice_views.trading_price_list, name='trading_price_list'),
     path('trading_prices/update/<int:pk>/', tradingprice_views.update_trading_price, name='update_trading_price'),
-    path('3D_charts/', plot3D_views.wem_price_history, name='wem_price_histor'),
+    path('wem_prices/', plot3D_views.wem_price_history, name='wem_price_history'),
+    path('swis_demand/', plot3D_views.swis_demand_history, name='swis_demand_history'),
 ]
