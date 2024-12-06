@@ -4,11 +4,11 @@ from decimal import Decimal
 from django.contrib.auth.decorators import login_required
 from django.db.models import Max
 from django.http import JsonResponse
-from siren_web.database_operations import fetch_all_settings_data, fetch_included_technologies_data, \
-    fetch_supplyfactors_data
+from siren_web.database_operations import fetch_all_config_data, fetch_all_settings_data,  \
+    fetch_included_technologies_data, fetch_supplyfactors_data
 from siren_web.models import Analysis, Generatorattributes, Scenarios, ScenariosSettings, ScenariosTechnologies, Storageattributes
-from siren_web.siren import pmcore as pm
-from siren_web.siren.pmcore import Facility, PM_Facility, powerMatch
+from siren_web.siren_old import pmcore as pm
+from siren_web.siren_old.pmcore import Facility, PM_Facility, powerMatch
 
 def insert_data(i, sp_data, scenario_obj, variation, Stage):
     for count, row in enumerate(sp_data):
@@ -103,6 +103,7 @@ def insert_data(i, sp_data, scenario_obj, variation, Stage):
 
 def submit_powermatch(demand_year, scenario, 
                       option, stages, variation_inst, save_data):
+    config = fetch_all_config_data()
     settings = fetch_all_settings_data()
     pmss_data, pmss_details, max_col = \
     fetch_supplyfactors_data(demand_year)

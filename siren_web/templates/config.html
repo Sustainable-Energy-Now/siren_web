@@ -1,0 +1,295 @@
+<!-- templates/edit_config.html -->
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2>Edit Configuration</h2>
+    
+    <!-- File Selection -->
+    <div class="mb-3">
+        <div class="row align-items-center">
+            <div class="col-auto">
+                <span class="fw-bold">Current File:</span> {{ current_file }}
+            </div>
+            <div class="col-auto">
+                <div class="dropdown">
+                    <button class="btn btn-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                        Open File
+                    </button>
+                    <ul class="dropdown-menu">
+                        {% for file in config_files %}
+                        <li><a class="dropdown-item" href="{% url 'edit_config' %}?filename={{ file }}">{{ file }}</a></li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    {% if messages %}
+    <div class="messages mb-3">
+        {% for message in messages %}
+        <div class="alert alert-{{ message.tags }}">
+            {{ message }}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+    
+    <!-- Save As Modal -->
+    <div class="modal fade" id="saveAsModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Save As</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="newFilename" class="form-label">New Filename</label>
+                        <input type="text" class="form-control" id="newFilename" 
+                               placeholder="Enter filename (e.g., myconfig.ini)">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="confirmSaveAs">Save</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Preview Modal -->
+    <div class="modal fade" id="previewModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Preview Changes</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6>Current Configuration</h6>
+                            <pre id="currentConfig"></pre>
+                        </div>
+                        <div class="col-md-6">
+                            <h6>New Configuration</h6>
+                            <pre id="newConfig"></pre>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-primary" id="confirmSave">Save Changes</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <form id="configForm" method="POST">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="save">
+        <input type="hidden" name="config_data" value="">
+        <input type="hidden" name="new_filename" value="">
+        
+        <div id="sectionsContainer">
+            {% for section, options in config_data.items %}
+            <div class="card mb-3 section-card" data-section="{{ section }}">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5>{{ section }}</h5>
+                    <button type="button" class="btn btn-danger btn-sm remove-section">Remove Section</button>
+                </div>
+                <div class="card-body">
+                    {% for option, value in options.items %}
+                    <div class="mb-3 option-group">
+                        <div class="input-group">
+                            <input type="text" 
+                                   class="form-control option-name" 
+                                   value="{{ option }}"
+                                   placeholder="Option name">
+                            <input type="text" 
+                                   class="form-control option-value" 
+                                   value="{{ value }}"
+                                   placeholder="Option value">
+                            <button type="button" class="btn btn-danger remove-option">Remove</button>
+                        </div>
+                    </div>
+                    {% endfor %}
+                    <button type="button" class="btn btn-secondary btn-sm add-option">Add Option</button>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        
+        <div class="mb-3">
+            <button type="button" class="btn btn-secondary" id="addSection">Add Section</button>
+            <button type="button" class="btn btn-info" id="previewButton">Preview Changes</button>
+            <button type="submit" class="btn btn-primary">Save</button>
+            <button type="button" class="btn btn-success" id="saveAsButton">Save As</button>
+        </div>
+    </form>
+</div>
+
+<!-- Templates for dynamic content -->
+<template id="sectionTemplate">
+    <div class="card mb-3 section-card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <input type="text" class="form-control section-name" placeholder="Section name" style="width: auto;">
+            <button type="button" class="btn btn-danger btn-sm remove-section">Remove Section</button>
+        </div>
+        <div class="card-body">
+            <button type="button" class="btn btn-secondary btn-sm add-option">Add Option</button>
+        </div>
+    </div>
+</template>
+
+<template id="optionTemplate">
+    <div class="mb-3 option-group">
+        <div class="input-group">
+            <input type="text" class="form-control option-name" placeholder="Option name">
+            <input type="text" class="form-control option-value" placeholder="Option value">
+            <button type="button" class="btn btn-danger remove-option">Remove</button>
+        </div>
+    </div>
+</template>
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('configForm');
+    const addSectionBtn = document.getElementById('addSection');
+    const previewBtn = document.getElementById('previewButton');
+    const confirmSaveBtn = document.getElementById('confirmSave');
+    const sectionTemplate = document.getElementById('sectionTemplate');
+    const optionTemplate = document.getElementById('optionTemplate');
+    
+    // Add new section
+    addSectionBtn.addEventListener('click', function() {
+        const newSection = sectionTemplate.content.cloneNode(true);
+        document.getElementById('sectionsContainer').appendChild(newSection);
+        setupEventListeners();
+    });
+    
+    // Setup event listeners for dynamic content
+    function setupEventListeners() {
+        // Add option buttons
+        document.querySelectorAll('.add-option').forEach(btn => {
+            btn.onclick = function() {
+                const newOption = optionTemplate.content.cloneNode(true);
+                const cardBody = btn.closest('.card-body');
+                cardBody.insertBefore(newOption, btn);
+            };
+        });
+        
+        // Remove option buttons
+        document.querySelectorAll('.remove-option').forEach(btn => {
+            btn.onclick = function() {
+                btn.closest('.option-group').remove();
+            };
+        });
+        
+        // Remove section buttons
+        document.querySelectorAll('.remove-section').forEach(btn => {
+            btn.onclick = function() {
+                btn.closest('.section-card').remove();
+            };
+        });
+    }
+    
+    // Initial setup of event listeners
+    setupEventListeners();
+    
+    // Gather form data
+    function getConfigData() {
+        const config = {};
+        
+        document.querySelectorAll('.section-card').forEach(sectionCard => {
+            const sectionName = sectionCard.querySelector('.section-name')?.value || 
+                              sectionCard.dataset.section;
+            
+            if (sectionName) {
+                config[sectionName] = {};
+                sectionCard.querySelectorAll('.option-group').forEach(optionGroup => {
+                    const name = optionGroup.querySelector('.option-name').value;
+                    const value = optionGroup.querySelector('.option-value').value;
+                    if (name) {
+                        config[sectionName][name] = value;
+                    }
+                });
+            }
+        });
+        
+        return config;
+    }
+    
+    // Save As functionality
+    const saveAsBtn = document.getElementById('saveAsButton');
+    const saveAsModal = new bootstrap.Modal(document.getElementById('saveAsModal'));
+    const confirmSaveAsBtn = document.getElementById('confirmSaveAs');
+    const newFilenameInput = document.getElementById('newFilename');
+    
+    saveAsBtn.addEventListener('click', function() {
+        newFilenameInput.value = '';
+        saveAsModal.show();
+    });
+    
+    confirmSaveAsBtn.addEventListener('click', function() {
+        const newFilename = newFilenameInput.value.trim();
+        if (newFilename) {
+            // Set the config data before submitting
+            const configData = getConfigData();
+            document.querySelector('[name=config_data]').value = JSON.stringify(configData);
+            document.querySelector('[name=new_filename]').value = newFilename;
+            document.querySelector('[name=action]').value = 'save_as';
+            form.submit();
+        } else {
+            alert('Please enter a filename');
+        }
+    });
+    
+    // Preview changes
+    previewBtn.addEventListener('click', async function() {
+        const configData = getConfigData();
+        const formData = new FormData();
+        formData.append('action', 'preview');
+        formData.append('config_data', JSON.stringify(configData));
+        formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+        
+        try {
+            const response = await fetch(form.action, {
+                method: 'POST',
+                body: formData
+            });
+            const data = await response.json();
+            
+            document.getElementById('currentConfig').textContent = 
+                JSON.stringify(data.current, null, 2);
+            document.getElementById('newConfig').textContent = 
+                JSON.stringify(data.preview, null, 2);
+            
+            new bootstrap.Modal(document.getElementById('previewModal')).show();
+        } catch (error) {
+            console.error('Error previewing changes:', error);
+        }
+    });
+    
+    // Confirm and save changes
+    confirmSaveBtn?.addEventListener('click', function() {
+        const configData = getConfigData();
+        document.querySelector('[name=config_data]').value = JSON.stringify(configData);
+        document.querySelector('[name=action]').value = 'save';
+        form.submit();
+    });
+    
+    // Handle regular form submission
+    form.addEventListener('submit', function(e) {
+        if (e.submitter !== confirmSaveAsBtn) {  // Don't interfere with Save As
+            const configData = getConfigData();
+            document.querySelector('[name=config_data]').value = JSON.stringify(configData);
+        }
+    });
+});
+</script>
+{% endblock %}
+{% endblock %}

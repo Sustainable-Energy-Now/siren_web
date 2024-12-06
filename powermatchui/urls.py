@@ -4,7 +4,6 @@ from django.contrib.auth import views as auth_views
 from .views import variations_views, baseline_scenario_views, \
     reload_technologies_views, merit_order_views, optimisation_views, \
     powermatchui_home_views, under_construction_views
-from django.views.generic import TemplateView
 
 urlpatterns = [
     path('powermatchui/', powermatchui_home_views.powermatchui_home, name='powermatchui_home'),

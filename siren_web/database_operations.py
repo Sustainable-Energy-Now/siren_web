@@ -1,4 +1,5 @@
 # database operations
+import configparser   # decode .ini file
 from datetime import datetime, timedelta
 from django.db import connection
 from django.http import HttpResponse
@@ -8,7 +9,7 @@ from django.db.models.functions import TruncDay
 from siren_web.models import Analysis, Demand, facilities, Generatorattributes, Optimisations, \
     Scenarios, ScenariosTechnologies, ScenariosSettings, Settings, Storageattributes, supplyfactors, \
     Technologies, TradingPrice, variations, Zones
-from .siren.pmcore import Facility, PM_Facility, Optimisation
+from siren_web.siren_old.pmcore import Facility, PM_Facility, Optimisation
 
 def delete_analysis_scenario(idscenario):
     Analysis.objects.filter(
@@ -449,6 +450,16 @@ def fetch_scenarios_data():
         # Handle any errors that occur during the database query
         return None
     
+def fetch_all_config_data():
+    try:
+        config = configparser.RawConfigParser()
+        config_file = './siren_web/siren_files/siren_data/preferences/siren.ini'
+        config.read(config_file)
+    except Exception as e:
+        # Handle any errors that occur during the database query
+        return None
+    return config
+
 def fetch_all_settings_data():
     try:
         settings = {}

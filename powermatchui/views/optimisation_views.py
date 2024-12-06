@@ -1,5 +1,5 @@
 from decimal import Decimal
-from siren_web.database_operations import fetch_all_settings_data, fetch_generators_parameter, \
+from siren_web.database_operations import fetch_all_config_data, fetch_generators_parameter, \
     fetch_included_technologies_data, fetch_module_settings_data, fetch_scenario_settings_data, \
     fetch_optimisation_data, fetch_supplyfactors_data, update_scenario_settings_data, update_optimisation_data
 from django.contrib.auth.decorators import login_required
@@ -8,7 +8,7 @@ from django.shortcuts import render
 from django.http import HttpResponse
 from siren_web.models import Scenarios, ScenariosSettings, Settings, Optimisations  # Import the Scenario model
 from ..forms import OptimisationForm
-from siren_web.siren.pmcore import Facility, PM_Facility, powerMatch
+from siren_web.siren_old.pmcore import Facility, PM_Facility, powerMatch
 
 def home(request):
     scenarios = Scenarios.objects.all()  # Retrieve all scenarios from the database
@@ -137,7 +137,7 @@ def run_optimisation(request):
     success_message = ""
     if request.method == 'POST':
         option = 'O'
-        settings = fetch_all_settings_data()
+        settings = fetch_all_config_data()
         pmss_data, pmss_details, max_col = \
             fetch_supplyfactors_data(demand_year)
         generators, dispatch_order, re_order, pmss_details = fetch_generators_parameter(demand_year, scenario, pmss_details, max_col)

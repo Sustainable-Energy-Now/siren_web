@@ -1,40 +1,27 @@
-#!/usr/bin/python3
-#
-#  Copyright (C) 2018-2023 Sustainable Energy Now Inc., Angus King
-#
-#  powermatch.py - This file is part of SIREN.
-#
-#  SIREN is free software: you can redistribute it and/or modify
-#  it under the terms of the GNU Affero General Public License as
-#  published by the Free Software Foundation, either version 3 of
-#  the License, or (at your option) any later version.
-#
-#  SIREN is distributed in the hope that it will be useful,
-#  but WITHOUT ANY WARRANTY; without even the implied warranty of
-#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#  GNU Affero General Public License for more details.
-#
-#  You should have received a copy of the GNU Affero General
-#  Public License along with SIREN.  If not, see
-#  <http://www.gnu.org/licenses/>.
-#
-# Note: Batch process is all rather messy.
-from decimal import Decimal
-# from django.http import HttpResponse
-import openpyxl as oxl
-import matplotlib.pyplot as plt
-import matplotlib
+from logic.file_handler import FileHandler
+from typing import Optional
+from logic.progress_handler import ProgressHandler
+from logic.excel import ExcelProcessor
+from utilities.senutils import getUser, ssCol, techClean
 import numpy as np
-import random
-import sys
+import openpyxl as oxl
 import time
-
-
-
-# This import registers the 3D projection, but is otherwise unused.
-
 tech_names = ['Load', 'Onshore Wind', 'Offshore Wind', 'Rooftop PV', 'Fixed PV', 'Single Axis PV',
               'Dual Axis PV', 'Biomass', 'Geothermal', 'Other1', 'CST', 'Shortfall']
+# initialise tech_names from .ini file
+#            add dispatchable for re from [Grid] dispatchable?
+# load data file. If not in data file then include in order and flag as RE
+# tracking_pv is a synonym form dual_axis_pv
+# phes is a synonym for pumped_hydro
+# other1 is a synonym for other - or the other way around
+# [Grid]
+# dispatchable=pumped_hydro geothermal biomass solar_thermal cst
+# consider: hydrogen bess
+# [Power]
+# technologies=backtrack_pv bess biomass cst fixed_pv geothermal offshore_wind rooftop_pv single_axis_pv solar_thermal tracking_pv wave wind other other_wave
+#              add pumped_hydro hydrogen
+#              maybe drop bess?
+# fossil_technologies=fossil_ccgt fossil_coal fossil_cogen fossil_distillate fossil_gas fossil_mixed fossil_ocgt
 target_keys = ['lcoe', 'load_pct', 'surplus_pct', 're_pct', 'cost', 'co2']
 target_names = ['LCOE', 'Load%', 'Surplus%', 'RE%', 'Cost', 'CO2']
 target_fmats = ['$%.2f', '%.1f%%', '%.1f%%', '%.1f%%', '$%.1fpwr_chr', '%.1fpwr_chr']
@@ -73,221 +60,77 @@ O = 2 # Optimisation - xls or xlsx
 D = 3 # Data - xlsx
 R = 4 # Results - xlsx
 B = 5 # Batch input - xlsx
-col_letters = ' ABCDEFGHIJKLMNOPQRSTUVWXYZ'
-def ss_col(col, base=1):
-    if base == 1:
-        col -= 1
-    c1 = 0
-    c2, c3 = divmod(col, 26)
-    c3 += 1
-    if c2 > 26:
-        c1, c2 = divmod(c2, 26)
-    return (col_letters[c1] + col_letters[c2] + col_letters[c3]).strip()
+T = 6 # Transition input - xlsx
+S = 'S' # Summary
+O1 = 'O1'
 
-# Define a class 
-class Constraint:
-    def __init__(self, name, category, capacity_min, capacity_max, rampup_max, rampdown_max,
-                 recharge_max, recharge_loss, discharge_max, discharge_loss, parasitic_loss,
-                 min_run_time, warm_time) -> None:
-        self.name = name.strip()
-        self.category = category
-        try:
-            self.capacity_min = Decimal(capacity_min) # minimum run_rate for generator; don't drain below for storage
-        except:
-            self.capacity_min = Decimal(0)
-        try:
-            self.capacity_max = Decimal(capacity_max) # maximum run_rate for generator; don't drain more than this for storage
-        except:
-            self.capacity_max = Decimal(1)
-        try:
-            self.recharge_max = Decimal(recharge_max) # can't charge more than this per hour
-        except:
-            self.recharge_max = Decimal(1)
-        try:
-            self.recharge_loss = Decimal(recharge_loss)
-        except:
-            self.recharge_loss = Decimal(0)
-        try:
-            self.discharge_max = Decimal(discharge_max) # can't discharge more than this per hour
-        except:
-            self.discharge_max = Decimal(1)
-        try:
-            self.discharge_loss = Decimal(discharge_loss)
-        except:
-            self.discharge_loss = Decimal(0)
-        try:
-            self.parasitic_loss = Decimal(parasitic_loss) # daily parasitic loss / hourly ?
-        except:
-            self.parasitic_loss = Decimal(0)
-        try:
-            self.rampup_max = Decimal(rampup_max)
-        except:
-            self.rampup_max = Decimal(1)
-        try:
-            self.rampdown_max = Decimal(rampdown_max)
-        except:
-            self.rampdown_max = Decimal(1)
-        try:
-            self.min_run_time = int(min_run_time)
-        except:
-            self.min_run_time = Decimal(0)
-        try:
-            self.warm_time = Decimal(warm_time)
-            if self.warm_time >= 1:
-                self.warm_time = self.warm_time / 60
-                if self.warm_time > 1:
-                    self.warm_time = 1
-            elif self.warm_time > 0:
-                if self.warm_time <= 1 / 24.:
-                    self.warm_time = self.warm_time * 24
-        except:
-            self.warm_time = 0
-                    
-class Facility:
-    def __init__(self, **kwargs):
-        kwargs = {**kwargs}
-      #  return
-        self.name = ''
-        self.constraint = ''
-        self.order = 0
-        self.lifetime = 20
-        self.area = None
-        for attr in ['capacity', 'lcoe', 'lcoe_cf', 'emissions', 'initial', 'capex',
-                     'fixed_om', 'variable_om', 'fuel', 'disc_rate', 'lifetime', 'area']:
-            setattr(self, attr, 0.)
-        for key, value in kwargs.items():
-            if value != '' and value is not None:
-                if key == 'lifetime' and value == 0:
-                    setattr(self, key, 20)
-                else:
-                    setattr(self, key, value)
-                    
-class PM_Facility:
-    def __init__(self, name, generator, capacity, fac_type, col, multiplier):
-        self.name = name
-        if name.find('.') > 0:
-            self.zone = name[:name.find('.')]
-        else:
-            self.zone = ''
-        self.generator = generator
-        self.capacity = capacity
-        self.fac_type = fac_type
-        self.col = col
-        self.multiplier = multiplier
-        
-class Optimisation:
-    def __init__(self, name, approach, values): #capacity=None, cap_min=None, cap_max=None, cap_step=None, caps=None):
-        self.name = name.strip()
-        self.approach = approach
-        if approach == 'Discrete':
-            caps = values.split()
-            self.capacities = []
-            cap_max = 0.
-            for cap in caps:
-                try:
-                    self.capacities.append(Decimal(cap))
-                    cap_max += cap
-                except:
-                    pass
-            self.capacity_min = 0
-            self.capacity_max = round(cap_max, 3)
-            self.capacity_step = None
-        elif approach == 'Range':
-            caps = values.split()
-            try:
-                self.capacity_min = caps[0]
-            except:
-                self.capacity_min = 0.
-            try:
-                self.capacity_max = caps[1]
-            except:
-                self.capacity_max = 0.
-            try:
-                self.capacity_step = caps[2]
-            except:
-                self.capacity_step = 0.
-            self.capacities = None
-        else:
-            self.capacity_min = 0.
-            self.capacity_max = 0.
-            self.capacity_step = 0.
-            self.capacities = None
-        self.capacity = 0.
-
-class powerMatch():
-    def __init__ (self, settings=dict[str, dict[str, str]], constraints=dict, generators=dict,):
-        super(powerMatch, self).__init__()
-        self.file_labels = ['Constraints', 'Generators', 'Optimisation', 'Data', 'Results', 'Batch']
-        self.more_details = False
+class PowerMatchProcessor:
+    def __init__(self, config, scenarios, generators, constraints, progress_handler: Optional[ProgressHandler] = None, 
+                 event_callback=None, status_callback=None):
+        self.config = config  # Access configuration details
+        self.scenarios = scenarios
+        self.generators =generators
         self.constraints = constraints
-        self.adjustto = None # adjust capacity to this
-        self.adjust_cap = 25
-        self.adjust_gen = False
-        self.change_res = True
+        self.listener = progress_handler
+        self.event_callback = event_callback  # UI passes its event-processing function
+        self.setStatus = status_callback or (lambda text: None)  # Default to no-op
+        self.file_labels = ['Constraints', 'Generators', 'Optimisation', 'Data', 'Results', 'Batch']
+        ifiles = [''] * len(self.file_labels)
+        self.isheets = self.file_labels[:]
+        del self.isheets[-2:]
+        self.labels = [None] * len(self.file_labels)
+        self.files = [None] * len(self.file_labels)
+        self.sheets = self.file_labels[:]
+        self.get_filename = FileHandler.get_filename
         self.adjusted_lcoe = True
-        self.optimise_debug = False
+        self.carbon_price = 0.
         self.carbon_price_max = 200.
-
-        self.pmss_details = {} # contains name, generator, capacity, fac_type, col, multiplier
-        self.pmss_data = []
+        self.discount_rate = 0.
+        self.load_folder = ''
+        self.load_year = 'n/a'
+        self.optimise_choice = 'LCOE'
+        self.optimise_generations = 20
+        self.optimise_mutation = 0.005
+        self.optimise_population = 50
+        self.optimise_stop = 0
+        self.optimise_debug = False
+        self.optimise_default = None
+        self.optimise_multiplot = True
+        self.optimise_multisurf = False
+        self.optimise_multitable = False
+        self.optimise_to_batch = True
+        self.remove_cost = True
+        self.results_prefix = ''
+        self.dispatchable = ['Biomass', 'Geothermal', 'Pumped Hydro', 'Solar Thermal', 'CST'] # RE dispatchable
+        self.save_tables = False
         self.show_multipliers = False
+        self.show_correlation = False
+        self.summary_sources = True
+        self.surplus_sign = 1 # Note: Preferences file has it called shortfall_sign
         # it's easier for the user to understand while for the program logic surplus is easier
-        self.scenarios = 'C:/Users/Paul/Local Sites/Powermatch/'
+        self.underlying = ['Rooftop PV'] # technologies contributing to underlying (but not operational) load
+        self.operational = []
         iorder = []
-        targets = {}
-        optimise_progress = 0
+        self.targets = {}
         for t in range(len(target_keys)):
             if target_keys[t] in ['re_pct', 'surplus_pct']:
-                targets[target_keys[t]] = [target_names[t], 0., -1, 0., 0, target_fmats[t],
+                self.targets[target_keys[t]] = [target_names[t], 0., -1, 0., 0, target_fmats[t],
                                                  target_titles[t]]
             else:
-                targets[target_keys[t]] = [target_names[t], 0., 0., -1, 0, target_fmats[t],
+                self.targets[target_keys[t]] = [target_names[t], 0., 0., -1, 0, target_fmats[t],
                                                  target_titles[t]]
         try:
-            items = settings['Powermatch']
-            for key, value in items.items():
-                if key == 'adjusted_capacities':
-                    self.adjustto = {}
-                    bits = value.split(',')
-                    for bit in bits:
-                        bi = bit.split('=')
-                        self.adjustto[bi[0]] = Decimal(bi[1])
-                elif key == 'carbon_price':
-                    try:
-                        carbon_price = Decimal(value)
-                    except:
-                        pass
-                elif key == 'carbon_price_max':
-                    try:
-                        carbon_price_max = Decimal(value)
-                    except:
-                        pass
-                elif key == 'change_results':
-                    if value.lower() in ['false', 'off', 'no']:
-                        self.change_res = False
-                elif key == 'adjusted_lcoe' or key == 'corrected_lcoe':
-                    if value.lower() in ['false', 'no', 'off']:
-                        self.adjusted_lcoe = False
-                elif key == 'discount_rate':
-                    try:
-                        self.discount_rate = Decimal(value)
-                    except:
-                        pass
-                elif key == 'more_details':
-                    if value.lower() in ['true', 'yes', 'on']:
-                        self.more_details = True
-                elif key == 'show_multipliers':
-                    if value.lower() in ['true', 'on', 'yes']:
-                        self.show_multipliers = True
-                elif key == 'shortfall_sign':
-                    if value[0] == '+' or value[0].lower() == 'p':
-                        self.surplus_sign = -1
+            dts = config.get('Grid', 'dispatchable').split(' ')
+            dispatchable = []
+            for dt in dts:
+                dispatchable.append(techClean(dt.replace('_', ' ').title()))
+            self.dispatchable = dispatchable
         except:
             pass
         try:
-            adjust_cap = settings['Power']['adjust_cap']
+            adjust_cap = config.get('Power', 'adjust_cap')
             try:
-                self.adjust_cap = Decimal(adjust_cap)
+                self.adjust_cap = float(adjust_cap)
             except:
                 try:
                     self.adjust_cap = eval(adjust_cap)
@@ -297,37 +140,199 @@ class powerMatch():
                 self.adjust_cap = pow(10, 12)
         except:
             pass
-        if self.adjust_gen and self.adjustto is None:
-            self.adjustto = {}
-            self.adjustto['Load'] = 0
-            for gen in tech_names:
-                try:
-                    if generators[gen].capacity > 0:
-                        self.adjustto[gen] = generators[gen].capacity
-                except:
-                    pass
-            for gen in iorder:
-                try:
-                    if generators[gen].capacity > 0:
-                        self.adjustto[gen] = generators[gen].capacity
-                except:
-                    pass
+        try:
+            items = config.items('Powermatch')
+            for key, value in items:
+                if key == 'batch_new_file':
+                    if value.lower() in ['true', 'on', 'yes']:
+                        self.batch_new_file = True
+                elif key == 'batch_prefix':
+                    if value.lower() in ['true', 'on', 'yes']:
+                        self.batch_prefix = True
+                elif key[:4] == 'tml_':
+                    continue
+                elif key[-5:] == '_file':
+                    ndx = self.file_labels.index(key[:-5].title())
+                    ifiles[ndx] = value.replace('$USER$', getUser())
+                elif key[-6:] == '_sheet':
+                    ndx = self.file_labels.index(key[:-6].title())
+                    self.isheets[ndx] = value
+                elif key == 'adjust_generators':
+                    if value.lower() in ['true', 'on', 'yes']:
+                        self.adjust_gen = True
+                elif key == 'adjusted_capacities':
+                    self.adjustto = {}
+                    bits = value.split(',')
+                    for bit in bits:
+                        bi = bit.split('=')
+                        self.adjustto[bi[0]] = float(bi[1])
+                elif key == 'carbon_price':
+                    try:
+                        self.carbon_price = float(value)
+                    except:
+                        pass
+                elif key == 'carbon_price_max':
+                    try:
+                        self.carbon_price_max = float(value)
+                    except:
+                        pass
+                elif key == 'adjusted_lcoe' or key == 'corrected_lcoe':
+                    if value.lower() in ['false', 'no', 'off']:
+                        self.adjusted_lcoe = False
+                elif key == 'discount_rate':
+                    try:
+                        self.discount_rate = float(value)
+                    except:
+                        pass
+                elif key == 'dispatch_order':
+                    iorder = value.split(',')
+                elif key == 'load':
+                    try:
+                        self.load_files = value
+                        for ky, valu in parents:
+                            self.load_files = self.load_files.replace(ky, valu)
+                        self.load_files = self.load_files.replace('$USER$', getUser())
+                    except:
+                        pass
+                elif key == 'load_year':
+                    self.load_year = value
+                elif key == 'log_status':
+                    if value.lower() in ['false', 'no', 'off']:
+                        self.log_status = False
+                elif key == 'more_details':
+                    if value.lower() in ['true', 'yes', 'on']:
+                        self.more_details = True
+                elif key == 'optimise_debug':
+                    if value.lower() in ['true', 'on', 'yes']:
+                        self.optimise_debug = True
+                elif key == 'optimise_default':
+                    self.optimise_default = value
+                elif key == 'optimise_choice':
+                    self.optimise_choice = value
+                elif key == 'optimise_generations':
+                    try:
+                        self.optimise_generations = int(value)
+                    except:
+                        pass
+                elif key == 'optimise_multiplot':
+                    if value.lower() in ['false', 'off', 'no']:
+                        self.optimise_multiplot = False
+                    elif value.lower() in ['surf', 'tri-surf', 'trisurf']:
+                        self.optimise_multisurf = True
+                elif key == 'optimise_multitable':
+                    if value.lower() in ['true', 'on', 'yes']:
+                        self.optimise_multitable = True
+                elif key == 'optimise_mutation':
+                    try:
+                        self.optimise_mutation = float(value)
+                    except:
+                        pass
+                elif key == 'optimise_population':
+                    try:
+                        self.optimise_population = int(value)
+                    except:
+                        pass
+                elif key == 'optimise_stop':
+                    try:
+                        self.optimise_stop = int(value)
+                    except:
+                        pass
+                elif key == 'optimise_to_batch':
+                    if value.lower() in ['false', 'off', 'no']:
+                        self.optimise_to_batch = False
+                elif key[:9] == 'optimise_':
+                    try:
+                        bits = value.split(',')
+                        t = target_keys.index(key[9:])
+                        # name, weight, minimum, maximum, widget index
+                        self.targets[key[9:]] = [target_names[t], float(bits[0]), float(bits[1]),
+                                                float(bits[2]), 0, target_fmats[t],
+                                                 target_titles[t]]
+                    except:
+                        pass
+                elif key == 'remove_cost':
+                    if value.lower() in ['false', 'off', 'no']:
+                        self.remove_cost = False
+                elif key == 'results_prefix':
+                    self.results_prefix = value
+                elif key == 'save_tables':
+                    if value.lower() in ['true', 'on', 'yes']:
+                        self.save_tables = True
+                elif key == 'show_correlation':
+                    if value.lower() in ['true', 'on', 'yes']:
+                        self.show_correlation = True
+                elif key == 'show_multipliers':
+                    if value.lower() in ['true', 'on', 'yes']:
+                        self.show_multipliers = True
+                elif key == 'shortfall_sign':
+                    if value[0] == '+' or value[0].lower() == 'p':
+                        self.surplus_sign = -1
+                elif key == 'summary_sources':
+                    if value.lower() in ['false', 'off', 'no']:
+                        self.summary_sources = False
+                elif key == 'underlying':
+                    self.underlying = value.split(',')
+                elif key == 'operational':
+                    self.operational = value.split(',')
+        except:
+            print('PME1: Error with', key)
+            pass
 
-        self.labels = [None] * len(self.file_labels)
-        self.files = [None] * len(self.file_labels)
-        self.sheets = self.file_labels[:]
-        self.progressbar = None
-        del self.sheets[-2:]
+    def data_sources(self, sheet, sheet_row, pm_data_file, option):
+        normal = oxl.styles.Font(name='Arial')
+        bold = oxl.styles.Font(name='Arial', bold=True)
+        sheet.cell(row=sheet_row, column=1).value = 'Data sources'
+        sheet.cell(row=sheet_row, column=1).font = bold
+        sheet_row += 1
+        sheet.cell(row=sheet_row, column=1).value = 'Scenarios folder'
+        sheet.cell(row=sheet_row, column=1).font = normal
+        sheet.cell(row=sheet_row, column=2).value = self.scenarios
+        sheet.cell(row=sheet_row, column=2).font = normal
+        sheet.merge_cells('B' + str(sheet_row) + ':M' + str(sheet_row))
+        sheet_row += 1
+        sheet.cell(row=sheet_row, column=1).value = 'Powermatch data file'
+        sheet.cell(row=sheet_row, column=1).font = normal
+        if pm_data_file[: len(self.scenarios)] == self.scenarios:
+            pm_data_file = pm_data_file[len(self.scenarios):]
+        sheet.cell(row=sheet_row, column=2).value = pm_data_file
+        sheet.cell(row=sheet_row, column=2).font = normal
+        sheet.merge_cells('B' + str(sheet_row) + ':M' + str(sheet_row))
+        sheet_row += 1
+        try:
+            if self.loadCombo.currentText() != 'n/a':
+                sheet.cell(row=sheet_row, column=1).value = 'Load file'
+                sheet.cell(row=sheet_row, column=1).font = normal
+                load_file = self.load_files.replace('$YEAR$', self.loadCombo.currentText())
+                if load_file[: len(self.scenarios)] == self.scenarios:
+                    load_file = load_file[len(self.scenarios):]
+                sheet.cell(row=sheet_row, column=2).value = load_file
+                sheet.cell(row=sheet_row, column=2).font = normal
+                sheet.merge_cells('B' + str(sheet_row) + ':M' + str(sheet_row))
+                sheet_row += 1
+        except:
+            pass
+        sheet.cell(row=sheet_row, column=1).value = 'Constraints worksheet'
+        sheet.cell(row=sheet_row, column=1).font = normal
+        sheet.cell(row=sheet_row, column=2).value = str(self.files[C].text()) \
+               + '.' + str(self.sheets[C].currentText())
+        sheet.cell(row=sheet_row, column=2).font = normal
+        sheet.merge_cells('B' + str(sheet_row) + ':M' + str(sheet_row))
+        sheet_row += 1
+        sheet.cell(row=sheet_row, column=1).value = 'Generators worksheet'
+        sheet.cell(row=sheet_row, column=1).font = normal
+        if option == T:
+            sheet.cell(row=sheet_row, column=2).value = self.files[G].text()
+        else:
+            sheet.cell(row=sheet_row, column=2).value = self.files[G].text() \
+                   + '.' + self.sheets[G].currentText()
+        sheet.cell(row=sheet_row, column=2).font = normal
+        sheet.merge_cells('B' + str(sheet_row) + ':M' + str(sheet_row))
+        return sheet_row
 
-    def changes(self):
-        self.updated = True
-
-    def quitClicked(self):
-        self.close()
-        
-    @staticmethod
-    def doDispatch(settings, year, option, pmss_details, pmss_data, generators, re_order, dispatch_order,
-                   pm_data_file, data_file, title=None):
+    def doDispatch(
+        self, year, option, sender_name, pmss_details, pmss_data, re_order, dispatch_order, pm_data_file, 
+        data_file, files, sheets, title=None
+        ):
         def calcLCOE(annual_output, capital_cost, annual_operating_cost, discount_rate, lifetime):
             # Compute levelised cost of electricity
             if discount_rate > 0:
@@ -336,7 +341,10 @@ class powerMatch():
             else:
                 annual_cost_capital = capital_cost / lifetime
             total_annual_cost = annual_cost_capital + annual_operating_cost
-            return total_annual_cost / annual_output
+            try:
+                return total_annual_cost / annual_output
+            except:
+                return total_annual_cost
 
         def format_period(per):
             hr = per % 24
@@ -365,11 +373,11 @@ class powerMatch():
             sp_d[st_lec] = lifetime_co2_cost
             sp_d[st_are] = total_area
             sp_data.append(sp_d)
-            if (carbon_price > 0 or option == 'B'): # Add Total incl. Carbon Cost
+            if (self.carbon_price > 0 or option == B or option == T):
                 sp_d = [' '] * len(headers)
-                cc = co2_sum * carbon_price
+                cc = co2_sum * self.carbon_price
                 cl = cc * max_lifetime
-                if adjusted_lcoe and tml_sum > 0:
+                if self.adjusted_lcoe and tml_sum > 0:
                     cs = (cost_sum + cc) / tml_sum
                 else:
                     if gen_sum > 0:
@@ -379,15 +387,15 @@ class powerMatch():
                 sp_d[st_fac] = title + 'Total incl. Carbon Cost'
                 sp_d[st_cst] = cost_sum + cc
                 sp_d[st_lic] = lifetime_sum + cl
-                sp_data.append(sp_d)  # Add total includiing carbon cost
-            if tml_sum > 0:   # Add RE %age
+                sp_data.append(sp_d)
+            if tml_sum > 0:
                 sp_d = [' '] * len(headers)
              #   sp_d[st_fac] = 'RE Direct Contribution to ' + title + 'Load'
                 sp_d[st_fac] = 'RE %age'
                 re_pct = (tml_sum - sto_sum - ff_sum) / tml_sum
                 sp_d[st_cap] = '{:.1f}%'.format(re_pct * 100.)
                 sp_d[st_tml] = tml_sum - ff_sum - sto_sum
-                sp_data.append(sp_d)   # RE %age
+                sp_data.append(sp_d)
                 if sto_sum > 0:
                     sp_d = [' '] * len(headers)
                  #   sp_d[st_fac] = 'RE Contribution to ' + title + 'Load via Storage'
@@ -403,13 +411,13 @@ class powerMatch():
                 load_pct = (sp_load - sf_sums[0]) / sp_load
                 sp_d[st_cap] = '{:.1f}%'.format(load_pct * 100)
                 sp_d[st_tml] = sp_load - sf_sums[0]
-                sp_data.append(sp_d)   # Add Load Met
+                sp_data.append(sp_d)
                 sp_d = [' '] * len(headers)
                 sp_d[st_fac] = 'Shortfall'
                 sp_d[st_cap] = '{:.1f}%'.format(sf_sums[0] * 100 / sp_load)
                 sp_d[st_tml] = sf_sums[0]
-                sp_data.append(sp_d)   # Add Shortfall
-                if option == 'B':
+                sp_data.append(sp_d)
+                if option == B or option == T:
                     sp_d = [' '] * len(headers)
                     sp_d[st_fac] = title + 'Total Load'
                     sp_d[st_tml] = sp_load
@@ -427,14 +435,14 @@ class powerMatch():
                     sp_d = [' '] * len(headers)
                     sp_d[st_fac] = 'Total ' + title + 'Load - ' + year + load_mult
                     sp_d[st_tml] = sp_load
-                    if title == '' or option == 'S':
+                    if title == '' or option == S:
                         sp_d[st_max] = load_max
                         sp_d[st_bal] = ' (' + format_period(load_hr)[5:] + ')'
-                    sp_data.append(sp_d)  # Add Total Load 
+                    sp_data.append(sp_d)
                 sp_d = [' '] * len(headers)
                 sp_d[st_fac] = 'RE %age of Total ' + title + 'Load'
                 sp_d[st_cap] = '{:.1f}%'.format((sp_load - sf_sums[0] - ff_sum) * 100. / sp_load)
-                sp_data.append(sp_d)  # Add RE %age of Total Load 
+                sp_data.append(sp_d)
                 sp_data.append(' ')
                 if tot_sto_loss != 0:
                     sp_d = [' '] * len(headers)
@@ -446,7 +454,7 @@ class powerMatch():
                 surp_pct = -sf_sums[1] / sp_load
                 sp_d[st_cap] = '{:.1f}%'.format(surp_pct * 100)
                 sp_d[st_sub] = -sf_sums[1]
-                sp_data.append(sp_d) # Add Surplus
+                sp_data.append(sp_d)
             else:
                 load_pct = 0
                 surp_pct = 0
@@ -461,18 +469,18 @@ class powerMatch():
                 sp_d[st_fac] = 'Largest Shortfall'
                 sp_d[st_sub] = round(max_short[1], 2)
                 sp_d[st_cfa] = ' (' + format_period(max_short[0])[5:] + ')'
-                sp_data.append(sp_d)  # Add Largest Shortfall
-            if option == 'O' or option == '1':
+                sp_data.append(sp_d)
+            if option == O or option == O1:
                 return load_pct, surp_pct, re_pct
 
         def do_detail(fac, col, ss_row):
-            if fac in generators.keys():
+            if fac in self.generators.keys():
                 gen = fac
             else:
                 gen = pmss_details[fac].generator
             col += 1
             sp_cols.append(fac)
-            sp_cap.append(pmss_details[fac].capacity * float(pmss_details[fac].multiplier))
+            sp_cap.append(pmss_details[fac].capacity * pmss_details[fac].multiplier)
             if do_zone and pmss_details[fac].zone != '':
                 ns.cell(row=zone_row, column=col).value = pmss_details[fac].zone
                 ns.cell(row=zone_row, column=col).alignment = oxl.styles.Alignment(wrap_text=True,
@@ -486,71 +494,71 @@ class powerMatch():
             ns.cell(row=cap_row, column=col).value = sp_cap[-1]
             ns.cell(row=cap_row, column=col).number_format = '#,##0.00'
             # capacity
-            ns.cell(row=sum_row, column=col).value = '=SUM(' + ss_col(col) \
-                    + str(hrows) + ':' + ss_col(col) + str(hrows + 8759) + ')'
+            ns.cell(row=sum_row, column=col).value = '=SUM(' + ssCol(col) \
+                    + str(hrows) + ':' + ssCol(col) + str(hrows + 8759) + ')'
             ns.cell(row=sum_row, column=col).number_format = '#,##0'
             # To meet load MWh
             ns.cell(row=tml_row, column=col).value = fac_tml[fac]
             ns.cell(row=tml_row, column=col).number_format = '#,##0'
-            ns.cell(row=cf_row, column=col).value = '=IF(' + ss_col(col) + str(cap_row) + '>0,' + \
-                    ss_col(col) + str(sum_row) + '/' + ss_col(col) + str(cap_row) + '/8760,"")'
+            ns.cell(row=cf_row, column=col).value = '=IF(' + ssCol(col) + str(cap_row) + '>0,' + \
+                    ssCol(col) + str(sum_row) + '/' + ssCol(col) + str(cap_row) + '/8760,"")'
             ns.cell(row=cf_row, column=col).number_format = '#,##0.0%'
             # subtotal MWh
-            ns.cell(row=cf_row, column=col).value = '=IF(' + ss_col(col) + str(cap_row) + '>0,' + \
-                    ss_col(col) + str(sum_row) +'/' + ss_col(col) + str(cap_row) + '/8760,"")'
+            ns.cell(row=cf_row, column=col).value = '=IF(' + ssCol(col) + str(cap_row) + '>0,' + \
+                    ssCol(col) + str(sum_row) +'/' + ssCol(col) + str(cap_row) + '/8760,"")'
             ns.cell(row=cf_row, column=col).number_format = '#,##0.0%'
-            if gen not in generators.keys():
+            if gen not in self.generators.keys():
                 return col
-            if generators[gen].capex > 0 or generators[gen].fixed_om > 0 \
-              or generators[gen].variable_om > 0 or generators[gen].fuel > 0:
-                disc_rate = generators[gen].disc_rate
+            if self.generators[gen].capex > 0 or self.generators[gen].fixed_om > 0 \
+              or self.generators[gen].variable_om > 0 or self.generators[gen].fuel > 0:
+                disc_rate = self.generators[gen].disc_rate
                 if disc_rate == 0:
-                    disc_rate = discount_rate
+                    disc_rate = self.discount_rate
                 if disc_rate == 0:
-                    cst_calc = '/' + str(generators[gen].lifetime)
+                    cst_calc = '/' + str(self.generators[gen].lifetime)
                 else:
-                    pwr_calc = 'POWER(1+' + str(disc_rate) + ',' + str(generators[gen].lifetime) + ')'
+                    pwr_calc = 'POWER(1+' + str(disc_rate) + ',' + str(self.generators[gen].lifetime) + ')'
                     cst_calc = '*' + str(disc_rate) + '*' + pwr_calc + '/SUM(' + pwr_calc + ',-1)'
-                ns.cell(row=cost_row, column=col).value = '=IF(' + ss_col(col) + str(cf_row) + \
-                        '>0,' + ss_col(col) + str(cap_row) + '*' + str(generators[gen].capex) + \
-                        cst_calc + '+' + ss_col(col) + str(cap_row) + '*' + \
-                        str(generators[gen].fixed_om) + '+' + ss_col(col) + str(sum_row) + '*(' + \
-                        str(generators[gen].variable_om) + '+' + str(generators[gen].fuel) + \
+                ns.cell(row=cost_row, column=col).value = '=IF(' + ssCol(col) + str(cf_row) + \
+                        '>0,' + ssCol(col) + str(cap_row) + '*' + str(self.generators[gen].capex) + \
+                        cst_calc + '+' + ssCol(col) + str(cap_row) + '*' + \
+                        str(self.generators[gen].fixed_om) + '+' + ssCol(col) + str(sum_row) + '*(' + \
+                        str(self.generators[gen].variable_om) + '+' + str(self.generators[gen].fuel) + \
                         '),0)'
                 ns.cell(row=cost_row, column=col).number_format = '$#,##0'
-                ns.cell(row=lcoe_row, column=col).value = '=IF(AND(' + ss_col(col) + str(cf_row) + \
-                        '>0,' + ss_col(col) + str(cap_row) + '>0),' + ss_col(col) + \
-                        str(cost_row) + '/' + ss_col(col) + str(sum_row) + ',"")'
+                ns.cell(row=lcoe_row, column=col).value = '=IF(AND(' + ssCol(col) + str(cf_row) + \
+                        '>0,' + ssCol(col) + str(cap_row) + '>0),' + ssCol(col) + \
+                        str(cost_row) + '/' + ssCol(col) + str(sum_row) + ',"")'
                 ns.cell(row=lcoe_row, column=col).number_format = '$#,##0.00'
-            elif generators[gen].lcoe > 0:
+            elif self.generators[gen].lcoe > 0:
                 if ss_row >= 0:
-                    ns.cell(row=cost_row, column=col).value = '=IF(' + ss_col(col) + str(cf_row) + \
-                            '>0,' + ss_col(col) + str(sum_row) + '*Summary!' + ss_col(st_rlc + 1) + str(ss_row) + \
-                        '*Summary!' + ss_col(st_rcf + 1) + str(ss_row) + '/' + ss_col(col) + str(cf_row) + ',0)'
+                    ns.cell(row=cost_row, column=col).value = '=IF(' + ssCol(col) + str(cf_row) + \
+                            '>0,' + ssCol(col) + str(sum_row) + '*Summary!' + ssCol(st_rlc + 1) + str(ss_row) + \
+                        '*Summary!' + ssCol(st_rcf + 1) + str(ss_row) + '/' + ssCol(col) + str(cf_row) + ',0)'
                     ns.cell(row=cost_row, column=col).number_format = '$#,##0'
-                ns.cell(row=lcoe_row, column=col).value = '=IF(AND(' + ss_col(col) + str(cf_row) + '>0,' \
-                        + ss_col(col) + str(cap_row) + '>0),' + ss_col(col) + str(cost_row) + '/8760/' \
-                        + ss_col(col) + str(cf_row) +'/' + ss_col(col) + str(cap_row) + ',"")'
+                ns.cell(row=lcoe_row, column=col).value = '=IF(AND(' + ssCol(col) + str(cf_row) + '>0,' \
+                        + ssCol(col) + str(cap_row) + '>0),' + ssCol(col) + str(cost_row) + '/8760/' \
+                        + ssCol(col) + str(cf_row) +'/' + ssCol(col) + str(cap_row) + ',"")'
                 ns.cell(row=lcoe_row, column=col).number_format = '$#,##0.00'
-            elif generators[gen].lcoe_cf == 0: # no cost facility
+            elif self.generators[gen].lcoe_cf == 0: # no cost facility
                 if ss_row >= 0:
-                    ns.cell(row=cost_row, column=col).value = '=IF(' + ss_col(col) + str(cf_row) + \
-                            '>0,' + ss_col(col) + str(sum_row) + '*Summary!' + ss_col(st_rlc + 1) + str(ss_row) + \
-                        '*Summary!' + ss_col(st_rcf + 1) + str(ss_row) + '/' + ss_col(col) + str(cf_row) + ',0)'
+                    ns.cell(row=cost_row, column=col).value = '=IF(' + ssCol(col) + str(cf_row) + \
+                            '>0,' + ssCol(col) + str(sum_row) + '*Summary!' + ssCol(st_rlc + 1) + str(ss_row) + \
+                        '*Summary!' + ssCol(st_rcf + 1) + str(ss_row) + '/' + ssCol(col) + str(cf_row) + ',0)'
                     ns.cell(row=cost_row, column=col).number_format = '$#,##0'
-                ns.cell(row=lcoe_row, column=col).value = '=IF(AND(' + ss_col(col) + str(cf_row) + '>0,' \
-                        + ss_col(col) + str(cap_row) + '>0),' + ss_col(col) + str(cost_row) + '/8760/' \
-                        + ss_col(col) + str(cf_row) +'/' + ss_col(col) + str(cap_row) + ',"")'
+                ns.cell(row=lcoe_row, column=col).value = '=IF(AND(' + ssCol(col) + str(cf_row) + '>0,' \
+                        + ssCol(col) + str(cap_row) + '>0),' + ssCol(col) + str(cost_row) + '/8760/' \
+                        + ssCol(col) + str(cf_row) +'/' + ssCol(col) + str(cap_row) + ',"")'
                 ns.cell(row=lcoe_row, column=col).number_format = '$#,##0.00'
-            if generators[gen].emissions > 0:
-                ns.cell(row=emi_row, column=col).value = '=' + ss_col(col) + str(sum_row) \
-                        + '*' + str(generators[gen].emissions)
+            if self.generators[gen].emissions > 0:
+                ns.cell(row=emi_row, column=col).value = '=' + ssCol(col) + str(sum_row) \
+                        + '*' + str(self.generators[gen].emissions)
                 ns.cell(row=emi_row, column=col).number_format = '#,##0'
-            ns.cell(row=max_row, column=col).value = '=MAX(' + ss_col(col) + str(hrows) + \
-                                           ':' + ss_col(col) + str(hrows + 8759) + ')'
+            ns.cell(row=max_row, column=col).value = '=MAX(' + ssCol(col) + str(hrows) + \
+                                           ':' + ssCol(col) + str(hrows + 8759) + ')'
             ns.cell(row=max_row, column=col).number_format = '#,##0.00'
-            ns.cell(row=hrs_row, column=col).value = '=COUNTIF(' + ss_col(col) + str(hrows) + \
-                                           ':' + ss_col(col) + str(hrows + 8759) + ',">0")'
+            ns.cell(row=hrs_row, column=col).value = '=COUNTIF(' + ssCol(col) + str(hrows) + \
+                                           ':' + ssCol(col) + str(hrows + 8759) + ',">0")'
             ns.cell(row=hrs_row, column=col).number_format = '#,##0'
             di = pmss_details[fac].col
             if pmss_details[fac].multiplier == 1:
@@ -560,129 +568,129 @@ class powerMatch():
             else:
                 for row in range(hrows, 8760 + hrows):
                     ns.cell(row=row, column=col).value = pmss_data[di][row - hrows] * \
-                                                         float(pmss_details[fac].multiplier)
+                                                         pmss_details[fac].multiplier
                     ns.cell(row=row, column=col).number_format = '#,##0.00'
             return col
 
         def do_detail_summary(fac, col, ss_row, dd_tml_sum, dd_re_sum):
             if do_zone and pmss_details[fac].zone != '':
-                ss.cell(row=ss_row, column=st_fac+1).value = '=Detail!' + ss_col(col) + str(zone_row) + \
-                                                      '&"."&Detail!' + ss_col(col) + str(what_row)
+                ss.cell(row=ss_row, column=st_fac+1).value = '=Detail!' + ssCol(col) + str(zone_row) + \
+                                                      '&"."&Detail!' + ssCol(col) + str(what_row)
             else:
-                ss.cell(row=ss_row, column=st_fac+1).value = '=Detail!' + ss_col(col) + str(what_row)
-            if fac in generators.keys():
+                ss.cell(row=ss_row, column=st_fac+1).value = '=Detail!' + ssCol(col) + str(what_row)
+            if fac in self.generators.keys():
                 gen = fac
             else:
                 gen = pmss_details[fac].generator
             # capacity
-            ss.cell(row=ss_row, column=st_cap+1).value = '=Detail!' + ss_col(col) + str(cap_row)
+            ss.cell(row=ss_row, column=st_cap+1).value = '=Detail!' + ssCol(col) + str(cap_row)
             ss.cell(row=ss_row, column=st_cap+1).number_format = '#,##0.00'
             # To meet load MWh
-            ss.cell(row=ss_row, column=st_tml+1).value = '=Detail!' + ss_col(col) + str(tml_row)
+            ss.cell(row=ss_row, column=st_tml+1).value = '=Detail!' + ssCol(col) + str(tml_row)
             ss.cell(row=ss_row, column=st_tml+1).number_format = '#,##0'
-            dd_tml_sum += ss_col(st_tml+1) + str(ss_row) + '+'
+            dd_tml_sum += ssCol(st_tml+1) + str(ss_row) + '+'
             # subtotal MWh
-            ss.cell(row=ss_row, column=st_sub+1).value = '=IF(Detail!' + ss_col(col) + str(sum_row) \
-                                                  + '>0,Detail!' + ss_col(col) + str(sum_row) + ',"")'
+            ss.cell(row=ss_row, column=st_sub+1).value = '=IF(Detail!' + ssCol(col) + str(sum_row) \
+                                                  + '>0,Detail!' + ssCol(col) + str(sum_row) + ',"")'
             ss.cell(row=ss_row, column=st_sub+1).number_format = '#,##0'
-            dd_re_sum += ss_col(st_sub+1) + str(ss_row) + '+'
+            dd_re_sum += ssCol(st_sub+1) + str(ss_row) + '+'
             # CF
-            ss.cell(row=ss_row, column=st_cfa+1).value = '=IF(Detail!' + ss_col(col) + str(cf_row) \
-                                                  + '>0,Detail!' + ss_col(col) + str(cf_row) + ',"")'
+            ss.cell(row=ss_row, column=st_cfa+1).value = '=IF(Detail!' + ssCol(col) + str(cf_row) \
+                                                  + '>0,Detail!' + ssCol(col) + str(cf_row) + ',"")'
             ss.cell(row=ss_row, column=st_cfa+1).number_format = '#,##0.0%'
-            if gen not in generators.keys():
+            if gen not in self.generators.keys():
                 return dd_tml_sum, dd_re_sum
-            if generators[gen].capex > 0 or generators[gen].fixed_om > 0 \
-              or generators[gen].variable_om > 0 or generators[gen].fuel > 0:
-                disc_rate = generators[gen].disc_rate
+            if self.generators[gen].capex > 0 or self.generators[gen].fixed_om > 0 \
+              or self.generators[gen].variable_om > 0 or self.generators[gen].fuel > 0:
+                disc_rate = self.generators[gen].disc_rate
                 if disc_rate == 0:
-                    disc_rate = discount_rate
+                    disc_rate = self.discount_rate
                 if disc_rate == 0:
-                    cst_calc = '/' + str(generators[gen].lifetime)
+                    cst_calc = '/' + str(self.generators[gen].lifetime)
                 else:
-                    pwr_calc = 'POWER(1+' + str(disc_rate) + ',' + str(generators[gen].lifetime) + ')'
+                    pwr_calc = 'POWER(1+' + str(disc_rate) + ',' + str(self.generators[gen].lifetime) + ')'
                     cst_calc = '*' + str(disc_rate) + '*' + pwr_calc + '/SUM(' + pwr_calc + ',-1)'
                 # cost / yr
-                if remove_cost:
-                    ss.cell(row=ss_row, column=st_cst+1).value = '=IF(Detail!' + ss_col(col) + str(sum_row) \
-                            + '>0,Detail!' + ss_col(col) + str(cost_row) + ',"")'
+                if self.remove_cost:
+                    ss.cell(row=ss_row, column=st_cst+1).value = '=IF(Detail!' + ssCol(col) + str(sum_row) \
+                            + '>0,Detail!' + ssCol(col) + str(cost_row) + ',"")'
                 else:
-                    ss.cell(row=ss_row, column=st_cst+1).value = '=Detail!' + ss_col(col) + str(cost_row)
+                    ss.cell(row=ss_row, column=st_cst+1).value = '=Detail!' + ssCol(col) + str(cost_row)
                 ss.cell(row=ss_row, column=st_cst+1).number_format = '$#,##0'
                 # lcog
-                ss.cell(row=ss_row, column=st_lcg+1).value = '=IF(Detail!' + ss_col(col) + str(lcoe_row) \
-                                                      + '>0,Detail!' + ss_col(col) + str(lcoe_row) + ',"")'
+                ss.cell(row=ss_row, column=st_lcg+1).value = '=IF(Detail!' + ssCol(col) + str(lcoe_row) \
+                                                      + '>0,Detail!' + ssCol(col) + str(lcoe_row) + ',"")'
                 ss.cell(row=ss_row, column=st_lcg+1).number_format = '$#,##0.00'
                 # capital cost
-                ss.cell(row=ss_row, column=st_cac+1).value = '=IF(Detail!' + ss_col(col) + str(cap_row) \
-                                                        + '>0,Detail!' + ss_col(col) + str(cap_row) + '*'  \
-                                                        + str(generators[gen].capex) + ',"")'
+                ss.cell(row=ss_row, column=st_cac+1).value = '=IF(Detail!' + ssCol(col) + str(cap_row) \
+                                                        + '>0,Detail!' + ssCol(col) + str(cap_row) + '*'  \
+                                                        + str(self.generators[gen].capex) + ',"")'
                 ss.cell(row=ss_row, column=st_cac+1).number_format = '$#,##0'
-            elif generators[gen].lcoe > 0:
+            elif self.generators[gen].lcoe > 0:
                 # cost / yr
-                if remove_cost:
-                    ss.cell(row=ss_row, column=st_cst+1).value = '=IF(Detail!' + ss_col(col) + str(sum_row) \
-                            + '>0,Detail!' + ss_col(col) + str(cost_row) + ',"")'
+                if self.remove_cost:
+                    ss.cell(row=ss_row, column=st_cst+1).value = '=IF(Detail!' + ssCol(col) + str(sum_row) \
+                            + '>0,Detail!' + ssCol(col) + str(cost_row) + ',"")'
                 else:
-                    ss.cell(row=ss_row, column=st_cst+1).value = '=Detail!' + ss_col(col) + str(cost_row)
+                    ss.cell(row=ss_row, column=st_cst+1).value = '=Detail!' + ssCol(col) + str(cost_row)
                 ss.cell(row=ss_row, column=st_cst+1).number_format = '$#,##0'
                 # lcog
-                ss.cell(row=ss_row, column=st_lcg+1).value = '=Detail!' + ss_col(col) + str(lcoe_row)
+                ss.cell(row=ss_row, column=st_lcg+1).value = '=Detail!' + ssCol(col) + str(lcoe_row)
                 ss.cell(row=ss_row, column=st_lcg+1).number_format = '$#,##0.00'
                 # ref lcoe
-                ss.cell(row=ss_row, column=st_rlc+1).value = generators[gen].lcoe
+                ss.cell(row=ss_row, column=st_rlc+1).value = self.generators[gen].lcoe
                 ss.cell(row=ss_row, column=st_rlc+1).number_format = '$#,##0.00'
                 # ref cf
-                ss.cell(row=ss_row, column=st_rcf+1).value = generators[gen].lcoe_cf
+                ss.cell(row=ss_row, column=st_rcf+1).value = self.generators[gen].lcoe_cf
                 ss.cell(row=ss_row, column=st_rcf+1).number_format = '#,##0.0%'
-            elif generators[gen].lcoe_cf == 0: # no cost facility
+            elif self.generators[gen].lcoe_cf == 0: # no cost facility
                 # cost / yr
-                if remove_cost:
-                    ss.cell(row=ss_row, column=st_cst+1).value = '=IF(Detail!' + ss_col(col) + str(sum_row) \
-                            + '>0,Detail!' + ss_col(col) + str(cost_row) + ',"")'
+                if self.remove_cost:
+                    ss.cell(row=ss_row, column=st_cst+1).value = '=IF(Detail!' + ssCol(col) + str(sum_row) \
+                            + '>0,Detail!' + ssCol(col) + str(cost_row) + ',"")'
                 else:
-                    ss.cell(row=ss_row, column=st_cst+1).value = '=Detail!' + ss_col(col) + str(cost_row)
+                    ss.cell(row=ss_row, column=st_cst+1).value = '=Detail!' + ssCol(col) + str(cost_row)
                 ss.cell(row=ss_row, column=st_cst+1).number_format = '$#,##0'
                 # lcog
-                ss.cell(row=ss_row, column=st_lcg+1).value = '=Detail!' + ss_col(col) + str(lcoe_row)
+                ss.cell(row=ss_row, column=st_lcg+1).value = '=Detail!' + ssCol(col) + str(lcoe_row)
                 ss.cell(row=ss_row, column=st_lcg+1).number_format = '$#,##0.00'
                 # ref lcoe
-                ss.cell(row=ss_row, column=st_rlc+1).value = generators[gen].lcoe
+                ss.cell(row=ss_row, column=st_rlc+1).value = self.generators[gen].lcoe
                 ss.cell(row=ss_row, column=st_rlc+1).number_format = '$#,##0.00'
                 # ref cf
-                ss.cell(row=ss_row, column=st_rcf+1).value = generators[gen].lcoe_cf
+                ss.cell(row=ss_row, column=st_rcf+1).value = self.generators[gen].lcoe_cf
                 ss.cell(row=ss_row, column=st_rcf+1).number_format = '#,##0.0%'
             # lifetime cost
-            ss.cell(row=ss_row, column=st_lic+1).value = '=IF(Detail!' + ss_col(col) + str(sum_row) \
-                                                    + '>0,Detail!' + ss_col(col) + str(cost_row) + '*lifetime,"")'
+            ss.cell(row=ss_row, column=st_lic+1).value = '=IF(Detail!' + ssCol(col) + str(sum_row) \
+                                                    + '>0,Detail!' + ssCol(col) + str(cost_row) + '*lifetime,"")'
             ss.cell(row=ss_row, column=st_lic+1).number_format = '$#,##0'
             # max mwh
-            ss.cell(row=ss_row, column=st_max+1).value = '=IF(Detail!' + ss_col(col) + str(sum_row) \
-                                                   + '>0,Detail!' + ss_col(col) + str(max_row) + ',"")'
+            ss.cell(row=ss_row, column=st_max+1).value = '=IF(Detail!' + ssCol(col) + str(sum_row) \
+                                                   + '>0,Detail!' + ssCol(col) + str(max_row) + ',"")'
             ss.cell(row=ss_row, column=st_max+1).number_format = '#,##0.00'
-            if generators[gen].emissions > 0:
-                if remove_cost:
-                    ss.cell(row=ss_row, column=st_emi+1).value = '=IF(Detail!' + ss_col(col) + str(sum_row) \
-                            + '>0,Detail!' + ss_col(col) + str(emi_row) + ',"")'
+            if self.generators[gen].emissions > 0:
+                if self.remove_cost:
+                    ss.cell(row=ss_row, column=st_emi+1).value = '=IF(Detail!' + ssCol(col) + str(sum_row) \
+                            + '>0,Detail!' + ssCol(col) + str(emi_row) + ',"")'
                 else:
-                    ss.cell(row=ss_row, column=st_emi+1).value = '=Detail!' + ss_col(col) + str(emi_row)
+                    ss.cell(row=ss_row, column=st_emi+1).value = '=Detail!' + ssCol(col) + str(emi_row)
                 ss.cell(row=ss_row, column=st_emi+1).number_format = '#,##0'
-                if carbon_price > 0:
-                    ss.cell(row=ss_row, column=st_emc+1).value = '=IF(AND(' + ss_col(st_emi+1) + str(ss_row) + '<>"",' + \
-                                                                 ss_col(st_emi+1) + str(ss_row) + '>0),' + \
-                                                                 ss_col(st_emi+1) + str(ss_row) + '*carbon_price,"")'
+                if self.carbon_price > 0:
+                    ss.cell(row=ss_row, column=st_emc+1).value = '=IF(AND(' + ssCol(st_emi+1) + str(ss_row) + '<>"",' + \
+                                                                 ssCol(st_emi+1) + str(ss_row) + '>0),' + \
+                                                                 ssCol(st_emi+1) + str(ss_row) + '*carbon_price,"")'
                     ss.cell(row=ss_row, column=st_emc+1).number_format = '$#,##0'
-            ss.cell(row=ss_row, column=st_lie+1).value = '=IF(AND(' + ss_col(st_emi+1) + str(ss_row) + '<>"",' + \
-                                                         ss_col(st_emi+1) + str(ss_row) + '>0),' + \
-                                                         ss_col(st_emi+1) + str(ss_row) + '*lifetime,"")'
+            ss.cell(row=ss_row, column=st_lie+1).value = '=IF(AND(' + ssCol(st_emi+1) + str(ss_row) + '<>"",' + \
+                                                         ssCol(st_emi+1) + str(ss_row) + '>0),' + \
+                                                         ssCol(st_emi+1) + str(ss_row) + '*lifetime,"")'
             ss.cell(row=ss_row, column=st_lie+1).number_format = '#,##0'
-            ss.cell(row=ss_row, column=st_lec+1).value = '=IF(AND(' + ss_col(st_emi+1) + str(ss_row) + '<>"",' + \
-                                                         ss_col(st_emi+1) + str(ss_row) + '>0),' + \
-                                                         ss_col(st_emc+1) + str(ss_row) + '*lifetime,"")'
+            ss.cell(row=ss_row, column=st_lec+1).value = '=IF(AND(' + ssCol(st_emi+1) + str(ss_row) + '<>"",' + \
+                                                         ssCol(st_emi+1) + str(ss_row) + '>0),' + \
+                                                         ssCol(st_emc+1) + str(ss_row) + '*lifetime,"")'
             ss.cell(row=ss_row, column=st_lec+1).number_format = '$#,##0'
-            if generators[gen].area > 0:
-                ss.cell(row=ss_row, column=st_are+1).value = '=Detail!' + ss_col(col) + str(cap_row) +\
-                                                             '*' + str(generators[gen].area)
+            if self.generators[gen].area > 0:
+                ss.cell(row=ss_row, column=st_are+1).value = '=Detail!' + ssCol(col) + str(cap_row) +\
+                                                             '*' + str(self.generators[gen].area)
                 ss.cell(row=ss_row, column=st_are+1).number_format = '#,##0.00'
             return dd_tml_sum, dd_re_sum
 
@@ -694,46 +702,46 @@ class powerMatch():
                 ss.cell(row=ss_row, column=col).font = bold
             for col in [st_cap, st_tml, st_sub, st_cst, st_emi, st_emc, st_cac, st_lic, st_lie, st_lec, st_are]:
                 if back_row != '':
-                    strt = ss_col(col, base=0) + back_row + '+'
+                    strt = ssCol(col, base=0) + back_row + '+'
                 else:
                     strt = ''
-                ss.cell(row=ss_row, column=col+1).value = '=' + strt + 'SUM(' + ss_col(col, base=0) + \
-                        base_row + ':' + ss_col(col, base=0) + str(ss_row - 1) + ')'
+                ss.cell(row=ss_row, column=col+1).value = '=' + strt + 'SUM(' + ssCol(col, base=0) + \
+                        base_row + ':' + ssCol(col, base=0) + str(ss_row - 1) + ')'
                 if col in [st_cap, st_are]:
                     ss.cell(row=ss_row, column=col+1).number_format = '#,##0.00'
                 elif col in [st_tml, st_sub, st_emi, st_lie]:
                     ss.cell(row=ss_row, column=col+1).number_format = '#,##0'
                 else:
                     ss.cell(row=ss_row, column=col+1).number_format = '$#,##0'
-            ss.cell(row=ss_row, column=st_lcg+1).value = '=' + ss_col(st_cst+1) + str(ss_row) + \
-                                                         '/' + ss_col(st_sub+1) + str(ss_row)
+            ss.cell(row=ss_row, column=st_lcg+1).value = '=' + ssCol(st_cst+1) + str(ss_row) + \
+                                                         '/' + ssCol(st_sub+1) + str(ss_row)
             ss.cell(row=ss_row, column=st_lcg+1).number_format = '$#,##0.00'
-            ss.cell(row=ss_row, column=st_lco+1).value = '=' + ss_col(st_cst+1) + str(ss_row) + \
-                                                         '/' + ss_col(st_tml+1) + str(ss_row)
+            ss.cell(row=ss_row, column=st_lco+1).value = '=' + ssCol(st_cst+1) + str(ss_row) + \
+                                                         '/' + ssCol(st_tml+1) + str(ss_row)
             ss.cell(row=ss_row, column=st_lco+1).number_format = '$#,##0.00'
-            if carbon_price > 0:
-                ss.cell(row=ss_row, column=st_lcc+1).value = '=(' + ss_col(st_cst+1) + str(ss_row) + \
-                    '+' + ss_col(st_emc+1) + str(ss_row) + ')/' + ss_col(st_tml+1) + str(ss_row)
+            if self.carbon_price > 0:
+                ss.cell(row=ss_row, column=st_lcc+1).value = '=(' + ssCol(st_cst+1) + str(ss_row) + \
+                    '+' + ssCol(st_emc+1) + str(ss_row) + ')/' + ssCol(st_tml+1) + str(ss_row)
                 ss.cell(row=ss_row, column=st_lcc+1).number_format = '$#,##0.00'
                 ss.cell(row=ss_row, column=st_lcc+1).font = bold
-            last_col = ss_col(ns.max_column)
+            last_col = ssCol(ns.max_column)
             r = 1
-            if carbon_price > 0:
+            if self.carbon_price > 0:
                 ss_row += 1
                 ss.cell(row=ss_row, column=1).value = title + 'Total incl. Carbon Cost'
-                ss.cell(row=ss_row, column=st_cst+1).value = '=' + ss_col(st_cst+1) + str(ss_row - 1) + \
-                        '+' + ss_col(st_emc+1) + str(ss_row - 1)
+                ss.cell(row=ss_row, column=st_cst+1).value = '=' + ssCol(st_cst+1) + str(ss_row - 1) + \
+                        '+' + ssCol(st_emc+1) + str(ss_row - 1)
                 ss.cell(row=ss_row, column=st_cst+1).number_format = '$#,##0'
-                ss.cell(row=ss_row, column=st_lic+1).value = '=' + ss_col(st_lic+1) + str(ss_row - r) + \
-                                                             '+' + ss_col(st_lec+1) + str(ss_row - 1)
+                ss.cell(row=ss_row, column=st_lic+1).value = '=' + ssCol(st_lic+1) + str(ss_row - r) + \
+                                                             '+' + ssCol(st_lec+1) + str(ss_row - 1)
                 ss.cell(row=ss_row, column=st_lic+1).number_format = '$#,##0'
                 r += 1
             ss_row += 1
             ss.cell(row=ss_row, column=1).value = title + 'RE %age'
             ss.cell(row=ss_row, column=st_tml+1).value = ns_tml_sum[:-1] + ')'
             ss.cell(row=ss_row, column=st_tml+1).number_format = '#,##0'
-            ss.cell(row=ss_row, column=st_cap+1).value = '=' + ss_col(st_tml+1) + str(ss_row) + '/' +\
-                                                         ss_col(st_tml+1) + str(ss_row - r)
+            ss.cell(row=ss_row, column=st_cap+1).value = '=' + ssCol(st_tml+1) + str(ss_row) + '/' +\
+                                                         ssCol(st_tml+1) + str(ss_row - r)
             ss.cell(row=ss_row, column=st_cap+1).number_format = '#,##0.0%'
             ss_re_row = ss_row
             ss_sto_row = -1
@@ -743,7 +751,7 @@ class powerMatch():
                 ss.cell(row=ss_row, column=1).value = title + 'Storage %age'
                 ss.cell(row=ss_row, column=st_tml+1).value = '=' + ns_sto_sum[1:]
                 ss.cell(row=ss_row, column=st_tml+1).number_format = '#,##0'
-                ss.cell(row=ss_row, column=st_cap+1).value = '=(' + ns_sto_sum[1:] + ')/' + ss_col(st_tml+1) + \
+                ss.cell(row=ss_row, column=st_cap+1).value = '=(' + ns_sto_sum[1:] + ')/' + ssCol(st_tml+1) + \
                                                              str(ss_row - r - 1)
                 ss.cell(row=ss_row, column=st_cap+1).number_format = '#,##0.0%'
                 ss_sto_row = ss_row
@@ -752,51 +760,51 @@ class powerMatch():
                 base_col = 'C'
                 if ss_sto_row >= 0:
                     for rw in range(ss_re_fst_row, ss_re_lst_row + 1):
-                        ss.cell(row=rw, column=st_lco+1).value = '=IF(AND(' + ss_col(st_lcg+1) + str(rw) + '<>"",' + \
-                                ss_col(st_lcg+1) + str(rw) + '>0),' + \
-                                ss_col(st_cst+1) + str(rw) + '/(' + ss_col(st_tml+1) + str(rw) + '+(' + \
-                                ss_col(st_tml+1) + '$' + str(ss_sto_row) + '*' + ss_col(st_tml+1) + str(rw) + \
-                                ')/' + ss_col(st_tml+1) + '$' + str(ss_re_row) + '),"")'
+                        ss.cell(row=rw, column=st_lco+1).value = '=IF(AND(' + ssCol(st_lcg+1) + str(rw) + '<>"",' + \
+                                ssCol(st_lcg+1) + str(rw) + '>0),' + \
+                                ssCol(st_cst+1) + str(rw) + '/(' + ssCol(st_tml+1) + str(rw) + '+(' + \
+                                ssCol(st_tml+1) + '$' + str(ss_sto_row) + '*' + ssCol(st_tml+1) + str(rw) + \
+                                ')/' + ssCol(st_tml+1) + '$' + str(ss_re_row) + '),"")'
                         ss.cell(row=rw, column=st_lco+1).number_format = '$#,##0.00'
-                        if carbon_price > 0:
-                            ss.cell(row=rw, column=st_lcc+1).value = '=IF(AND(' + ss_col(st_emc+1) + str(rw) + '<>"",' + \
-                                    ss_col(st_emc+1) + str(rw) + '>0),(' + \
-                                    ss_col(st_cst+1) + str(rw) + '+' + ss_col(st_emc+1) + str(rw) + ')/(' + \
-                                    ss_col(st_tml+1) + str(rw) + '+(' + ss_col(st_tml+1) + '$' + str(ss_sto_row) + \
-                                    '*' + ss_col(st_tml+1) + str(rw) + ')/' + ss_col(st_tml+1) + '$' + \
+                        if self.carbon_price > 0:
+                            ss.cell(row=rw, column=st_lcc+1).value = '=IF(AND(' + ssCol(st_emc+1) + str(rw) + '<>"",' + \
+                                    ssCol(st_emc+1) + str(rw) + '>0),(' + \
+                                    ssCol(st_cst+1) + str(rw) + '+' + ssCol(st_emc+1) + str(rw) + ')/(' + \
+                                    ssCol(st_tml+1) + str(rw) + '+(' + ssCol(st_tml+1) + '$' + str(ss_sto_row) + \
+                                    '*' + ssCol(st_tml+1) + str(rw) + ')/' + ssCol(st_tml+1) + '$' + \
                                     str(ss_re_row) + '),"")'
                             ss.cell(row=rw, column=st_lcc+1).number_format = '$#,##0.00'
                 else:
                     for rw in range(ss_re_fst_row, ss_re_lst_row):
-                        ss.cell(row=rw, column=st_lco+1).value = '=IF(' + ss_col(st_lcg+1) + str(rw) + '>0,' + \
-                                ss_col(st_cst+1) + str(rw) + '/' + ss_col(st_tml+1) + str(rw) + '),"")'
+                        ss.cell(row=rw, column=st_lco+1).value = '=IF(' + ssCol(st_lcg+1) + str(rw) + '>0,' + \
+                                ssCol(st_cst+1) + str(rw) + '/' + ssCol(st_tml+1) + str(rw) + '),"")'
                         ss.cell(row=rw, column=st_lco+1).number_format = '$#,##0.00'
-                        if carbon_price > 0:
-                            ss.cell(row=rw, column=st_lcc+1).value = '=IF(AND(' + ss_col(st_emc+1) + str(rw) + '<>"",' + \
-                                    ss_col(st_emc+1) + str(rw) + '>0),(' + \
-                                    ss_col(st_cst+1) + str(rw) + ss_col(st_emc+1) + str(rw) + ')/' + \
-                                    ss_col(st_tml+1) + str(rw) + '),"")'
+                        if self.carbon_price > 0:
+                            ss.cell(row=rw, column=st_lcc+1).value = '=IF(AND(' + ssCol(st_emc+1) + str(rw) + '<>"",' + \
+                                    ssCol(st_emc+1) + str(rw) + '>0),(' + \
+                                    ssCol(st_cst+1) + str(rw) + ssCol(st_emc+1) + str(rw) + ')/' + \
+                                    ssCol(st_tml+1) + str(rw) + '),"")'
                             ss.cell(row=rw, column=st_lcc+1).number_format = '$#,##0.00'
                 for rw in range(ss_re_lst_row + 1, ss_lst_row + 1):
-                    ss.cell(row=rw, column=st_lco+1).value = '=IF(AND(' + ss_col(st_tml+1) + str(rw) + '<>"",' + \
-                                    ss_col(st_tml+1) + str(rw) + '>0),' + ss_col(st_cst+1) + str(rw) + \
-                                                             '/' + ss_col(st_tml+1) + str(rw) + ',"")'
+                    ss.cell(row=rw, column=st_lco+1).value = '=IF(AND(' + ssCol(st_tml+1) + str(rw) + '<>"",' + \
+                                    ssCol(st_tml+1) + str(rw) + '>0),' + ssCol(st_cst+1) + str(rw) + \
+                                                             '/' + ssCol(st_tml+1) + str(rw) + ',"")'
                     ss.cell(row=rw, column=st_lco+1).number_format = '$#,##0.00'
-                    if carbon_price > 0:
-                        ss.cell(row=rw, column=st_lcc+1).value = '=IF(AND(' + ss_col(st_emc+1) + str(rw) + '<>"",' + \
-                                    ss_col(st_emc+1) + str(rw) + '>0),(' + \
-                                ss_col(st_cst+1) + str(rw) + '+' + ss_col(st_emc+1) + str(rw) + ')/' + \
-                                ss_col(st_tml+1) + str(rw) + ',"")'
+                    if self.carbon_price > 0:
+                        ss.cell(row=rw, column=st_lcc+1).value = '=IF(AND(' + ssCol(st_emc+1) + str(rw) + '<>"",' + \
+                                    ssCol(st_emc+1) + str(rw) + '>0),(' + \
+                                ssCol(st_cst+1) + str(rw) + '+' + ssCol(st_emc+1) + str(rw) + ')/' + \
+                                ssCol(st_tml+1) + str(rw) + ',"")'
                         ss.cell(row=rw, column=st_lcc+1).number_format = '$#,##0.00'
             else:
-                base_col = ss_col(next_col)
+                base_col = ssCol(next_col)
                 for rw in range(ul_fst_row, ul_lst_row + 1):
-                    ss.cell(row=rw, column=st_lco+1).value = '=' + ss_col(st_cst+1) + str(rw) + \
-                                                             '/' + ss_col(st_tml+1) + str(rw)
+                    ss.cell(row=rw, column=st_lco+1).value = '=' + ssCol(st_cst+1) + str(rw) + \
+                                                             '/' + ssCol(st_tml+1) + str(rw)
                     ss.cell(row=rw, column=st_lco+1).number_format = '$#,##0.00'
-                    if carbon_price > 0:
-                        ss.cell(row=rw, column=st_lcc+1).value = '=(' + ss_col(st_cst+1) + str(rw) + \
-                            '+' + ss_col(st_emc+1) + str(rw) + ')/' + ss_col(st_tml+1) + str(rw)
+                    if self.carbon_price > 0:
+                        ss.cell(row=rw, column=st_lcc+1).value = '=(' + ssCol(st_cst+1) + str(rw) + \
+                            '+' + ssCol(st_emc+1) + str(rw) + ')/' + ssCol(st_tml+1) + str(rw)
                         ss.cell(row=rw, column=st_lcc+1).number_format = '$#,##0.00'
             ss_row += 2
             ss.cell(row=ss_row, column=1).value = title + 'Load Analysis'
@@ -804,7 +812,7 @@ class powerMatch():
             ss_row += 1
             ss.cell(row=ss_row, column=1).value = title + 'Load met'
       ##      lm_row = ss_row
-      #      if surplus_sign < 0:
+      #      if self.surplus_sign < 0:
       #          addsub = ')+' + base_col
       #      else:
       #          addsub = ')-' + base_col
@@ -815,7 +823,7 @@ class powerMatch():
       #          + str(hrows + 8759) + addsub + str(ss_row + 1)
             ss.cell(row=ss_row, column=st_tml+1).value = '=Detail!' + base_col + str(sum_row) + '-' + base_col + str(ss_row + 1)
             ss.cell(row=ss_row, column=st_tml+1).number_format = '#,##0'
-            ss.cell(row=ss_row, column=st_cap+1).value = '=' + ss_col(st_tml+1) + str(ss_row) + '/' + ss_col(st_tml+1) + \
+            ss.cell(row=ss_row, column=st_cap+1).value = '=' + ssCol(st_tml+1) + str(ss_row) + '/' + ssCol(st_tml+1) + \
                                                          str(ss_row + 2)
             ss.cell(row=ss_row, column=st_cap+1).number_format = '#,##0.0%'
             ss_row += 1
@@ -823,12 +831,12 @@ class powerMatch():
             sf_text = 'SUMIF(Detail!' + last_col + str(hrows) + ':Detail!' + last_col \
                       + str(hrows + 8759) + ',"' + sf_test[0] + '0",Detail!' + last_col \
                       + str(hrows) + ':Detail!' + last_col + str(hrows + 8759) + ')'
-            if surplus_sign > 0:
+            if self.surplus_sign > 0:
                 ss.cell(row=ss_row, column=st_tml+1).value = '=-' + sf_text
             else:
                 ss.cell(row=ss_row, column=st_tml+1).value = '=' + sf_text
             ss.cell(row=ss_row, column=st_tml+1).number_format = '#,##0'
-            ss.cell(row=ss_row, column=st_cap+1).value = '=' + ss_col(st_tml+1) + str(ss_row) + '/' + ss_col(st_tml+1) + \
+            ss.cell(row=ss_row, column=st_cap+1).value = '=' + ssCol(st_tml+1) + str(ss_row) + '/' + ssCol(st_tml+1) + \
                                                          str(ss_row + 1)
             ss.cell(row=ss_row, column=st_cap+1).number_format = '#,##0.0%'
             ss_row += 1
@@ -842,8 +850,8 @@ class powerMatch():
                 pass
             ss.cell(row=ss_row, column=1).value = 'Total ' + title + 'Load - ' + year + load_mult
             ss.cell(row=ss_row, column=1).font = bold
-            ss.cell(row=ss_row, column=st_tml+1).value = '=SUM(' + ss_col(st_tml+1) + str(ss_row - 2) + ':' + \
-                                                         ss_col(st_tml+1) + str(ss_row - 1) + ')'
+            ss.cell(row=ss_row, column=st_tml+1).value = '=SUM(' + ssCol(st_tml+1) + str(ss_row - 2) + ':' + \
+                                                         ssCol(st_tml+1) + str(ss_row - 1) + ')'
             ss.cell(row=ss_row, column=st_tml+1).number_format = '#,##0'
             ss.cell(row=ss_row, column=st_tml+1).font = bold
             ss.cell(row=ss_row, column=st_max+1).value = '=Detail!' + base_col + str(max_row)
@@ -856,12 +864,12 @@ class powerMatch():
             ss.cell(row=ss_row, column=1).value = 'RE %age of Total ' + title + 'Load'
             ss.cell(row=ss_row, column=1).font = bold
             if ns_sto_sum == '':
-                ss.cell(row=ss_row, column=st_cap+1).value = ss_col(st_tml+1) + str(ss_re_row - 1) + \
-                                                             '/' + ss_col(st_tml+1) + str(ss_row - 1)
+                ss.cell(row=ss_row, column=st_cap+1).value = ssCol(st_tml+1) + str(ss_re_row - 1) + \
+                                                             '/' + ssCol(st_tml+1) + str(ss_row - 1)
             else:
-                ss.cell(row=ss_row, column=st_cap+1).value = '=(' + ss_col(st_tml+1) + str(ss_re_row) + '+' + \
-                                                             ss_col(st_tml+1) + str(ss_sto_row) + ')/' + \
-                                                             ss_col(st_tml+1) + str(ss_row - 1)
+                ss.cell(row=ss_row, column=st_cap+1).value = '=(' + ssCol(st_tml+1) + str(ss_re_row) + '+' + \
+                                                             ssCol(st_tml+1) + str(ss_sto_row) + ')/' + \
+                                                             ssCol(st_tml+1) + str(ss_row - 1)
             ss.cell(row=ss_row, column=st_cap+1).number_format = '#,##0.0%'
             ss.cell(row=ss_row, column=st_cap+1).font = bold
             ss_row += 2
@@ -874,12 +882,12 @@ class powerMatch():
             sf_text = 'SUMIF(Detail!' + last_col + str(hrows) + ':Detail!' + last_col \
                       + str(hrows + 8759) + ',"' + sf_test[1] + '0",Detail!' + last_col + str(hrows) \
                       + ':Detail!' + last_col + str(hrows + 8759) + ')'
-            if surplus_sign < 0:
+            if self.surplus_sign < 0:
                 ss.cell(row=ss_row, column=st_sub+1).value = '=-' + sf_text
             else:
                 ss.cell(row=ss_row, column=st_sub+1).value = '=' + sf_text
             ss.cell(row=ss_row, column=st_sub+1).number_format = '#,##0'
-            ss.cell(row=ss_row, column=st_cap+1).value = '=' + ss_col(st_sub+1) + str(ss_row) + '/' + ss_col(st_tml+1) + str(ld_row)
+            ss.cell(row=ss_row, column=st_cap+1).value = '=' + ssCol(st_sub+1) + str(ss_row) + '/' + ssCol(st_tml+1) + str(ld_row)
             ss.cell(row=ss_row, column=st_cap+1).number_format = '#,##0.0%'
             max_short = [0, 0]
             for h in range(len(shortfall)):
@@ -892,30 +900,17 @@ class powerMatch():
                 ss.cell(row=ss_row, column=st_sub+1).value = '=Detail!' + last_col + str(hrows + max_short[0])
                 ss.cell(row=ss_row, column=st_sub+1).number_format = '#,##0.00'
                 ss.cell(row=ss_row, column=st_cfa+1).value = '=" ("&OFFSET(Detail!B' + str(hrows - 1) + \
-                        ',MATCH(' + ss_col(st_sub+1) + str(ss_row) + ',Detail!' + last_col + str(hrows) + \
+                        ',MATCH(' + ssCol(st_sub+1) + str(ss_row) + ',Detail!' + last_col + str(hrows) + \
                         ':Detail!' + last_col + str(hrows + 8759) + ',0),0)&")"'
             return ss_row, ss_re_row
 
     # The "guts" of Powermatch processing. Have a single calculation algorithm
     # for Summary, Powermatch (detail), and Optimise. The detail makes it messy
     # Note: For Batch pmss_data is reused so don't update it in doDispatch
+        self.files = files
+        self.sheets = sheets
         the_days = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
-        progress_text = "Operation in progress. Please wait."
-        surplus_sign = 1
-        underlying = ['Rooftop PV']
-        operational = []
-        show_correlation = False
-        carbon_price = float(settings['Powermatch']['carbon_price'])
-        discount_rate = float(settings['Powermatch']['discount_rate'])
-        adjusted_lcoe = True
-        optimise_debug = False
-        scenarios = 'C:/Users/Paul/Local Sites/Powermatch/'
-        results_prefix = ''
-        save_tables = settings['Powermatch']['save_tables']
-        file_labels = ['Constraints', 'Generators', 'Optimisation', 'Data', 'Results', 'Batch']
-        sheets = file_labels[:]
-        remove_cost = True
-        if surplus_sign < 0:
+        if self.surplus_sign < 0:
             sf_test = ['>', '<']
             sf_sign = ['+', '-']
         else:
@@ -935,51 +930,51 @@ class powerMatch():
             if pmss_details[key].capacity * pmss_details[key].multiplier > 0:
              #   gen = key.split('.')[-1]
                 gen = pmss_details[key].generator
-                max_lifetime = max(max_lifetime, generators[gen].lifetime)
-        for key in pmss_details.keys():  # If any generatorhas '.' then set do_zone to true
+                max_lifetime = max(max_lifetime, self.generators[gen].lifetime)
+        for key in pmss_details.keys():
             if key.find('.') > 0:
                 do_zone = True
                 break
         underlying_facs = []
-        undercol = [] * len(underlying)
+        undercol = [] * len(self.underlying)
         operational_facs = []
         fac_tml = {}
         for fac in re_order:
             if fac == 'Load':
                 continue
             fac_tml[fac] = 0.
-            if fac in operational:
+            if fac in self.operational:
               #  operational_facs.append(fac)
                 continue
             if fac.find('.') > 0:
-                if fac[fac.find('.') + 1:] in underlying:
+                if fac[fac.find('.') + 1:] in self.underlying:
                     underlying_facs.append(fac)
                     continue
-            elif fac in underlying:
+            elif fac in self.underlying:
                 underlying_facs.append(fac)
                 continue
-        load_col = pmss_details['Load'].col  # Get the total load data
-        for h in range(len(pmss_data[0])):  # Work through hour by hour
+        load_col = pmss_details['Load'].col
+        for h in range(len(pmss_data[load_col])):
             load_h = pmss_data[load_col][h] * pmss_details['Load'].multiplier
             shortfall[h] = load_h
             for fac in fac_tml.keys():
                 if fac in underlying_facs:
                     continue
-                shortfall[h] -= pmss_data[pmss_details[fac].col][h] * float(pmss_details[fac].multiplier)
+                shortfall[h] -= pmss_data[pmss_details[fac].col][h] * pmss_details[fac].multiplier
             if shortfall[h] >= 0:
                 alloc = 1.
             else:
                 alloc = load_h / (load_h - shortfall[h])
             for fac in fac_tml.keys():
                 if fac in underlying_facs:
-                    fac_tml[fac] += pmss_data[pmss_details[fac].col][h] * float(pmss_details[fac].multiplier)
+                    fac_tml[fac] += pmss_data[pmss_details[fac].col][h] * pmss_details[fac].multiplier
                 else:
-                    fac_tml[fac] += pmss_data[pmss_details[fac].col][h] * float(pmss_details[fac].multiplier) * alloc
+                    fac_tml[fac] += pmss_data[pmss_details[fac].col][h] * pmss_details[fac].multiplier * alloc
             line = ''
         fac_tml_sum = 0
-        for fac in fac_tml.keys():  # Sum To Meet Load
+        for fac in fac_tml.keys():
             fac_tml_sum += fac_tml[fac]
-        if show_correlation:
+        if self.show_correlation:
             col = pmss_details['Load'].col
             if pmss_details['Load'].multiplier == 1:
                 df1 = pmss_data[col]
@@ -1006,7 +1001,7 @@ class powerMatch():
             corr_data.append(['RE Contribution', corr])
         else:
             corr_data = None
-        if option == 'D':
+        if option == D:
             wb = oxl.Workbook()
             ns = wb.active
             ns.title = 'Detail'
@@ -1074,11 +1069,11 @@ class powerMatch():
             ns.cell(row=what_row, column=1).value = 'Hour'
             ns.cell(row=what_row, column=2).value = 'Period'
             ns.cell(row=what_row, column=3).value = 'Load'
-            ns.cell(row=sum_row, column=3).value = '=SUM(' + ss_col(3) + str(hrows) + \
-                                                   ':' + ss_col(3) + str(hrows + 8759) + ')'
+            ns.cell(row=sum_row, column=3).value = '=SUM(' + ssCol(3) + str(hrows) + \
+                                                   ':' + ssCol(3) + str(hrows + 8759) + ')'
             ns.cell(row=sum_row, column=3).number_format = '#,##0'
-            ns.cell(row=max_row, column=3).value = '=MAX(' + ss_col(3) + str(hrows) + \
-                                                   ':' + ss_col(3) + str(hrows + 8759) + ')'
+            ns.cell(row=max_row, column=3).value = '=MAX(' + ssCol(3) + str(hrows) + \
+                                                   ':' + ssCol(3) + str(hrows + 8759) + ')'
             ns.cell(row=max_row, column=3).number_format = '#,##0.00'
             o = 4
             col = 3
@@ -1111,33 +1106,33 @@ class powerMatch():
             ss_re_lst_row = ss_row
             col += 1
             shrt_col = col
-            ns.cell(row=fall_row, column=shrt_col).value = '=COUNTIF(' + ss_col(shrt_col) \
-                            + str(hrows) + ':' + ss_col(shrt_col) + str(hrows + 8759) + \
+            ns.cell(row=fall_row, column=shrt_col).value = '=COUNTIF(' + ssCol(shrt_col) \
+                            + str(hrows) + ':' + ssCol(shrt_col) + str(hrows + 8759) + \
                             ',"' + sf_test[0] + '0")'
             ns.cell(row=fall_row, column=shrt_col).number_format = '#,##0'
             ns.cell(row=what_row, column=shrt_col).value = 'Shortfall (' + sf_sign[0] \
                     + ') /\nSurplus (' + sf_sign[1] + ')'
-            ns.cell(row=max_row, column=shrt_col).value = '=MAX(' + ss_col(shrt_col) + str(hrows) + \
-                                           ':' + ss_col(shrt_col) + str(hrows + 8759) + ')'
+            ns.cell(row=max_row, column=shrt_col).value = '=MAX(' + ssCol(shrt_col) + str(hrows) + \
+                                           ':' + ssCol(shrt_col) + str(hrows + 8759) + ')'
             ns.cell(row=max_row, column=shrt_col).number_format = '#,##0.00'
             for col in range(3, shrt_col + 1):
                 ns.cell(row=what_row, column=col).alignment = oxl.styles.Alignment(wrap_text=True,
                         vertical='bottom', horizontal='center')
-                ns.cell(row=row, column=shrt_col).value = shortfall[row - hrows] * -surplus_sign
+                ns.cell(row=row, column=shrt_col).value = shortfall[row - hrows] * -self.surplus_sign
                 for col in range(3, shrt_col + 1):
                     ns.cell(row=row, column=col).number_format = '#,##0.00'
             for row in range(hrows, 8760 + hrows):
-                ns.cell(row=row, column=shrt_col).value = shortfall[row - hrows] * -surplus_sign
+                ns.cell(row=row, column=shrt_col).value = shortfall[row - hrows] * -self.surplus_sign
                 ns.cell(row=row, column=col).number_format = '#,##0.00'
             col = shrt_col + 1
-            ns.cell(row=tml_row, column=col).value = '=SUM(' + ss_col(col) + str(hrows) + \
-                                                   ':' + ss_col(col) + str(hrows + 8759) + ')'
+            ns.cell(row=tml_row, column=col).value = '=SUM(' + ssCol(col) + str(hrows) + \
+                                                   ':' + ssCol(col) + str(hrows + 8759) + ')'
             ns.cell(row=tml_row, column=col).number_format = '#,##0'
-            ns.cell(row=max_row, column=col).value = '=MAX(' + ss_col(col) + str(hrows) + \
-                                           ':' + ss_col(col) + str(hrows + 8759) + ')'
+            ns.cell(row=max_row, column=col).value = '=MAX(' + ssCol(col) + str(hrows) + \
+                                           ':' + ssCol(col) + str(hrows + 8759) + ')'
             ns.cell(row=max_row, column=col).number_format = '#,##0.00'
-            ns.cell(row=hrs_row, column=col).value = '=COUNTIF(' + ss_col(col) + str(hrows) + \
-                                           ':' + ss_col(col) + str(hrows + 8759) + ',">0")'
+            ns.cell(row=hrs_row, column=col).value = '=COUNTIF(' + ssCol(col) + str(hrows) + \
+                                           ':' + ssCol(col) + str(hrows + 8759) + ',">0")'
             ns.cell(row=hrs_row, column=col).number_format = '#,##0'
             ns.cell(row=what_row, column=col).value = 'RE Contrib.\nto Load'
             ns.cell(row=what_row, column=col).alignment = oxl.styles.Alignment(wrap_text=True,
@@ -1147,18 +1142,18 @@ class powerMatch():
                     if pmss_details['Load'].multiplier == 1:
                         rec = pmss_data[load_col][row - hrows]
                     else:
-                        rec = pmss_data[load_col][row - hrows] * Decimal(pmss_details['Load'].multiplier)
+                        rec = pmss_data[load_col][row - hrows] * pmss_details['Load'].multiplier
                 else:
                     if pmss_details['Load'].multiplier == 1:
                         rec = pmss_data[load_col][row - hrows] - shortfall[row - hrows]
                     else:
-                        rec = pmss_data[load_col][row - hrows] * Decimal(pmss_details['Load'].multiplier) - \
+                        rec = pmss_data[load_col][row - hrows] * pmss_details['Load'].multiplier - \
                               shortfall[row - hrows]
                 ns.cell(row=row, column=col).value = rec
                # the following formula will do the same computation
-               # ns.cell(row=row, column=col).value = '=IF(' + ss_col(shrt_col) + str(row) + '>0,' + \
-               #                            ss_col(3) + str(row) + ',' + ss_col(3) + str(row) + \
-               #                            '+' + ss_col(shrt_col) + str(row) + ')'
+               # ns.cell(row=row, column=col).value = '=IF(' + ssCol(shrt_col) + str(row) + '>0,' + \
+               #                            ssCol(3) + str(row) + ',' + ssCol(3) + str(row) + \
+               #                            '+' + ssCol(shrt_col) + str(row) + ')'
                 ns.cell(row=row, column=col).number_format = '#,##0.00'
           #  shrt_col += 1
            # col = shrt_col + 1
@@ -1167,21 +1162,21 @@ class powerMatch():
             nsul_sums = ['C']
             nsul_sum_cols = [3]
             for fac in underlying_facs:
-                if pmss_details[fac].capacity * float(pmss_details[fac].multiplier) == 0:
+                if pmss_details[fac].capacity * pmss_details[fac].multiplier == 0:
                     continue
                 col = do_detail(fac, col, -1)
-                nsul_sums.append(ss_col(col))
+                nsul_sums.append(ssCol(col))
                 nsul_sum_cols.append(col)
             if col > shrt_col + 1: # underlying
                 col += 1
                 ns.cell(row=what_row, column=col).value = 'Underlying\nLoad'
                 ns.cell(row=what_row, column=col).alignment = oxl.styles.Alignment(wrap_text=True,
                         vertical='bottom', horizontal='center')
-                ns.cell(row=sum_row, column=col).value = '=SUM(' + ss_col(col) + str(hrows) + \
-                                                         ':' + ss_col(col) + str(hrows + 8759) + ')'
+                ns.cell(row=sum_row, column=col).value = '=SUM(' + ssCol(col) + str(hrows) + \
+                                                         ':' + ssCol(col) + str(hrows + 8759) + ')'
                 ns.cell(row=sum_row, column=col).number_format = '#,##0'
-                ns.cell(row=max_row, column=col).value = '=MAX(' + ss_col(col) + str(hrows) + \
-                                                         ':' + ss_col(col) + str(hrows + 8759) + ')'
+                ns.cell(row=max_row, column=col).value = '=MAX(' + ssCol(col) + str(hrows) + \
+                                                         ':' + ssCol(col) + str(hrows + 8759) + ')'
                 ns.cell(row=max_row, column=col).number_format = '#,##0.00'
                 for row in range(hrows, 8760 + hrows):
                     txt = '='
@@ -1191,58 +1186,82 @@ class powerMatch():
                     ns.cell(row=row, column=col).number_format = '#,##0.00'
             next_col = col
             col += 1
-        else:
+        else: # O, O1, B, T
             sp_data = []
             sp_load = 0. # load from load curve
             hrows = 10
             load_max = 0
             load_hr = 0
-            load_col = 0
             tml = 0.
+            try:
+                load_col = pmss_details['Load'].col
+            except:
+                load_col = 0
+            if (option == B or option == T) and len(underlying_facs) > 0:
+                load_facs = underlying_facs[:]
+                load_facs.insert(0, 'Load')
+                for h in range(len(pmss_data[load_col])):
+                    amt = 0
+                    for fac in load_facs:
+                        amt += pmss_data[pmss_details[fac].col][h] * pmss_details[fac].multiplier
+                    if amt > load_max:
+                        load_max = amt
+                        load_hr = h
+                    sp_load += amt
+                underlying_facs = []
+            else:
+                fac = 'Load'
+                sp_load = sum(pmss_data[load_col]) * pmss_details[fac].multiplier
+                for h in range(len(pmss_data[load_col])):
+                    amt = pmss_data[load_col][h] * pmss_details[fac].multiplier
+                    if amt > load_max:
+                        load_max = amt
+                        load_hr = h
             for fac in re_order:
-                if fac in underlying_facs:
+                if fac == 'Load' or fac in underlying_facs:
                     continue
-                if fac == 'Load':
-                    load_col = pmss_details[fac].col
-                    sp_load = sum(pmss_data[load_col]) * float(pmss_details[fac].multiplier)
-                    load_max = 0
-                    for h in range(len(pmss_data[0])):
-                        amt = pmss_data[load_col][h] * float(pmss_details[fac].multiplier)
-                        if amt > load_max:
-                            load_max = amt
-                            load_hr = h
+                if pmss_details[fac].capacity * pmss_details[fac].multiplier == 0:
                     continue
-                if pmss_details[fac].capacity * float(pmss_details[fac].multiplier) == 0:
-                    continue
-                sp_d = [' '] * len(headers)   # Allow enough space for headers
+                sp_d = [' '] * len(headers)
                 sp_d[st_fac] = fac
-                sp_d[st_cap] = pmss_details[fac].capacity * float(pmss_details[fac].multiplier)
+                sp_d[st_cap] = pmss_details[fac].capacity * pmss_details[fac].multiplier
                 try:
                     sp_d[st_tml] = fac_tml[fac]
                 except:
                     pass
-                sp_d[st_sub] = sum(pmss_data[pmss_details[fac].col]) * float(pmss_details[fac].multiplier)
-                sp_d[st_max] = max(pmss_data[pmss_details[fac].col]) * float(pmss_details[fac].multiplier)
-                sp_data.append(sp_d)  # sp_d contains the data for a technology e.g. Fixed PV
-            for h in range(len(shortfall)):
-                if shortfall[h] < 0:
-                    tml += pmss_data[load_col][h] * pmss_details['Load'].multiplier
-                else:
-                    tml += pmss_data[load_col][h] * pmss_details['Load'].multiplier - shortfall[h]
+                sp_d[st_sub] = sum(pmss_data[pmss_details[fac].col]) * pmss_details[fac].multiplier
+                sp_d[st_max] = max(pmss_data[pmss_details[fac].col]) * pmss_details[fac].multiplier
+                sp_data.append(sp_d)
+       #     for h in range(len(shortfall)):
+        #        if shortfall[h] < 0:
+         #           tml += pmss_data[load_col][h] * pmss_details['Load'].multiplier
+          #      else:
+           #         tml += pmss_data[load_col][h] * pmss_details['Load'].multiplier - shortfall[h]
+        if option not in [O, O1, B, T]:
+            self.listener.progress_bar.setValue(6)
+            if self.event_callback:
+                self.event_callback()
         storage_names = []
         # find any minimum generation for generators
         short_taken = {}
         short_taken_tot = 0
         for gen in dispatch_order:
-            pmss_details[gen].multiplier = float(pmss_details[gen].multiplier)
-            if pmss_details[gen].fac_type == 'G': # For generators get minimum capacity if exists
-                if generators[gen].capacity_min != 0:
+            if pmss_details[gen].fac_type == 'G': # generators
+                try:
+                    const = self.generators[gen].constraint
+                except:
+                    try:
+                        g2 = gen[gen.find('.') + 1:]
+                        const = self.generators[g2].constraint
+                    except:
+                        continue
+                if self.constraints[const].capacity_min != 0:
                     try:
                         short_taken[gen] = pmss_details[gen].capacity * pmss_details[gen].multiplier * \
-                            generators[gen].capacity_min
+                            self.constraints[const].capacity_min
                     except:
                         short_taken[gen] = pmss_details[gen].capacity * \
-                            generators[gen].capacity_min
+                            self.constraints[const].capacity_min
                     short_taken_tot += short_taken[gen]
                     for row in range(8760):
                         shortfall[row] = shortfall[row] - short_taken[gen]
@@ -1257,49 +1276,50 @@ class powerMatch():
                     capacity = pmss_details[gen].capacity
                 except:
                     continue
-            if gen not in generators.keys():
+            if gen not in self.generators.keys():
                 continue
-            if generators[gen].category == 'Storage': # storage
+            if self.generators[gen].constraint in self.constraints and \
+              self.constraints[self.generators[gen].constraint].category == 'Storage': # storage
                 storage_names.append(gen)
                 storage = [0., 0., 0., 0.] # capacity, initial, min level, max drain
                 storage[0] = capacity
-                if option == 'D':
+                if option == D:
                     ns.cell(row=cap_row, column=col + 2).value = capacity
                     ns.cell(row=cap_row, column=col + 2).number_format = '#,##0.00'
                 try:
-                    storage[1] = generators[gen].initial * pmss_details[gen].multiplier
+                    storage[1] = self.generators[gen].initial * pmss_details[gen].multiplier
                 except:
-                    storage[1] = generators[gen].initial
-                if generators[gen].capacity_min > 0:
-                    storage[2] = capacity * generators[gen].capacity_min
-                if generators[gen].capacity_max > 0:
-                    storage[3] = capacity * generators[gen].capacity_max
+                    storage[1] = self.generators[gen].initial
+                if self.constraints[self.generators[gen].constraint].capacity_min > 0:
+                    storage[2] = capacity * self.constraints[self.generators[gen].constraint].capacity_min
+                if self.constraints[self.generators[gen].constraint].capacity_max > 0:
+                    storage[3] = capacity * self.constraints[self.generators[gen].constraint].capacity_max
                 else:
                     storage[3] = capacity
                 recharge = [0., 0.] # cap, loss
-                if generators[gen].recharge_max > 0:
-                    recharge[0] = capacity * generators[gen].recharge_max
+                if self.constraints[self.generators[gen].constraint].recharge_max > 0:
+                    recharge[0] = capacity * self.constraints[self.generators[gen].constraint].recharge_max
                 else:
                     recharge[0] = capacity
-                if generators[gen].recharge_loss > 0:
-                    recharge[1] = generators[gen].recharge_loss
-                discharge = [0, 0] # cap, loss
-                if generators[gen].discharge_max > 0:
-                    discharge[0] = capacity * generators[gen].discharge_max
-                if generators[gen].discharge_loss > 0:
-                    discharge[1] = generators[gen].discharge_loss
-                if generators[gen].parasitic_loss > 0:
-                    parasite = generators[gen].parasitic_loss / 24.
+                if self.constraints[self.generators[gen].constraint].recharge_loss > 0:
+                    recharge[1] = self.constraints[self.generators[gen].constraint].recharge_loss
+                discharge = [0., 0.] # cap, loss
+                if self.constraints[self.generators[gen].constraint].discharge_max > 0:
+                    discharge[0] = capacity * self.constraints[self.generators[gen].constraint].discharge_max
+                if self.constraints[self.generators[gen].constraint].discharge_loss > 0:
+                    discharge[1] = self.constraints[self.generators[gen].constraint].discharge_loss
+                if self.constraints[self.generators[gen].constraint].parasitic_loss > 0:
+                    parasite = self.constraints[self.generators[gen].constraint].parasitic_loss / 24.
                 else:
                     parasite = 0.
                 in_run = [False, False]
-                min_run_time = generators[gen].min_runtime
+                min_run_time = self.constraints[self.generators[gen].constraint].min_run_time
                 in_run[0] = True # start off in_run
-                if min_run_time > 0 and generators[gen].initial == 0:
+                if min_run_time > 0 and self.generators[gen].initial == 0:
                     in_run[0] = False
-                warm_time = generators[gen].warm_time
-                storage_carry = storage[1] # generators[gen].initial
-                if option == 'D':
+                warm_time = self.constraints[self.generators[gen].constraint].warm_time
+                storage_carry = storage[1] # self.generators[gen].initial
+                if option == D:
                     ns.cell(row=ini_row, column=col + 2).value = storage_carry
                     ns.cell(row=ini_row, column=col + 2).number_format = '#,##0.00'
                 storage_bal = []
@@ -1372,45 +1392,45 @@ class powerMatch():
                     storage_bal.append(storage_carry)
                     if storage_bal[-1] > sto_max:
                         sto_max = storage_bal[-1]
-                    if option == 'D':
+                    if option == D:
                         if can_use > 0:
                             ns.cell(row=row + hrows, column=col).value = 0
-                            ns.cell(row=row + hrows, column=col + 2).value = can_use * surplus_sign
+                            ns.cell(row=row + hrows, column=col + 2).value = can_use * self.surplus_sign
                         else:
-                            ns.cell(row=row + hrows, column=col).value = can_use * -surplus_sign
+                            ns.cell(row=row + hrows, column=col).value = can_use * -self.surplus_sign
                             ns.cell(row=row + hrows, column=col + 2).value = 0
                         ns.cell(row=row + hrows, column=col + 1).value = storage_losses
                         ns.cell(row=row + hrows, column=col + 3).value = storage_carry
-                        ns.cell(row=row + hrows, column=col + 4).value = (shortfall[row] + short_taken_tot) * -surplus_sign
+                        ns.cell(row=row + hrows, column=col + 4).value = (shortfall[row] + short_taken_tot) * -self.surplus_sign
                         for ac in range(5):
                             ns.cell(row=row + hrows, column=col + ac).number_format = '#,##0.00'
-                            ns.cell(row=max_row, column=col + ac).value = '=MAX(' + ss_col(col + ac) + \
-                                    str(hrows) + ':' + ss_col(col + ac) + str(hrows + 8759) + ')'
+                            ns.cell(row=max_row, column=col + ac).value = '=MAX(' + ssCol(col + ac) + \
+                                    str(hrows) + ':' + ssCol(col + ac) + str(hrows + 8759) + ')'
                             ns.cell(row=max_row, column=col + ac).number_format = '#,##0.00'
                     else:
                         tot_sto_loss += storage_losses
                         if can_use > 0:
                             storage_can += can_use
-                if option == 'D':
-                    ns.cell(row=sum_row, column=col).value = '=SUMIF(' + ss_col(col) + \
-                            str(hrows) + ':' + ss_col(col) + str(hrows + 8759) + ',">0")'
+                if option == D:
+                    ns.cell(row=sum_row, column=col).value = '=SUMIF(' + ssCol(col) + \
+                            str(hrows) + ':' + ssCol(col) + str(hrows + 8759) + ',">0")'
                     ns.cell(row=sum_row, column=col).number_format = '#,##0'
-                    ns.cell(row=sum_row, column=col + 1).value = '=SUMIF(' + ss_col(col + 1) + \
-                            str(hrows) + ':' + ss_col(col + 1) + str(hrows + 8759) + ',"<0")'
+                    ns.cell(row=sum_row, column=col + 1).value = '=SUMIF(' + ssCol(col + 1) + \
+                            str(hrows) + ':' + ssCol(col + 1) + str(hrows + 8759) + ',"<0")'
                     ns.cell(row=sum_row, column=col + 1).number_format = '#,##0'
-                    ns.cell(row=sum_row, column=col + 2).value = '=SUMIF(' + ss_col(col + 2) + \
-                            str(hrows) + ':' + ss_col(col + 2) + str(hrows + 8759) + ',">0")'
+                    ns.cell(row=sum_row, column=col + 2).value = '=SUMIF(' + ssCol(col + 2) + \
+                            str(hrows) + ':' + ssCol(col + 2) + str(hrows + 8759) + ',">0")'
                     ns.cell(row=sum_row, column=col + 2).number_format = '#,##0'
-                    ns.cell(row=cf_row, column=col + 2).value = '=IF(' + ss_col(col + 2) + str(cap_row) + '>0,' + \
-                            ss_col(col + 2) + str(sum_row) + '/' + ss_col(col + 2) + '1/8760,"")'
+                    ns.cell(row=cf_row, column=col + 2).value = '=IF(' + ssCol(col + 2) + str(cap_row) + '>0,' + \
+                            ssCol(col + 2) + str(sum_row) + '/' + ssCol(col + 2) + '1/8760,"")'
                     ns.cell(row=cf_row, column=col + 2).number_format = '#,##0.0%'
-                    ns.cell(row=max_row, column=col).value = '=MAX(' + ss_col(col) + \
-                            str(hrows) + ':' + ss_col(col) + str(hrows + 8759) + ')'
+                    ns.cell(row=max_row, column=col).value = '=MAX(' + ssCol(col) + \
+                            str(hrows) + ':' + ssCol(col) + str(hrows + 8759) + ')'
                     ns.cell(row=max_row, column=col).number_format = '#,##0.00'
-                    ns.cell(row=hrs_row, column=col + 2).value = '=COUNTIF(' + ss_col(col + 2) + \
-                            str(hrows) + ':' + ss_col(col + 2) + str(hrows + 8759) + ',">0")'
+                    ns.cell(row=hrs_row, column=col + 2).value = '=COUNTIF(' + ssCol(col + 2) + \
+                            str(hrows) + ':' + ssCol(col + 2) + str(hrows + 8759) + ',">0")'
                     ns.cell(row=hrs_row, column=col + 2).number_format = '#,##0'
-                    ns.cell(row=hrs_row, column=col + 3).value = '=' + ss_col(col + 2) + \
+                    ns.cell(row=hrs_row, column=col + 3).value = '=' + ssCol(col + 2) + \
                             str(hrs_row) + '/8760'
                     ns.cell(row=hrs_row, column=col + 3).number_format = '#,##0.0%'
                     col += 5
@@ -1427,8 +1447,8 @@ class powerMatch():
                     sp_data.append(sp_d)
             else: # generator
                 try:
-                    if generators[gen].capacity_max > 0:
-                        cap_capacity = capacity * generators[gen].capacity_max
+                    if self.constraints[self.generators[gen].constraint].capacity_max > 0:
+                        cap_capacity = capacity * self.constraints[self.generators[gen].constraint].capacity_max
                     else:
                         cap_capacity = capacity
                 except:
@@ -1440,7 +1460,7 @@ class powerMatch():
                     min_gen = short_taken[gen]
                 else:
                     min_gen = 0
-                if option == 'D':
+                if option == D:
                     ns.cell(row=cap_row, column=col).value = capacity
                     ns.cell(row=cap_row, column=col).number_format = '#,##0.00'
                     for row in range(8760):
@@ -1457,22 +1477,22 @@ class powerMatch():
                         else:
                             shortfall[row] -= min_gen
                             ns.cell(row=row + hrows, column=col).value = min_gen
-                        ns.cell(row=row + hrows, column=col + 1).value = (shortfall[row] + short_taken_tot) * -surplus_sign
+                        ns.cell(row=row + hrows, column=col + 1).value = (shortfall[row] + short_taken_tot) * -self.surplus_sign
                         ns.cell(row=row + hrows, column=col).number_format = '#,##0.00'
                         ns.cell(row=row + hrows, column=col + 1).number_format = '#,##0.00'
-                    ns.cell(row=sum_row, column=col).value = '=SUM(' + ss_col(col) + str(hrows) + \
-                            ':' + ss_col(col) + str(hrows + 8759) + ')'
+                    ns.cell(row=sum_row, column=col).value = '=SUM(' + ssCol(col) + str(hrows) + \
+                            ':' + ssCol(col) + str(hrows + 8759) + ')'
                     ns.cell(row=sum_row, column=col).number_format = '#,##0'
-                    ns.cell(row=cf_row, column=col).value = '=IF(' + ss_col(col) + str(cap_row) + '>0,' + \
-                            ss_col(col) + str(sum_row) + '/' + ss_col(col) + str(cap_row) + '/8760,"")'
+                    ns.cell(row=cf_row, column=col).value = '=IF(' + ssCol(col) + str(cap_row) + '>0,' + \
+                            ssCol(col) + str(sum_row) + '/' + ssCol(col) + str(cap_row) + '/8760,"")'
                     ns.cell(row=cf_row, column=col).number_format = '#,##0.0%'
-                    ns.cell(row=max_row, column=col).value = '=MAX(' + ss_col(col) + \
-                                str(hrows) + ':' + ss_col(col) + str(hrows + 8759) + ')'
+                    ns.cell(row=max_row, column=col).value = '=MAX(' + ssCol(col) + \
+                                str(hrows) + ':' + ssCol(col) + str(hrows + 8759) + ')'
                     ns.cell(row=max_row, column=col).number_format = '#,##0.00'
-                    ns.cell(row=hrs_row, column=col).value = '=COUNTIF(' + ss_col(col) + \
-                            str(hrows) + ':' + ss_col(col) + str(hrows + 8759) + ',">0")'
+                    ns.cell(row=hrs_row, column=col).value = '=COUNTIF(' + ssCol(col) + \
+                            str(hrows) + ':' + ssCol(col) + str(hrows + 8759) + ',">0")'
                     ns.cell(row=hrs_row, column=col).number_format = '#,##0'
-                    ns.cell(row=hrs_row, column=col + 1).value = '=' + ss_col(col) + \
+                    ns.cell(row=hrs_row, column=col + 1).value = '=' + ssCol(col) + \
                             str(hrs_row) + '/8760'
                     ns.cell(row=hrs_row, column=col + 1).number_format = '#,##0.0%'
                     col += 2
@@ -1510,15 +1530,18 @@ class powerMatch():
                     sp_d[st_sub] = gen_can
                     sp_d[st_max] = gen_max
                     sp_data.append(sp_d)
-#        if option == 'D': # Currently calculated elsewhere
-#            if surplus_sign > 0:
+#        if option == D: # Currently calculated elsewhere
+#            if self.surplus_sign > 0:
 #                maxmin = 'MIN'
 #            else:
 #                maxmin = 'MAX'
 #            ns.cell(row=max_row, column=col-1).value = '=' + maxmin + '(' + \
-#                    ss_col(col-1) + str(hrows) + ':' + ss_col(col - 1) + str(hrows + 8759) + ')'
+#                    ssCol(col-1) + str(hrows) + ':' + ssCol(col - 1) + str(hrows + 8759) + ')'
 #            ns.cell(row=max_row, column=col-1).number_format = '#,##0.00'
-        # if option not in ['O', '1', 'B']:
+        if option not in [O, O1, B, T]:
+            self.listener.progress_bar.setValue(8)
+            if self.event_callback:
+                self.event_callback()
         if corr_data is not None:
             try:
                 corr = np.corrcoef(df1, corr_src)
@@ -1558,7 +1581,7 @@ class powerMatch():
                     corr_data[c].append('High')
                 else:
                     corr_data[c].append('Very high')
-        if option != 'D':
+        if option != D:
             load_col = pmss_details['Load'].col
             cap_sum = 0.
             gen_sum = 0.
@@ -1590,7 +1613,7 @@ class powerMatch():
                 if gen in storage_names:
                     ndx = 2
                 else:
-                    if gen in generators.keys():
+                    if gen in self.generators.keys():
                         pass
                     else:
                         try:
@@ -1601,7 +1624,7 @@ class powerMatch():
                 try:
                     if sp_data[sp][st_cap] > 0:
                         cap_sum += sp_data[sp][st_cap]
-                        if generators[gen].lcoe > 0:
+                        if self.generators[gen].lcoe > 0:
                             sp_data[sp][st_cfa] = sp_data[sp][ndx] / sp_data[sp][st_cap] / 8760 # need number for now
                         else:
                             sp_data[sp][st_cfa] = '{:.1f}%'.format(sp_data[sp][ndx] / sp_data[sp][st_cap] / 8760 * 100)
@@ -1612,63 +1635,59 @@ class powerMatch():
                     tml_sum += sp_data[sp][st_tml]
                 except:
                     pass
-                if gen not in generators.keys():
+                if gen not in self.generators.keys():
                     continue
                 ndx = 3
                 if gen in storage_names:
                     ndx = 2
                 else:
                     try:
-                        # gen2 = gen[gen.find('.') + 1:]
-                        gen2 = gen.replace('Existing ', '').replace('Proposed ', '')
+                        gen2 = gen[gen.find('.') + 1:]
                     except:
                         gen2 = gen
                     if gen not in tech_names and gen2 not in tech_names:
                         ff_sum += sp_data[sp][ndx]
-                if not generators[gen].fuel:
-                    generators[gen].fuel = 0
-                if generators[gen].capex > 0 or generators[gen].fixed_om > 0 \
-                  or generators[gen].variable_om > 0 or generators[gen].fuel > 0:
-                    if remove_cost and sp_data[sp][ndx] == 0:
+                if self.generators[gen].capex > 0 or self.generators[gen].fixed_om > 0 \
+                  or self.generators[gen].variable_om > 0 or self.generators[gen].fuel > 0:
+                    if option != T and self.remove_cost and sp_data[sp][ndx] == 0:
                         sp_data[sp][st_cst] = 0
                         continue
-                    capex = sp_data[sp][st_cap] * generators[gen].capex
+                    capex = sp_data[sp][st_cap] * self.generators[gen].capex
                     capex_sum += capex
-                    opex = sp_data[sp][st_cap] * generators[gen].fixed_om \
-                           + sp_data[sp][ndx] * generators[gen].variable_om \
-                           + sp_data[sp][ndx] * generators[gen].fuel
-                    disc_rate = generators[gen].disc_rate
+                    opex = sp_data[sp][st_cap] * self.generators[gen].fixed_om \
+                           + sp_data[sp][ndx] * self.generators[gen].variable_om \
+                           + sp_data[sp][ndx] * self.generators[gen].fuel
+                    disc_rate = self.generators[gen].disc_rate
                     if disc_rate == 0:
-                        disc_rate = float(settings['Powermatch']['discount_rate'])
-                    lifetime = generators[gen].lifetime
-                    if sp_data[sp][ndx] > 0:
-                        sp_data[sp][st_lcg] = calcLCOE(sp_data[sp][ndx], capex, opex, disc_rate, lifetime)
-                    if sp_data[sp][st_lcg] != ' ':
-                        sp_data[sp][st_cst] = sp_data[sp][ndx] * sp_data[sp][st_lcg]
-                    if gen in tech_names:
+                        disc_rate = self.discount_rate
+                    lifetime = self.generators[gen].lifetime
+                    sp_data[sp][st_lcg] = calcLCOE(sp_data[sp][ndx], capex, opex, disc_rate, lifetime)
+                    sp_data[sp][st_cst] = sp_data[sp][ndx] * sp_data[sp][st_lcg]
+                    # To prevent ZeroDivisionError
+                    if (gen in tech_names or gen2 in tech_names) and (fac_tml_sum > 0):
                         sp_data[sp][st_lco] = sp_data[sp][st_cst] / (sp_data[sp][st_tml] + (sto_sum * sp_data[sp][st_tml] / fac_tml_sum))
                     else:
                         sp_data[sp][st_lco] = sp_data[sp][st_lcg]
                     cost_sum += sp_data[sp][st_cst]
                     sp_data[sp][st_cac] = capex
-                elif generators[gen].lcoe > 0:
-                    if remove_cost and sp_data[sp][ndx] == 0:
+                elif self.generators[gen].lcoe > 0:
+                    if option != T and self.remove_cost and sp_data[sp][ndx] == 0:
                         sp_data[sp][st_cst] = 0
                         continue
-                    if generators[gen].lcoe_cf > 0:
-                        lcoe_cf = generators[gen].lcoe_cf
+                    if self.generators[gen].lcoe_cf > 0:
+                        lcoe_cf = self.generators[gen].lcoe_cf
                     else:
                         lcoe_cf = sp_data[sp][st_cfa]
-                    sp_data[sp][st_cst] = generators[gen].lcoe * lcoe_cf * 8760 * sp_data[sp][st_cap]
+                    sp_data[sp][st_cst] = self.generators[gen].lcoe * lcoe_cf * 8760 * sp_data[sp][st_cap]
                     if sp_data[sp][st_cfa] > 0:
                         sp_data[sp][st_lcg] = sp_data[sp][st_cst] / sp_data[sp][ndx]
                         sp_data[sp][st_lco] = sp_data[sp][st_lcg]
                     sp_data[sp][st_cfa] = '{:.1f}%'.format(sp_data[sp][st_cfa] * 100.)
                     cost_sum += sp_data[sp][st_cst]
-                    sp_data[sp][st_rlc] = generators[gen].lcoe
+                    sp_data[sp][st_rlc] = self.generators[gen].lcoe
                     sp_data[sp][st_rcf] = '{:.1f}%'.format(lcoe_cf * 100.)
-                elif generators[gen].lcoe_cf == 0: # no cost facility
-                    if remove_cost and sp_data[sp][ndx] == 0:
+                elif self.generators[gen].lcoe_cf == 0: # no cost facility
+                    if option != T and self.remove_cost and sp_data[sp][ndx] == 0:
                         sp_data[sp][st_cst] = 0
                         continue
                     lcoe_cf = sp_data[sp][st_cfa]
@@ -1676,10 +1695,10 @@ class powerMatch():
                     cost_sum += sp_data[sp][st_cst]
                 sp_data[sp][st_lic] = sp_data[sp][st_cst] * max_lifetime
                 lifetime_sum += sp_data[sp][st_lic]
-                if generators[gen].emissions > 0:
-                    sp_data[sp][st_emi] = sp_data[sp][ndx] * generators[gen].emissions
+                if self.generators[gen].emissions > 0 and sp_data[sp][st_tml]> 0:
+                    sp_data[sp][st_emi] = sp_data[sp][ndx] * self.generators[gen].emissions
                     co2_sum += sp_data[sp][st_emi]
-                    sp_data[sp][st_emc] = sp_data[sp][st_emi] * carbon_price
+                    sp_data[sp][st_emc] = sp_data[sp][st_emi] * self.carbon_price
                     if sp_data[sp][st_cst] == 0:
                         sp_data[sp][st_lcc] = sp_data[sp][st_emc] / sp_data[sp][st_tml]
                     else:
@@ -1687,12 +1706,12 @@ class powerMatch():
                     co2_cost_sum += sp_data[sp][st_emc]
                     sp_data[sp][st_lie] = sp_data[sp][st_emi] * max_lifetime
                     lifetime_co2_sum += sp_data[sp][st_lie]
-                    sp_data[sp][st_lec] = sp_data[sp][st_lie] * carbon_price
+                    sp_data[sp][st_lec] = sp_data[sp][st_lie] * self.carbon_price
                     lifetime_co2_cost += sp_data[sp][st_lec]
                 else:
                     sp_data[sp][st_lcc] = sp_data[sp][st_lco]
-                if generators[gen].area > 0:
-                    sp_data[sp][st_are] = sp_data[sp][st_cap] * generators[gen].area
+                if self.generators[gen].area > 0:
+                    sp_data[sp][st_are] = sp_data[sp][st_cap] * self.generators[gen].area
                     total_area += sp_data[sp][st_are]
             sf_sums = [0., 0., 0.]
             for sf in range(len(shortfall)):
@@ -1712,78 +1731,78 @@ class powerMatch():
             else:
                 gsw = ''
                 gswc = ''
-            if option == 'O' or option == '1':
+            if option == O or option == O1:
                 load_pct, surp_pct, re_pct = summary_totals()
             else:
                 summary_totals()
             do_underlying = False
             if len(underlying_facs) > 0:
                 for fac in underlying_facs:
-                    if pmss_details[fac].capacity * float(pmss_details[fac].multiplier) > 0:
+                    if pmss_details[fac].capacity * pmss_details[fac].multiplier > 0:
                         do_underlying = True
                         break
             if do_underlying:
                 sp_data.append(' ')
                 sp_data.append('Additional Underlying Load')
                 for fac in underlying_facs:
-                    if pmss_details[fac].capacity * float(pmss_details[fac].multiplier) == 0:
+                    if pmss_details[fac].capacity * pmss_details[fac].multiplier == 0:
                         continue
-                    if fac in generators.keys():
+                    if fac in self.generators.keys():
                         gen = fac
                     else:
                         gen = pmss_details[fac].generator
                     col = pmss_details[fac].col
                     sp_d = [' '] * len(headers)
                     sp_d[st_fac] = fac
-                    sp_d[st_cap] = pmss_details[fac].capacity * float(pmss_details[fac].multiplier)
+                    sp_d[st_cap] = pmss_details[fac].capacity * pmss_details[fac].multiplier
                     cap_sum += sp_d[st_cap]
-                    sp_d[st_tml] = sum(pmss_data[pmss_details[fac].col]) * float(pmss_details[fac].multiplier)
+                    sp_d[st_tml] = sum(pmss_data[pmss_details[fac].col]) * pmss_details[fac].multiplier
                     tml_sum += sp_d[st_tml]
                     sp_d[st_sub] = sp_d[st_tml]
                     gen_sum += sp_d[st_tml]
                     sp_load += sp_d[st_tml]
                     sp_d[st_cfa] = '{:.1f}%'.format(sp_d[st_sub] / sp_d[st_cap] / 8760 * 100.)
-                    sp_d[st_max] = max(pmss_data[pmss_details[fac].col]) * float(pmss_details[fac].multiplier)
-                    if generators[gen].capex > 0 or generators[gen].fixed_om > 0 \
-                      or generators[gen].variable_om > 0 or generators[gen].fuel > 0:
-                        capex = sp_d[st_cap] * generators[gen].capex
+                    sp_d[st_max] = max(pmss_data[pmss_details[fac].col]) * pmss_details[fac].multiplier
+                    if self.generators[gen].capex > 0 or self.generators[gen].fixed_om > 0 \
+                      or self.generators[gen].variable_om > 0 or self.generators[gen].fuel > 0:
+                        capex = sp_d[st_cap] * self.generators[gen].capex
                         capex_sum += capex
-                        opex = sp_d[st_cap] * generators[gen].fixed_om \
-                               + sp_d[st_tml] * generators[gen].variable_om \
-                               + sp_d[st_tml] * generators[gen].fuel
-                        disc_rate = generators[gen].disc_rate
+                        opex = sp_d[st_cap] * self.generators[gen].fixed_om \
+                               + sp_d[st_tml] * self.generators[gen].variable_om \
+                               + sp_d[st_tml] * self.generators[gen].fuel
+                        disc_rate = self.generators[gen].disc_rate
                         if disc_rate == 0:
-                            disc_rate = discount_rate
-                        lifetime = generators[gen].lifetime
+                            disc_rate = self.discount_rate
+                        lifetime = self.generators[gen].lifetime
                         sp_d[st_lcg] = calcLCOE(sp_d[st_tml], capex, opex, disc_rate, lifetime)
                         sp_d[st_cst] = sp_d[st_tml] * sp_d[st_lcg]
                         cost_sum += sp_d[st_cst]
                         sp_d[st_lco] = sp_d[st_lcg]
                         sp_d[st_cac] = capex
-                    elif generators[gen].lcoe > 0:
-                        if generators[gen].lcoe_cf > 0:
-                            lcoe_cf = generators[gen].lcoe_cf
+                    elif self.generators[gen].lcoe > 0:
+                        if self.generators[gen].lcoe_cf > 0:
+                            lcoe_cf = self.generators[gen].lcoe_cf
                         else:
                             lcoe_cf = sp_d[st_cfa]
-                        sp_d[st_cst] = generators[gen].lcoe * lcoe_cf * 8760 * sp_d[st_cap]
+                        sp_d[st_cst] = self.generators[gen].lcoe * lcoe_cf * 8760 * sp_d[st_cap]
                         cost_sum += sp_d[st_cst]
                         if sp_d[st_cfa] > 0:
                             sp_d[st_lcg] = sp_d[st_cst] / sp_d[st_tml]
                             sp_d[st_lco] = sp_d[st_lcg]
                         sp_d[st_cfa] = '{:.1f}%'.format(sp_d[st_cfa] * 100.)
-                        sp_d[st_rlc] = generators[gen].lcoe
+                        sp_d[st_rlc] = self.generators[gen].lcoe
                         sp_d[st_rcf] = '{:.1f}%'.format(lcoe_cf * 100.)
-                    elif generators[gen].lcoe_cf == 0: # no cost facility
+                    elif self.generators[gen].lcoe_cf == 0: # no cost facility
                         sp_d[st_cst] = 0
                         sp_d[st_lcg] = 0
                         sp_d[st_lco] = 0
-                        sp_d[st_rlc] = generators[gen].lcoe
+                        sp_d[st_rlc] = self.generators[gen].lcoe
                     sp_d[st_lic] = sp_d[st_cst] * max_lifetime
                     lifetime_sum += sp_d[st_lic]
-                    if generators[gen].emissions > 0:
-                        sp_d[st_emi] = sp_d[st_tml] * generators[gen].emissions
+                    if self.generators[gen].emissions > 0:
+                        sp_d[st_emi] = sp_d[st_tml] * self.generators[gen].emissions
                         co2_sum += sp_d[st_emi]
-                        sp_d[st_emc] = sp_d[st_emi] * carbon_price
+                        sp_d[st_emc] = sp_d[st_emi] * self.carbon_price
                         if sp_d[st_cst] > 0:
                             sp_d[st_lcc] = sp_d[st_lco] * ((sp_d[st_cst] + sp_d[st_emc]) / sp_d[st_cst])
                         else:
@@ -1791,12 +1810,12 @@ class powerMatch():
                         co2_cost_sum += sp_d[st_emc]
                         sp_d[st_lie] = sp_d[st_emi] * max_lifetime
                         lifetime_co2_sum += sp_d[st_lie]
-                        sp_d[st_lec] = sp_d[st_lie] * carbon_price
+                        sp_d[st_lec] = sp_d[st_lie] * self.carbon_price
                         lifetime_co2_cost += sp_d[st_lec]
                     else:
                         sp_d[st_lcc] = sp_d[st_lco]
-                    if generators[gen].area > 0:
-                        sp_d[st_are] = sp_d[st_cap] * generators[gen].area
+                    if self.generators[gen].area > 0:
+                        sp_d[st_are] = sp_d[st_cap] * self.generators[gen].area
                     sp_data.append(sp_d)
                 if gen_sum > 0:
                     gs = cost_sum / gen_sum
@@ -1809,13 +1828,14 @@ class powerMatch():
                     gsw = ''
                     gswc = ''
                 # find maximum underlying load
-                if option == 'S':
+                if option == S:
                     load_max = 0
                     load_hr = 0
-                    for h in range(len(pmss_data[0])):
+                    load_col = pmss_details['Load'].col
+                    for h in range(len(pmss_data[load_col])):
                         amt = pmss_data[load_col][h] * pmss_details['Load'].multiplier
                         for fac in underlying_facs:
-                            amt += pmss_data[pmss_details[fac].col][h] * float(pmss_details[fac].multiplier)
+                            amt += pmss_data[pmss_details[fac].col][h] * pmss_details[fac].multiplier
                         if amt > load_max:
                             load_max = amt
                             load_hr = h
@@ -1825,10 +1845,10 @@ class powerMatch():
                 sp_data = sp_data + corr_data
             sp_data.append(' ')
             sp_data.append(['Static Variables'])
-            if carbon_price > 0:
+            if self.carbon_price > 0:
                 sp_d = [' '] * len(headers)
                 sp_d[st_fac] = 'Carbon Price ($/tCO2e)'
-                sp_d[st_cap] = carbon_price
+                sp_d[st_cap] = self.carbon_price
                 sp_data.append(sp_d)
             sp_d = [' '] * len(headers)
             sp_d[st_fac] = 'Lifetime (years)'
@@ -1836,24 +1856,21 @@ class powerMatch():
             sp_data.append(sp_d)
             sp_d = [' '] * len(headers)
             sp_d[st_fac] = 'Discount Rate'
-            sp_d[st_cap] = '{:.2%}'.format(discount_rate)
+            sp_d[st_cap] = '{:.2%}'.format(self.discount_rate)
             sp_data.append(sp_d)
-            if option == 'B':
-                if optimise_debug:
+            if option == B or option == T:
+                if self.optimise_debug:
                     sp_pts = [0] * len(headers)
                     for p in [st_cap, st_lcg, st_lco, st_lcc, st_max, st_bal, st_rlc, st_are]:
                         sp_pts[p] = 2
                     if corr_data is not None:
                         sp_pts[st_cap] = 3 # compromise between capacity (2) and correlation (4)
-                    dialog = displaytable.Table(sp_data, title=title, fields=headers,
-                             save_folder=scenarios, sortby='', decpts=sp_pts)
-                    dialog.exec_()
-                return sp_data
-            if option == 'O' or option == '1':
+                return sp_data, corr_data
+            if option == O or option == O1:
                 op_load_tot = pmss_details['Load'].capacity * pmss_details['Load'].multiplier
                 if gswc != '':
                     lcoe = gswc
-                elif adjusted_lcoe:
+                elif self.adjusted_lcoe:
                     lcoe = gsw # target is lcoe
                 else:
                     lcoe = gs
@@ -1867,7 +1884,7 @@ class powerMatch():
                     're_pct': re_pct, # RE pct. higher better
                     'cost': cost_sum, # cost. lower better
                     'co2': co2_sum} # CO2. lower better
-                if option == 'O':
+                if option == O:
                     if multi_value['lcoe'] == '':
                         multi_value['lcoe'] = 0
                     return multi_value, sp_data, None
@@ -1876,23 +1893,19 @@ class powerMatch():
                     return multi_value, sp_data, extra
         #    list(map(list, list(zip(*sp_data))))
             span = None
-        #    list(map(list, list(zip(*sp_data))))
             sp_pts = [0] * len(headers)
             for p in [st_cap, st_lcg, st_lco, st_lcc, st_max, st_bal, st_rlc, st_are]:
                 sp_pts[p] = 2
             if corr_data is not None:
                 sp_pts[st_cap] = 3 # compromise between capacity (2) and correlation (4)
+            self.setStatus(sender_name + ' completed')
             if title is not None:
                 atitle = title
-            elif results_prefix != '':
-                atitle = results_prefix + '_' + ' '
+            elif self.results_prefix != '':
+                atitle = self.results_prefix + '_' + sender_name
             else:
-                pass
-
-            #dialog = displaytable.Table(sp_data, title='title', fields=headers,
-            #         save_folder=scenarios, sortby='', decpts=sp_pts)
-
-            return sp_data, headers, sp_pts# finish if not detailed spreadsheet
+                atitle = sender_name
+            return sp_data, corr_data # finish if not detailed spreadsheet
         col = next_col + 1
         is_storage = False
         ss_sto_rows = []
@@ -1900,7 +1913,7 @@ class powerMatch():
         for gen in dispatch_order:
             ss_row += 1
             try:
-                if generators[gen].category == 'Storage':
+                if self.constraints[self.generators[gen].constraint].category == 'Storage':
                     ss_sto_rows.append(ss_row)
                     nc = 2
                     ns.cell(row=what_row, column=col).value = 'Charge\n' + gen
@@ -1910,162 +1923,163 @@ class powerMatch():
                     ns.cell(row=what_row, column=col + 1).alignment = oxl.styles.Alignment(wrap_text=True,
                             vertical='bottom', horizontal='center')
                     is_storage = True
-                    ns_sto_sum += '+' + ss_col(st_tml+1) + str(ss_row)
-                    ns_loss_sum += '+Detail!' + ss_col(col + 1) + str(sum_row)
+                    ns_sto_sum += '+' + ssCol(st_tml+1) + str(ss_row)
+                    ns_loss_sum += '+Detail!' + ssCol(col + 1) + str(sum_row)
                 else:
                     nc = 0
                     is_storage = False
-                    ns_not_sum += '-' + ss_col(st_tml+1) + str(ss_row)
+                    ns_not_sum += '-' + ssCol(st_tml+1) + str(ss_row)
             except KeyError as err:
                 msg = 'Key Error: No Constraint for ' + gen
                 if title is not None:
                     msg += ' (model ' + title + ')'
+                self.setStatus(msg)
                 nc = 0
                 is_storage = False
-                ns_not_sum += '-' + ss_col(st_tml+1) + str(ss_row)
+                ns_not_sum += '-' + ssCol(st_tml+1) + str(ss_row)
             ns.cell(row=what_row, column=col + nc).value = gen
-            ss.cell(row=ss_row, column=st_fac+1).value = '=Detail!' + ss_col(col + nc) + str(what_row)
+            ss.cell(row=ss_row, column=st_fac+1).value = '=Detail!' + ssCol(col + nc) + str(what_row)
             # facility
-            ss.cell(row=ss_row, column=st_cap+1).value = '=Detail!' + ss_col(col + nc) + str(cap_row)
+            ss.cell(row=ss_row, column=st_cap+1).value = '=Detail!' + ssCol(col + nc) + str(cap_row)
             # capacity
             ss.cell(row=ss_row, column=st_cap+1).number_format = '#,##0.00'
             # tml
-            ss.cell(row=ss_row, column=st_tml+1).value = '=Detail!' + ss_col(col + nc) + str(sum_row)
+            ss.cell(row=ss_row, column=st_tml+1).value = '=Detail!' + ssCol(col + nc) + str(sum_row)
             ss.cell(row=ss_row, column=st_tml+1).number_format = '#,##0'
             # subtotal
             try:
-                if generators[gen].category != 'Storage':
-                    ss.cell(row=ss_row, column=st_sub+1).value = '=Detail!' + ss_col(col + nc) + str(sum_row)
+                if self.constraints[self.generators[gen].constraint].category != 'Storage':
+                    ss.cell(row=ss_row, column=st_sub+1).value = '=Detail!' + ssCol(col + nc) + str(sum_row)
                     ss.cell(row=ss_row, column=st_sub+1).number_format = '#,##0'
             except KeyError as err:
-                ss.cell(row=ss_row, column=st_sub+1).value = '=Detail!' + ss_col(col + nc) + str(sum_row)
+                ss.cell(row=ss_row, column=st_sub+1).value = '=Detail!' + ssCol(col + nc) + str(sum_row)
                 ss.cell(row=ss_row, column=st_sub+1).number_format = '#,##0'
             # cf
-            ss.cell(row=ss_row, column=st_cfa+1).value = '=Detail!' + ss_col(col + nc) + str(cf_row)
+            ss.cell(row=ss_row, column=st_cfa+1).value = '=Detail!' + ssCol(col + nc) + str(cf_row)
             ss.cell(row=ss_row, column=st_cfa+1).number_format = '#,##0.0%'
-            if generators[gen].capex > 0 or generators[gen].fixed_om > 0 \
-              or generators[gen].variable_om > 0 or generators[gen].fuel > 0:
-                disc_rate = generators[gen].disc_rate
+            if self.generators[gen].capex > 0 or self.generators[gen].fixed_om > 0 \
+              or self.generators[gen].variable_om > 0 or self.generators[gen].fuel > 0:
+                disc_rate = self.generators[gen].disc_rate
                 if disc_rate == 0:
-                    disc_rate = discount_rate
+                    disc_rate = self.discount_rate
                 if disc_rate == 0:
-                    cst_calc = '/' + str(generators[gen].lifetime)
+                    cst_calc = '/' + str(self.generators[gen].lifetime)
                 else:
-                    pwr_calc = 'POWER(1+' + str(disc_rate) + ',' + str(generators[gen].lifetime) + ')'
+                    pwr_calc = 'POWER(1+' + str(disc_rate) + ',' + str(self.generators[gen].lifetime) + ')'
                     cst_calc = '*' + str(disc_rate) + '*' + pwr_calc + '/SUM(' + pwr_calc + ',-1)'
-                ns.cell(row=cost_row, column=col + nc).value = '=IF(' + ss_col(col + nc) + str(cf_row) + \
-                        '>0,' + ss_col(col + nc) + str(cap_row) + '*' + str(generators[gen].capex) + \
-                        cst_calc + '+' + ss_col(col + nc) + str(cap_row) + '*' + \
-                        str(generators[gen].fixed_om) + '+' + ss_col(col + nc) + str(sum_row) + '*(' + \
-                        str(generators[gen].variable_om) + '+' + str(generators[gen].fuel) + \
+                ns.cell(row=cost_row, column=col + nc).value = '=IF(' + ssCol(col + nc) + str(cf_row) + \
+                        '>0,' + ssCol(col + nc) + str(cap_row) + '*' + str(self.generators[gen].capex) + \
+                        cst_calc + '+' + ssCol(col + nc) + str(cap_row) + '*' + \
+                        str(self.generators[gen].fixed_om) + '+' + ssCol(col + nc) + str(sum_row) + '*(' + \
+                        str(self.generators[gen].variable_om) + '+' + str(self.generators[gen].fuel) + \
                         '),0)'
                 ns.cell(row=cost_row, column=col + nc).number_format = '$#,##0'
                 # cost / yr
-                if remove_cost:
-                    ss.cell(row=ss_row, column=st_cst+1).value = '=IF(Detail!' + ss_col(col + nc) + str(sum_row) \
-                            + '>0,Detail!' + ss_col(col + nc) + str(cost_row) + ',"")'
+                if self.remove_cost:
+                    ss.cell(row=ss_row, column=st_cst+1).value = '=IF(Detail!' + ssCol(col + nc) + str(sum_row) \
+                            + '>0,Detail!' + ssCol(col + nc) + str(cost_row) + ',"")'
                 else:
-                    ss.cell(row=ss_row, column=st_cst+1).value = '=Detail!' + ss_col(col + nc) + str(cost_row)
+                    ss.cell(row=ss_row, column=st_cst+1).value = '=Detail!' + ssCol(col + nc) + str(cost_row)
                 ss.cell(row=ss_row, column=st_cst+1).number_format = '$#,##0'
-                ns.cell(row=lcoe_row, column=col + nc).value = '=IF(AND(' + ss_col(col + nc) + str(cf_row) + \
-                        '>0,' + ss_col(col + nc) + str(cap_row) + '>0),' + ss_col(col + nc) + \
-                        str(cost_row) + '/' + ss_col(col + nc) + str(sum_row) + ',"")'
+                ns.cell(row=lcoe_row, column=col + nc).value = '=IF(AND(' + ssCol(col + nc) + str(cf_row) + \
+                        '>0,' + ssCol(col + nc) + str(cap_row) + '>0),' + ssCol(col + nc) + \
+                        str(cost_row) + '/' + ssCol(col + nc) + str(sum_row) + ',"")'
                 ns.cell(row=lcoe_row, column=col + nc).number_format = '$#,##0.00'
                 # lcog
-                ss.cell(row=ss_row, column=st_lcg+1).value = '=Detail!' + ss_col(col + nc) + str(lcoe_row)
+                ss.cell(row=ss_row, column=st_lcg+1).value = '=Detail!' + ssCol(col + nc) + str(lcoe_row)
                 ss.cell(row=ss_row, column=st_lcg+1).number_format = '$#,##0.00'
                 # lcoe
-                ss.cell(row=ss_row, column=st_lco+1).value = '=Detail!' + ss_col(col + nc) + str(lcoe_row)
+                ss.cell(row=ss_row, column=st_lco+1).value = '=Detail!' + ssCol(col + nc) + str(lcoe_row)
                 ss.cell(row=ss_row, column=st_lco+1).number_format = '$#,##0.00'
                 # capital cost
-                ss.cell(row=ss_row, column=st_cac+1).value = '=IF(Detail!' + ss_col(col + nc) + str(cap_row) \
-                                                            + '>0,Detail!' + ss_col(col + nc) + str(cap_row) + '*'  \
-                                                            + str(generators[gen].capex) + ',"")'
+                ss.cell(row=ss_row, column=st_cac+1).value = '=IF(Detail!' + ssCol(col + nc) + str(cap_row) \
+                                                            + '>0,Detail!' + ssCol(col + nc) + str(cap_row) + '*'  \
+                                                            + str(self.generators[gen].capex) + ',"")'
                 ss.cell(row=ss_row, column=st_cac+1).number_format = '$#,##0'
-            elif generators[gen].lcoe > 0:
-                ns.cell(row=cost_row, column=col + nc).value = '=IF(' + ss_col(col + nc) + str(cf_row) + \
-                        '>0,' + ss_col(col + nc) + str(sum_row) + '*Summary!' + ss_col(st_rlc + 1) + str(ss_row) + \
-                        '*Summary!' + ss_col(st_rcf + 1) + str(ss_row) + '/' + ss_col(col + nc) + str(cf_row) + ',0)'
+            elif self.generators[gen].lcoe > 0:
+                ns.cell(row=cost_row, column=col + nc).value = '=IF(' + ssCol(col + nc) + str(cf_row) + \
+                        '>0,' + ssCol(col + nc) + str(sum_row) + '*Summary!' + ssCol(st_rlc + 1) + str(ss_row) + \
+                        '*Summary!' + ssCol(st_rcf + 1) + str(ss_row) + '/' + ssCol(col + nc) + str(cf_row) + ',0)'
                 ns.cell(row=cost_row, column=col + nc).number_format = '$#,##0'
                 # cost / yr
-                if remove_cost:
-                    ss.cell(row=ss_row, column=st_cst+1).value = '=IF(Detail!' + ss_col(col + nc) + str(sum_row) \
-                            + '>0,Detail!' + ss_col(col + nc) + str(cost_row) + ',"")'
+                if self.remove_cost:
+                    ss.cell(row=ss_row, column=st_cst+1).value = '=IF(Detail!' + ssCol(col + nc) + str(sum_row) \
+                            + '>0,Detail!' + ssCol(col + nc) + str(cost_row) + ',"")'
                 else:
-                    ss.cell(row=ss_row, column=st_cst+1).value = '=Detail!' + ss_col(col + nc) + str(cost_row)
+                    ss.cell(row=ss_row, column=st_cst+1).value = '=Detail!' + ssCol(col + nc) + str(cost_row)
                 ss.cell(row=ss_row, column=st_cst+1).number_format = '$#,##0'
-                ns.cell(row=lcoe_row, column=col + nc).value = '=IF(AND(' + ss_col(col + nc) + str(cf_row) + '>0,' \
-                            + ss_col(col + nc) + str(cap_row) + '>0),' + ss_col(col + nc) + str(cost_row) + '/8760/' \
-                            + ss_col(col + nc) + str(cf_row) + '/' + ss_col(col + nc) + str(cap_row)+  ',"")'
+                ns.cell(row=lcoe_row, column=col + nc).value = '=IF(AND(' + ssCol(col + nc) + str(cf_row) + '>0,' \
+                            + ssCol(col + nc) + str(cap_row) + '>0),' + ssCol(col + nc) + str(cost_row) + '/8760/' \
+                            + ssCol(col + nc) + str(cf_row) + '/' + ssCol(col + nc) + str(cap_row)+  ',"")'
                 ns.cell(row=lcoe_row, column=col + nc).number_format = '$#,##0.00'
                 # lcog
-                ss.cell(row=ss_row, column=st_lcg+1).value = '=Detail!' + ss_col(col + nc) + str(lcoe_row)
+                ss.cell(row=ss_row, column=st_lcg+1).value = '=Detail!' + ssCol(col + nc) + str(lcoe_row)
                 ss.cell(row=ss_row, column=st_lcg+1).number_format = '$#,##0.00'
                 # lcoe
-                ss.cell(row=ss_row, column=st_lco+1).value = '=Detail!' + ss_col(col + nc) + str(lcoe_row)
+                ss.cell(row=ss_row, column=st_lco+1).value = '=Detail!' + ssCol(col + nc) + str(lcoe_row)
                 ss.cell(row=ss_row, column=st_lco+1).number_format = '$#,##0.00'
                 # ref lcoe
-                ss.cell(row=ss_row, column=st_rlc+1).value = generators[gen].lcoe
+                ss.cell(row=ss_row, column=st_rlc+1).value = self.generators[gen].lcoe
                 ss.cell(row=ss_row, column=st_rlc+1).number_format = '$#,##0.00'
                 # ref cf
-                if generators[gen].lcoe_cf == 0:
-                    ss.cell(row=ss_row, column=st_rcf+1).value = '=' + ss_col(st_cfa+1) + str(ss_row)
+                if self.generators[gen].lcoe_cf == 0:
+                    ss.cell(row=ss_row, column=st_rcf+1).value = '=' + ssCol(st_cfa+1) + str(ss_row)
                 else:
-                    ss.cell(row=ss_row, column=st_rcf+1).value = generators[gen].lcoe_cf
+                    ss.cell(row=ss_row, column=st_rcf+1).value = self.generators[gen].lcoe_cf
                 ss.cell(row=ss_row, column=st_rcf+1).number_format = '#,##0.0%'
-            elif generators[gen].lcoe_cf == 0: # no cost facility
-                ns.cell(row=cost_row, column=col + nc).value = '=IF(' + ss_col(col + nc) + str(cf_row) + \
-                        '>0,' + ss_col(col + nc) + str(sum_row) + '*Summary!' + ss_col(st_rlc + 1) + str(ss_row) + \
-                        '*Summary!' + ss_col(st_rcf + 1) + str(ss_row) + '/' + ss_col(col + nc) + str(cf_row) + ',0)'
+            elif self.generators[gen].lcoe_cf == 0: # no cost facility
+                ns.cell(row=cost_row, column=col + nc).value = '=IF(' + ssCol(col + nc) + str(cf_row) + \
+                        '>0,' + ssCol(col + nc) + str(sum_row) + '*Summary!' + ssCol(st_rlc + 1) + str(ss_row) + \
+                        '*Summary!' + ssCol(st_rcf + 1) + str(ss_row) + '/' + ssCol(col + nc) + str(cf_row) + ',0)'
                 ns.cell(row=cost_row, column=col + nc).number_format = '$#,##0'
                 # cost / yr
-                if remove_cost:
-                    ss.cell(row=ss_row, column=st_cst+1).value = '=IF(Detail!' + ss_col(col + nc) + str(sum_row) \
-                            + '>0,Detail!' + ss_col(col + nc) + str(cost_row) + ',"")'
+                if self.remove_cost:
+                    ss.cell(row=ss_row, column=st_cst+1).value = '=IF(Detail!' + ssCol(col + nc) + str(sum_row) \
+                            + '>0,Detail!' + ssCol(col + nc) + str(cost_row) + ',"")'
                 else:
-                    ss.cell(row=ss_row, column=st_cst+1).value = '=Detail!' + ss_col(col + nc) + str(cost_row)
+                    ss.cell(row=ss_row, column=st_cst+1).value = '=Detail!' + ssCol(col + nc) + str(cost_row)
                 ss.cell(row=ss_row, column=st_cst+1).number_format = '$#,##0'
-                ns.cell(row=lcoe_row, column=col + nc).value = '=IF(AND(' + ss_col(col + nc) + str(cf_row) + '>0,' \
-                            + ss_col(col + nc) + str(cap_row) + '>0),' + ss_col(col + nc) + str(cost_row) + '/8760/' \
-                            + ss_col(col + nc) + str(cf_row) + '/' + ss_col(col + nc) + str(cap_row)+  ',"")'
+                ns.cell(row=lcoe_row, column=col + nc).value = '=IF(AND(' + ssCol(col + nc) + str(cf_row) + '>0,' \
+                            + ssCol(col + nc) + str(cap_row) + '>0),' + ssCol(col + nc) + str(cost_row) + '/8760/' \
+                            + ssCol(col + nc) + str(cf_row) + '/' + ssCol(col + nc) + str(cap_row)+  ',"")'
                 ns.cell(row=lcoe_row, column=col + nc).number_format = '$#,##0.00'
                 # lcog
-                ss.cell(row=ss_row, column=st_lcg+1).value = '=Detail!' + ss_col(col + nc) + str(lcoe_row)
+                ss.cell(row=ss_row, column=st_lcg+1).value = '=Detail!' + ssCol(col + nc) + str(lcoe_row)
                 ss.cell(row=ss_row, column=st_lcg+1).number_format = '$#,##0.00'
                 # lcoe
-                ss.cell(row=ss_row, column=st_lco+1).value = '=Detail!' + ss_col(col + nc) + str(lcoe_row)
+                ss.cell(row=ss_row, column=st_lco+1).value = '=Detail!' + ssCol(col + nc) + str(lcoe_row)
                 ss.cell(row=ss_row, column=st_lco+1).number_format = '$#,##0.00'
                 # ref lcoe
-                ss.cell(row=ss_row, column=st_rlc+1).value = generators[gen].lcoe
+                ss.cell(row=ss_row, column=st_rlc+1).value = self.generators[gen].lcoe
                 ss.cell(row=ss_row, column=st_rlc+1).number_format = '$#,##0.00'
                 # ref cf
-                if generators[gen].lcoe_cf == 0:
-                    ss.cell(row=ss_row, column=st_rcf+1).value = '=' + ss_col(st_cfa+1) + str(ss_row)
+                if self.generators[gen].lcoe_cf == 0:
+                    ss.cell(row=ss_row, column=st_rcf+1).value = '=' + ssCol(st_cfa+1) + str(ss_row)
                 else:
-                    ss.cell(row=ss_row, column=st_rcf+1).value = generators[gen].lcoe_cf
+                    ss.cell(row=ss_row, column=st_rcf+1).value = self.generators[gen].lcoe_cf
                 ss.cell(row=ss_row, column=st_rcf+1).number_format = '#,##0.0%'
-            if generators[gen].emissions > 0:
-                ns.cell(row=emi_row, column=col + nc).value = '=' + ss_col(col + nc) + str(sum_row) \
-                        + '*' + str(generators[gen].emissions)
+            if self.generators[gen].emissions > 0:
+                ns.cell(row=emi_row, column=col + nc).value = '=' + ssCol(col + nc) + str(sum_row) \
+                        + '*' + str(self.generators[gen].emissions)
                 ns.cell(row=emi_row, column=col + nc).number_format = '#,##0'
                 # emissions
-                if remove_cost:
-                    ss.cell(row=ss_row, column=st_emi+1).value = '=IF(Detail!' + ss_col(col + nc) + str(sum_row) \
-                            + '>0,Detail!' + ss_col(col + nc) + str(emi_row) + ',"")'
+                if self.remove_cost:
+                    ss.cell(row=ss_row, column=st_emi+1).value = '=IF(Detail!' + ssCol(col + nc) + str(sum_row) \
+                            + '>0,Detail!' + ssCol(col + nc) + str(emi_row) + ',"")'
                 else:
-                    ss.cell(row=ss_row, column=st_emi+1).value = '=Detail!' + ss_col(col + nc) + str(emi_row)
+                    ss.cell(row=ss_row, column=st_emi+1).value = '=Detail!' + ssCol(col + nc) + str(emi_row)
                 ss.cell(row=ss_row, column=st_emi+1).number_format = '#,##0'
-                if carbon_price > 0:
-                    ss.cell(row=ss_row, column=st_emc+1).value = '=IF(AND(' + ss_col(st_emi+1) + str(ss_row) + '<>"",' + \
-                                                                 ss_col(st_emi+1) + str(ss_row) + '>0),' + \
-                                                                 ss_col(st_emi+1) + str(ss_row) + '*carbon_price,"")'
+                if self.carbon_price > 0:
+                    ss.cell(row=ss_row, column=st_emc+1).value = '=IF(AND(' + ssCol(st_emi+1) + str(ss_row) + '<>"",' + \
+                                                                 ssCol(st_emi+1) + str(ss_row) + '>0),' + \
+                                                                 ssCol(st_emi+1) + str(ss_row) + '*carbon_price,"")'
                     ss.cell(row=ss_row, column=st_emc+1).number_format = '$#,##0'
             # max mwh
-            ss.cell(row=ss_row, column=st_max+1).value = '=Detail!' + ss_col(col + nc) + str(max_row)
+            ss.cell(row=ss_row, column=st_max+1).value = '=Detail!' + ssCol(col + nc) + str(max_row)
             ss.cell(row=ss_row, column=st_max+1).number_format = '#,##0.00'
             # max balance
             if nc > 0: # storage
-                ss.cell(row=ss_row, column=st_bal+1).value = '=Detail!' + ss_col(col + nc + 1) + str(max_row)
+                ss.cell(row=ss_row, column=st_bal+1).value = '=Detail!' + ssCol(col + nc + 1) + str(max_row)
                 ss.cell(row=ss_row, column=st_bal+1).number_format = '#,##0.00'
             ns.cell(row=what_row, column=col + nc).alignment = oxl.styles.Alignment(wrap_text=True,
                     vertical='bottom', horizontal='center')
@@ -2073,8 +2087,8 @@ class powerMatch():
                     vertical='bottom', horizontal='center')
             if is_storage:
                 # lifetime cost
-                ss.cell(row=ss_row, column=st_lic+1).value = '=IF(Detail!' + ss_col(col + 2) + str(sum_row) \
-                                                        + '>0,Detail!' + ss_col(col + 2) + str(cost_row) + '*lifetime,"")'
+                ss.cell(row=ss_row, column=st_lic+1).value = '=IF(Detail!' + ssCol(col + 2) + str(sum_row) \
+                                                        + '>0,Detail!' + ssCol(col + 2) + str(cost_row) + '*lifetime,"")'
                 ss.cell(row=ss_row, column=st_lic+1).number_format = '$#,##0'
                 # ns.cell(row=what_row, column=col + 1).value = gen
                 ns.cell(row=what_row, column=col + 3).value = gen + '\nBalance'
@@ -2083,33 +2097,33 @@ class powerMatch():
                 ns.cell(row=what_row, column=col + 4).value = 'After\n' + gen
                 ns.cell(row=what_row, column=col + 4).alignment = oxl.styles.Alignment(wrap_text=True,
                         vertical='bottom', horizontal='center')
-                ns.cell(row=fall_row, column=col + 4).value = '=COUNTIF(' + ss_col(col + 4) \
-                        + str(hrows) + ':' + ss_col(col + 4) + str(hrows + 8759) + \
+                ns.cell(row=fall_row, column=col + 4).value = '=COUNTIF(' + ssCol(col + 4) \
+                        + str(hrows) + ':' + ssCol(col + 4) + str(hrows + 8759) + \
                         ',"' + sf_test[0] + '0")'
                 ns.cell(row=fall_row, column=col + 4).number_format = '#,##0'
                 col += 5
             else:
                 # lifetime cost
-                ss.cell(row=ss_row, column=st_lic+1).value = '=IF(Detail!' + ss_col(col) + str(sum_row) \
-                                                        + '>0,Detail!' + ss_col(col) + str(cost_row) + '*lifetime,"")'
+                ss.cell(row=ss_row, column=st_lic+1).value = '=IF(Detail!' + ssCol(col) + str(sum_row) \
+                                                        + '>0,Detail!' + ssCol(col) + str(cost_row) + '*lifetime,"")'
                 ss.cell(row=ss_row, column=st_lic+1).number_format = '$#,##0'
                 ns.cell(row=what_row, column=col + 1).value = 'After\n' + gen
-                ns.cell(row=fall_row, column=col + 1).value = '=COUNTIF(' + ss_col(col + 1) \
-                        + str(hrows) + ':' + ss_col(col + 1) + str(hrows + 8759) + \
+                ns.cell(row=fall_row, column=col + 1).value = '=COUNTIF(' + ssCol(col + 1) \
+                        + str(hrows) + ':' + ssCol(col + 1) + str(hrows + 8759) + \
                         ',"' + sf_test[0] + '0")'
                 ns.cell(row=fall_row, column=col + 1).number_format = '#,##0'
                 col += 2
-            ss.cell(row=ss_row, column=st_lie+1).value = '=IF(AND(' + ss_col(st_emi+1) + str(ss_row) + '<>"",' + \
-                                                         ss_col(st_emi+1) + str(ss_row) + '>0),' + \
-                                                         ss_col(st_emi+1) + str(ss_row) + '*lifetime,"")'
+            ss.cell(row=ss_row, column=st_lie+1).value = '=IF(AND(' + ssCol(st_emi+1) + str(ss_row) + '<>"",' + \
+                                                         ssCol(st_emi+1) + str(ss_row) + '>0),' + \
+                                                         ssCol(st_emi+1) + str(ss_row) + '*lifetime,"")'
             ss.cell(row=ss_row, column=st_lie+1).number_format = '#,##0'
-            ss.cell(row=ss_row, column=st_lec+1).value = '=IF(AND(' + ss_col(st_emi+1) + str(ss_row) + '<>"",' + \
-                                                         ss_col(st_emi+1) + str(ss_row) + '>0),' + \
-                                                         ss_col(st_emc+1) + str(ss_row) + '*lifetime,"")'
+            ss.cell(row=ss_row, column=st_lec+1).value = '=IF(AND(' + ssCol(st_emi+1) + str(ss_row) + '<>"",' + \
+                                                         ssCol(st_emi+1) + str(ss_row) + '>0),' + \
+                                                         ssCol(st_emc+1) + str(ss_row) + '*lifetime,"")'
             ss.cell(row=ss_row, column=st_lec+1).number_format = '$#,##0'
         if is_storage:
-            ns.cell(row=emi_row, column=col - 2).value = '=MIN(' + ss_col(col - 2) + str(hrows) + \
-                    ':' + ss_col(col - 2) + str(hrows + 8759) + ')'
+            ns.cell(row=emi_row, column=col - 2).value = '=MIN(' + ssCol(col - 2) + str(hrows) + \
+                    ':' + ssCol(col - 2) + str(hrows + 8759) + ')'
             ns.cell(row=emi_row, column=col - 2).number_format = '#,##0.00'
         for column_cells in ns.columns:
             length = 0
@@ -2155,7 +2169,7 @@ class powerMatch():
                 if alen > length:
                     length = alen
             if isinstance(cell.column, int):
-                cel = ss_col(cell.column)
+                cel = ssCol(cell.column)
             else:
                 cel = cell.column
             ns.column_dimensions[cel].width = max(length, 10)
@@ -2169,11 +2183,14 @@ class powerMatch():
                     ns.cell(row=row, column=col).font = normal
                 except:
                     pass
+        self.listener.progress_bar.setValue(12)
+        if self.event_callback:
+            self.event_callback()
         ns.row_dimensions[what_row].height = 30
         ns.freeze_panes = 'C' + str(hrows)
         ns.activeCell = 'C' + str(hrows)
-        if results_prefix != '':
-            ss.cell(row=1, column=1).value = 'Powermatch - ' + results_prefix + ' Summary'
+        if self.results_prefix != '':
+            ss.cell(row=1, column=1).value = 'Powermatch - ' + self.results_prefix + ' Summary'
         else:
             ss.cell(row=1, column=1).value = 'Powermatch - Summary'
         ss.cell(row=1, column=1).font = bold
@@ -2193,7 +2210,7 @@ class powerMatch():
             ns_tml_sum = ul_tml_sum
             ss_row, ss_re_row = detail_summary_total(ss_row, title='Underlying ', base_row=base_row,
                                           back_row=str(ss_lst_row))
-        wider = [ss_col(st_cac + 1), ss_col(st_lic + 1)]
+        wider = [ssCol(st_cac + 1), ssCol(st_lic + 1)]
         for column_cells in ss.columns:
             length = 0
             value = ''
@@ -2204,7 +2221,7 @@ class powerMatch():
                         if len(value) + 1 > length:
                             length = len(value) + 1
             if isinstance(cell.column, int):
-                cel = ss_col(cell.column)
+                cel = ssCol(cell.column)
             else:
                 cel = cell.column
             if cel in wider:
@@ -2224,16 +2241,16 @@ class powerMatch():
         ss_row += 2
         ss.cell(row=ss_row, column=1).value = 'Static Variables'
         ss.cell(row=ss_row, column=1).font = bold
-        if carbon_price > 0:
+        if self.carbon_price > 0:
             ss_row += 1
             ss.cell(row=ss_row, column=1).value = 'Carbon Price ($/tCO2e)'
-            ss.cell(row=ss_row, column=st_cap+1).value = carbon_price
+            ss.cell(row=ss_row, column=st_cap+1).value = self.carbon_price
             ss.cell(row=ss_row, column=st_cap+1).number_format = '$#,##0.00'
-            attr_text = 'Summary!$' + ss_col(st_cap+1) + '$' + str(ss_row)
+            attr_text = 'Summary!$' + ssCol(st_cap+1) + '$' + str(ss_row)
             carbon_cell = oxl.workbook.defined_name.DefinedName('carbon_price', attr_text=attr_text)
             wb.defined_names.append(carbon_cell)
         ss_row += 1
-        attr_text = 'Summary!$' + ss_col(st_cap+1) + '$' + str(ss_row)
+        attr_text = 'Summary!$' + ssCol(st_cap+1) + '$' + str(ss_row)
         lifetime_cell = oxl.workbook.defined_name.DefinedName('lifetime', attr_text=attr_text)
         wb.defined_names.append(lifetime_cell)
         ss.cell(row=ss_row, column=1).value = 'Lifetime (years)'
@@ -2241,9 +2258,13 @@ class powerMatch():
         ss.cell(row=ss_row, column=st_cap+1).number_format = '#,##0'
         ss_row += 1
         ss.cell(row=ss_row, column=1).value = 'Discount Rate'
-        ss.cell(row=ss_row, column=st_cap+1).value = discount_rate
+        ss.cell(row=ss_row, column=st_cap+1).value = self.discount_rate
         ss.cell(row=ss_row, column=st_cap+1).number_format = '#,##0.00%'
         ss_row += 2
+        ss_row = self.data_sources(ss, ss_row, pm_data_file, option)
+        self.listener.progress_bar.setValue(14)
+        if self.event_callback:
+            self.event_callback()
         for row in range(1, ss_row + 1):
             for col in range(1, len(headers) + 1):
                 try:
@@ -2253,7 +2274,7 @@ class powerMatch():
                     pass
         ss.freeze_panes = 'B4'
         ss.activeCell = 'B4'
-        if save_tables:
+        if self.save_tables:
             gens = []
             cons = []
             for fac in re_order:
@@ -2265,19 +2286,19 @@ class powerMatch():
                     gens.append(fac[fac.find('.') + 1:])
                 else:
                     gens.append(fac)
-                cons.append(generators[pmss_details[fac].generator].constr)
+                cons.append(self.generators[pmss_details[fac].generator].constraint)
             for gen in dispatch_order:
                 gens.append(gen)
-                cons.append(generators[gen].constr)
-            gs = wb.create_sheet(sheets[G])
+                cons.append(self.generators[gen].constraint)
+            gs = wb.create_sheet(self.sheets[G].currentText())
             fields = []
             col = 1
             row = 1
-            if hasattr(generators[list(generators.keys())[0]], 'name'):
+            if hasattr(self.generators[list(self.generators.keys())[0]], 'name'):
                 fields.append('name')
                 gs.cell(row=row, column=col).value = 'Name'
                 col += 1
-            for prop in dir(generators[list(generators.keys())[0]]):
+            for prop in dir(self.generators[list(self.generators.keys())[0]]):
                 if prop[:2] != '__' and prop[-2:] != '__':
                     if prop != 'name':
                         fields.append(prop)
@@ -2288,11 +2309,11 @@ class powerMatch():
                         gs.cell(row=row, column=col).value = txt
                         if prop == 'capex':
                             txt = txt + txt
-                        gs.column_dimensions[ss_col(col)].width = max(len(txt) * 1.4, 10)
+                        gs.column_dimensions[ssCol(col)].width = max(len(txt) * 1.4, 10)
                         col += 1
             nme_width = 4
             con_width = 4
-            for key, value in generators.items():
+            for key, value in self.generators.items():
                 if key in gens:
                     row += 1
                     col = 1
@@ -2303,11 +2324,11 @@ class powerMatch():
                             if field == 'name':
                                 if len(txt) > nme_width:
                                     nme_width = len(txt)
-                                    gs.column_dimensions[ss_col(col)].width = nme_width * 1.4
+                                    gs.column_dimensions[ssCol(col)].width = nme_width * 1.4
                             else:
                                 if len(txt) > con_width:
                                     con_width = len(txt)
-                                    gs.column_dimensions[ss_col(col)].width = con_width * 1.4
+                                    gs.column_dimensions[ssCol(col)].width = con_width * 1.4
                         elif field in ['capex', 'fixed_om']:
                             gs.cell(row=row, column=col).number_format = '$#,##0'
                         elif field in ['lcoe', 'variable_om', 'fuel']:
@@ -2329,17 +2350,67 @@ class powerMatch():
             fields = []
             col = 1
             row = 1
-        # wb.save(data_file)
+            cs = wb.create_sheet(self.sheets[C].currentText())
+            if hasattr(self.constraints[list(self.constraints.keys())[0]], 'name'):
+                fields.append('name')
+                cs.cell(row=row, column=col).value = 'Name'
+                col += 1
+            for prop in dir(self.constraints[list(self.constraints.keys())[0]]):
+                if prop[:2] != '__' and prop[-2:] != '__':
+                    if prop != 'name':
+                        fields.append(prop)
+                        if prop == 'warm_time':
+                            cs.cell(row=row, column=col).value = 'Warmup Time'
+                        else:
+                            cs.cell(row=row, column=col).value = prop.replace('_', ' ').title()
+                        cs.column_dimensions[ssCol(col)].width = max(len(prop) * 1.4, 10)
+                        col += 1
+            nme_width = 4
+            cat_width = 4
+            for key, value in self.constraints.items():
+                if key in cons:
+                    row += 1
+                    col = 1
+                    for field in fields:
+                        cs.cell(row=row, column=col).value = getattr(value, field)
+                        if field in ['name', 'category']:
+                            txt = getattr(value, field)
+                            if field == 'name':
+                                if len(txt) > nme_width:
+                                    nme_width = len(txt)
+                                    cs.column_dimensions[ssCol(col)].width = nme_width * 1.4
+                            else:
+                                if len(txt) > cat_width:
+                                    cat_width = len(txt)
+                                    cs.column_dimensions[ssCol(col)].width = cat_width * 1.4
+                        elif field == 'warm_time':
+                            cs.cell(row=row, column=col).number_format = '#0.00'
+                        elif field != 'category':
+                            cs.cell(row=row, column=col).number_format = '#,##0%'
+                        col += 1
+            for row in range(1, row + 1):
+                for col in range(1, len(fields) + 1):
+                    try:
+                        cs.cell(row=row, column=col).font = normal
+                    except:
+                        pass
+            cs.freeze_panes = 'B2'
+            cs.activeCell = 'B2'
+        wb.save(data_file)
+        self.listener.progress_bar.setValue(20)
+        if self.event_callback:
+            self.event_callback()
         j = data_file.rfind('/')
         data_file = data_file[j + 1:]
-        return wb, None, None
-        
-    def setStatus(self, text):
-        print(text)
-        
-    @staticmethod
-    def optClicked(settings, in_year, in_option, in_pmss_details, in_pmss_data, generators, in_re_order,
-                   in_dispatch_order, OptParms, pm_data_file, data_file):
+        msg = '%s created (%.2f seconds)' % (data_file, time.time() - start_time)
+        msg = '%s created.' % data_file
+        self.setStatus(msg)
+        self.listener.progress_bar.setHidden(True)
+        self.listener.progress_bar.setValue(0)
+
+    def run_optimise(self, in_year, in_option, in_pmss_details, in_pmss_data, in_re_order,
+                   in_dispatch_order, pm_data_file, data_file):
+
         def create_starting_population(individuals, chromosome_length):
             # Set up an initial array of all zeros
             population = np.zeros((individuals, chromosome_length))
@@ -2417,6 +2488,7 @@ class powerMatch():
         #    random_mutation_boolean[0][:] = False # keep the best multi and lcoe
        #     random_mutation_boolean[1][:] = False
             population[random_mutation_boolean] = np.logical_not(population[random_mutation_boolean])
+            # Return mutation population
             return population
 
         def calculate_fitness(population):
@@ -2424,12 +2496,12 @@ class powerMatch():
             multi_fitness_scores = [] # scores = multi-variable weight
             multi_values = [] # values for each of the six variables
             if len(population) == 1:
-                option = '1'
+                option = O1
             else:
-                option = 'O'
-            if optimise_debug:
-                popn += 1
-                chrom = 0
+                option = O
+            if self.debug:
+                self.popn += 1
+                self.chrom = 0
             for chromosome in population:
                 # now get random amount of generation per technology (both RE and non-RE)
                 for fac, value in opt_order.items():
@@ -2441,42 +2513,41 @@ class powerMatch():
                         pmss_details[fac].multiplier = capacity / pmss_details[fac].capacity
                     except:
                         print('PME2:', gen, capacity, pmss_details[fac].capacity)
-                multi_value, op_data, extra = powerMatch.doDispatch(
-                    settings, year, option, pmss_details, pmss_data, generators, re_order,
-                    dispatch_order, pm_data_file, data_file)
-                if multi_value['load_pct'] < targets['load_pct'][3]:
+                multi_value, op_data, extra = self.doDispatch(year, option, pmss_details, pmss_data, re_order,
+                    dispatch_order, pm_data_file, data_file, files=None, sheets=None)
+                if multi_value['load_pct'] < self.targets['load_pct'][3]:
                     if multi_value['load_pct'] == 0:
-                        print('PME3:', multi_value['lcoe'], targets['load_pct'][3], multi_value['load_pct'])
+                        print('PME3:', multi_value['lcoe'], self.targets['load_pct'][3], multi_value['load_pct'])
                         lcoe_fitness_scores.append(1)
                     else:
                         try:
                             lcoe_fitness_scores.append(pow(multi_value['lcoe'],
-                                targets['load_pct'][3] / multi_value['load_pct']))
+                                self.targets['load_pct'][3] / multi_value['load_pct']))
                         except OverflowError as err:
-                            setStatus(f"Overflow error: {err}; POW({multi_value['lcoe']:,}, " \
-                                         + f"{targets['load_pct'][3] / multi_value['load_pct']:,}) " \
-                                         + f"({targets['load_pct'][3]:,} / {multi_value['load_pct']:,} )")
+                            self.setStatus(f"Overflow error: {err}; POW({multi_value['lcoe']:,}, " \
+                                         + f"{self.targets['load_pct'][3] / multi_value['load_pct']:,}) " \
+                                         + f"({self.targets['load_pct'][3]:,} / {multi_value['load_pct']:,} )")
                         except:
                             pass
                 else:
                     lcoe_fitness_scores.append(multi_value['lcoe'])
                 multi_values.append(multi_value)
                 multi_fitness_scores.append(calc_weight(multi_value))
-                if optimise_debug:
-                    chrom += 1
-                    line = str(popn) + ',' + str(chrom) + ','
+                if self.debug:
+                    self.chrom += 1
+                    line = str(self.popn) + ',' + str(self.chrom) + ','
                     for fac, value in opt_order.items():
                         try:
-                            line += str(pmss_details[fac].capacity * float(pmss_details[fac].multiplier)) + ','
+                            line += str(pmss_details[fac].capacity * pmss_details[fac].multiplier) + ','
                         except:
                             line += ','
-                    for key in targets.keys():
+                    for key in self.targets.keys():
                         try:
                             line += '{:.3f},'.format(multi_value[key])
                         except:
                             line += multi_value[key] + ','
                     line += '{:.5f},'.format(multi_fitness_scores[-1])
-                    db_file.write(line + '\n')
+                    self.db_file.write(line + '\n')
             # alternative approach to calculating fitness
             multi_fitness_scores1 = []
             maxs = {}
@@ -2484,13 +2555,13 @@ class powerMatch():
             tgts = {}
             for key in multi_value.keys():
                 if key[-4:] == '_pct':
-                    tgts[key] = abs(targets[key][2] - targets[key][3])
+                    tgts[key] = abs(self.targets[key][2] - self.targets[key][3])
                 else:
                     maxs[key] = 0
                     mins[key] = -1
                     for popn in multi_values:
                         try:
-                            tgt = abs(targets[key][2] - popn[key])
+                            tgt = abs(self.targets[key][2] - popn[key])
                         except:
                             continue
                         if tgt > maxs[key]:
@@ -2500,41 +2571,45 @@ class powerMatch():
             for popn in multi_values:
                 weight = 0
                 for key, value in multi_value.items():
-                    if targets[key][1] <= 0:
+                    if self.targets[key][1] <= 0:
                         continue
                     try:
-                        tgt = abs(targets[key][2] - popn[key])
+                        tgt = abs(self.targets[key][2] - popn[key])
                     except:
                         continue
                     if key[-4:] == '_pct':
                         if tgts[key] != 0:
                             if tgt > tgts[key]:
-                                weight += 1 * targets[key][1]
+                                weight += 1 * self.targets[key][1]
                             else:
                                 try:
-                                    weight += 1 - ((tgt / tgts[key]) * targets[key][1])
+                                    weight += 1 - ((tgt / tgts[key]) * self.targets[key][1])
                                 except:
                                     pass
                     else:
                         try:
                             weight += 1 - (((maxs[key] - tgt) / (maxs[key] - mins[key])) \
-                                      * targets[key][1])
+                                      * self.targets[key][1])
                         except:
                             pass
                 multi_fitness_scores1.append(weight)
-
             if len(population) == 1: # return the table for best chromosome
                 return op_data, multi_values
             else:
                 return lcoe_fitness_scores, multi_fitness_scores, multi_values
 
         def optQuitClicked(event):
-            optExit = True
+            self.optExit = True
+            optDialog.close()
+
+        def chooseClicked(event):
+            self.opt_choice = sender_name
+            chooseDialog.close()
 
         def calc_weight(multi_value, calc=0):
             weight = [0., 0.]
             if calc == 0:
-                for key, value in targets.items():
+                for key, value in self.targets.items():
                     if multi_value[key] == '':
                         continue
                     if value[1] <= 0:
@@ -2560,7 +2635,7 @@ class powerMatch():
                             w = multi_value[key] / (value[3] - value[2])
                     weight[0] += w * value[1]
             elif calc == 1:
-                for key, value in targets.items():
+                for key, value in self.targets.items():
                     if multi_value[key] == '':
                         continue
                     if value[1] <= 0:
@@ -2592,8 +2667,8 @@ class powerMatch():
                         pwr_chr[m] = pwr_chrs[pwr]
                         divisor[m] = 1. * pow(10, pwr * 3)
                         break
-            targets['cost'][5] = targets['cost'][5].replace('pwr_chr', pwr_chr[0])
-            targets['co2'][5] = targets['co2'][5].replace('pwr_chr', pwr_chr[1])
+            self.targets['cost'][5] = self.targets['cost'][5].replace('pwr_chr', pwr_chr[0])
+            self.targets['co2'][5] = self.targets['co2'][5].replace('pwr_chr', pwr_chr[1])
             for multi in multi_best:
                 for axis in range(3): # only three axes in plot
                     if multi_order[axis] == 'cost':
@@ -2601,7 +2676,7 @@ class powerMatch():
                     elif multi_order[axis] == 'co2':
                         data[axis].append(multi[multi_order[axis]] / divisor[1]) # co2
                     elif multi_order[axis][-4:] == '_pct': # percentage
-                        data[axis].append(multi[multi_order[axis]] * 100)
+                        data[axis].append(multi[multi_order[axis]] * 100.)
                     else:
                         data[axis].append(multi[multi_order[axis]])
             # create colour map
@@ -2618,7 +2693,7 @@ class powerMatch():
             norm = plt.Normalize(min(cvals), max(cvals))
             tuples = list(zip(map(norm,cvals), colors))
             cmap = matplotlib.colors.LinearSegmentedColormap.from_list('', tuples)
-            fig = plt.figure(title)
+            fig = plt.figure(title + QtCore.QDateTime.toString(QtCore.QDateTime.currentDateTime(), '_yyyy-MM-dd_hhmm'))
             mx = plt.axes(projection='3d')
             plt.title('\n' + title.title() + '\n')
             try:
@@ -2632,7 +2707,7 @@ class powerMatch():
                             mx.text(data[2][i], data[1][i], data[0][i], '%s' % str(j+1))
             except:
                 return
-            if optimise_multisurf:
+            if self.optimise_multisurf:
                 cvals_r  = [-1., 0, 1]
                 colors_r = ['red' ,'orange', 'green']
                 norm_r = plt.Normalize(min(cvals_r), max(cvals_r))
@@ -2641,13 +2716,46 @@ class powerMatch():
                 # https://www.fabrizioguerrieri.com/blog/surface-graphs-with-irregular-dataset/
                 triang = mtri.Triangulation(data[2], data[1])
                 mx.plot_trisurf(triang, data[0], cmap=cmap_r)
-            mx.xaxis.set_major_formatter(FormatStrFormatter(targets[multi_order[2]][5]))
-            mx.yaxis.set_major_formatter(FormatStrFormatter(targets[multi_order[1]][5]))
-            mx.zaxis.set_major_formatter(FormatStrFormatter(targets[multi_order[0]][5]))
-            mx.set_xlabel(targets[multi_order[2]][6])
-            mx.set_ylabel(targets[multi_order[1]][6])
-            mx.set_zlabel(targets[multi_order[0]][6])
+            mx.xaxis.set_major_formatter(FormatStrFormatter(self.targets[multi_order[2]][5]))
+            mx.yaxis.set_major_formatter(FormatStrFormatter(self.targets[multi_order[1]][5]))
+            mx.zaxis.set_major_formatter(FormatStrFormatter(self.targets[multi_order[0]][5]))
+            mx.set_xlabel(self.targets[multi_order[2]][6])
+            mx.set_ylabel(self.targets[multi_order[1]][6])
+            mx.set_zlabel(self.targets[multi_order[0]][6])
+            zp = ZoomPanX()
+            f = zp.zoom_pan(mx, base_scale=1.2, annotate=True)
             plt.show()
+            if zp.datapoint is not None: # user picked a point
+                if zp.datapoint[0][0] < 0: # handle problem in matplotlib sometime after version 3.0.3
+                    best = [0, 999]
+                    for p in range(len(multi_best)):
+                        diff = 0
+                        for v in range(3):
+                            key = multi_order[v]
+                            valu = multi_best[p][key]
+                            if key[-4:] == '_pct':
+                                valu = valu * 100.
+                            diff += abs((valu - zp.datapoint[0][v + 1]) / valu)
+                        if diff < best[1]:
+                            best = [p, diff]
+                    zp.datapoint = [[best[0]]]
+                    for v in range(3):
+                        key = multi_order[v]
+                        zp.datapoint[0].append(multi_best[p][key])
+                if self.more_details:
+                    for p in zp.datapoint:
+                        msg = 'iteration ' + str(p[0]) + ': '
+                        mult = []
+                        for i in range(3):
+                            if self.targets[multi_order[i]][6].find('%') > -1:
+                                mult.append(100.)
+                            else:
+                                mult.append(1.)
+                            msg += self.targets[multi_order[i]][6].replace('%', '%%') + ': ' + \
+                                   self.targets[multi_order[i]][5] + '; '
+                        msg = msg % (p[1] * mult[0], p[2] * mult[1], p[3] * mult[2])
+                        self.setStatus(msg)
+            return zp.datapoint
 
         def show_multitable(best_score_progress, multi_best, multi_order, title):
             def pwr_chr(amt):
@@ -2707,82 +2815,243 @@ class powerMatch():
         year = in_year
         option = in_option
         pmss_details = dict(in_pmss_details)
-        pmss_details['Load'].multiplier = pmss_details['Load'].multiplier
-        targets = {}
-        more_details = False
-        # pmss_data = in_pmss_data[:]
-        pmss_data = dict(in_pmss_data)
+        pmss_data = in_pmss_data[:]
         re_order = in_re_order[:]
         dispatch_order = in_dispatch_order[:]
-        optimise_debug = False
-        debug = False
-        optExit = False
+        if self.optimise_debug:
+            self.debug = True
+        else:
+            self.debug = False
+        missing = []
+        for fac in re_order:
+            if fac == 'Load':
+                continue
+            if fac not in self.optimisation.keys():
+                missing.append(fac)
+        for gen in dispatch_order:
+            if gen not in self.optimisation.keys():
+                missing.append(gen)
+        if len(missing) > 0:
+            bad = False
+            if self.optimise_default is not None:
+                defaults = self.optimise_default.split(',')
+                if len(defaults) < 1 or len(defaults) > 3:
+                    bad = True
+                else:
+                    try:
+                        for miss in missing:
+                            if len(defaults) == 2:
+                                minn = 0
+                            else:
+                                if defaults[0][-1] == 'd':
+                                    minn = pmss_details[miss].capacity * float(defaults[0][:-1])
+                                elif defaults[0][-1] == 'c':
+                                    minn = pmss_details[miss].capacity * pmss_details[miss].multiplier * float(defaults[0][:-1])
+                                else:
+                                    minn = float(defaults[0])
+                            if defaults[-2][-1] == 'd':
+                                maxx = pmss_details[miss].capacity * float(defaults[-2][:-1])
+                            elif defaults[-2][-1] == 'c':
+                                maxx = pmss_details[miss].capacity * pmss_details[miss].multiplier * float(defaults[-2][:-1])
+                            else:
+                                maxx = float(defaults[-2])
+                            if len(defaults) == 3:
+                                if defaults[-1][-1].lower() == 'd':
+                                    step = capacity * float(defaults[-1][:-1])
+                                elif defaults[-1][-1].lower() == 'c':
+                                    step = capacity * multiplier * float(defaults[-1][:-1])
+                                else:
+                                    step = float(defaults[-1])
+                            else:
+                                step = (maxx - minn) / float(defaults[-1])
+                            self.optimisation[miss] =  Optimisation(miss, 'None', None)
+                            self.optimisation[miss].approach = 'Range'
+                            self.optimisation[miss].capacity_min = minn
+                            self.optimisation[miss].capacity_max = maxx
+                            self.optimisation[miss].capacity_step = step
+                    except:
+                        bad = True
+                check = ''
+                for miss in missing:
+                    check += miss + ', '
+                check = check[:-2]
+                if bad:
+                    self.setStatus('Key Error: Missing Optimisation entries for: ' + check)
+                    return
+                self.setStatus('Missing Optimisation entries added for: ' + check)
+        self.optExit = False
+        self.setStatus('Optimise processing started')
         err_msg = ''
-        optLoad = OptParms['optLoad']
-        pmss_details['Load'].multiplier = float(optLoad)
-        optPopn = OptParms['optPopn']
-        optimise_population = int(optPopn)
-        optGenn = OptParms['optGenn']
-        optimise_generations = optGenn
-        MutnProb = OptParms['MutnProb']
-        optimise_mutation = Decimal(MutnProb)
-        optimise_stop = int(OptParms['optStop'])
-        optimise_choice = OptParms['choice']
-        optimise_progress = 0
-
-        LCOE= OptParms['lcoe'].split(',')
-        Load = OptParms['load_pct'].split(',')
-        Surplus = OptParms['surplus'].split(',')
-        RE = OptParms['re_pct'].split(',')
-        Cost = OptParms['cost'].split(',')
-        CO2 = OptParms['co2'].split(',')
-        
-        LCOE_Weight = LCOE[0]
-        Load_Weight = Load[0]
-        Surplus_Weight = Surplus[0]
-        RE_Weight = RE[0]
-        Cost_Weight = Cost[0]
-        CO2_Weight = CO2[0]
-
-        LCOE_Better = LCOE[1]
-        Load_Better = Load[1]
-        Surplus_Better = Surplus[1]
-        RE_Better = RE[1]
-        Cost_Better = Cost[1]
-        CO2_Better = CO2[1]
-
-        LCOE_Worse = LCOE[2]
-        Load_Worse = Load[2]
-        Surplus_Worse = Surplus[2]
-        RE_Worse = RE[2]
-        Cost_Worse = Cost[2]
-        CO2_Worse = CO2[2]
-        adjust_gen = False
-
+        optDialog = QDialog()
+        grid = QGridLayout()
+        grid.addWidget(QLabel('Adjust load'), 0, 0)
+        self.optLoad = QDoubleSpinBox()
+        self.optLoad.setRange(-1, self.adjust_cap)
+        self.optLoad.setDecimals(4)
+        self.optLoad.setSingleStep(.1)
+        rw = 0
+        grid.addWidget(self.optLoad, rw, 1)
+        grid.addWidget(QLabel('Multiplier for input Load'), rw, 2, 1, 3)
+        self.optLoad.setValue(pmss_details['Load'].multiplier)
+        rw += 1
+        grid.addWidget(QLabel('Population size'), rw, 0)
+        optPopn = QSpinBox()
+        optPopn.setRange(10, 500)
+        optPopn.setSingleStep(10)
+        optPopn.setValue(self.optimise_population)
+        optPopn.valueChanged.connect(self.changes)
+        grid.addWidget(optPopn, rw, 1)
+        grid.addWidget(QLabel('Size of population'), rw, 2, 1, 3)
+        rw += 1
+        grid.addWidget(QLabel('No. of iterations'), rw, 0, 1, 3)
+        optGenn = QSpinBox()
+        optGenn.setRange(10, 500)
+        optGenn.setSingleStep(10)
+        optGenn.setValue(self.optimise_generations)
+        optGenn.valueChanged.connect(self.changes)
+        grid.addWidget(optGenn, rw, 1)
+        grid.addWidget(QLabel('Number of iterations (generations)'), rw, 2, 1, 3)
+        rw += 1
+        grid.addWidget(QLabel('Mutation probability'), rw, 0)
+        optMutn = QDoubleSpinBox()
+        optMutn.setRange(0, 1)
+        optMutn.setDecimals(4)
+        optMutn.setSingleStep(0.001)
+        optMutn.setValue(self.optimise_mutation)
+        optMutn.valueChanged.connect(self.changes)
+        grid.addWidget(optMutn, rw, 1)
+        grid.addWidget(QLabel('Add in mutation'), rw, 2, 1, 3)
+        rw += 1
+        grid.addWidget(QLabel('Exit if stable'), rw, 0)
+        optStop = QSpinBox()
+        optStop.setRange(0, 50)
+        optStop.setSingleStep(10)
+        optStop.setValue(self.optimise_stop)
+        optStop.valueChanged.connect(self.changes)
+        grid.addWidget(optStop, rw, 1)
+        grid.addWidget(QLabel('Exit if LCOE/weight remains the same after this many iterations'),
+                       rw, 2, 1, 3)
+        rw += 1
+        grid.addWidget(QLabel('Optimisation choice'), rw, 0)
+        optCombo = QComboBox()
+        choices = ['LCOE', 'Multi', 'Both']
+        for choice in choices:
+            optCombo.addItem(choice)
+            if choice == self.optimise_choice:
+                optCombo.setCurrentIndex(optCombo.count() - 1)
+        grid.addWidget(optCombo, rw, 1)
+        grid.addWidget(QLabel('Choose type of optimisation'),
+                       rw, 2, 1, 3)
+        rw += 1
+        # for each variable name
+        grid.addWidget(QLabel('Variable'), rw, 0)
+        grid.addWidget(QLabel('Weight'), rw, 1)
+        grid.addWidget(QLabel('Better'), rw, 2)
+        grid.addWidget(QLabel('Worse'), rw, 3)
+        rw += 1
+        ndx = grid.count()
+        for key in self.targets.keys():
+            self.targets[key][4] = ndx
+            ndx += 4
+        for key, value in self.targets.items():
+            if value[2] == value[3]:
+                ud = '(=)'
+            elif value[2] < 0:
+                ud = '(<html>&uarr;</html>)'
+            elif value[3] < 0 or value[3] > value[2]:
+                ud = '(<html>&darr;</html>)'
+            else:
+                ud = '(<html>&uarr;</html>)'
+            grid.addWidget(QLabel(value[0] + ': ' + ud), rw, 0)
+            weight = QDoubleSpinBox()
+            weight.setRange(0, 1)
+            weight.setDecimals(2)
+            weight.setSingleStep(0.05)
+            weight.setValue(value[1])
+            grid.addWidget(weight, rw, 1)
+            if key[-4:] == '_pct':
+                minim = QDoubleSpinBox()
+                minim.setRange(-.1, 1.)
+                minim.setDecimals(2)
+                minim.setSingleStep(0.1)
+                minim.setValue(value[2])
+                grid.addWidget(minim, rw, 2)
+                maxim = QDoubleSpinBox()
+                maxim.setRange(-.1, 1.)
+                maxim.setDecimals(2)
+                maxim.setSingleStep(0.1)
+                maxim.setValue(value[3])
+                grid.addWidget(maxim, rw, 3)
+            else:
+                minim = QLineEdit()
+                minim.setValidator(QtGui.QDoubleValidator())
+                minim.validator().setDecimals(2)
+                minim.setText(str(value[2]))
+                grid.addWidget(minim, rw, 2)
+                maxim = QLineEdit()
+                maxim.setValidator(QtGui.QDoubleValidator())
+                maxim.validator().setDecimals(2)
+                maxim.setText(str(value[3]))
+                grid.addWidget(maxim, rw, 3)
+            rw += 1
+        quit = QPushButton('Quit', self)
+        grid.addWidget(quit, rw, 0)
+        quit.clicked.connect(optQuitClicked)
+        show = QPushButton('Proceed', self)
+        grid.addWidget(show, rw, 1)
+        show.clicked.connect(optDialog.close)
+        optDialog.setLayout(grid)
+        optDialog.setWindowTitle('Choose Optimisation Parameters')
+        optDialog.setWindowIcon(QtGui.QIcon('resources/resources/sen_icon32.ico'))
+        optDialog.exec_()
+        if self.optExit: # a fudge to exit
+            self.setStatus('Execution aborted.')
+            return
         # check we have optimisation entries for generators and storage
         # update any changes to targets
+        self.optimise_choice = optCombo.currentText()
+        for key in self.targets.keys():
+            weight = grid.itemAt(self.targets[key][4] + 1).widget()
+            self.targets[key][1] = weight.value()
+            minim = grid.itemAt(self.targets[key][4] + 2).widget()
+            try:
+                self.targets[key][2] = minim.value()
+            except:
+                self.targets[key][2] = float(minim.text())
+            maxim = grid.itemAt(self.targets[key][4] + 3).widget()
+            try:
+                self.targets[key][3] = maxim.value()
+            except:
+                self.targets[key][3] = float(maxim.text())
+        # might want to save load value if changed
+        pmss_details['Load'].multiplier = self.optLoad.value()
         updates = {}
         lines = []
-        lines.append('optimise_choice=' + optimise_choice)
-        lines.append('optimise_generations=' + str(optimise_generations))
-        lines.append('optimise_mutation=' + str(optimise_mutation))
-        lines.append('optimise_population=' + str(optimise_population))
-        lines.append('optimise_stop=' + str(optimise_stop))
-        if optimise_choice == 'LCOE':
+        lines.append('optimise_choice=' + self.optimise_choice)
+        lines.append('optimise_generations=' + str(self.optimise_generations))
+        lines.append('optimise_mutation=' + str(self.optimise_mutation))
+        lines.append('optimise_population=' + str(self.optimise_population))
+        lines.append('optimise_stop=' + str(self.optimise_stop))
+        if self.optimise_choice == 'LCOE':
             do_lcoe = True
             do_multi = False
-        elif optimise_choice == 'Multi':
+        elif self.optimise_choice == 'Multi':
             do_lcoe = False
             do_multi = True
         else:
             do_lcoe = True
             do_multi = True
         multi_order = []
+        for key, value in self.targets.items():
+            line = 'optimise_{}={:.2f},{:.2f},{:.2f}'.format(key, value[1], value[2], value[3])
+            lines.append(line)
+            multi_order.append('{:.2f}{}'.format(value[1], key))
         updates['Powermatch'] = lines
+        SaveIni(updates)
         multi_order.sort(reverse=True)
     #    multi_order = multi_order[:3] # get top three weighted variables - but I want them all
         multi_order = [o[4:] for o in multi_order]
-        adjust_gen = True
+        self.adjust_gen = True
         orig_load = []
         load_col = -1
         orig_tech = {}
@@ -2801,44 +3070,51 @@ class powerMatch():
         for gen in opt_order.keys():
             opt_order[gen][0] = len(capacities) # first entry
             try:
-                if generators[gen].approach == 'Discrete':
-                    capacities.extend(generators[gen].capacities)
+                if self.optimisation[gen].approach == 'Discrete':
+                    capacities.extend(self.optimisation[gen].capacities)
                     opt_order[gen][1] = len(capacities) # last entry
-                elif generators[gen].approach == 'Range':
-                    if generators[gen].capacity_max == generators[gen].capacity_min:
+                elif self.optimisation[gen].approach == 'Range':
+                    if self.optimisation[gen].capacity_max == self.optimisation[gen].capacity_min:
                         capacities.extend([0])
                         opt_order[gen][1] = len(capacities)
-                        opt_order[gen][2] = generators[gen].capacity_min
+                        opt_order[gen][2] = self.optimisation[gen].capacity_min
                         continue
-                    ctr = int((generators[gen].capacity_max - generators[gen].capacity_min) / \
-                              generators[gen].capacity_step)
+                    ctr = int((self.optimisation[gen].capacity_max - self.optimisation[gen].capacity_min) / \
+                              self.optimisation[gen].capacity_step)
                     if ctr < 1:
-                        setStatus("Error with generators table entry for '" + gen + "'")
+                        self.setStatus("Error with Optimisation table entry for '" + gen + "'")
                         return
-                    capacities.extend([generators[gen].capacity_step] * ctr)
-                    tot = generators[gen].capacity_step * ctr + generators[gen].capacity_min
-                    if tot < generators[gen].capacity_max:
-                        capacities.append(generators[gen].capacity_max - tot)
+                    capacities.extend([self.optimisation[gen].capacity_step] * ctr)
+                    tot = self.optimisation[gen].capacity_step * ctr + self.optimisation[gen].capacity_min
+                    if tot < self.optimisation[gen].capacity_max:
+                        capacities.append(self.optimisation[gen].capacity_max - tot)
                     opt_order[gen][1] = len(capacities)
-                    opt_order[gen][2] = generators[gen].capacity_min
+                    opt_order[gen][2] = self.optimisation[gen].capacity_min
                 else:
                     opt_order[gen][1] = len(capacities)
             except KeyError as err:
-                setStatus('Key Error: No generators entry for ' + str(err))
+                self.setStatus('Key Error: No Optimisation entry for ' + str(err))
                 opt_order[gen] = [len(capacities), len(capacities) + 5, 0]
                 capacities.extend([pmss_details[gen].capacity / 5.] * 5)
             except ZeroDivisionError as err:
-                setStatus('Zero capacity: ' + gen + ' ignored')
+                self.setStatus('Zero capacity: ' + gen + ' ignored')
             except:
                 err = str(sys.exc_info()[0]) + ',' + str(sys.exc_info()[1]) + ',' + gen + ',' \
                       + str(opt_order[gen])
+                self.setStatus('Error: ' + str(err))
                 return
         # chromosome = [1] * int(len(capacities) / 2) + [0] * (len(capacities) - int(len(capacities) / 2))
-        # we have the original data - from here down we can do our multiple generatorss
+        # we have the original data - from here down we can do our multiple optimisations
         # Set general parameters
+        self.setStatus('Optimisation choice is ' + self.optimise_choice)
         chromosome_length = len(capacities)
-        population_size = optimise_population
-        maximum_generation = int(optimise_generations)
+        self.setStatus(f'Chromosome length: {chromosome_length}; {pow(2, chromosome_length):,} permutations')
+        self.optimise_population = optPopn.value()
+        population_size = self.optimise_population
+        self.optimise_generations = optGenn.value()
+        maximum_generation = self.optimise_generations
+        self.optimise_mutation = optMutn.value()
+        self.optimise_stop = optStop.value()
         lcoe_scores = []
         multi_scores = []
         multi_values = []
@@ -2847,17 +3123,21 @@ class powerMatch():
         if do_multi:
             multi_best = [] # list of six variables for best weight
             multi_best_popn = [] # list of chromosomes for best weight
-        progress_text = "Process generators stages"
+        self.show_ProgressBar(maximum=optGenn.value(), msg='Process iterations', title='SIREN - Powermatch Progress')
+        self.opt_progressbar.setVisible(True)
         start_time = time.time()
         # Create starting population
-        progress_text = "'Processing iteration 1'"
+        self.opt_progressbar.barProgress(1, 'Processing iteration 1')
+        QtCore.QCoreApplication.processEvents()
         population = create_starting_population(population_size, chromosome_length)
         # calculate best score(s) in starting population
         # if do_lcoe best_score = lowest non-zero lcoe
         # if do_multi best_multi = lowest weight and if not do_lcoe best_score also = best_weight
-        if debug:
-            filename = scenarios + 'opt_debug_' + '.csv'
-            db_file = open(filename, 'w')
+        if self.debug:
+            filename = self.scenarios + 'opt_debug_' + \
+                       QtCore.QDateTime.toString(QtCore.QDateTime.currentDateTime(),
+                       'yyyy-MM-dd_hhmm') + '.csv'
+            self.db_file = open(filename, 'w')
             line0 = 'Popn,Chrom,'
             line1 = 'Weights,,'
             line2 = 'Targets,,'
@@ -2867,18 +3147,18 @@ class powerMatch():
                  line1 += ','
                  line2 += ','
                  line3 += ','
-            for key in targets.keys():
+            for key in self.targets.keys():
                  line0 += key + ','
-                 line1 += str(targets[key][1]) + ','
-                 line2 += str(targets[key][2]) + ','
+                 line1 += str(self.targets[key][1]) + ','
+                 line2 += str(self.targets[key][2]) + ','
                  if key[-4:] == '_pct':
-                     line3 += str(abs(targets[key][2] - targets[key][3])) + ','
+                     line3 += str(abs(self.targets[key][2] - self.targets[key][3])) + ','
                  else:
                      line3 += ','
             line0 += 'Score'
-            db_file.write(line0 + '\n' + line1 + '\n' + line2 + '\n' + line3 + '\n')
-            popn = 0
-            chrom = 0
+            self.db_file.write(line0 + '\n' + line1 + '\n' + line2 + '\n' + line3 + '\n')
+            self.popn = 0
+            self.chrom = 0
         lcoe_scores, multi_scores, multi_values = calculate_fitness(population)
         if do_lcoe:
             try:
@@ -2887,29 +3167,29 @@ class powerMatch():
                 print('PME4:', lcoe_scores)
             best_ndx = lcoe_scores.index(best_score)
             lowest_chrom = population[best_ndx]
-            setStatus('Starting LCOE: $%.2f' % best_score)
+            self.setStatus('Starting LCOE: $%.2f' % best_score)
         if do_multi:
-            if more_details: # display starting population ?
+            if self.more_details: # display starting population ?
                 pick = plot_multi(multi_scores, multi_values, multi_order, 'starting population')
             # want maximum from first round to set base upper limit
-            for key in targets.keys():
-                if targets[key][2] < 0: # want a maximum from first round
+            for key in self.targets.keys():
+                if self.targets[key][2] < 0: # want a maximum from first round
                     setit = 0
                     for multi in multi_values:
                         setit = max(multi[key], setit)
-                    targets[key][2] = setit
-                if targets[key][3] < 0: # want a maximum from first round
+                    self.targets[key][2] = setit
+                if self.targets[key][3] < 0: # want a maximum from first round
                     setit = 0
                     for multi in multi_values:
                         setit = max(multi[key], setit)
-                    targets[key][3] = setit
+                    self.targets[key][3] = setit
             # now we can find the best weighted result - lowest is best
             best_multi = np.min(multi_scores)
             best_mndx = multi_scores.index(best_multi)
             multi_lowest_chrom = population[best_mndx]
             multi_best_popn.append(multi_lowest_chrom)
             multi_best.append(multi_values[best_mndx])
-            setStatus('Starting Weight: %.4f' % best_multi)
+            self.setStatus('Starting Weight: %.4f' % best_multi)
             multi_best_weight = best_multi
             best_multi_progress = [best_multi]
             if not do_lcoe:
@@ -2936,7 +3216,12 @@ class powerMatch():
                 tim = ' (%s%s %.1f secs)' % (lcoe_status, multi_status, tim)
             else:
                 tim = ' (%s%s %.2f mins)' % (lcoe_status, multi_status, tim / 60.)
-            progress_text = 'Processing iteration ' + str(generation + 1) + time
+            self.opt_progressbar.barProgress(generation + 1,
+                'Processing iteration ' + str(generation + 1) + tim)
+            if self.event_callback:
+                self.event_callback()
+            if not self.opt_progressbar.be_open:
+                break
         # Create an empty list for new population
             new_population = []
         # Using elitism approach include best individual
@@ -2976,8 +3261,8 @@ class powerMatch():
                 new_population.pop()
             # Replace the old population with the new one
             population = np.array(new_population)
-            if optimise_mutation > 0:
-                population = randomly_mutate_population(population, optimise_mutation)
+            if self.optimise_mutation > 0:
+                population = randomly_mutate_population(population, self.optimise_mutation)
             # Score best solution, and add to tracker
             lcoe_scores, multi_scores, multi_values = calculate_fitness(population)
             if do_lcoe:
@@ -3003,10 +3288,10 @@ class powerMatch():
                     lowest_chrom = population[best_ndx]
                 else: #(do_multi only)
                     multi_lowest_chrom = population[best_mndx]
-            if optimise_stop > 0:
+            if self.optimise_stop > 0:
                 if best_score == last_score:
                     best_ctr += 1
-                    if best_ctr >= optimise_stop:
+                    if best_ctr >= self.optimise_stop:
                         break
                 else:
                     last_score = best_score
@@ -3027,14 +3312,16 @@ class powerMatch():
                 else:
                     mud = '<html>&uarr;</html>'
                 last_multi_score = best_multi
-        if debug:
+        if self.debug:
             try:
-                db_file.close()
-                optimiseDebug(db_file.name)
-                os.remove(db_file.name)
+                self.db_file.close()
+                optimiseDebug(self.db_file.name)
+                os.remove(self.db_file.name)
             except:
                 pass
-            debug = False
+            self.debug = False
+        self.opt_progressbar.setVisible(False)
+        self.opt_progressbar.close()
         tim = (time.time() - start_time)
         if tim < 60:
             tim = '%.1f secs)' % tim
@@ -3050,10 +3337,14 @@ class powerMatch():
             op_data[0], score_data[0] = calculate_fitness([lowest_chrom])
         if do_multi:
             op_data[1], score_data[1] = calculate_fitness([multi_lowest_chrom])
-        setStatus(msg)
+        self.setStatus(msg)
+        if self.event_callback:
+            self.event_callback()
+        self.listener.progress_bar.setHidden(True)
+        self.listener.progress_bar.setValue(0)
         # GA has completed required generation
         if do_lcoe:
-            setStatus('Final LCOE: $%.2f' % best_score)
+            self.setStatus('Final LCOE: $%.2f' % best_score)
             fig = 'optimise_lcoe'
             titl = 'Optimise LCOE using Genetic Algorithm'
             ylbl = 'Best LCOE ($/MWh)'
@@ -3062,51 +3353,54 @@ class powerMatch():
             titl = 'Optimise Multi using Genetic Algorithm'
             ylbl = 'Best Weight'
         if do_multi:
-            setStatus('Final Weight: %.4f' % multi_best_weight)
+            self.setStatus('Final Weight: %.4f' % multi_best_weight)
         # Plot progress
         x = list(range(1, len(best_score_progress)+ 1))
-        matplotlib.rcParams['savefig.directory'] = scenarios
-        plt.figure(fig)
+        matplotlib.rcParams['savefig.directory'] = self.scenarios
+        plt.figure(fig + QtCore.QDateTime.toString(QtCore.QDateTime.currentDateTime(),
+                   '_yyyy-MM-dd_hhmm'))
         lx = plt.subplot(111)
         plt.title(titl)
         lx.plot(x, best_score_progress)
         lx.set_xlabel('Optimise Cycle (' + str(len(best_score_progress)) + ' iterations)')
         lx.set_ylabel(ylbl)
+        zp = ZoomPanX()
+        f = zp.zoom_pan(lx, base_scale=1.2, annotate=True)
         plt.show()
         pick = None
         pickf = None
         if do_multi:
-            if optimise_multiplot:
+            if self.optimise_multiplot:
                 pick = plot_multi(best_multi_progress, multi_best, multi_order, 'best of each iteration')
-                if more_details:
+                if self.more_details:
                     pickf = plot_multi(multi_scores, multi_values, multi_order, 'final iteration')
-            if optimise_multitable:
+            if self.optimise_multitable:
                 pick2 = show_multitable(best_multi_progress, multi_best, multi_order, 'best of each iteration')
                 try:
                     pick = pick + pick2
                 except:
                     pick = pick2
-                if more_details:
+                if self.more_details:
                     pick2 = show_multitable(multi_scores, multi_values, multi_order, 'final iteration')
                     try:
                         pickf = pickf + pick2
                     except:
                         pickf = pick2
         op_pts = [0] * len(headers)
-        for p in [st_lcg, st_lco, st_lcc, st_max, st_bal, st_rlc]:
+        for p in [st_lcg, st_lco, st_lcc, st_max, st_bal, st_rlc, st_are]:
             op_pts[p] = 2
         op_pts[st_cap] = 3
-        if more_details:
+        if self.more_details:
             if do_lcoe:
                 list(map(list, list(zip(*op_data[0]))))
-                dialog = displaytable.Table(op_data[0], title=sender().text(), fields=headers,
-                         save_folder=scenarios, sortby='', decpts=op_pts)
+                dialog = displaytable.Table(op_data[0], title=sender_name, fields=headers,
+                         save_folder=self.scenarios, sortby='', decpts=op_pts)
                 dialog.exec_()
                 del dialog
             if do_multi:
                 list(map(list, list(zip(*op_data[1]))))
-                dialog = displaytable.Table(op_data[1], title='Multi_' + sender().text(), fields=headers,
-                         save_folder=scenarios, sortby='', decpts=op_pts)
+                dialog = displaytable.Table(op_data[1], title='Multi_' + sender_name, fields=headers,
+                         save_folder=self.scenarios, sortby='', decpts=op_pts)
                 dialog.exec_()
                 del dialog
         # now I'll display the resulting capacities for LCOE, lowest weight, picked
@@ -3138,10 +3432,10 @@ class powerMatch():
             if len(pick) <= 3:
                 multi_lowest_chrom = multi_best_popn[pick[0][0]]
                 op_data[2], score_data[2] = calculate_fitness([multi_lowest_chrom])
-                if more_details:
+                if self.more_details:
                     list(map(list, list(zip(*op_data[2]))))
-                    dialog = displaytable.Table(op_data[2], title='Pick_' + sender().text(), fields=headers,
-                             save_folder=scenarios, sortby='', decpts=op_pts)
+                    dialog = displaytable.Table(op_data[2], title='Pick_' + sender_name, fields=headers,
+                             save_folder=self.scenarios, sortby='', decpts=op_pts)
                     dialog.exec_()
                     del dialog
                 chrom_hdrs.append('Your pick')
@@ -3150,10 +3444,10 @@ class powerMatch():
                 if len(pick) >= 2:
                     multi_lowest_chrom = multi_best_popn[pick[1][0]]
                     op_data[3], score_data[3] = calculate_fitness([multi_lowest_chrom])
-                    if more_details:
+                    if self.more_details:
                         list(map(list, list(zip(*op_data[3]))))
-                        dialog = displaytable.Table(op_data[3], title='Pick_' + sender().text(), fields=headers,
-                                 save_folder=scenarios, sortby='', decpts=op_pts)
+                        dialog = displaytable.Table(op_data[3], title='Pick_' + sender_name, fields=headers,
+                                 save_folder=self.scenarios, sortby='', decpts=op_pts)
                         dialog.exec_()
                         del dialog
                     chrom_hdrs.append('Your 2nd pick')
@@ -3162,10 +3456,10 @@ class powerMatch():
                 if len(pick) == 3:
                     multi_lowest_chrom = multi_best_popn[pick[2][0]]
                     op_data[4], score_data[4] = calculate_fitness([multi_lowest_chrom])
-                    if more_details:
+                    if self.more_details:
                         list(map(list, list(zip(*op_data[4]))))
-                        dialog = displaytable.Table(op_data[4], title='Pick_' + sender().text(), fields=headers,
-                                 save_folder=scenarios, sortby='', decpts=op_pts)
+                        dialog = displaytable.Table(op_data[4], title='Pick_' + sender_name, fields=headers,
+                                 save_folder=self.scenarios, sortby='', decpts=op_pts)
                         dialog.exec_()
                         del dialog
                     chrom_hdrs.append('Your 3rd pick')
@@ -3180,10 +3474,10 @@ class powerMatch():
                 best_mndx = b.index(best_multi)
                 multi_lowest_chrom = picks[best_mndx]
                 op_data[2], score_data[2] = calculate_fitness([multi_lowest_chrom])
-                if more_details:
+                if self.more_details:
                     list(map(list, list(zip(*op_data[2]))))
-                    dialog = displaytable.Table(op_data[2], title='Pick_' + sender().text(), fields=headers,
-                             save_folder=scenarios, sortby='', decpts=op_pts)
+                    dialog = displaytable.Table(op_data[2], title='Pick_' + sender_name, fields=headers,
+                             save_folder=self.scenarios, sortby='', decpts=op_pts)
                     dialog.exec_()
                     del dialog
                 chrom_hdrs.append('Your pick')
@@ -3196,6 +3490,44 @@ class powerMatch():
                     if chromosome[c]:
                         capacity = capacity + capacities[c]
                 its[fac].append(capacity / pmss_details[fac].capacity)
+        chooseDialog = QDialog()
+        hbox = QHBoxLayout()
+        grid = [QGridLayout()]
+        label = QLabel('<b>Facility</b>')
+        label.setAlignment(QtCore.Qt.AlignCenter)
+        grid[0].addWidget(label, 0, 0)
+        for h in range(len(chrom_hdrs)):
+            grid.append(QGridLayout())
+            label = QLabel('<b>' + chrom_hdrs[h] + '</b>')
+            label.setAlignment(QtCore.Qt.AlignCenter)
+            grid[-1].addWidget(label, 0, 0, 1, 3)
+        rw = 1
+        for key, value in its.items():
+            grid[0].addWidget(QLabel(key), rw, 0)
+            if pmss_details[key].fac_type == 'S':
+                typ = ' MWh'
+            else:
+                typ = ' MW'
+            if self.show_multipliers:
+                for h in range(len(chrom_hdrs)):
+                    label = QLabel('{:,.1f}'.format(value[h] * pmss_details[key].capacity))
+                    label.setAlignment(QtCore.Qt.AlignRight)
+                    grid[h + 1].addWidget(label, rw, 0)
+                    label = QLabel(typ)
+                    label.setAlignment(QtCore.Qt.AlignLeft)
+                    grid[h + 1].addWidget(label, rw, 1)
+                    label = QLabel('({:.2f})'.format(value[h]))
+                    label.setAlignment(QtCore.Qt.AlignRight)
+                    grid[h + 1].addWidget(label, rw, 2)
+            else:
+                for h in range(len(chrom_hdrs)):
+                    label = QLabel('{:,.1f}'.format(value[h] * pmss_details[key].capacity))
+                    label.setAlignment(QtCore.Qt.AlignRight)
+                    grid[h + 1].addWidget(label, rw, 0, 1, 2)
+                    label = QLabel(typ)
+                    label.setAlignment(QtCore.Qt.AlignLeft)
+                    grid[h + 1].addWidget(label, rw, 2)
+            rw += 1
         max_amt = [0., 0.]
         if do_lcoe:
             max_amt[0] = score_data[0][0]['cost']
@@ -3213,55 +3545,254 @@ class powerMatch():
                     pwr_chr[m] = pwr_chrs[pwr]
                     divisor[m] = 1. * pow(10, pwr * 3)
                     break
-        targets['cost'][5] = targets['cost'][5].replace('pwr_chr', pwr_chr[0])
-        targets['co2'][5] = targets['co2'][5].replace('pwr_chr', pwr_chr[1])
-
+        self.targets['cost'][5] = self.targets['cost'][5].replace('pwr_chr', pwr_chr[0])
+        self.targets['co2'][5] = self.targets['co2'][5].replace('pwr_chr', pwr_chr[1])
+        for key in multi_order:
+            lbl = QLabel('<i>' + self.targets[key][0] + '</i>')
+            lbl.setAlignment(QtCore.Qt.AlignCenter)
+            grid[0].addWidget(lbl, rw, 0)
+            for h in range(len(chrom_hdrs)):
+                if key == 'cost':
+                    amt = score_data[ndxes[h]][0][key] / divisor[0] # cost
+                elif key == 'co2':
+                    amt = score_data[ndxes[h]][0][key] / divisor[1] # co2
+                elif key[-4:] == '_pct': # percentage
+                    amt = score_data[ndxes[h]][0][key] * 100.
+                else:
+                    amt = score_data[ndxes[h]][0][key]
+                txt = '<i>' + self.targets[key][5] + '</i>'
+                try:
+                    label = QLabel(txt % amt)
+                except:
+                    label = QLabel('?')
+                    print('PME5:', key, txt, amt)
+                label.setAlignment(QtCore.Qt.AlignCenter)
+                grid[h + 1].addWidget(label, rw, 0, 1, 3)
+            rw += 1
+        cshow = QPushButton('Quit', self)
+        grid[0].addWidget(cshow)
+        cshow.clicked.connect(chooseDialog.close)
+        for h in range(len(chrom_hdrs)):
+            button = QPushButton(chrom_hdrs[h], self)
+            grid[h + 1].addWidget(button, rw, 0, 1, 3)
+            button.clicked.connect(chooseClicked) #(chrom_hdrs[h]))
+        for gri in grid:
+            frame = QFrame()
+            frame.setFrameStyle(QFrame.Box)
+            frame.setLineWidth(1)
+            frame.setLayout(gri)
+            hbox.addWidget(frame)
+   #     grid.addWidget(show, rw, 1)
+    #    show.clicked.connect(optDialog.close)
+        chooseDialog.setLayout(hbox)
+        chooseDialog.setWindowTitle('Choose Optimal Generator Mix')
+        chooseDialog.setWindowIcon(QtGui.QIcon('resources/resources/sen_icon32.ico'))
      #  this is a big of a kluge but I couldn't get it to behave
-        opt_choice = ''
+        self.opt_choice = ''
+        chooseDialog.exec_()
+        del chooseDialog
         try:
-            h = chrom_hdrs.index(opt_choice)
+            h = chrom_hdrs.index(self.opt_choice)
         except:
             return
         op_data[h], score_data[h] = calculate_fitness([chroms[h]]) # make it current
         msg = chrom_hdrs[h] + ': '
         for key in multi_order[:3]:
-            msg += targets[key][0] + ': '
+            msg += self.targets[key][0] + ': '
             if key == 'cost':
                 amt = score_data[h][0][key] / divisor[0] # cost
             elif key == 'co2':
                 amt = score_data[h][0][key] / divisor[1] # co2
             elif key[-4:] == '_pct': # percentage
-                amt = score_data[h][0][key] * 100
+                amt = score_data[h][0][key] * 100.
             else:
                 amt = score_data[h][0][key]
-            txt = targets[key][5]
+            txt = self.targets[key][5]
             txt = txt % amt
             msg += txt + '; '
-        setStatus(msg)
+        self.setStatus(msg)
         list(map(list, list(zip(*op_data[h]))))
         op_data[h].append(' ')
         op_data[h].append('Optimisation Parameters')
         op_op_prm = len(op_data[h])
-        op_data[h].append(['Population size', str(optimise_population)])
-        op_data[h].append(['No. of iterations', str(optimise_generations)])
-        op_data[h].append(['Mutation probability', '%0.4f' % optimise_mutation])
-        op_data[h].append(['Exit if stable', str(optimise_stop)])
-        op_data[h].append(['Optimisation choice', optimise_choice])
+        op_data[h].append(['Population size', str(self.optimise_population)])
+        op_data[h].append(['No. of iterations', str(self.optimise_generations)])
+        op_data[h].append(['Mutation probability', '%0.4f' % self.optimise_mutation])
+        op_data[h].append(['Exit if stable', str(self.optimise_stop)])
+        op_data[h].append(['Optimisation choice', self.optimise_choice])
         op_data[h].append(['Variable', 'Weight', 'Better', 'Worse'])
         for i in range(len(target_keys)):
             op_data[h].append([])
             for j in range(4):
                 if j == 0:
-                    op_data[h][-1].append(targets[target_keys[i]][j])
+                    op_data[h][-1].append(self.targets[target_keys[i]][j])
                 else:
-                    op_data[h][-1].append('{:.2f}'.format(targets[target_keys[i]][j]))
+                    op_data[h][-1].append('{:.2f}'.format(self.targets[target_keys[i]][j]))
         op_max_row = len(op_data[h])
-        for key in generators.keys():
-            op_data[h].append(['Max. ' + key, generators[key].capacity_max])
-        dialog = displaytable.Table(op_data[h], title='Chosen_' + sender().text(), fields=headers,
-                 save_folder=scenarios, sortby='', decpts=op_pts)
-        if adjust.isChecked():
-            adjustto = {}
+        for key in self.optimisation.keys():
+            op_data[h].append(['Max. ' + key, self.optimisation[key].capacity_max])
+        dialog = displaytable.Table(op_data[h], title='Chosen_' + sender_name, fields=headers,
+                 save_folder=self.scenarios, sortby='', decpts=op_pts)
+        dialog.exec_()
+        del dialog
+        if self.optimise_to_batch:
+            msgbox = QMessageBox()
+            msgbox.setWindowTitle('SIREN - Add to Batch')
+            msgbox.setText("Press 'Yes' to add to Batch file")
+            msgbox.setIcon(QMessageBox.Question)
+            msgbox.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
+            reply = msgbox.exec_()
+            if reply == QMessageBox.Yes:
+                check_list = []
+                tot_row = 0
+                save_opt_rows = False
+                for o_r in range(len(op_data[h])):
+                    if op_data[h][o_r][0] == 'Total':
+                        break
+                    if op_data[h][o_r][0] != 'RE Contribution To Load':
+                        check_list.append(o_r)
+                if self.files[B].text() != '':
+                    newfile = self.get_filename(self.files[B].text())
+                else:
+                    curfile = self.scenarios[:-1]
+                    newfile = QFileDialog.getSaveFileName(None, 'Create and save ' + self.file_labels[B] + ' file',
+                              curfile, 'Excel Files (*.xlsx)')[0]
+                    if newfile == '':
+                        return
+                if os.path.exists(newfile):
+                    wb = oxl.load_workbook(newfile)
+                elif self.batch_template == '':
+                    return
+                else:
+                    wb = oxl.load_workbook(self.batch_template)   #copy batch
+                    if newfile[: len(self.scenarios)] == self.scenarios:
+                        self.files[B].setText(newfile[len(self.scenarios):])
+                    else:
+                        if newfile.rfind('/') > 0:
+                            that_len = len(commonprefix([self.scenarios, newfile]))
+                            if that_len > 0:
+                                bits = self.scenarios[that_len:].split('/')
+                                pfx = ('..' + '/') * (len(bits) - 1)
+                                newfile = pfx + newfile[that_len + 1:]
+                        if newfile[-5:] != '.xlsx':
+                            newfile += '.xlsx'
+                        self.files[B].setText(newfile)
+                if wb.worksheets[0].max_column > 1024:
+                    self.clean_batch_sheet()
+                    ds = oxl.load_workbook(self.get_filename(self.files[B].text()))
+                batch_input_sheet = wb.worksheets[0]
+                batch_input_sheet.protection.sheet = False
+                normal = oxl.styles.Font(name='Arial')
+                bold = oxl.styles.Font(name='Arial', bold=True)
+                col = batch_input_sheet.max_column + 1
+                fst_row = -1
+                if col == 4: # possibly only chart stuff in columns 2 and 3
+                    get_out = False
+                    for col in range(3, 1, -1):
+                        for row in range(1, batch_input_sheet.max_row + 1):
+                            if batch_input_sheet.cell(row=row, column=col).value is not None:
+                                col += 1
+                                get_out = True
+                                break
+                            if batch_input_sheet.cell(row=row, column=1).value == 'Total':
+                                break
+                        if get_out:
+                            break
+                for row in range(1, batch_input_sheet.max_row + 1):
+                    if batch_input_sheet.cell(row=row, column=1).value is None:
+                        continue
+                    if batch_input_sheet.cell(row=row, column=1).value in ['Model', 'Model Label', 'Technology']:
+                        new_cell = batch_input_sheet.cell(row=row, column=col)
+                        new_cell.value = QtCore.QDateTime.toString(QtCore.QDateTime.currentDateTime(), 'MM-dd hh:mm')
+                        msg += " Added to batch as '" + new_cell.value + "' (column " + ssCol(col) + ')'
+                        continue
+                    if batch_input_sheet.cell(row=row, column=1).value == 'Capacity (MW)':
+                        fst_row = row + 1
+                        cell = batch_input_sheet.cell(row=row, column=col - 1)
+                        new_cell = batch_input_sheet.cell(row=row, column=col)
+                        new_cell.value = 'MW'
+                        if cell.has_style:
+                            new_cell.font = copy(cell.font)
+                            new_cell.border = copy(cell.border)
+                            new_cell.fill = copy(cell.fill)
+                            new_cell.number_format = copy(cell.number_format)
+                            new_cell.protection = copy(cell.protection)
+                            new_cell.alignment = copy(cell.alignment)
+                        continue
+                    if batch_input_sheet.cell(row=row, column=1).value == 'Optimisation Parameters':
+                        save_opt_rows = True
+                        break
+                    for o_r in range(len(op_data[h])):
+                        if op_data[h][o_r][0] == batch_input_sheet.cell(row=row, column=1).value:
+                            if op_data[h][o_r][0] == 'Total' and col > 2:
+                                cell = batch_input_sheet.cell(row=row, column=2)
+                            else:
+                                cell = batch_input_sheet.cell(row=row, column=col - 1)
+                            new_cell = batch_input_sheet.cell(row=row, column=col)
+                            try:
+                                new_cell.value = float(op_data[h][o_r][1])
+                            except:
+                                try:
+                                    new_cell.value = op_data[h][o_r][1]
+                                except:
+                                    pass
+                            if cell.has_style:
+                                new_cell.font = copy(cell.font)
+                                new_cell.border = copy(cell.border)
+                                new_cell.fill = copy(cell.fill)
+                                new_cell.protection = copy(cell.protection)
+                                new_cell.alignment = copy(cell.alignment)
+                                if col == 2:
+                                    new_cell.font = normal
+                                    new_cell.number_format = '#0.00'
+                                else:
+                                    new_cell.number_format = copy(cell.number_format)
+                            elif col == 2:
+                                new_cell.font = normal
+                                new_cell.number_format = '#0.00'
+                            try:
+                                i = check_list.index(o_r)
+                                del check_list[i]
+                            except:
+                                pass
+                    if batch_input_sheet.cell(row=row, column=1).value == 'Total':
+                        tot_row = row
+                if save_opt_rows: # want optimisation?
+                    for o_r in range(op_op_prm, len(op_data[h])):
+                        row += 1
+                        new_cell = batch_input_sheet.cell(row=row, column=1)
+                        new_cell.value = op_data[h][o_r][0]
+                        new_cell = batch_input_sheet.cell(row=row, column=col)
+                        try:
+                            new_cell.value = float(op_data[h][o_r][1])
+                        except:
+                            new_cell.value = op_data[h][o_r][1]
+                if len(check_list) > 0:
+                    check_list.reverse()
+                    if col > 2:
+                        cell = batch_input_sheet.cell(row=fst_row, column=2)
+                    else:
+                        cell = batch_input_sheet.cell(row=fst_row, column=col)
+                    for o_r in check_list:
+                        batch_input_sheet.insert_rows(tot_row)
+                        new_cell = batch_input_sheet.cell(row=tot_row, column=1)
+                        new_cell.value = op_data[h][o_r][0]
+                        new_cell = batch_input_sheet.cell(row=tot_row, column=col)
+                        try:
+                            new_cell.value = float(op_data[h][o_r][1])
+                        except:
+                            new_cell.value = op_data[h][o_r][1]
+                        if cell.has_style:
+                            new_cell.font = copy(cell.font)
+                            new_cell.border = copy(cell.border)
+                            new_cell.fill = copy(cell.fill)
+                            new_cell.number_format = copy(cell.number_format)
+                            new_cell.protection = copy(cell.protection)
+                            new_cell.alignment = copy(cell.alignment)
+                wb.save(self.get_filename(self.files[B].text()))
+                self.setStatus(msg)
+        if self.adjust.isChecked():
+            self.adjustto = {}
             for fac, value in sorted(pmss_details.items()):
-                adjustto[fac] = value.capacity * value.multiplier
+                self.adjustto[fac] = value.capacity * value.multiplier
         return

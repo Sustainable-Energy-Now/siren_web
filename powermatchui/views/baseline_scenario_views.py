@@ -2,7 +2,7 @@
 from django.contrib.auth.decorators import login_required
 from decimal import Decimal
 from django.contrib import messages
-from django.http import HttpResponse
+from django.http import HttpRequest, HttpResponse
 from django.shortcuts import render, redirect
 from siren_web.database_operations import delete_analysis_scenario, fetch_analysis_scenario, \
     fetch_included_technologies_data, fetch_module_settings_data, fetch_scenario_settings_data, update_scenario_settings_data
@@ -122,7 +122,7 @@ def baseline_scenario(request):
     }
     return render(request, 'baseline_scenario.html', context)
 
-def run_baseline(request):
+def run_baseline(request: HttpRequest):
     demand_year = request.session.get('demand_year')
     scenario = request.session.get('scenario')
     success_message = ""

@@ -3,7 +3,6 @@ from django.urls import path, include
 from django.contrib.auth import views as auth_views
 from powermapui.views import create_scenario_views, facilities_list_views, powermapui_home_views,  \
     power_views, table_update_views, technologies_views
-from django.views.generic import TemplateView
 
 urlpatterns = [
     path('powermapui/', powermapui_home_views.home, name='powermapui_home'),
