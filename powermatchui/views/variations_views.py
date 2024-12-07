@@ -21,6 +21,7 @@ def setup_variation(request):
 
     demand_year = request.session.get('demand_year')
     scenario = request.session.get('scenario')
+    config_file = request.session.get('config_file')
     success_message = ""
     if demand_year:
         baseline = check_analysis_baseline(scenario)
@@ -63,8 +64,12 @@ def setup_variation(request):
             
     context = {
         'variation_form': variation_form,
-        'variations_form': variations_form, 'technologies': technologies,
-        'demand_year': demand_year, 'scenario': scenario, 'success_message': success_message
+        'variations_form': variations_form,
+        'technologies': technologies,
+        'demand_year': demand_year,
+        'scenario': scenario,
+        'config_file': config_file,
+        'success_message': success_message
         }
     return render(request, 'variations.html', context)
 
@@ -78,6 +83,7 @@ def run_variations(request) -> HttpResponse:
     # Handle form submission
         demand_year = request.session.get('demand_year')
         scenario = request.session.get('scenario')
+        config_file = request.session.get('config_file')
         success_message = ""
         technologies= fetch_included_technologies_data(scenario)
         variations_form = RunVariationForm(request.POST, technologies=technologies)
@@ -147,8 +153,12 @@ def run_variations(request) -> HttpResponse:
                     sp_data.append(formatted_row)
                 success_message = 'Create variants run has completed.'
                 context = {
-                    'sp_data': sp_data, 'headers': headers, 'sp_pts': sp_pts,
-                    'success_message': success_message, 'demand_year': demand_year, 'scenario': scenario
+                    'sp_data': sp_data, 'headers': headers, 
+                    'sp_pts': sp_pts,
+                    'demand_year': demand_year,
+                    'scenario': scenario,
+                    'config_file': config_file,
+                    'success_message': success_message, 
                 }
                 return render(request, 'display_table.html', context)
     variation_name = request.POST.get('variation_name')
@@ -157,6 +167,9 @@ def run_variations(request) -> HttpResponse:
     context = {
         'variation_form': variation_form,
         'variations_form': variations_form, 'technologies': technologies,
-        'demand_year': demand_year, 'scenario': scenario, 'success_message': success_message
+        'demand_year': demand_year,
+        'scenario': scenario,
+        'config_file': config_file,
+        'success_message': success_message
         }
     return render(request, 'variations.html', context)

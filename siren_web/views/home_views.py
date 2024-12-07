@@ -21,6 +21,7 @@ def get_description(name, sirensystem_model):
 def home_view(request):
     demand_year = request.session.get('demand_year')
     scenario = request.session.get('scenario')
+    config_file = request.session.get('config_file')
     success_message = ""
     member_name = request.GET.get('member_name', '')
     email_address = request.GET.get('email_address', '')
@@ -62,6 +63,10 @@ def home_view(request):
     table = request.GET.get('table')  # Get the title parameter from the request
 
     # Perform actions based on the table
+    context['demand_year'] = demand_year
+    context['scenario'] = scenario
+    context['config_file'] = config_file
+    context['success_message'] = success_message
     if table:
         # Dictionary mapping table names to their respective model classes
         models = {
@@ -89,12 +94,9 @@ def home_view(request):
             # Get the column names of the model
             column_names = [field.name for field in model_class._meta.fields]
             context['model_name'] = table
-            context['model_description'] = get_description(table, sirensystem)
+            context['model_description'] = str(get_description(table, sirensystem))
             context['sample_data'] = sample_data
-
             context['column_names'] = column_names
-            context['demand_year'] = demand_year
-            context['scenario'] = scenario
             context['status'] = 'success'
 
             # Render the modal template with the model information and sample rows

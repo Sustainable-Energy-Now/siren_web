@@ -58,35 +58,6 @@
             </div>
         </div>
     </div>
-    
-    <!-- Preview Modal -->
-    <div class="modal fade" id="previewModal" tabindex="-1">
-        <div class="modal-dialog modal-lg">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">Preview Changes</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <div class="row">
-                        <div class="col-md-6">
-                            <h6>Current Configuration</h6>
-                            <pre id="currentConfig"></pre>
-                        </div>
-                        <div class="col-md-6">
-                            <h6>New Configuration</h6>
-                            <pre id="newConfig"></pre>
-                        </div>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                    <button type="button" class="btn btn-primary" id="confirmSave">Save Changes</button>
-                </div>
-            </div>
-        </div>
-    </div>
-    
     <form id="configForm" method="POST">
         {% csrf_token %}
         <input type="hidden" name="action" value="save">
@@ -124,7 +95,6 @@
         
         <div class="mb-3">
             <button type="button" class="btn btn-secondary" id="addSection">Add Section</button>
-            <button type="button" class="btn btn-info" id="previewButton">Preview Changes</button>
             <button type="submit" class="btn btn-primary">Save</button>
             <button type="button" class="btn btn-success" id="saveAsButton">Save As</button>
         </div>
@@ -159,7 +129,6 @@
 document.addEventListener('DOMContentLoaded', function() {
     const form = document.getElementById('configForm');
     const addSectionBtn = document.getElementById('addSection');
-    const previewBtn = document.getElementById('previewButton');
     const confirmSaveBtn = document.getElementById('confirmSave');
     const sectionTemplate = document.getElementById('sectionTemplate');
     const optionTemplate = document.getElementById('optionTemplate');
@@ -245,32 +214,6 @@ document.addEventListener('DOMContentLoaded', function() {
             form.submit();
         } else {
             alert('Please enter a filename');
-        }
-    });
-    
-    // Preview changes
-    previewBtn.addEventListener('click', async function() {
-        const configData = getConfigData();
-        const formData = new FormData();
-        formData.append('action', 'preview');
-        formData.append('config_data', JSON.stringify(configData));
-        formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
-        
-        try {
-            const response = await fetch(form.action, {
-                method: 'POST',
-                body: formData
-            });
-            const data = await response.json();
-            
-            document.getElementById('currentConfig').textContent = 
-                JSON.stringify(data.current, null, 2);
-            document.getElementById('newConfig').textContent = 
-                JSON.stringify(data.preview, null, 2);
-            
-            new bootstrap.Modal(document.getElementById('previewModal')).show();
-        } catch (error) {
-            console.error('Error previewing changes:', error);
         }
     });
     

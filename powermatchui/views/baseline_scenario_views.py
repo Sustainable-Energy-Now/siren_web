@@ -23,6 +23,7 @@ def baseline_scenario(request):
         return render(request, 'powermatchui_home.html', context)
     demand_year = request.session.get('demand_year')
     scenario = request.session.get('scenario')
+    config_file = request.session.get('config_file')
     success_message = ""
     technologies = {}
     scenario_settings = {}
@@ -73,6 +74,7 @@ def baseline_scenario(request):
                 'scenario_settings': scenario_settings,
                 'demand_year': demand_year,
                 'scenario': scenario,
+                'config_file': config_file,
                 'success_message': 'Correct errors and resubmit.',
             }
             return render(request, 'baseline_scenario.html', context)
@@ -94,7 +96,8 @@ def baseline_scenario(request):
                     # Render a template with the warning message
                     context = {
                         'demand_year': demand_year, 
-                        'scenario': scenario, 
+                        'scenario': scenario,
+                        'config_file': config_file,
                         'success_message': success_message
                     }
                     return render(request, 'confirm_overwrite.html', context)
@@ -118,13 +121,16 @@ def baseline_scenario(request):
         'runpowermatch_form': runpowermatch_form,
         'technologies': technologies,
         'scenario_settings': scenario_settings,
-        'demand_year': demand_year, 'scenario': scenario, 'success_message': success_message
+        'demand_year': demand_year, 'scenario': scenario,
+        'config_file': config_file,
+        'success_message': success_message
     }
     return render(request, 'baseline_scenario.html', context)
 
 def run_baseline(request: HttpRequest):
     demand_year = request.session.get('demand_year')
     scenario = request.session.get('scenario')
+    config_file = request.session.get('config_file')
     success_message = ""
 
     if request.method == 'POST':
@@ -166,7 +172,10 @@ def run_baseline(request: HttpRequest):
                     success_message = "Baseline run complete"
                 context = {
                     'sp_data': sp_data, 'headers': headers, 'sp_pts': sp_pts,
-                    'success_message': success_message, 'demand_year': demand_year, 'scenario': scenario
+                    'success_message': success_message,
+                    'demand_year': demand_year,
+                    'scenario': scenario,
+                    'config_file': config_file,
                 }
                 return render(request, 'display_table.html', context)
                 
@@ -180,6 +189,9 @@ def run_baseline(request: HttpRequest):
             'runpowermatch_form': runpowermatch_form,
             'technologies': technologies,
             'scenario_settings': scenario_settings,
-            'demand_year': demand_year, 'scenario': scenario, 'success_message': success_message
+            'demand_year': demand_year,
+            'scenario': scenario,
+            'config_file': config_file,
+            'success_message': success_message
         }
         return render(request, 'baseline_scenario.html', context)

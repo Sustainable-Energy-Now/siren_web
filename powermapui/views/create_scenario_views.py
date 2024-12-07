@@ -7,6 +7,7 @@ from siren_web.models import Scenarios, facilities, ScenariosFacilities
 def create_scenario(request):
     demand_year = request.session.get('demand_year')
     scenario = request.session.get('scenario')
+    config_file = request.session.get('config_file')
     success_message = ""
     all_scenarios = Scenarios.objects.all()
     all_facilities = facilities.objects.all()
@@ -38,6 +39,7 @@ def create_scenario(request):
         'checkbox_status': checkbox_status,
         'demand_year': demand_year,
         'scenario': scenario,
+        'config_file': config_file,
         'success_message': success_message
     }
     return render(request, 'create_scenario.html', context)
@@ -45,6 +47,7 @@ def create_scenario(request):
 def update_scenario(request):
     demand_year = request.session.get('demand_year')
     scenario = request.session.get('scenario')
+    config_file = request.session.get('config_file')
     success_message = ""
     all_scenarios = Scenarios.objects.all()
     all_facilities = facilities.objects.all()
@@ -79,6 +82,7 @@ def update_scenario(request):
         'checkbox_status': checkbox_status,
         'demand_year': demand_year,
         'scenario': scenario,
+        'config_file': config_file,
         'success_message': success_message
     }
     return render(request, 'create_scenario.html', context)

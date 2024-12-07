@@ -18,6 +18,7 @@ def reload_technologies(request):
     if request.method == 'POST':
         demand_year = request.session.get('demand_year')
         scenario = request.session.get('scenario')
+        config_file = request.session.get('config_file')
 
         if demand_year and scenario:
             scenario_obj = Scenarios.objects.get(title=scenario)

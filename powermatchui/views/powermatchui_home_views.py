@@ -19,6 +19,7 @@ from siren_web.models import Demand, supplyfactors
 def powermatchui_home(request):
     demand_year = request.session.get('demand_year', '')  # Get demand_year and scenario from session or default to empty string
     scenario= request.session.get('scenario', '')
+    config_file = request.session.get('config_file')
     success_message = ""
     if request.method == 'POST':
         # Handle form submission
@@ -33,6 +34,9 @@ def powermatchui_home(request):
 
     context = {
         'demand_year_scenario': demand_year_scenario,
-        'success_message': success_message, 'demand_year': demand_year, 'scenario': scenario
+        'demand_year': demand_year,
+        'scenario': scenario,
+        'config_file': config_file,
+        'success_message': success_message,
         }
     return render(request, 'powermatchui_home.html', context)

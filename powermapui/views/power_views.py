@@ -11,6 +11,7 @@ from siren_web.siren_old.powermodel import PowerModel
 def generate_power(request):
     demand_year = request.session.get('demand_year', '')  # Get demand_year and scenario from session or default to empty string
     scenario= request.session.get('scenario', '')
+    config_file = request.session.get('config_file')
     success_message = ""
     technologies = {}
     scenario_settings = {}
@@ -41,11 +42,17 @@ def generate_power(request):
         
     if request.method == 'POST':
         context = {
-            'success_message': success_message, 'demand_year': demand_year, 'scenario': scenario,
+            'demand_year': demand_year,
+            'scenario': scenario,
+            'config_file': config_file,
+            'success_message': success_message,
         }
         return render(request, 'table_update_page.html', context)
     else:
         context = {
-            'success_message': success_message, 'demand_year': demand_year, 'scenario': scenario,
+            'demand_year': demand_year,
+            'scenario': scenario,
+            'config_file': config_file,
+            'success_message': success_message,
         }
         return render(request, 'table_update_page.html', context)

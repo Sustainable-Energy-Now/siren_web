@@ -4,6 +4,7 @@ from siren_web.models import facilities, Scenarios, ScenariosFacilities
 def facilities_list(request):
     demand_year = request.session.get('demand_year', '')  # Get demand_year and scenario from session or default to empty string
     scenario= request.session.get('scenario', '')
+    config_file = request.session.get('config_file', '')
     success_message = ""
     scenarios = Scenarios.objects.all()
 
@@ -20,6 +21,9 @@ def facilities_list(request):
         'facilities': facs,
         'scenarios': scenarios,
         'selected_scenario': int(selected_scenario) if selected_scenario else None,
-        'success_message': success_message, 'demand_year': demand_year, 'scenario': scenario
+        'demand_year': demand_year,
+        'scenario': scenario,
+        'success_message': success_message,
+        'config_file': config_file,
     }
     return render(request, 'facilities_list.html', context)

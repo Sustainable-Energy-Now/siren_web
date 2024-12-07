@@ -22,6 +22,7 @@ def set_merit_order(request):
         return render(request, 'powermatchui_home.html', context)
     demand_year = request.session.get('demand_year')
     scenario = request.session.get('scenario')
+    config_file = request.session.get('config_file')
     context = {}  # Initialize context with an empty dictionary
     # Access the context data passed from the redirect
     success_message = request.GET.get('success_message', '')
@@ -76,5 +77,8 @@ def set_merit_order(request):
         'merit_order': merit_order, 
         'excluded_resources': excluded_resources, 
         'success_message': success_message, 
-        'demand_year': demand_year, 'scenario': scenario}
+        'demand_year': demand_year,
+        'scenario': scenario,
+        'config_file': config_file,
+    }
     return render(request, 'merit_order.html', context)

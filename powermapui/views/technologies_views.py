@@ -10,6 +10,7 @@ from siren_web.models import Technologies, Storageattributes, Generatorattribute
 def technologies(request):
     demand_year = request.session.get('demand_year')
     scenario = request.session.get('scenario')
+    config_file = request.session.get('config_file')
     success_message = ""
     technology_name = request.GET.get('technology_name', '')
     # Get the queryset of Technologies with related StorageAttributes and GeneratorAttributes

@@ -5,8 +5,6 @@ from django.http import JsonResponse
 from django.urls import reverse
 from configparser import ConfigParser
 import os
-from datetime import datetime
-import shutil
 import json
 
 def get_config_dict(config):
@@ -18,7 +16,13 @@ def get_config_dict(config):
 
 def edit_config(request):
     config_dir = './siren_web/siren_files/siren_data/preferences/'
-    config_path = os.path.join(config_dir, request.GET.get('filename', 'siren.ini'))
+    if request.GET.get('filename'):  # If specific file was requested
+        config_file = request.GET.get('filename')
+    else:
+        config_file= request.session.get('config_file', '')
+    if not config_file:
+        config_file = 'siren.ini'
+    config_path = os.path.join(config_dir, config_file)
     
     # Get list of existing config files
     config_files = [f for f in os.listdir(config_dir) 
@@ -27,36 +31,21 @@ def edit_config(request):
     config = ConfigParser()
     
     if not os.path.exists(config_path):
-        if request.GET.get('filename'):  # If specific file was requested
+        if config_file != 'siren.ini':
             messages.error(request, "Configuration file not found!")
             return redirect(reverse('edit_config'))
+        else:
         # For default file, create it if it doesn't exist
-        config.add_section('DEFAULT')
-        with open(config_path, 'w') as configfile:
-            config.write(configfile)
-    
+            config.add_section('DEFAULT')
+            with open(config_path, 'w') as configfile:
+                config.write(configfile)
+    request.session['config_file'] = config_file
     config.read(config_path)
     
     if request.method == 'POST':
         action = request.POST.get('action', 'save')
-        
-        if action == 'preview':
-            # Create a new config object for preview
-            new_config = ConfigParser()
-            sections = json.loads(request.POST.get('config_data', '{}'))
-            
-            for section, options in sections.items():
-                new_config.add_section(section)
-                for option, value in options.items():
-                    new_config.set(section, option, value)
-            
-            # Return both current and preview configurations
-            return JsonResponse({
-                'current': get_config_dict(config),
-                'preview': get_config_dict(new_config)
-            })
-            
-        elif action in ['save', 'save_as']:
+
+        if action in ['save', 'save_as']:
             # Get target filename for save
             if action == 'save_as':
                 new_filename = request.POST.get('new_filename', '').strip()

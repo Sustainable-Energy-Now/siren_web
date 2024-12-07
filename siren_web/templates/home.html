@@ -5,11 +5,16 @@
 {% block content %}
     <h2>Welcome to Siren Web!</h2>
     <p>This is a web interface to Siren, an open source python app for modelling renewable energy for the South West Interconnected system(SWIS).
-    Siren consists of three main modules Powermap, Powermatch and Powerplot that share a common database. You can navigate to each module using the menu options above. The Siren system architecture is illustrated below. Click on a database table or a module to see further information.</p>
+    The Siren system architecture is illustrated below. Click on a database table or a module to see further information.</p>
 
 {% load static %}
 
 {% csrf_token %}
+<div class="settings-box">
+    <strong>Demand Year: </strong>{{ demand_year }}<br>
+    <strong>Scenario:   </strong> {{ scenario }}<br>
+    <strong>Config:   </strong> {{ config_file }}
+</div>
 <div style="max-width: 100vw; overflow: auto;">
     <img id="siren-image" src="{% static 'img/siren_system.jpg' %}" usemap="#image-map" style="max-width: 100%;">
 

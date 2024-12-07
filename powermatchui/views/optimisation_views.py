@@ -28,6 +28,7 @@ def check_update_triple_settings(scenario, scenario_settings, weight, better, wo
 def optimisation(request):
     demand_year = request.session.get('demand_year')
     scenario = request.session.get('scenario')
+    config_file = request.session.get('config_file')
     success_message = ""
     technologies = {}
     scenario_settings = {}
@@ -120,7 +121,13 @@ def optimisation(request):
                 
             success_message = "Optimisation Parameters have been updated."
 
-    context = {'optimisationform': optimisationform, 'technologies': technologies, 'demand_year': demand_year, 'scenario': scenario,'success_message': success_message}
+    context = {
+        'optimisationform': optimisationform,
+        'technologies': technologies,
+        'demand_year': demand_year,
+        'scenario': scenario,
+        'config_file': config_file,
+        'success_message': success_message}
     return render(request, 'optimisation.html', context)
 
 def run_optimisation(request):
@@ -134,6 +141,7 @@ def run_optimisation(request):
         return render(request, 'powermatchui_home.html', context)
     demand_year = request.session.get('demand_year')
     scenario = request.session.get('scenario')
+    config_file = request.session.get('config_file')
     success_message = ""
     if request.method == 'POST':
         option = 'O'
@@ -156,5 +164,6 @@ def run_optimisation(request):
     context = {
         'demand_year': demand_year, 
         'scenario': scenario,
+        'config_file': config_file,
         'success_message': success_message}
     return render(request, 'optimisation.html', context)
