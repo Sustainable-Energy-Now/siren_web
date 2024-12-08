@@ -103,7 +103,7 @@ def insert_data(i, sp_data, scenario_obj, variation, Stage):
 
 def submit_powermatch(demand_year, scenario, 
                       option, stages, variation_inst, save_data):
-    config = fetch_all_config_data()
+    config = fetch_all_config_data(request)
     settings = fetch_all_settings_data()
     pmss_data, pmss_details, max_col = \
     fetch_supplyfactors_data(demand_year)

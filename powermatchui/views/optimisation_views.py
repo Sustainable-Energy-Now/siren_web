@@ -33,7 +33,7 @@ def optimisation(request):
     technologies = {}
     scenario_settings = {}
     if not demand_year:
-        success_message = "Set the demand year and scenario in the home page first."
+        success_message = "Set a demand year, scenario and config first."
     else:
         scenario_settings = fetch_scenario_settings_data(scenario)
         if not scenario_settings:
@@ -145,7 +145,7 @@ def run_optimisation(request):
     success_message = ""
     if request.method == 'POST':
         option = 'O'
-        settings = fetch_all_config_data()
+        settings = fetch_all_config_data(request)
         pmss_data, pmss_details, max_col = \
             fetch_supplyfactors_data(demand_year)
         generators, dispatch_order, re_order, pmss_details = fetch_generators_parameter(demand_year, scenario, pmss_details, max_col)

@@ -231,6 +231,31 @@ class Technologies(models.Model):
     class Meta:
         db_table = 'Technologies'
 
+class TechnologyYears(models.Model):
+    idtechnologyyears = models.AutoField(primary_key=True)
+    idtechnologies = models.ForeignKey('Technologies', on_delete=models.RESTRICT)
+    year = models.IntegerField(default=0, null=True)
+    capex = models.FloatField(null=True)
+    fom = models.FloatField(db_column='FOM', null=True)  
+    vom = models.FloatField(db_column='VOM', null=True)  
+    lifetime = models.FloatField(null=True)
+    discount_rate = models.FloatField(null=True)
+    capacity = models.FloatField(null=True)
+    capacity_factor = models.FloatField(null=True)
+    mult = models.FloatField(null=True)
+    approach = models.CharField(max_length=45, blank=True, null=True)
+    capacity_max = models.FloatField(null=True)
+    capacity_min = models.FloatField(null=True)
+    capacity_step = models.FloatField(null=True)
+    capacities = models.CharField(max_length=50, blank=True, null=True)
+    emissions = models.FloatField(null=True)
+    initial = models.FloatField(null=True)
+    lcoe = models.FloatField(null=True)
+    lcoe_cf = models.FloatField(null=True)
+
+    class Meta:
+        db_table = 'TechnologyYears'
+
 class TradingPrice(models.Model):
     id = models.AutoField(db_column='idTechnologies', primary_key=True)
     trading_month = models.CharField(max_length=7, blank=True, null=True)

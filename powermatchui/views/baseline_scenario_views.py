@@ -28,7 +28,7 @@ def baseline_scenario(request):
     technologies = {}
     scenario_settings = {}
     if not demand_year:
-        success_message = "Set the demand year and scenario in the home page first."
+        success_message = "Set a demand year and scenario first."
     else:
         technologies= fetch_included_technologies_data(scenario)
         scenario_settings = fetch_module_settings_data('Powermatch')

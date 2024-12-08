@@ -16,7 +16,8 @@ def technologies(request):
     # Get the queryset of Technologies with related StorageAttributes and GeneratorAttributes
     if not demand_year:
         demand_year = 2022
-    technology_queryset = Technologies.objects.filter(
+    technology_queryset = fetch_full_generator_storage_data(demand_year)
+    technology_queryset1 = Technologies.objects.filter(
         year=demand_year,
         ).prefetch_related(
         Prefetch('generatorattributes_set', queryset=Generatorattributes.objects.filter(

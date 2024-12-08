@@ -31,7 +31,7 @@ def setup_variation(request):
     else:
         technologies = {}
         baseline = None
-        success_message = "Set the demand year and scenario in the home page first."
+        success_message = "Set a demand year, scenario and config first."
 
     if baseline and request.method == 'POST':
         # Handle form submission

@@ -16,7 +16,7 @@ def generate_power(request):
     technologies = {}
     scenario_settings = {}
     if not demand_year:
-        success_message = "Set the demand year and scenario in the home page first."
+        success_message = "Set a demand year, scenario and config first."
     else:
         scenario_settings = fetch_module_settings_data('Powermap')
         if not scenario_settings:

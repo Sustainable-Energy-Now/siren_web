@@ -65,7 +65,7 @@ def set_merit_order(request):
         # return redirect(redirect_url)
         
     if not demand_year:
-        success_message = "Set the demand year and scenario in the home page first."
+        success_message = "Set a demand year, scenario and config first."
     else:
         scenario_obj = Scenarios.objects.get(title=scenario)
         idscenarios = scenario_obj.pk

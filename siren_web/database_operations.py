@@ -5,6 +5,7 @@ from django.db import connection
 from django.http import HttpResponse
 import logging
 from django.db.models import Avg, Q, F, Sum, Count, When, OuterRef, Subquery
+from django.db.models.query import RawQuerySet
 from django.db.models.functions import TruncDay
 from siren_web.models import Analysis, Demand, facilities, Generatorattributes, Optimisations, \
     Scenarios, ScenariosTechnologies, ScenariosSettings, Settings, Storageattributes, supplyfactors, \
@@ -206,18 +207,7 @@ def fetch_full_generator_storage_data(demand_year):
     """
     # Execute the SQL query
     try:
-        with connection.cursor() as cursor:
-            cursor.execute(generators_query, (demand_year))
-            # Fetch the results
-            generators_result = cursor.fetchall()
-            if generators_result is None:
-                # Handle the case where fetchall() returns None
-                logger = logging.getLogger(__name__)
-                logger.debug('No results found.')
-                return None, None  # or handle this case appropriately
-            column_names = [desc[0] for desc in cursor.description]
-        return generators_result, column_names
-                    
+        return Technologies.objects.raw(generators_query, [demand_year])            
     except Exception as e:
         print("Error executing query:", e)
 
@@ -450,8 +440,9 @@ def fetch_scenarios_data():
         # Handle any errors that occur during the database query
         return None
     
-def fetch_all_config_data():
+def fetch_all_config_data(request):
     try:
+        config_file = request.session.get('config_file')
         config = configparser.RawConfigParser()
         config_file = './siren_web/siren_files/siren_data/preferences/siren.ini'
         config.read(config_file)
