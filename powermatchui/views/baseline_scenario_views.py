@@ -127,7 +127,7 @@ def baseline_scenario(request):
     }
     return render(request, 'baseline_scenario.html', context)
 
-def run_baseline(request: HttpRequest):
+def run_baseline(request):
     demand_year = request.session.get('demand_year')
     scenario = request.session.get('scenario')
     config_file = request.session.get('config_file')
@@ -147,7 +147,7 @@ def run_baseline(request: HttpRequest):
             if save_baseline:
                 delete_analysis_scenario(scenario_obj)
             sp_output, headers, sp_pts = submit_powermatch(
-                demand_year, scenario, option, 1, 
+                request, demand_year, scenario, option, 1, 
                 None, save_baseline
                 )
             if option == 'D':

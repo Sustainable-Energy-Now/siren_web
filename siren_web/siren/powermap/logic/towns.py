@@ -24,7 +24,7 @@ import os
 import sys
 from math import radians, cos, sin, asin, sqrt
 
-from modules.getmodels import getModelFile
+from siren_web.siren.modules.getmodels import getModelFile
 from utilities.senutils import getParents, getUser, WorkBook
 
 

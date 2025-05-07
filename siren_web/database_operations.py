@@ -1,16 +1,20 @@
 # database operations
-import configparser   # decode .ini file
+from configparser import ConfigParser
 from datetime import datetime, timedelta
+from decimal import Decimal
 from django.db import connection
+from django.db.models import Prefetch
 from django.http import HttpResponse
 import logging
 from django.db.models import Avg, Q, F, Sum, Count, When, OuterRef, Subquery
 from django.db.models.query import RawQuerySet
 from django.db.models.functions import TruncDay
+import os
 from siren_web.models import Analysis, Demand, facilities, Generatorattributes, Optimisations, \
     Scenarios, ScenariosTechnologies, ScenariosSettings, Settings, Storageattributes, supplyfactors, \
     Technologies, TradingPrice, variations, Zones
-from siren_web.siren_old.pmcore import Facility, PM_Facility, Optimisation
+from siren_web.siren.powermatch.logic.logic import Constraint, Facility, PM_Facility, Optimisation
+from typing import Dict
 
 def delete_analysis_scenario(idscenario):
     Analysis.objects.filter(
@@ -349,6 +353,59 @@ def fetch_generators_parameter(demand_year, scenario, pmss_details, max_col):
                 pmss_details[name] = PM_Facility(name, name, capacity, typ, ++max_col, 1)
     return generators, dispatch_order, re_order, pmss_details
 
+def getConstraints(scenario_id: int = None) -> Dict[str, Constraint]:
+    """
+    Creates a dictionary of Constraint objects from Technologies and StorageAttributes models.
+    If scenario_id is provided, only returns constraints for technologies in that scenario.
+    
+    Args:
+        scenario_id (int, optional): ID of the scenario to filter technologies
+        
+    Returns:
+        Dict[str, Constraint]: Dictionary mapping technology signatures to their constraints
+    """
+    constraints = {}
+    
+    # Query base to get technologies with their storage attributes
+    technologies = Technologies.objects.prefetch_related(
+        Prefetch(
+            'storageattributes_set',
+            queryset=Storageattributes.objects.filter(year=0),
+            to_attr='storage_attrs'
+        )
+    )
+    
+    # If scenario_id provided, filter technologies by scenario
+    if scenario_id:
+        technologies = technologies.filter(
+            scenariostechnologies__idscenarios_id=scenario_id
+        )
+    
+    for tech in technologies:
+        # Get storage attributes if they exist
+        storage_attrs = tech.storage_attrs[0] if hasattr(tech, 'storage_attrs') and tech.storage_attrs else None
+        
+        # Create constraint object
+        constraint = Constraint(
+            name=tech.technology_name,
+            category=tech.category or '',
+            capacity_min=tech.capacity_min or 0,
+            capacity_max=tech.capacity_max or 1,
+            rampup_max=storage_attrs.rampup_max if storage_attrs else 1,
+            rampdown_max=storage_attrs.rampdown_max if storage_attrs else 1,
+            recharge_max=storage_attrs.recharge_max if storage_attrs else 1,
+            recharge_loss=storage_attrs.recharge_loss if storage_attrs else 0,
+            discharge_max=storage_attrs.discharge_max if storage_attrs else 1,
+            discharge_loss=storage_attrs.discharge_loss if storage_attrs else 0,
+            parasitic_loss=storage_attrs.parasitic_loss if storage_attrs else 0,
+            min_run_time=storage_attrs.min_runtime if storage_attrs else 0,
+            warm_time=storage_attrs.warm_time if storage_attrs else 0
+        )
+        
+        # Add to dictionary using technology name as key
+        constraints[tech.technology_name] = constraint
+    return constraints
+
 def get_emission_color(emissions):
     if emissions < 0.3:
         return '#c8e6c9'  # Light green
@@ -439,13 +496,26 @@ def fetch_scenarios_data():
     except Exception as e:
         # Handle any errors that occur during the database query
         return None
-    
-def fetch_all_config_data(request):
+
+def fetch_config_path(request):
     try:
         config_file = request.session.get('config_file')
-        config = configparser.RawConfigParser()
-        config_file = './siren_web/siren_files/siren_data/preferences/siren.ini'
-        config.read(config_file)
+        if not config_file:
+            config_file = 'siren.ini'
+        config_dir = './siren_web/siren_files/preferences/'
+        config_path = os.path.join(config_dir, config_file)
+        if not os.path.exists(config_path):
+            return None
+    except Exception as e:
+        # Handle any errors that occur during the database query
+        return None
+    return config_path
+
+def fetch_all_config_data(request):
+    try:
+        config_path = fetch_config_path (request)
+        config = ConfigParser()
+        config.read(config_path)
     except Exception as e:
         # Handle any errors that occur during the database query
         return None

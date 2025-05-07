@@ -725,7 +725,7 @@ class getMERRA2(QtWidgets.QDialog):
             for i in range(2):
                 lines.append(self.dir_labels[i].lower() + '_files=' + \
                              self.dirs[i].text().replace(getUser(), '$USER$'))
-            updates['Files'] = lines
+            updates['files'] = lines
             SaveIni(updates, ini_file=self.config_file)
         self.close()
 

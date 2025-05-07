@@ -2,16 +2,15 @@ import configparser   # decode .ini file
 import os
 import sys
 import time
-from utilities.senutils import getParents
-from modules.getmodels import getModelFile, commonprefix
-from utilities.senutils import getUser
+from siren_web.siren.utilities.senutils import getParents, getUser
 
-def load_settings():
+def load_settings(config_file=None):
+    if not config_file:
+        if len(sys.argv) > 1:
+            config_file = sys.argv[1]
+        else:
+            config_file = 'SIREN.ini'
     config = configparser.RawConfigParser()
-    if len(sys.argv) > 1:
-        config_file = sys.argv[1]
-    else:
-        config_file = getModelFile('SIREN.ini')
     config.read(config_file)
     parents = []
     settings = {}

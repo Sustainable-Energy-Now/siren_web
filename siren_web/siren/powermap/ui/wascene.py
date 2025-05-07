@@ -19,36 +19,44 @@
 #  <http://www.gnu.org/licenses/>.
 #
 
-import datetime
+import configparser   # decode .ini file
 from math import sin, cos, pi, sqrt, degrees, radians, asin, atan2
 import os
 import sys
-import configparser   # decode .ini file
-from PyQt5 import QtCore, QtGui, QtWidgets
-import pyproj
-from powermap.logic.towns import Towns
-from modules.getmodels import getModelFile
-from powermap.logic.grid import Grid, Grid_Area, Grid_Boundary, Grid_Zones, Line
-from utilities.senutils import getParents, getUser, techClean, WorkBook
-from powermatch.logic.station import Station, Stations
-from powermatch.logic.dijkstra_4 import Shortest
+from PyQt5.QtWidgets import QGraphicsScene
+from PyQt5.QtGui import QColor
 
+try:
+    import mpl_toolkits.basemap.pyproj as pyproj   # Import the pyproj module
+except:
+    import pyproj
+from siren_web.siren.powermap.logic.grid import Grid, Grid_Area, Grid_Boundary, Grid_Zones, Line
+from siren_web.siren.utilities.senutils import getParents, getUser, techClean, WorkBook
+from siren_web.siren.powermatch.logic.station import Station, Stations
+from siren_web.siren.powermatch.logic.dijkstra_4 import Shortest
+from siren_web.siren.powermap.logic.wascenebase import WASceneBase
 
-class WAScene(QtWidgets.QGraphicsScene):
+class WAScene(WASceneBase, QGraphicsScene):
 
-    def get_config(self):
-        config = configparser.RawConfigParser()
+    def get_config_file(self) -> str:
+        """Default config file getter using PyQt5/desktop approach"""
+        from siren_web.siren.modules.getmodels import getModelFile
         if len(sys.argv) > 1:
             config_file = sys.argv[1]
             if config_file.rfind('/') >= 0:
-                self.config_file = config_file[config_file.rfind('/') + 1:]
+                config_file = config_file[config_file.rfind('/') + 1:]
             elif config_file.rfind('\\') >= 0:
-                self.config_file = config_file[config_file.rfind('\\') + 1:]
+                config_file = config_file[config_file.rfind('\\') + 1:]
             else:
                 self.config_file = config_file
         else:
             config_file = getModelFile('SIREN.ini')
             self.config_file = 'SIREN.ini'
+        return config_file
+
+    def get_config(self):
+        config = configparser.RawConfigParser()
+        config_file = self.get_config_file()
         config.read(config_file)
         try:
             self.base_year = config.get('Base', 'year')
@@ -524,22 +532,6 @@ class WAScene(QtWidgets.QGraphicsScene):
         except:
             pass
 
-    def destinationxy(self, lon1, lat1, bearing, distance):
-        """
-        Given a start point, initial bearing, and distance, calculate
-        the destination point and final bearing travelling along a
-        (shortest distance) great circle arc
-        """
-        radius = 6367.   # km is the radius of the Earth
-     # convert decimal degrees to radians
-        ln1, lt1, baring = list(map(radians, [lon1, lat1, bearing]))
-     # "reverse" haversine formula
-        lat2 = asin(sin(lt1) * cos(distance / radius) +
-                                cos(lt1) * sin(distance / radius) * cos(baring))
-        lon2 = ln1 + atan2(sin(baring) * sin(distance / radius) * cos(lt1),
-                                            cos(distance / radius) - sin(lt1) * sin(lat2))
-        return degrees(lon2), degrees(lat2)
-
     def __init__(self):
         QtWidgets.QGraphicsScene.__init__(self)
         self.exitLoop = False
@@ -584,10 +576,10 @@ class WAScene(QtWidgets.QGraphicsScene):
         self._lineGroup = QtWidgets.QGraphicsItemGroup() # stations lines group
         try:
             self._setupGrid()
-        except Exception as e:
+        except:
             msgbox = QtWidgets.QMessageBox(QtWidgets.QMessageBox.Critical,
                                            'Error setting up grid.',
-                                            e.msg + '\n\nMay need to check map coordinates\n(upper_left' + self.map \
+                                           'May need to check map coordinates\n(upper_left' + self.map \
                                             + ' and lower_right' + self.map + ' in [Map]) or' \
                                             + '\nthe status of grid-related (KML) files.' \
                                             + '\nExecution aborted.',
@@ -653,17 +645,6 @@ class WAScene(QtWidgets.QGraphicsScene):
             self._fnameGroup.setVisible(False)
         self._plot_cache = {}
 
-    def _setupCoordTransform(self):
-        self._proj = pyproj.Proj(self.projection)   # LatLon with WGS84 datum used by GPS units and Google Earth
-        x1, y1, lon1, lat1 = self.upper_left
-        x2, y2, lon2, lat2 = self.lower_right
-        ul = self._proj(lon1, lat1)
-        lr = self._proj(lon2, lat2)
-        self._lat_scale = y2 / (lr[1] - ul[1])
-        self._lon_scale = x2 / (lr[0] - ul[0])
-        self._orig_lat = ul[1]
-        self._orig_lon = ul[0]
-
     def _setupCoordGrid(self):
         color = QtGui.QColor()
         color.setNamedColor((self.colors['town_name']))
@@ -720,6 +701,7 @@ class WAScene(QtWidgets.QGraphicsScene):
         return
 
     def _setupTowns(self):
+        from siren_web.siren.powermap.logic.towns import Towns
         self._towns = {}
         self._towns = Towns(ul_lat=self.upper_left[3], ul_lon=self.upper_left[2],
                       lr_lat=self.lower_right[3], lr_lon=self.lower_right[2])
@@ -763,111 +745,6 @@ class WAScene(QtWidgets.QGraphicsScene):
             self._stations = Stations(existing=False)
         if self.scenario != '':
             self._setupScenario(self.scenario)
-
-    def _setupScenario(self, scenario):
-        i = scenario.rfind('/')
-        if i > 0:
-            scen_file = scenario
-            scen_filter = scenario[i + 1:]
-        else:
-            scen_file = self.scenarios + scenario
-            scen_filter = scenario
-        if os.path.exists(scen_file):
-            description = ''
-            var = {}
-            workbook = WorkBook()
-            workbook.open_workbook(scen_file)
-            worksheet = workbook.sheet_by_index(0)
-            num_rows = worksheet.nrows - 1
-            num_cols = worksheet.ncols - 1
-            if worksheet.cell_value(0, 0) == 'Description:' or worksheet.cell_value(0, 0) == 'Comment:':
-                curr_row = 1
-                description = worksheet.cell_value(0, 1)
-            else:
-                curr_row = 0
-#           get column names
-            curr_col = -1
-            while curr_col < num_cols:
-                curr_col += 1
-                var[worksheet.cell_value(curr_row, curr_col)] = curr_col
-            while curr_row < num_rows:
-                curr_row += 1
-                try:
-                    try:
-                        area = worksheet.cell_value(curr_row, var['Area'])
-                    except:
-                        area = 0
-                    new_st = Station(str(worksheet.cell_value(curr_row, var['Station Name'])),
-                                     str(worksheet.cell_value(curr_row, var['Technology'])),
-                                     worksheet.cell_value(curr_row, var['Latitude']),
-                                     worksheet.cell_value(curr_row, var['Longitude']),
-                                     worksheet.cell_value(curr_row, var['Maximum Capacity (MW)']),
-                                     str(worksheet.cell_value(curr_row, var['Turbine'])),
-                                     worksheet.cell_value(curr_row, var['Rotor Diam']),
-                                     worksheet.cell_value(curr_row, var['No. turbines']),
-                                     area,
-                                     scen_filter)
-                    name_ok = False
-                    new_name = new_st.name
-                    ctr = 0
-                    while not name_ok:
-                        for i in range(len(self._stations.stations)):
-                            if self._stations.stations[i].name == new_name:
-                                ctr += 1
-                                new_name = new_st.name + ' ' + str(ctr)
-                                break
-                        else:
-                            name_ok = True
-                    if new_name != new_st.name:
-                        new_st.name = new_name
-                    if new_st.area == 0 or new_st.area == '':
-                        if new_st.technology == 'Wind':
-                            new_st.area = self.areas[new_st.technology] * float(new_st.no_turbines) * \
-                                          pow((new_st.rotor * .001), 2)
-                        else:
-                            new_st.area = self.areas[new_st.technology] * float(new_st.capacity)
-                    try:
-                        hub_height = worksheet.cell_value(curr_row, var['Hub Height'])
-                        if hub_height != '':
-                            setattr(new_st, 'hub_height', hub_height)
-                    except:
-                        pass
-                    try:
-                        power_file = worksheet.cell_value(curr_row, var['Power File'])
-                        if power_file != '':
-                            new_st.power_file = power_file
-                    except:
-                        pass
-                    try:
-                        grid_line = worksheet.cell_value(curr_row, var['Grid Line'])
-                        if grid_line != '':
-                            new_st.grid_line = grid_line
-                    except:
-                        pass
-                    try:
-                        direction = worksheet.cell_value(curr_row, var['Direction'])
-                        if direction != '':
-                            new_st.direction = direction
-                    except:
-                        pass
-                    try:
-                        tilt = worksheet.cell_value(curr_row, var['Tilt'])
-                        if tilt != '':
-                            setattr(new_st, 'tilt', tilt)
-                    except:
-                        pass
-                    try:
-                        storage_hours = worksheet.cell_value(curr_row, var['Storage Hours'])
-                        if storage_hours != '':
-                            setattr(new_st, 'storage_hours', storage_hours)
-                    except:
-                        pass
-                    self._stations.stations.append(new_st)
-                    self.addStation(self._stations.stations[-1])
-                except Exception as error:
-                    print('wascene error:', error)
-                    pass
-            self._scenarios.append([scen_filter, False, description])
 
     def _setupGrid(self):
         def do_them(lines, width=self.line_width, grid_lines='', opacity=0.):
@@ -1226,13 +1103,6 @@ class WAScene(QtWidgets.QGraphicsScene):
             for st in self._stations.stations:
                 self.addLine(st)
 
-    def changeDate(self, d):
-        return
-        d = datetime.date(d.year(), d.month(), d.day())
-        for st in list(self._stations.values()):
-            st.changeDate(d)
-        self._power_tot.changeDate(d)
-
     def mapToLonLat(self, p, decpts=4):
         x = p.x() / self._lon_scale + self._orig_lon
         y = p.y() / self._lat_scale + self._orig_lat
@@ -1246,20 +1116,8 @@ class WAScene(QtWidgets.QGraphicsScene):
         y = (y - self._orig_lat) * self._lat_scale
         return QtCore.QPointF(x, y)
 
-    def positions(self):
-        try:
-            return self._positions
-        except:
-            return
-
     def stationPositions(self):
         return self._station_positions
-
-    def toggleTotal(self, start):
-        if self._power_tot.infoVisible():
-            self._power_tot.hideInfo()
-        else:
-            self._power_tot.showInfo(0, start)
 
     def powerPlotImage(self, name):
         return self._stations[name].powerPlotImage()

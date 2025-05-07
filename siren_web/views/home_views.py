@@ -43,7 +43,13 @@ def home_view(request):
             else:
             # Handle authentication failure
                 pass
-            user = authenticate(request, username=user_name, password=user_password)
+            try:
+                if user_name is not None:
+                    # Authenticate the user
+                    user = authenticate(request, username=user_name, password=user_password)
+            except UnboundLocalError:
+                # Handle the case where user_name isn't defined
+                user = None
             if user is not None:
                 login(request, user)
     # Handle the membership status and grant access accordingly

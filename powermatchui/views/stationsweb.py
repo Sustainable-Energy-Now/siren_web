@@ -21,7 +21,11 @@
 
 import csv
 import os
+import sys
 from math import radians, cos, sin, asin, sqrt, pow
+from siren_web.siren.powermatch.logic.stationsbase import StationsBase
+from siren_web.siren.powermatch.logic.station import Station
+from siren_web.siren.utilities.senutils import techClean
 
 def within_map(y, x, poly):
     n = len(poly)
@@ -39,44 +43,64 @@ def within_map(y, x, poly):
         p1y, p1x = p2y, p2x
     return inside
 
-class Station:
-    def __init__(self, name, technology, lat, lon, capacity, turbine, rotor, no_turbines, area, scenario,
-                 direction=None, grid_line=None, hub_height=None, power_file=None, storage_hours=None, tilt=None, # extra file fields
-                 generation=None, grid_len=None, grid_path_len=None, zone=None):
-        self.name = name
-        self.technology = technology
-        self.lat = lat
-        self.lon = lon
-        self.capacity = capacity
-        self.turbine = turbine
-        self.rotor = rotor
-        if hub_height is not None:
+class StationsWeb(StationsBase):
+    def get_config(self, config):
+        try:
+            self.sam_file = config.get('Files', 'sam_turbines')
+        except:
+            self.sam_file = ''
+        try:
+            self.pow_dir = config.get('Files', 'pow_files')
+        except:
+            self.pow_dir = ''
+        self.fac_files = []
+        try:
+            fac_file = config.get('Files', 'grid_stations')
+        except:
+            pass
+        if self.stations2:
             try:
-                self.hub_height = float(hub_height)
+                fac_file = config.get('Files', 'grid_stations2')
             except:
                 pass
-        self.no_turbines = no_turbines
-        if area is None:
-            self.area = 0
-        else:
-            self.area = area
-        self.scenario = scenario
-        self.generation = generation
-        self.power_file = power_file
-        self.grid_line = grid_line
-        self.grid_len = grid_len
-        self.grid_path_len = grid_path_len
-        self.direction = direction
-        self.storage_hours = storage_hours
-        if tilt is not None:
-            try:
-                self.tilt = float(tilt)
-            except:
-                pass
+        self.ignore_deleted = True
+        try:
+            if config.get('Grid', 'ignore_deleted_existing').lower() in ['false', 'off', 'no']:
+                self.ignore_deleted = False
+        except:
+            pass
+        self.technologies = ['']
+        technologies = []
+        self.areas = {}
+        try:
+            technologies = config.get('Power', 'technologies')
+            for item in technologies.split():
+                itm = techClean(item)
+                self.technologies.append(itm)
+                try:
+                    self.areas[itm] = float(config.get(itm, 'area'))
+                except:
+                    self.areas[itm] = 0.
+        except:
+            pass
+        self.tech_missing = []
+        for tech in ['bess', 'biomass', 'fixed_pv', 'rooftop_pv', 'single_axis_pv', 'wind']:
+            if tech not in technologies:
+                itm = techClean(tech)
+                self.tech_missing.append(itm + ' (' + tech + ')')
+                self.technologies.append(itm)
+                self.areas[itm] = 0.
+        try:
+            technologies = config.get('Power', 'fossil_technologies')
+            for item in technologies.split():
+                itm = techClean(item)
+                try:
+                    self.areas[itm] = float(config.get(itm, 'area'))
+                except:
+                    self.areas[itm] = 0.
+        except:
+            pass
 
-        self.zone = zone
-
-class Stations:
     def haversine(self, lat1, lon1, lat2, lon2):
         """
         Calculate the great circle distance between two points
@@ -97,7 +121,7 @@ class Stations:
 
     def __init__(self, facilities):
         self.stations = []
-        self.sam_file = 'siren_web/static/siren_data/plant_data/Wind Turbines.csv'
+        self.sam_file = 'siren_web/siren_files/siren_data/plant_data/Wind Turbines.csv'
         self.areas = {}
         self.areas['Wind'] = 0.0
         self.areas['Onshore Wind'] = 0.0
@@ -285,44 +309,4 @@ class Stations:
                     pass
         if sam is not None:
             sam.close()
-
-    def Nearest(self, lat, lon, distance=False, fossil=False, ignore=None):
-        hdr = ''
-        distnce = 999999
-        for station in self.stations:
-            if station.technology[:6] == 'Fossil' and not fossil:
-                continue
-            dist = self.haversine(lat, lon, station.lat, station.lon)
-            if dist < distnce:
-                if ignore is not None and ignore == station.name:
-                    continue
-                hdr = station.name
-                distnce = dist
-        for station in self.stations:
-            if station.name == hdr:
-                if distance:
-                    return station, distnce
-                else:
-                    return station
-        return None
-
-    def Stn_Location(self, name):
-        for station in self.stations:
-            if station.name == name:
-                return str(station.lat) + ' ' + str(station.lon)
-        return ''
-
-    def Stn_Turbine(self, name):
-        for station in self.stations:
-            if station.name == name:
-                return station.turbine
-        return ''
-
-    def Get_Station(self, name):
-        for station in self.stations:
-            if station.name == name:
-                return station
-        return None
-
-    def Description(self):
-        return self.description
+            

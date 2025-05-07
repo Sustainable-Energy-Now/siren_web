@@ -1,4 +1,4 @@
-<!-- templates/edit_config.html -->
+<!-- templates/config.html -->
 {% extends "base.html" %}
 
 {% block content %}
@@ -21,6 +21,14 @@
                         <li><a class="dropdown-item" href="{% url 'edit_config' %}?filename={{ file }}">{{ file }}</a></li>
                         {% endfor %}
                     </ul>
+                </div>
+            </div>
+            <!-- Add Section Filter -->
+            <div class="col-auto ms-auto">
+                <div class="input-group">
+                    <span class="input-group-text">Filter Sections</span>
+                    <input type="text" class="form-control" id="sectionFilter" placeholder="Enter section name...">
+                    <button class="btn btn-outline-secondary" type="button" id="clearFilter">Clear</button>
                 </div>
             </div>
         </div>
@@ -66,7 +74,7 @@
         
         <div id="sectionsContainer">
             {% for section, options in config_data.items %}
-            <div class="card mb-3 section-card" data-section="{{ section }}">
+            <div class="card mb-3 section-card" data-section="{{ section|lower }}">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <h5>{{ section }}</h5>
                     <button type="button" class="btn btn-danger btn-sm remove-section">Remove Section</button>
@@ -132,6 +140,43 @@ document.addEventListener('DOMContentLoaded', function() {
     const confirmSaveBtn = document.getElementById('confirmSave');
     const sectionTemplate = document.getElementById('sectionTemplate');
     const optionTemplate = document.getElementById('optionTemplate');
+    const sectionFilter = document.getElementById('sectionFilter');
+    const clearFilter = document.getElementById('clearFilter');
+    
+    function filterSections(searchTerm) {
+        const sections = document.querySelectorAll('.section-card');
+        const normalizedSearch = searchTerm.toLowerCase().trim();
+        
+        sections.forEach(section => {
+            const sectionName = section.dataset.section;
+            const visible = sectionName.includes(normalizedSearch);
+            section.style.display = visible ? 'block' : 'none';
+        });
+    }
+    
+    sectionFilter.addEventListener('input', function() {
+        filterSections(this.value);
+    });
+    
+    clearFilter.addEventListener('click', function() {
+        sectionFilter.value = '';
+        filterSections('');
+    });
+    
+    // Add new section with filter support
+    addSectionBtn.addEventListener('click', function() {
+        const newSection = sectionTemplate.content.cloneNode(true);
+        const sectionCard = newSection.querySelector('.section-card');
+        
+        // Add data-section attribute when section name changes
+        const sectionNameInput = newSection.querySelector('.section-name');
+        sectionNameInput.addEventListener('input', function() {
+            sectionCard.dataset.section = this.value.toLowerCase();
+        });
+        
+        document.getElementById('sectionsContainer').appendChild(newSection);
+        setupEventListeners();
+    });
     
     // Add new section
     addSectionBtn.addEventListener('click', function() {
@@ -174,8 +219,8 @@ document.addEventListener('DOMContentLoaded', function() {
         const config = {};
         
         document.querySelectorAll('.section-card').forEach(sectionCard => {
-            const sectionName = sectionCard.querySelector('.section-name')?.value || 
-                              sectionCard.dataset.section;
+            const sectionNameInput = sectionCard.querySelector('.section-name');
+            const sectionName = sectionNameInput?.value || sectionCard.dataset.section;
             
             if (sectionName) {
                 config[sectionName] = {};

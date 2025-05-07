@@ -1,7 +1,44 @@
+/* Variables */
+:root {
+    --primary-color: #51ff4b;
+    --background-color: #f38484;
+    --secondary-background-color: #6796f4;
+    --text-color: #31333F;
+    --font: "Source Sans Pro", sans-serif;
+}
+
+/* Body and Global Styles */
+body {
+    font-family: 'Montserrat', sans-serif;
+}
+
+@media (min-width: 992px) {
+    body, p {
+        font-size: 20px;
+    }
+}
+
+.body-content {
+    padding: 5px;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+/* Typography */
 .message {
     font-weight: 600;
     color: blue;
 }
+
+a {
+    color: #5DB474;
+    text-decoration: underline;
+}
+
+a:hover, a:focus, a:active {
+    color: #000000;
+}
+
+/* Navigation */
 .navbar {
     background-color: lightslategray;
     font-size: 1em;
@@ -12,8 +49,9 @@
 
 .navbar a {
     text-decoration: none;
-    color: inherit;
+    color: #19c728;
 }
+
 .navbar-brand {
     font-size: 1.2em;
     font-weight: 600;
@@ -24,14 +62,187 @@
     margin-left: 30px;
 }
 
-.body-content {
-    padding: 5px;
-    font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+.navbar li {
+    margin-right: 20px;
 }
+
+/* Header Styles */
+.header {
+    padding: 2rem 0rem;
+    margin: 0rem;
+}
+
+.header .header-logo {
+    transition: all 0.5s;
+    padding: 0rem;
+    margin: 0rem;
+}
+
+.header .header-logo img {
+    padding: 0rem 0rem 1rem 0rem;
+    margin: 0rem auto 0rem auto;
+    display: block;
+    width: 300px;
+}
+
+@media (min-width: 992px) {
+    .header .header-logo img {
+        padding: 0rem;
+        width: 100%;
+    }
+}
+
+.header .header-logo:hover,
+.header .header-logo:focus,
+.header .header-logo:active {
+    filter: grayscale(100%);
+}
+
+/* Form Elements */
+.form-control {
+    border-radius: 0;
+}
+
+.form_input {
+    height: 35px;
+    width: 200px;
+}
+
 input[name=message] {
     width: 80%;
 }
-.message_list th,td {
+
+.container {
+    max-width: 1200px;
+}
+
+/* Container and Layout */
+.container-body {
+    background-color: red;
+    color: white;
+    text-align: center;
+    padding: 10px;
+    margin: 0;
+}
+
+.alert {
+    background-color: #d4edda;
+    color: #155724;
+    padding: 10px;
+    margin-top: 10px;
+    display: inline-block;
+}
+
+.table-fixed {
+    table-layout: fixed;
+}
+
+.table-fixed td {
+    word-wrap: break-word;
+}
+
+.message_list th,
+td {
     text-align: left;
     padding-right: 15px;
+}
+
+/* Sortable Components */
+.sortable-container {
+    margin: auto;
+    padding: 0px;
+    font: var(--font);
+}
+
+.sortable-component.vertical {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    align-items: stretch;
+}
+
+.sortable-component.vertical .sortable-container {
+    min-width: 175px;
+    margin: 0px;
+    padding: 10px;
+    flex-grow: 1;
+}
+
+/* Footer */
+.footer {
+    margin: 0rem;
+    padding: 2rem 0rem;
+    background-color: #5DB474;
+    color: #FFFFFF;
+    font-weight: bold;
+    font-size: 17px;
+}
+
+/* Custom Components */
+.settings-box {
+    background-color: #95bdeb;
+    border: 2px solid #464545;
+    padding: 10px;
+    margin-bottom: 20px;
+    font-family: Arial, sans-serif;
+    color: #333;
+}
+
+.list-group-item.custom-green {
+    --bs-list-group-bg: green;
+    color: white;
+}
+
+.card-header.custom-sen {
+    background-color: rgb(61, 129, 238);
+    color: white;
+}
+
+.card-body.custom-sen {
+    background-color: rgb(241, 245, 162);
+}
+
+/* Utility Classes */
+.non-draggable {
+    display: none;
+}
+
+.row > * {
+    display: flex !important;
+}
+
+/* Custom Buttons */
+.btn-custom-swish2 {
+    padding: 0.6rem 2rem 0.3rem 2rem;
+    background-color: #5DB474;
+    border: 1px solid #5DB474;
+    color: #FFFFFF;
+    border-radius: 4rem;
+    display: inline-block;
+    font-size: 15px;
+    font-weight: bold;
+    letter-spacing: 1px;
+    text-decoration: none;
+}
+
+.btn-custom-swish2:hover,
+.btn-custom-swish2:focus,
+.btn-custom-swish2:active {
+    background-color: #0B3F63;
+    border-color: #0B3F63;
+    color: #FFFFFF;
+}
+
+.btn-custom-swish2.custom2 {
+    background-color: #5DB474;
+    border-color: #5DB474;
+    color: #FFFFFF;
+}
+
+.btn-custom-swish2.custom2:hover,
+.btn-custom-swish2.custom2:focus,
+.btn-custom-swish2.custom2:active {
+    background-color: #00A9D8;
+    border-color: #00A9D8;
+    color: #FFFFFF;
 }

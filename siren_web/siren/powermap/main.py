@@ -4,7 +4,7 @@ from powermap.api.api import PowermapAPI
 from PyQt5.QtWidgets import QApplication
 import sys
 from utilities.settings import load_settings
-from powermap.logic.wascene import WAScene
+from siren_web.siren.powermap.ui.wascene import WAScene
 
 def main():
     app = QApplication(sys.argv)

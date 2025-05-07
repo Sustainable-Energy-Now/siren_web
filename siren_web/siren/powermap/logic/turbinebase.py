@@ -23,14 +23,24 @@ import matplotlib.pyplot as plt
 import numpy as np
 import csv
 import os
+import sys
+import configparser    # decode .ini file
 
-class Power_Curve:
+class Power_CurveBase:
+    """Represents a Power Curve for a Wind Turbine."""
 
-    def __init__(self, name, poly):
+    def __init__(self, config, name, poly):
         """Initializes the data."""
-        self.pow_dir = 'siren_web/static/siren_data/plant_data'
-        turb = name.split(';')
-        self.name = turb[0]
+        try:
+            self.base_year = config.get('Base', 'year')
+        except:
+            self.base_year = '2012'
+        try:
+            self.pow_dir = config.get('Files', 'pow_files')
+            self.pow_dir = self.pow_dir.replace('$YEAR$', self.base_year)
+        except:
+            self.pow_dir = ''
+        self.name = name
         pow_file = self.pow_dir + '/' + self.name + '.pow'
         if os.path.exists(pow_file):
             tf = open(pow_file, 'r')
@@ -74,12 +84,16 @@ class Power_Curve:
         return reslt
 
 
-class Turbine:
+class TurbineBase:
     """Specifications for a Wind Turbine (Power Curve, ...)."""
 
-    def __init__(self, name, poly=13):
+    def __init__(self, config, name, poly=13):
         """Initializes the data."""
-        self.sam_file = 'siren_web\\static\\siren_data\\plant_data\\Wind Turbines.csv'
+        self.config = config
+        try:
+            self.sam_file = config.get('Files', 'sam_turbines')
+        except:
+            self.sam_file = ''
         self.name = name
         self.maxp = 0
         if os.path.exists(self.sam_file):
@@ -105,7 +119,7 @@ class Turbine:
                      break
              else:
                  turb_fil.close()
-                 pow_turbine = Power_Curve(name, poly)
+                 pow_turbine = Power_CurveBase(self.config, name, poly)
                  if not hasattr(pow_turbine, 'capacity'):
                      return None
                  self.capacity = pow_turbine.capacity

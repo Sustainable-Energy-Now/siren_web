@@ -15,7 +15,7 @@ def get_config_dict(config):
     }
 
 def edit_config(request):
-    config_dir = './siren_web/siren_files/siren_data/preferences/'
+    config_dir = './siren_web/siren_files/preferences/'
     if request.GET.get('filename'):  # If specific file was requested
         config_file = request.GET.get('filename')
     else:
@@ -74,8 +74,6 @@ def edit_config(request):
                 success_msg = "Configuration updated successfully!"
                 if action == 'save_as':
                     success_msg = f"Configuration saved as {new_filename}!"
-                if 'backup_path' in locals():
-                    success_msg += f" Backup created at {os.path.basename(backup_path)}"
                 messages.success(request, success_msg)
                 
                 if action == 'save_as':

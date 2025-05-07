@@ -2,10 +2,10 @@ from django.contrib.auth.decorators import login_required
 from django.shortcuts import render, redirect
 from django.http import HttpResponse
 from siren_web.database_operations import fetch_full_facilities_data, \
-    fetch_module_settings_data, fetch_scenario_settings_data
+    fetch_module_settings_data, fetch_scenario_settings_data, fetch_all_config_data
 from siren_web.models import capacities, facilities
-from siren_web.siren_old.wascene import WAScene
-from siren_web.siren_old.powermodel import PowerModel
+from powermapui.views.wasceneweb import WASceneWeb as WAScene
+from powermapui.views.powermodelweb import PowerModelWeb as PowerModel
 
 @login_required
 def generate_power(request):
@@ -22,8 +22,9 @@ def generate_power(request):
         if not scenario_settings:
             scenario_settings = fetch_scenario_settings_data(scenario)
         facilities_list = fetch_full_facilities_data(demand_year, scenario)
-        scene = WAScene(facilities_list)
-        power = PowerModel(scene._stations.stations, demand_year, scenario_settings)
+        config = fetch_all_config_data(request)
+        scene = WAScene(config, facilities_list)
+        power = PowerModel(config, scene._stations.stations, demand_year, scenario_settings)
         generated = power.getValues()
         for station in power.stations:
             try:

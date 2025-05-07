@@ -704,7 +704,7 @@ class getERA5(QtWidgets.QDialog):
             updates = {}
             lines = []
             lines.append('era5_files=' + self.tgt_dir.text().replace(getUser(), '$USER$'))
-            updates['Files'] = lines
+            updates['files'] = lines
             SaveIni(updates, ini_file=self.config_file)
         self.close()
 

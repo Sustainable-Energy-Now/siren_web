@@ -1,4 +1,5 @@
 # forms.py
+import configparser
 from decimal import Decimal
 from django import forms
 from siren_web.models import Scenarios, Technologies, variations
@@ -7,6 +8,8 @@ from crispy_forms.helper import FormHelper
 from crispy_forms.layout import Layout, Div, Field, Fieldset, Submit, HTML, Button, Row, Column, ButtonHolder
 from crispy_bootstrap5.bootstrap5 import Accordion
 from crispy_forms.bootstrap import AccordionGroup, FormActions
+import json
+import os
 
 class DemandYearScenario(forms.Form):
     year_choices = [(year, year) for year in Technologies.objects.values_list('year', flat=True).distinct()]
@@ -87,7 +90,6 @@ class BaselineScenarioForm(forms.Form):
 
     def clean(self):
         cleaned_data = super().clean()
-
         # Validate carbon_price
         carbon_price = cleaned_data.get('carbon_price')
         if carbon_price is None:
@@ -494,3 +496,313 @@ class SelectVariationForm(forms.Form):
         self.helper.layout.append(FormActions(
             Submit('refresh', 'Refresh', css_class='btn btn-primary')
         ))
+
+class PowermatchForm(forms.Form):
+    def __init__(self, *args, server_files=None, **kwargs):
+        config_data = kwargs.pop('config_data', None)
+        super().__init__(*args, **kwargs)
+        
+        # Get list of available server files
+        self.server_files = server_files or []
+        file_choices = [(f, f) for f in self.server_files]
+        file_choices.insert(0, ('', '-- Select a file --'))
+        gen_sheet_choices = [(item.strip(), item.strip()) for item in config_data['Powermatch']['generator_sheets'].split(',')]
+        # File selection fields
+        self.fields['constraints_file'] = forms.ChoiceField(
+            label="Constraints File:",
+            choices=file_choices,
+            required=False,
+            widget=forms.Select(attrs={
+                'class': 'form-select server-file-select',
+                'data-file-type': 'constraints'
+            })
+        )
+        self.fields['constraints_sheet'] = forms.ChoiceField(
+            label="Constraints Sheet:",
+            choices=[("Constraints", "Constraints")],
+            required=False,
+            widget=forms.Select(attrs={'class': 'form-select'})
+        )
+        
+        self.fields['generators_file'] = forms.ChoiceField(
+            label="Generators File:",
+            choices=file_choices,
+            required=False,
+            widget=forms.Select(attrs={
+                'class': 'form-select server-file-select',
+                'data-file-type': 'generators'
+            })
+        )
+
+        self.fields['generators_sheet'] = forms.ChoiceField(
+            label="Generators Sheet:",
+            choices=gen_sheet_choices,
+            required=False,
+            widget=forms.Select(attrs={'class': 'form-select'})
+        )
+        
+        self.fields['optimisation_file'] = forms.ChoiceField(
+            label="Optimisation File:",
+            choices=file_choices,
+            required=False,
+            widget=forms.Select(attrs={
+                'class': 'form-select server-file-select',
+                'data-file-type': 'optimisation'
+            })
+        )
+        self.fields['optimisation_sheet'] = forms.ChoiceField(
+            label="Optimisation Sheet:",
+            choices=[("Optimisation_was", "Optimisation_was")],
+            required=False,
+            widget=forms.Select(attrs={'class': 'form-select'})
+        )
+        self.fields['data_file'] = forms.ChoiceField(
+            label="Data File:",
+            choices=file_choices,
+            required=False,
+            widget=forms.Select(attrs={
+                'class': 'form-select server-file-select',
+                'data-file-type': 'data'
+            })
+        )
+        # Get available years for load_year choices
+        years = self.get_available_years()
+        self.fields['load_year'] = forms.ChoiceField(
+            label="Load Year:",
+            choices=[("n/a", "n/a")] + [(year, year) for year in years],
+            required=False,
+            widget=forms.Select(attrs={'class': 'form-select'}),
+            help_text="(To use a different load year to the data file. Otherwise choose 'n/a')"
+        )
+
+        self.fields['results_prefix'] = forms.CharField(
+            label="Results Prefix:",
+            required=False,
+            widget=forms.TextInput(attrs={'class': 'form-control'})
+        )
+
+        self.fields['results_file'] = forms.ChoiceField(
+            label="Results File:",
+            choices=file_choices,
+            required=False,
+            widget=forms.Select(attrs={
+                'class': 'form-select server-file-select',
+                'data-file-type': 'results'
+            })        )
+        
+        self.fields['batch_file'] = forms.ChoiceField(
+            label="Batch File:",
+            choices=file_choices,
+            required=False,
+            widget=forms.Select(attrs={
+                'class': 'form-select server-file-select',
+                'data-file-type': 'batch'
+            })
+        )
+        
+        self.fields['replace_last'] = forms.BooleanField(
+            label="Replace Last",
+            required=False,
+            initial=False,
+            widget=forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            help_text="(check to replace last Results worksheet in Batch spreadsheet)"
+        )
+        
+        self.fields['prefix_facility'] = forms.BooleanField(
+            label="Prefix facility names in Batch report:",
+            required=False,
+            initial=False,
+            widget=forms.CheckboxInput(attrs={'class': 'form-check-input'})
+        )
+        
+        self.fields['discount_rate'] = forms.DecimalField(
+            label="Discount Rate:",
+            max_digits=4,
+            decimal_places=2,
+            initial=7.00,
+            widget=forms.NumberInput(attrs={
+                'class': 'form-control',
+                'step': '0.01'
+            }),
+            help_text="(%. Only required if using input costs rather than reference LCOE)"
+        )
+        
+        self.fields['carbon_price'] = forms.DecimalField(
+            label="Carbon Price:",
+            max_digits=5,
+            decimal_places=2,
+            initial=0.00,
+            widget=forms.NumberInput(attrs={
+                'class': 'form-control',
+                'step': '0.01'
+            }),
+            help_text="($/tCO2e. Use only if LCOE excludes carbon price)"
+        )
+        
+        self.fields['adjust_generators'] = forms.BooleanField(
+            label="Adjust Generators:",
+            required=False,
+            initial=False,
+            widget=forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            help_text="(check to adjust generators capacity data)"
+        )
+
+        self.fields['generator_columns'] = forms.CharField(
+            widget=forms.HiddenInput(),
+            required=False
+        )
+        # File upload field
+        self.fields['new_file'] = forms.FileField(
+            label="Upload New File",
+            required=False,
+            widget=forms.FileInput(attrs={
+                'class': 'form-control',
+                'data-url': '/upload-file/'  # URL for handling file uploads
+            }),
+            help_text="Upload a new file to the server"
+        )
+        # Set initial values from config if available
+        if config_data and config_data.has_section('Powermatch'):
+            try:
+                # Map config sections to form fields
+                config_mappings = {
+                    'Powermatch': {
+                        'constraints_file': 'constraints_file',
+                        'constraints_sheet': 'constraints_sheet',
+                        'generators_file': 'generators_file',
+                        'generators_sheet': 'generators_sheet',
+                        'optimisation_file': 'optimisation_file',
+                        'optimisation_sheet': 'optimisation_sheet',
+                        'data_file': 'data_file',
+                        'results_file': 'results_file',
+                        'batch_file': 'batch_file',
+                        'replace_last': 'replace_last',
+                        'prefix_facility': 'prefix_facility',
+                        'discount_rate': 'discount_rate',
+                        'carbon_price': 'carbon_price',
+                        'adjust_generators': 'adjust_generators',
+                        'generators_left_column': 'generator_columns',
+                        'generators_sheet': 'generators_sheet',
+                    }
+                }
+
+                # Update field values from config
+                for section, fields in config_mappings.items():
+                    if section in config_data:
+                        for config_key, form_field in fields.items():
+                            if config_key in config_data[section]:
+                                value = config_data[section][config_key]
+                                
+                                # Handle boolean fields
+                                if isinstance(self.fields[form_field], forms.BooleanField):
+                                    value = value.lower() in ('true', '1', 'yes', 'on')
+                                
+                                # Handle decimal fields
+                                elif isinstance(self.fields[form_field], forms.DecimalField):
+                                    try:
+                                        value = float(value)
+                                    except (ValueError, TypeError):
+                                        continue
+                                # Set initial value for the field
+                                if form_field == 'generator_columns':
+                                    left_generators = config_data['Powermatch'].get('generators_left_column', '')
+                                    initial_left_column = [item.strip() for item in left_generators.split(',')]
+                                    right_generators = config_data['Powermatch'].get('generators_right_column', '')
+                                    initial_right_column = [item.strip() for item in right_generators.split(',')]
+                                else:
+                                    self.fields[form_field].initial = value
+
+                # Store the initial values in the form
+                self.initial_generator_columns = {
+                    'leftColumn': initial_left_column,
+                    'rightColumn': initial_right_column
+}
+            except Exception as e:
+                # Log the error but don't prevent form from loading
+                print(f"Error initializing form from config: {str(e)}")
+    
+    def get_available_years(self):
+        """Extract years from CSV files in the load folder."""
+        folder_path = './siren_web/siren_files/SWIS/siren_data/'
+        years = set()
+        
+        try:
+            if os.path.exists(folder_path):
+                for filename in os.listdir(folder_path):
+                    if filename.lower().endswith('.csv'):
+                        # Extract year from filename (assuming format like swis_load_hourly_2024_for_sam.csv)
+                        parts = filename.split('_')
+                        for part in parts:
+                            if part.isdigit() and len(part) == 4:
+                                years.add(part)
+        except Exception as e:
+            print(f"Error reading load folder: {e}")
+        
+        return sorted(years)
+    
+    def save_to_config(self, config_file_path):
+        """
+        Save the form values to the config file.
+            Args:
+        config_file_path (str): Path to the config file
+        """
+        config = configparser.ConfigParser()
+        try:
+            config.read(config_file_path)
+        except Exception as e:
+            raise Exception(f"Error reading config file: {str(e)}")
+        
+        # Ensure the powermatch section exists
+        if 'Powermatch' not in config:
+            config['Powermatch'] = {}
+        
+        # Map form fields to config values
+        field_mappings = {
+            'constraints_file': str,
+            'constraints_sheet': str,
+            'generators_file': str,
+            'generators_sheet': str,
+            'optimisation_file': str,
+            'optimisation_sheet': str,
+            'data_file': str,
+            'results_file': str,
+            'batch_file': str,
+            'replace_last': str,
+            'prefix_facility': str,
+            'discount_rate': str,
+            'carbon_price': str,
+            'adjust_generators': str,
+            'generator_columns': str,
+        }
+        
+        # Update config with form values
+        for field_name, conversion_func in field_mappings.items():
+            if field_name in self.cleaned_data:
+                value = self.cleaned_data[field_name]
+                
+                # Convert boolean values to 'true'/'false'
+                if isinstance(value, bool):
+                    value = str(value).lower()
+                # Convert decimal/float values to string
+                elif isinstance(value, (float, Decimal)):
+                    value = str(value)
+                # Convert None to empty string
+                elif value is None:
+                    value = ''
+                if field_name == 'generator_columns':
+                    try:
+                        generator_data = json.loads(self.cleaned_data['generator_columns'])
+                        # Save both columns to config
+                        config['Powermatch']['generators_left_column'] = ','.join(generator_data['leftColumn'])
+                        config['Powermatch']['generators_right_column'] = ','.join(generator_data['rightColumn'])
+                    except (json.JSONDecodeError, KeyError) as e:
+                        print(f"Error saving generator columns: {str(e)}")
+                else:
+                    config['Powermatch'][field_name] = value
+        
+        # Save the config file
+        try:
+            with open(config_file_path, 'w') as configfile:
+                config.write(configfile)
+        except Exception as e:
+            raise Exception(f"Error saving config file: {str(e)}")

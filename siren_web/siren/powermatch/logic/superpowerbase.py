@@ -19,26 +19,20 @@
 #  <http://www.gnu.org/licenses/>.
 #
 
-from math import asin, ceil, cos, fabs, pow, radians, sin, sqrt, floor
+from math import asin, ceil, cos, fabs, pow, radians, sin, sqrt
 import os
-from . import ssc
+import siren_web.siren.utilities.sscbase as ssc
 import time
-
-try:
-    from getmodels import getModelFile
-except:
-    pass
-from .senutils import techClean, extrapolateWind, WorkBook
-from .powerclasses import *
-
+from siren_web.siren.utilities.senutils import techClean, extrapolateWind, WorkBook
+from siren_web.siren.powermatch.logic.powerclassesbase import *
 # import Station
-from .turbine import Turbine
+from siren_web.siren.powermap.logic.turbinebase import TurbineBase as Turbine
 
 import tempfile # for wind extrapolate
 
 the_days = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
 
-class SuperPower():
+class SuperPowerBase():
 
     def haversine(self, lat1, lon1, lat2, lon2):
         """
@@ -71,39 +65,52 @@ class SuperPower():
             technology = 'solar_index'
             index_file = self.solar_index
             folder = self.solar_files
-        fils = []
-        if self.default_files[technology] is None:
-            dft_file = index_file
-            if os.path.exists(dft_file):
-                pass
-            else:
-                dft_file = folder + '/' + index_file
-            if os.path.exists(dft_file):
-                self.default_files[technology] = WorkBook()
-                self.default_files[technology].open_workbook(dft_file, )
-            else:
-                return closest
-        var = {}
-        worksheet = self.default_files[technology].sheet_by_index(0)
-        num_rows = worksheet.nrows - 1
-        num_cols = worksheet.ncols - 1
+        if index_file == '':
+            fils = os.listdir(folder)
+            for fil in fils:
+                if fil[-4:] in filetype:
+                    bit = fil.split('_')
+                    if bit[-1][:4] == self.base_year:
+                        dist1 = self.haversine(float(bit[-3]), float(bit[-2]), latitude, longitude)
+                        if dist1 < dist:
+                            closest = fil
+                            dist = dist1
+        else:
+            fils = []
+            if self.default_files[technology] is None:
+                dft_file = index_file
+                if os.path.exists(dft_file):
+                    pass
+                else:
+                    dft_file = folder + '/' + index_file
+                if os.path.exists(dft_file):
+                    self.default_files[technology] = WorkBook()
+                    self.default_files[technology].open_workbook(dft_file, )
+                else:
+                    return closest
+            var = {}
+            worksheet = self.default_files[technology].sheet_by_index(0)
+            num_rows = worksheet.nrows - 1
+            num_cols = worksheet.ncols - 1
 #           get column names
-        curr_col = -1
-        while curr_col < num_cols:
-            curr_col += 1
-            var[worksheet.cell_value(0, curr_col)] = curr_col
-        curr_row = 0
-        while curr_row < num_rows:
-            curr_row += 1
-            lat = worksheet.cell_value(curr_row, var['Latitude'])
-            lon = worksheet.cell_value(curr_row, var['Longitude'])
-            fil = worksheet.cell_value(curr_row, var['Filename'])
-            fils.append([lat, lon, fil])
-        for fil in fils:
-            dist1 = self.haversine(fil[0], fil[1], latitude, longitude)
-            if dist1 < dist:
-                closest = fil[2]
-                dist = dist1
+            curr_col = -1
+            while curr_col < num_cols:
+                curr_col += 1
+                var[worksheet.cell_value(0, curr_col)] = curr_col
+            curr_row = 0
+            while curr_row < num_rows:
+                curr_row += 1
+                lat = worksheet.cell_value(curr_row, var['Latitude'])
+                lon = worksheet.cell_value(curr_row, var['Longitude'])
+                fil = worksheet.cell_value(curr_row, var['Filename'])
+                fils.append([lat, lon, fil])
+            for fil in fils:
+                dist1 = self.haversine(fil[0], fil[1], latitude, longitude)
+                if dist1 < dist:
+                    closest = fil[2]
+                    dist = dist1
+        if __name__ == '__main__':
+            print(closest)
         return closest
 
     def do_defaults(self, station):
@@ -201,7 +208,8 @@ class SuperPower():
             print('Variable list complete for ' + tech + ' - ' + name)
         return
 
-    def __init__(self, stations, demand_year=None, scenario_settings=None):
+    def __init__(self, config, stations, demand_year=None, scenario_settings=None):
+        self.config = config
         self.stations = stations
         self.power_summary = []
         self.base_year = demand_year
@@ -372,7 +380,7 @@ class SuperPower():
             else:
                 wtyp = 0
             closest = self.find_closest(station.lat, station.lon, wind=True)
-            turbine = Turbine(station.turbine)
+            turbine = Turbine(self.config, station.turbine)
             if not hasattr(turbine, 'capacity'):
                 return None
             wind_file = self.wind_files + '/' + closest

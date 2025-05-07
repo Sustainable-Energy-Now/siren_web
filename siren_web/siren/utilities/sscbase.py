@@ -17,8 +17,27 @@ c_number = c_double   # must be c_double or c_float depending on how defined in 
 
 
 class SSCAPI:
+        global c_number#!/usr/bin/python3
+
+# #####################################################################
+#
+#   System Simulation Core (SSC) Python Wrapper using Classes
+#   Author: Aron Dobos @ NREL and Steven Janzou @ NREL
+#
+# #####################################################################
+
+
+import sys
+import struct
+from ctypes import *
+import os
+
+c_number = c_double   # must be c_double or c_float depending on how defined in sscapi.h
+
+
+class SSCAPI:
         global c_number
-        sam_sdk= 'siren_web/static/siren_data/sam-sdk'
+        sam_sdk= 'siren_web/siren_files/siren_data/sam-sdk'
         if sys.platform == 'win32' or sys.platform == 'cygwin':
                 sam_sdk += '\\win'
                 if 8 * struct.calcsize("P") == 64:
@@ -35,12 +54,12 @@ class SSCAPI:
                             _dll = CDLL(sam_sdk + "\\ssc.dll")
                         except:
                             print('SAM SDK library not found')
-#               return _dll
+        #       return _dll
         elif sys.platform == 'darwin':
                 _dll = CDLL(sam_sdk + "/osx64/ssc.dylib")
 #               return _dll
         elif sys.platform == 'linux2' or sys.platform == 'linux':
-         #       _dll = CDLL("../../linux64/ssc.so")
+                _dll = CDLL("siren_web/siren_files/siren_data/sam-sdk/linux64/ssc.so")
                 try:
                     _dll = CDLL(sam_sdk + "/linux64/ssc.so")
                 except:

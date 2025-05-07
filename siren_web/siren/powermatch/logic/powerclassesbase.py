@@ -20,12 +20,17 @@
 #
 
 import numpy as np
+import os
 import sys
-from . import ssc
+try:
+    import utilities.ssc as ssc
+except:
+    pass
 
-from .senutils import getParents, getUser, WorkBook
-from .getmodels import getModelFile
-from .grid import Grid
+import configparser  # decode .ini file
+
+from siren_web.siren.utilities.senutils import techClean, WorkBook
+from siren_web.siren.powermap.logic.grid import Grid
 
 the_days = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
 
@@ -144,201 +149,6 @@ class DailyData:
                 setattr(self, values, round(value, 2))
             else:
                 setattr(self, 'value', round(value, 2))
-
-
-class whatPlots():
-    def __init__(self, plots, plot_order, hdrs, spacers, load_growth, base_year, load_year,
-                 iterations, storage, discharge, recharge, initials=None, initial=False, helpfile=None):
-        self.plots = plots
-        self.plot_order = plot_order
-        self.hdrs = hdrs
-        self.spacers = spacers
-        self.load_growth = load_growth * 100
-        self.base_year = int(base_year)
-        self.load_year = int(load_year)
-        self.iterations = iterations
-        self.storage = storage
-        self.discharge = discharge
-        self.recharge = recharge
-        self.initial = initial
-        self.helpfile = helpfile
-        if self.initial:
-            self.initials = None
-        else:
-            self.initials = initials
-        super(whatPlots, self).__init__()
-        self.initUI()
-
-    def growthChanged(self, val):
-        summ = pow(1 + self.percentSpin.value() / 100, (self.counterSpin.value() - self.base_year))
-        summ = '{:0.1f}%'.format((summ - 1) * 100)
-        self.totalOutput.setText(summ)
-        self.totalOutput.adjustSize()
-
-    def closeEvent(self, event):
-        if not self.show_them:
-            self.plots = None
-        event.accept()
-
-class whatStations():
-    def __init__(self, stations, gross_load=False, actual=False, helpfile=None):
-        self.stations = stations
-        self.gross_load = gross_load
-        self.actual = actual
-        super(whatStations, self).__init__()
-
-class whatFinancials():
-    def __init__(self, parms=None, helpfile=None):
-        super(whatFinancials, self).__init__()
-        self.proceed = False
-        self.helpfile = helpfile
-        self.financials = [['analysis_period', 'Analysis period (years)', 0, 50, 30],
-                      ['federal_tax_rate', 'Federal tax rate (%)', 0, 30., 30.],
-                      ['real_discount_rate', 'Real discount rate (%)', 0, 20., 0],
-                      ['inflation_rate', 'Inflation rate (%)', 0, 20., 0],
-                      ['insurance_rate', 'Insurance rate (%)', 0, 15., 0],
-                      ['loan_term', 'Loan term (years)', 0, 60., 0],
-                      ['loan_rate', 'Loan rate (%)', 0, 30., 0],
-                      ['debt_fraction', 'Debt percentage (%)', 0, 100, 0],
-                      ['depr_fed_type', 'Federal depreciation type 2=straight line', 0, 2, 2],
-                      ['depr_fed_sl_years', 'Depreciation straight-line term (years)', 0, 60, 20],
-                      ['market', 'Commercial PPA (on), Utility IPP (off)', 0, 1, 0],
-                   #   ['bid_price_esc', 'Bid Price escalation (%)', 0, 100., 0],
-                      ['salvage_percentage', 'Salvage value percentage (%)', 0, 100., 0],
-                      ['min_dscr_target', 'Minimum required DSCR (ratio)', 0, 5., 1.4],
-                      ['min_irr_target', 'Minimum required IRR (%)', 0, 30., 15.],
-                   #   ['ppa_escalation', 'PPA escalation (%)', 0, 100., 0.6],
-                      ['min_dscr_required', 'Minimum DSCR required?', 0, 1, 1],
-                      ['positive_cashflow_required', 'Positive cash flow required?', 0, 1, 1],
-                      ['optimize_lcoe_wrt_debt_fraction', 'Optimize LCOE with respect to debt' +
-                       ' percent?', 0, 1, 0],
-                   #   ['optimize_lcoe_wrt_ppa_escalation', 'Optimize LCOE with respect to PPA' +
-                   #    ' escalation?', 0, 1, 0],
-                      ['grid_losses', 'Reduce power by Grid losses?', False, True, False],
-                      ['grid_costs', 'Include Grid costs in LCOE?', False, True, False],
-                      ['grid_path_costs', 'Include full grid path in LCOE?', False, True, False]]
-        if parms is None:
-            beans = []
-            try:
-                for key, value in beans:
-                    for i in range(len(self.financials)):
-                        if key == self.financials[i][0]:
-                            if value[-1] == '%':
-                                self.financials[i][4] = float(value[:-1])
-                            elif '.' in value:
-                                self.financials[i][4] = float(value)
-                            elif isinstance(self.financials[i][4], bool):
-                                if value == 'True':
-                                    self.financials[i][4] = True
-                                else:
-                                    self.financials[i][4] = False
-                            else:
-                                self.financials[i][4] = int(value)
-                            break
-            except:
-                pass
-        else:
-            self.financials = parms
-        #
-    def closeEvent(self, event):
-        event.accept()
-
-class Adjustments():
-    def __init__(self, keys, load_key=None, load=None, data=None, base_year=None):
-        super(Adjustments, self).__init__()
-        if len(sys.argv) > 1:
-            config_file = sys.argv[1]
-        else:
-            config_file = getModelFile('SIREN.ini')
-        config.read(config_file)
-        self.seasons = []
-        self.periods = []
-        self.daily = True
-        self.adjust_cap = 25
-        self.opt_load = False
-        try:
-            items = config.items('Power')
-            for item, values in items:
-                if item[:6] == 'season':
-                    if item == 'season':
-                        continue
-                    i = int(item[6:]) - 1
-                    if i >= len(self.seasons):
-                        self.seasons.append([])
-                    self.seasons[i] = values.split(',')
-                    for j in range(1, len(self.seasons[i])):
-                        self.seasons[i][j] = int(self.seasons[i][j]) - 1
-                elif item[:6] == 'period':
-                    if item == 'period':
-                        continue
-                    i = int(item[6:]) - 1
-                    if i >= len(self.periods):
-                        self.periods.append([])
-                    self.periods[i] = values.split(',')
-                    for j in range(1, len(self.periods[i])):
-                        self.periods[i][j] = int(self.periods[i][j]) - 1
-                elif item == 'optimise':
-                    if values[0].lower() == 'h': # hourly
-                        self.daily = False
-                elif item == 'optimise_load':
-                    if values.lower() in ['true', 'yes', 'on']:
-                        self.opt_load = True
-                elif item == 'adjust_cap':
-                    try:
-                        self.adjust_cap = float(values)
-                    except:
-                        try:
-                            self.adjust_cap = eval(values)
-                        except:
-                            pass
-                    if self.adjust_cap < 0:
-                        self.adjust_cap = pow(10, 12)
-        except:
-            pass
-        if len(self.seasons) == 0:
-            self.seasons = [['Summer', 11, 0, 1], ['Autumn', 2, 3, 4], ['Winter', 5, 6, 7], ['Spring', 8, 9, 10]]
-        if len(self.periods) == 0:
-            self.periods = [['Winter', 4, 5, 6, 7, 8, 9], ['Summer', 10, 11, 0, 1, 2, 3]]
-        for i in range(len(self.periods)):
-            for j in range(len(self.seasons)):
-                if self.periods[i][0] == self.seasons[j][0]:
-                    self.periods[i][0] += '2'
-                    break
-        self.adjusts = {}
-        self.checkbox = {}
-        self.results = None
-        ctr = 0
-        self.skeys = []
-        self.lkey = load_key
-        if len(keys) > 10:
-            octr = 0
-            ctr += 2
-        else:
-            octr = -1
-        ctr += 1
-        for key in sorted(keys):
-            if key == 'Generation':
-                continue
-            if key[:4] == 'Load':
-                self.lkey = key
-                continue
-            if type(keys) is dict:
-                self.adjusts[key].setValue(keys[key])
-            else:
-                self.adjusts[key].setValue(1.)
-            self.adjusts[key].setDecimals(2)
-            self.adjusts[key].setSingleStep(.1)
-            self.skeys.append(key)
-            ctr += 1
-        if octr >= 0:
-            ctr = 0
-        if load is not None:
-            for key in list(data.keys()):
-                if key[:4] == 'Load':
-                    self.lkey = key
-                    break
-            self.load = load
-            self.data = data
 
 class FinancialSummary:
     def __init__(self, name, technology, capacity, generation, cf, capital_cost, lcoe_real,
@@ -515,6 +325,8 @@ class FinancialModel():
                 self.stations.append(FinancialSummary(name[stn], technology[stn], capacity[stn],
                   generation, 0, round(capital_cost), lcoe_real, lcoe_nom, npv, round(grid_cost)))
             else:
+                if self.status:
+                   self.status.log.emit('Errors encountered processing ' + name[stn])
                 idx = 0
                 msg = module.log(idx)
                 while (msg is not None):
@@ -529,24 +341,26 @@ class FinancialModel():
         self.stations = []
         self.status = status
         self.parms = parms
-
+        self.expert = False
         try:
-            self.helpfile = config.get('Files', 'help')
-            for key, value in parents:
-                self.helpfile = self.helpfile.replace(key, value)
-            self.helpfile = self.helpfile.replace('$USER$', getUser())
-            self.helpfile = self.helpfile.replace('$YEAR$', self.base_year)
+            expert = config.get('Base', 'expert_mode')
+            if expert.lower() in ['true', 'on', 'yes']:
+                self.expert = True
         except:
-            self.helpfile = ''
+            pass
+        if year is None:
+            try:
+                self.base_year = config.get('Base', 'year')
+            except:
+                self.base_year = '2012'
+        else:
+            self.base_year = year
         try:
             self.biomass_multiplier = float(config.get('Biomass', 'multiplier'))
         except:
             self.biomass_multiplier = 8.25
         try:
             variable_files = config.get('Files', 'variable_files')
-            for key, value in parents:
-                variable_files = variable_files.replace(key, value)
-            variable_files = variable_files.replace('$USER$', getUser())
             annual_file = config.get('SAM Modules', 'annualoutput_variables')
             annual_file = variable_files + '/' + annual_file
             ippppa_file = config.get('SAM Modules', 'ippppa_variables')
@@ -564,6 +378,7 @@ class FinancialModel():
             return
         what_beans = whatFinancials(parms=self.parms, helpfile=self.helpfile)
         what_beans.exec_()
+        ippas = what_beans.getValues()
         self.parms = what_beans.getParms()
         if ippas is None:
             self.stations = None
@@ -645,6 +460,9 @@ class FinancialModel():
                     idx += 1
                     msg = module.log(idx)
                 del module
+
+    def getValues(self):
+        return self.stations
 
     def getParms(self):
         return self.parms

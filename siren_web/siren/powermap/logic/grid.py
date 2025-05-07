@@ -28,8 +28,7 @@ import zipfile
 import configparser   # decode .ini file
 from xml.etree.ElementTree import ElementTree, fromstring
 
-from modules.getmodels import getModelFile
-from utilities.senutils import getParents, getUser
+from siren_web.siren.utilities.senutils import getParents, getUser
 
 RADIUS = 6367.   # radius of earth in km
 
@@ -190,6 +189,7 @@ class Grid:
         return new_lines
 
     def get_config(self):
+        from siren_web.siren.modules.getmodels import getModelFile
         config = configparser.RawConfigParser()
         if len(sys.argv) > 1:
             config_file = sys.argv[1]

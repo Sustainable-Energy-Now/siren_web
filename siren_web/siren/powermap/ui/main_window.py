@@ -24,13 +24,13 @@ import powermap.ui.newstation as newstation
 from powermap.ui.plotweather import PlotWeather
 from powermap.ui.powermodel import PowerModel
 from utilities.senutils import getParents, getUser, ssCol, techClean
-from powermatch.logic.station import Station, Stations
+from siren_web.siren.powermatch.logic.station import Station, Stations
 from siren.ui.editini import EdtDialog, EditFileSections, EditTech, EditSect, SaveIni
-from powermatch.logic.dijkstra_4 import Shortest
-from powermatch.ui.credits import Credits, fileVersion
-from powermap.ui.dataview import DataView
+from siren_web.siren.powermatch.logic.dijkstra_4 import Shortest
+from siren_web.siren.powermatch.ui.credits import Credits, fileVersion
+from siren_web.siren.powermap.ui.dataview import DataView
 from powermap.ui.viewresource import Resource
-from powermatch.ui.floaters import FloatLegend, FloatMenu, FloatStatus, ProgressBar
+from siren_web.siren.powermatch.ui.floaters import FloatLegend, FloatMenu, FloatStatus, ProgressBar
 from powermap.ui.sirenicons import Icons
 def p2str(p):
     return '(%.4f,%.4f)' % (p.y(), p.x())

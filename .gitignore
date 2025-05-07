@@ -155,4 +155,6 @@ data
 # Excel spreadsheets
 *.xlsx
 
-siren_web/static/siren_data/
+siren_web/static_collected/
+static_collected/
+siren_web/siren_files/

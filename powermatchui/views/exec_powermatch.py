@@ -1,14 +1,12 @@
 # run_powermatch.py
 from datetime import datetime
-from decimal import Decimal
 from django.contrib.auth.decorators import login_required
-from django.db.models import Max
 from django.http import JsonResponse
 from siren_web.database_operations import fetch_all_config_data, fetch_all_settings_data,  \
-    fetch_included_technologies_data, fetch_supplyfactors_data
+    fetch_included_technologies_data, fetch_supplyfactors_data, getConstraints
 from siren_web.models import Analysis, Generatorattributes, Scenarios, ScenariosSettings, ScenariosTechnologies, Storageattributes
-from siren_web.siren_old import pmcore as pm
-from siren_web.siren_old.pmcore import Facility, PM_Facility, powerMatch
+from siren_web.siren.powermatch.logic.processor import PowerMatchProcessor
+from siren_web.siren.powermatch.logic.logic import Facility, PM_Facility
 
 def insert_data(i, sp_data, scenario_obj, variation, Stage):
     for count, row in enumerate(sp_data):
@@ -101,7 +99,7 @@ def insert_data(i, sp_data, scenario_obj, variation, Stage):
                 units=Units,
             )
 
-def submit_powermatch(demand_year, scenario, 
+def submit_powermatch(request, demand_year, scenario, 
                       option, stages, variation_inst, save_data):
     config = fetch_all_config_data(request)
     settings = fetch_all_settings_data()
@@ -161,7 +159,7 @@ def submit_powermatch(demand_year, scenario,
             ).values_list('merit_order', flat=True)
         generators[name] = Facility(
             generator_name=name, category=technology_row.category, capacity=technology_row.capacity,
-            constr=technology_row.technology_name,
+            constraint=technology_row.technology_name,
             capacity_max=technology_row.capacity_max, capacity_min=technology_row.capacity_min,
             recharge_max=recharge_max, recharge_loss=recharge_loss,
             min_runtime=0, warm_time=0,
@@ -249,8 +247,15 @@ def submit_powermatch(demand_year, scenario,
                 capex=technology_row.capex + capex_step, fixed_om=technology_row.fom, variable_om=technology_row.vom,
                 fuel=fuel, lifetime=technology_row.lifetime + lifetime_step, area=area, disc_rate=technology_row.discount_rate,
                 lcoe=technology_row.lcoe, lcoe_cfs=technology_row.lcoe_cf )
+            
+        constraints = getConstraints()
 
-        sp_data, headers, sp_pts = powerMatch.doDispatch(settings, demand_year, option, pmss_details, pmss_data, generators, re_order, 
+        pm= PowerMatchProcessor(config, scenario, generators, constraints)
+        if option == 'D':
+            action = 'Detail'
+        else:
+            action = 'Summary'
+        sp_data, corr_data, headers, sp_pts = pm.doDispatch(demand_year, option, action, pmss_details, pmss_data, re_order, 
             dispatch_order, pm_data_file, data_file, title=None)
         # if option == 'O':
         #     message = ex.optClicked(load_year, option, pmss_details, 

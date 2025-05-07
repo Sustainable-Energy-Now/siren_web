@@ -8,7 +8,6 @@ from django.shortcuts import render
 from django.http import HttpResponse
 from siren_web.models import Scenarios, ScenariosSettings, Settings, Optimisations  # Import the Scenario model
 from ..forms import OptimisationForm
-from siren_web.siren_old.pmcore import Facility, PM_Facility, powerMatch
 
 def home(request):
     scenarios = Scenarios.objects.all()  # Retrieve all scenarios from the database

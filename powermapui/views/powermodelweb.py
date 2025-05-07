@@ -1,8 +1,8 @@
 #!/usr/bin/python3
 #
-#  Copyright (C) 2015-2024 Sustainable Energy Now Inc., Angus King
+#  Copyright (C) 2015-2023 Sustainable Energy Now Inc., Angus King
 #
-#  powermodel.py - This file is part of SIREN.
+#  wascene.py - This file is part of SIREN.
 #
 #  SIREN is free software: you can redistribute it and/or modify
 #  it under the terms of the GNU Affero General Public License as
@@ -18,19 +18,14 @@
 #  Public License along with SIREN.  If not, see
 #  <http://www.gnu.org/licenses/>.
 #
-
-from copy import copy
-from math import asin, ceil, cos, fabs, floor, log10, pow, radians, sin, sqrt
-import numpy as np
-import openpyxl as oxl
-from .superpower import SuperPower
-
-the_days = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+from siren_web.siren.powermap.logic.powermodelbase import PowerModelBase
+from siren_web.siren.powermatch.logic.superpowerbase import SuperPowerBase as SuperPower
 
 
-class PowerModel():
-#       __init__ for PowerModel
-    def __init__(self, stations, year=None, scenario_settings=None):
+class PowerModelWeb(PowerModelBase):
+
+    def __init__(self, config, stations, year=None, scenario_settings=None):
+        self.config = config
         self.stations = stations
         self.data_file = ''
         self.technologies = ''
@@ -57,11 +52,12 @@ class PowerModel():
                 self.recharge[1] = 1 - self.recharge[1]
         except:
             pass
-#
+        
+        #
 #       collect the data (once only)
 #
         self.stn_outs = []
-        self.model = SuperPower(stations, demand_year=self.base_year, scenario_settings=scenario_settings)
+        self.model = SuperPower(self.config, stations, demand_year=self.base_year, scenario_settings=scenario_settings)
         self.model.getPower()
         if len(self.model.power_summary) == 0:
             return
@@ -116,17 +112,4 @@ class PowerModel():
                 tot_fields = [['cf', tot_generation / tot_capacity / 8760],
                               ['lcoe_real', tot_lcoe_real[0]],
                               ['lcoe_nominal', tot_lcoe_nom[0]]]
-                dialog = displaytable.Table(self.financials.stations, fields=fin_fields,
-                         sumfields=fin_sumfields, units=fin_units, sumby='technology',
-                         save_folder=self.scenarios, title='Financials', totfields=tot_fields)
-                dialog.exec_()
-                del dialog
 
-    def getValues(self):
-        try:
-            return self.power_summary
-        except:
-            return None
-
-    def getPct(self):
-        return self.gen_pct
