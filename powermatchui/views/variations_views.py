@@ -1,5 +1,5 @@
 #  variations_views.py
-from siren_web.database_operations import fetch_included_technologies_data, check_analysis_baseline
+from siren_web.database_operations import fetch_included_technologies_data, check_analysis_baseline, get_technology_with_year_data
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import render
 from django.http import HttpResponse
@@ -96,7 +96,7 @@ def run_variations(request) -> HttpResponse:
             idtechnologies = cleaned_data['idtechnologies']
             dimension = cleaned_data['dimension']
             step = cleaned_data['step']
-            technology = Technologies.objects.get(idtechnologies=idtechnologies)  # Get the first technology
+            technology = get_technology_with_year_data(idtechnologies, demand_year)# Get the first technology
             variation_gen_name = f"{technology.technology_signature}{dimension[:3]}{str(step)}.{str(stages)}"
             variation_description = \
                 f"A variation for {technology.technology_name} with {dimension} changed by {str(step)} over {str(stages)} stages."

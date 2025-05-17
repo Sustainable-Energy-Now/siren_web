@@ -2,7 +2,7 @@
 import configparser
 from decimal import Decimal
 from django import forms
-from siren_web.models import Scenarios, Technologies, variations
+from siren_web.models import Scenarios, TechnologyYears, variations
 from django.template.loader import render_to_string
 from crispy_forms.helper import FormHelper
 from crispy_forms.layout import Layout, Div, Field, Fieldset, Submit, HTML, Button, Row, Column, ButtonHolder
@@ -12,7 +12,7 @@ import json
 import os
 
 class DemandYearScenario(forms.Form):
-    year_choices = [(year, year) for year in Technologies.objects.values_list('year', flat=True).distinct()]
+    year_choices = [(year, year) for year in TechnologyYears.objects.values_list('year', flat=True).distinct()]
     demand_year = forms.ChoiceField(
         choices=year_choices,
         label='Select a Demand Year',

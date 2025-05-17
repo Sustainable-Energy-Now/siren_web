@@ -2,7 +2,7 @@
 from configparser import ConfigParser
 from datetime import datetime, timedelta
 from decimal import Decimal
-from django.db import connection
+from django.db import connection, models
 from django.db.models import Prefetch
 from django.http import HttpResponse
 import logging
@@ -12,7 +12,7 @@ from django.db.models.functions import TruncDay
 import os
 from siren_web.models import Analysis, Demand, facilities, Generatorattributes, Optimisations, \
     Scenarios, ScenariosTechnologies, ScenariosSettings, Settings, Storageattributes, supplyfactors, \
-    Technologies, TradingPrice, variations, Zones
+    Technologies, TechnologyYears, TradingPrice, variations, Zones
 from siren_web.siren.powermatch.logic.logic import Constraint, Facility, PM_Facility, Optimisation
 from typing import Dict
 
@@ -105,6 +105,180 @@ def fetch_supplyfactors_data(demand_year):
     
     return pmss_data, pmss_details, max_col
 
+def get_technology_with_year_data(idtechnologies, demand_year):
+    """
+    Get a specific Technology row joined with its corresponding TechnologyYears data
+    for a specific year using Django ORM.
+    
+    Args:
+        idtechnologies (int): The primary key of the Technology
+        demand_year (int): The year to filter TechnologyYears data
+        
+    Returns:
+        dict: A merged dictionary containing Technology data with year-specific data
+    """
+    try:
+        # Get the base technology
+        technology = Technologies.objects.get(idtechnologies=idtechnologies)
+        
+        # Get the year-specific data
+        try:
+            tech_year = TechnologyYears.objects.get(
+                idtechnologies=technology,
+                year=demand_year
+            )
+        except TechnologyYears.DoesNotExist:
+            # Try to get data for year 0 as fallback
+            tech_year = TechnologyYears.objects.get(
+                idtechnologies=technology,
+                year=0
+            )
+        
+        # Check for storage attributes if applicable
+        storage_attrs = None
+        if technology.category == 'Storage':
+            try:
+                storage_attrs = Storageattributes.objects.get(idtechnologies=technology)
+            except Storageattributes.DoesNotExist:
+                pass
+        
+        # Check for generator attributes if applicable
+        generator_attrs = None
+        if technology.category == 'Generator':
+            try:
+                generator_attrs = Generatorattributes.objects.get(idtechnologies=technology)
+            except Generatorattributes.DoesNotExist:
+                pass
+        
+        # Get merit order from ScenariosTechnologies if available
+        merit_order = None
+        try:
+            scenario_tech = ScenariosTechnologies.objects.filter(
+                idtechnologies=technology
+            ).first()
+            if scenario_tech:
+                merit_order = scenario_tech.merit_order
+        except Exception:
+            pass
+        
+        # Create a dictionary of the technology data
+        tech_data = {
+            'idtechnologies': technology.idtechnologies,
+            'technology_name': technology.technology_name,
+            'technology_signature': technology.technology_signature,
+            'image': technology.image,
+            'caption': technology.caption,
+            'category': technology.category,
+            'renewable': technology.renewable,
+            'dispatchable': technology.dispatchable,
+            'description': technology.description,
+            'area': technology.area,
+            # Include year-specific data
+            'year': tech_year.year,
+            'capex': tech_year.capex,
+            'fom': tech_year.fom,
+            'vom': tech_year.vom,
+            'lifetime': tech_year.lifetime,
+            'discount_rate': tech_year.discount_rate,
+            'capacity': tech_year.capacity,
+            'capacity_factor': tech_year.capacity_factor,
+            'mult': tech_year.mult,
+            'approach': tech_year.approach,
+            'capacity_max': tech_year.capacity_max,
+            'capacity_min': tech_year.capacity_min,
+            'capacity_step': tech_year.capacity_step,
+            'capacities': tech_year.capacities,
+            'emissions': tech_year.emissions,
+            'initial': tech_year.initial,
+            'lcoe': tech_year.lcoe,
+            'lcoe_cf': tech_year.lcoe_cf,
+            'merit_order': merit_order
+        }
+        
+        # Add storage attributes if available
+        if storage_attrs:
+            tech_data.update({
+                'discharge_loss': storage_attrs.discharge_loss,
+                'discharge_max': storage_attrs.discharge_max,
+                'parasitic_loss': storage_attrs.parasitic_loss,
+                'rampdown_max': storage_attrs.rampdown_max,
+                'rampup_max': storage_attrs.rampup_max,
+                'recharge_loss': storage_attrs.recharge_loss,
+                'recharge_max': storage_attrs.recharge_max,
+                'min_runtime': storage_attrs.min_runtime,
+                'warm_time': storage_attrs.warm_time
+            })
+        
+        # Add generator attributes if available
+        if generator_attrs:
+            tech_data.update({
+                'fuel': generator_attrs.fuel
+            })
+        
+        return tech_data
+    
+    except Technologies.DoesNotExist:
+        return None
+    except TechnologyYears.DoesNotExist:
+        return None
+
+def get_all_technologies_for_year(demand_year):
+    """
+    Get all Technology rows joined with their corresponding TechnologyYears data
+    for a specific year.
+    
+    Args:
+        demand_year (int): The year to filter TechnologyYears data
+        
+    Returns:
+        list: A list of merged dictionaries containing Technology data with year-specific data
+    """
+    # Use a more efficient approach with select_related to minimize database hits
+    tech_years = TechnologyYears.objects.filter(
+        year=demand_year
+    ).select_related('idtechnologies')
+    
+    result = []
+    for tech_year in tech_years:
+        technology = tech_year.idtechnologies
+        
+        # Create a merged dictionary with data from both tables
+        tech_data = {
+            'idtechnologies': technology.idtechnologies,
+            'technology_name': technology.technology_name,
+            'technology_signature': technology.technology_signature,
+            'image': technology.image,
+            'caption': technology.caption,
+            'category': technology.category,
+            'renewable': technology.renewable,
+            'dispatchable': technology.dispatchable,
+            'description': technology.description,
+            'area': technology.area,
+            # Include year-specific data
+            'year': tech_year.year,
+            'capex': tech_year.capex,
+            'fom': tech_year.fom,
+            'vom': tech_year.vom,
+            'lifetime': tech_year.lifetime,
+            'discount_rate': tech_year.discount_rate,
+            'capacity': tech_year.capacity,
+            'capacity_factor': tech_year.capacity_factor,
+            'mult': tech_year.mult,
+            'approach': tech_year.approach,
+            'capacity_max': tech_year.capacity_max,
+            'capacity_min': tech_year.capacity_min,
+            'capacity_step': tech_year.capacity_step,
+            'capacities': tech_year.capacities,
+            'emissions': tech_year.emissions,
+            'initial': tech_year.initial,
+            'lcoe': tech_year.lcoe,
+            'lcoe_cf': tech_year.lcoe_cf,
+        }
+        
+        result.append(tech_data)
+        
+    return result
+
 def copy_technologies_from_year0(technology_name, demand_year, scenario):
     scenario_obj = Scenarios.objects.get(title=scenario)
     try:
@@ -183,37 +357,209 @@ def copy_technologies_from_year0(technology_name, demand_year, scenario):
                 )
     return technology_new
 
+# database_operations.py
+from django.db import models
+from .models import Technologies, TechnologyYears, Storageattributes, Generatorattributes, ScenariosTechnologies
+
 def fetch_full_generator_storage_data(demand_year):
-    # Define the SQL query
-    generators_query = \
-    f"""
-        WITH cte AS (
-        SELECT t.*,
-        s.discharge_loss,
-        s.discharge_max, s.parasitic_loss, s.rampdown_max,
-        s.rampup_max, s.recharge_loss, s.recharge_max,
-        s.min_runtime, s.warm_time,
-        g.fuel, st.merit_order,
-        ROW_NUMBER() OVER (PARTITION BY t.technology_name ORDER BY st.merit_order, t.year DESC) AS row_num
-        FROM senasnau_siren.Technologies t
-        INNER JOIN 
-		ScenariosTechnologies st ON t.idTechnologies = st.idtechnologies_id
-        LEFT JOIN senasnau_siren.StorageAttributes s ON t.idtechnologies = s.idtechnologies 
-            AND t.category = 'Storage' AND t.year = s.year
-        LEFT JOIN senasnau_siren.GeneratorAttributes g ON t.idtechnologies = g.idtechnologies 
-            AND t.category = 'Generator' AND t.year = g.year
-        WHERE t.year IN (0, %s) AND
-        t.category != 'Load'
-        )
-        SELECT *
-        FROM cte
-        WHERE row_num = 1;
     """
-    # Execute the SQL query
-    try:
-        return Technologies.objects.raw(generators_query, [demand_year])            
-    except Exception as e:
-        print("Error executing query:", e)
+    Fetch technologies with their associated year-specific data, generator attributes,
+    and storage attributes.
+    
+    Args:
+        demand_year (int): The year to filter TechnologyYears data
+        
+    Returns:
+        QuerySet: A queryset of Technologies objects with year data applied
+    """
+    # Get base technologies that aren't Load category
+    technologies = Technologies.objects.exclude(category='Load')
+    
+    # Create a list to hold enhanced technology objects
+    enhanced_technologies = []
+    
+    for tech in technologies:
+        # Get the year-specific data (first try demand_year, then fall back to year 0)
+        try:
+            # Try to get data for the specified demand year first
+            tech_year = TechnologyYears.objects.filter(
+                idtechnologies=tech,
+                year=demand_year
+            ).first()
+            
+            # If not found, try to get data for year 0
+            if not tech_year:
+                tech_year = TechnologyYears.objects.filter(
+                    idtechnologies=tech,
+                    year=0
+                ).first()
+                
+            # Skip if no year data available
+            if not tech_year:
+                continue
+                
+            # Apply year data to the Technology object
+            for field in tech_year._meta.fields:
+                # Skip the primary key and foreign key fields
+                if field.name in ['idtechnologyyears', 'idtechnologies']:
+                    continue
+                    
+                # Copy the value from TechnologyYears to the Technology object
+                setattr(tech, field.name, getattr(tech_year, field.name))
+                
+            # Get storage attributes if applicable
+            if tech.category == 'Storage':
+                storage_attrs = Storageattributes.objects.filter(
+                    idtechnologies=tech
+                ).first()
+                
+                if storage_attrs:
+                    for field in storage_attrs._meta.fields:
+                        # Skip the primary key and foreign key fields
+                        if field.name in ['idstorageattributes', 'idtechnologies']:
+                            continue
+                            
+                        # Copy the value from StorageAttributes to the Technology object
+                        setattr(tech, field.name, getattr(storage_attrs, field.name))
+                        
+            # Get generator attributes if applicable
+            if tech.category == 'Generator':
+                generator_attrs = Generatorattributes.objects.filter(
+                    idtechnologies=tech
+                ).first()
+                
+                if generator_attrs:
+                    for field in generator_attrs._meta.fields:
+                        # Skip the primary key and foreign key fields
+                        if field.name in ['idgeneratorattributes', 'idtechnologies']:
+                            continue
+                            
+                        # Copy the value from GeneratorAttributes to the Technology object
+                        setattr(tech, field.name, getattr(generator_attrs, field.name))
+                        
+            # Get merit order from ScenariosTechnologies if available
+            scenario_tech = ScenariosTechnologies.objects.filter(
+                idtechnologies=tech
+            ).first()
+            
+            if scenario_tech:
+                tech.merit_order = scenario_tech.merit_order
+                
+            # Add to the list of enhanced technologies
+            enhanced_technologies.append(tech)
+                
+        except Exception as e:
+            print(f"Error processing technology {tech.technology_name}: {e}")
+            continue
+    
+    return enhanced_technologies
+
+def get_all_technologies_for_year(demand_year):
+    """
+    Get all Technology rows joined with their corresponding TechnologyYears data
+    for a specific year using Django ORM.
+    
+    Args:
+        demand_year (int): The year to filter TechnologyYears data
+        
+    Returns:
+        list: A list of merged dictionaries containing Technology data with year-specific data
+    """
+    # Get all technologies except for 'Load' category
+    technologies = Technologies.objects.exclude(category='Load')
+    
+    result = []
+    for technology in technologies:
+        # Get the year-specific data (try demand_year first, then fall back to year 0)
+        try:
+            tech_year = TechnologyYears.objects.filter(
+                idtechnologies=technology,
+                year__in=[demand_year, 0]
+            ).order_by('-year').first()  # Get demand_year first, then fall back to 0
+            
+            if not tech_year:
+                continue  # Skip if no year data available
+                
+        except TechnologyYears.DoesNotExist:
+            continue  # Skip if no year data available
+        
+        # Check for storage attributes if applicable
+        storage_attrs = None
+        if technology.category == 'Storage':
+            storage_attrs = Storageattributes.objects.filter(
+                idtechnologies=technology
+            ).first()
+        
+        # Check for generator attributes if applicable
+        generator_attrs = None
+        if technology.category == 'Generator':
+            generator_attrs = Generatorattributes.objects.filter(
+                idtechnologies=technology
+            ).first()
+        
+        # Get merit order from ScenariosTechnologies if available
+        scenario_tech = ScenariosTechnologies.objects.filter(
+            idtechnologies=technology
+        ).first()
+        merit_order = scenario_tech.merit_order if scenario_tech else None
+        
+        # Create a merged dictionary with data from both tables
+        tech_data = {
+            'idtechnologies': technology.idtechnologies,
+            'technology_name': technology.technology_name,
+            'technology_signature': technology.technology_signature,
+            'image': technology.image,
+            'caption': technology.caption,
+            'category': technology.category,
+            'renewable': technology.renewable,
+            'dispatchable': technology.dispatchable,
+            'description': technology.description,
+            'area': technology.area,
+            # Include year-specific data
+            'year': tech_year.year,
+            'capex': tech_year.capex,
+            'fom': tech_year.fom,
+            'vom': tech_year.vom,
+            'lifetime': tech_year.lifetime,
+            'discount_rate': tech_year.discount_rate,
+            'capacity': tech_year.capacity,
+            'capacity_factor': tech_year.capacity_factor,
+            'mult': tech_year.mult,
+            'approach': tech_year.approach,
+            'capacity_max': tech_year.capacity_max,
+            'capacity_min': tech_year.capacity_min,
+            'capacity_step': tech_year.capacity_step,
+            'capacities': tech_year.capacities,
+            'emissions': tech_year.emissions,
+            'initial': tech_year.initial,
+            'lcoe': tech_year.lcoe,
+            'lcoe_cf': tech_year.lcoe_cf,
+            'merit_order': merit_order
+        }
+        
+        # Add storage attributes if available
+        if storage_attrs:
+            tech_data.update({
+                'discharge_loss': storage_attrs.discharge_loss,
+                'discharge_max': storage_attrs.discharge_max,
+                'parasitic_loss': storage_attrs.parasitic_loss,
+                'rampdown_max': storage_attrs.rampdown_max,
+                'rampup_max': storage_attrs.rampup_max,
+                'recharge_loss': storage_attrs.recharge_loss,
+                'recharge_max': storage_attrs.recharge_max,
+                'min_runtime': storage_attrs.min_runtime,
+                'warm_time': storage_attrs.warm_time
+            })
+        
+        # Add generator attributes if available
+        if generator_attrs:
+            tech_data.update({
+                'fuel': generator_attrs.fuel
+            })
+        
+        result.append(tech_data)
+        
+    return result
 
 def fetch_full_facilities_data(demand_year, scenario):
     idscenarios = Scenarios.objects.get(title=scenario).idscenarios

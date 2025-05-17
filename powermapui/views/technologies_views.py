@@ -17,16 +17,6 @@ def technologies(request):
     if not demand_year:
         demand_year = 2022
     technology_queryset = fetch_full_generator_storage_data(demand_year)
-    technology_queryset1 = Technologies.objects.filter(
-        year=demand_year,
-        ).prefetch_related(
-        Prefetch('generatorattributes_set', queryset=Generatorattributes.objects.filter(
-            idtechnologies__year=demand_year)
-        ),
-        Prefetch('storageattributes_set', queryset=Storageattributes.objects.filter(
-            idtechnologies__year=demand_year)
-        ),
-    )
     attribute_explain = {
         'area': 'The area occupied by a technology.',
         'capacity': 'The capacity of the technology in mW (generation) or MWhs (storage).',

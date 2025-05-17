@@ -6,8 +6,8 @@ from django.http import JsonResponse, HttpResponse
 from django.shortcuts import redirect, render
 from django.urls import reverse
 import json
-from siren_web.database_operations import copy_technologies_from_year0, fetch_merit_order_technologies
-from siren_web.models import Technologies, ScenariosTechnologies, Scenarios
+from siren_web.database_operations import copy_technologies_from_year0, fetch_technology_by_id, fetch_merit_order_technologies
+from siren_web.models import ScenariosTechnologies, Scenarios
 from urllib.parse import urlencode
 
 @login_required
@@ -45,14 +45,14 @@ def set_merit_order(request):
         # Update the merit_order attribute for technologies in the 'Merit Order' column
         for index, tech_id in enumerate(merit_order, start=1):
             if tech_id:
-                technology = Technologies.objects.get(idtechnologies=tech_id)
+                technology = fetch_technology_by_id(tech_id)
                 Tech_new = copy_technologies_from_year0(technology.technology_name, demand_year, scenario)
                 ScenariosTechnologies.objects.filter(idtechnologies=Tech_new, idscenarios=scenario_obj.pk).update(merit_order=index)
 
         # Update the merit_order attribute for technologies in the 'Excluded Resources' column
         for index, tech_id in enumerate(excluded_resources, start=800):
             if tech_id:
-                technology = Technologies.objects.get(idtechnologies=tech_id)
+                technology = fetch_technology_by_id(tech_id)
                 ScenariosTechnologies.objects.filter(idtechnologies=technology, idscenarios=scenario_obj.pk).update(merit_order=index)
 
         # Redirect back to the merit order view
