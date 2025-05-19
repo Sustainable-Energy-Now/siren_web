@@ -80,13 +80,14 @@ class facilities(models.Model):
 
     class Meta:
         db_table = 'facilities'
- 
+
 class Generatorattributes(models.Model):
     idgeneratorattributes = models.AutoField(db_column='idGeneratorAttributes', primary_key=True)  
-    idtechnologies = models.ForeignKey('Technologies', models.CASCADE, db_column='idTechnologies')  
-    fuel = models.FloatField(null=True)
-    generated = models.FloatField(null=True)
-    area = models.FloatField(null=True)
+    idtechnologies = models.ForeignKey('Technologies', models.CASCADE, db_column='idTechnologies')
+    capacity_max = models.FloatField(null=True)
+    capacity_min = models.FloatField(null=True)
+    rampdown_max = models.IntegerField(blank=True, null=True)
+    rampup_max = models.IntegerField(blank=True, null=True)
 
     class Meta:
         db_table = 'GeneratorAttributes'
@@ -171,12 +172,8 @@ class Storageattributes(models.Model):
     discharge_loss = models.IntegerField(blank=True, null=True)
     discharge_max = models.FloatField(null=True)
     parasitic_loss = models.IntegerField(blank=True, null=True)
-    rampdown_max = models.IntegerField(blank=True, null=True)
-    rampup_max = models.IntegerField(blank=True, null=True)
     recharge_loss = models.IntegerField(blank=True, null=True)
     recharge_max = models.FloatField(null=True)
-    min_runtime = models.FloatField(null=True)
-    warm_time = models.FloatField( null=True)
     class Meta:
         db_table = 'StorageAttributes'
                
@@ -207,6 +204,7 @@ class Technologies(models.Model):
     dispatchable = models.IntegerField(blank=True, null=True)
     lifetime = models.FloatField(null=True)
     discount_rate = models.FloatField(null=True)
+    emissions = models.FloatField(null=True)
     description = models.CharField(max_length=1000, db_collation='utf8mb4_0900_ai_ci', blank=True, null=True)
     area = models.FloatField(blank=True, null=True)
 
@@ -220,20 +218,7 @@ class TechnologyYears(models.Model):
     capex = models.FloatField(null=True)
     fom = models.FloatField(db_column='FOM', null=True)  
     vom = models.FloatField(db_column='VOM', null=True)  
-    lifetime = models.FloatField(null=True)
-    discount_rate = models.FloatField(null=True)
-    capacity = models.FloatField(null=True)
-    capacity_factor = models.FloatField(null=True)
-    mult = models.FloatField(null=True)
-    approach = models.CharField(max_length=45, blank=True, null=True)
-    capacity_max = models.FloatField(null=True)
-    capacity_min = models.FloatField(null=True)
-    capacity_step = models.FloatField(null=True)
-    capacities = models.CharField(max_length=50, blank=True, null=True)
-    emissions = models.FloatField(null=True)
-    initial = models.FloatField(null=True)
-    lcoe = models.FloatField(null=True)
-    lcoe_cf = models.FloatField(null=True)
+    fuel = models.FloatField(null=True)
 
     class Meta:
         db_table = 'TechnologyYears'
