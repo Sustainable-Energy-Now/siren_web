@@ -13,4 +13,6 @@ urlpatterns = [
     path('tableupdate/', table_update_views.select_table, name='table_update'),
     path('tableupdate/process/', table_update_views.update_table, name='table_update_process'),
     path('power/', power_views.generate_power, name='generate_power'),
+    path('powermap/add_facility/', powermapui_home_views.add_facility, name='add_facility'),
+    path('powermap/get_technologies/', powermapui_home_views.get_technologies, name='get_technologies'),
 ]

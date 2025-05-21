@@ -243,3 +243,14 @@ td {
     border-color: #00A9D8;
     color: #FFFFFF;
 }
+.btn-secondary {
+    background-color: #6c757d;
+    color: white;
+    padding: 8px 16px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+.btn-secondary:hover {
+    background-color: #5a6268;
+}

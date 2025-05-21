@@ -1,17 +1,14 @@
 # homes_views.py
 from decimal import Decimal
-from django.apps import apps
 from django.contrib.auth.decorators import login_required
 from django.db.models import Max
 from django.http import HttpResponse, JsonResponse
-from django.shortcuts import render, redirect
-from django.urls import path
+from django.shortcuts import render
+from django.views.decorators.csrf import csrf_exempt
 from powermatchui.forms import DemandYearScenario
-from powermatchui.views.exec_powermatch import submit_powermatch
 from siren_web.database_operations import fetch_module_settings_data, fetch_scenario_settings_data
-from siren_web.models import facilities
+from siren_web.models import facilities, Technologies, Zones
 import json
-import os
 
 @login_required
 def home(request):
@@ -49,3 +46,61 @@ def home(request):
         'facilities_json': facilities_json,
         }
     return render(request, 'powermapui_home.html', context)
+
+@login_required
+@csrf_exempt  # consider using proper CSRF protection
+def add_facility(request):
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            
+            # Extract data from the request
+            facility_name = data.get('facility_name')
+            technology_id = data.get('technology_id')
+            latitude = data.get('latitude')
+            longitude = data.get('longitude')
+            capacity = data.get('capacity')
+            
+            # Validate required fields
+            if not all([facility_name, technology_id, latitude, longitude]):
+                return JsonResponse({'status': 'error', 'message': 'Missing required fields'}, status=400)
+            
+            # Get the technology object
+            try:
+                technology = Technologies.objects.get(pk=technology_id)
+            except Technologies.DoesNotExist:
+                return JsonResponse({'status': 'error', 'message': 'Invalid technology ID'}, status=400)
+            
+            # Create a basic facility code based on name
+            facility_code = facility_name.replace(' ', '_').lower()[:30]
+            
+            # Create new facility
+            new_facility = facilities(
+                facility_name=facility_name,
+                facility_code=facility_code,
+                active=True,
+                idtechnologies=technology,
+                capacity=capacity or 0.0,
+                latitude=latitude,
+                longitude=longitude
+            )
+            new_facility.save()
+            
+            return JsonResponse({
+                'status': 'success',
+                'message': 'Facility added successfully',
+                'facility_id': new_facility.idfacilities,
+                'facility_name': new_facility.facility_name
+            })
+            
+        except Exception as e:
+            return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+    
+    # If not POST, return error
+    return JsonResponse({'status': 'error', 'message': 'Invalid request method'}, status=405)
+
+# Add this function to get available technologies for the dropdown
+@login_required
+def get_technologies(request):
+    techs = Technologies.objects.all().values('idtechnologies', 'technology_name')
+    return JsonResponse(list(techs), safe=False)

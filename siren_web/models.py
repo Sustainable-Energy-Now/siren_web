@@ -56,7 +56,7 @@ class Scenarios(models.Model):
 class facilities(models.Model):
     idfacilities = models.AutoField(db_column='idfacilities', primary_key=True)
     facility_name = models.CharField(db_column='facility_name', max_length=45, blank=True, null=True)
-    facility_code = models.CharField(db_column='facility_code', max_length=20, blank=True, null=True)
+    facility_code = models.CharField(db_column='facility_code', max_length=30, blank=True, null=True)
     participant_code = models.CharField(max_length=45, blank=True, null=True)
     registered_from = models.DateField(null=True)
     active = models.BooleanField(null=False)

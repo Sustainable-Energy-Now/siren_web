@@ -23,16 +23,30 @@ class Command(BaseCommand):
             
             # Mapping column indexes to technology objects
             tech_mapping = {
-                'Coal': Technologies.objects.get(idtechnologies=1),
-                'Batt8': Technologies.objects.get(idtechnologies=5),
+                'Black coal': Technologies.objects.get(idtechnologies=1),
+                'Battery (1hr)': Technologies.objects.get(idtechnologies=2),
+                'Battery (2hr)': Technologies.objects.get(idtechnologies=3),
+                'Battery (4hr)': Technologies.objects.get(idtechnologies=4),
+                'Battery (8hr)': Technologies.objects.get(idtechnologies=5),
                 'Biomass': Technologies.objects.get(idtechnologies=6),
-                'OCGT': Technologies.objects.get(idtechnologies=7),
+                'Gas OCGT': Technologies.objects.get(idtechnologies=7),
+                'PHES (24hr)': Technologies.objects.get(idtechnologies=8),
+                'PHES (48hr)': Technologies.objects.get(idtechnologies=9),
                 'Distillate': Technologies.objects.get(idtechnologies=10),
                 'Fixed PV': Technologies.objects.get(idtechnologies=11),
+                'Hydrogen': Technologies.objects.get(idtechnologies=12),
+                'Rooftop PV': Technologies.objects.get(idtechnologies=13),
                 'Single Axis PV': Technologies.objects.get(idtechnologies=14),
-                'CCGT': Technologies.objects.get(idtechnologies=19),
-                'Reciprocating Gas': Technologies.objects.get(idtechnologies=20),
-                'Onshore Wind': Technologies.objects.get(idtechnologies=37), 
+                'Offshore Wind': Technologies.objects.get(idtechnologies=15),
+                'Onshore Wind': Technologies.objects.get(idtechnologies=16),
+                'Concentrated Solar Thermal': Technologies.objects.get(idtechnologies=18),
+                'Gas CCGT': Technologies.objects.get(idtechnologies=19),
+                'Gas Recip': Technologies.objects.get(idtechnologies=20),
+                'Battery (12hr)': Technologies.objects.get(idtechnologies=143),
+                'Battery (24hr)': Technologies.objects.get(idtechnologies=144),
+                'Nuclear (SMR)': Technologies.objects.get(idtechnologies=145),
+                'Nuclear large-scale': Technologies.objects.get(idtechnologies=146),
+                'Offshore Wind Floating': Technologies.objects.get(idtechnologies=147), 
             }
             zone_instance = Zones.objects.get(idzones=0)
             for row in csv_reader:
@@ -42,15 +56,15 @@ class Command(BaseCommand):
                     if (bit[-1] == 'WF1' or bit[-1] == 'WWF'):
                         tech = 'Onshore Wind'
                     elif (bit[-1] == 'G1' or bit[-1] == 'G2'):
-                        tech = 'Coal'
+                        tech = 'Black coal'
                     elif bit[-1] == 'CCG1P':
-                        tech = 'CCGT'
+                        tech = 'Gas CCGT'
                     elif bit[-1] == 'PV1':
                         tech = 'Fixed PV'
                     elif bit[-1] == 'PLANT':
                         tech = 'Biomass'
                     else:
-                        tech = 'OCGT'
+                        tech = 'Gas OCGT'
                     # Try to get existing facility or create new one
                     facility, created = facilities.objects.update_or_create(
                         facility_code= row['Facility Code'].strip(),
@@ -58,14 +72,11 @@ class Command(BaseCommand):
                         registered_from= row['Registered From'][0:10],
                         idtechnologies=tech_mapping[tech],
                         defaults={
-                            'facility_name': '',
                             'active': True,
                             'idzones': zone_instance,
                             'capacityfactor': 1,
                             'generation': 0,
                             'transmitted': 0,
-                            'latitude': float(0),
-                            'longitude': float(0)
                         }
                     )
                     if created:

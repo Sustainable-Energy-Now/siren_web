@@ -8,6 +8,9 @@
     To use Powermap, begin by selecting a Demand Year and Scenario. A Scenario is a collection of Facilities of different technologies. Output from Powermap
     is used as input to the Powermatch module.
 </p>
+
+<!-- Add a button to toggle "Add Facility" mode -->
+<div class="map-controls" style="margin-bottom: 10px;">
     <form method="post">
         {% csrf_token %}
         {{ demand_year_scenario.demand_year }}
@@ -15,10 +18,64 @@
         {{ demand_year_scenario.scenario }}
         <button name="apply_settings" type="submit" class="btn-custom-swish2">Apply Settings</button>
     </form>
-    <br>
-    {% if not scenario %}
-        <p>Demand Year and Scenario must be specified.</p>
-    {% endif %}
+    <button id="toggleAddFacilityMode" class="btn-custom-swish2" style="margin-top: 10px;">Add New Facility</button>
+</div>
+
+<br>
+{% if not scenario %}
+    <p>Demand Year and Scenario must be specified.</p>
+{% endif %}
+
+<!-- Add Facility Form (initially hidden) -->
+<div id="addFacilityForm" style="display: none; margin-bottom: 20px; padding: 15px; background-color: #f5f5f5; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
+    <h4>Add New Facility</h4>
+    <div style="margin-bottom: 10px;">
+        <label for="facility_name">Facility Name:</label>
+        <input type="text" id="facility_name" class="form-control" required>
+    </div>
+    <div style="margin-bottom: 10px;">
+        <label for="technology_id">Technology:</label>
+        <select id="technology_id" class="form-control" required>
+            <option value="">Select Technology</option>
+            <!-- Options will be loaded dynamically -->
+        </select>
+    </div>
+    <div style="margin-bottom: 10px;">
+        <label for="capacity">Capacity (MW):</label>
+        <input type="number" id="capacity" class="form-control" step="0.01" min="0">
+    </div>
+    <!-- Wind turbine specific fields (initially hidden) -->
+    <div id="windTurbineFields" style="display: none; padding: 10px; background-color: #e9f7ef; border-radius: 5px; margin-bottom: 15px;">
+        <h5>Wind Turbine Details</h5>
+        <div style="margin-bottom: 10px;">
+            <label for="turbine">Turbine Model:</label>
+            <input type="text" id="turbine" class="form-control" placeholder="e.g., Vestas V150-4.2">
+        </div>
+        <div style="margin-bottom: 10px;">
+            <label for="hub_height">Hub Height (m):</label>
+            <input type="number" id="hub_height" class="form-control" step="0.1" min="0">
+        </div>
+        <div style="margin-bottom: 10px;">
+            <label for="no_turbines">Number of Turbines:</label>
+            <input type="number" id="no_turbines" class="form-control" step="1" min="1">
+        </div>
+        <div style="margin-bottom: 10px;">
+            <label for="tilt">Tilt (degrees):</label>
+            <input type="number" id="tilt" class="form-control" step="1" min="0" max="90">
+        </div>
+    </div>
+    <div style="margin-bottom: 10px;">
+        <label>Location: (Click on map)</label>
+        <div>
+            <span id="selected_lat">Latitude:</span><br>
+            <span id="selected_lng">Longitude:</span>
+        </div>
+    </div>
+    <div style="display: flex; justify-content: space-between; margin-top: 15px;">
+        <button id="cancelAddFacility" class="btn btn-secondary">Cancel</button>
+        <button id="submitAddFacility" class="btn-custom-swish2">Save Facility</button>
+    </div>
+</div>
 
 <!-- Leaflet.js Map -->
 <div id="map" style="height: 600px; width: 100%;"></div>
@@ -40,58 +97,57 @@ crossorigin=""></script>
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: 'Map data © <a href="https://openstreetmap.org">OpenStreetMap</a> contributors'
     }).addTo(map);
+    
     // Facility data passed from Django view
     var facilities = {{ facilities_json|safe }};
+    
     // Define custom icons for each technology type
     var bessIcon = L.icon({
-        iconUrl: "{% static 'icons/bess.png' %}",  // Path to your bess icon image
+        iconUrl: "{% static 'icons/bess.png' %}",  // Path to CCGT icon image
         iconSize: [32, 32],
     });
-
     var biomassIcon = L.icon({
-        iconUrl: "{% static 'icons/biomass.png' %}",  // Path to your biomass icon image
+        iconUrl: "{% static 'icons/biomass.png' %}",  // Path to biomass icon image
         iconSize: [32, 32],
     });
     var CCGTIcon = L.icon({
-        iconUrl: "{% static 'icons/CCGT.png' %}",  // Path to your CCGT icon image
+        iconUrl: "{% static 'icons/CCGT.png' %}",  // Path to CCGT icon image
         iconSize: [32, 32],
     });
     var CSTIcon = L.icon({
-        iconUrl: "{% static 'icons/CST.png' %}",  // Path to your CST icon image
+        iconUrl: "{% static 'icons/CST.png' %}",  // Path to CST icon image
         iconSize: [32, 32],
     });
-
     var coalIcon = L.icon({
-        iconUrl: "{% static 'icons/coal.png' %}",  // Path to your coal icon image
+        iconUrl: "{% static 'icons/coal.png' %}",  // Path to coal icon image
         iconSize: [32, 32],
     });
-
     var geothermalIcon = L.icon({
-        iconUrl: "{% static 'icons/geothermal.png' %}",  // Path to your geothermal icon image
+        iconUrl: "{% static 'icons/geothermal.png' %}",  // Path to geothermal icon image
         iconSize: [32, 32],
     });
 
     var nuclearIcon = L.icon({
-        iconUrl: "{% static 'icons/nuclear.png' %}",  // Path to your nuclear icon image
+        iconUrl: "{% static 'icons/nuclear.png' %}",  // Path to nuclear icon image
         iconSize: [32, 32],
     });
     
     var PHESIcon = L.icon({
-        iconUrl: "{% static 'icons/PHES.png' %}",  // Path to your PHES icon image
+        iconUrl: "{% static 'icons/PHES.png' %}",  // Path to PHES icon image
         iconSize: [32, 32],
     });
     
     var recipIcon = L.icon({
-        iconUrl: "{% static 'icons/recip.png' %}",  // Path to your recip icon image
+        iconUrl: "{% static 'icons/recip.png' %}",  // Path to recip icon image
         iconSize: [32, 32],
     });
     var solarIcon = L.icon({
-        iconUrl: "{% static 'icons/solar.png' %}",  // Path to your solar icon image
+        iconUrl: "{% static 'icons/solar.png' %}",  // Path to solar icon image
         iconSize: [32, 32],  // size of the icon
     });
 
     var windIcon = L.icon({
-        iconUrl: "{% static 'icons/wind.png' %}",  // Path to your wind icon image
+        iconUrl: "{% static 'icons/wind.png' %}",  // Path to wind icon image
         iconSize: [32, 32],
     });
 
@@ -99,34 +155,52 @@ crossorigin=""></script>
         iconUrl: "{% static 'icons/power_technology.png' %}",  // Fallback/default icon image
         iconSize: [32, 32],
     });
+    
     // Create a layer group for the facilities
     var facilityLayer = L.layerGroup();
     var gridLayer = L.layerGroup();
+    
     // Function to get the correct icon based on technology type
     function getIconForTechnology(technologyId) {
+        debugger
         switch (technologyId) {
             case 1:  //  coal
                 return coalIcon;
-            case 2, 3, 4, 5, 29, 30, 31, 32, 40, 41, 42, 43:  //  bess
+            case 2:
+            case 3:
+            case 4:
+            case 5:
+            case 143:
+            case 144:  //  bess
                 return bessIcon;
             case 6:  //  biomass
                 return biomassIcon;
-            case 7:  //  CGT
+            case 7:
+            case 19:  //  OCGT
                 return CCGTIcon;
-            case 8, 9:  //  PHES
+            case 8:
+            case 9:  //  PHES
                 return PHESIcon;
-            case 11, 13, 14, 107, 108, 110:  // solar
+            case 11:
+            case 13:
+            case 14:  // solar
                 return solarIcon;
-            case 15, 16:  // wind
+            case 15: // wind
+            case 16:
+            case 147:
                 return windIcon;
-            case 19:  // Concentrated Solar Thermal
+            case 18:  // Concentrated Solar Thermal
                 return CSTIcon;
             case 20:  // Reciprocating Gas
-                return reciprocatinggasIcon;
+                return RECIPIcon;
+            case 145:
+            case 146:  // Nuclear
+                return nuclearIcon;
             default:
                 return defaultIcon;
         }
     }
+    
     // Loop through facilities and add markers to the map
     facilities.forEach(function(facility) {
         var icon = getIconForTechnology(facility.idtechnologies);
@@ -134,8 +208,9 @@ crossorigin=""></script>
             .bindPopup(facility.facility_name);
         facilityLayer.addLayer(marker);
     });
+    
     // Add the facility layer to the map
-    facilityLayer.addTo(map)
+    facilityLayer.addTo(map);
 
     // Create a layer group for all KML layers
     //var gridLayer = L.layerGroup().addTo(map);
@@ -183,17 +258,229 @@ crossorigin=""></script>
     map.addLayer(zoneLayer);
 
      // Add a layer control to toggle the facility layer on and off
-    var baseLayers = {};  // You can add any base layers here if needed
+    var baseLayers = {};
     var overlays = {
         "SWIS Boundary":boundaryLayer,
         "Zones":zoneLayer,
         "Power Generating Facilities": facilityLayer,
         "Grid": gridLayer,
-
     };
 
     // Add layer control to the map
     L.control.layers(baseLayers, overlays).addTo(map);
+
+    // Variables for Add Facility functionality
+    var addFacilityMode = false;
+    var selectedLocation = null;
+    var locationMarker = null;
+
+    // Load technology options when the page loads
+    function loadTechnologies() {
+        fetch('/powermap/get_technologies/')
+            .then(response => response.json())
+            .then(data => {
+                const select = document.getElementById('technology_id');
+                
+                // Clear existing options
+                while (select.options.length > 1) {
+                    select.remove(1);
+                }
+                
+                // Add new options
+                data.forEach(tech => {
+                    const option = document.createElement('option');
+                    option.value = tech.idtechnologies;
+                    option.textContent = tech.technology_name;
+                    select.appendChild(option);
+                });
+            })
+            .catch(error => console.error('Error loading technologies:', error));
+    }
+    
+    // Load technologies when page loads
+    document.addEventListener('DOMContentLoaded', loadTechnologies);
+
+    // Toggle Add Facility mode
+    document.getElementById('toggleAddFacilityMode').addEventListener('click', function() {
+        addFacilityMode = !addFacilityMode;
+        
+        if (addFacilityMode) {
+            // Enable facility addition mode
+            this.textContent = 'Cancel Add Facility';
+            this.classList.add('active');
+            document.getElementById('addFacilityForm').style.display = 'block';
+            map.getContainer().style.cursor = 'crosshair';
+            
+            // Show instruction
+            alert('Click OK to enter the new facility details in the form provided.');
+        } else {
+            // Disable facility addition mode
+            this.textContent = 'Add New Facility';
+            this.classList.remove('active');
+            document.getElementById('addFacilityForm').style.display = 'none';
+            map.getContainer().style.cursor = '';
+            
+            // Remove temporary marker if exists
+            if (locationMarker) {
+                map.removeLayer(locationMarker);
+                locationMarker = null;
+            }
+            
+            // Reset form
+            document.getElementById('facility_name').value = '';
+            document.getElementById('technology_id').value = '';
+            document.getElementById('capacity').value = '';
+            document.getElementById('selected_lat').textContent = 'Latitude: (Click on map)';
+            document.getElementById('selected_lng').textContent = 'Longitude: (Click on map)';
+            selectedLocation = null;
+        }
+    });
+
+    // Handle map clicks when in Add Facility mode
+    map.on('click', function(e) {
+        if (addFacilityMode) {
+            selectedLocation = e.latlng;
+            
+            // Update form with selected coordinates
+            document.getElementById('selected_lat').textContent = 'Latitude: ' + selectedLocation.lat.toFixed(6);
+            document.getElementById('selected_lng').textContent = 'Longitude: ' + selectedLocation.lng.toFixed(6);
+            
+            // Remove previous marker if exists
+            if (locationMarker) {
+                map.removeLayer(locationMarker);
+            }
+            
+            // Add marker at clicked location
+            locationMarker = L.marker(selectedLocation).addTo(map);
+            locationMarker.bindPopup('New Facility Location').openPopup();
+        }
+    });
+
+    // Cancel button handler
+    document.getElementById('cancelAddFacility').addEventListener('click', function() {
+        // Reset the add facility mode
+        document.getElementById('toggleAddFacilityMode').click();
+    });
+
+    // Submit button handler
+    document.getElementById('submitAddFacility').addEventListener('click', function() {
+        // Validate form
+        const facilityName = document.getElementById('facility_name').value.trim();
+        const technologyId = document.getElementById('technology_id').value;
+        const capacity = document.getElementById('capacity').value;
+        
+        if (!facilityName) {
+            alert('Please enter a facility name.');
+            return;
+        }
+        
+        if (!technologyId) {
+            alert('Please select a technology.');
+            return;
+        }
+        
+        if (!selectedLocation) {
+            alert('Please click on the map to select a location.');
+            return;
+        }
+        
+        // Prepare data for submission
+        const data = {
+            facility_name: facilityName,
+            technology_id: technologyId,
+            capacity: capacity || 0,
+            latitude: selectedLocation.lat,
+            longitude: selectedLocation.lng
+        };
+        // Add wind turbine specific data if applicable
+        if (windTechnologyIds.includes(technologyId)) {
+            data.turbine = document.getElementById('turbine').value.trim();
+            data.hub_height = document.getElementById('hub_height').value || null;
+            data.no_turbines = document.getElementById('no_turbines').value || null;
+            data.tilt = document.getElementById('tilt').value || null;
+            
+            // Validate wind turbine fields if needed
+            if (!data.turbine) {
+                alert('Please enter a turbine model.');
+                return;
+            }
+            
+            if (!data.hub_height) {
+                alert('Please enter hub height.');
+                return;
+            }
+            
+            if (!data.no_turbines) {
+                alert('Please enter number of turbines.');
+                return;
+            }
+        }
+        // Submit data to server
+        fetch('/powermap/add_facility/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken')
+            },
+            body: JSON.stringify(data)
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                // Show success message
+                alert('Facility added successfully!');
+                
+                // Add the new facility to the map
+                const newIcon = getIconForTechnology(parseInt(technologyId));
+                const newMarker = L.marker([selectedLocation.lat, selectedLocation.lng], { icon: newIcon })
+                    .bindPopup(facilityName);
+                facilityLayer.addLayer(newMarker);
+                
+                // Reset the add facility mode
+                document.getElementById('toggleAddFacilityMode').click();
+            } else {
+                alert('Error: ' + data.message);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Failed to add facility. Please try again.');
+        });
+    });
+
+    // Array of wind turbine technology IDs
+    const windTechnologyIds = [15, 16, 147];
+    // Show/hide wind turbine fields based on technology selection
+    document.getElementById('technology_id').addEventListener('change', function() {
+        const selectedTechId = parseInt(this.value);
+        const windTurbineFields = document.getElementById('windTurbineFields');
+        
+        if (windTechnologyIds.includes(selectedTechId)) {
+            windTurbineFields.style.display = 'block';
+        } else {
+            windTurbineFields.style.display = 'none';
+            // Clear wind turbine fields when not applicable
+            document.getElementById('turbine').value = '';
+            document.getElementById('hub_height').value = '';
+            document.getElementById('no_turbines').value = '';
+            document.getElementById('tilt').value = '';
+        }
+    });
+    // Helper function to get CSRF token from cookies
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
 </script>
 
 {% endblock %}
