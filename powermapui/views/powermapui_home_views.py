@@ -48,7 +48,7 @@ def home(request):
     return render(request, 'powermapui_home.html', context)
 
 @login_required
-@csrf_exempt  # consider using proper CSRF protection
+@csrf_exempt
 def add_facility(request):
     if request.method == 'POST':
         try:
@@ -61,6 +61,12 @@ def add_facility(request):
             longitude = data.get('longitude')
             capacity = data.get('capacity')
             
+            # Wind turbine specific fields
+            turbine = data.get('turbine')
+            hub_height = data.get('hub_height')
+            no_turbines = data.get('no_turbines')
+            tilt = data.get('tilt')
+            
             # Validate required fields
             if not all([facility_name, technology_id, latitude, longitude]):
                 return JsonResponse({'status': 'error', 'message': 'Missing required fields'}, status=400)
@@ -71,8 +77,19 @@ def add_facility(request):
             except Technologies.DoesNotExist:
                 return JsonResponse({'status': 'error', 'message': 'Invalid technology ID'}, status=400)
             
-            # Create a basic facility code based on name
-            facility_code = facility_name.replace(' ', '_').lower()[:30]
+            # Create a basic facility code based on name and technology
+            tech_prefix = technology.technology_name[:3].upper() if technology.technology_name else "FAC"
+            facility_code = f"{tech_prefix}_{facility_name.replace(' ', '_').lower()}"[:30]
+            
+            # Validate wind turbine specific fields if applicable
+            wind_tech_ids = [15, 16, 17]  # Onshore, Offshore, Floating wind IDs
+            if technology_id in wind_tech_ids:
+                if not turbine:
+                    return JsonResponse({'status': 'error', 'message': 'Turbine model is required for wind facilities'}, status=400)
+                if not hub_height:
+                    return JsonResponse({'status': 'error', 'message': 'Hub height is required for wind facilities'}, status=400)
+                if not no_turbines or int(no_turbines) < 1:
+                    return JsonResponse({'status': 'error', 'message': 'Number of turbines must be at least 1'}, status=400)
             
             # Create new facility
             new_facility = facilities(
@@ -84,13 +101,25 @@ def add_facility(request):
                 latitude=latitude,
                 longitude=longitude
             )
+            
+            # Add wind turbine specific fields if applicable
+            if technology_id in wind_tech_ids:
+                new_facility.turbine = turbine
+                new_facility.hub_height = hub_height
+                new_facility.no_turbines = no_turbines
+                new_facility.tilt = tilt
+            
             new_facility.save()
+            
+            # Get the technology name for the response
+            tech_name = technology.technology_name
             
             return JsonResponse({
                 'status': 'success',
-                'message': 'Facility added successfully',
+                'message': f'{tech_name} facility added successfully',
                 'facility_id': new_facility.idfacilities,
-                'facility_name': new_facility.facility_name
+                'facility_name': new_facility.facility_name,
+                'technology': tech_name
             })
             
         except Exception as e:

@@ -27,53 +27,69 @@
 {% endif %}
 
 <!-- Add Facility Form (initially hidden) -->
-<div id="addFacilityForm" style="display: none; margin-bottom: 20px; padding: 15px; background-color: #f5f5f5; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
-    <h4>Add New Facility</h4>
-    <div style="margin-bottom: 10px;">
-        <label for="facility_name">Facility Name:</label>
-        <input type="text" id="facility_name" class="form-control" required>
-    </div>
-    <div style="margin-bottom: 10px;">
-        <label for="technology_id">Technology:</label>
-        <select id="technology_id" class="form-control" required>
-            <option value="">Select Technology</option>
-            <!-- Options will be loaded dynamically -->
-        </select>
-    </div>
-    <div style="margin-bottom: 10px;">
-        <label for="capacity">Capacity (MW):</label>
-        <input type="number" id="capacity" class="form-control" step="0.01" min="0">
-    </div>
-    <!-- Wind turbine specific fields (initially hidden) -->
-    <div id="windTurbineFields" style="display: none; padding: 10px; background-color: #e9f7ef; border-radius: 5px; margin-bottom: 15px;">
-        <h5>Wind Turbine Details</h5>
-        <div style="margin-bottom: 10px;">
-            <label for="turbine">Turbine Model:</label>
-            <input type="text" id="turbine" class="form-control" placeholder="e.g., Vestas V150-4.2">
+<div id="addFacilityForm" style="display: none; margin-bottom: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
+    <h4 style="padding: 15px; background-color: #f8f9fa; margin: 0; border-top-left-radius: 8px; border-top-right-radius: 8px; border-bottom: 1px solid #dee2e6;">Add New Facility</h4>
+    
+    <div style="padding: 15px; background-color: white;">
+        <div style="margin-bottom: 15px;">
+            <label for="facility_name">Facility Name:</label>
+            <input type="text" id="facility_name" class="form-control" required>
         </div>
-        <div style="margin-bottom: 10px;">
-            <label for="hub_height">Hub Height (m):</label>
-            <input type="number" id="hub_height" class="form-control" step="0.1" min="0">
+        
+        <div style="margin-bottom: 15px;">
+            <label for="technology_id">Technology:</label>
+            <select id="technology_id" class="form-control" required>
+                <option value="">Select Technology</option>
+                <!-- Options will be loaded dynamically -->
+            </select>
+            <div class="technology-info" id="technology-description"></div>
         </div>
-        <div style="margin-bottom: 10px;">
-            <label for="no_turbines">Number of Turbines:</label>
-            <input type="number" id="no_turbines" class="form-control" step="1" min="1">
+        
+        <div style="margin-bottom: 15px;">
+            <label for="capacity">Capacity (MW):</label>
+            <input type="number" id="capacity" class="form-control" step="0.01" min="0">
+            <div class="technology-info">Total facility capacity in megawatts</div>
         </div>
-        <div style="margin-bottom: 10px;">
-            <label for="tilt">Tilt (degrees):</label>
-            <input type="number" id="tilt" class="form-control" step="1" min="0" max="90">
+        
+        <!-- Wind turbine specific fields (initially hidden) -->
+        <div id="windTurbineFields" style="display: none;">
+            <h5>Wind Turbine Details</h5>
+            <div style="margin-bottom: 10px;">
+                <label for="turbine">Turbine Model:</label>
+                <select id="turbine" class="form-control">
+                    <option value="">Select Turbine Model</option>
+                    <!-- Options will be populated dynamically -->
+                </select>
+            </div>
+            <div style="margin-bottom: 10px;">
+                <label for="hub_height">Hub Height (m):</label>
+                <input type="number" id="hub_height" class="form-control" step="0.1" min="0">
+                <div class="technology-info">Height from ground to hub in meters</div>
+            </div>
+            <div style="margin-bottom: 10px;">
+                <label for="no_turbines">Number of Turbines:</label>
+                <input type="number" id="no_turbines" class="form-control" step="1" min="1" value="1">
+            </div>
+            <div style="margin-bottom: 10px;">
+                <label for="tilt">Tilt (degrees):</label>
+                <input type="number" id="tilt" class="form-control" step="1" min="0" max="90" value="5">
+                <div class="technology-info">Tilt angle of the rotors (typically 5° for onshore, 0° for offshore)</div>
+            </div>
         </div>
-    </div>
-    <div style="margin-bottom: 10px;">
-        <label>Location: (Click on map)</label>
-        <div>
-            <span id="selected_lat">Latitude:</span><br>
-            <span id="selected_lng">Longitude:</span>
+        
+        <div style="margin-bottom: 15px;">
+            <label>Location:</label>
+            <div id="location-display" style="padding: 10px; background-color: #f8f9fa; border-radius: 4px;">
+                <span id="selected_lat">Latitude: (Click on map)</span><br>
+                <span id="selected_lng">Longitude: (Click on map)</span>
+            </div>
+            <div class="technology-info">Click on the map to select facility location</div>
         </div>
-    </div>
-    <div style="display: flex; justify-content: space-between; margin-top: 15px;">
-        <button id="cancelAddFacility" class="btn btn-secondary">Cancel</button>
-        <button id="submitAddFacility" class="btn-custom-swish2">Save Facility</button>
+        
+        <div style="display: flex; justify-content: space-between; margin-top: 20px;">
+            <button id="cancelAddFacility" class="btn btn-secondary">Cancel</button>
+            <button id="submitAddFacility" class="btn-custom-swish2">Save Facility</button>
+        </div>
     </div>
 </div>
 
@@ -162,9 +178,8 @@ crossorigin=""></script>
     
     // Function to get the correct icon based on technology type
     function getIconForTechnology(technologyId) {
-        debugger
         switch (technologyId) {
-            case 1:  //  coal
+            case 1:  //  Black coal
                 return coalIcon;
             case 2:
             case 3:
@@ -394,14 +409,15 @@ crossorigin=""></script>
         };
         // Add wind turbine specific data if applicable
         if (windTechnologyIds.includes(technologyId)) {
-            data.turbine = document.getElementById('turbine').value.trim();
+            const turbineSelect = document.getElementById('turbine');
+            data.turbine = turbineSelect.value;
             data.hub_height = document.getElementById('hub_height').value || null;
             data.no_turbines = document.getElementById('no_turbines').value || null;
             data.tilt = document.getElementById('tilt').value || null;
             
-            // Validate wind turbine fields if needed
+            // Validate wind turbine fields
             if (!data.turbine) {
-                alert('Please enter a turbine model.');
+                alert('Please select a turbine model.');
                 return;
             }
             
@@ -410,8 +426,8 @@ crossorigin=""></script>
                 return;
             }
             
-            if (!data.no_turbines) {
-                alert('Please enter number of turbines.');
+            if (!data.no_turbines || parseInt(data.no_turbines) < 1) {
+                alert('Please enter a valid number of turbines (at least 1).');
                 return;
             }
         }
@@ -449,23 +465,195 @@ crossorigin=""></script>
     });
 
     // Array of wind turbine technology IDs
-    const windTechnologyIds = [15, 16, 147];
-    // Show/hide wind turbine fields based on technology selection
+    const ONSHORE_WIND = 15;
+    const OFFSHORE_WIND = 16;
+    const FLOATING_WIND = 147;
+    const windTechnologyIds = [ONSHORE_WIND, OFFSHORE_WIND, FLOATING_WIND];
+    // Turbine data with capacity information
+    const turbineData = {
+        // Onshore wind turbines (technology ID 15)
+        "Enercon E66_1870kw(MG)": { capacity: 1.87, technology: ONSHORE_WIND },
+        "Siemens SWT-3.6MW-130m": { capacity: 3.6, technology: ONSHORE_WIND },
+        "Vestas_V82_1.65mw(MG);Vestas V82-1.65": { capacity: 1.65, technology: ONSHORE_WIND },
+        "Vestas V136-3.6Mw": { capacity: 3.6, technology: ONSHORE_WIND },
+        "Vestas V150-4.2Mw": { capacity: 4.2, technology: ONSHORE_WIND },
+        "Vestas V-90 GridStreamer 2mW (MG)Vestas V90-2.0": { capacity: 2.0, technology: ONSHORE_WIND },
+        "Enercon E48_800kw": { capacity: 0.8, technology: ONSHORE_WIND },
+        "General Electric2.5xl_100m_2500kw(MG)": { capacity: 2.5, technology: ONSHORE_WIND },
+        "Enercon E70_2300kw": { capacity: 2.3, technology: ONSHORE_WIND },
+        
+        // Offshore wind turbines (technology ID 16)
+        "Siemens Gamesa SG 11.0-200 DD": { capacity: 11.0, technology: OFFSHORE_WIND },
+        "Siemens Gamesa SWT-7.0-154": { capacity: 7.0, technology: OFFSHORE_WIND },
+        "Vestas V164-10.0 MW": { capacity: 10.0, technology: OFFSHORE_WIND },
+        "Vestas V164-8.0 MW": { capacity: 8.0, technology: OFFSHORE_WIND },
+        "Vestas V112-3.45 MW": { capacity: 3.45, technology: OFFSHORE_WIND },
+        "Goldwind GWH252-16MW": { capacity: 16.0, technology: OFFSHORE_WIND },
+        
+        // Floating offshore wind turbines (technology ID 17)
+        "Siemens Gamesa SG 14-222 DD": { capacity: 14.0, technology: FLOATING_WIND },
+        "Goldwind GW171-6.0MW": { capacity: 6.0, technology: FLOATING_WIND }
+    };
+    // Get technology name based on ID
+    function getTechnologyName(techId) {
+        switch(techId) {
+            case ONSHORE_WIND:
+                return "Onshore Wind";
+            case OFFSHORE_WIND:
+                return "Offshore Wind";
+            case FLOATING_WIND:
+                return "Floating Offshore Wind";
+            default:
+                return "Wind";
+        }
+    }
+    // Show/hide wind turbine fields and populate turbine options based on technology selection
     document.getElementById('technology_id').addEventListener('change', function() {
         const selectedTechId = parseInt(this.value);
         const windTurbineFields = document.getElementById('windTurbineFields');
+        const turbineSelect = document.getElementById('turbine');
         
+        // Show/hide wind turbine section
         if (windTechnologyIds.includes(selectedTechId)) {
+            // Use CSS classes for better animation
+            windTurbineFields.classList.add('active');
             windTurbineFields.style.display = 'block';
+            
+            // Clear existing options except the first one
+            while (turbineSelect.options.length > 1) {
+                turbineSelect.remove(1);
+            }
+            
+            // Create option group for the selected technology
+            const techName = getTechnologyName(selectedTechId);
+            const optgroup = document.createElement('optgroup');
+            optgroup.label = `${techName} Turbines`;
+            
+            // Filter and add turbine options for the selected technology
+            let optionsAdded = false;
+            for (const [turbineName, data] of Object.entries(turbineData)) {
+                if (data.technology === selectedTechId) {
+                    const option = document.createElement('option');
+                    option.value = turbineName;
+                    option.textContent = turbineName;
+                    option.dataset.capacity = data.capacity;
+                    optgroup.appendChild(option);
+                    optionsAdded = true;
+                }
+            }
+            
+            // Add the option group to the select if it has options
+            if (optionsAdded) {
+                turbineSelect.appendChild(optgroup);
+            }
         } else {
-            windTurbineFields.style.display = 'none';
-            // Clear wind turbine fields when not applicable
+            windTurbineFields.classList.remove('active');
+            setTimeout(() => {
+                if (!windTurbineFields.classList.contains('active')) {
+                    windTurbineFields.style.display = 'none';
+                }
+            }, 300); // Match transition duration
+            
+            // Clear wind turbine fields
             document.getElementById('turbine').value = '';
             document.getElementById('hub_height').value = '';
             document.getElementById('no_turbines').value = '';
             document.getElementById('tilt').value = '';
         }
     });
+
+    // Function to populate default values based on turbine selection
+    document.getElementById('turbine').addEventListener('change', function() {
+        const selectedTurbine = this.value;
+        
+        // Set default hub heights based on turbine model
+        const hubHeightDefaults = {
+            // Onshore defaults
+            "Enercon E66_1870kw(MG)": 65,
+            "Siemens SWT-3.6MW-130m": 85,
+            "Vestas_V82_1.65mw(MG);Vestas V82-1.65": 80,
+            "Vestas V136-3.6Mw": 112,
+            "Vestas V150-4.2Mw": 125,
+            "Vestas V-90 GridStreamer 2mW (MG)Vestas V90-2.0": 80,
+            "Enercon E48_800kw": 50,
+            "General Electric2.5xl_100m_2500kw(MG)": 100,
+            "Enercon E70_2300kw": 64,
+            
+            // Offshore defaults
+            "Siemens Gamesa SG 11.0-200 DD": 118,
+            "Siemens Gamesa SWT-7.0-154": 106,
+            "Vestas V164-10.0 MW": 105,
+            "Vestas V164-8.0 MW": 105,
+            "Vestas V112-3.45 MW": 84,
+            "Goldwind GWH252-16MW": 146,
+            
+            // Floating defaults
+            "Siemens Gamesa SG 14-222 DD": 140,
+            "Goldwind GW171-6.0MW": 120
+        };
+        
+        // Set default tilt for the selected turbine
+        const tiltDefaults = {
+            // Most land turbines have similar tilt
+            "Enercon E66_1870kw(MG)": 5,
+            "Siemens SWT-3.6MW-130m": 5,
+            "Vestas_V82_1.65mw(MG);Vestas V82-1.65": 5,
+            "Vestas V136-3.6Mw": 5,
+            "Vestas V150-4.2Mw": 5,
+            "Vestas V-90 GridStreamer 2mW (MG)Vestas V90-2.0": 5,
+            "Enercon E48_800kw": 5,
+            "General Electric2.5xl_100m_2500kw(MG)": 5,
+            "Enercon E70_2300kw": 5,
+            
+            // Offshore turbines
+            "Siemens Gamesa SG 11.0-200 DD": 0,
+            "Siemens Gamesa SWT-7.0-154": 0,
+            "Vestas V164-10.0 MW": 0,
+            "Vestas V164-8.0 MW": 0,
+            "Vestas V112-3.45 MW": 0,
+            "Goldwind GWH252-16MW": 0,
+            
+            // Floating turbines
+            "Siemens Gamesa SG 14-222 DD": 0,
+            "Goldwind GW171-6.0MW": 0
+        };
+        
+        // Set default number of turbines (typically one for initial placement)
+        if (!document.getElementById('no_turbines').value) {
+            document.getElementById('no_turbines').value = 1;
+        }
+        
+        // Set default hub height if available
+        if (hubHeightDefaults[selectedTurbine]) {
+            document.getElementById('hub_height').value = hubHeightDefaults[selectedTurbine];
+        }
+        
+        // Set default tilt if available
+        if (tiltDefaults[selectedTurbine]) {
+            document.getElementById('tilt').value = tiltDefaults[selectedTurbine];
+        }
+        
+        // Update capacity based on the selected turbine and number of turbines
+        const selectedOption = this.options[this.selectedIndex];
+        if (selectedOption && selectedOption.dataset.capacity) {
+            const perTurbineCapacity = parseFloat(selectedOption.dataset.capacity);
+            const noTurbines = parseInt(document.getElementById('no_turbines').value) || 1;
+            const totalCapacity = perTurbineCapacity * noTurbines;
+            document.getElementById('capacity').value = totalCapacity.toFixed(2);
+        }
+    });
+
+    // Update capacity when number of turbines changes
+    document.getElementById('no_turbines').addEventListener('change', function() {
+        const selectedOption = document.getElementById('turbine').options[document.getElementById('turbine').selectedIndex];
+        if (selectedOption && selectedOption.dataset.capacity) {
+            const perTurbineCapacity = parseFloat(selectedOption.dataset.capacity);
+            const noTurbines = parseInt(this.value) || 1;
+            const totalCapacity = perTurbineCapacity * noTurbines;
+            document.getElementById('capacity').value = totalCapacity.toFixed(2);
+        }
+    });
+
     // Helper function to get CSRF token from cookies
     function getCookie(name) {
         let cookieValue = null;

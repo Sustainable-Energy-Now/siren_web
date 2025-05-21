@@ -14,7 +14,7 @@ body {
 
 @media (min-width: 992px) {
     body, p {
-        font-size: 20px;
+        font-size: 16px;
     }
 }
 
@@ -49,6 +49,7 @@ a:hover, a:focus, a:active {
 
 .navbar a {
     text-decoration: none;
+    font-size: 20px;
     color: #19c728;
 }
 
@@ -113,7 +114,7 @@ input[name=message] {
 }
 
 .container {
-    max-width: 1200px;
+    max-width: 1600px;
 }
 
 /* Container and Layout */
@@ -207,10 +208,6 @@ td {
     display: none;
 }
 
-.row > * {
-    display: flex !important;
-}
-
 /* Custom Buttons */
 .btn-custom-swish2 {
     padding: 0.6rem 2rem 0.3rem 2rem;
@@ -245,4 +242,51 @@ td {
     background-color: #00A9D8;
     border-color: #00A9D8;
     color: #FFFFFF;
+}
+.btn-secondary {
+    background-color: #6c757d;
+    color: white;
+    padding: 8px 16px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+.btn-secondary:hover {
+    background-color: #5a6268;
+}
+#windTurbineFields {
+    transition: all 0.3s ease;
+    max-height: 0;
+    overflow: hidden;
+    padding: 0;
+    margin: 0;
+    opacity: 0;
+}
+
+#windTurbineFields.active {
+    padding: 15px;
+    max-height: 500px;
+    margin-bottom: 15px;
+    opacity: 1;
+    background-color: #e9f7ef;
+    border-radius: 8px;
+    border-left: 4px solid #3498db;
+}
+
+.technology-info {
+    font-size: 14px;
+    color: #666;
+    margin-top: 5px;
+    font-style: italic;
+}
+
+select.form-control {
+    padding-right: 30px;
+    background-image: url("data:image/svg+xml;charset=utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 4 5'%3E%3Cpath fill='%23343a40' d='M2 0L0 2h4zm0 5L0 3h4z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right .75rem center;
+    background-size: 8px 10px;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
 }
