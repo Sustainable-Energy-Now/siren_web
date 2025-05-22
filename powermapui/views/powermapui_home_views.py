@@ -86,6 +86,20 @@ def add_facility(request):
             except Technologies.DoesNotExist:
                 return JsonResponse({'status': 'error', 'message': 'Invalid technology ID'}, status=400)
             
+            # Get the current scenario from session
+            scenario_title = request.session.get('scenario')
+            if not scenario_title:
+                return JsonResponse({'status': 'error', 'message': 'No scenario selected. Please select a scenario first.'}, status=400)
+            
+            # Check if scenario is 'Current' - facilities cannot be added to this scenario
+            if scenario_title == 'Current':
+                return JsonResponse({'status': 'error', 'message': 'Cannot add facilities to the "Current" scenario. Please select a different scenario.'}, status=400)
+            
+            try:
+                scenario_obj = Scenarios.objects.get(title=scenario_title)
+            except Scenarios.DoesNotExist:
+                return JsonResponse({'status': 'error', 'message': 'Selected scenario not found'}, status=400)
+            
             # Create a basic facility code based on name and technology
             tech_prefix = technology.technology_name[:3].upper() if technology.technology_name else "FAC"
             facility_code = f"{tech_prefix}_{facility_name.replace(' ', '_').lower()}"[:30]
@@ -108,7 +122,8 @@ def add_facility(request):
                 idtechnologies=technology,
                 capacity=capacity or 0.0,
                 latitude=latitude,
-                longitude=longitude
+                longitude=longitude,
+                existing=False
             )
             
             # Add wind turbine specific fields if applicable
@@ -120,15 +135,19 @@ def add_facility(request):
             
             new_facility.save()
             
+            # Add the facility to the current scenario
+            new_facility.scenarios.add(scenario_obj)
+            
             # Get the technology name for the response
             tech_name = technology.technology_name
             
             return JsonResponse({
                 'status': 'success',
-                'message': f'{tech_name} facility added successfully',
+                'message': f'{tech_name} facility added successfully to scenario "{scenario_title}"',
                 'facility_id': new_facility.idfacilities,
                 'facility_name': new_facility.facility_name,
-                'technology': tech_name
+                'technology': tech_name,
+                'scenario': scenario_title
             })
             
         except Exception as e:
@@ -137,7 +156,6 @@ def add_facility(request):
     # If not POST, return error
     return JsonResponse({'status': 'error', 'message': 'Invalid request method'}, status=405)
 
-# Get available technologies for the dropdown
 @login_required
 def get_technologies(request):
     techs = Technologies.objects.all().values('idtechnologies', 'technology_name')

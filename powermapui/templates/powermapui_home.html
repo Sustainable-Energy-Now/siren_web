@@ -20,7 +20,29 @@
         {{ demand_year_scenario.scenario }}
         <button name="apply_settings" type="submit" class="btn-custom-swish2">Apply Settings</button>
     </form>
-    <button id="toggleAddFacilityMode" class="btn-custom-swish2" style="margin-top: 10px;">Add New Facility</button>
+    
+    <!-- Add New Facility Button with proper conditional logic -->
+    {% if scenario != 'Current' and scenario %}
+        <button id="addFacilityBtn" class="btn btn-primary" type="button">
+            Add New Facility
+        </button>
+    {% else %}
+        {% if scenario == 'Current' %}
+            <button class="btn btn-secondary" type="button" disabled title="Cannot add facilities to the 'Current' scenario">
+                Add New Facility (Disabled)
+            </button>
+            <small class="text-muted d-block mt-1">
+                Select a different scenario to add new facilities
+            </small>
+        {% else %}
+            <button class="btn btn-secondary" type="button" disabled title="Please select a scenario first">
+                Add New Facility (Disabled)
+            </button>
+            <small class="text-muted d-block mt-1">
+                Please select a scenario first
+            </small>
+        {% endif %}
+    {% endif %}
 </div>
 
 <br>
@@ -209,7 +231,7 @@ crossorigin=""></script>
             case 18:  // Concentrated Solar Thermal
                 return CSTIcon;
             case 20:  // Reciprocating Gas
-                return RECIPIcon;
+                return recipIcon;
             case 145:
             case 146:  // Nuclear
                 return nuclearIcon;
@@ -404,41 +426,62 @@ crossorigin=""></script>
     }
     
     // Load technologies when page loads
-    document.addEventListener('DOMContentLoaded', loadTechnologies);
-
-    // Toggle Add Facility mode
-    document.getElementById('toggleAddFacilityMode').addEventListener('click', function() {
-        addFacilityMode = !addFacilityMode;
+    document.addEventListener('DOMContentLoaded', function() {
+        loadTechnologies();
         
-        if (addFacilityMode) {
-            // Enable facility addition mode
-            this.textContent = 'Cancel Add Facility';
-            this.classList.add('active');
-            document.getElementById('addFacilityForm').style.display = 'block';
-            map.getContainer().style.cursor = 'crosshair';
-            
-            // Show instruction
-            alert('Click OK to enter the new facility details in the form provided.');
-        } else {
-            // Disable facility addition mode
-            this.textContent = 'Add New Facility';
-            this.classList.remove('active');
-            document.getElementById('addFacilityForm').style.display = 'none';
-            map.getContainer().style.cursor = '';
-            
-            // Remove temporary marker if exists
-            if (locationMarker) {
-                map.removeLayer(locationMarker);
-                locationMarker = null;
-            }
-            
-            // Reset form
-            document.getElementById('facility_name').value = '';
-            document.getElementById('technology_id').value = '';
-            document.getElementById('capacity').value = '';
-            document.getElementById('selected_lat').textContent = 'Latitude: (Click on map)';
-            document.getElementById('selected_lng').textContent = 'Longitude: (Click on map)';
-            selectedLocation = null;
+        // Add event listener for Add New Facility button
+        const addFacilityBtn = document.getElementById('addFacilityBtn');
+        
+        // Only add event listener if the button exists (i.e., not disabled)
+        if (addFacilityBtn) {
+            addFacilityBtn.addEventListener('click', function() {
+                // Check scenario again as a safety measure
+                const currentScenario = '{{ scenario|escapejs }}';
+                
+                if (currentScenario === 'Current') {
+                    alert('Cannot add facilities to the "Current" scenario. Please select a different scenario.');
+                    return;
+                }
+                
+                if (!currentScenario) {
+                    alert('Please select a scenario first.');
+                    return;
+                }
+                
+                // Proceed with existing add facility logic
+                addFacilityMode = !addFacilityMode;
+                
+                if (addFacilityMode) {
+                    // Enable facility addition mode
+                    this.textContent = 'Cancel Add Facility';
+                    this.classList.add('active');
+                    document.getElementById('addFacilityForm').style.display = 'block';
+                    map.getContainer().style.cursor = 'crosshair';
+                    
+                    // Show instruction
+                    alert('Click OK to enter the new facility details in the form provided.');
+                } else {
+                    // Disable facility addition mode
+                    this.textContent = 'Add New Facility';
+                    this.classList.remove('active');
+                    document.getElementById('addFacilityForm').style.display = 'none';
+                    map.getContainer().style.cursor = '';
+                    
+                    // Remove temporary marker if exists
+                    if (locationMarker) {
+                        map.removeLayer(locationMarker);
+                        locationMarker = null;
+                    }
+                    
+                    // Reset form
+                    document.getElementById('facility_name').value = '';
+                    document.getElementById('technology_id').value = '';
+                    document.getElementById('capacity').value = '';
+                    document.getElementById('selected_lat').textContent = 'Latitude: (Click on map)';
+                    document.getElementById('selected_lng').textContent = 'Longitude: (Click on map)';
+                    selectedLocation = null;
+                }
+            });
         }
     });
 
@@ -464,8 +507,10 @@ crossorigin=""></script>
 
     // Cancel button handler
     document.getElementById('cancelAddFacility').addEventListener('click', function() {
-        // Reset the add facility mode
-        document.getElementById('toggleAddFacilityMode').click();
+        const addFacilityBtn = document.getElementById('addFacilityBtn');
+        if (addFacilityBtn && addFacilityMode) {
+            addFacilityBtn.click(); // Trigger the toggle
+        }
     });
 
     // Submit button handler
@@ -499,7 +544,7 @@ crossorigin=""></script>
             longitude: selectedLocation.lng
         };
         // Add wind turbine specific data if applicable
-        if (windTechnologyIds.includes(technologyId)) {
+        if (windTechnologyIds.includes(parseInt(technologyId))) {
             const turbineSelect = document.getElementById('turbine');
             data.turbine = turbineSelect.value;
             data.hub_height = document.getElementById('hub_height').value || null;
@@ -544,7 +589,10 @@ crossorigin=""></script>
                 facilityLayer.addLayer(newMarker);
                 
                 // Reset the add facility mode
-                document.getElementById('toggleAddFacilityMode').click();
+                const addFacilityBtn = document.getElementById('addFacilityBtn');
+                if (addFacilityBtn) {
+                    addFacilityBtn.click();
+                }
             } else {
                 alert('Error: ' + data.message);
             }
