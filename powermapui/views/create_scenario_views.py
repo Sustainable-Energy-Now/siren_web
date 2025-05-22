@@ -30,8 +30,8 @@ def display_scenario(request):
     checkbox_status = {}
     for facility in all_facilities:
         checkbox_status[facility.idfacilities] = {}
-        for scenario in all_scenarios:
-            checkbox_status[facility.idfacilities][scenario.idscenarios] = ScenariosFacilities.objects.filter(idfacilities=facility, idscenarios=scenario).exists()
+        for scenario_obj in all_scenarios:
+            checkbox_status[facility.idfacilities][scenario_obj.idscenarios] = ScenariosFacilities.objects.filter(idfacilities=facility, idscenarios=scenario_obj).exists()
 
     context = {
         'scenario_form': scenario_form,

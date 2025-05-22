@@ -26,4 +26,4 @@ def facilities_list(request):
         'success_message': success_message,
         'config_file': config_file,
     }
-    return render(request, 'facilities_list.html', context)
+    return render(request, 'facilities.html', context)

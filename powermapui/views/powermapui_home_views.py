@@ -7,7 +7,7 @@ from django.shortcuts import render
 from django.views.decorators.csrf import csrf_exempt
 from powermatchui.forms import DemandYearScenario
 from siren_web.database_operations import fetch_module_settings_data, fetch_scenario_settings_data
-from siren_web.models import facilities, Technologies, Zones
+from siren_web.models import facilities, Technologies, Scenarios
 import json
 
 @login_required
@@ -33,9 +33,18 @@ def home(request):
         scenario_settings = fetch_module_settings_data('Power')
         if not scenario_settings:
             scenario_settings = fetch_scenario_settings_data(scenario)
-    # Query all facilities with latitude and longitude available
-    facilities_data = facilities.objects.filter(latitude__isnull=False, longitude__isnull=False).values('facility_name', 'idtechnologies', 'latitude', 'longitude')
-    # Convert the queryset to a list and then to JSON
+        # Query facilities for the selected scenario with latitude and longitude available
+        if scenario:
+            # Filter facilities that belong to the selected scenario and have coordinates
+            scenario_obj = Scenarios.objects.get(title=scenario)
+            facilities_data = facilities.objects.filter(
+                scenarios=scenario_obj,
+                latitude__isnull=False, 
+                longitude__isnull=False
+            ).values('facility_name', 'idtechnologies', 'latitude', 'longitude')
+        else:
+            # If no scenario is selected, return an empty queryset
+            facilities_data = facilities.objects.none().values('facility_name', 'idtechnologies', 'latitude', 'longitude')    # Convert the queryset to a list and then to JSON
     facilities_json = json.dumps(list(facilities_data))
     context = {
         'demand_year_scenario': demand_year_scenario,
@@ -128,8 +137,31 @@ def add_facility(request):
     # If not POST, return error
     return JsonResponse({'status': 'error', 'message': 'Invalid request method'}, status=405)
 
-# Add this function to get available technologies for the dropdown
+# Get available technologies for the dropdown
 @login_required
 def get_technologies(request):
     techs = Technologies.objects.all().values('idtechnologies', 'technology_name')
     return JsonResponse(list(techs), safe=False)
+
+@login_required
+# Refresh facilities when the scenario is changed
+def get_facilities_for_scenario(request):
+    """Return facilities data for the selected scenario"""
+    scenario_title = request.GET.get('scenario')
+    
+    if not scenario_title:
+        return JsonResponse([], safe=False)
+    
+    try:
+        scenario_obj = Scenarios.objects.get(title=scenario_title)
+        facilities_data = facilities.objects.filter(
+            scenarios=scenario_obj,
+            latitude__isnull=False, 
+            longitude__isnull=False
+        ).values('facility_name', 'idtechnologies', 'latitude', 'longitude')
+        
+        return JsonResponse(list(facilities_data), safe=False)
+    except Scenarios.DoesNotExist:
+        return JsonResponse({'error': 'Scenario not found'}, status=404)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)

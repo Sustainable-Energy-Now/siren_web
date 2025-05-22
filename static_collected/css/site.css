@@ -12,7 +12,7 @@ body {
     font-family: 'Montserrat', sans-serif;
 }
 
-@media (min-width: 992px) {
+@media (min-yesdth: 992px) {
     body, p {
         font-size: 16px;
     }
@@ -289,4 +289,31 @@ select.form-control {
     -webkit-appearance: none;
     -moz-appearance: none;
     appearance: none;
+}
+.protected-checkbox {
+    opacity: 0.8 !important;
+    background-color: blue !important;
+    border: 2px solid #6c757d !important;
+}
+
+.protected-checkbox:checked {
+    opacity: 1 !important;
+    background-color: #28a745 !important;
+    border-color: 2px solid #28a745 !important;
+}
+
+.protected-checkbox:checked::after {
+    content: "✓";
+    color: rgb(103, 34, 34);
+    font-weight: bold;
+    position: absolute;
+    left: 2px;
+    top: -2px;
+    font-size: 14px;
+}
+
+/* Remove default browser styling that might interfere */
+.protected-checkbox:disabled {
+    filter: none !important;
+    -webkit-filter: none !important;
 }

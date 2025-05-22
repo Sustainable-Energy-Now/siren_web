@@ -5,7 +5,9 @@
 
 <p>Powermap is the Siren module that models the renewable energy generation in the South West Interconnected System (SWIS).  
     Power Map takes as input weather and facilities data. Powermap uses the System Advisor Model (SAM) developed by the National Renewable Energy Laboratory (NREL).
-    To use Powermap, begin by selecting a Demand Year and Scenario. A Scenario is a collection of Facilities of different technologies. Output from Powermap
+    To use Powermap, begin by selecting a Demand Year and Scenario.
+    Facilities are grid infrastructure that use a particular technology. 
+    A Scenario is a collection of Facilities of different technologies. Output from Powermap
     is used as input to the Powermatch module.
 </p>
 
@@ -216,13 +218,22 @@ crossorigin=""></script>
         }
     }
     
-    // Loop through facilities and add markers to the map
-    facilities.forEach(function(facility) {
-        var icon = getIconForTechnology(facility.idtechnologies);
-        var marker = L.marker([facility.latitude, facility.longitude], { icon: icon })
-            .bindPopup(facility.facility_name);
-        facilityLayer.addLayer(marker);
-    });
+    // Function to clear and reload facilities on the map
+    function loadFacilitiesOnMap(facilitiesData) {
+        // Clear existing facilities
+        facilityLayer.clearLayers();
+        
+        // Add new facilities to the map
+        facilitiesData.forEach(function(facility) {
+            var icon = getIconForTechnology(facility.idtechnologies);
+            var marker = L.marker([facility.latitude, facility.longitude], { icon: icon })
+                .bindPopup(facility.facility_name);
+            facilityLayer.addLayer(marker);
+        });
+    }
+    
+    // Initial load of facilities
+    loadFacilitiesOnMap(facilities);
     
     // Add the facility layer to the map
     facilityLayer.addTo(map);
@@ -277,12 +288,92 @@ crossorigin=""></script>
     var overlays = {
         "SWIS Boundary":boundaryLayer,
         "Zones":zoneLayer,
-        "Power Generating Facilities": facilityLayer,
-        "Grid": gridLayer,
+        "Grid Facilities": facilityLayer,
+        "Transmission": gridLayer,
     };
 
     // Add layer control to the map
     L.control.layers(baseLayers, overlays).addTo(map);
+
+    // Function to refresh facilities when scenario changes
+    function refreshFacilities(scenarioTitle) {
+        if (!scenarioTitle) {
+            // Clear facilities if no scenario selected
+            facilityLayer.clearLayers();
+            return;
+        }
+        
+        // Show loading indicator
+        const loadingMessage = document.createElement('div');
+        loadingMessage.id = 'loading-facilities';
+        loadingMessage.style.cssText = 'position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0,0,0,0.8); color: white; padding: 20px; border-radius: 5px; z-index: 10000;';
+        loadingMessage.textContent = 'Loading facilities...';
+        document.body.appendChild(loadingMessage);
+        
+        // Fetch facilities for the new scenario
+        fetch(`/powermap/get_facilities/?scenario=${encodeURIComponent(scenarioTitle)}`)
+            .then(response => response.json())
+            .then(data => {
+                if (Array.isArray(data)) {
+                    // Update facilities on map
+                    loadFacilitiesOnMap(data);
+                    
+                    // Update facilities count display (optional)
+                    console.log(`Loaded ${data.length} facilities for scenario: ${scenarioTitle}`);
+                } else if (data.error) {
+                    console.error('Error loading facilities:', data.error);
+                    alert('Error loading facilities: ' + data.error);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Failed to load facilities for the selected scenario.');
+            })
+            .finally(() => {
+                // Remove loading indicator
+                const loading = document.getElementById('loading-facilities');
+                if (loading) {
+                    loading.remove();
+                }
+            });
+    }
+
+    // Monitor form submission to detect scenario changes
+    document.querySelector('form').addEventListener('submit', function(e) {
+        const scenarioSelect = document.querySelector('select[name="scenario"]');
+        if (scenarioSelect) {
+            const selectedScenario = scenarioSelect.value;
+            
+            // Show that settings are being applied
+            const button = this.querySelector('button[name="apply_settings"]');
+            const originalText = button.textContent;
+            button.textContent = 'Applying...';
+            button.disabled = true;
+            
+            // Allow the form to submit normally
+            setTimeout(() => {
+                refreshFacilities(selectedScenario);
+                
+                // Reset button after a delay
+                setTimeout(() => {
+                    button.textContent = originalText;
+                    button.disabled = false;
+                }, 1000);
+            }, 100);
+        }
+    });
+
+    // Also monitor scenario dropdown changes for immediate feedback (optional)
+    document.addEventListener('DOMContentLoaded', function() {
+        const scenarioSelect = document.querySelector('select[name="scenario"]');
+        if (scenarioSelect) {
+            scenarioSelect.addEventListener('change', function() {
+                // Optional: Provide immediate visual feedback when scenario changes
+                // (before clicking Apply Settings)
+                console.log('Scenario selection changed to:', this.value);
+            });
+        }
+    });
 
     // Variables for Add Facility functionality
     var addFacilityMode = false;

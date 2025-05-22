@@ -1,15 +1,16 @@
 # urls.py
 from django.urls import path, include
 from django.contrib.auth import views as auth_views
-from powermapui.views import create_scenario_views, facilities_list_views, powermapui_home_views,  \
+from powermapui.views import create_scenario_views, facilities_views, powermapui_home_views,  \
     power_views, table_update_views, technologies_views
 
 urlpatterns = [
     path('powermapui/', powermapui_home_views.home, name='powermapui_home'),
+    path('powermap/get_facilities/', powermapui_home_views.get_facilities_for_scenario, name='get_facilities_for_scenario'),
     path('scenarios/', create_scenario_views.display_scenario, name='display_scenarios'),
     path('scenarios/create/', create_scenario_views.update_scenario, name='update_scenario'),
     path('clone-scenario/', create_scenario_views.clone_scenario, name='clone_scenario'),
-    path('facilities/', facilities_list_views.facilities_list, name='facilities_list'),
+    path('facilities/', facilities_views.facilities_list, name='facilities_list'),
     path('technologies/', technologies_views.technologies, name='technologies'),
     path('tableupdate/', table_update_views.select_table, name='table_update'),
     path('tableupdate/process/', table_update_views.update_table, name='table_update_process'),
