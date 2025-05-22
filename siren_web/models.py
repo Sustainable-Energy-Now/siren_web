@@ -10,7 +10,7 @@ from django.db import models
 
 class Analysis(models.Model):
     idanalysis = models.AutoField(db_column='idAnalysis', primary_key=True)
-    idscenarios = models.ForeignKey('Scenarios', models.RESTRICT, db_column='idScenarios', blank=True, null=True)
+    idscenarios = models.ForeignKey('Scenarios', on_delete=models.CASCADE, db_column='idScenarios', blank=True, null=True)
     variation = models.CharField(max_length=45, blank=True, null=True) 
     heading = models.CharField(max_length=45, blank=True, null=True)
     component = models.CharField(max_length=45, blank=True, null=True)
@@ -33,8 +33,8 @@ class capacities(models.Model):
         
 class Demand(models.Model):
     iddemand = models.AutoField(db_column='idDemand', primary_key=True)
-    idtechnologies = models.ForeignKey('Technologies', models.DO_NOTHING, db_column='idTechnologies')  
-    idscenarios = models.ForeignKey('Scenarios', models.DO_NOTHING, db_column='idScenarios')  
+    idtechnologies = models.ForeignKey('Technologies', on_delete=models.CASCADE, db_column='idTechnologies')  
+    idscenarios = models.ForeignKey('Scenarios', on_delete=models.CASCADE, db_column='idScenarios')
     year = models.PositiveIntegerField()
     hour = models.PositiveIntegerField()
     period = models.DateTimeField(blank=True, null=True)
@@ -60,6 +60,7 @@ class facilities(models.Model):
     participant_code = models.CharField(max_length=45, blank=True, null=True)
     registered_from = models.DateField(null=True)
     active = models.BooleanField(null=False)
+    existing = models.BooleanField(null=False)
     idtechnologies = models.ForeignKey('Technologies', models.DO_NOTHING, db_column='idtechnologies')
     scenarios = models.ManyToManyField(Scenarios, through='ScenariosFacilities', blank=True)
     idzones = models.ForeignKey('Zones', models.DO_NOTHING, db_column='idzones', blank=True, null=True)
@@ -124,8 +125,8 @@ class Optimisations(models.Model):
            
 class ScenariosFacilities(models.Model):
     idscenariosfacilities = models.AutoField(primary_key=True)  
-    idscenarios = models.ForeignKey('Scenarios', on_delete=models.RESTRICT, db_column='idScenarios')
-    idfacilities = models.ForeignKey('facilities', on_delete=models.RESTRICT, db_column='idfacilities')
+    idscenarios = models.ForeignKey('Scenarios', on_delete=models.CASCADE, db_column='idScenarios')
+    idfacilities = models.ForeignKey('facilities', on_delete=models.CASCADE, db_column='idfacilities')
 
     class Meta:
         db_table = 'ScenariosFacilities'
@@ -141,7 +142,7 @@ class ScenariosTechnologies(models.Model):
         
 class ScenariosSettings(models.Model):
     idscenariossettings = models.AutoField(primary_key=True)
-    idscenarios = models.ForeignKey('Scenarios', on_delete=models.RESTRICT)
+    idscenarios = models.ForeignKey('Scenarios', on_delete=models.CASCADE)
     sw_context = models.CharField(max_length=20, blank=True, null=True)
     parameter = models.CharField(max_length=45, blank=True, null=True)
     value = models.CharField(max_length=600, blank=True, null=True)
@@ -179,10 +180,9 @@ class Storageattributes(models.Model):
                
 class supplyfactors(models.Model):
     idsupplyfactors = models.AutoField(db_column='idsupplyfactors', primary_key=True)  
-    idscenarios = models.ForeignKey('Scenarios', models.DO_NOTHING, db_column='idscenarios', blank=True, null=True)  
+    idscenarios = models.ForeignKey('Scenarios', models.DO_NOTHING, db_column='idscenarios')  
     idtechnologies = models.ForeignKey('Technologies', models.DO_NOTHING, db_column='idtechnologies', blank=True, null=True)  
     idzones = models.ForeignKey('Zones', models.DO_NOTHING, db_column='idzones', blank=True, null=True)  
-    idscenarios = models.ForeignKey('Scenarios', models.DO_NOTHING, db_column='idScenarios')  
     year = models.PositiveIntegerField()
     hour = models.IntegerField(blank=True, null=True)
     supply = models.IntegerField(blank=True, null=True)

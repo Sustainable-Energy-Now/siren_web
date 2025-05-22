@@ -9,17 +9,39 @@
 </p>
 {% load crispy_forms_tags %}
 {% load custom_filters %}
+
+{% if messages %}
+<div class="messages mb-3">
+  {% for message in messages %}
+    <div class="alert alert-{% if message.tags %}{{ message.tags }}{% else %}info{% endif %}">
+      {{ message }}
+    </div>
+  {% endfor %}
+</div>
+{% endif %}
+
 <form method="post" action="{% url 'update_scenario' %}">
     {% csrf_token %}
-    <button type="submit">Save Associations</button>
+    
+    <!-- Add this button next to your "Save Associations" button -->
+    <div class="d-flex mb-3">
+      <button type="submit" class="btn btn-primary">Save Associations</button>
+      <a href="{% url 'clone_scenario' %}" class="btn btn-success ml-2">Clone Existing Scenario</a>
+    </div>
+    
     <table class="table">
         <thead>
             <tr>
                 <th>Facility</th>
                 {% for scenario in all_scenarios %}
                     <th>
-                        <input type="checkbox" class="toggle-column" data-scenario-id="{{ scenario.idscenarios }}">
-                        {{ scenario.title }}
+                        {% if scenario.title == 'Current' %}
+                            <input type="checkbox" class="toggle-column" data-scenario-id="{{ scenario.idscenarios }}" disabled style="opacity: 0.5;">
+                            {{ scenario.title }} <small class="text-muted">(Protected)</small>
+                        {% else %}
+                            <input type="checkbox" class="toggle-column" data-scenario-id="{{ scenario.idscenarios }}">
+                            {{ scenario.title }}
+                        {% endif %}
                     </th>
                 {% endfor %}
             </tr>
@@ -30,12 +52,24 @@
                 <td>{{ facility.facility_name }}</td>
                 {% for scenario in all_scenarios %}
                 <td>
-                    <input type="checkbox"
-                    id="scenario_{{ scenario.idscenarios }}_facility_{{ facility.idfacilities }}"
-                    name="scenario_{{ scenario.idscenarios }}_facilities"
-                    value="{{ facility.idfacilities }}"
-                    {% if checkbox_status|get_dict_item:facility.idfacilities|get_dict_item:scenario.idscenarios %}checked{% endif %}
-                    class="facility-checkbox" data-scenario-id="{{ scenario.idscenarios }}">
+                    {% if scenario.title == 'Current' %}
+                        <input type="checkbox"
+                        id="scenario_{{ scenario.idscenarios }}_facility_{{ facility.idfacilities }}"
+                        name="scenario_{{ scenario.idscenarios }}_facilities"
+                        value="{{ facility.idfacilities }}"
+                        {% if checkbox_status|get_dict_item:facility.idfacilities|get_dict_item:scenario.idscenarios %}checked{% endif %}
+                        class="facility-checkbox" 
+                        data-scenario-id="{{ scenario.idscenarios }}"
+                        disabled
+                        style="opacity: 0.5; cursor: not-allowed;">
+                    {% else %}
+                        <input type="checkbox"
+                        id="scenario_{{ scenario.idscenarios }}_facility_{{ facility.idfacilities }}"
+                        name="scenario_{{ scenario.idscenarios }}_facilities"
+                        value="{{ facility.idfacilities }}"
+                        {% if checkbox_status|get_dict_item:facility.idfacilities|get_dict_item:scenario.idscenarios %}checked{% endif %}
+                        class="facility-checkbox" data-scenario-id="{{ scenario.idscenarios }}">
+                    {% endif %}
                 </td>
                 {% endfor %}
             </tr>
@@ -48,7 +82,11 @@
         $('.toggle-column').change(function() {
             var scenarioId = $(this).data('scenario-id');
             var checked = $(this).prop('checked');
-            $('input[name="scenario_' + scenarioId + '_facilities"]').prop('checked', checked);
+            
+            // Only toggle if the checkbox is not disabled
+            if (!$(this).prop('disabled')) {
+                $('input[name="scenario_' + scenarioId + '_facilities"]:not(:disabled)').prop('checked', checked);
+            }
         });
     });
 </script>

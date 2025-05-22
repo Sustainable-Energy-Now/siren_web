@@ -6,8 +6,9 @@ from powermapui.views import create_scenario_views, facilities_list_views, power
 
 urlpatterns = [
     path('powermapui/', powermapui_home_views.home, name='powermapui_home'),
-    path('scenarios/', create_scenario_views.create_scenario, name='display_scenarios'),
+    path('scenarios/', create_scenario_views.display_scenario, name='display_scenarios'),
     path('scenarios/create/', create_scenario_views.update_scenario, name='update_scenario'),
+    path('clone-scenario/', create_scenario_views.clone_scenario, name='clone_scenario'),
     path('facilities/', facilities_list_views.facilities_list, name='facilities_list'),
     path('technologies/', technologies_views.technologies, name='technologies'),
     path('tableupdate/', table_update_views.select_table, name='table_update'),
