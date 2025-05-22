@@ -318,47 +318,75 @@ crossorigin=""></script>
     L.control.layers(baseLayers, overlays).addTo(map);
 
     // Function to refresh facilities when scenario changes
-    function refreshFacilities(scenarioTitle) {
-        if (!scenarioTitle) {
-            // Clear facilities if no scenario selected
-            facilityLayer.clearLayers();
-            return;
-        }
-        
-        // Show loading indicator
-        const loadingMessage = document.createElement('div');
-        loadingMessage.id = 'loading-facilities';
-        loadingMessage.style.cssText = 'position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0,0,0,0.8); color: white; padding: 20px; border-radius: 5px; z-index: 10000;';
-        loadingMessage.textContent = 'Loading facilities...';
-        document.body.appendChild(loadingMessage);
-        
-        // Fetch facilities for the new scenario
-        fetch(`/powermap/get_facilities/?scenario=${encodeURIComponent(scenarioTitle)}`)
-            .then(response => response.json())
-            .then(data => {
-                if (Array.isArray(data)) {
-                    // Update facilities on map
-                    loadFacilitiesOnMap(data);
-                    
-                    // Update facilities count display (optional)
-                    console.log(`Loaded ${data.length} facilities for scenario: ${scenarioTitle}`);
-                } else if (data.error) {
-                    console.error('Error loading facilities:', data.error);
-                    alert('Error loading facilities: ' + data.error);
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                alert('Failed to load facilities for the selected scenario.');
-            })
-            .finally(() => {
-                // Remove loading indicator
-                const loading = document.getElementById('loading-facilities');
-                if (loading) {
-                    loading.remove();
-                }
-            });
+function refreshFacilities(scenarioTitle) {
+    console.log('refreshFacilities called with scenario:', scenarioTitle);
+    
+    if (!scenarioTitle) {
+        // Clear facilities if no scenario selected
+        facilityLayer.clearLayers();
+        return;
     }
+    
+    // Show loading indicator
+    const loadingMessage = document.createElement('div');
+    loadingMessage.id = 'loading-facilities';
+    loadingMessage.style.cssText = 'position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0,0,0,0.8); color: white; padding: 20px; border-radius: 5px; z-index: 10000;';
+    loadingMessage.textContent = 'Loading facilities...';
+    document.body.appendChild(loadingMessage);
+    
+    // Construct the URL - make sure this matches your URL pattern
+    const url = `/powermap/get_facilities/?scenario=${encodeURIComponent(scenarioTitle)}`;
+    console.log('Fetching from URL:', url);
+    
+    // Fetch facilities for the new scenario
+    fetch(url)
+        .then(response => {
+            console.log('Response status:', response.status);
+            console.log('Response ok:', response.ok);
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            console.log('Received data:', data);
+            
+            if (Array.isArray(data)) {
+                // Update facilities on map
+                loadFacilitiesOnMap(data);
+                
+                // Update facilities count display (optional)
+                console.log(`Loaded ${data.length} facilities for scenario: ${scenarioTitle}`);
+            } else if (data.error) {
+                console.error('Error loading facilities:', data.error);
+                alert('Error loading facilities: ' + data.error);
+            } else {
+                console.error('Unexpected response format:', data);
+                alert('Unexpected response format from server');
+            }
+        })
+        .catch(error => {
+            console.error('Fetch error:', error);
+            console.error('Error details:', error.message);
+            
+            // More specific error messages
+            if (error.message.includes('404')) {
+                alert('URL not found. Please check if the get_facilities URL is configured correctly.');
+            } else if (error.message.includes('500')) {
+                alert('Server error occurred. Please check the server logs.');
+            } else {
+                alert('Failed to load facilities: ' + error.message);
+            }
+        })
+        .finally(() => {
+            // Remove loading indicator
+            const loading = document.getElementById('loading-facilities');
+            if (loading) {
+                loading.remove();
+            }
+        });
+}
 
     // Monitor form submission to detect scenario changes
     document.querySelector('form').addEventListener('submit', function(e) {
