@@ -632,13 +632,21 @@ function refreshFacilities(scenarioTitle) {
     });
 
     // Array of wind turbine technology IDs
-    const ONSHORE_WIND = 15;
-    const OFFSHORE_WIND = 16;
+    const OFFSHORE_WIND = 15;
+    const ONSHORE_WIND = 16;
     const FLOATING_WIND = 147;
     const windTechnologyIds = [ONSHORE_WIND, OFFSHORE_WIND, FLOATING_WIND];
     // Turbine data with capacity information
     const turbineData = {
         // Onshore wind turbines (technology ID 15)
+        "Siemens Gamesa SG 11.0-200 DD": { capacity: 11.0, technology: OFFSHORE_WIND },
+        "Siemens Gamesa SWT-7.0-154": { capacity: 7.0, technology: OFFSHORE_WIND },
+        "Vestas V164-10.0 MW": { capacity: 10.0, technology: OFFSHORE_WIND },
+        "Vestas V164-8.0 MW": { capacity: 8.0, technology: OFFSHORE_WIND },
+        "Vestas V112-3.45 MW": { capacity: 3.45, technology: OFFSHORE_WIND },
+        "Goldwind GWH252-16MW": { capacity: 16.0, technology: OFFSHORE_WIND },
+        
+        // Offshore wind turbines (technology ID 16)
         "Enercon E66_1870kw(MG)": { capacity: 1.87, technology: ONSHORE_WIND },
         "Siemens SWT-3.6MW-130m": { capacity: 3.6, technology: ONSHORE_WIND },
         "Vestas_V82_1.65mw(MG);Vestas V82-1.65": { capacity: 1.65, technology: ONSHORE_WIND },
@@ -648,14 +656,6 @@ function refreshFacilities(scenarioTitle) {
         "Enercon E48_800kw": { capacity: 0.8, technology: ONSHORE_WIND },
         "General Electric2.5xl_100m_2500kw(MG)": { capacity: 2.5, technology: ONSHORE_WIND },
         "Enercon E70_2300kw": { capacity: 2.3, technology: ONSHORE_WIND },
-        
-        // Offshore wind turbines (technology ID 16)
-        "Siemens Gamesa SG 11.0-200 DD": { capacity: 11.0, technology: OFFSHORE_WIND },
-        "Siemens Gamesa SWT-7.0-154": { capacity: 7.0, technology: OFFSHORE_WIND },
-        "Vestas V164-10.0 MW": { capacity: 10.0, technology: OFFSHORE_WIND },
-        "Vestas V164-8.0 MW": { capacity: 8.0, technology: OFFSHORE_WIND },
-        "Vestas V112-3.45 MW": { capacity: 3.45, technology: OFFSHORE_WIND },
-        "Goldwind GWH252-16MW": { capacity: 16.0, technology: OFFSHORE_WIND },
         
         // Floating offshore wind turbines (technology ID 17)
         "Siemens Gamesa SG 14-222 DD": { capacity: 14.0, technology: FLOATING_WIND },

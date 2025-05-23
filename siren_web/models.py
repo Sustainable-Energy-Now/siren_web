@@ -46,7 +46,7 @@ class Demand(models.Model):
         
 class Scenarios(models.Model):
     idscenarios = models.AutoField(db_column='idScenarios', primary_key=True)  
-    title = models.CharField(db_column='Title', max_length=45, blank=True, null=True)  
+    title = models.CharField(db_column='Title', unique=True, max_length=45, blank=True, null=True)  
     dateexported = models.DateField(db_column='DateExported', blank=True, null=True)  
     description = models.CharField(db_column='Description', max_length=500, blank=True, null=True)  
 
@@ -55,8 +55,8 @@ class Scenarios(models.Model):
         
 class facilities(models.Model):
     idfacilities = models.AutoField(db_column='idfacilities', primary_key=True)
-    facility_name = models.CharField(db_column='facility_name', max_length=45, blank=True, null=True)
-    facility_code = models.CharField(db_column='facility_code', max_length=30, blank=True, null=True)
+    facility_name = models.CharField(db_column='facility_name', unique=True, max_length=45, blank=True, null=True)
+    facility_code = models.CharField(db_column='facility_code', unique=True, max_length=30, blank=True, null=True)
     participant_code = models.CharField(max_length=45, blank=True, null=True)
     registered_from = models.DateField(null=True)
     active = models.BooleanField(null=False)
@@ -194,8 +194,8 @@ class supplyfactors(models.Model):
         
 class Technologies(models.Model):
     idtechnologies = models.AutoField(db_column='idTechnologies', primary_key=True)  
-    technology_name = models.CharField(max_length=45)
-    technology_signature = models.CharField(max_length=20)
+    technology_name = models.CharField(unique=True, max_length=45)
+    technology_signature = models.CharField(unique=True, max_length=20)
     scenarios = models.ManyToManyField(Scenarios, through='ScenariosTechnologies', blank=True)
     image = models.CharField(max_length=50, blank=True, null=True)
     caption = models.CharField(max_length=50, blank=True, null=True)
@@ -249,7 +249,7 @@ class variations(models.Model):
         
 class Zones(models.Model):
     idzones = models.PositiveIntegerField(db_column='idZones', primary_key=True)  
-    name = models.CharField(max_length=45, db_collation='utf8mb4_0900_ai_ci', blank=True, null=True)
+    name = models.CharField(unique=True, max_length=45, db_collation='utf8mb4_0900_ai_ci', blank=True, null=True)
     description = models.CharField(max_length=500, db_collation='utf8mb4_0900_ai_ci', blank=True, null=True)
 
     class Meta:
