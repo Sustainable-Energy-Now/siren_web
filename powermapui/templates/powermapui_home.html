@@ -11,17 +11,19 @@
     is used as input to the Powermatch module.
 </p>
 
-<!-- Add a button to toggle "Add Facility" mode -->
 <div class="map-controls" style="margin-bottom: 10px;">
     <form method="post">
         {% csrf_token %}
-        {{ demand_year_scenario.demand_year }}
-        {{ demand_year_scenario.scenario.label_tag }}  <!-- Display the label for the scenario dropdown -->
-        {{ demand_year_scenario.scenario }}
+        {{ demand_weather_scenario.demand_year.label_tag }}
+        {{ demand_weather_scenario.demand_year }}
+        {{ demand_weather_scenario.weather_year.label_tag }}
+        {{ demand_weather_scenario.weather_year }}
+        {{ demand_weather_scenario.scenario.label_tag }}
+        {{ demand_weather_scenario.scenario }}
         <button name="apply_settings" type="submit" class="btn-custom-swish2">Apply Settings</button>
     </form>
     
-    <!-- Add New Facility Button with proper conditional logic -->
+    <!-- Add New Facility -->
     {% if scenario != 'Current' and scenario %}
         <button id="addFacilityBtn" class="btn btn-primary" type="button">
             Add New Facility
@@ -46,8 +48,8 @@
 </div>
 
 <br>
-{% if not scenario %}
-    <p>Demand Year and Scenario must be specified.</p>
+{% if not scenario or not demand_year or not weather_year %}
+    <p>Demand Year, Weather Year and Scenario must be specified.</p>
 {% endif %}
 
 <!-- Add Facility Form (initially hidden) -->

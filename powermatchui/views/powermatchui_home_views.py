@@ -12,7 +12,7 @@ from django.db.models import Max
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import render
 from django.urls import path
-from ..forms import DemandYearScenario
+from ..forms import DemandWeatherScenarioSettings
 from siren_web.models import Demand, supplyfactors
 
 @login_required
@@ -23,14 +23,14 @@ def powermatchui_home(request):
     success_message = ""
     if request.method == 'POST':
         # Handle form submission
-        demand_year_scenario = DemandYearScenario(request.POST)
+        demand_year_scenario = DemandWeatherScenarioSettings(request.POST)
         if demand_year_scenario.is_valid():
             demand_year = demand_year_scenario.cleaned_data['demand_year']
             request.session['demand_year'] = demand_year
             scenario = demand_year_scenario.cleaned_data['scenario']
             request.session['scenario'] = scenario # Assuming scenario is an instance of Scenarios
             success_message = "Settings updated."
-    demand_year_scenario = DemandYearScenario()
+    demand_year_scenario = DemandWeatherScenarioSettings()
 
     context = {
         'demand_year_scenario': demand_year_scenario,
