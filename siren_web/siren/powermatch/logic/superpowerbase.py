@@ -21,7 +21,7 @@
 
 from math import asin, ceil, cos, fabs, pow, radians, sin, sqrt
 import os
-import siren_web.siren.utilities.sscbase as ssc
+import siren_web.siren.utilities.ssc as ssc
 import time
 from siren_web.siren.utilities.senutils import techClean, extrapolateWind, WorkBook
 from siren_web.siren.powermatch.logic.powerclassesbase import *

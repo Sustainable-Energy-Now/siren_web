@@ -5,7 +5,6 @@ Requirements:
 - pandas (pip install pandas)
 - openpyxl (pip install openpyxl)
 
-This file should be placed in your Django app's management/commands directory.
 """
 
 import os

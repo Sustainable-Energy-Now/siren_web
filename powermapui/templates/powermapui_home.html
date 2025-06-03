@@ -336,7 +336,6 @@ function refreshFacilities(scenarioTitle) {
     loadingMessage.textContent = 'Loading facilities...';
     document.body.appendChild(loadingMessage);
     
-    // Construct the URL - make sure this matches your URL pattern
     const url = `/powermap/get_facilities/?scenario=${encodeURIComponent(scenarioTitle)}`;
     console.log('Fetching from URL:', url);
     

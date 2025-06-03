@@ -25,13 +25,6 @@ def delete_analysis_scenario(idscenario):
     ).delete()
     return None
 
-def fetch_facilities_scenario(scenario):
-    scenario_obj = Scenarios.objects.get(title=scenario)
-    facilities_list = facilities.objects.filter(
-        scenarios=scenario_obj
-    ).all()
-    return facilities_list
- 
 def fetch_analysis_scenario(idscenario):
     analysis_list = Analysis.objects.filter(
         idscenarios=idscenario
@@ -46,6 +39,103 @@ def check_analysis_baseline(scenario):
     )[:1]
     return baseline
 
+def fetch_facilities_scenario(scenario):
+    scenario_obj = Scenarios.objects.get(title=scenario)
+    facilities_list = facilities.objects.filter(
+        scenarios=scenario_obj
+    ).all()
+    return facilities_list
+ 
+def fetch_facilities_generator_storage_data(demand_year):
+    facilities_query = \
+    f"""
+    WITH fte AS (
+        SELECT 
+            f.*,  -- Select all fields from facilities
+            t.technology_name,  -- Select all fields from Technologies
+            ga.fuel, sa.discharge_loss,
+            COALESCE(sa.year, ga.year) AS year,
+            t.area,
+            ROW_NUMBER() OVER (PARTITION BY f.facility_name ORDER BY year DESC) AS row_num
+        FROM 
+            facilities f
+        INNER JOIN 
+            Technologies t ON f.idTechnologies = t.idTechnologies
+        LEFT JOIN 
+            StorageAttributes sa ON t.idTechnologies = sa.idTechnologies 
+            AND t.year = sa.year
+            AND t.category = 'Storage'
+        LEFT JOIN 
+            GeneratorAttributes ga ON t.idTechnologies = ga.idTechnologies
+            AND t.year = ga.year
+            AND t.category = 'Generator'
+        WHERE 
+            t.year = %s
+        )
+    SELECT *
+    FROM fte
+    WHERE row_num = 1;
+    """
+    try:
+        with connection.cursor() as cursor:  
+            cursor.execute(facilities_query, (demand_year,) )
+            # Fetch the results
+            facilities_result = cursor.fetchall()
+            if facilities_result is None:
+                # Handle the case where fetchall() returns None
+                logger = logging.getLogger(__name__)
+                logger.debug('No results found.')
+                return None  # or handle this case appropriately
+            column_names = [desc[0] for desc in cursor.description]
+        return [dict(zip(column_names, row)) for row in facilities_result]
+                    
+    except Exception as e:
+        print("Error executing query:", e)
+        
+def fetch_full_facilities_data(demand_year, scenario):
+    idscenarios = Scenarios.objects.get(title=scenario).idscenarios
+    facilities_query = \
+    f"""
+    SELECT 
+        f.*,  -- Select all fields from facilities
+        t.technology_name,  -- Select all fields from Technologies
+        ty.fuel, sa.discharge_loss,
+        ty.year,
+        t.area
+    FROM 
+        facilities f
+    INNER JOIN 
+        ScenariosFacilities sf ON f.idfacilities = sf.idfacilities
+    INNER JOIN 
+        Technologies t ON f.idTechnologies = t.idTechnologies
+    INNER JOIN 
+        TechnologyYears ty ON t.idTechnologies = ty.idtechnologies_id
+    LEFT JOIN 
+        StorageAttributes sa ON t.idTechnologies = sa.idTechnologies 
+        AND t.category = 'Storage'
+    LEFT JOIN 
+        GeneratorAttributes ga ON t.idTechnologies = ga.idTechnologies
+        AND t.category = 'Generator'
+    WHERE 
+        sf.idscenarios = %s
+        AND ty.year = %s;
+    """
+    try:
+        with connection.cursor() as cursor:  
+            cursor.execute(facilities_query, (idscenarios, demand_year) )
+            # Fetch the results
+            facilities_result = cursor.fetchall()
+            if facilities_result is None:
+                # Handle the case where fetchall() returns None
+                logger = logging.getLogger(__name__)
+                logger.debug('No results found.')
+                return None  # or handle this case appropriately
+            column_names = [desc[0] for desc in cursor.description]
+        return [dict(zip(column_names, row)) for row in facilities_result]
+                    
+    except Exception as e:
+        print("Error executing query:", e)
+        
 def get_supply_unique_technology(demand_year, scenario):
     # Get the scenario object
     scenario_obj = Scenarios.objects.get(title=scenario)
@@ -388,56 +478,6 @@ def fetch_full_generator_storage_data(demand_year):
     except Exception as e:
         print("Error executing query:", e)
 
-def fetch_full_facilities_data(demand_year, scenario):
-    idscenarios = Scenarios.objects.get(title=scenario).idscenarios
-    facilities_query = \
-    f"""
-    WITH fte AS (
-        SELECT 
-            f.*,  -- Select all fields from facilities
-            t.technology_name,  -- Select all fields from Technologies
-            ga.fuel, sa.discharge_loss,
-            COALESCE(sa.year, ga.year) AS year,
-            t.area,
-            ROW_NUMBER() OVER (PARTITION BY f.facility_name ORDER BY year DESC) AS row_num
-        FROM 
-            facilities f
-        INNER JOIN 
-            ScenariosFacilities sf ON f.idfacilities = sf.idfacilities
-        INNER JOIN 
-            Technologies t ON f.idTechnologies = t.idTechnologies
-        LEFT JOIN 
-            StorageAttributes sa ON t.idTechnologies = sa.idTechnologies 
-            AND t.year = sa.year
-            AND t.category = 'Storage'
-        LEFT JOIN 
-            GeneratorAttributes ga ON t.idTechnologies = ga.idTechnologies
-            AND t.year = ga.year
-            AND t.category = 'Generator'
-        WHERE 
-            sf.idscenarios = %s
-            AND t.year in (0, %s)
-        )
-    SELECT *
-    FROM fte
-    WHERE row_num = 1;
-    """
-    try:
-        with connection.cursor() as cursor:  
-            cursor.execute(facilities_query, (idscenarios, demand_year) )
-            # Fetch the results
-            facilities_result = cursor.fetchall()
-            if facilities_result is None:
-                # Handle the case where fetchall() returns None
-                logger = logging.getLogger(__name__)
-                logger.debug('No results found.')
-                return None  # or handle this case appropriately
-            column_names = [desc[0] for desc in cursor.description]
-        return [dict(zip(column_names, row)) for row in facilities_result]
-                    
-    except Exception as e:
-        print("Error executing query:", e)
-        
 def fetch_generators_parameter(demand_year, scenario, pmss_details, max_col):
     generators = {}
     dispatch_order = []

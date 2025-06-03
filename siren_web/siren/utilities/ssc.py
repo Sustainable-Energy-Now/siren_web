@@ -11,43 +11,34 @@
 import sys
 import struct
 from ctypes import *
-
 import os
-import configparser  # decode .ini file
-from modules.getmodels import getModelFile
-from utilities.senutils import getParents, getUser
+
+c_number = c_double   # must be c_double or c_float depending on how defined in sscapi.h
+
+class SSCAPI:
+        global c_number#!/usr/bin/python3
+
+# #####################################################################
+#
+#   System Simulation Core (SSC) Python Wrapper using Classes
+#   Author: Aron Dobos @ NREL and Steven Janzou @ NREL
+#
+# #####################################################################
+
+
+import sys
+import struct
+from ctypes import *
+import os
 
 c_number = c_double   # must be c_double or c_float depending on how defined in sscapi.h
 
 
 class SSCAPI:
         global c_number
-        config = configparser.RawConfigParser()
-        if len(sys.argv) > 1:
-                config_file = sys.argv[1]
-        else:
-                config_file = getModelFile('SIREN.ini')
-        config.read(config_file)
-        try:
-                base_year = config.get('Base', 'year')
-        except:
-                base_year = '2014'
-        parents = []
-        try:
-                parents = getParents(config.items('Parents'))
-        except:
-                pass
-        try:
-                sam_sdk = config.get('Files', 'sam_sdk')
-                for key, value in parents:
-                        sam_sdk = sam_sdk.replace(key, value)
-                sam_sdk = sam_sdk.replace('$USER$', getUser())
-                sam_sdk = sam_sdk.replace('$YEAR$', base_year)
-        except:
-                sam_sdk = ''
+        sam_sdk= 'siren_web/siren_files/siren_data/sam-sdk'
         if sys.platform == 'win32' or sys.platform == 'cygwin':
-                # sam_sdk = sys.argv[0][:sys.argv[0].rfind('\\') + 1] + sam_sdk + '\\win'
-                sam_sdk = os.getcwd() + sam_sdk + '\\win'
+                sam_sdk += '\\win'
                 if 8 * struct.calcsize("P") == 64:
                         sam_sdk += '64'
                 else:
@@ -62,13 +53,12 @@ class SSCAPI:
                             _dll = CDLL(sam_sdk + "\\ssc.dll")
                         except:
                             print('SAM SDK library not found')
-#               return _dll
-#               return _dll
+        #       return _dll
         elif sys.platform == 'darwin':
                 _dll = CDLL(sam_sdk + "/osx64/ssc.dylib")
 #               return _dll
         elif sys.platform == 'linux2' or sys.platform == 'linux':
-         #       _dll = CDLL("../../linux64/ssc.so")
+                _dll = CDLL("siren_web/siren_files/siren_data/sam-sdk/linux64/ssc.so")
                 try:
                     _dll = CDLL(sam_sdk + "/linux64/ssc.so")
                 except:

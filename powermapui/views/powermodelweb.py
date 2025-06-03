@@ -50,7 +50,7 @@ class PowerModelWeb(PowerModelBase):
             self.recharge[1] = float(scenario_settings.get('recharge_eff', None))
             if self.recharge[1] < 0.5:
                 self.recharge[1] = 1 - self.recharge[1]
-        except:
+        except Exception as e:
             pass
         
         #

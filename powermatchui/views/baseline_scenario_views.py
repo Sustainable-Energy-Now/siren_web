@@ -86,7 +86,6 @@ def baseline_scenario(request):
                 if 'proceed' in request.GET:
                     if request.GET['proceed'] == 'Yes':
                         # Proceed with the rest of the GET function
-                        # Your existing code here
                         pass
                     else:
                         # User chose not to proceed

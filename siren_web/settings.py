@@ -216,3 +216,6 @@ LOGOUT_REDIRECT_URL = "home"
 CRISPY_ALLOWED_TEMPLATE_PACKS = "bootstrap5"
 CRISPY_TEMPLATE_PACK = "bootstrap5"
 CRISPY_RENDERER_CLASS = "crispy_bootstrap5.renderers.AccordionJsRenderer"
+# Powermap settings
+WEATHER_DATA_DIR = BASE_DIR / 'siren_web' / 'siren_files' / 'SWIS' / 'siren_data' / 'weather_files'
+POWER_CURVES_DIR = BASE_DIR = BASE_DIR / 'siren_web' / 'siren_files' / 'siren_data' / 'plant_data'
