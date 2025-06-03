@@ -1,0 +1,60 @@
+<!-- edit_scenario.html -->
+{% extends 'powermapui_base.html' %}
+{% block powermapui_content %}
+<h3>Edit Scenario</h3>
+
+{% load crispy_forms_tags %}
+
+{% if messages %}
+<div class="messages mb-3">
+  {% for message in messages %}
+    <div class="alert alert-{% if message.tags %}{{ message.tags }}{% else %}info{% endif %}">
+      {{ message }}
+    </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Edit Scenario: {{ scenario.title }}</h5>
+            </div>
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+                    {{ form|crispy }}
+                    
+                    <div class="form-group">
+                        <button type="submit" class="btn btn-primary">Update Scenario</button>
+                        <a href="{% url 'display_scenarios' %}" class="btn btn-secondary">Cancel</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="card-title mb-0">Scenario Information</h6>
+            </div>
+            <div class="card-body">
+                <p><strong>Current Name:</strong> {{ scenario.title }}</p>
+                <p><strong>Current Description:</strong> 
+                    {% if scenario.description %}
+                        {{ scenario.description }}
+                    {% else %}
+                        <em class="text-muted">No description</em>
+                    {% endif %}
+                </p>
+                <hr>
+                <p class="text-muted">
+                    <small><i class="fas fa-info-circle"></i> Use this form to update the scenario name and description. To modify facility associations, return to the main scenario management page.</small>
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}

@@ -15,7 +15,7 @@ import os
 import os
 from django.conf import settings
 
-class DemandWeatherScenarioSettings(forms.Form):
+class DemandScenarioSettings(forms.Form):
     year_choices = [(year, year) for year in TechnologyYears.objects.values_list('year', flat=True).distinct()]
     
     demand_year = forms.ChoiceField(
@@ -26,31 +26,8 @@ class DemandWeatherScenarioSettings(forms.Form):
         widget=forms.Select(attrs={'class': 'form_input'})
     )
     
-    weather_year = forms.ChoiceField(
-        choices=[],  # Will be populated in __init__
-        label='Select a Weather Year',
-        required=True,
-        widget=forms.Select(attrs={'class': 'form_input'})
-    )
-    
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        
-        # Get weather year choices from folder names
-        weather_path = os.path.join(settings.BASE_DIR, 'siren_web', 'siren_files', 'siren_data', 'weather_files', 'solar_weather')
-        weather_year_choices = []
-        
-        if os.path.exists(weather_path):
-            folder_names = [name for name in os.listdir(weather_path) 
-                           if os.path.isdir(os.path.join(weather_path, name))]
-            weather_year_choices = [(folder, folder) for folder in sorted(folder_names)]
-        
-        # Update the field choices
-        self.fields['weather_year'].choices = weather_year_choices
-        
-        # Set initial value if choices exist
-        if weather_year_choices:
-            self.fields['weather_year'].initial = weather_year_choices[0][0]
     
     scenario = forms.ModelChoiceField(
         queryset=Scenarios.objects.all().values_list('title', flat=True),

@@ -1,16 +1,18 @@
 from django.contrib import messages
-from django.shortcuts import render, redirect
+from django.shortcuts import render, redirect, get_object_or_404
 from django.forms import modelformset_factory
-from django.http import HttpResponseRedirect
+from django.http import HttpResponseRedirect, JsonResponse
 from django.urls import reverse
+from django.views.decorators.http import require_http_methods
+from django.views.decorators.csrf import csrf_exempt
 from ..forms import ScenarioForm
 from siren_web.models import Scenarios, facilities, ScenariosFacilities
+import json
 
 def display_scenario(request):
     demand_year = request.session.get('demand_year')
     scenario = request.session.get('scenario')
     config_file = request.session.get('config_file')
-    success_message = ""
     all_scenarios = Scenarios.objects.all()
     all_facilities = facilities.objects.all()
     scenario_form = ScenarioForm(request.POST or None)
@@ -42,7 +44,6 @@ def display_scenario(request):
         'demand_year': demand_year,
         'scenario': scenario,
         'config_file': config_file,
-        'success_message': success_message
     }
     return render(request, 'create_scenario.html', context)
 
@@ -50,23 +51,26 @@ def update_scenario(request):
     demand_year = request.session.get('demand_year')
     scenario = request.session.get('scenario')
     config_file = request.session.get('config_file')
-    success_message = ""
     all_scenarios = Scenarios.objects.all()
     all_facilities = facilities.objects.all()
     scenario_form = ScenarioForm(request.POST or None)
     facility_formset = modelformset_factory(ScenariosFacilities, fields=('idfacilities',), extra=0)
 
-
     if request.method == 'POST':
         for scenario in all_scenarios:
-            facility_ids = request.POST.getlist(f'scenario_{scenario.pk}_facilities')
+            # Skip updating if this is the 'Current' scenario
+            if scenario.title == 'Current':
+                continue
+            
+            facility_ids = [int(fid) for fid in request.POST.getlist(f'scenario_{scenario.pk}_facilities')]
             scenario_facilities = ScenariosFacilities.objects.filter(idscenarios=scenario)
             
             # Remove facilities that are not in the submitted list
             scenario_facilities.exclude(idfacilities__in=facility_ids).delete()
 
             # Add facilities that are in the submitted list but not in the database
-            new_facility_ids = set(facility_ids) - set(scenario_facilities.values_list('idfacilities', flat=True))
+            existing_facility_ids = set(scenario_facilities.values_list('idfacilities', flat=True))
+            new_facility_ids = set(facility_ids) - existing_facility_ids
             new_scenario_facilities = [ScenariosFacilities(idscenarios=scenario, idfacilities_id=facility_id) for facility_id in new_facility_ids]
             ScenariosFacilities.objects.bulk_create(new_scenario_facilities)
             
@@ -75,7 +79,9 @@ def update_scenario(request):
         checkbox_status[facility.idfacilities] = {}
         for scenario in all_scenarios:
             checkbox_status[facility.idfacilities][scenario.idscenarios] = ScenariosFacilities.objects.filter(idfacilities=facility, idscenarios=scenario).exists()
-            
+    
+    messages.success(request, 'Successfully updated scenario facilities.')
+    
     context = {
         'scenario_form': scenario_form,
         'facility_formset': facility_formset,
@@ -85,9 +91,102 @@ def update_scenario(request):
         'demand_year': demand_year,
         'scenario': scenario,
         'config_file': config_file,
-        'success_message': success_message
     }
     return render(request, 'create_scenario.html', context)
+
+def edit_scenario(request, scenario_id):
+    """
+    View to edit an existing scenario's title and description.
+    """
+    scenario = get_object_or_404(Scenarios, pk=scenario_id)
+    
+    # Protect 'Current' scenario from editing
+    if scenario.title == 'Current':
+        messages.error(request, 'The "Current" scenario cannot be edited.')
+        return redirect('display_scenarios')
+    
+    if request.method == 'POST':
+        form = ScenarioForm(request.POST, instance=scenario)
+        if form.is_valid():
+            form.save()
+            messages.success(request, f'Successfully updated scenario "{scenario.title}".')
+            return redirect('display_scenarios')
+    else:
+        form = ScenarioForm(instance=scenario)
+    
+    context = {
+        'form': form,
+        'scenario': scenario,
+        'demand_year': request.session.get('demand_year'),
+        'config_file': request.session.get('config_file'),
+    }
+    return render(request, 'edit_scenario.html', context)
+
+def delete_scenario(request, scenario_id):
+    """
+    View to delete an existing scenario and its facility associations.
+    """
+    scenario = get_object_or_404(Scenarios, pk=scenario_id)
+    
+    # Protect 'Current' scenario from deletion
+    if scenario.title == 'Current':
+        messages.error(request, 'The "Current" scenario cannot be deleted.')
+        return redirect('display_scenarios')
+    
+    if request.method == 'POST':
+        scenario_title = scenario.title
+        
+        # Delete all facility associations first (cascade should handle this, but being explicit)
+        ScenariosFacilities.objects.filter(idscenarios=scenario).delete()
+        
+        # Delete the scenario
+        scenario.delete()
+        
+        messages.success(request, f'Successfully deleted scenario "{scenario_title}" and all its facility associations.')
+        return redirect('display_scenarios')
+    
+    # For GET requests, show confirmation page
+    facility_count = ScenariosFacilities.objects.filter(idscenarios=scenario).count()
+    
+    context = {
+        'scenario': scenario,
+        'facility_count': facility_count,
+        'demand_year': request.session.get('demand_year'),
+        'config_file': request.session.get('config_file'),
+    }
+    return render(request, 'delete_scenario_confirm.html', context)
+
+@require_http_methods(["POST"])
+def delete_scenario_ajax(request, scenario_id):
+    """
+    AJAX view to delete a scenario without page reload.
+    """
+    try:
+        scenario = get_object_or_404(Scenarios, pk=scenario_id)
+        
+        # Protect 'Current' scenario from deletion
+        if scenario.title == 'Current':
+            return JsonResponse({
+                'success': False, 
+                'error': 'The "Current" scenario cannot be deleted.'
+            })
+        
+        scenario_title = scenario.title
+        facility_count = ScenariosFacilities.objects.filter(idscenarios=scenario).count()
+        
+        # Delete the scenario (cascade will handle facility associations)
+        scenario.delete()
+        
+        return JsonResponse({
+            'success': True,
+            'message': f'Successfully deleted scenario "{scenario_title}" and {facility_count} facility associations.'
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': f'Error deleting scenario: {str(e)}'
+        })
 
 def clone_scenario(request):
     """
@@ -109,6 +208,11 @@ def clone_scenario(request):
         # Form validation
         if not source_scenario_id or not new_title:
             messages.error(request, 'Please select a source scenario and provide a name for the new scenario.')
+            return redirect('clone_scenario')
+        
+        # Check if scenario name already exists
+        if Scenarios.objects.filter(title=new_title).exists():
+            messages.error(request, f'A scenario with the name "{new_title}" already exists. Please choose a different name.')
             return redirect('clone_scenario')
         
         try:

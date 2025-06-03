@@ -16,8 +16,6 @@
         {% csrf_token %}
         {{ demand_weather_scenario.demand_year.label_tag }}
         {{ demand_weather_scenario.demand_year }}
-        {{ demand_weather_scenario.weather_year.label_tag }}
-        {{ demand_weather_scenario.weather_year }}
         {{ demand_weather_scenario.scenario.label_tag }}
         {{ demand_weather_scenario.scenario }}
         <button name="apply_settings" type="submit" class="btn-custom-swish2">Apply Settings</button>
@@ -48,8 +46,8 @@
 </div>
 
 <br>
-{% if not scenario or not demand_year or not weather_year %}
-    <p>Demand Year, Weather Year and Scenario must be specified.</p>
+{% if not scenario or not demand_year %}
+    <p>Demand Year and Scenario must be specified.</p>
 {% endif %}
 
 <!-- Add Facility Form (initially hidden) -->

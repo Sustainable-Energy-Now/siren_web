@@ -1,0 +1,74 @@
+<!-- delete_scenario.html -->
+{% extends 'powermapui_base.html' %}
+{% block powermapui_content %}
+<h3>Delete Scenario</h3>
+
+{% if messages %}
+<div class="messages mb-3">
+  {% for message in messages %}
+    <div class="alert alert-{% if message.tags %}{{ message.tags }}{% else %}info{% endif %}">
+      {{ message }}
+    </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card border-danger">
+            <div class="card-header bg-danger text-white">
+                <h5 class="card-title mb-0"><i class="fas fa-exclamation-triangle"></i> Confirm Deletion</h5>
+            </div>
+            <div class="card-body">
+                <p class="lead">Are you sure you want to delete the scenario "<strong>{{ scenario.title }}</strong>"?</p>
+                
+                <div class="alert alert-warning">
+                    <h6><i class="fas fa-warning"></i> This action will:</h6>
+                    <ul class="mb-0">
+                        <li>Permanently delete the scenario</li>
+                        <li>Remove all {{ facility_count }} facility association{{ facility_count|pluralize }} for this scenario</li>
+                        <li><strong>Cannot be undone</strong></li>
+                    </ul>
+                </div>
+                
+                {% if scenario.description %}
+                <div class="mb-3">
+                    <strong>Description:</strong> {{ scenario.description }}
+                </div>
+                {% endif %}
+                
+                <form method="post">
+                    {% csrf_token %}
+                    <div class="form-group">
+                        <button type="submit" class="btn btn-danger">
+                            <i class="fas fa-trash"></i> Yes, Delete Scenario
+                        </button>
+                        <a href="{% url 'display_scenarios' %}" class="btn btn-secondary">
+                            <i class="fas fa-times"></i> Cancel
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="card-title mb-0">Scenario Details</h6>
+            </div>
+            <div class="card-body">
+                <p><strong>Name:</strong> {{ scenario.title }}</p>
+                <p><strong>Facility Count:</strong> {{ facility_count }}</p>
+                <p><strong>Description:</strong> 
+                    {% if scenario.description %}
+                        {{ scenario.description }}
+                    {% else %}
+                        <em class="text-muted">No description</em>
+                    {% endif %}
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}

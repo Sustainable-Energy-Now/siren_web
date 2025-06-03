@@ -5,29 +5,25 @@ from django.db.models import Max
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import render
 from django.views.decorators.csrf import csrf_exempt
-from powermatchui.forms import DemandWeatherScenarioSettings
+from powermatchui.forms import DemandScenarioSettings
 from siren_web.database_operations import fetch_module_settings_data, fetch_scenario_settings_data
 from siren_web.models import facilities, Technologies, Scenarios
 import json
 
 @login_required
 def home(request):
-    # Get demand_year, weather_year, and scenario from session or default to empty string
+    # Get demand_year and scenario from session or default to empty string
     demand_year = request.session.get('demand_year', '')
-    weather_year = request.session.get('weather_year', '')
     scenario = request.session.get('scenario', '')
     config_file = request.session.get('config_file')
     success_message = ""
     
     if request.method == 'POST':
         # Handle form submission
-        demand_weather_scenario = DemandWeatherScenarioSettings(request.POST)
+        demand_weather_scenario = DemandScenarioSettings(request.POST)
         if demand_weather_scenario.is_valid():
             demand_year = demand_weather_scenario.cleaned_data['demand_year']
             request.session['demand_year'] = demand_year
-            
-            weather_year = demand_weather_scenario.cleaned_data['weather_year']
-            request.session['weather_year'] = weather_year
             
             scenario = demand_weather_scenario.cleaned_data['scenario']
             request.session['scenario'] = scenario
@@ -35,15 +31,14 @@ def home(request):
             success_message = "Settings updated."
     
     # Create form instance with current session values
-    demand_weather_scenario = DemandWeatherScenarioSettings(initial={
+    demand_weather_scenario = DemandScenarioSettings(initial={
         'demand_year': demand_year,
-        'weather_year': weather_year,
         'scenario': scenario
     })
     
     scenario_settings = {}
-    if not demand_year or not weather_year:
-        success_message = "Set a demand year, weather year, scenario and config first."
+    if not demand_year:
+        success_message = "Set a demand year, scenario and config first."
     else:
         scenario_settings = fetch_module_settings_data('Power')
         if not scenario_settings:
@@ -68,7 +63,6 @@ def home(request):
     context = {
         'demand_weather_scenario': demand_weather_scenario,
         'demand_year': demand_year,
-        'weather_year': weather_year,
         'scenario': scenario,
         'config_file': config_file,
         'success_message': success_message, 

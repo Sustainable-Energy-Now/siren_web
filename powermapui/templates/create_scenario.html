@@ -34,14 +34,34 @@
             <tr>
                 <th>Facility</th>
                 {% for scenario in all_scenarios %}
-                    <th>
-                        {% if scenario.title == 'Current' %}
-                            <input type="checkbox" class="toggle-column protected-checkbox" data-scenario-id="{{ scenario.idscenarios }}" disabled>
-                            {{ scenario.title }} <small class="text-muted">(Protected)</small>
-                        {% else %}
-                            <input type="checkbox" class="toggle-column" data-scenario-id="{{ scenario.idscenarios }}">
-                            {{ scenario.title }}
-                        {% endif %}
+                    <th class="text-center">
+                        <div class="scenario-header">
+                            {% if scenario.title == 'Current' %}
+                                <input type="checkbox" class="toggle-column protected-checkbox" data-scenario-id="{{ scenario.idscenarios }}" disabled>
+                                {{ scenario.title }} <small class="text-muted">(Protected)</small>
+                            {% else %}
+                                <input type="checkbox" class="toggle-column" data-scenario-id="{{ scenario.idscenarios }}">
+                                {{ scenario.title }}
+                            {% endif %}
+                            
+                            <!-- Action buttons for non-protected scenarios -->
+                            {% if scenario.title != 'Current' %}
+                                <div class="scenario-actions mt-1">
+                                    <a href="{% url 'edit_scenario' scenario.idscenarios %}" 
+                                       class="btn btn-sm btn-outline-primary" 
+                                       title="Edit Scenario">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                    <button type="button" 
+                                            class="btn btn-sm btn-outline-danger delete-scenario-btn" 
+                                            data-scenario-id="{{ scenario.idscenarios }}"
+                                            data-scenario-title="{{ scenario.title }}"
+                                            title="Delete Scenario">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </div>
+                            {% endif %}
+                        </div>
                     </th>
                 {% endfor %}
             </tr>
@@ -51,7 +71,7 @@
             <tr>
                 <td>{{ facility.facility_name }}</td>
                 {% for scenario in all_scenarios %}
-                <td>
+                <td class="text-center">
                     {% if scenario.title == 'Current' %}
                         <input type="checkbox"
                         id="scenario_{{ scenario.idscenarios }}_facility_{{ facility.idfacilities }}"
@@ -78,8 +98,54 @@
     </table>
 </form>
 
+<!-- Delete Confirmation Modal -->
+<div class="modal fade" id="deleteScenarioModal" tabindex="-1" aria-labelledby="deleteScenarioModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="deleteScenarioModalLabel">Confirm Delete</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to delete the scenario "<span id="scenarioToDelete"></span>"?</p>
+                <p class="text-warning"><strong>This action cannot be undone and will also delete all facility associations for this scenario.</strong></p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger" id="confirmDeleteBtn">Delete Scenario</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.scenario-header {
+    min-height: 60px;
+}
+
+.scenario-actions {
+    display: flex;
+    gap: 5px;
+    justify-content: center;
+}
+
+.scenario-actions .btn {
+    font-size: 0.75rem;
+    padding: 2px 6px;
+}
+
+.protected-checkbox {
+    opacity: 0.6;
+}
+
+.table th {
+    vertical-align: top;
+}
+</style>
+
 <script>
     $(document).ready(function() {
+        // Toggle column checkboxes
         $('.toggle-column').change(function() {
             var scenarioId = $(this).data('scenario-id');
             var checked = $(this).prop('checked');
@@ -88,6 +154,71 @@
             if (!$(this).prop('disabled')) {
                 $('input[name="scenario_' + scenarioId + '_facilities"]:not(:disabled)').prop('checked', checked);
             }
+        });
+
+        // Delete scenario functionality
+        $('.delete-scenario-btn').click(function() {
+            var scenarioId = $(this).data('scenario-id');
+            var scenarioTitle = $(this).data('scenario-title');
+            
+            $('#scenarioToDelete').text(scenarioTitle);
+            $('#confirmDeleteBtn').data('scenario-id', scenarioId);
+            
+            // Bootstrap 5 syntax
+            var modal = new bootstrap.Modal(document.getElementById('deleteScenarioModal'));
+            modal.show();
+        });
+
+        // Handle modal close events
+        $('#deleteScenarioModal').on('hidden.bs.modal', function () {
+            // Reset button state when modal is closed
+            $('#confirmDeleteBtn').prop('disabled', false).text('Delete Scenario');
+        });
+
+        // Confirm delete
+        $('#confirmDeleteBtn').click(function() {
+            var scenarioId = $(this).data('scenario-id');
+            
+            // Show loading state
+            $(this).prop('disabled', true).text('Deleting...');
+            
+            // Make AJAX call to delete scenario
+            $.ajax({
+                url: '/delete-scenario-ajax/' + scenarioId + '/',
+                type: 'POST',
+                headers: {
+                    'X-CSRFToken': $('[name=csrfmiddlewaretoken]').val()
+                },
+                success: function(response) {
+                    if (response.success) {
+                        // Show success message
+                        $('.messages').html('<div class="alert alert-success">' + response.message + '</div>');
+                        
+                        // Remove the scenario column from the table
+                        $('th:has([data-scenario-id="' + scenarioId + '"])').remove();
+                        $('td:has([data-scenario-id="' + scenarioId + '"])').remove();
+                        
+                        // Close modal using Bootstrap 5 syntax
+                        var modal = bootstrap.Modal.getInstance(document.getElementById('deleteScenarioModal'));
+                        modal.hide();
+                    } else {
+                        $('.messages').html('<div class="alert alert-danger">' + response.error + '</div>');
+                        // Close modal on error too
+                        var modal = bootstrap.Modal.getInstance(document.getElementById('deleteScenarioModal'));
+                        modal.hide();
+                    }
+                },
+                error: function() {
+                    $('.messages').html('<div class="alert alert-danger">An error occurred while deleting the scenario.</div>');
+                    // Close modal on error
+                    var modal = bootstrap.Modal.getInstance(document.getElementById('deleteScenarioModal'));
+                    modal.hide();
+                },
+                complete: function() {
+                    // Reset button state
+                    $('#confirmDeleteBtn').prop('disabled', false).text('Delete Scenario');
+                }
+            });
         });
     });
 </script>
