@@ -6,11 +6,10 @@ Handles System Advisor Model (SAM) integration for wind and solar resource proce
 import logging
 from typing import Dict, List, Optional, Tuple, Any
 from dataclasses import dataclass
+import math
 from pathlib import Path
 import re
-import math
-import gzip
-import zipfile
+from siren_web.siren.utilities.ssc import Entry
 
 # Import SAM SSC module
 from siren_web.siren.utilities.ssc import Data, Module, API
@@ -126,96 +125,6 @@ class WeatherFileFinder:
         
         logger.debug(f"Nearest weather file distance: {min_distance:.2f} km")
         return nearest_file
-
-    def _parse_smz_file(self, file_path: Path) -> WeatherData:
-        """
-        Parse .smz/.srz weather files using the new encoding-safe file reader
-        """
-        weather_data = WeatherData()
-        
-        try:
-            # Use the new encoding-safe file reader
-            content = self._read_weather_file(file_path)
-            
-            # Simple parsing - adjust column indices based on your file format
-            lines = content.strip().split('\n')
-            
-            # Initialize lists based on file extension
-            file_ext = file_path.suffix.lower()
-            
-            if file_ext == '.srz':  # Wind file
-                weather_data.wind_speed = []
-                weather_data.wind_direction = []
-                weather_data.temperature = []
-                weather_data.pressure = []
-            elif file_ext == '.smz':  # Solar file
-                weather_data.ghi = []
-                weather_data.dni = []
-                weather_data.dhi = []
-                weather_data.temperature = []
-                weather_data.wind_speed = []
-            
-            # Parse data lines (skip headers)
-            for line in lines:
-                line = line.strip()
-                if not line or line.startswith('#') or line.startswith('Year'):
-                    continue
-                    
-                try:
-                    # Try different delimiters
-                    parts = None
-                    for delimiter in [',', '\t', ' ', ';']:
-                        test_parts = [part.strip() for part in line.split(delimiter) if part.strip()]
-                        if len(test_parts) >= 4:  # Reasonable number of columns
-                            parts = test_parts
-                            break
-                    
-                    if not parts:
-                        continue
-                    
-                    # Parse based on file type - ADJUST THESE INDICES FOR YOUR FILE FORMAT
-                    if file_ext == '.srz' and len(parts) >= 4:  # Wind file
-                        # Assuming format: wind_speed, wind_direction, temperature, pressure
-                        # ADJUST these indices based on your actual .srz file format
-                        wind_speed = float(parts[0])
-                        wind_direction = float(parts[1])
-                        temperature = float(parts[2])
-                        pressure = float(parts[3]) if len(parts) > 3 else 1013.25
-                        
-                        weather_data.wind_speed.append(wind_speed)
-                        weather_data.wind_direction.append(wind_direction)
-                        weather_data.temperature.append(temperature)
-                        weather_data.pressure.append(pressure)
-                        
-                    elif file_ext == '.smz' and len(parts) >= 5:  # Solar file
-                        # Assuming format: GHI, DNI, DHI, temperature, wind_speed
-                        # ADJUST these indices based on your actual .smz file format
-                        ghi = float(parts[0])
-                        dni = float(parts[1])
-                        dhi = float(parts[2])
-                        temperature = float(parts[3])
-                        wind_speed = float(parts[4]) if len(parts) > 4 else 3.0
-                        
-                        weather_data.ghi.append(ghi)
-                        weather_data.dni.append(dni)
-                        weather_data.dhi.append(dhi)
-                        weather_data.temperature.append(temperature)
-                        weather_data.wind_speed.append(wind_speed)
-                        
-                except (ValueError, IndexError) as e:
-                    logger.debug(f"Skipping invalid line in {file_path}: {line}")
-                    continue
-            
-            # Log success
-            if file_ext == '.srz':
-                logger.info(f"Parsed wind weather: {len(weather_data.wind_speed)} records from {file_path}")
-            else:
-                logger.info(f"Parsed solar weather: {len(weather_data.ghi)} records from {file_path}")
-                
-        except Exception as e:
-            raise WeatherFileError(f"Error parsing weather file {file_path}: {e}")
-            
-        return weather_data
 
     def _parse_weather_files(self, weather_dir: Path, file_prefix: str, 
                            file_extension: str, demand_year: str) -> Dict[Path, Tuple[float, float]]:
@@ -334,7 +243,87 @@ class SAMResourceProcessor:
         
         logger.info(f"SAM API Version: {self.api.version()}")
         logger.info(f"SAM Build Info: {self.api.build_info()}")
+        # self.debug_available_modules()
+        
+    def debug_available_modules(self):
+        """
+        Debug method to list all available SAM modules
+        Call this to see what modules are actually available in your SAM installation
+        """
+        from siren_web.siren.utilities.ssc import Entry
+        
+        logger.info("=== Available SAM Modules ===")
+        entry = Entry()
+        while entry.get():
+            name = entry.name()
+            description = entry.description()
+            version = entry.version()
+            if name:
+                logger.info(f"Module: {name.decode('utf-8') if isinstance(name, bytes) else name}")
+                logger.info(f"  Description: {description.decode('utf-8') if isinstance(description, bytes) else description}")
+                logger.info(f"  Version: {version}")
+                logger.info("")
 
+    def debug_solar_weather_loading(self, facility_obj, tech_name, demand_year):
+        """
+        Debug method to see what's happening with solar weather data loading
+        """
+        logger.info("=== DEBUGGING SOLAR WEATHER LOADING ===")
+        
+        # Check if we can find a weather file
+        weather_file_path = self.get_weather_file_path(
+            facility_obj.latitude, 
+            facility_obj.longitude, 
+            tech_name, 
+            demand_year
+        )
+        
+        if weather_file_path:
+            logger.info(f"Found weather file: {weather_file_path}")
+            logger.info(f"File exists: {weather_file_path.exists()}")
+            logger.info(f"File size: {weather_file_path.stat().st_size if weather_file_path.exists() else 'N/A'} bytes")
+            
+            # Debug the file format
+            if weather_file_path.exists():
+                self.debug_weather_file_format(weather_file_path, 15)
+                
+                # Try to load and see what we get
+                try:
+                    weather_data = self.load_weather_data(weather_file_path)
+                    logger.info("=== LOADED WEATHER DATA ===")
+                    logger.info(f"GHI points: {len(weather_data.ghi) if weather_data.ghi else 0}")
+                    logger.info(f"DNI points: {len(weather_data.dni) if weather_data.dni else 0}")
+                    logger.info(f"DHI points: {len(weather_data.dhi) if weather_data.dhi else 0}")
+                    logger.info(f"Temperature points: {len(weather_data.temperature) if weather_data.temperature else 0}")
+                    logger.info(f"Wind speed points: {len(weather_data.wind_speed) if weather_data.wind_speed else 0}")
+                    
+                    if weather_data.ghi and len(weather_data.ghi) > 0:
+                        logger.info(f"Sample GHI values (first 10): {weather_data.ghi[:10]}")
+                        logger.info(f"GHI range: {min(weather_data.ghi):.1f} to {max(weather_data.ghi):.1f}")
+                    else:
+                        logger.error("NO GHI DATA FOUND!")
+                        
+                    return weather_data
+                    
+                except Exception as e:
+                    logger.error(f"Failed to load weather data: {e}")
+                    return None
+        else:
+            logger.error("No weather file found!")
+            
+            # Let's see what files are actually in the directory
+            weather_subdir = 'solar_weather'
+            weather_dir = self.weather_data_dir / weather_subdir / demand_year
+            logger.info(f"Looking in directory: {weather_dir}")
+            logger.info(f"Directory exists: {weather_dir.exists()}")
+            
+            if weather_dir.exists():
+                files = list(weather_dir.iterdir())
+                logger.info(f"Files in directory: {[f.name for f in files[:10]]}...")  # Show first 10
+                logger.info(f"Total files: {len(files)}")
+            
+            return None
+        
     def get_weather_file_path(self, latitude: float, longitude: float, 
                             technology: str, demand_year: str) -> Optional[Path]:
         """
@@ -360,27 +349,18 @@ class SAMResourceProcessor:
     
     def load_weather_data(self, weather_file_path: Path) -> WeatherData:
         """
-        Load weather data from .smz files
-        
-        Args:
-            weather_file_path: Path to weather file
-            
-        Returns:
-            WeatherData object
-            
-        Raises:
-            WeatherFileError: If file cannot be loaded or parsed
+        Load weather data from .smz/.srz files
         """
         if not weather_file_path.exists():
             raise WeatherFileError(f"Weather file not found: {weather_file_path}")
             
         try:
-            weather_data = self._parse_smz_file(weather_file_path)
+            weather_data = self._parse_smz_file(weather_file_path)  # This will now work
             logger.info(f"Loaded weather data from {weather_file_path}")
             return weather_data
         except Exception as e:
-            raise WeatherFileError(f"Error parsing weather file {weather_file_path}: {e}")
-    
+            raise WeatherFileError(f"Error parsing weather file {weather_file_path}: {e}")    
+
     def load_power_curve(self, pow_file_path: Path) -> Dict[float, float]:
         """
         Load turbine power curve from .pow files
@@ -709,36 +689,180 @@ class SAMResourceProcessor:
         
         return wind_resource_table.get_data_handle()
 
+    def _set_solar_weather_data(self, data: Data, weather_data: WeatherData, facility):
+        """
+        Set solar weather data - try multiple formats if needed
+        """
+        if not weather_data.ghi or len(weather_data.ghi) == 0:
+            raise SAMError("No solar irradiance data available")
+        
+        # Prepare data arrays
+        data_length = len(weather_data.ghi)
+        expected_length = 8760
+        
+        def adjust_array(arr, target_length, default_value=0.0):
+            if not arr:
+                return [default_value] * target_length
+            if len(arr) > target_length:
+                return arr[:target_length]
+            elif len(arr) < target_length:
+                pad_value = arr[-1] if arr else default_value
+                return arr + [pad_value] * (target_length - len(arr))
+            return arr
+        
+        ghi_data = adjust_array(weather_data.ghi, expected_length, 0.0)
+        dni_data = adjust_array(weather_data.dni if weather_data.dni else [], expected_length, 0.0)
+        dhi_data = adjust_array(weather_data.dhi if weather_data.dhi else [], expected_length, 0.0)
+        temp_data = adjust_array(weather_data.temperature if weather_data.temperature else [], expected_length, 20.0)
+        wind_data = adjust_array(weather_data.wind_speed if weather_data.wind_speed else [], expected_length, 3.0)
+        
+        # Estimate DNI/DHI if not available
+        if not any(dni_data):
+            dni_data = [max(0, ghi * 0.8) for ghi in ghi_data]
+        if not any(dhi_data):
+            dhi_data = [max(0, ghi * 0.2) for ghi in ghi_data]
+        
+        logger.debug("Creating weather file for PVWatts v5")
+        
+        try:
+            # Try the simple SAM CSV format first
+            temp_weather_file = self._create_sam_csv_weather_file(
+                ghi_data, dni_data, dhi_data, temp_data, wind_data, facility
+            )
+            
+            # Set the weather file path
+            data.set_string(b'solar_resource_file', str(temp_weather_file).encode('utf-8'))
+            self._temp_solar_file = temp_weather_file
+            
+            logger.debug(f"Successfully set solar resource file: {temp_weather_file}")
+            
+        except Exception as e:
+            logger.warning(f"CSV format failed: {e}")
+
+    def _create_sam_csv_weather_file(self, ghi_data, dni_data, dhi_data, temp_data, wind_data, facility):
+        """
+        Create SAM CSV weather file using the EXACT format that SAM expects
+        Based on the SAM documentation and forum posts
+        """
+        import tempfile
+        import os
+        import datetime
+        
+        temp_dir = tempfile.gettempdir()
+        temp_filename = f"sam_solar_{facility.facility_code}_{os.getpid()}.csv"
+        temp_path = Path(temp_dir) / temp_filename
+        
+        try:
+            # Ensure we have exactly 8760 records
+            hours_in_year = 8760
+            
+            with open(temp_path, 'w', newline='') as f:
+                # SAM CSV header format (exactly as SAM expects)
+                f.write("Source,Location ID,City,State,Country,Latitude,Longitude,Time Zone,Elevation\n")
+                f.write(f"SIREN Generated,,{facility.facility_name},,Australia,{facility.latitude},{facility.longitude},8,0\n")
+                
+                # Data column headers (exact SAM format)
+                f.write("Year,Month,Day,Hour,Minute,GHI,DNI,DHI,Tdry,Twet,Wspd,Wdir,Pres\n")
+                
+                # Write data for a complete year (use 2020 - not a leap year affecting 8760 hours)
+                year = 2020  # Non-leap year
+                hour = 0
+                
+                for month in range(1, 13):  # Months 1-12
+                    days_in_month = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][month-1]
+                    
+                    for day in range(1, days_in_month + 1):  # Days in month
+                        for h in range(24):  # Hours 0-23
+                            if hour >= hours_in_year:
+                                break
+                                
+                            # Get data values, ensuring they exist and are valid
+                            ghi = 0.0
+                            dni = 0.0
+                            dhi = 0.0
+                            tdry = 20.0
+                            wspd = 3.0
+                            
+                            if hour < len(ghi_data) and ghi_data[hour] is not None:
+                                ghi = max(0.0, min(1500.0, float(ghi_data[hour])))
+                            if hour < len(dni_data) and dni_data[hour] is not None:
+                                dni = max(0.0, min(1200.0, float(dni_data[hour])))
+                            if hour < len(dhi_data) and dhi_data[hour] is not None:
+                                dhi = max(0.0, min(800.0, float(dhi_data[hour])))
+                            if hour < len(temp_data) and temp_data[hour] is not None:
+                                tdry = max(-50.0, min(60.0, float(temp_data[hour])))
+                            if hour < len(wind_data) and wind_data[hour] is not None:
+                                wspd = max(0.0, min(50.0, float(wind_data[hour])))
+                            
+                            # Calculate wet bulb (simple approximation)
+                            twet = tdry - 5.0
+                            
+                            # Fixed values
+                            minute = 0
+                            wdir = 180
+                            pres = 1013
+                            
+                            # Write record with simple integer formatting for time, float for data
+                            f.write(f"{year},{month},{day},{h},{minute},"
+                                f"{ghi:.1f},{dni:.1f},{dhi:.1f},"
+                                f"{tdry:.1f},{twet:.1f},{wspd:.1f},"
+                                f"{wdir},{pres}\n")
+                            
+                            hour += 1
+                            
+                        if hour >= hours_in_year:
+                            break
+                    if hour >= hours_in_year:
+                        break
+            
+            # Verify we wrote exactly 8760 records
+            with open(temp_path, 'r') as f:
+                lines = f.readlines()
+                data_lines = len(lines) - 3  # Subtract 3 header lines
+                
+            logger.debug(f"Created SAM CSV file with {data_lines} data records")
+            
+            if data_lines != 8760:
+                logger.error(f"Expected 8760 records, got {data_lines}")
+                
+            return temp_path
+            
+        except Exception as e:
+            raise WeatherFileError(f"Error creating SAM CSV file: {e}")
+   
     def process_solar_facility(self, facility, weather_data: WeatherData) -> SimulationResults:
         """
-        Process solar facility using SAM PV module
-        
-        Args:
-            facility: Facility model instance
-            weather_data: WeatherData object
-            
-        Returns:
-            SimulationResults object
-            
-        Raises:
-            SAMError: If simulation fails
+        Process solar facility using SAM PV module with weather file
         """
         try:
+            logger.info(f"Starting solar simulation for {facility.facility_name}")
+            
             # Create SAM data container
             data = Data()
             
-            # Set weather data
-            self._set_solar_weather_data(data, weather_data)
+            # Set weather data using weather file approach
+            self._set_solar_weather_data(data, weather_data, facility)
             
             # Set system parameters
             self._set_solar_system_parameters(data, facility)
             
-            # Create and execute PV module
-            pv_module = Module(b'pvwattsv7')
+            # Debug: Log some parameter values to confirm they're set
+            logger.debug(f"System capacity: {data.get_number(b'system_capacity')} kW")
+            logger.debug(f"Array type: {data.get_number(b'array_type')}")
+            logger.debug(f"Tilt: {data.get_number(b'tilt')}°")
+            logger.debug(f"Azimuth: {data.get_number(b'azimuth')}°")
+            
+            # Create PVWatts v5 module
+            logger.debug("Creating PVWatts v5 module...")
+            pv_module = Module(b'pvwattsv5')
             
             if not pv_module.is_ok():
-                raise SAMError("Failed to create PV module")
+                raise SAMError("Failed to create PVWatts v5 module")
+            
+            logger.info("Successfully created PVWatts v5 module")
                 
+            # Execute the module
+            logger.debug("Executing solar simulation...")
             success = pv_module.exec_(data)
             
             if not success:
@@ -756,11 +880,42 @@ class SAMResourceProcessor:
         except Exception as e:
             if isinstance(e, SAMError):
                 raise
+            logger.error(f"Error in solar facility processing: {e}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
             raise SAMError(f"Error in solar facility processing: {e}")
-    
+            
+        finally:
+            # Clean up temporary weather file
+            if hasattr(self, '_temp_solar_file') and self._temp_solar_file and self._temp_solar_file.exists():
+                try:
+                    import os
+                    os.remove(self._temp_solar_file)
+                    logger.debug(f"Cleaned up temporary solar file: {self._temp_solar_file}")
+                except:
+                    pass
+            
     def _parse_smz_file(self, file_path: Path) -> WeatherData:
         """
-        Parse .smz/.srz weather files based on actual SIREN file format
+        Parse .smz solar weather files based on the actual SIREN file format
+        
+        Format analysis from debug output:
+        - Line 0: Header with metadata: 'id,<city>,<state>,8,-29.0,115.0,0,3600.0,2024,0:30:00'
+        - Lines 1+: Data: 'temp,?,?,?,wind_speed,wind_dir,pressure,ghi,dni,dhi,?,?,'
+        
+        Based on the sample data, the columns appear to be:
+        0: Temperature (C)
+        1: -999 (unknown/unused)
+        2: -999 (unknown/unused) 
+        3: -999 (unknown/unused)
+        4: Wind speed (m/s)
+        5: Wind direction (degrees)
+        6: Pressure (mbar)
+        7: GHI (Global Horizontal Irradiance) W/m2
+        8: DNI (Direct Normal Irradiance) W/m2
+        9: DHI (Diffuse Horizontal Irradiance) W/m2
+        10: -999 (unknown/unused)
+        11: -999 (unknown/unused)
         """
         weather_data = WeatherData()
         
@@ -777,16 +932,8 @@ class SAMResourceProcessor:
                 weather_data.temperature = []
                 weather_data.pressure = []
                 
-                # Based on your file format:
-                # Line 0: header with metadata
-                # Line 1: data source info
-                # Line 2: column headers - "Temperature,Pressure,Direction,Speed,Direction,Speed"
-                # Line 3: units - "C,atm,degrees,m/s,degrees,m/s"
-                # Line 4: heights - "2,0,10,10,100,100" (measurement heights in meters)
-                # Line 5+: actual data
-                
-                # Start parsing from line 5 (data starts after headers)
-                for line in lines[5:]:
+                # Parse wind data (keep existing logic for .srz files)
+                for line in lines[5:]:  # Skip headers
                     line = line.strip()
                     if not line:
                         continue
@@ -794,20 +941,14 @@ class SAMResourceProcessor:
                     try:
                         parts = [part.strip() for part in line.split(',')]
                         if len(parts) >= 6:
-                            # Format: Temperature,Pressure,Direction@10m,Speed@10m,Direction@100m,Speed@100m
-                            temperature = float(parts[0])  # Temperature in C
-                            pressure = float(parts[1])     # Pressure in atm
-                            # Wind direction at 10m height
-                            wind_direction_10m = float(parts[2])  # degrees
-                            # Wind speed at 10m height  
-                            wind_speed_10m = float(parts[3])      # m/s
-                            # Wind direction at 100m height
-                            wind_direction_100m = float(parts[4]) # degrees
-                            # Wind speed at 100m height
-                            wind_speed_100m = float(parts[5])     # m/s
+                            temperature = float(parts[0])
+                            pressure = float(parts[1])
+                            wind_direction_10m = float(parts[2])
+                            wind_speed_10m = float(parts[3])
+                            wind_direction_100m = float(parts[4])
+                            wind_speed_100m = float(parts[5])
                             
-                            # Use 100m wind data if available (better for wind turbines)
-                            # or 10m data as fallback
+                            # Use 100m wind data if available
                             wind_speed = wind_speed_100m if wind_speed_100m > 0 else wind_speed_10m
                             wind_direction = wind_direction_100m if wind_speed_100m > 0 else wind_direction_10m
                             
@@ -821,59 +962,87 @@ class SAMResourceProcessor:
                         continue
                 
                 logger.info(f"Parsed wind weather: {len(weather_data.wind_speed)} records from {file_path}")
-                
-            elif file_ext == '.smz':  # Solar file - similar format expected
+                    
+            elif file_ext == '.smz':  # Solar file - CORRECT PARSING FOR YOUR FORMAT
                 weather_data.ghi = []
                 weather_data.dni = []
                 weather_data.dhi = []
                 weather_data.temperature = []
                 weather_data.wind_speed = []
                 
-                # Parse solar data (adjust based on actual .smz format when you see it)
-                for line in lines[5:]:  # Assuming similar header structure
+                # Skip the first line (header with metadata)
+                data_lines = lines[1:]
+                
+                logger.info(f"Parsing {len(data_lines)} data lines from {file_path}")
+                
+                for line_num, line in enumerate(data_lines, 1):
                     line = line.strip()
                     if not line:
                         continue
                         
                     try:
+                        # Split by comma
                         parts = [part.strip() for part in line.split(',')]
-                        if len(parts) >= 5:
-                            # Adjust these based on actual .smz file format
-                            # This is a placeholder - you'll need to debug a .smz file
-                            ghi = float(parts[0])
-                            dni = float(parts[1])
-                            dhi = float(parts[2])
-                            temperature = float(parts[3])
-                            wind_speed = float(parts[4])
-                            
-                            weather_data.ghi.append(ghi)
-                            weather_data.dni.append(dni)
-                            weather_data.dhi.append(dhi)
-                            weather_data.temperature.append(temperature)
-                            weather_data.wind_speed.append(wind_speed)
-                            
+                        
+                        # Ensure we have enough columns
+                        if len(parts) < 10:
+                            logger.debug(f"Line {line_num}: insufficient columns ({len(parts)}), skipping")
+                            continue
+                        
+                        # Parse according to the format you showed:
+                        # 0: Temperature, 4: Wind speed, 5: Wind direction, 6: Pressure
+                        # 7: GHI, 8: DNI, 9: DHI
+                        
+                        temperature = float(parts[0]) if parts[0] != '-999' else 20.0
+                        wind_speed = float(parts[4]) if parts[4] != '-999' else 3.0
+                        wind_direction = float(parts[5]) if parts[5] != '-999' else 180.0
+                        pressure = float(parts[6]) if parts[6] != '-999' else 1013.25
+                        
+                        # Solar irradiance data (most important)
+                        ghi = float(parts[7]) if parts[7] != '-999' else 0.0
+                        dni = float(parts[8]) if parts[8] != '-999' else 0.0
+                        dhi = float(parts[9]) if parts[9] != '-999' else 0.0
+                        
+                        # Ensure non-negative irradiance values
+                        ghi = max(0.0, ghi)
+                        dni = max(0.0, dni)
+                        dhi = max(0.0, dhi)
+                        
+                        # Store the data
+                        weather_data.temperature.append(temperature)
+                        weather_data.wind_speed.append(wind_speed)
+                        weather_data.ghi.append(ghi)
+                        weather_data.dni.append(dni)
+                        weather_data.dhi.append(dhi)
+                        
                     except (ValueError, IndexError) as e:
-                        logger.debug(f"Skipping invalid solar data line: {line} - {e}")
+                        logger.debug(f"Line {line_num}: error parsing '{line}' - {e}")
                         continue
                 
-                logger.info(f"Parsed solar weather: {len(weather_data.ghi)} records from {file_path}")
+                # Log parsing results
+                total_records = len(weather_data.ghi)
+                logger.info(f"Successfully parsed solar weather: {total_records} records from {file_path}")
+                
+                if total_records > 0:
+                    avg_ghi = sum(weather_data.ghi) / total_records
+                    max_ghi = max(weather_data.ghi)
+                    avg_temp = sum(weather_data.temperature) / total_records
+                    
+                    logger.info(f"Solar data summary - Avg GHI: {avg_ghi:.1f} W/m2, Max GHI: {max_ghi:.1f} W/m2, Avg Temp: {avg_temp:.1f}°C")
+                    
+                    # Check for reasonable data ranges
+                    if max_ghi > 1500:
+                        logger.warning(f"Very high GHI values detected (max: {max_ghi}), check data quality")
+                    if avg_ghi < 10:
+                        logger.warning(f"Very low average GHI ({avg_ghi}), check data quality")
+                else:
+                    logger.error("No solar weather records were successfully parsed!")
             
         except Exception as e:
             raise WeatherFileError(f"Error parsing weather file {file_path}: {e}")
             
         return weather_data
-    
-    def _set_wind_weather_data(self, data: Data, weather_data: WeatherData):
-        """Set wind-specific weather data in SAM Data object"""
-        if weather_data.wind_speed:
-            data.set_array(b'wind_resource_data', weather_data.wind_speed)
-        if weather_data.wind_direction:
-            data.set_array(b'wind_resource_dir', weather_data.wind_direction)
-        if weather_data.temperature:
-            data.set_array(b'wind_resource_temp', weather_data.temperature)
-        if weather_data.pressure:
-            data.set_array(b'wind_resource_pres', weather_data.pressure)
-    
+
     def _set_wind_turbine_parameters(self, data: Data, facility, power_curve: Dict[float, float]):
         """Set wind turbine parameters in SAM Data object"""
         data.set_number(b'wind_resource_model_choice', 0)  # Use wind resource data
@@ -891,30 +1060,67 @@ class SAMResourceProcessor:
         if facility.no_turbines:
             data.set_number(b'wind_farm_wake_model', 0)  # No wake model for simplicity
     
-    def _set_solar_weather_data(self, data: Data, weather_data: WeatherData):
-        """Set solar-specific weather data in SAM Data object"""
-        # SAM expects weather data in a specific format for PVWatts
-        if weather_data.ghi:
-            data.set_array(b'solar_resource_data', weather_data.ghi)
-        if weather_data.dni:
-            data.set_array(b'solar_resource_data', weather_data.dni)
-        if weather_data.dhi:
-            data.set_array(b'solar_resource_data', weather_data.dhi)
-        if weather_data.temperature:
-            data.set_array(b'solar_resource_data', weather_data.temperature)
-        if weather_data.wind_speed:
-            data.set_array(b'solar_resource_data', weather_data.wind_speed)
-    
     def _set_solar_system_parameters(self, data: Data, facility):
-        """Set solar system parameters in SAM Data object"""
-        data.set_number(b'system_capacity', float(facility.capacity or 1000))  # kW
-        data.set_number(b'module_type', 0)  # Standard module
-        data.set_number(b'array_type', 0)  # Fixed tilt
-        data.set_number(b'tilt', float(facility.tilt or 25))  # degrees
-        data.set_number(b'azimuth', 180)  # South-facing
-        data.set_number(b'dc_ac_ratio', 1.2)
-        data.set_number(b'losses', 14.0)  # System losses %
-        data.set_number(b'inv_eff', 96.0)  # Inverter efficiency %
+        """
+        Set solar system parameters for PVWatts v5 with correct parameter names
+        """
+        try:
+            # Required parameters for PVWatts v5
+            system_capacity = float(facility.capacity * 1000) if facility.capacity else 1000.0  # Convert MW to kW
+            data.set_number(b'system_capacity', system_capacity)
+            
+            # Module type: 0=Standard, 1=Premium, 2=Thin film
+            data.set_number(b'module_type', 0)
+            
+            # Array type: 0=Fixed open rack, 1=Fixed roof mount, 2=1-axis tracking, 3=1-axis backtracking, 4=2-axis tracking
+            array_type = 0  # Default to fixed
+            tech_name = facility.idtechnologies.technology_name.lower()
+            if 'single axis' in tech_name or 'tracking' in tech_name:
+                array_type = 2  # Single axis tracking
+            elif 'rooftop' in tech_name:
+                array_type = 1  # Roof mount
+                
+            data.set_number(b'array_type', array_type)
+            
+            # Tilt angle (degrees from horizontal)
+            tilt = float(facility.tilt) if hasattr(facility, 'tilt') and facility.tilt else abs(float(facility.latitude))
+            data.set_number(b'tilt', tilt)
+            
+            # Azimuth angle (degrees from north) - PVWatts v5 uses 'azimuth'
+            azimuth = 180.0  # South-facing default
+            if hasattr(facility, 'azimuth') and facility.azimuth:
+                azimuth = float(facility.azimuth)
+            data.set_number(b'azimuth', azimuth)
+            
+            # System losses (%) - PVWatts v5 uses 'losses'
+            losses = 14.0  # Default system losses
+            if hasattr(facility, 'losses') and facility.losses:
+                losses = float(facility.losses)
+            data.set_number(b'losses', losses)
+            
+            # DC to AC ratio - PVWatts v5 uses 'dc_ac_ratio'
+            dc_ac_ratio = 1.2  # Default
+            if hasattr(facility, 'dc_ac_ratio') and facility.dc_ac_ratio:
+                dc_ac_ratio = float(facility.dc_ac_ratio)
+            data.set_number(b'dc_ac_ratio', dc_ac_ratio)
+            
+            # Inverter efficiency (%) - PVWatts v5 uses 'inv_eff'
+            inv_eff = 96.0  # Default
+            if hasattr(facility, 'inverter_efficiency') and facility.inverter_efficiency:
+                inv_eff = float(facility.inverter_efficiency)
+            data.set_number(b'inv_eff', inv_eff)
+            
+            # Ground coverage ratio (for tracking systems) - PVWatts v5 uses 'gcr'
+            if array_type in [2, 3, 4]:  # Tracking systems
+                data.set_number(b'gcr', 0.4)  # Ground coverage ratio
+                
+            # Additional PVWatts v5 parameters
+            data.set_number(b'adjust:constant', 0.0)  # No adjustment factors
+            
+            logger.debug(f"Set solar parameters for PVWatts v5: {system_capacity}kW, tilt={tilt}°, azimuth={azimuth}°, array_type={array_type}")
+            
+        except Exception as e:
+            raise SAMError(f"Error setting solar system parameters: {e}")
     
     def _extract_wind_results(self, data: Data) -> SimulationResults:
         """Extract results from wind simulation"""

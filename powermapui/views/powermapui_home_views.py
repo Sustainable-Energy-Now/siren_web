@@ -16,7 +16,8 @@ def home(request):
     demand_year = request.session.get('demand_year', '')
     scenario = request.session.get('scenario', '')
     config_file = request.session.get('config_file')
-    success_message = ""
+    # Get success message from session and clear it
+    success_message = request.session.pop('success_message', '')
     
     if request.method == 'POST':
         # Handle form submission

@@ -180,9 +180,7 @@ class Storageattributes(models.Model):
                
 class supplyfactors(models.Model):
     idsupplyfactors = models.AutoField(db_column='idsupplyfactors', primary_key=True)  
-    idscenarios = models.ForeignKey('Scenarios', models.DO_NOTHING, db_column='idscenarios')  
-    idtechnologies = models.ForeignKey('Technologies', models.DO_NOTHING, db_column='idtechnologies', blank=True, null=True)  
-    idzones = models.ForeignKey('Zones', models.DO_NOTHING, db_column='idzones', blank=True, null=True)  
+    idfacilities = models.ForeignKey('facilities', on_delete=models.CASCADE, db_column='idfacilities', blank=True, null=True)
     year = models.PositiveIntegerField()
     hour = models.IntegerField(blank=True, null=True)
     supply = models.IntegerField(blank=True, null=True)

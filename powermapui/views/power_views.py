@@ -1,5 +1,5 @@
 from django.contrib.auth.decorators import login_required
-from django.shortcuts import render
+from django.shortcuts import render, redirect
 from django.conf import settings
 import logging
 
@@ -15,7 +15,7 @@ from powermapui.views.wasceneweb import WASceneWeb as WAScene
 from powermapui.views.powermodelweb import PowerModelWeb as PowerModel
 
 # Import the SAM processor
-from powermapui.views.sam_resource_processor import SAMResourceProcessor, SAMError, WeatherFileFinder, WeatherFileError
+from powermapui.views.sam_resource_processor import SAMResourceProcessor, SAMError, WeatherFileError, SimulationResults
 
 logger = logging.getLogger(__name__)
 
@@ -41,24 +41,9 @@ def generate_power(request):
             facilities_list = fetch_full_facilities_data(demand_year, scenario)
             config = fetch_all_config_data(request)
             
-            # Initialize SAM processor
-            weather_dir = getattr(settings, 'WEATHER_DATA_DIR', 'weather_data')
-            power_curves_dir = getattr(settings, 'POWER_CURVES_DIR', 'power_curves')
-            
-            sam_processor = SAMResourceProcessor(
-                config_settings=config,
-                weather_data_dir=weather_dir,
-                power_curves_dir=power_curves_dir
-            )
-            
             # Process renewable facilities with SAM
-            sam_processed_count = process_renewable_facilities(
-                sam_processor, facilities_list, demand_year, scenario
-            )
-            
-            # Process non-renewable facilities with traditional model
-            traditional_processed_count = process_traditional_facilities(
-                config, facilities_list, demand_year, scenario, scenario_settings
+            sam_processed_count, traditional_processed_count = process_facilities(
+                config, facilities_list, demand_year, scenario
             )
             
             success_message = (
@@ -68,28 +53,32 @@ def generate_power(request):
             )
             
             logger.info(success_message)
+            request.session['success_message'] = success_message
             
         except Exception as e:
             logger.error(f"Error in power generation: {e}")
             success_message = f"Error in power generation: {str(e)}"
-    
-    context = {
-        'demand_year': demand_year,
-        'scenario': scenario,
-        'config_file': config_file,
-        'success_message': success_message,
-    }
-    
-    return render(request, 'powermapui_home.html', context)
+            request.session['success_message'] = f"Error in power generation: {str(e)}"
 
-def process_renewable_facilities(sam_processor, facilities_list, demand_year, scenario):
+    return redirect('powermapui_home')
+
+def process_facilities(config, facilities_list, demand_year, scenario):
     """
     Process renewable facilities using SAM
     
     Returns:
         int: Number of facilities processed
     """
-    processed_count = 0
+    
+    # Initialize SAM processor
+    weather_dir = getattr(settings, 'WEATHER_DATA_DIR', 'weather_data')
+    power_curves_dir = getattr(settings, 'POWER_CURVES_DIR', 'power_curves')
+    sam_processor = SAMResourceProcessor(
+        config_settings=config,
+        weather_data_dir=weather_dir,
+        power_curves_dir=power_curves_dir
+    )
+    sam_processed_count, traditional_processed_count = 0, 0
     
     for facility_data in facilities_list:
         try:
@@ -97,132 +86,130 @@ def process_renewable_facilities(sam_processor, facilities_list, demand_year, sc
                 facility_code=facility_data.get('facility_code')
             )
             technology = facility_obj.idtechnologies
+            tech_name = technology.technology_name.lower()
             
             # Only process renewable technologies with SAM
-            if not technology.renewable:
-                continue
-            
-            # Get weather file path
-            tech_name = technology.technology_name.lower()
-            weather_file_path = sam_processor.get_weather_file_path(
-                facility_obj.latitude, 
-                facility_obj.longitude, 
-                tech_name, 
-                demand_year
-            ) # type: ignore
-            
-            try:
-                # # Debug the file format
-                # sam_processor.debug_weather_file_format(weather_file_path, 15)
-                
-                # Load weather data
-                weather_data = sam_processor.load_weather_data(weather_file_path)
+            if technology.renewable:
+                results = process_renewable_facility(sam_processor, facility_obj, tech_name, demand_year)
+                sam_processed_count += 1
+            else:
+                results = process_traditional_facility(facility_obj)
+                traditional_processed_count += 1
+                    
+            if results:
+                # Store results in supplyfactors table
+                store_simulation_results(
+                    results, facility_obj, demand_year
+                )
 
-                # Process based on technology type
-                results = None
-  
-                if tech_name in ['onshore wind', 'offshore wind', 'offshore wind floating']:
-                    # Process wind facility
-                    power_curve = {}
-                    if facility_obj.turbine:
-                        power_curve_path = sam_processor.get_power_curve_file_path(
-                            facility_obj.turbine
-                        )
-                        power_curve = sam_processor.load_power_curve(power_curve_path)
-                    
-                    results = sam_processor.process_wind_facility(
-                        facility_obj, demand_year, power_curve
-                    )
-                    
-                elif tech_name in ['single axis pv', 'fixed pv', 'rooftop pv']:
-                    # Process solar facility
-                    results = sam_processor.process_solar_facility(
-                        facility_obj, None
-                    )
-                    
-                if results:
-                    # Store results in supplyfactors table
-                    store_simulation_results(
-                        results, facility_obj, technology, demand_year, scenario
-                    )
-                    
-                    # Update facility with calculated values
-                    facility_obj.capacityfactor = results.capacity_factor
-                    facility_obj.generation = results.annual_energy
-                    facility_obj.save()
-                    
-                    processed_count += 1
-                    
-            except WeatherFileError as e:
-                logger.warning(f"Weather file issue for {facility_obj.facility_name}: {e}")
-                continue
-                
-            except SAMError as e:
-                logger.error(f"SAM simulation failed for {facility_obj.facility_name}: {e}")
-                continue
-                
-        except facilities.DoesNotExist:
-            logger.warning(f"Facility not found: {facility_data.get('facility_code')}")
-            continue
-            
+            # Update facility with calculated values
+            facility_obj.capacityfactor = results.capacity_factor
+            facility_obj.generation = results.annual_energy
+            facility_obj.save()
         except Exception as e:
             logger.error(f"Unexpected error processing facility {facility_data.get('facility_code')}: {e}")
             continue
     
-    return processed_count
+    return sam_processed_count, traditional_processed_count
 
-def process_traditional_facilities(config, facilities_list, demand_year, scenario, scenario_settings):
+def process_renewable_facility(sam_processor, facility_obj, tech_name, demand_year):
+    """
+    Process renewable facilities using SAM
+    
+    Returns:
+        int: Results of the SAM simulation or None if not applicable
+    """
+    processed_count = 0
+    try:
+        
+        # ADD THIS DEBUG CODE TEMPORARILY
+        # if tech_name in ['single axis pv', 'fixed pv', 'rooftop pv']:
+        #     logger.info(f"=== DEBUGGING SOLAR FACILITY: {facility_obj.facility_name} ===")
+        #     weather_data = sam_processor.debug_solar_weather_loading(facility_obj, tech_name, demand_year)
+            
+        #     if not weather_data or not weather_data.ghi:
+        #         logger.error("No valid solar weather data found - cannot proceed with simulation")
+        #         return None
+            
+        weather_file_path = sam_processor.get_weather_file_path(
+            facility_obj.latitude, 
+            facility_obj.longitude, 
+            tech_name, 
+            demand_year
+        ) # type: ignore
+
+        # # Debug the file format
+        # sam_processor.debug_weather_file_format(weather_file_path, 15)
+        
+        # Load weather data
+        weather_data = sam_processor.load_weather_data(weather_file_path)
+
+        # Process based on technology type
+        results = None
+
+        if tech_name in ['onshore wind', 'offshore wind', 'offshore wind floating']:
+            # Process wind facility
+            power_curve = {}
+            if facility_obj.turbine:
+                power_curve_path = sam_processor.get_power_curve_file_path(
+                    facility_obj.turbine
+                )
+                power_curve = sam_processor.load_power_curve(power_curve_path)
+            
+            results = sam_processor.process_wind_facility(
+                facility_obj, demand_year, power_curve
+            )
+            
+        elif tech_name in ['single axis pv', 'fixed pv', 'rooftop pv']:
+            # Process solar facility
+            results = sam_processor.process_solar_facility(
+                facility_obj, weather_data
+            )
+            
+            # Update facility with calculated values
+            facility_obj.capacityfactor = results.capacity_factor
+            facility_obj.generation = results.annual_energy
+            facility_obj.save()
+            
+            processed_count += 1
+                
+    except WeatherFileError as e:
+        logger.warning(f"Weather file issue for {facility_obj.facility_name}: {e}")
+        pass
+        
+    except SAMError as e:
+        logger.error(f"SAM simulation failed for {facility_obj.facility_name}: {e}")
+        pass
+    return results
+
+def process_traditional_facility(facility_obj):
     """
     Process non-renewable facilities using traditional power model
     
     Returns:
-        int: Number of facilities processed
+        SimulationResults: Results object with constant generation
     """
-    processed_count = 0
-    
     try:
-        # Use original power model for non-renewable technologies
-        scene = WAScene(config, facilities_list)
-        power = PowerModel(config, scene._stations.stations, demand_year, scenario_settings)
-        generated = power.getValues()
+        # Calculate constant generation (capacity in MW converted to kW)
+        capacity_kw = facility_obj.capacity * facility_obj.capacityfactor * 1000  # Convert MW to kW
         
-        # Store traditional power model results
-        for station in power.stations:
-            try:
-                if power.ly.get(station.name):
-                    facility_obj = facilities.objects.get(facility_code=station.name)
-                    technology = facility_obj.idtechnologies
-                    
-                    # Only use traditional model for non-renewable technologies
-                    if not technology.renewable:
-                        for hour, generation in enumerate(power.ly[station.name]):
-                            supplyfactors.objects.update_or_create(
-                                idscenarios_id=scenario,
-                                idtechnologies=technology,
-                                idzones=facility_obj.idzones,
-                                year=demand_year,
-                                hour=hour,
-                                defaults={
-                                    'quantum': generation,
-                                    'supply': 1
-                                }
-                            )
-                        processed_count += 1
-                        
-            except facilities.DoesNotExist:
-                logger.warning(f"Facility not found for traditional processing: {station.name}")
-                continue
-                
-            except Exception as e:
-                logger.error(f"Error with traditional model for {station.name}: {e}")
-                continue
-                
+        # Create SimulationResults object with constant generation
+        results = SimulationResults(
+            annual_energy=capacity_kw * 8760,  # kWh/year (capacity × hours in year)
+            hourly_generation=[capacity_kw] * 8760,  # Constant generation every hour
+            capacity_factor=facility_obj.capacityfactor 
+        )
+        
+        logger.debug(f"Traditional facility {facility_obj.facility_name}: "
+                    f"{capacity_kw} kW capacity, {results.annual_energy:,.0f} kWh/year")
+        
+        return results
+        
     except Exception as e:
-        logger.error(f"Error in traditional power model: {e}")
-    
-    return processed_count
+        logger.error(f"Error in traditional power model for {facility_obj.facility_name}: {e}")
+        return None
 
-def store_simulation_results(results, facility_obj, technology, demand_year, scenario):
+def store_simulation_results(results, facility_obj, demand_year):
     """
     Store SAM simulation results in the supplyfactors table
     
@@ -234,11 +221,8 @@ def store_simulation_results(results, facility_obj, technology, demand_year, sce
         scenario: Scenario being processed
     """
     # Clear existing data for this facility/scenario/year
-    scenario_obj = Scenarios.objects.get(title=scenario)
     supplyfactors.objects.filter(
-        idscenarios_id=scenario_obj.idscenarios,
-        idtechnologies=technology,
-        idzones=facility_obj.idzones,
+        idfacilities=facility_obj.idfacilities,
         year=demand_year
     ).delete()
     
@@ -246,9 +230,7 @@ def store_simulation_results(results, facility_obj, technology, demand_year, sce
     bulk_records = []
     for hour, generation in enumerate(results.hourly_generation):
         record = supplyfactors(
-            idscenarios_id=scenario_obj.idscenarios,
-            idtechnologies=technology,
-            idzones=facility_obj.idzones,
+            idfacilities=facility_obj,
             year=demand_year,
             hour=hour,
             quantum=generation,
