@@ -1,0 +1,79 @@
+<!-- generate_power.html - Confirmation template -->
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Generate Power - Configuration</title>
+    <style>
+        .container { max-width: 800px; margin: 20px auto; padding: 20px; font-family: Arial, sans-serif; }
+        .config-info { background: #f5f5f5; padding: 15px; border-radius: 5px; margin-bottom: 20px; }
+        .option-card { border: 1px solid #ddd; border-radius: 8px; padding: 20px; margin: 15px 0; }
+        .option-card.recommended { border-color: #28a745; background: #f8fff9; }
+        .option-card.warning { border-color: #ffc107; background: #fffdf5; }
+        .btn { padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold; margin-right: 10px; display: inline-block; border: none; cursor: pointer; }
+        .btn-success { background: #28a745; color: white; }
+        .btn-warning { background: #ffc107; color: #212529; }
+        .btn-secondary { background: #6c757d; color: white; }
+        .icon { font-size: 1.2em; margin-right: 8px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Generate Power - Choose Processing Mode</h2>
+        
+        <div class="config-info">
+            <h4>Current Configuration:</h4>
+            <p><strong>Demand Year:</strong> {{ demand_year }}</p>
+            <p><strong>Scenario:</strong> {{ scenario }}</p>
+            <p><strong>Config File:</strong> {{ config_file|default:"Default" }}</p>
+        </div>
+
+        <div class="option-card recommended">
+            <h3><span class="icon">🚀</span>Smart Process (Recommended)</h3>
+            <p><strong>What it does:</strong></p>
+            <ul>
+                <li>Automatically detects facilities without supply factors data</li>
+                <li>Processes only NEW facilities that need data</li>
+                <li>Skips facilities that already have supply factors for {{ demand_year }}</li>
+                <li>Fast execution - perfect for regular runs</li>
+            </ul>
+            <p><strong>Use this when:</strong> Adding new facilities, regular updates, daily operations</p>
+            
+            <a href="{% url 'generate_power' %}?confirm=true&refresh_supply_factors=false" 
+               class="btn btn-success">
+                <span class="icon">🚀</span>Start Smart Process
+            </a>
+        </div>
+
+        <div class="option-card warning">
+            <h3><span class="icon">🔄</span>Force Refresh All</h3>
+            <p><strong>What it does:</strong></p>
+            <ul>
+                <li>Processes ALL facilities regardless of existing data</li>
+                <li>Deletes and recreates supply factors for ALL facilities</li>
+                <li>May take significant time with large facility lists</li>
+                <li>Overwrites all existing hourly generation data</li>
+            </ul>
+            <p><strong>Use this when:</strong> Configuration changes, parameter updates, troubleshooting data issues</p>
+            
+            <a href="{% url 'generate_power' %}?confirm=true&refresh_supply_factors=true" 
+               class="btn btn-warning"
+               onclick="return confirm('⚠️ This will delete and recreate ALL supply factors data for ALL facilities. This may take a long time. Are you sure?')">
+                <span class="icon">🔄</span>Force Refresh All
+            </a>
+        </div>
+
+        <div style="margin-top: 30px; text-align: center;">
+            <a href="{% url 'powermapui_home' %}" class="btn btn-secondary">
+                <span class="icon">← </span>Cancel and Return
+            </a>
+        </div>
+
+        <div style="margin-top: 20px; padding: 15px; background: #e9ecef; border-radius: 5px; font-size: 0.9em;">
+            <h4>💡 Quick Guide:</h4>
+            <p><strong>New to the system?</strong> Use Smart Process - it's safe and efficient.</p>
+            <p><strong>Added new facilities?</strong> Use Smart Process - it will automatically detect and process them.</p>
+            <p><strong>Changed weather data or parameters?</strong> Use Force Refresh All to update everything.</p>
+        </div>
+    </div>
+</body>
+</html>

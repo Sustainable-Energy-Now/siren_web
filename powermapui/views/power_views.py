@@ -27,6 +27,23 @@ def generate_power(request):
     demand_year = request.session.get('demand_year', '')
     scenario = request.session.get('scenario', '')
     config_file = request.session.get('config_file')
+    
+    # Check if this is just displaying the confirmation page
+    if request.method == 'GET' and not request.GET.get('confirm'):
+        # Show the confirmation template first
+        context = {
+            'demand_year': demand_year,
+            'scenario': scenario,
+            'config_file': config_file,
+        }
+        return render(request, 'generate_power.html', context)
+    
+    # Add refresh parameter - can come from POST or GET with confirm
+    refresh_supply_factors = (
+        request.POST.get('refresh_supply_factors') == 'true' or 
+        request.GET.get('refresh_supply_factors') == 'true'
+    )
+    
     success_message = ""
     
     if not demand_year:
@@ -41,16 +58,23 @@ def generate_power(request):
             facilities_list = fetch_full_facilities_data(demand_year, scenario)
             config = fetch_all_config_data(request)
             
-            # Process renewable facilities with SAM
-            sam_processed_count, traditional_processed_count = process_facilities(
-                config, facilities_list, demand_year, scenario
+            # Process renewable facilities with SAM - pass refresh flag
+            sam_processed_count, traditional_processed_count, skipped_count = process_facilities(
+                config, facilities_list, demand_year, scenario, refresh_supply_factors
             )
             
+            # Update success message to show processing details
+            refresh_status = " (with refresh)" if refresh_supply_factors else " (new facilities only)"
             success_message = (
-                f"Power generation completed. "
+                f"Power generation completed{refresh_status}. "
                 f"SAM processed {sam_processed_count} renewable facilities, "
-                f"traditional model processed {traditional_processed_count} facilities."
+                f"traditional model processed {traditional_processed_count} facilities"
             )
+            
+            if skipped_count > 0:
+                success_message += f", skipped {skipped_count} facilities with existing data"
+            
+            success_message += "."
             
             logger.info(success_message)
             request.session['success_message'] = success_message
@@ -62,12 +86,16 @@ def generate_power(request):
 
     return redirect('powermapui_home')
 
-def process_facilities(config, facilities_list, demand_year, scenario):
+def process_facilities(config, facilities_list, demand_year, scenario, refresh_supply_factors=False):
     """
     Process renewable facilities using SAM
     
+    Args:
+        refresh_supply_factors: If True, refresh supply factors for all facilities.
+                              If False, only process facilities without existing supply factors.
+    
     Returns:
-        int: Number of facilities processed
+        tuple: (sam_processed_count, traditional_processed_count, skipped_count)
     """
     
     # Initialize SAM processor
@@ -78,17 +106,30 @@ def process_facilities(config, facilities_list, demand_year, scenario):
         weather_data_dir=weather_dir,
         power_curves_dir=power_curves_dir
     )
-    sam_processed_count, traditional_processed_count = 0, 0
+    sam_processed_count, traditional_processed_count, skipped_count = 0, 0, 0
     
     for facility_data in facilities_list:
         try:
             facility_obj = facilities.objects.get(
                 facility_code=facility_data.get('facility_code')
             )
+            
+            # Check if supply factors already exist for this facility/year
+            existing_supply_factors = supplyfactors.objects.filter(
+                idfacilities=facility_obj.idfacilities,
+                year=demand_year
+            ).exists()
+            
+            # Skip processing if supply factors exist and refresh is not requested
+            if existing_supply_factors and not refresh_supply_factors:
+                skipped_count += 1
+                logger.debug(f"Skipped {facility_obj.facility_name} - supply factors already exist for {demand_year}")
+                continue
+            
             technology = facility_obj.idtechnologies
             tech_name = technology.technology_name.lower()
             
-            # Only process renewable technologies with SAM
+            # Process the facility
             if technology.renewable:
                 results = process_renewable_facility(sam_processor, facility_obj, tech_name, demand_year)
                 sam_processed_count += 1
@@ -97,20 +138,24 @@ def process_facilities(config, facilities_list, demand_year, scenario):
                 traditional_processed_count += 1
                     
             if results:
-                # Store results in supplyfactors table
-                store_simulation_results(
-                    results, facility_obj, demand_year
-                )
+                # Store supply factors (will overwrite existing if refresh_supply_factors=True)
+                store_simulation_results(results, facility_obj, demand_year)
+                
+                if existing_supply_factors:
+                    logger.info(f"Supply factors refreshed for {facility_obj.facility_name}")
+                else:
+                    logger.info(f"Supply factors created for new facility {facility_obj.facility_name}")
 
-            # Update facility with calculated values
-            facility_obj.capacityfactor = results.capacity_factor
-            facility_obj.generation = results.annual_energy
-            facility_obj.save()
+                # Always update facility summary values (capacity factor, generation)
+                facility_obj.capacityfactor = results.capacity_factor
+                facility_obj.generation = results.annual_energy
+                facility_obj.save()
+                
         except Exception as e:
             logger.error(f"Unexpected error processing facility {facility_data.get('facility_code')}: {e}")
             continue
     
-    return sam_processed_count, traditional_processed_count
+    return sam_processed_count, traditional_processed_count, skipped_count
 
 def process_renewable_facility(sam_processor, facility_obj, tech_name, demand_year):
     """
