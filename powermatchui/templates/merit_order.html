@@ -10,29 +10,37 @@
                 <div class="card">
                     <div class="card-header custom-sen">Merit Order</div>
                     <div class="card-body custom-sen">
-                        <ul id="merit-order-list" class="list-group">
+                        <ul id="merit-order-list" class="list-group" style="min-height: 50px;">
                             {% for id, values in merit_order.items %}
                                 {% with name=values.0 emissions=values.1 %}
                                     <li class="list-group-item" id="{{ id }}" data-id="{{ id }}"
                                         data-emissions="{{ emissions }}">{{ name }}</li>
                                 {% endwith %}
                             {% endfor %}
-                            <li class="non-draggable"></li>
+                            {% if not merit_order %}
+                                <li class="list-group-item placeholder-item" style="opacity: 0.5; font-style: italic;">
+                                    Drop items here...
+                                </li>
+                            {% endif %}
                         </ul>
                     </div>
                 </div>
             </div>
             <div class="col-md-6">
                 <div class="card">
-                    <div class="card-header custom-sen"">Excluded Resources</div>
+                    <div class="card-header custom-sen">Excluded Resources</div>
                     <div class="card-body custom-sen">
-                        <ul id="excluded-resources-list" class="list-group">
+                        <ul id="excluded-resources-list" class="list-group" style="min-height: 50px;">
                             {% for id, values in excluded_resources.items %}
                                 {% with name=values.0 emissions=values.1 %}
                                     <li class="list-group-item" id="{{ id }}" data-id="{{ id }}" data-emissions="{{ emissions }}">{{ name }}</li>
                                 {% endwith %}
                             {% endfor %}
-                            <li class="non-draggable"></li>
+                            {% if not excluded_resources %}
+                                <li class="list-group-item placeholder-item" style="opacity: 0.5; font-style: italic;">
+                                    Drop items here...
+                                </li>
+                            {% endif %}
                         </ul>
                     </div>
                 </div>
@@ -60,10 +68,25 @@
 
     $(function() {
         $('.list-group').sortable({
-          connectWith: '.list-group',
-          items: '> .list-group-item:not(.non-draggable)', // Only allow dragging of .list-group-item elements that don't have the .non-draggable class
-          placeholder: '' // Remove the placeholder marker
-        });
+            connectWith: '.list-group',
+            items: '> .list-group-item:not(.placeholder-item)', // Exclude placeholder items from dragging
+            placeholder: 'sortable-placeholder',
+            forcePlaceholderSize: true,
+            start: function(event, ui) {
+                // Remove placeholder items when dragging starts
+                $('.placeholder-item').remove();
+            },
+            stop: function(event, ui) {
+                // Add placeholder items back to empty lists
+                $('.list-group').each(function() {
+                    var $list = $(this);
+                    var realItems = $list.find('.list-group-item:not(.placeholder-item)');
+                    if (realItems.length === 0) {
+                        $list.append('<li class="list-group-item placeholder-item" style="opacity: 0.5; font-style: italic;">Drop items here...</li>');
+                    }
+                });
+            }
+        }).disableSelection();
     });
 
     document.getElementById('save-order-button').addEventListener('click', async function() {
@@ -73,12 +96,19 @@
         var meritOrderIds = [];
         var excludedResourcesIds = [];
     
-        meritOrderList.querySelectorAll('li').forEach(function(item) {
-            meritOrderIds.push(item.getAttribute('data-id'));
+        // Only collect items that are NOT placeholder items
+        meritOrderList.querySelectorAll('li:not(.placeholder-item)').forEach(function(item) {
+            var dataId = item.getAttribute('data-id');
+            if (dataId) {
+                meritOrderIds.push(dataId);
+            }
         });
     
-        excludedResourcesList.querySelectorAll('li').forEach(function(item) {
-            excludedResourcesIds.push(item.getAttribute('data-id'));
+        excludedResourcesList.querySelectorAll('li:not(.placeholder-item)').forEach(function(item) {
+            var dataId = item.getAttribute('data-id');
+            if (dataId) {
+                excludedResourcesIds.push(dataId);
+            }
         });
     
         // Get the CSRF token from a hidden input field in HTML
@@ -86,7 +116,7 @@
     
         try {
             // Send the data to your Django backend using fetch
-            const response = await fetch('/merit_order/save_merit_order/', {
+            const response = await fetch('', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -99,12 +129,16 @@
             });
     
             if (response.ok) {
-                console.log('Response ok');
+                console.log('Merit order saved successfully');
+                // Reload the page to show the success message
+                window.location.reload();
             } else {
-                console.log('Response not ok:', response);
+                console.log('Response not ok:', response.status, response.statusText);
+                alert('Error saving merit order. Please try again.');
             }
         } catch (error) {
             console.error('An error occurred:', error);
+            alert('Error saving merit order. Please try again.');
         }
     });
 </script>

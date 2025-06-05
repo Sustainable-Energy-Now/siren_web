@@ -621,15 +621,15 @@ def getConstraints(scenario_id: int = None) -> Dict[str, Constraint]:
 
 def get_emission_color(emissions):
     if emissions < 0.3:
-        return '#c8e6c9'  # Light green
+        return "#c8e6da"  # Light green
     elif emissions < 0.5:
-        return '#81c784'  # Green
+        return "#78798a"  # Light Mauve
     elif emissions < 0.7:
-        return '#4caf50'  # Dark green
+        return "#6a648e"  # Mauve
     elif emissions < 0.9:
-        return '#388e3c'  # Greenish black
+        return "#52519E"  # Dark Mauve
     else:
-        return '#1b5e20'  # Black
+        return "#5C5C61"  # Grey
     
 def fetch_merit_order_technologies(idscenarios):
     merit_order_data = {}
@@ -671,7 +671,7 @@ def fetch_included_technologies_data(scenario):
 def fetch_technology_by_id(idtechnologies):
     technologies = Technologies.objects.filter(
         idtechnologies=idtechnologies
-    ).order_by('-year')
+    )
     return technologies
     
 def fetch_generation_storage_data(demand_year):
