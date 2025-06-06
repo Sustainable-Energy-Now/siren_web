@@ -40,6 +40,11 @@ LOGGING = {
             'level': 'INFO',
             'propagate': True,
         },
+        'powermapui.signals': {
+            'handlers': ['console'],
+            'level': 'DEBUG',
+            'propagate': False,
+        },
     },
 }
 

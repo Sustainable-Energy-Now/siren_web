@@ -133,13 +133,25 @@ class ScenariosFacilities(models.Model):
         
 class ScenariosTechnologies(models.Model):
     idscenariostechnologies = models.AutoField(primary_key=True)  
-    idscenarios = models.ForeignKey('Scenarios', on_delete=models.RESTRICT)
-    idtechnologies = models.ForeignKey('Technologies', on_delete=models.RESTRICT)
+    idscenarios = models.ForeignKey('Scenarios', on_delete=models.CASCADE)
+    idtechnologies = models.ForeignKey('Technologies', on_delete=models.CASCADE)
     merit_order = models.IntegerField(null=True)
+    capacity = models.FloatField(null=True)
 
     class Meta:
         db_table = 'ScenariosTechnologies'
         
+    def update_capacity(self):
+        """Calculate and update capacity from related facilities"""
+        total_capacity = facilities.objects.filter(
+            idtechnologies=self.idtechnologies,
+            scenariosfacilities__idscenarios=self.idscenarios
+        ).aggregate(total=models.Sum('capacity'))['total'] or 0
+        
+        self.capacity = total_capacity
+        self.save(update_fields=['capacity'])
+        return total_capacity
+    
 class ScenariosSettings(models.Model):
     idscenariossettings = models.AutoField(primary_key=True)
     idscenarios = models.ForeignKey('Scenarios', on_delete=models.CASCADE)

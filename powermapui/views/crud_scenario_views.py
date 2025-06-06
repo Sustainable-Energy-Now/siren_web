@@ -25,7 +25,7 @@ def display_scenario(request):
             scenario_facilities = formset.save(commit=False)
             for sf in scenario_facilities:
                 sf.idscenarios = scenario
-                sf.save()
+                sf.save()  # This will trigger signals
     else:
         formset = facility_formset(queryset=ScenariosFacilities.objects.none())
 
@@ -57,28 +57,39 @@ def update_scenario(request):
     facility_formset = modelformset_factory(ScenariosFacilities, fields=('idfacilities',), extra=0)
 
     if request.method == 'POST':
-        for scenario in all_scenarios:
+        for scenario_obj in all_scenarios:
             # Skip updating if this is the 'Current' scenario
-            if scenario.title == 'Current':
+            if scenario_obj.title == 'Current':
                 continue
             
-            facility_ids = [int(fid) for fid in request.POST.getlist(f'scenario_{scenario.pk}_facilities')]
-            scenario_facilities = ScenariosFacilities.objects.filter(idscenarios=scenario)
+            facility_ids = [int(fid) for fid in request.POST.getlist(f'scenario_{scenario_obj.pk}_facilities')]
+            scenario_facilities = ScenariosFacilities.objects.filter(idscenarios=scenario_obj)
             
-            # Remove facilities that are not in the submitted list
-            scenario_facilities.exclude(idfacilities__in=facility_ids).delete()
-
+            # Remove facilities that are not in the submitted list (one by one to trigger signals)
+            facilities_to_remove = scenario_facilities.exclude(idfacilities__in=facility_ids)
+            for facility_relation in facilities_to_remove:
+                facility_relation.delete()  # This triggers signals properly
+            
             # Add facilities that are in the submitted list but not in the database
             existing_facility_ids = set(scenario_facilities.values_list('idfacilities', flat=True))
             new_facility_ids = set(facility_ids) - existing_facility_ids
-            new_scenario_facilities = [ScenariosFacilities(idscenarios=scenario, idfacilities_id=facility_id) for facility_id in new_facility_ids]
-            ScenariosFacilities.objects.bulk_create(new_scenario_facilities)
+            
+            # Create new relationships one by one to trigger signals
+            for facility_id in new_facility_ids:
+                try:
+                    facility_obj = facilities.objects.get(pk=facility_id)
+                    ScenariosFacilities.objects.create(
+                        idscenarios=scenario_obj,
+                        idfacilities=facility_obj
+                    )  # This triggers post_save signal
+                except facilities.DoesNotExist:
+                    continue  # Skip invalid facility IDs
             
     checkbox_status = {}
     for facility in all_facilities:
         checkbox_status[facility.idfacilities] = {}
-        for scenario in all_scenarios:
-            checkbox_status[facility.idfacilities][scenario.idscenarios] = ScenariosFacilities.objects.filter(idfacilities=facility, idscenarios=scenario).exists()
+        for scenario_obj in all_scenarios:
+            checkbox_status[facility.idfacilities][scenario_obj.idscenarios] = ScenariosFacilities.objects.filter(idfacilities=facility, idscenarios=scenario_obj).exists()
     
     messages.success(request, 'Successfully updated scenario facilities.')
     
@@ -136,10 +147,7 @@ def delete_scenario(request, scenario_id):
     if request.method == 'POST':
         scenario_title = scenario.title
         
-        # Delete all facility associations first (cascade should handle this, but being explicit)
-        ScenariosFacilities.objects.filter(idscenarios=scenario).delete()
-        
-        # Delete the scenario
+        # Delete the scenario (MariaDB CASCADE will handle ScenariosFacilities)
         scenario.delete()
         
         messages.success(request, f'Successfully deleted scenario "{scenario_title}" and all its facility associations.')
@@ -225,26 +233,16 @@ def clone_scenario(request):
                 description=new_description
             )
             
-            # Clone all facility associations
+            # Clone all facility associations (one by one to trigger signals)
             source_associations = ScenariosFacilities.objects.filter(idscenarios=source_scenario)
-            
-            # Get a count of the actual associations that will be cloned
-            association_count = source_associations.count()
-            
-            # Create list for bulk creation
-            new_associations = []
+            association_count = 0
             
             for assoc in source_associations:
-                new_associations.append(
-                    ScenariosFacilities(
-                        idscenarios=new_scenario,
-                        idfacilities=assoc.idfacilities
-                    )
-                )
-            
-            # Bulk create all associations at once for efficiency
-            if new_associations:
-                ScenariosFacilities.objects.bulk_create(new_associations)
+                ScenariosFacilities.objects.create(
+                    idscenarios=new_scenario,
+                    idfacilities=assoc.idfacilities
+                )  # This triggers signals
+                association_count += 1
             
             messages.success(
                 request, 
