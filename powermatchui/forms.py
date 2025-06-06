@@ -78,8 +78,7 @@ class BaselineScenarioForm(forms.Form):
             tech_key = f"{technology.pk}"
             field_name = f'capacity_{tech_key}'
             self.fields[field_name] = forms.DecimalField(
-                label=technology.technology_name, initial=0, required=False)
-            # label=technology.technology_name, initial=technology.capacity, required=False)
+                label=technology.technology_name, initial=technology.capacity, required=False)
             current_row.append(
                 Column(Field(field_name, css_class='form-control'), 
                 css_class='form-group col-md-3 mb-0')

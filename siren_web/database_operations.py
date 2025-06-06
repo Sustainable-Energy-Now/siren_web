@@ -658,15 +658,32 @@ def fetch_merit_order_technologies(idscenarios):
 
     return merit_order_data, excluded_resources_data
 
+# In siren_web/database_operations.py
 def fetch_included_technologies_data(scenario):
-    # Get the list of included technologies
-    scenario_obj = Scenarios.objects.get(title=scenario)
-    technologies_list = Technologies.objects.filter(
-        scenarios=scenario_obj,
-        # category__in=['Generator', 'Storage'],  # Use double underscores for related field lookups
-        scenariostechnologies__merit_order__lt=100
-    ).order_by('scenariostechnologies__merit_order')
-    return technologies_list
+    """
+    Fetch technologies included in a scenario with their capacities from ScenariosTechnologies
+    """
+    from siren_web.models import Technologies, Scenarios, ScenariosTechnologies
+    
+    try:
+        scenario_obj = Scenarios.objects.get(title=scenario)
+        
+        # Get technologies with their capacities from ScenariosTechnologies
+        scenario_technologies = ScenariosTechnologies.objects.filter(
+            idscenarios=scenario_obj
+        ).select_related('idtechnologies')
+        
+        # Create a list of technology objects with capacity attribute
+        technologies = []
+        for st in scenario_technologies:
+            tech = st.idtechnologies
+            tech.capacity = st.capacity  # Add capacity from ScenariosTechnologies
+            technologies.append(tech)
+            
+        return technologies
+        
+    except Scenarios.DoesNotExist:
+        return []
 
 def fetch_technology_by_id(idtechnologies):
     technologies = Technologies.objects.filter(

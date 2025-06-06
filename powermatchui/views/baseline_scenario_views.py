@@ -43,20 +43,46 @@ def baseline_scenario(request):
             cleaned_data = baseline_form.cleaned_data
             carbon_price = cleaned_data.get('carbon_price')
             discount_rate = cleaned_data.get('discount_rate')
+            
+            # Update carbon price if changed
             if (carbon_price != Decimal(scenario_settings['carbon_price'])):
-                    update_scenario_settings_data(scenario, 'Powermatch', 'carbon price', carbon_price)
+                update_scenario_settings_data(scenario, 'Powermatch', 'carbon price', carbon_price)
                     
+            # Fix: Update discount rate (was incorrectly updating 'carbon price')
             if (discount_rate != Decimal(scenario_settings['discount_rate'])):
-                    update_scenario_settings_data(scenario, 'Powermatch', 'carbon price', discount_rate)
+                update_scenario_settings_data(scenario, 'Powermatch', 'discount rate', discount_rate)
+            
             success_message = "No changes were made."
+            
+            # Update technology capacities
             for technology in technologies:
                 idtechnologies = technology.idtechnologies
                 tech_key = f"capacity_{idtechnologies}"
-                capacity = cleaned_data.get(tech_key)
-                if (technology.capacity != float(capacity)):
-                    technology.capacity = float(capacity)
-                    technology.save()
-                    success_message = "Runtime parameters updated."
+                new_capacity = cleaned_data.get(tech_key)
+                
+                try:
+                    # Get the ScenariosTechnologies instance
+                    scenario_tech = ScenariosTechnologies.objects.get(
+                        idscenarios__title=scenario,
+                        idtechnologies=technology
+                    )
+                    
+                    if scenario_tech.capacity != float(new_capacity):
+                        # Update the capacity directly on ScenariosTechnologies
+                        scenario_tech.capacity = float(new_capacity)
+                        scenario_tech.save()
+                        success_message = "Runtime parameters updated."
+                        
+                except ScenariosTechnologies.DoesNotExist:
+                    # Handle case where technology is not in scenario
+                    # This shouldn't happen if fetch_included_technologies_data works correctly
+                    messages.warning(request, f"Technology {technology.technology_name} not found in scenario {scenario}")
+                    continue
+                except ValueError:
+                    # Handle invalid capacity values
+                    messages.error(request, f"Invalid capacity value for {technology.technology_name}")
+                    continue
+                    
         else:
             # Render the form with errors
             technologies = fetch_included_technologies_data(scenario)
@@ -101,26 +127,29 @@ def baseline_scenario(request):
                     }
                     return render(request, 'confirm_overwrite.html', context)
             
+    # Prepare form data for display
     if demand_year:
-        technologies= fetch_included_technologies_data(scenario)
-        carbon_price= scenario_settings['carbon_price']
-        discount_rate= scenario_settings['discount_rate']
+        technologies = fetch_included_technologies_data(scenario)
+        carbon_price = scenario_settings.get('carbon_price', None)
+        discount_rate = scenario_settings.get('discount_rate', None)
     else:
         technologies = {}
-        carbon_price= None
+        carbon_price = None
         discount_rate = None
         
     baseline_form = BaselineScenarioForm(
         technologies=technologies, 
         carbon_price=carbon_price, 
-        discount_rate=discount_rate)
+        discount_rate=discount_rate
+    )
 
     context = {
         'baseline_form': baseline_form,
         'runpowermatch_form': runpowermatch_form,
         'technologies': technologies,
         'scenario_settings': scenario_settings,
-        'demand_year': demand_year, 'scenario': scenario,
+        'demand_year': demand_year, 
+        'scenario': scenario,
         'config_file': config_file,
         'success_message': success_message
     }
@@ -178,10 +207,9 @@ def run_baseline(request):
                 }
                 return render(request, 'display_table.html', context)
                 
-        technologies= fetch_included_technologies_data(scenario)
+        technologies = fetch_included_technologies_data(scenario)
         baseline_form = BaselineScenarioForm(technologies=technologies)
 
-        scenario_settings = {}
         scenario_settings = fetch_scenario_settings_data(scenario)
         context = {
             'baseline_form': baseline_form,
@@ -194,3 +222,4 @@ def run_baseline(request):
             'success_message': success_message
         }
         return render(request, 'baseline_scenario.html', context)
+    
