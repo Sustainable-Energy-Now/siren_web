@@ -130,7 +130,7 @@ def process_facilities(config, facilities_list, demand_year, scenario, refresh_s
             tech_name = technology.technology_name.lower()
             
             # Process the facility
-            if technology.renewable:
+            if technology.renewable and not technology.dispatchable:
                 results = process_renewable_facility(sam_processor, facility_obj, tech_name, demand_year)
                 sam_processed_count += 1
             else:

@@ -174,15 +174,20 @@ def run_baseline(request):
             
             if save_baseline:
                 delete_analysis_scenario(scenario_obj)
-            sp_output, headers, sp_pts = submit_powermatch(
+            # sp_output, headers, sp_pts = submit_powermatch(
+            #     request, demand_year, scenario, option, 1, 
+            #     None, save_baseline
+            #     )
+            results = submit_powermatch(
                 request, demand_year, scenario, option, 1, 
                 None, save_baseline
                 )
+            sp_output = results
             if option == 'D':
                 data_file = f"{scenario}-baseline detailed results"
                 response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
                 response['Content-Disposition'] = f"attachment; filename={data_file}.xlsx"
-                sp_output.save(response)
+                # sp_output.save(response)
                 return response
             else:
                 sp_data = []
@@ -198,6 +203,12 @@ def run_baseline(request):
                     success_message = "Baseline re-established"
                 else:
                     success_message = "Baseline run complete"
+                headers = ['Facility', 'Capacity\n(Gen, MW;\nStor, MWh)', 'To meet\nLoad (MWh)',
+                    'Subtotal\n(MWh)', 'CF', 'Cost ($/yr)', 'LCOG\nCost\n($/MWh)', 'LCOE\nCost\n($/MWh)',
+                    'Emissions\n(tCO2e)', 'Emissions\nCost', 'LCOE With\nCO2 Cost\n($/MWh)', 'Max.\nMWH',
+                    'Max.\nBalance', 'Capital\nCost', 'Lifetime\nCost', 'Lifetime\nEmissions',
+                    'Lifetime\nEmissions\nCost', 'Area (km^2)', 'Reference\nLCOE', 'Reference\nCF']
+                sp_pts = []
                 context = {
                     'sp_data': sp_data, 'headers': headers, 'sp_pts': sp_pts,
                     'success_message': success_message,

@@ -1,6 +1,6 @@
 from siren_web.siren.powermatch.logic.file_handler import FileHandler
 from typing import Optional
-from siren_web.siren.powermatch.logic.progress_handler import ProgressHandler
+from powermatchui.views.progress_handler import ProgressHandler
 from siren_web.siren.powermatch.logic.excel import ExcelProcessor
 from siren_web.siren.utilities.senutils import getUser, ssCol, techClean
 import numpy as np

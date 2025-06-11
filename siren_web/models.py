@@ -137,6 +137,8 @@ class ScenariosTechnologies(models.Model):
     idtechnologies = models.ForeignKey('Technologies', on_delete=models.CASCADE)
     merit_order = models.IntegerField(null=True)
     capacity = models.FloatField(null=True)
+    mult = models.FloatField(null=True)
+    col = models.PositiveIntegerField(null=True)  
 
     class Meta:
         db_table = 'ScenariosTechnologies'
@@ -197,7 +199,6 @@ class supplyfactors(models.Model):
     hour = models.IntegerField(blank=True, null=True)
     supply = models.IntegerField(blank=True, null=True)
     quantum = models.FloatField(null=True)
-    col = models.PositiveIntegerField(db_column='Col', blank=True, null=True)  
 
     class Meta:
         db_table = 'supplyfactors'

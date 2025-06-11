@@ -32,7 +32,7 @@ def fetch_analysis_scenario(idscenario):
     return analysis_list
 
 def check_analysis_baseline(scenario):
-    scenario_obj = Scenarios.objects.get(title=scenario)
+    scenario_obj = get_scenario_by_title(scenario)
     baseline = Analysis.objects.filter(
         idscenarios=scenario_obj,
         variation='Baseline'
@@ -40,7 +40,7 @@ def check_analysis_baseline(scenario):
     return baseline
 
 def fetch_facilities_scenario(scenario):
-    scenario_obj = Scenarios.objects.get(title=scenario)
+    scenario_obj = get_scenario_by_title(scenario)
     facilities_list = facilities.objects.filter(
         scenarios=scenario_obj
     ).all()
@@ -135,10 +135,13 @@ def fetch_full_facilities_data(demand_year, scenario):
                     
     except Exception as e:
         print("Error executing query:", e)
-        
+
+def get_scenario_by_title(scenario):
+    return Scenarios.objects.get(title=scenario)
+ 
 def get_supply_unique_technology(demand_year, scenario):
     # Get the scenario object
-    scenario_obj = Scenarios.objects.get(title=scenario)
+    scenario_obj = get_scenario_by_title(scenario)
 
     # Filter the Demand objects for the given demand_year and scenario
     unique_technologies = Technologies.objects.filter(
@@ -151,7 +154,7 @@ def get_supply_unique_technology(demand_year, scenario):
 
 def get_supply_by_technology(demand_year, scenario):
     # Get the scenario object
-    scenario_obj = Scenarios.objects.get(title=scenario)
+    scenario_obj = get_scenario_by_title(scenario)
 
     # Filter the Demand objects for the given demand_year and scenario
     supplyfactors_queryset = supplyfactors.objects.filter(year=demand_year, idscenarios=scenario_obj)
@@ -162,36 +165,80 @@ def get_supply_by_technology(demand_year, scenario):
 
     return total_supply_by_technology
 
-def fetch_supplyfactors_data(demand_year):
+def fetch_supplyfactors_data(demand_year, scenario):
     try:
+        # Cache ScenariosTechnologies data for efficient lookup
+        # This table is small (~6 rows) so we can afford to load it all
+        scenario_obj = get_scenario_by_title(scenario)
+        scenarios_tech_query = ScenariosTechnologies.objects.filter(
+            idscenarios=scenario_obj
+        ).select_related('idtechnologies')
+        
+        # Create lookup dictionaries for mult and col by technology ID
+        tech_mult_lookup = {}
+        tech_col_lookup = {}
+        tech_capacity_lookup = {}
+        
+        for st_row in scenarios_tech_query:
+            tech_id = st_row.idtechnologies.idtechnologies
+            tech_mult_lookup[tech_id] = float(st_row.mult) if st_row.mult is not None else 1.0
+            tech_col_lookup[tech_id] = st_row.merit_order
+            tech_capacity_lookup[tech_id] = st_row.capacity
+        
         # Read supplyfactors table using Django ORM
-        supplyfactors_query = supplyfactors.objects.filter(year=demand_year
+        # Filter by facilities that are associated with the scenario
+        supplyfactors_query = supplyfactors.objects.filter(
+            year=demand_year,
+            idfacilities__scenarios=scenario_obj  # Only facilities in this scenario
         ).select_related(
-            'idtechnologies'  # Perform join with Technologies
+            'idfacilities__idtechnologies'  # Join with Technologies through facilities
         ).order_by(
-            'col', 'hour'  # Order the results by col and hour
+            'hour'  # Order by hour (we'll handle col ordering later)
         )
+        
         # Create a dictionary of supplyfactors from the model 
         pmss_data = {}
-        pmss_details = {} # contains name, generator, capacity, fac_type, col, multiplier
-        pmss_details['Load'] = PM_Facility('Load', 'Load', 1, 'L', 0, float(1.0))
+        pmss_details = {}  # contains name, generator, capacity, fac_type, col, multiplier
+        pmss_details['Load'] = PM_Facility('Load', 'Load', 0, 'L', 0, float(1.0))
+        max_col = 0
+        
         for supplyfactors_row in supplyfactors_query:
-            name = supplyfactors_row.idtechnologies.technology_name # type: ignore
-            idtechnologies = supplyfactors_row.idtechnologies.idtechnologies
-            multiplier = float(supplyfactors_row.idtechnologies.mult)
-            col = supplyfactors_row.col
+            technology = supplyfactors_row.idfacilities.idtechnologies
+            name = technology.technology_name
+            tech_id = technology.idtechnologies
+            
+            # Look up mult and col from our cached ScenariosTechnologies data
+            multiplier = tech_mult_lookup.get(tech_id, 1.0)
+            col = tech_col_lookup.get(tech_id)
+            
+            # Skip if this technology doesn't have col data in ScenariosTechnologies
+            if col is None:
+                continue
+                
             load = supplyfactors_row.quantum
+            
             if col not in pmss_data:
                 pmss_data[col] = []
-                max_col = col
             pmss_data[col].append(load)
-            if (name != 'Load'):
-                if name not in pmss_details: # type: ignore
-                    capacity = supplyfactors_row.idtechnologies.capacity
+            
+            # Track the maximum column number
+            if col > max_col:
+                max_col = col
+            
+            if name != 'Load':
+                if name not in pmss_details:
+                    # Use capacity from ScenariosTechnologies if available, otherwise from facilities
+                    capacity = tech_capacity_lookup.get(tech_id) or supplyfactors_row.idfacilities.capacity
                     pmss_details[name] = PM_Facility(name, name, capacity, 'R', col, multiplier)
+        
+        # Sort the data within each column by the original hour order
+        for col in pmss_data:
+            # Data should already be ordered by hour due to our query ordering
+            pass
+            
     except Exception as e:
         # Handle any errors that occur during the database query
-        return HttpResponse(f"Error fetching supplyfactors data: {e}", status=500), None
+        return HttpResponse(f"Error fetching supplyfactors data: {e}", status=500), None, None
     
     return pmss_data, pmss_details, max_col
 
@@ -370,7 +417,7 @@ def get_all_technologies_for_year(demand_year):
     return result
 
 def copy_technologies_from_year0(technology_name, demand_year, scenario):
-    scenario_obj = Scenarios.objects.get(title=scenario)
+    scenario_obj = get_scenario_by_title(scenario)
     try:
         technology_year0 = Technologies.objects.get(
             technology_name=technology_name,
@@ -524,7 +571,7 @@ def fetch_generators_parameter(demand_year, scenario, pmss_details, max_col):
                 # Handle the case where no matching storage object is found
                 storage = None
             
-        scenario_obj = Scenarios.objects.get(title=scenario)
+        scenario_obj = get_scenario_by_title(scenario)
         merit_order = ScenariosTechnologies.objects.filter(
             idscenarios=scenario_obj,
             idtechnologies=technology_row
@@ -566,57 +613,100 @@ def fetch_generators_parameter(demand_year, scenario, pmss_details, max_col):
                 pmss_details[name] = PM_Facility(name, name, capacity, typ, ++max_col, 1)
     return generators, dispatch_order, re_order, pmss_details
 
-def getConstraints(scenario_id: int = None) -> Dict[str, Constraint]:
+def getConstraints(scenario: str = None, demand_year: int = None) -> Dict[str, Constraint]:
     """
-    Creates a dictionary of Constraint objects from Technologies and StorageAttributes models.
-    If scenario_id is provided, only returns constraints for technologies in that scenario.
+    Creates a dictionary of Constraint objects from Technologies, GeneratorAttributes, 
+    and StorageAttributes models using the fetch_full_generator_storage_data function.
     
     Args:
         scenario_id (int, optional): ID of the scenario to filter technologies
+        demand_year (int, optional): Year for technology data (required for fetch function)
         
     Returns:
-        Dict[str, Constraint]: Dictionary mapping technology signatures to their constraints
+        Dict[str, Constraint]: Dictionary mapping technology names to their constraints
     """
     constraints = {}
     
-    # Query base to get technologies with their storage attributes
-    technologies = Technologies.objects.prefetch_related(
-        Prefetch(
-            'storageattributes_set',
-            queryset=Storageattributes.objects.filter(year=0),
-            to_attr='storage_attrs'
-        )
-    )
+    # Use the existing fetch function to get technology data
+    if demand_year is None:
+        # Default to current year or a reasonable default
+        demand_year = 2024
     
-    # If scenario_id provided, filter technologies by scenario
-    if scenario_id:
-        technologies = technologies.filter(
-            scenariostechnologies__idscenarios_id=scenario_id
-        )
+    # Get technologies with year-specific data
+    technologies_raw = fetch_full_generator_storage_data(demand_year)
     
-    for tech in technologies:
-        # Get storage attributes if they exist
-        storage_attrs = tech.storage_attrs[0] if hasattr(tech, 'storage_attrs') and tech.storage_attrs else None
+    # Convert raw queryset to list to handle multiple iterations
+    technologies_list = list(technologies_raw)
+    
+    if scenario:
+        # If scenario provided, filter by scenario
+        scenario_obj = get_scenario_by_title(scenario)
+        # Get technology IDs that belong to the scenario
+        scenario_tech_ids = ScenariosTechnologies.objects.filter(
+            idscenarios_id=scenario_obj
+        ).values_list('idtechnologies_id', flat=True)
+        
+        # Filter technologies by scenario
+        technologies_list = [
+            tech for tech in technologies_list 
+            if tech.idtechnologies in scenario_tech_ids
+        ]
+    
+    for tech in technologies_list:
+        # Initialize default values
+        capacity_min = 0
+        capacity_max = 1
+        rampup_max = 1
+        rampdown_max = 1
+        recharge_max = 1
+        recharge_loss = 0
+        discharge_max = 1
+        discharge_loss = 0
+        parasitic_loss = 0
+        
+        # Get generator attributes if it's a generator
+        if tech.category == 'Generator':
+            try:
+                gen_attrs = Generatorattributes.objects.get(idtechnologies=tech.idtechnologies)
+                capacity_min = gen_attrs.capacity_min or 0
+                capacity_max = gen_attrs.capacity_max or 1
+                rampup_max = gen_attrs.rampup_max or 1
+                rampdown_max = gen_attrs.rampdown_max or 1
+            except Generatorattributes.DoesNotExist:
+                pass
+        
+        # Get storage attributes if it's storage
+        elif tech.category == 'Storage':
+            try:
+                storage_attrs = Storageattributes.objects.get(idtechnologies=tech.idtechnologies)
+                recharge_max = storage_attrs.recharge_max or 1
+                recharge_loss = storage_attrs.recharge_loss or 0
+                discharge_max = storage_attrs.discharge_max or 1
+                discharge_loss = storage_attrs.discharge_loss or 0
+                parasitic_loss = storage_attrs.parasitic_loss or 0
+            except Storageattributes.DoesNotExist:
+                pass
         
         # Create constraint object
         constraint = Constraint(
             name=tech.technology_name,
             category=tech.category or '',
-            capacity_min=tech.capacity_min or 0,
-            capacity_max=tech.capacity_max or 1,
-            rampup_max=storage_attrs.rampup_max if storage_attrs else 1,
-            rampdown_max=storage_attrs.rampdown_max if storage_attrs else 1,
-            recharge_max=storage_attrs.recharge_max if storage_attrs else 1,
-            recharge_loss=storage_attrs.recharge_loss if storage_attrs else 0,
-            discharge_max=storage_attrs.discharge_max if storage_attrs else 1,
-            discharge_loss=storage_attrs.discharge_loss if storage_attrs else 0,
-            parasitic_loss=storage_attrs.parasitic_loss if storage_attrs else 0,
-            min_run_time=storage_attrs.min_runtime if storage_attrs else 0,
-            warm_time=storage_attrs.warm_time if storage_attrs else 0
+            capacity_min=capacity_min,
+            capacity_max=capacity_max,
+            rampup_max=rampup_max,
+            rampdown_max=rampdown_max,
+            recharge_max=recharge_max,
+            recharge_loss=recharge_loss,
+            discharge_max=discharge_max,
+            discharge_loss=discharge_loss,
+            parasitic_loss=parasitic_loss,
+            min_run_time=0,  # Not available in current model
+            warm_time=0      # Not available in current model
         )
         
         # Add to dictionary using technology name as key
         constraints[tech.technology_name] = constraint
+    
     return constraints
 
 def get_emission_color(emissions):
@@ -666,7 +756,7 @@ def fetch_included_technologies_data(scenario):
     from siren_web.models import Technologies, Scenarios, ScenariosTechnologies
     
     try:
-        scenario_obj = Scenarios.objects.get(title=scenario)
+        scenario_obj = get_scenario_by_title(scenario)
         
         # Get technologies with their capacities from ScenariosTechnologies
         scenario_technologies = ScenariosTechnologies.objects.filter(
@@ -783,7 +873,7 @@ def fetch_module_settings_data(sw_context):
 
 def fetch_optimisation_data(scenario):
     try:
-        scenario_obj = Scenarios.objects.get(title=scenario)
+        scenario_obj = get_scenario_by_title(scenario)
         # Get the list of included technologies
         optimisation_data = Technologies.objects \
             .values(
@@ -812,7 +902,7 @@ def update_optimisation_data(scenario, idtechnologies, approach, capacity, capac
 
 def fetch_scenario_settings_data(scenario):
     try:
-        scenario_obj = Scenarios.objects.get(title=scenario)
+        scenario_obj = get_scenario_by_title(scenario)
         settings = {}
         settings_query = ScenariosSettings.objects.filter(
             sw_context='Powermatch',
@@ -830,7 +920,7 @@ def fetch_scenario_settings_data(scenario):
 
 def update_scenario_settings_data(scenario, sw_context, parameter, value):
     try:
-        scenario_obj = Scenarios.objects.get(title=scenario)
+        scenario_obj = get_scenario_by_title(scenario)
         scenario_setting_new, created = ScenariosSettings.objects.update_or_create(
                 sw_context=sw_context,
                 idscenarios=scenario_obj,
