@@ -17,6 +17,25 @@ from dataclasses import dataclass
 from powermatchui.views.progress_handler import ProgressHandler
 
 @dataclass
+class Facility:
+    def __init__(self, **kwargs):
+        kwargs = {**kwargs}
+      #  return
+        self.name = ''
+        self.order = 0
+        self.lifetime = 20
+        self.area = None
+        for attr in ['fac_type', 'col', 'multiplier', 'capacity', 'lcoe', 'lcoe_cf', 'emissions', 'initial', 'capex',
+                     'fixed_om', 'variable_om', 'fuel', 'disc_rate', 'lifetime', 'area']:
+            setattr(self, attr, 0.)
+        for key, value in kwargs.items():
+            if value != '' and value is not None:
+                if key == 'lifetime' and value == 0:
+                    setattr(self, key, 20)
+                else:
+                    setattr(self, key, value)
+                    
+@dataclass
 class DispatchResults:
     """Container for dispatch analysis results"""
     summary_data: np.ndarray
@@ -47,17 +66,13 @@ class StorageState:
 
 class PowerMatchProcessor:
     """Restructured PowerMatch processor with modular dispatch functions"""
-    def __init__(self, config, scenarios, generators, constraints, progress_handler: Optional[ProgressHandler] = None, 
+    def __init__(self, config, scenarios, progress_handler: Optional[ProgressHandler] = None, 
                 event_callback=None, status_callback=None):
         self.config = config  # Access configuration details
         self.scenarios = scenarios
-        self.generators =generators
-        self.constraints = constraints
         self.listener = progress_handler
         self.event_callback = event_callback  # UI passes its event-processing function
         self.setStatus = status_callback or (lambda text: None)  # Default to no-op
-        self.file_labels = ['Constraints', 'Generators', 'Optimisation', 'Data', 'Results', 'Batch']
-        self.sheets = self.file_labels[:]
         self.adjusted_lcoe = True
         self.carbon_price = 0.
         self.carbon_price_max = 200.
@@ -106,7 +121,7 @@ class PowerMatchProcessor:
         
         # Calculate economic metrics
         economic_results = self._calculate_economics(
-            renewable_results, dispatch_results, config
+            renewable_results, dispatch_results, pmss_details
         )
         
         # Generate summary statistics
@@ -154,8 +169,8 @@ class PowerMatchProcessor:
                 continue
             if details.capacity * details.multiplier > 0:
                 gen = details.generator
-                if gen in self.generators:
-                    max_lifetime = max(max_lifetime, self.generators[gen].lifetime)
+                if gen in pmss_details:
+                    max_lifetime = max(max_lifetime, pmss_details[gen].lifetime)
         return max_lifetime
     
     def _identify_underlying_facilities(self, pmss_details) -> List[str]:
@@ -294,12 +309,12 @@ class PowerMatchProcessor:
         short_taken = self._handle_minimum_generation(pmss_details, dispatch_order, energy_balance)
         
         for gen_name in dispatch_order:
-            if gen_name not in self.generators:
+            if gen_name not in pmss_details:
                 continue
             
-            generator = self.generators[gen_name]
+            generator = pmss_details[gen_name]
             
-            if self._is_storage(generator):
+            if generator.category == 'Storage':
                 result = self._process_storage(gen_name, pmss_details, energy_balance, option, config)
             else:
                 result = self._process_generator(gen_name, pmss_details, energy_balance, short_taken, config)
@@ -318,13 +333,10 @@ class PowerMatchProcessor:
             if pmss_details[gen_name].fac_type != 'G':
                 continue
             
-            try:
-                const_name = self.generators[gen_name].constraint
-                constraint = self.constraints[const_name]
-                
-                if constraint.capacity_min != 0:
+            try:                
+                if pmss_details[gen_name].capacity_min != 0:
                     capacity = pmss_details[gen_name].capacity * pmss_details[gen_name].multiplier
-                    min_gen = capacity * constraint.capacity_min
+                    min_gen = capacity * pmss_details[gen_name].capacity_min
                     short_taken[gen_name] = min_gen
                     short_taken_tot += min_gen
                     
@@ -335,26 +347,17 @@ class PowerMatchProcessor:
                 continue
         
         return short_taken
-    
-    def _is_storage(self, generator) -> bool:
-        """Check if generator is a storage system"""
-        try:
-            constraint = self.constraints[generator.constraint]
-            return constraint.category == 'Storage'
-        except (KeyError, AttributeError):
-            return False
-    
+
     def _process_storage(self, gen_name, pmss_details, energy_balance, option, config) -> Dict:
         """Process storage system dispatch"""
         details = pmss_details[gen_name]
-        generator = self.generators[gen_name]
-        constraint = self.constraints[generator.constraint]
+        generator = pmss_details[gen_name]
         
         # Create storage state
-        storage_state = self._create_storage_state(details, generator, constraint)
+        storage_state = self._create_storage_state(details, generator)
         
         # Run storage dispatch simulation
-        dispatch_result = self._simulate_storage_dispatch(storage_state, energy_balance, constraint)
+        dispatch_result = self._simulate_storage_dispatch(storage_state, energy_balance, details)
         
         # Track storage names for summary calculations
         config['storage_names'].append(gen_name)
@@ -362,6 +365,12 @@ class PowerMatchProcessor:
         return {
             'facility': gen_name,
             'capacity': storage_state.capacity,
+            'capex': details.capex,
+            'fixed_om': details.fixed_om,
+            'variable_om': details.variable_om, 
+            'fuel': details.fuel, 
+            'disc_rate': details.disc_rate, 
+            'lifetime': details.lifetime,
             'to_meet_load': dispatch_result['total_discharge'],
             'max_mwh': dispatch_result['max_discharge'],
             'max_balance': dispatch_result['max_balance'],
@@ -369,24 +378,24 @@ class PowerMatchProcessor:
             'hourly_data': dispatch_result.get('hourly_data') if option == 'D' else None
         }
     
-    def _create_storage_state(self, details, generator, constraint) -> StorageState:
+    def _create_storage_state(self, details, generator) -> StorageState:
         """Create storage state object from facility details"""
         capacity = details.capacity * details.multiplier
         
         return StorageState(
             capacity=capacity,
             initial_level=generator.initial * details.multiplier,
-            min_level=capacity * getattr(constraint, 'capacity_min', 0),
-            max_level=capacity * getattr(constraint, 'capacity_max', 1),
-            charge_rate=capacity * getattr(constraint, 'recharge_max', 1),
-            discharge_rate=capacity * getattr(constraint, 'discharge_max', 1),
-            charge_efficiency=1 - getattr(constraint, 'recharge_loss', 0),
-            discharge_efficiency=1 - getattr(constraint, 'discharge_loss', 0),
-            parasitic_loss=getattr(constraint, 'parasitic_loss', 0) / 24
+            min_level=capacity * details.capacity_min,
+            max_level=capacity * details.capacity_max,
+            charge_rate=capacity * details.recharge_max,
+            discharge_rate=capacity * details.discharge_max,
+            charge_efficiency=1 - details.recharge_loss,
+            discharge_efficiency=1 - details.discharge_loss,
+            parasitic_loss=details.parasitic_loss / 24
         )
     
     def _simulate_storage_dispatch(self, storage_state: StorageState, energy_balance: EnergyBalance, 
-                                 constraint) -> Dict:
+                                 details) -> Dict:
         """Simulate hourly storage dispatch"""
         # Initialize storage tracking
         storage_level = storage_state.initial_level
@@ -401,8 +410,8 @@ class PowerMatchProcessor:
         hourly_losses = np.zeros(8760)
         
         # Operating state tracking
-        min_run_time = getattr(constraint, 'min_run_time', 0)
-        warm_time = getattr(constraint, 'warm_time', 0)
+        min_run_time = details.min_run_time
+        warm_time = details.warm_time
         in_run = [True, False]  # [discharge_run, warm_run]
         
         if min_run_time > 0 and storage_state.initial_level == 0:
@@ -492,7 +501,7 @@ class PowerMatchProcessor:
         if available_energy <= 0:
             return 0
         
-        # Check minimum run time constraint
+        # Check minimum run time
         if min_run_time > 0 and not in_run[0]:
             # Look ahead to see if we should start
             if hour + min_run_time <= 8759:
@@ -520,15 +529,12 @@ class PowerMatchProcessor:
     
     def _process_generator(self, gen_name, pmss_details, energy_balance, short_taken, config) -> Dict:
         """Process conventional generator dispatch"""
-        details = pmss_details[gen_name]
-        generator = self.generators[gen_name]
-        
+        details = pmss_details[gen_name]        
         capacity = details.capacity * details.multiplier
         
-        # Get capacity constraints
+        # Get capacity limits
         try:
-            constraint = self.constraints[generator.constraint]
-            max_capacity = capacity * getattr(constraint, 'capacity_max', 1)
+            max_capacity = details.capacity_max * details.multiplier
         except:
             max_capacity = capacity
         
@@ -566,6 +572,12 @@ class PowerMatchProcessor:
         return {
             'facility': gen_name,
             'capacity': capacity,
+            'capex': details.capex,
+            'fixed_om': details.fixed_om,
+            'variable_om': details.variable_om, 
+            'fuel': details.fuel, 
+            'disc_rate': details.disc_rate, 
+            'lifetime': details.lifetime,
             'to_meet_load': total_generation,
             'subtotal': total_generation,
             'max_mwh': max_generation,
@@ -574,7 +586,7 @@ class PowerMatchProcessor:
             'hourly_data': hourly_generation
         }
     
-    def _calculate_economics(self, renewable_results, dispatch_results, config) -> Dict:
+    def _calculate_economics(self, renewable_results, dispatch_results, pmss_details) -> Dict:
         """Calculate economic metrics for all facilities"""
         economic_results = {}
         
@@ -582,52 +594,48 @@ class PowerMatchProcessor:
         
         for facility in all_facilities:
             facility_name = facility['facility']
-            if facility_name not in self.generators:
-                continue
-            
-            generator = self.generators[facility_name]
-            economics = self._calculate_facility_economics(facility, generator, config)
+            economics = self._calculate_facility_economics(facility)
             economic_results[facility_name] = economics
         
         return economic_results
     
-    def _calculate_facility_economics(self, facility, generator, config) -> Dict:
+    def _calculate_facility_economics(self, technology) -> Dict:
         """Calculate economic metrics for a single facility"""
-        capacity = facility['capacity']
-        generation = facility.get('subtotal', facility.get('to_meet_load', 0))
+        capacity = technology['capacity']
+        generation = technology.get('subtotal', technology.get('to_meet_load', 0))
         
-        # Calculate LCOE based on generator type
-        if (generator.capex > 0 or generator.fixed_om > 0 or 
-            generator.variable_om > 0 or generator.fuel > 0):
+        # Calculate LCOE based on technology type
+        if (technology['capex'] > 0 or technology['fixed_om'] > 0 or 
+            technology['variable_om'] > 0 or technology['fuel'] > 0):
             
             # Full cost calculation
-            capex = capacity * generator.capex
-            opex = (capacity * generator.fixed_om + 
-                   generation * generator.variable_om + 
-                   generation * generator.fuel)
+            capex = capacity * technology['capex']
+            opex = (capacity * technology['fixed_om'] + 
+                   generation * technology['variable_om'] + 
+                   generation * technology['fuel'])
             
-            disc_rate = generator.disc_rate if generator.disc_rate > 0 else self.discount_rate
-            lcoe = self._calc_lcoe(generation, capex, opex, disc_rate, generator.lifetime)
+            disc_rate = technology['disc_rate'] if technology['disc_rate'] > 0 else self.discount_rate
+            lcoe = self._calc_lcoe(generation, capex, opex, disc_rate, technology['lifetime'])
             annual_cost = generation * lcoe
             
             return {
                 'lcoe': lcoe,
                 'annual_cost': annual_cost,
                 'capital_cost': capex,
-                'capacity_factor': facility.get('cf', 0)
+                'capacity_factor': technology.get('cf', 0)
             }
         
-        elif generator.lcoe > 0:
+        elif technology.lcoe > 0:
             # Reference LCOE calculation
-            cf = generator.lcoe_cf if generator.lcoe_cf > 0 else facility.get('cf', 0)
-            annual_cost = generator.lcoe * cf * 8760 * capacity
+            cf = technology.lcoe_cf if technology.lcoe_cf > 0 else technology.get('cf', 0)
+            annual_cost = technology.lcoe * cf * 8760 * capacity
             
             return {
-                'lcoe': generator.lcoe,
+                'lcoe': technology.lcoe,
                 'annual_cost': annual_cost,
                 'capital_cost': 0,
                 'capacity_factor': cf,
-                'reference_lcoe': generator.lcoe,
+                'reference_lcoe': technology.lcoe,
                 'reference_cf': cf
             }
         
@@ -637,7 +645,7 @@ class PowerMatchProcessor:
                 'lcoe': 0,
                 'annual_cost': 0,
                 'capital_cost': 0,
-                'capacity_factor': facility.get('cf', 0)
+                'capacity_factor': technology.get('cf', 0)
             }
     
     def _calc_lcoe(self, annual_output, capital_cost, annual_operating_cost, discount_rate, lifetime):
@@ -798,9 +806,8 @@ class PowerMatchProcessor:
 class FacilityProcessor:
     """Specialized processor for different facility types"""
     
-    def __init__(self, generators, constraints):
-        self.generators = generators
-        self.constraints = constraints
+    def __init__(self, pmss_details):
+        self.pmss_details = pmss_details
     
     def process_renewable(self, facility_name, details, hourly_data, energy_balance):
         """Process renewable energy facility"""
@@ -814,33 +821,32 @@ class FacilityProcessor:
     
     def process_storage(self, facility_name, details, energy_balance, option):
         """Process storage facility with detailed state tracking"""
-        generator = self.generators[facility_name]
-        constraint = self.constraints[generator.constraint]
+        generator = self.pmss_details[facility_name]
         
         # Initialize storage parameters
-        storage_params = self._get_storage_parameters(details, generator, constraint)
+        storage_params = self._get_storage_parameters(details, generator)
         
         # Run storage simulation
         storage_results = self._simulate_storage_operation(storage_params, energy_balance, option)
         
         return storage_results
     
-    def _get_storage_parameters(self, details, generator, constraint):
+    def _get_storage_parameters(self, details):
         """Extract storage parameters from configuration"""
         capacity = details.capacity * details.multiplier
         
         return {
             'capacity': capacity,
-            'initial_soc': generator.initial,
-            'min_soc': getattr(constraint, 'capacity_min', 0),
-            'max_soc': getattr(constraint, 'capacity_max', 1),
-            'charge_rate': capacity * getattr(constraint, 'recharge_max', 1),
-            'discharge_rate': capacity * getattr(constraint, 'discharge_max', 1),
-            'charge_efficiency': 1 - getattr(constraint, 'recharge_loss', 0),
-            'discharge_efficiency': 1 - getattr(constraint, 'discharge_loss', 0),
-            'parasitic_loss_rate': getattr(constraint, 'parasitic_loss', 0) / 24,
-            'min_run_time': getattr(constraint, 'min_run_time', 0),
-            'warm_time': getattr(constraint, 'warm_time', 0)
+            'initial_soc': details.initial,
+            'min_soc': details.capacity_min,
+            'max_soc': details.capacity_max,
+            'charge_rate': capacity * details.recharge_max,
+            'discharge_rate': capacity * details.discharge_max,
+            'charge_efficiency': 1 - details.recharge_loss,
+            'discharge_efficiency': 1 - details.discharge_loss,
+            'parasitic_loss_rate': details.parasitic_loss,
+            'min_run_time': details.min_run_time,
+            'warm_time': details.warm_time
         }
     
     def _simulate_storage_operation(self, params, energy_balance, option):
@@ -905,7 +911,7 @@ class FacilityProcessor:
             elif energy_balance.shortfall[hour] > 0:  # Energy needed - discharge
                 shortfall = energy_balance.shortfall[hour]
                 
-                # Check minimum run time constraint
+                # Check minimum run time
                 if params['min_run_time'] > 0 and not discharge_run_active:
                     # Look ahead to see if sustained discharge is needed
                     if self._check_sustained_shortfall(energy_balance.shortfall, hour, params['min_run_time']):

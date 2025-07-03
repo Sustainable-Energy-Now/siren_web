@@ -1,12 +1,9 @@
 # run_powermatch.py
-from django.db.models import Prefetch
 from django.contrib.auth.decorators import login_required
 from siren_web.database_operations import fetch_all_config_data, fetch_all_settings_data,  \
-    fetch_included_technologies_data, fetch_supplyfactors_data, getConstraints
-from siren_web.models import Analysis, Generatorattributes, Scenarios, \
-    ScenariosSettings, ScenariosTechnologies, Storageattributes, TechnologyYears
-from .restructured_dodispatch import PowerMatchProcessor
-from siren_web.siren.powermatch.logic.logic import Facility
+    fetch_technology_attributes, fetch_supplyfactors_data
+from siren_web.models import Analysis, ScenariosSettings
+from .restructured_dodispatch import Facility, PowerMatchProcessor
 
 def insert_data(i, sp_data, scenario_obj, variation, Stage):
     for count, row in enumerate(sp_data):
@@ -103,134 +100,10 @@ def submit_powermatch(request, demand_year, scenario,
                       option, stages, variation_inst, save_data):
     config = fetch_all_config_data(request)
     settings = fetch_all_settings_data()
-    pmss_data, pmss_details, max_col = \
-    fetch_supplyfactors_data(demand_year, scenario)
-    
-    # Get scenario object once and reuse
-    scenario_obj = Scenarios.objects.get(title=scenario)
-    
-    # Optimized single query to get all needed technology data
-    # This replaces the loop that was doing individual queries for each technology
-    technologies_result = ScenariosTechnologies.objects.filter(
-        idscenarios=scenario_obj
-    ).select_related(
-        'idtechnologies'
-    ).prefetch_related(
-        # Get TechnologyYears data for the specific demand_year only
-        Prefetch(
-            'idtechnologies__technologyyears_set',
-            queryset=TechnologyYears.objects.filter(year=demand_year),
-            to_attr='tech_years'
-        ),
-        # Get generator attributes
-        Prefetch(
-            'idtechnologies__generatorattributes_set',
-            queryset=Generatorattributes.objects.all(),
-            to_attr='generator_attrs'
-        ),
-        # Get storage attributes  
-        Prefetch(
-            'idtechnologies__storageattributes_set',
-            queryset=Storageattributes.objects.all(),
-            to_attr='storage_attrs'
-        )
-    )
-    
-    generators = {}
-    dispatch_order = []
-    re_order = ['Load']
-
-    # Process the results
-    for scenario_tech in technologies_result:
-        technology_row = scenario_tech.idtechnologies
-        name = technology_row.technology_name
-        if name == 'Load':
-            continue
-        if name not in generators:
-            generators[name] = {}
-        
-        # Get year-specific data (fuel now comes from TechnologyYears for demand_year)
-        tech_year_data = technology_row.tech_years[0] if technology_row.tech_years else None
-        fuel = tech_year_data.fuel if tech_year_data else None
-        
-        # Initialize attributes with defaults
-        area = technology_row.area
-        recharge_max = recharge_loss = discharge_max = discharge_loss = parasitic_loss = None
-        
-        # Get category-specific attributes
-        if technology_row.category == 'Generator':
-            if technology_row.generator_attrs:
-                generator = technology_row.generator_attrs[0]
-                # Note: area can also come from generator attributes if needed
-                # area = generator.area  # Uncomment if area is in GeneratorAttributes
-                
-        elif technology_row.category == 'Storage':
-            if technology_row.storage_attrs:
-                storage = technology_row.storage_attrs[0]
-                recharge_max = storage.recharge_max
-                recharge_loss = storage.recharge_loss
-                discharge_max = storage.discharge_max
-                discharge_loss = storage.discharge_loss
-                parasitic_loss = storage.parasitic_loss
-        
-        # Get merit order (already available from the query)
-        merit_order = scenario_tech.merit_order
-        
-        # Create Facility object using TechnologyYears data for financial parameters
-        generators[name] = Facility(
-            generator_name=name, 
-            category=technology_row.category, 
-            capacity=scenario_tech.capacity,
-            constraint=technology_row.technology_name,
-            capacity_max=generator.capacity_max, 
-            capacity_min=generator.capacity_min,
-            recharge_max=recharge_max, 
-            recharge_loss=recharge_loss,
-            min_runtime=0, 
-            warm_time=0,
-            discharge_max=discharge_max,
-            discharge_loss=discharge_loss, 
-            parasitic_loss=parasitic_loss,
-            emissions=technology_row.emissions, 
-            # initial=technology_row.initial,
-            initial=0,
-            order=merit_order, 
-            capex=tech_year_data.capex,
-            fixed_om=tech_year_data.fom,
-            variable_om=tech_year_data.vom,
-            fuel=fuel,
-            lifetime=technology_row.lifetime, 
-            area=area, 
-            disc_rate=technology_row.discount_rate,
-            lcoe=0, 
-            lcoe_cfs=0
-        )
-
-        renewable = technology_row.renewable
-        category = technology_row.category
-        
-        # Build order lists
-        if renewable and category != 'Storage':
-            if name not in re_order:
-                re_order.append(name)
-                
-        dispatchable = technology_row.dispatchable
-        if dispatchable:
-            if name not in dispatch_order and name not in re_order:
-                dispatch_order.append(name)
-                
-        capacity = scenario_tech.capacity
-        
-        # Update pmss_details if not already included
-        if name not in pmss_details:
-            if category == 'Storage':
-                pmss_details[name] = PM_Facility(name, name, capacity, 'S', -1, 1)
-            else:
-                typ = 'G'
-                if renewable:
-                    typ = 'R'
-                max_col += 1  # Fixed increment operator
-                pmss_details[name] = PM_Facility(name, name, capacity, typ, max_col, 1)
+    pmss_data, max_col = \
+        fetch_supplyfactors_data(demand_year, scenario)
+    dispatch_order, re_order, pmss_details = \
+        fetch_technology_attributes(demand_year, scenario)
     
     for i in range(stages):
         # 0 Facility
@@ -263,7 +136,7 @@ def submit_powermatch(request, demand_year, scenario,
             lifetime_step = 0
             
             if dimension == 'capacity':
-                pmss_details[technology_name] = PM_Facility(
+                pmss_details[technology_name] = Facility(
                     pmss_details[technology_name].name, 
                     pmss_details[technology_name].name, 
                     pmss_details[technology_name].capacity + step, 'R', 
@@ -276,13 +149,12 @@ def submit_powermatch(request, demand_year, scenario,
                 lifetime_step = step
                 
             # Update generator with variation if it affects this technology
-            if technology_name in generators:
-                original_facility = generators[technology_name]
-                generators[technology_name] = Facility(
+            if technology_name in pmss_details:
+                original_facility = pmss_details[technology_name]
+                pmss_details[technology_name] = Facility(
                     generator_name=original_facility.generator_name,
                     category=original_facility.category,
                     capacity=original_facility.capacity,
-                    constraint=original_facility.constraint,
                     capacity_max=original_facility.capacity_max,
                     capacity_min=original_facility.capacity_min,
                     recharge_max=original_facility.recharge_max,
@@ -305,10 +177,8 @@ def submit_powermatch(request, demand_year, scenario,
                     lcoe=original_facility.lcoe,
                     lcoe_cfs=original_facility.lcoe_cfs
                 )
-            
-        constraints = getConstraints(scenario, demand_year)
 
-        pm = PowerMatchProcessor(config, scenario, generators, constraints)
+        pm = PowerMatchProcessor(config, scenario)
         if option == 'D':
             action = 'Detail'
         else:

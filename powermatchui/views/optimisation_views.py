@@ -1,5 +1,5 @@
 from decimal import Decimal
-from siren_web.database_operations import fetch_all_config_data, fetch_generators_parameter, \
+from siren_web.database_operations import fetch_all_config_data, fetch_technology_attributes, \
     fetch_included_technologies_data, fetch_module_settings_data, fetch_scenario_settings_data, \
     fetch_optimisation_data, fetch_supplyfactors_data, update_scenario_settings_data, update_optimisation_data
 from django.contrib.auth.decorators import login_required
@@ -147,7 +147,7 @@ def run_optimisation(request):
         settings = fetch_all_config_data(request)
         pmss_data, pmss_details, max_col = \
             fetch_supplyfactors_data(demand_year)
-        generators, dispatch_order, re_order, pmss_details = fetch_generators_parameter(demand_year, scenario, pmss_details, max_col)
+        generators, dispatch_order, re_order, pmss_details = fetch_technology_attributes(demand_year, scenario, pmss_details, max_col)
 
         scenario_obj = Scenarios.objects.get(title=scenario)
         opt_settings_data = ScenariosSettings.objects.filter(

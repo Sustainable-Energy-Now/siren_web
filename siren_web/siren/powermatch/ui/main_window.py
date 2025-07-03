@@ -1022,9 +1022,7 @@ class powerMatchUI(QWidget):
                             ndx = j
                     self.sheets[i].setCurrentIndex(ndx)
                     ws = ts.sheet_by_index(ndx)
-                    if i == C:
-                        self.getConstraints(ws)
-                    elif i == G:
+                    if i == G:
                         self.getGenerators(ws)
                     elif i == O:
                         self.getOptimisation(ws)
@@ -1337,9 +1335,7 @@ class powerMatchUI(QWidget):
         ts.open_workbook(newfile)
         ws = ts.sheet_by_name(self.sheets[i].currentText())
         self.setStatus('Sheet ' + self.sheets[i].currentText() + ' loaded')
-        if i == C:
-            self.getConstraints(ws)
-        elif i == G:
+        if i == G:
             self.getGenerators(ws)
             self.setOrder()
         elif i == O:
@@ -1628,23 +1624,7 @@ class powerMatchUI(QWidget):
                 ws = ts.sheet_by_name(sht)
             except:
                 ws = None
-        if it == C: # self.constraints
-            if self.constraints is None:
-                try:
-                    self.getConstraints(ws)
-                except:
-                    return
-            sp_pts = [2] * 13
-            sp_pts[4] = 3 # discharge loss
-            sp_pts[6] = 3 # parasitic loss
-            sp_pts[9] = 3 # recharge loss
-            dialog = displaytable.Table(self.constraints, title=self.sender().text(),
-                 save_folder=self.scenarios, edit=True, decpts=sp_pts, abbr=False)
-            dialog.exec_()
-            if dialog.getValues() is not None:
-                update_dictionary(it, dialog.getValues())
-                msg = ' table updated'
-        elif it == G: # generators
+        if it == G: # generators
             if self.generators is None:
                 try:
                     self.getGenerators(ws)
@@ -1713,93 +1693,6 @@ class powerMatchUI(QWidget):
                 msg += ' and exported'
         if msg != '':
             self.setStatus(self.file_labels[it] + msg)
-
-    def getConstraints(self, ws):
-        if ws is None:
-            self.constraints = {}
-            self.constraints['<name>'] = Constraint('<name>', '<category>', 0., 1.,
-                                              1., 1., 1., 0., 1., 0., 0., 0, 0)
-            return
-        wait_col = -1
-        warm_col = -1
-        min_run_time = 0
-        warm_time = 0
-        if ws.cell_value(1, 0) == 'Name' and ws.cell_value(1, 1) == 'Category':
-            cat_col = 1
-            for col in range(ws.ncols):
-                if ws.cell_value(0, col)[:8] == 'Capacity':
-                    cap_col = [col, col + 1]
-                elif ws.cell_value(0, col)[:9] == 'Ramp Rate':
-                    ramp_col = [col, col + 1]
-                elif ws.cell_value(0, col)[:8] == 'Recharge':
-                    rec_col = [col, col + 1]
-                elif ws.cell_value(0, col)[:9] == 'Discharge':
-                    dis_col = [col, col + 1]
-                elif ws.cell_value(1, col)[:9] == 'Parasitic':
-                    par_col = col
-                elif ws.cell_value(1, col)[:9] == 'Wait Time':
-                    wait_col = col
-                elif ws.cell_value(1, col)[:11] == 'Warmup Time':
-                    warm_col = col
-            strt_row = 2
-        elif ws.cell_value(0, 0) == 'Name': # saved file
-            cap_col = [-1, -1]
-            ramp_col = [-1, -1]
-            rec_col = [-1, -1]
-            dis_col = [-1, -1]
-            for col in range(ws.ncols):
-                if ws.cell_value(0, col)[:8] == 'Category':
-                    cat_col = col
-                elif ws.cell_value(0, col)[:8] == 'Capacity':
-                    if ws.cell_value(0, col)[-3:] == 'Min':
-                        cap_col[0] = col
-                    else:
-                        cap_col[1] = col
-                elif ws.cell_value(0, col)[:6] == 'Rampup':
-                    ramp_col[0] = col
-                elif ws.cell_value(0, col)[:8] == 'Rampdown':
-                    ramp_col[1] = col
-                elif ws.cell_value(0, col)[:8] == 'Recharge':
-                    if ws.cell_value(0, col)[-3:] == 'Max':
-                        rec_col[0] = col
-                    else:
-                        rec_col[1] = col
-                elif ws.cell_value(0, col)[:9] == 'Discharge':
-                    if ws.cell_value(0, col)[-3:] == 'Max':
-                        dis_col[0] = col
-                    else:
-                        dis_col[1] = col
-                elif ws.cell_value(0, col)[:9] == 'Parasitic':
-                    par_col = col
-                elif ws.cell_value(0, col)[:9] == 'Wait Time':
-                    wait_col = col
-                elif ws.cell_value(0, col)[:12] == 'Min Run Time':
-                    wait_col = col
-                elif ws.cell_value(0, col)[:11] == 'Warmup Time':
-                    warm_col = col
-            strt_row = 1
-        else:
-            self.setStatus('Not a ' + self.file_labels[C] + ' worksheet.')
-            return
-        try:
-            cat_col = cat_col
-        except:
-            self.setStatus('Not a ' + self.file_labels[C] + ' worksheet.')
-            return
-        self.constraints = {}
-        for row in range(strt_row, ws.nrows):
-            if wait_col >= 0:
-                min_run_time = ws.cell_value(row, wait_col)
-            if warm_col >= 0:
-                warm_time = ws.cell_value(row, warm_col)
-            self.constraints[str(ws.cell_value(row, 0))] = Constraint(str(ws.cell_value(row, 0)),
-                                     str(ws.cell_value(row, cat_col)),
-                                     ws.cell_value(row, cap_col[0]), ws.cell_value(row, cap_col[1]),
-                                     ws.cell_value(row, ramp_col[0]), ws.cell_value(row, ramp_col[1]),
-                                     ws.cell_value(row, rec_col[0]), ws.cell_value(row, rec_col[1]),
-                                     ws.cell_value(row, dis_col[0]), ws.cell_value(row, dis_col[1]),
-                                     ws.cell_value(row, par_col), min_run_time, warm_time)
-        return
 
     def getGenerators(self, ws):
         if ws is None:
@@ -2257,20 +2150,6 @@ class powerMatchUI(QWidget):
             self.progressbar.setHidden(False)
             QtWidgets.QApplication.processEvents()
         err_msg = ''
-        if self.constraints is None:
-            try:
-                ts = WorkBook()
-                ts.open_workbook(self.get_filename(self.files[C].text()))
-                ws = ts.sheet_by_name(self.sheets[C].currentText())
-                self.getConstraints(ws)
-                ts.close()
-                del ts
-            except FileNotFoundError:
-                err_msg = 'Constraints file not found - ' + self.files[C].text()
-                self.getConstraints(None)
-            except:
-                err_msg = 'Error accessing Constraints'
-                self.getConstraints(None)
         if self.generators is None:
             try:
                 ts = WorkBook()
