@@ -5,7 +5,7 @@ from django.contrib import messages
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import render, redirect
 from siren_web.database_operations import delete_analysis_scenario, fetch_analysis_scenario, \
-    fetch_included_technologies_data, fetch_module_settings_data, fetch_scenario_settings_data, update_scenario_settings_data
+    fetch_technologies_with_multipliers, fetch_module_settings_data, fetch_scenario_settings_data, update_scenario_settings_data
 from siren_web.models import Demand, Generatorattributes, Technologies, Scenarios, ScenariosSettings, \
     ScenariosTechnologies, Settings, supplyfactors
 from ..forms import BaselineScenarioForm, RunPowermatchForm
@@ -21,19 +21,22 @@ def baseline_scenario(request):
             'success_message': success_message,
         }
         return render(request, 'powermatchui_home.html', context)
+    
     demand_year = request.session.get('demand_year')
     scenario = request.session.get('scenario')
     config_file = request.session.get('config_file')
     success_message = ""
     technologies = {}
     scenario_settings = {}
+    
     if not demand_year:
         success_message = "Set a demand year and scenario first."
     else:
-        technologies= fetch_included_technologies_data(scenario)
+        technologies = fetch_technologies_with_multipliers(scenario)
         scenario_settings = fetch_module_settings_data('Powermatch')
         if not scenario_settings:
             scenario_settings = fetch_scenario_settings_data(scenario)
+    
     baseline_form = BaselineScenarioForm(technologies=technologies)
     runpowermatch_form = RunPowermatchForm()
 
@@ -48,17 +51,17 @@ def baseline_scenario(request):
             if (carbon_price != Decimal(scenario_settings['carbon_price'])):
                 update_scenario_settings_data(scenario, 'Powermatch', 'carbon price', carbon_price)
                     
-            # Fix: Update discount rate (was incorrectly updating 'carbon price')
+            # Update discount rate
             if (discount_rate != Decimal(scenario_settings['discount_rate'])):
                 update_scenario_settings_data(scenario, 'Powermatch', 'discount rate', discount_rate)
             
             success_message = "No changes were made."
             
-            # Update technology capacities
+            # Update technology multipliers
             for technology in technologies:
                 idtechnologies = technology.idtechnologies
-                tech_key = f"capacity_{idtechnologies}"
-                new_capacity = cleaned_data.get(tech_key)
+                multiplier_key = f"multiplier_{idtechnologies}"
+                new_multiplier = cleaned_data.get(multiplier_key)
                 
                 try:
                     # Get the ScenariosTechnologies instance
@@ -67,25 +70,44 @@ def baseline_scenario(request):
                         idtechnologies=technology
                     )
                     
-                    if scenario_tech.capacity != float(new_capacity):
-                        # Update the capacity directly on ScenariosTechnologies
-                        scenario_tech.capacity = float(new_capacity)
+                    if scenario_tech.mult != float(new_multiplier):
+                        # Update the multiplier on ScenariosTechnologies
+                        scenario_tech.mult = float(new_multiplier)
                         scenario_tech.save()
                         success_message = "Runtime parameters updated."
                         
                 except ScenariosTechnologies.DoesNotExist:
                     # Handle case where technology is not in scenario
-                    # This shouldn't happen if fetch_included_technologies_data works correctly
                     messages.warning(request, f"Technology {technology.technology_name} not found in scenario {scenario}")
                     continue
                 except ValueError:
-                    # Handle invalid capacity values
-                    messages.error(request, f"Invalid capacity value for {technology.technology_name}")
+                    # Handle invalid multiplier values
+                    messages.error(request, f"Invalid multiplier value for {technology.technology_name}")
                     continue
                     
         else:
+            # Handle form errors and display specific messages for multiplier fields
+            for field_name, errors in baseline_form.errors.items():
+                if field_name.startswith('multiplier_'):
+                    tech_id = field_name.replace('multiplier_', '')
+                    # Find the technology name for better error messaging
+                    tech_name = "Unknown"
+                    for tech in technologies:
+                        if str(tech.pk) == tech_id:
+                            tech_name = tech.technology_name
+                            break
+                    for error in errors:
+                        messages.error(request, f"Multiplier error for {tech_name}: {error}")
+                elif field_name in ['carbon_price', 'discount_rate']:
+                    for error in errors:
+                        messages.error(request, f"{field_name.replace('_', ' ').title()}: {error}")
+                else:
+                    # Handle any other field errors
+                    for error in errors:
+                        messages.error(request, f"{field_name}: {error}")
+            
             # Render the form with errors
-            technologies = fetch_included_technologies_data(scenario)
+            technologies = fetch_technologies_with_multipliers(scenario)
             scenario_settings = fetch_module_settings_data('Powermatch')
             if not scenario_settings:
                 scenario_settings = fetch_scenario_settings_data(scenario)
@@ -129,7 +151,7 @@ def baseline_scenario(request):
             
     # Prepare form data for display
     if demand_year:
-        technologies = fetch_included_technologies_data(scenario)
+        technologies = fetch_technologies_with_multipliers(scenario)
         carbon_price = scenario_settings.get('carbon_price', None)
         discount_rate = scenario_settings.get('discount_rate', None)
     else:
@@ -174,20 +196,17 @@ def run_baseline(request):
             
             if save_baseline:
                 delete_analysis_scenario(scenario_obj)
-            # sp_output, headers, sp_pts = submit_powermatch(
-            #     request, demand_year, scenario, option, 1, 
-            #     None, save_baseline
-            #     )
+            
             results = submit_powermatch(
                 request, demand_year, scenario, option, 1, 
                 None, save_baseline
                 )
             sp_output = results
+            
             if option == 'D':
                 data_file = f"{scenario}-baseline detailed results"
                 response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
                 response['Content-Disposition'] = f"attachment; filename={data_file}.xlsx"
-                # sp_output.save(response)
                 return response
             else:
                 sp_data = []
@@ -199,10 +218,12 @@ def run_baseline(request):
                         else:
                             formatted_row.append(item)
                     sp_data.append(formatted_row)
+                
                 if save_baseline:
                     success_message = "Baseline re-established"
                 else:
                     success_message = "Baseline run complete"
+                
                 headers = ['Facility', 'Capacity\n(Gen, MW;\nStor, MWh)', 'To meet\nLoad (MWh)',
                     'Subtotal\n(MWh)', 'CF', 'Cost ($/yr)', 'LCOG\nCost\n($/MWh)', 'LCOE\nCost\n($/MWh)',
                     'Emissions\n(tCO2e)', 'Emissions\nCost', 'LCOE With\nCO2 Cost\n($/MWh)', 'Max.\nMWH',
@@ -218,7 +239,7 @@ def run_baseline(request):
                 }
                 return render(request, 'display_table.html', context)
                 
-        technologies = fetch_included_technologies_data(scenario)
+        technologies = fetch_technologies_with_multipliers(scenario)
         baseline_form = BaselineScenarioForm(technologies=technologies)
 
         scenario_settings = fetch_scenario_settings_data(scenario)
@@ -233,4 +254,3 @@ def run_baseline(request):
             'success_message': success_message
         }
         return render(request, 'baseline_scenario.html', context)
-    

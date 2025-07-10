@@ -35,3 +35,11 @@ def get_field_value(form, field_name):
     except KeyError:
         value = None
     return value
+
+@register.filter
+def mul(value, arg):
+    """Multiply the value by the argument."""
+    try:
+        return float(value or 0) * float(arg or 1)
+    except (ValueError, TypeError):
+        return 0

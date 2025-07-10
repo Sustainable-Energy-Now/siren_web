@@ -148,6 +148,87 @@ td {
     padding-right: 15px;
 }
 
+/* Technology Table Styles - Baseline Scenario */
+
+.technology-table {
+    margin: 20px 0;
+}
+.technology-header {
+background-color: #f8f9fa;
+font-weight: bold;
+padding: 10px;
+border-bottom: 2px solid #dee2e6;
+}
+
+.technology-row {
+    padding: 8px 0;
+    border-bottom: 1px solid #dee2e6;
+}
+.technology-row:hover {
+background-color: #f8f9fa;
+}
+
+.readonly-input {
+    background-color: #e9ecef;
+    cursor: not-allowed;
+}
+
+.multiplier-input {
+    border-color: #007bff;
+}
+
+.multiplier-input:focus {
+    border-color: #0056b3;
+    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+}
+
+.product-display {
+    background-color: #e7f3ff;
+    font-weight: bold;
+}
+
+/* Technology table responsive design */
+@media (max-width: 768px) {
+    .technology-table .col-md-3 {
+        flex: 0 0 100%;
+        max-width: 100%;
+        margin-bottom: 10px;
+    }
+    
+    .technology-header {
+        text-align: center;
+    }
+    
+    .technology-row {
+        padding: 15px 10px;
+    }
+    
+    .technology-row .form-label {
+        font-size: 1.1em;
+        margin-bottom: 8px;
+        display: block;
+    }
+    
+    .technology-row .form-control {
+        margin-bottom: 10px;
+    }
+}
+
+/* Enhanced form styling for baseline scenario */
+.baseline-form-section {
+    background-color: #f8f9fa;
+    padding: 20px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    border: 1px solid #dee2e6;
+}
+
+.baseline-form-section .form-label {
+    font-weight: 600;
+    color: #31333F;
+    margin-bottom: 8px;
+}
+
 /* Sortable Components */
 .sortable-container {
     margin: auto;
@@ -243,6 +324,7 @@ td {
     border-color: #00A9D8;
     color: #FFFFFF;
 }
+
 .btn-secondary {
     background-color: #6c757d;
     color: white;
@@ -251,9 +333,11 @@ td {
     border-radius: 4px;
     cursor: pointer;
 }
+
 .btn-secondary:hover {
     background-color: #5a6268;
 }
+
 #windTurbineFields {
     transition: all 0.3s ease;
     max-height: 0;
@@ -290,6 +374,7 @@ select.form-control {
     -moz-appearance: none;
     appearance: none;
 }
+
 .protected-checkbox {
     opacity: 0.8 !important;
     background-color: blue !important;

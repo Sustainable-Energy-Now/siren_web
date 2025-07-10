@@ -523,7 +523,7 @@ def fetch_technology_attributes(demand_year, scenario):
         # Get scenario object once and reuse
     scenario_obj = Scenarios.objects.get(title=scenario)
     
-    # Optimized single query to get all needed technology data
+    # Single query to get all needed technology data
     technologies_result = ScenariosTechnologies.objects.filter(
         idscenarios=scenario_obj
     ).select_related(
@@ -704,6 +704,29 @@ def fetch_included_technologies_data(scenario):
     except Scenarios.DoesNotExist:
         return []
 
+def fetch_technologies_with_multipliers(scenario):
+    """
+    Fetch technologies data including multipliers from ScenariosTechnologies
+    """
+    try:
+        scenario_obj = Scenarios.objects.get(title=scenario)
+        technologies = ScenariosTechnologies.objects.filter(
+            idscenarios=scenario_obj
+        ).select_related('idtechnologies')
+        
+        # Create a list of objects with the needed attributes
+        tech_list = []
+        for tech in technologies:
+            tech_data = tech.idtechnologies
+            tech_data.capacity = tech.capacity
+            tech_data.mult = tech.mult
+            tech_data.pk = tech.idtechnologies.idtechnologies
+            tech_list.append(tech_data)
+            
+        return tech_list
+    except Scenarios.DoesNotExist:
+        return []
+    
 def fetch_technology_by_id(idtechnologies):
     technologies = Technologies.objects.filter(
         idtechnologies=idtechnologies

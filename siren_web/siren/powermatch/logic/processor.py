@@ -1313,9 +1313,9 @@ class PowerMatchProcessor:
                 else:
                     parasite = 0.
                 in_run = [False, False]
-                min_run_time = self.constraints[self.generators[gen].constraint].min_run_time
+                min_runtime = self.constraints[self.generators[gen].constraint].min_runtime
                 in_run[0] = True # start off in_run
-                if min_run_time > 0 and self.generators[gen].initial == 0:
+                if min_runtime > 0 and self.generators[gen].initial == 0:
                     in_run[0] = False
                 warm_time = self.constraints[self.generators[gen].constraint].warm_time
                 storage_carry = storage[1] # self.generators[gen].initial
@@ -1335,7 +1335,7 @@ class PowerMatchProcessor:
                         storage_carry = storage_carry - loss
                         storage_losses -= loss
                     if shortfall[row] < 0:  # excess generation
-                        if min_run_time > 0:
+                        if min_runtime > 0:
                             in_run[0] = False
                         if warm_time > 0:
                             in_run[1] = False
@@ -1354,10 +1354,10 @@ class PowerMatchProcessor:
                         if corr_data is not None:
                             corr_src[row] += can_use
                     else: # shortfall
-                        if min_run_time > 0 and shortfall[row] > 0:
+                        if min_runtime > 0 and shortfall[row] > 0:
                             if not in_run[0]:
-                                if row + min_run_time <= 8759:
-                                    for i in range(row + 1, row + min_run_time + 1):
+                                if row + min_runtime <= 8759:
+                                    for i in range(row + 1, row + min_runtime + 1):
                                         if shortfall[i] <= 0:
                                             break
                                     else:

@@ -71,26 +71,102 @@ class BaselineScenarioForm(forms.Form):
                     )
                 ),
             )
-       # Create fields for each technology
+       
+        # Create fields for each technology with capacity, multiplier, and product
         rows = []
         current_row = []
+        
+        # Add header row
+        header_row = HTML("""
+            <div class="row form-row">
+                <div class="col-md-3"><strong>Technology</strong></div>
+                <div class="col-md-3"><strong>Capacity</strong></div>
+                <div class="col-md-3"><strong>Multiplier</strong></div>
+                <div class="col-md-3"><strong>Product</strong></div>
+            </div>
+        """)
+        self.helper.layout.append(header_row)
+        
         for i, technology in enumerate(self.technologies):
             tech_key = f"{technology.pk}"
-            field_name = f'capacity_{tech_key}'
-            self.fields[field_name] = forms.DecimalField(
-                label=technology.technology_name, initial=technology.capacity, required=False)
-            current_row.append(
-                Column(Field(field_name, css_class='form-control'), 
-                css_class='form-group col-md-3 mb-0')
+            
+            # Create hidden field for capacity (read-only)
+            capacity_field_name = f'capacity_{tech_key}'
+            self.fields[capacity_field_name] = forms.DecimalField(
+                initial=technology.capacity, 
+                required=False,
+                widget=forms.HiddenInput()
             )
-            if (i + 1) % 4 == 0 or i == len(self.technologies) - 1:
-                rows.append(Row(*current_row, css_class='form-row'))
-                current_row = []
+            
+            # Create field for multiplier (editable)
+            multiplier_field_name = f'multiplier_{tech_key}'
+            self.fields[multiplier_field_name] = forms.DecimalField(
+                initial=technology.mult or 1.0, 
+                required=False,
+                widget=forms.NumberInput(attrs={
+                    'class': 'form-control multiplier-input',
+                    'data-tech-id': tech_key,
+                    'step': '0.01'
+                })
+            )
+            
+            # Calculate product for display
+            product_value = (technology.capacity or 0) * (technology.mult or 1.0)
+            
+            # Create a row for this technology
+            tech_row = HTML(f"""
+                <div class="row form-row">
+                    <div class="col-md-3">
+                        <label class="form-label">{technology.technology_name}</label>
+                    </div>
+                    <div class="col-md-3">
+                        <input type="text" class="form-control" value="{technology.capacity or 0:.2f}" readonly>
+                    </div>
+                    <div class="col-md-3">
+                        {{% field '{multiplier_field_name}' %}}
+                    </div>
+                    <div class="col-md-3">
+                        <input type="text" class="form-control product-display" 
+                               id="product_{tech_key}" 
+                               value="{product_value:.2f}" 
+                               readonly>
+                    </div>
+                </div>
+            """)
+            
+            rows.append(tech_row)
+            
+            # Add the hidden capacity field
+            rows.append(Field(capacity_field_name))
 
         self.helper.layout.extend([
             HTML("<hr>"),
             *rows,
             HTML("<hr>"),
+            # Add JavaScript for real-time calculation
+            HTML("""
+                <script>
+                document.addEventListener('DOMContentLoaded', function() {
+                    const multiplierInputs = document.querySelectorAll('.multiplier-input');
+                    
+                    multiplierInputs.forEach(function(input) {
+                        input.addEventListener('input', function() {
+                            const techId = this.getAttribute('data-tech-id');
+                            const capacityInput = document.querySelector(`input[name="capacity_${techId}"]`);
+                            const productDisplay = document.getElementById(`product_${techId}`);
+                            
+                            if (capacityInput && productDisplay) {
+                                const capacity = parseFloat(capacityInput.value) || 0;
+                                const multiplier = parseFloat(this.value) || 0;
+                                const product = capacity * multiplier;
+                                
+                                productDisplay.value = product.toFixed(2);
+                            }
+                        });
+                    });
+                });
+                </script>
+            """),
             FormActions(
                 Submit('save', 'Save Runtime Parameters', css_class='btn btn-primary')
             )
@@ -108,13 +184,14 @@ class BaselineScenarioForm(forms.Form):
         if discount_rate is None:
             self.add_error('discount_rate', 'This field is required.')
 
-        # Validate capacity for each technology
+        # Validate multiplier for each technology
         for technology in self.technologies:
             tech_key = f"{technology.pk}"
-            field_name = f'capacity_{tech_key}'
-            capacity = cleaned_data.get(field_name)
-            if capacity is None:
-                self.add_error(field_name, 'This field is required.')
+            multiplier_field_name = f'multiplier_{tech_key}'
+            multiplier = cleaned_data.get(multiplier_field_name)
+            if multiplier is None:
+                self.add_error(multiplier_field_name, 'This field is required.')
+                
         return cleaned_data
 
 class RunPowermatchForm(forms.Form):

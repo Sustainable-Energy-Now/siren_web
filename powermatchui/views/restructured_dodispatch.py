@@ -410,11 +410,11 @@ class PowerMatchProcessor:
         hourly_losses = np.zeros(8760)
         
         # Operating state tracking
-        min_run_time = details.min_run_time
+        min_runtime = details.min_runtime
         warm_time = details.warm_time
         in_run = [True, False]  # [discharge_run, warm_run]
         
-        if min_run_time > 0 and storage_state.initial_level == 0:
+        if min_runtime > 0 and storage_state.initial_level == 0:
             in_run[0] = False
         
         # Simulate each hour
@@ -437,7 +437,7 @@ class PowerMatchProcessor:
                     hourly_losses[h] += energy_loss
                 
                 # Reset run states during charging
-                if min_run_time > 0:
+                if min_runtime > 0:
                     in_run[0] = False
                 if warm_time > 0:
                     in_run[1] = False
@@ -445,7 +445,7 @@ class PowerMatchProcessor:
             else:  # Shortfall - discharge
                 discharge_amount = self._calculate_discharge(
                     energy_balance.shortfall[h], storage_level, storage_state, 
-                    h, in_run, min_run_time, warm_time, energy_balance.shortfall
+                    h, in_run, min_runtime, warm_time, energy_balance.shortfall
                 )
                 
                 if discharge_amount > 0:
@@ -492,7 +492,7 @@ class PowerMatchProcessor:
         return charge_amount
     
     def _calculate_discharge(self, shortfall, current_level, storage_state: StorageState,
-                           hour, in_run, min_run_time, warm_time, all_shortfall) -> float:
+                           hour, in_run, min_runtime, warm_time, all_shortfall) -> float:
         """Calculate how much energy to discharge"""
         if shortfall <= 0:
             return 0
@@ -502,10 +502,10 @@ class PowerMatchProcessor:
             return 0
         
         # Check minimum run time
-        if min_run_time > 0 and not in_run[0]:
+        if min_runtime > 0 and not in_run[0]:
             # Look ahead to see if we should start
-            if hour + min_run_time <= 8759:
-                future_shortfall = all_shortfall[hour:hour + min_run_time]
+            if hour + min_runtime <= 8759:
+                future_shortfall = all_shortfall[hour:hour + min_runtime]
                 if all(sf > 0 for sf in future_shortfall):
                     in_run[0] = True
             
@@ -845,7 +845,7 @@ class FacilityProcessor:
             'charge_efficiency': 1 - details.recharge_loss,
             'discharge_efficiency': 1 - details.discharge_loss,
             'parasitic_loss_rate': details.parasitic_loss,
-            'min_run_time': details.min_run_time,
+            'min_runtime': details.min_runtime,
             'warm_time': details.warm_time
         }
     
@@ -912,9 +912,9 @@ class FacilityProcessor:
                 shortfall = energy_balance.shortfall[hour]
                 
                 # Check minimum run time
-                if params['min_run_time'] > 0 and not discharge_run_active:
+                if params['min_runtime'] > 0 and not discharge_run_active:
                     # Look ahead to see if sustained discharge is needed
-                    if self._check_sustained_shortfall(energy_balance.shortfall, hour, params['min_run_time']):
+                    if self._check_sustained_shortfall(energy_balance.shortfall, hour, params['min_runtime']):
                         discharge_run_active = True
                 
                 if discharge_run_active:

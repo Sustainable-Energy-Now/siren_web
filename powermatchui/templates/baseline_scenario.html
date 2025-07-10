@@ -2,23 +2,135 @@
 
 {% block powermatchui_content %}
 {% load crispy_forms_tags %}
+{% load custom_filters %}
 
   <h3>Baseline Scenario</h3>
   <p>Select the level of detail and click submit to run Power Match.</p>
 
   {% load crispy_forms_tags %}
   {% csrf_token %}
-  {% crispy baseline_form %}
-  <!-- Display form errors -->
-  {% for field in baseline_form %}
-    {% for error in field.errors %}
-      <div class="alert alert-danger">
-          <strong>{{ error|escape }}</strong>
-      </div>
-    {% endfor %}
-  {% endfor %}
 
+  <!-- Carbon Price and Discount Rate Section -->
+  <form method="post">
+    {% csrf_token %}
+    
+    <div class="row form-row">
+      <div class="col-md-6">
+        <div class="form-group">
+          {{ baseline_form.carbon_price.label_tag }}
+          {{ baseline_form.carbon_price }}
+          {% for error in baseline_form.carbon_price.errors %}
+            <div class="alert alert-danger">{{ error }}</div>
+          {% endfor %}
+        </div>
+      </div>
+      <div class="col-md-6">
+        <div class="form-group">
+          {{ baseline_form.discount_rate.label_tag }}
+          {{ baseline_form.discount_rate }}
+          {% for error in baseline_form.discount_rate.errors %}
+            <div class="alert alert-danger">{{ error }}</div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+
+    <hr>
+
+    <!-- Technology Capacity and Multiplier Table -->
+    <div class="technology-table">
+      <div class="row technology-header">
+        <div class="col-md-3">Technology</div>
+        <div class="col-md-3">Capacity (MW/MWh)</div>
+        <div class="col-md-3">Multiplier</div>
+        <div class="col-md-3">Effective Capacity</div>
+      </div>
+
+      {% for technology in technologies %}
+        <div class="row technology-row">
+          <div class="col-md-3">
+            <label class="form-label">{{ technology.technology_name }}</label>
+          </div>
+          <div class="col-md-3">
+            <input type="text" 
+                   class="form-control readonly-input" 
+                   value="{{ technology.capacity|floatformat:2 }}" 
+                   readonly>
+            <!-- Hidden field for capacity -->
+            <input type="hidden" 
+                   name="capacity_{{ technology.pk }}" 
+                   value="{{ technology.capacity }}">
+          </div>
+          <div class="col-md-3">
+            <input type="number" 
+                   class="form-control multiplier-input" 
+                   name="multiplier_{{ technology.pk }}" 
+                   value="{{ technology.mult|default:1.0|floatformat:2 }}"
+                   step="0.01"
+                   min="0"
+                   data-tech-id="{{ technology.pk }}"
+                   data-capacity="{{ technology.capacity|default:0 }}">
+          </div>
+          <div class="col-md-3">
+            <input type="text" 
+                   class="form-control product-display" 
+                   id="product_{{ technology.pk }}" 
+                   value="{{ technology.capacity|default:0|mul:technology.mult|default:1.0|floatformat:2 }}" 
+                   readonly>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+
+    <hr>
+
+    <!-- Display form errors -->
+    {% for field in baseline_form %}
+      {% for error in field.errors %}
+        <div class="alert alert-danger">
+            <strong>{{ error|escape }}</strong>
+        </div>
+      {% endfor %}
+    {% endfor %}
+
+    <!-- Save button -->
+    <div class="form-actions">
+      <button type="submit" name="save" class="btn btn-primary">Save Runtime Parameters</button>
+    </div>
+  </form>
+
+  <!-- Run Powermatch Form -->
+  <hr>
   {% csrf_token %}
   {% crispy runpowermatch_form %}
+
+  <!-- JavaScript for real-time calculation -->
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      const multiplierInputs = document.querySelectorAll('.multiplier-input');
+      
+      multiplierInputs.forEach(function(input) {
+        input.addEventListener('input', function() {
+          const techId = this.getAttribute('data-tech-id');
+          const capacity = parseFloat(this.getAttribute('data-capacity')) || 0;
+          const multiplier = parseFloat(this.value) || 0;
+          const product = capacity * multiplier;
+          
+          const productDisplay = document.getElementById(`product_${techId}`);
+          if (productDisplay) {
+            productDisplay.value = product.toFixed(2);
+          }
+        });
+        
+        // Also trigger on blur to ensure formatting
+        input.addEventListener('blur', function() {
+          const value = parseFloat(this.value);
+          if (!isNaN(value)) {
+            this.value = value.toFixed(2);
+          }
+        });
+      });
+    });
+  </script>
 
 {% endblock %}

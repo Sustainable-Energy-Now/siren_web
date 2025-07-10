@@ -1,7 +1,7 @@
 class Constraint:
     def __init__(self, name, category, capacity_min, capacity_max, rampup_max, rampdown_max,
                  recharge_max, recharge_loss, discharge_max, discharge_loss, parasitic_loss,
-                 min_run_time, warm_time):
+                 min_runtime, warm_time):
         self.name = name.strip()
         self.category = category
         try:
@@ -41,9 +41,9 @@ class Constraint:
         except:
             self.rampdown_max = 1.
         try:
-            self.min_run_time = int(min_run_time)
+            self.min_runtime = int(min_runtime)
         except:
-            self.min_run_time = 0
+            self.min_runtime = 0
         try:
             self.warm_time = float(warm_time)
             if self.warm_time >= 1:
