@@ -915,7 +915,7 @@
         short_taken = {}
         short_taken_tot = 0
         for gen in dispatch_order:
-            if pmss_details[gen].fac_type == 'G': # generators
+            if pmss_details[gen].tech_type == 'G': # generators
                 try:
                     const = self.generators[gen].constraint
                 except:

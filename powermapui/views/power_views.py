@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 @login_required
 def generate_power(request):
     """
-    Generate power for all facilities using SAM for renewables and traditional models for others
+    Generate power for all facilities using SAM for renewables
     """
     demand_year = request.session.get('demand_year', '')
     scenario = request.session.get('scenario', '')
@@ -59,7 +59,7 @@ def generate_power(request):
             config = fetch_all_config_data(request)
             
             # Process renewable facilities with SAM - pass refresh flag
-            sam_processed_count, traditional_processed_count, skipped_count = process_facilities(
+            sam_processed_count, skipped_count = process_facilities(
                 config, facilities_list, demand_year, scenario, refresh_supply_factors
             )
             
@@ -67,8 +67,7 @@ def generate_power(request):
             refresh_status = " (with refresh)" if refresh_supply_factors else " (new facilities only)"
             success_message = (
                 f"Power generation completed{refresh_status}. "
-                f"SAM processed {sam_processed_count} renewable facilities, "
-                f"traditional model processed {traditional_processed_count} facilities"
+                f"SAM processed {sam_processed_count} renewable facilities."
             )
             
             if skipped_count > 0:
@@ -95,7 +94,7 @@ def process_facilities(config, facilities_list, demand_year, scenario, refresh_s
                               If False, only process facilities without existing supply factors.
     
     Returns:
-        tuple: (sam_processed_count, traditional_processed_count, skipped_count)
+        tuple: (sam_processed_count, skipped_count)
     """
     
     # Initialize SAM processor
@@ -106,7 +105,7 @@ def process_facilities(config, facilities_list, demand_year, scenario, refresh_s
         weather_data_dir=weather_dir,
         power_curves_dir=power_curves_dir
     )
-    sam_processed_count, traditional_processed_count, skipped_count = 0, 0, 0
+    sam_processed_count, skipped_count = 0, 0
     
     for facility_data in facilities_list:
         try:
@@ -134,8 +133,7 @@ def process_facilities(config, facilities_list, demand_year, scenario, refresh_s
                 results = process_renewable_facility(sam_processor, facility_obj, tech_name, demand_year)
                 sam_processed_count += 1
             else:
-                results = process_traditional_facility(facility_obj)
-                traditional_processed_count += 1
+                continue  # Skip non-renewable facilities for SAM processing
                     
             if results:
                 # Store supply factors (will overwrite existing if refresh_supply_factors=True)
@@ -155,7 +153,7 @@ def process_facilities(config, facilities_list, demand_year, scenario, refresh_s
             logger.error(f"Unexpected error processing facility {facility_data.get('facility_code')}: {e}")
             continue
     
-    return sam_processed_count, traditional_processed_count, skipped_count
+    return sam_processed_count, skipped_count
 
 def process_renewable_facility(sam_processor, facility_obj, tech_name, demand_year):
     """
@@ -226,33 +224,6 @@ def process_renewable_facility(sam_processor, facility_obj, tech_name, demand_ye
         logger.error(f"SAM simulation failed for {facility_obj.facility_name}: {e}")
         pass
     return results
-
-def process_traditional_facility(facility_obj):
-    """
-    Process non-renewable facilities using traditional power model
-    
-    Returns:
-        SimulationResults: Results object with constant generation
-    """
-    try:
-        # Calculate constant generation (capacity in MW converted to kW)
-        capacity_kw = facility_obj.capacity * facility_obj.capacityfactor * 1000  # Convert MW to kW
-        
-        # Create SimulationResults object with constant generation
-        results = SimulationResults(
-            annual_energy=capacity_kw * 8760,  # kWh/year (capacity × hours in year)
-            hourly_generation=[capacity_kw] * 8760,  # Constant generation every hour
-            capacity_factor=facility_obj.capacityfactor 
-        )
-        
-        logger.debug(f"Traditional facility {facility_obj.facility_name}: "
-                    f"{capacity_kw} kW capacity, {results.annual_energy:,.0f} kWh/year")
-        
-        return results
-        
-    except Exception as e:
-        logger.error(f"Error in traditional power model for {facility_obj.facility_name}: {e}")
-        return None
 
 def store_simulation_results(results, facility_obj, demand_year):
     """

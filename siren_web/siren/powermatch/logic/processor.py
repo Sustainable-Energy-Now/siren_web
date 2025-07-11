@@ -1246,7 +1246,7 @@ class PowerMatchProcessor:
         short_taken = {}
         short_taken_tot = 0
         for gen in dispatch_order:
-            if pmss_details[gen].fac_type == 'G': # generators
+            if pmss_details[gen].tech_type == 'G': # generators
                 try:
                     const = self.generators[gen].constraint
                 except:
@@ -3504,7 +3504,7 @@ class PowerMatchProcessor:
         rw = 1
         for key, value in its.items():
             grid[0].addWidget(QLabel(key), rw, 0)
-            if pmss_details[key].fac_type == 'S':
+            if pmss_details[key].tech_type == 'S':
                 typ = ' MWh'
             else:
                 typ = ' MW'

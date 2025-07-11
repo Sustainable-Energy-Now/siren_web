@@ -17,16 +17,17 @@ from dataclasses import dataclass
 from powermatchui.views.progress_handler import ProgressHandler
 
 @dataclass
-class Facility:
+class Technology:
     def __init__(self, **kwargs):
         kwargs = {**kwargs}
       #  return
-        self.name = ''
         self.order = 0
         self.lifetime = 20
         self.area = None
-        for attr in ['fac_type', 'col', 'multiplier', 'capacity', 'lcoe', 'lcoe_cf', 'emissions', 'initial', 'capex',
-                     'fixed_om', 'variable_om', 'fuel', 'disc_rate', 'lifetime', 'area']:
+        for attr in ['tech_name', 'tech_type', 'renewable', 'category', 'capacity', 'multiplier', 'capacity_max',
+                     'capacity_min', 'lcoe', 'lcoe_cf', 'recharge_max', 'recharge_loss', 'min_runtime', 'warm_time',
+                     'discharge_max', 'discharge_loss', 'parasitic_loss', 'emissions', 'initial','merit_order',
+                     'capex', 'fixed_om', 'variable_om', 'fuel', 'lifetime', 'area', 'disc_rate']:
             setattr(self, attr, 0.)
         for key, value in kwargs.items():
             if value != '' and value is not None:
@@ -98,8 +99,8 @@ class PowerMatchProcessor:
         self.operational = []
         self.show_correlation = False
     
-    def doDispatch(self, year, option, sender_name, pmss_details, pmss_data, re_order, 
-                   dispatch_order) -> DispatchResults:
+    def doDispatch(self, year, option, sender_name, pmss_details, pmss_data
+                   ) -> DispatchResults:
         """
         Main dispatch function - now acts as a coordinator calling specialized methods
         """
@@ -109,14 +110,14 @@ class PowerMatchProcessor:
         config = self._initialize_dispatch(year, option, pmss_details)
         
         # Calculate energy balance
-        energy_balance = self._calculate_energy_balance(pmss_details, pmss_data, re_order)
+        energy_balance = self._calculate_energy_balance(pmss_details, pmss_data)
         
         # Process renewable facilities
-        renewable_results = self._process_renewables(pmss_details, pmss_data, re_order, energy_balance)
+        renewable_results = self._process_renewables(pmss_details, pmss_data, energy_balance)
         
         # Process storage and generators
         dispatch_results = self._process_dispatch_order(
-            pmss_details, dispatch_order, energy_balance, option, config
+            pmss_details, energy_balance, option, config
         )
         
         # Calculate economic metrics
@@ -168,7 +169,7 @@ class PowerMatchProcessor:
             if key in ['Load', 'Total']:
                 continue
             if details.capacity * details.multiplier > 0:
-                gen = details.generator
+                gen = details.tech_name
                 if gen in pmss_details:
                     max_lifetime = max(max_lifetime, pmss_details[gen].lifetime)
         return max_lifetime
@@ -176,26 +177,32 @@ class PowerMatchProcessor:
     def _identify_underlying_facilities(self, pmss_details) -> List[str]:
         """Identify facilities that contribute to underlying load"""
         underlying_facs = []
-        for fac_name, details in pmss_details.items():
-            if fac_name == 'Load':
+        for tech_name, details in pmss_details.items():
+            if tech_name == 'Load':
                 continue
-            if fac_name in self.operational:
+            if tech_name in self.operational:
                 continue
             
-            base_name = fac_name.split('.')[-1] if '.' in fac_name else fac_name
-            if fac_name in self.underlying or base_name in self.underlying:
-                underlying_facs.append(fac_name)
+            base_name = tech_name.split('.')[-1] if '.' in tech_name else tech_name
+            if tech_name in self.underlying or base_name in self.underlying:
+                underlying_facs.append(tech_name)
         
         return underlying_facs
     
-    def _calculate_energy_balance(self, pmss_details, pmss_data, re_order) -> EnergyBalance:
+    def _calculate_energy_balance(self, pmss_details, pmss_data) -> EnergyBalance:
         """Calculate hourly energy balance and facility contributions"""
-        load_col = pmss_details['Load'].col
+        load_col = pmss_details['Load'].merit_order
         load_multiplier = pmss_details['Load'].multiplier
+        
+        # Get technologies sorted by merit order (excluding Load)
+        tech_order = sorted(
+            [tech for tech in pmss_details.keys() if tech != 'Load'],
+            key=lambda tech: pmss_details[tech].merit_order
+        )
         
         # Initialize arrays
         shortfall = [0.0] * 8760
-        fac_contributions = {}
+        tech_contributions = {}
         load_data = []
         
         # Calculate hourly load and shortfall
@@ -205,14 +212,15 @@ class PowerMatchProcessor:
             shortfall[h] = load_h
             
             # Subtract renewable generation
-            for fac in re_order:
-                if fac == 'Load':
-                    continue
-                if fac not in fac_contributions:
-                    fac_contributions[fac] = 0.0
+            for tech in tech_order:
+                if tech not in tech_contributions:
+                    tech_contributions[tech] = 0.0
                 
-                if pmss_details[fac].col > 0:
-                    generation = pmss_data[pmss_details[fac].col][h] * pmss_details[fac].multiplier
+                if pmss_details[tech].merit_order > 0:
+                    if pmss_details[tech].merit_order in pmss_data:
+                        generation = pmss_data[pmss_details[tech].merit_order][h] * pmss_details[tech].multiplier
+                    else:
+                        generation = pmss_details[tech].capacity * pmss_details[tech].multiplier
                     shortfall[h] -= generation
             
             # Calculate allocation factor for curtailment
@@ -222,20 +230,21 @@ class PowerMatchProcessor:
                 alloc = load_h / (load_h - shortfall[h])
             
             # Update facility contributions with curtailment
-            for fac in re_order:
-                if fac == 'Load':
-                    continue
-                if pmss_details[fac].col > 0:
-                    generation = pmss_data[pmss_details[fac].col][h] * pmss_details[fac].multiplier
-                    fac_contributions[fac] += generation * alloc
+            for tech in tech_order:
+                if pmss_details[tech].merit_order > 0:
+                    if pmss_details[tech].merit_order in pmss_data:
+                        generation = pmss_data[pmss_details[tech].merit_order][h] * pmss_details[tech].multiplier
+                    else:
+                        generation = pmss_details[tech].capacity * pmss_details[tech].multiplier
+                    tech_contributions[tech] += generation * alloc
         
         # Calculate correlation if requested
         correlation_data = None
         if self.show_correlation:
             correlation_data = self._calculate_correlation(load_data, shortfall, pmss_data, load_col)
         
-        return EnergyBalance(shortfall, fac_contributions, load_data, correlation_data)
-    
+        return EnergyBalance(shortfall, tech_contributions, load_data, correlation_data)    
+
     def _calculate_correlation(self, load_data, shortfall, pmss_data, load_col) -> List:
         """Calculate correlation between load and renewable generation"""
         # Prepare data for correlation
@@ -262,56 +271,91 @@ class PowerMatchProcessor:
         
         return [['Correlation To Load'], ['RE Contribution', corr]]
     
-    def _process_renewables(self, pmss_details, pmss_data, re_order, energy_balance) -> List[Dict]:
+    def _process_renewables(self, pmss_details, pmss_data, energy_balance) -> List[Dict]:
         """Process renewable energy facilities"""
         renewable_results = []
         
-        for fac in re_order:
-            if fac == 'Load':
-                continue
-            if fac in energy_balance.facility_contributions:
-                result = self._process_single_renewable(fac, pmss_details, pmss_data, energy_balance)
+        # Get technologies sorted by merit order (excluding Load)
+        tech_order = sorted(
+            [tech for tech in pmss_details.keys() if tech != 'Load'],
+            key=lambda tech: pmss_details[tech].merit_order
+        )
+        
+        for tech in tech_order:
+            if tech in energy_balance.facility_contributions:
+                result = self._process_single_renewable(tech, pmss_details, pmss_data, energy_balance)
                 if result:
                     renewable_results.append(result)
         
         return renewable_results
     
-    def _process_single_renewable(self, fac_name, pmss_details, pmss_data, energy_balance) -> Optional[Dict]:
-        """Process a single renewable facility"""
-        details = pmss_details[fac_name]
+    def _process_single_renewable(self, tech_name, pmss_details, pmss_data, energy_balance) -> Optional[Dict]:
+        """Process a single renewable facility using energy_balance data"""
+        details = pmss_details[tech_name]
         if details.capacity * details.multiplier == 0:
             return None
         
-        col = details.col
-        if col <= 0:
+        merit_order = details.merit_order
+        if merit_order <= 0:
             return None
         
-        # Calculate facility metrics
+        # Calculate facility metrics using energy_balance
         capacity = details.capacity * details.multiplier
-        total_generation = sum(pmss_data[col]) * details.multiplier
-        max_generation = max(pmss_data[col]) * details.multiplier
-        to_meet_load = energy_balance.facility_contributions.get(fac_name, 0)
-        capacity_factor = total_generation / capacity / 8760 if capacity > 0 else 0
+        
+        # Get contribution to load from energy_balance (accounts for curtailment)
+        to_meet_load = energy_balance.facility_contributions.get(tech_name, 0)
+        
+        # Calculate total generation and max generation from pmss_data if available
+        if merit_order in pmss_data:
+            # Raw generation profile before curtailment
+            raw_generation_profile = [pmss_data[merit_order][h] * details.multiplier for h in range(8760)]
+            total_generation = sum(raw_generation_profile)
+            max_generation = max(raw_generation_profile)
+        else:
+            # For constant generation facilities
+            total_generation = capacity * 8760  # Assumes constant output
+            max_generation = capacity
+        
+        # Calculate capacity factor based on raw generation
+        capacity_factor = total_generation / (capacity * 8760) if capacity > 0 else 0
+        
+        # Calculate curtailment
+        curtailed_energy = total_generation - to_meet_load
+        curtailment_pct = curtailed_energy / total_generation if total_generation > 0 else 0
         
         return {
-            'facility': fac_name,
+            'facility': tech_name,
             'capacity': capacity,
-            'to_meet_load': to_meet_load,
-            'subtotal': total_generation,
+            'capex': details.capex,
+            'fixed_om': details.fixed_om,
+            'variable_om': details.variable_om, 
+            'fuel': details.fuel, 
+            'disc_rate': details.disc_rate, 
+            'lifetime': details.lifetime,
+            'to_meet_load': to_meet_load,  # Energy actually used (after curtailment)
+            'subtotal': total_generation,  # Total energy generated (before curtailment)
             'max_mwh': max_generation,
-            'cf': capacity_factor,
+            'cf': capacity_factor,  # Based on raw generation
+            'curtailed_energy': curtailed_energy,
+            'curtailment_pct': curtailment_pct,
             'facility_type': 'renewable'
         }
-    
-    def _process_dispatch_order(self, pmss_details, dispatch_order, energy_balance, option, config) -> List[Dict]:
+
+    def _process_dispatch_order(self, pmss_details, energy_balance, option, config) -> List[Dict]:
         """Process generators and storage in dispatch order"""
         dispatch_results = []
-        short_taken = self._handle_minimum_generation(pmss_details, dispatch_order, energy_balance)
+        
+        # Get generators and storage sorted by merit order (excluding Load and renewables)
+        # Assuming generators/storage have different categories or can be identified
+        dispatch_order = sorted(
+            [tech for tech in pmss_details.keys() if tech != 'Load' and 
+            pmss_details[tech].category in ['Generator', 'Storage']],  # Adjust categories as needed
+            key=lambda tech: pmss_details[tech].merit_order
+        )
+        
+        short_taken = self._handle_minimum_generation(pmss_details, energy_balance)
         
         for gen_name in dispatch_order:
-            if gen_name not in pmss_details:
-                continue
-            
             generator = pmss_details[gen_name]
             
             if generator.category == 'Storage':
@@ -324,15 +368,19 @@ class PowerMatchProcessor:
         
         return dispatch_results
     
-    def _handle_minimum_generation(self, pmss_details, dispatch_order, energy_balance) -> Dict[str, float]:
+    def _handle_minimum_generation(self, pmss_details, energy_balance) -> Dict[str, float]:
         """Handle minimum generation requirements for generators"""
         short_taken = {}
         short_taken_tot = 0
         
-        for gen_name in dispatch_order:
-            if pmss_details[gen_name].fac_type != 'G':
-                continue
-            
+        # Get generators sorted by merit order
+        generators_order = sorted(
+            [tech for tech in pmss_details.keys() if 
+            pmss_details[tech].tech_type == 'G'],
+            key=lambda tech: pmss_details[tech].merit_order
+        )
+        
+        for gen_name in generators_order:
             try:                
                 if pmss_details[gen_name].capacity_min != 0:
                     capacity = pmss_details[gen_name].capacity * pmss_details[gen_name].multiplier
@@ -815,7 +863,7 @@ class FacilityProcessor:
             'name': facility_name,
             'type': 'renewable',
             'capacity': details.capacity * details.multiplier,
-            'generation_profile': hourly_data[details.col] * details.multiplier,
+            'generation_profile': hourly_data[details.merit_order] * details.multiplier,
             'contribution_to_load': energy_balance.facility_contributions.get(facility_name, 0)
         }
     
@@ -1089,13 +1137,13 @@ class EconomicsCalculator:
 
 class ResultsFormatter:
     """Formats results into various output formats"""
-    
+
     def __init__(self):
         self.summary_columns = [
             'facility', 'capacity', 'to_meet_load', 'subtotal', 'cf', 
             'cost_per_year', 'lcoe', 'emissions', 'max_mwh'
         ]
-    
+
     def create_summary_array(self, facility_results, economic_results):
         """Create structured numpy array for summary results"""
         num_facilities = len(facility_results)
@@ -1134,7 +1182,7 @@ class ResultsFormatter:
             )
         
         return summary_array
-    
+
     def create_hourly_array(self, facility_results, include_storage_detail=True):
         """Create hourly data array for detailed analysis"""
         hours = 8760

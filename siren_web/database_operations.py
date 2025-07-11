@@ -14,7 +14,7 @@ from siren_web.models import Analysis, Demand, facilities, Generatorattributes, 
     Scenarios, ScenariosTechnologies, ScenariosSettings, Settings, Storageattributes, supplyfactors, \
     Technologies, TechnologyYears, TradingPrice, variations, Zones
 from siren_web.siren.powermatch.logic.logic import Constraint, Optimisation
-from powermatchui.views.restructured_dodispatch import Facility
+from powermatchui.views.restructured_dodispatch import Technology
 from typing import Dict
 
 def delete_analysis_scenario(idscenario):
@@ -170,20 +170,16 @@ def fetch_supplyfactors_data(demand_year, scenario):
     try:
         # Cache ScenariosTechnologies data for efficient lookup
         # This table is small (~6 rows) so we can afford to load it all
-        scenario_obj = get_scenario_by_title(scenario)
-        scenarios_tech_query = ScenariosTechnologies.objects.filter(
-            idscenarios=scenario_obj
-        ).select_related('idtechnologies')
+
+        scenarios_tech_query, scenario_obj = fetch_scenario_technologies(scenario)
         
-        # Create lookup dictionaries for mult and col by technology ID
-        tech_mult_lookup = {}
-        tech_col_lookup = {}
+        # Create lookup dictionaries for merit order by technology ID
+        tech_merit_order_lookup = {}
         tech_capacity_lookup = {}
         
         for st_row in scenarios_tech_query:
             tech_id = st_row.idtechnologies.idtechnologies
-            tech_mult_lookup[tech_id] = float(st_row.mult) if st_row.mult is not None else 1.0
-            tech_col_lookup[tech_id] = st_row.merit_order
+            tech_merit_order_lookup[tech_id] = st_row.merit_order
             tech_capacity_lookup[tech_id] = st_row.capacity
         
         # Read supplyfactors table using Django ORM
@@ -194,47 +190,36 @@ def fetch_supplyfactors_data(demand_year, scenario):
         ).select_related(
             'idfacilities__idtechnologies'  # Join with Technologies through facilities
         ).order_by(
-            'hour'  # Order by hour (we'll handle col ordering later)
+            'hour'  # Order by hour
         )
         
         # Create a dictionary of supplyfactors from the model 
         pmss_data = {}
-        max_col = 0
         
         for supplyfactors_row in supplyfactors_query:
             technology = supplyfactors_row.idfacilities.idtechnologies
             name = technology.technology_name
             tech_id = technology.idtechnologies
             
-            # Look up mult and col from our cached ScenariosTechnologies data
-            multiplier = tech_mult_lookup.get(tech_id, 1.0)
-            col = tech_col_lookup.get(tech_id)
+            # Look up mult and merit order from our cached ScenariosTechnologies data
+            merit_order = tech_merit_order_lookup.get(tech_id)
             
-            # Skip if this technology doesn't have col data in ScenariosTechnologies
-            if col is None:
+            # Skip if this technology doesn't have merit_order data in ScenariosTechnologies
+            if merit_order is None:
                 continue
                 
             load = supplyfactors_row.quantum
             
-            if col not in pmss_data:
-                pmss_data[col] = []
-            pmss_data[col].append(load)
-            
-            # Track the maximum column number
-            if col > max_col:
-                max_col = col
-        
-        # Sort the data within each column by the original hour order
-        for col in pmss_data:
-            # Data should already be ordered by hour due to our query ordering
-            pass
+            if merit_order not in pmss_data:
+                pmss_data[merit_order] = []
+            pmss_data[merit_order].append(load)
             
     except Exception as e:
         # Handle any errors that occur during the database query
         print(f"Error fetching supplyfactors data: {e}")
-        return None, None
+        return None
 
-    return pmss_data, max_col
+    return pmss_data
 
 def get_technology_with_year_data(idtechnologies, demand_year):
     """
@@ -520,12 +505,13 @@ def fetch_full_generator_storage_data(demand_year):
         print("Error executing query:", e)
 
 def fetch_technology_attributes(demand_year, scenario):
-        # Get scenario object once and reuse
+    # Get scenario object once and reuse
     scenario_obj = Scenarios.objects.get(title=scenario)
     
     # Single query to get all needed technology data
     technologies_result = ScenariosTechnologies.objects.filter(
-        idscenarios=scenario_obj
+        idscenarios=scenario_obj,
+        merit_order__lt=100
     ).select_related(
         'idtechnologies'
     ).prefetch_related(
@@ -547,18 +533,16 @@ def fetch_technology_attributes(demand_year, scenario):
             queryset=Storageattributes.objects.all(),
             to_attr='storage_attrs'
         )
-    )
+    ).order_by('merit_order')
     # Initialize dictionaries to hold results
     pmss_details = {}
-    pmss_details['Load'] = Facility(
+    pmss_details['Load'] = Technology(
         category='Load', 
         capacity=0,
         generator_name='Load',
-        fac_type='L',
-        col=0,
+        tech_type='L',
+        merit_order=0,
         multiplier=1)
-    dispatch_order = []
-    re_order = ['Load']
 
     # Process the results
     for scenario_tech in technologies_result:
@@ -594,14 +578,17 @@ def fetch_technology_attributes(demand_year, scenario):
         # Get merit order (already available from the query)
         merit_order = scenario_tech.merit_order
         
-        # Create Facility object using TechnologyYears data for financial parameters
-        pmss_details[name] = Facility(
-            generator_name=name,
-            fac_type=technology_row.category[0],  # 'G' for Generator, 'S' for Storage
+        # Create Technology object using TechnologyYears data for financial parameters
+        pmss_details[name] = Technology(
+            tech_name=name,
+            tech_type=technology_row.category[0],  # 'G' for Generator, 'S' for Storage
             category=technology_row.category, 
             capacity=scenario_tech.capacity,
+            multiplier=scenario_tech.mult,
             capacity_max=generator.capacity_max, 
             capacity_min=generator.capacity_min,
+            lcoe=0, 
+            lcoe_cfs=0,
             recharge_max=recharge_max, 
             recharge_loss=recharge_loss,
             min_runtime=0, 
@@ -612,31 +599,17 @@ def fetch_technology_attributes(demand_year, scenario):
             emissions=technology_row.emissions, 
             # initial=technology_row.initial,
             initial=0,
-            order=merit_order, 
+            merit_order=merit_order, 
             capex=tech_year_data.capex,
             fixed_om=tech_year_data.fom,
             variable_om=tech_year_data.vom,
             fuel=fuel,
             lifetime=technology_row.lifetime, 
             area=area, 
-            disc_rate=technology_row.discount_rate,
-            lcoe=0, 
-            lcoe_cfs=0
+            disc_rate=technology_row.discount_rate
         )
 
-        renewable = technology_row.renewable
-        category = technology_row.category
-        
-        # Build order lists
-        if renewable and category != 'Storage':
-            if name not in re_order:
-                re_order.append(name)
-                
-        dispatchable = technology_row.dispatchable
-        if dispatchable:
-            if name not in dispatch_order and name not in re_order:
-                dispatch_order.append(name)
-    return dispatch_order, re_order, pmss_details
+    return pmss_details
 
 def get_emission_color(emissions):
     if emissions < 0.3:
@@ -704,16 +677,28 @@ def fetch_included_technologies_data(scenario):
     except Scenarios.DoesNotExist:
         return []
 
-def fetch_technologies_with_multipliers(scenario):
+def fetch_scenario_technologies(scenario):
     """
-    Fetch technologies data including multipliers from ScenariosTechnologies
+    Fetch technologies data via ScenariosTechnologies that are part of a scenario merit order.
     """
     try:
         scenario_obj = Scenarios.objects.get(title=scenario)
         technologies = ScenariosTechnologies.objects.filter(
-            idscenarios=scenario_obj
-        ).select_related('idtechnologies')
+            idscenarios=scenario_obj,
+            merit_order__lt=100
+        ).select_related('idtechnologies').order_by('merit_order')
         
+    except Scenarios.DoesNotExist:
+        return None, None
+    
+    return technologies, scenario_obj
+
+def fetch_technologies_with_multipliers(scenario):
+    """
+    Fetch technologies data including multipliers from ScenariosTechnologies that are part of a scenario merit order.
+    """
+    try:
+        technologies, scenario_obj= fetch_scenario_technologies(scenario)
         # Create a list of objects with the needed attributes
         tech_list = []
         for tech in technologies:
@@ -724,6 +709,7 @@ def fetch_technologies_with_multipliers(scenario):
             tech_list.append(tech_data)
             
         return tech_list
+    
     except Scenarios.DoesNotExist:
         return []
     

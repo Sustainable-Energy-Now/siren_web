@@ -28,7 +28,7 @@
         </div>
 
         <div class="option-card recommended">
-            <h3><span class="icon">🚀</span>Smart Process (Recommended)</h3>
+            <h3>Smart Process (Recommended)</h3>
             <p><strong>What it does:</strong></p>
             <ul>
                 <li>Automatically detects facilities without supply factors data</li>
@@ -40,12 +40,12 @@
             
             <a href="{% url 'generate_power' %}?confirm=true&refresh_supply_factors=false" 
                class="btn btn-success">
-                <span class="icon">🚀</span>Start Smart Process
+                Start Smart Process
             </a>
         </div>
 
         <div class="option-card warning">
-            <h3><span class="icon">🔄</span>Force Refresh All</h3>
+            <h3>Force Refresh All</h3>
             <p><strong>What it does:</strong></p>
             <ul>
                 <li>Processes ALL facilities regardless of existing data</li>
@@ -58,7 +58,7 @@
             <a href="{% url 'generate_power' %}?confirm=true&refresh_supply_factors=true" 
                class="btn btn-warning"
                onclick="return confirm('⚠️ This will delete and recreate ALL supply factors data for ALL facilities. This may take a long time. Are you sure?')">
-                <span class="icon">🔄</span>Force Refresh All
+                Force Refresh All
             </a>
         </div>
 
@@ -66,13 +66,6 @@
             <a href="{% url 'powermapui_home' %}" class="btn btn-secondary">
                 <span class="icon">← </span>Cancel and Return
             </a>
-        </div>
-
-        <div style="margin-top: 20px; padding: 15px; background: #e9ecef; border-radius: 5px; font-size: 0.9em;">
-            <h4>💡 Quick Guide:</h4>
-            <p><strong>New to the system?</strong> Use Smart Process - it's safe and efficient.</p>
-            <p><strong>Added new facilities?</strong> Use Smart Process - it will automatically detect and process them.</p>
-            <p><strong>Changed weather data or parameters?</strong> Use Force Refresh All to update everything.</p>
         </div>
     </div>
 </body>

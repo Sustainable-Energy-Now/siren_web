@@ -3,7 +3,7 @@ from django.contrib.auth.decorators import login_required
 from siren_web.database_operations import fetch_all_config_data, fetch_all_settings_data,  \
     fetch_technology_attributes, fetch_supplyfactors_data
 from siren_web.models import Analysis, ScenariosSettings
-from .restructured_dodispatch import Facility, PowerMatchProcessor
+from .restructured_dodispatch import Technology, PowerMatchProcessor
 
 def insert_data(i, sp_data, scenario_obj, variation, Stage):
     for count, row in enumerate(sp_data):
@@ -100,13 +100,13 @@ def submit_powermatch(request, demand_year, scenario,
                       option, stages, variation_inst, save_data):
     config = fetch_all_config_data(request)
     settings = fetch_all_settings_data()
-    pmss_data, max_col = \
+    pmss_data = \
         fetch_supplyfactors_data(demand_year, scenario)
-    dispatch_order, re_order, pmss_details = \
+    pmss_details = \
         fetch_technology_attributes(demand_year, scenario)
     
     for i in range(stages):
-        # 0 Facility
+        # 0 Technology
         # 1 Capacity (Gen, MW Stor, MWh)  
         # 2 To meet Load (MWh)
         # 3 Subtotal (MWh)
@@ -136,7 +136,7 @@ def submit_powermatch(request, demand_year, scenario,
             lifetime_step = 0
             
             if dimension == 'capacity':
-                pmss_details[technology_name] = Facility(
+                pmss_details[technology_name] = Technology(
                     pmss_details[technology_name].name, 
                     pmss_details[technology_name].name, 
                     pmss_details[technology_name].capacity + step, 'R', 
@@ -151,7 +151,7 @@ def submit_powermatch(request, demand_year, scenario,
             # Update generator with variation if it affects this technology
             if technology_name in pmss_details:
                 original_facility = pmss_details[technology_name]
-                pmss_details[technology_name] = Facility(
+                pmss_details[technology_name] = Technology(
                     generator_name=original_facility.generator_name,
                     category=original_facility.category,
                     capacity=original_facility.capacity,
@@ -185,12 +185,10 @@ def submit_powermatch(request, demand_year, scenario,
             action = 'Summary'
             
         # sp_data, corr_data, headers, sp_pts = pm.doDispatch(
-        #     demand_year, option, action, pmss_details, pmss_data, re_order, 
-        #     dispatch_order
+        #     demand_year, option, action, pmss_details, pmss_data
         # )
         dispatch_results = pm.doDispatch(
-            demand_year, option, action, pmss_details, pmss_data, re_order, 
-            dispatch_order
+            demand_year, option, action, pmss_details, pmss_data
         )
         # Extract data from DispatchResults object
         sp_data = dispatch_results.summary_data

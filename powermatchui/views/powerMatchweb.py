@@ -668,7 +668,7 @@ class powerMatchWEB():
             return
         
         year = ws.cell(row=top_row + 1, column=2).value[:4]
-        pmss_details = {} # contains name, generator, capacity, fac_type, col, multiplier
+        pmss_details = {} # contains name, generator, capacity, tech_type, col, multiplier
         pmss_data = []
         re_order = [] # order for re technology
         dispatch_order = [] # order for dispatchable technology
@@ -1471,7 +1471,7 @@ class powerMatchWEB():
                             tst = 'R' # probably redundant
                         for row in range(gndx, gndx + len(self.batch_tech)):
                             try:
-                                if pmss_details[bs.cell(row=row, column=1).value].fac_type == tst:
+                                if pmss_details[bs.cell(row=row, column=1).value].tech_type == tst:
                                     del_rows.append(row)
                             except:
                                 pass

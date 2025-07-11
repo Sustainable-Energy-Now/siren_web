@@ -76,7 +76,7 @@ class Facility:
                     setattr(self, key, value)
 
 class PM_Facility:
-    def __init__(self, name, generator, capacity, fac_type, col, multiplier):
+    def __init__(self, name, generator, capacity, tech_type, col, multiplier):
         self.name = name
         if name.find('.') > 0:
             self.zone = name[:name.find('.')]
@@ -84,7 +84,7 @@ class PM_Facility:
             self.zone = ''
         self.generator = generator
         self.capacity = capacity
-        self.fac_type = fac_type
+        self.tech_type = tech_type
         self.col = col
         self.multiplier = multiplier
 
