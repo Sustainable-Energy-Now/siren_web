@@ -224,7 +224,7 @@ def run_baseline(request):
                 else:
                     success_message = "Baseline run complete"
                 
-                headers = ['Facility', 'Capacity\n(Gen, MW;\nStor, MWh)', 'To meet\nLoad (MWh)',
+                headers = ['Technology', 'Capacity\n(Gen, MW;\nStor, MWh)', 'To meet\nLoad (MWh)',
                     'Subtotal\n(MWh)', 'CF', 'Cost ($/yr)', 'LCOG\nCost\n($/MWh)', 'LCOE\nCost\n($/MWh)',
                     'Emissions\n(tCO2e)', 'Emissions\nCost', 'LCOE With\nCO2 Cost\n($/MWh)', 'Max.\nMWH',
                     'Max.\nBalance', 'Capital\nCost', 'Lifetime\nCost', 'Lifetime\nEmissions',
