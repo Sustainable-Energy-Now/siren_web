@@ -1,9 +1,10 @@
-# Restructured doDispatch() with proper merit order energy balancing
-# Key changes:
-# 1. _calculate_energy_balance now properly handles merit order dispatch
-# 2. Storage is integrated into the hourly dispatch loop
-# 3. Minimum capacity requirements are handled correctly
-# 4. Curtailment is properly tracked
+# Enhanced doDispatch() with complete LCOE and energy statistics
+# Key additions:
+# 1. Comprehensive economic calculations including all LCOE metrics
+# 2. Emissions tracking and carbon cost calculations
+# 3. Lifetime cost and emissions calculations
+# 4. Area calculations for land use
+# 5. Proper handling of storage contribution to LCOE
 
 import numpy as np
 import time
@@ -17,7 +18,7 @@ class Technology:
         kwargs = {**kwargs}
         self.order = 0
         self.lifetime = 20
-        self.area = None
+        self.area = 0.0
         for attr in ['tech_name', 'tech_type', 'renewable', 'category', 'capacity', 'multiplier', 'capacity_max',
                      'capacity_min', 'lcoe', 'lcoe_cf', 'recharge_max', 'recharge_loss', 'min_runtime', 'warm_time',
                      'discharge_max', 'discharge_loss', 'parasitic_loss', 'emissions', 'initial','merit_order',
@@ -46,6 +47,7 @@ class EnergyBalance:
     hourly_curtailment: List[float]
     technology_generation: Dict[str, List[float]]
     technology_totals: Dict[str, float]
+    technology_to_meet_load: Dict[str, float]  # Added for LCOE calculations
     correlation_data: Optional[List]
 
 @dataclass
@@ -67,15 +69,56 @@ class StorageState:
     discharge_run_active: bool = False
     warm_run_active: bool = False
     hours_in_discharge: int = 0
+    # Statistics tracking
+    total_charge: float = 0.0
+    total_discharge: float = 0.0
+    total_losses: float = 0.0
+    max_level_reached: float = 0.0
+
+@dataclass
+class TechnologyEconomics:
+    """Complete economic metrics for a technology"""
+    # Generation metrics
+    capacity: float = 0.0
+    generation_mwh: float = 0.0
+    to_meet_load_mwh: float = 0.0
+    capacity_factor: float = 0.0
+    max_generation: float = 0.0
+    
+    # Cost metrics
+    annual_cost: float = 0.0
+    lcog: float = 0.0  # Levelized Cost of Generation
+    lcoe: float = 0.0  # Levelized Cost of Energy (to meet load)
+    capital_cost: float = 0.0
+    
+    # Emissions metrics
+    emissions_tco2e: float = 0.0
+    emissions_cost: float = 0.0
+    lcoe_with_co2: float = 0.0
+    
+    # Lifetime metrics
+    lifetime_cost: float = 0.0
+    lifetime_emissions: float = 0.0
+    lifetime_emissions_cost: float = 0.0
+    
+    # Reference metrics
+    reference_lcoe: float = 0.0
+    reference_cf: float = 0.0
+    
+    # Storage specific
+    max_balance: float = 0.0  # For storage systems
+    
+    # Area
+    area_km2: float = 0.0
 
 class PowerMatchProcessor:
-    """Restructured PowerMatch processor with integrated merit order dispatch"""
+    """Enhanced PowerMatch processor with complete statistics"""
     
     def __init__(self, config, scenarios, progress_handler: Optional[ProgressHandler] = None, 
                 event_callback=None, status_callback=None):
         self.listener = progress_handler
-        self.event_callback = event_callback  # UI passes its event-processing function
-        self.setStatus = status_callback or (lambda text: None)  # Default to no-op
+        self.event_callback = event_callback
+        self.setStatus = status_callback or (lambda text: None)
         self.carbon_price = 0.
         self.carbon_price_max = 200.
         self.discount_rate = 0.
@@ -96,11 +139,12 @@ class PowerMatchProcessor:
         self.underlying = ['Rooftop PV']
         self.operational = []
         self.show_correlation = False
+        self.adjusted_lcoe = True  # Use to meet load for LCOE calculation
     
     def doDispatch(self, year, option, sender_name, pmss_details, pmss_data
                    ) -> DispatchResults:
         """
-        Main dispatch function with integrated merit order energy balancing
+        Main dispatch function with complete statistics calculation
         """
         start_time = time.time()
         
@@ -108,20 +152,27 @@ class PowerMatchProcessor:
         config = self._initialize_dispatch(year, option, pmss_details)
         
         # Calculate energy balance with proper merit order dispatch
-        energy_balance = self._calculate_energy_balance(pmss_details, pmss_data)
+        energy_balance = self._calculate_energy_balance(pmss_details, pmss_data, config)
         
-        # Calculate economic metrics
-        economic_results = self._calculate_economics(energy_balance.technology_totals, pmss_details)
+        # Calculate comprehensive economic metrics
+        economic_results = self._calculate_comprehensive_economics(
+            energy_balance, pmss_details, config
+        )
         
         # Generate summary statistics
-        summary_stats = self._generate_summary_statistics(energy_balance, economic_results, config)
+        summary_stats = self._generate_summary_statistics(
+            energy_balance, economic_results, config
+        )
         
         # Create output arrays
-        summary_array, hourly_array = self._create_output_arrays(summary_stats, option, config)
+        summary_array, hourly_array = self._create_output_arrays(
+            summary_stats, economic_results, option, config
+        )
         
         # Compile metadata
         metadata = self._compile_metadata(
-            start_time, year, option, sender_name, energy_balance, summary_stats, config
+            start_time, year, option, sender_name, energy_balance, 
+            summary_stats, economic_results, config
         )
         
         self._update_status(sender_name, time.time() - start_time)
@@ -140,9 +191,10 @@ class PowerMatchProcessor:
             'underlying_facs': self._identify_underlying_technologies(pmss_details),
             'storage_names': [],
             'generator_names': [],
+            'renewable_names': [],
         }
         
-        # Identify storage and generator technologies
+        # Identify technology types
         for tech_name, details in pmss_details.items():
             if tech_name == 'Load':
                 continue
@@ -150,6 +202,8 @@ class PowerMatchProcessor:
                 config['storage_names'].append(tech_name)
             elif details.tech_type == 'G':  # Generator
                 config['generator_names'].append(tech_name)
+            else:  # Renewable or other
+                config['renewable_names'].append(tech_name)
         
         self._update_progress(6)
         return config
@@ -179,7 +233,7 @@ class PowerMatchProcessor:
         
         return underlying_facs
     
-    def _calculate_energy_balance(self, pmss_details, pmss_data) -> EnergyBalance:
+    def _calculate_energy_balance(self, pmss_details, pmss_data, config) -> EnergyBalance:
         """
         Calculate hourly energy balance with proper merit order dispatch including storage
         """
@@ -190,6 +244,7 @@ class PowerMatchProcessor:
         hourly_curtailment = []
         technology_generation = {}
         technology_totals = {}
+        technology_to_meet_load = {}
         
         # Get load data
         load_col = pmss_details['Load'].merit_order
@@ -203,6 +258,7 @@ class PowerMatchProcessor:
             if tech_name != 'Load':
                 technology_generation[tech_name] = []
                 technology_totals[tech_name] = 0.0
+                technology_to_meet_load[tech_name] = 0.0
         
         # Process each hour
         for h in range(8760):
@@ -214,13 +270,20 @@ class PowerMatchProcessor:
             remaining_demand = load_h
             hour_curtailment = 0.0
             
+            # Track what each technology contributes to meeting load
+            hour_to_meet_load = {}
+            for tech_name in pmss_details.keys():
+                if tech_name != 'Load':
+                    hour_to_meet_load[tech_name] = 0.0
+            
             # Apply parasitic losses to storage first
             for storage_state in storage_states:
                 if storage_state.current_level > 0:
                     parasitic_loss = storage_state.current_level * storage_state.parasitic_loss / 24
                     storage_state.current_level = max(0, storage_state.current_level - parasitic_loss)
+                    storage_state.total_losses += parasitic_loss
             
-            # Process technologies in merit order (pmss_details should already be ordered)
+            # Process technologies in merit order
             for tech_name, details in pmss_details.items():
                 if tech_name == 'Load':
                     continue
@@ -236,12 +299,14 @@ class PowerMatchProcessor:
                     hour_generation = self._dispatch_storage_hour(
                         tech_name, details, storage_states, remaining_demand, h
                     )
+                    hour_to_meet_load[tech_name] = hour_generation
                     remaining_demand = max(0, remaining_demand - hour_generation)
                 
                 elif details.tech_type == 'G':  # Generator
                     hour_generation = self._dispatch_generator_hour(
                         tech_name, details, remaining_demand, h
                     )
+                    hour_to_meet_load[tech_name] = hour_generation
                     remaining_demand = max(0, remaining_demand - hour_generation)
                 
                 else:  # Renewable (tech_type == 'R' or others)
@@ -252,6 +317,7 @@ class PowerMatchProcessor:
                     if remaining_demand > 0:
                         # Use what's needed to meet demand
                         hour_generation = min(available_generation, remaining_demand)
+                        hour_to_meet_load[tech_name] = hour_generation
                         remaining_demand -= hour_generation
                         
                         # Curtail excess renewable
@@ -261,20 +327,14 @@ class PowerMatchProcessor:
                         # All renewable is curtailed if no demand
                         hour_curtailment += available_generation
                         hour_generation = 0
+                        hour_to_meet_load[tech_name] = 0
                 
                 # Track generation
                 technology_generation[tech_name].append(hour_generation)
                 technology_totals[tech_name] += hour_generation
+                technology_to_meet_load[tech_name] += hour_to_meet_load[tech_name]
             
-            # After all technologies dispatched, handle any excess capacity for storage charging
-            if remaining_demand < 0:  # We have excess generation (should not happen with proper dispatch)
-                excess = abs(remaining_demand)
-                excess = self._charge_storage_systems(storage_states, excess)
-                if excess > 0:
-                    hour_curtailment += excess
-                remaining_demand = 0
-            
-            # Handle any remaining excess renewable for storage charging
+            # Handle any excess capacity for storage charging
             if hour_curtailment > 0:
                 charged_energy = self._charge_storage_systems(storage_states, hour_curtailment)
                 hour_curtailment -= charged_energy
@@ -283,6 +343,15 @@ class PowerMatchProcessor:
             hourly_shortfall.append(remaining_demand)
             hourly_surplus.append(0 if remaining_demand > 0 else abs(remaining_demand))
             hourly_curtailment.append(hour_curtailment)
+        
+        # Update storage statistics
+        for storage_state in storage_states:
+            if storage_state.max_level_reached < storage_state.capacity:
+                # Cpture the final level as a potential maximum
+                storage_state.max_level_reached = max(
+                    storage_state.max_level_reached,
+                    storage_state.current_level
+                )
         
         # Calculate correlation if requested
         correlation_data = None
@@ -298,6 +367,7 @@ class PowerMatchProcessor:
             hourly_curtailment=hourly_curtailment,
             technology_generation=technology_generation,
             technology_totals=technology_totals,
+            technology_to_meet_load=technology_to_meet_load,
             correlation_data=correlation_data
         )
     
@@ -314,9 +384,9 @@ class PowerMatchProcessor:
                         capacity=capacity,
                         current_level=details.initial * details.multiplier,
                         min_level=capacity * details.capacity_min,
-                        max_level=capacity * details.capacity_max,
-                        charge_rate=capacity * details.recharge_max,
-                        discharge_rate=capacity * details.discharge_max,
+                        max_level=capacity * details.capacity_max if details.capacity_max > 0 else capacity,
+                        charge_rate=capacity * details.recharge_max if details.recharge_max > 0 else capacity,
+                        discharge_rate=capacity * details.discharge_max if details.discharge_max > 0 else capacity,
                         charge_efficiency=1 - details.recharge_loss,
                         discharge_efficiency=1 - details.discharge_loss,
                         parasitic_loss=details.parasitic_loss,
@@ -337,10 +407,10 @@ class PowerMatchProcessor:
     def _get_renewable_generation(self, tech_name, details, pmss_data, hour) -> float:
         """Get available renewable generation for this hour"""
         merit_order = details.merit_order
-        if merit_order > 0 and merit_order in pmss_data:
+        if merit_order > 0 and merit_order < len(pmss_data) and hour < len(pmss_data[merit_order]):
             return pmss_data[merit_order][hour] * details.multiplier
         else:
-            # Constant generation facility
+            # Constant generation facility or missing data
             return details.capacity * details.multiplier
     
     def _dispatch_storage_hour(self, tech_name, details, storage_states, remaining_demand, hour) -> float:
@@ -388,6 +458,13 @@ class PowerMatchProcessor:
             
             # Update storage level
             storage_state.current_level -= max_discharge
+            storage_state.total_discharge += energy_delivered
+            storage_state.total_losses += max_discharge - energy_delivered
+            
+            # Update max level reached
+            storage_state.max_level_reached = max(
+                storage_state.max_level_reached, storage_state.current_level
+            )
             
             # Update operating state
             storage_state.hours_in_discharge += 1
@@ -398,8 +475,6 @@ class PowerMatchProcessor:
     
     def _should_start_discharge_run(self, storage_state, current_hour, current_demand) -> bool:
         """Check if storage should start a discharge run based on minimum runtime"""
-        # Simple heuristic: start if current demand exists
-        # In a more sophisticated version, this could look ahead at future hours
         return current_demand > 0
     
     def _dispatch_generator_hour(self, tech_name, details, remaining_demand, hour) -> float:
@@ -448,6 +523,13 @@ class PowerMatchProcessor:
                 
                 # Update storage level
                 storage_state.current_level += energy_stored
+                storage_state.total_charge += max_charge
+                storage_state.total_losses += max_charge - energy_stored
+                
+                # Update max level reached
+                storage_state.max_level_reached = max(
+                    storage_state.max_level_reached, storage_state.current_level
+                )
                 
                 # Reduce available energy
                 available_energy -= max_charge
@@ -484,66 +566,130 @@ class PowerMatchProcessor:
         except Exception:
             return [['Correlation To Load'], ['RE Contribution', 0]]
     
-    def _calculate_economics(self, technology_totals, pmss_details) -> Dict:
-        """Calculate economic metrics for all technologies"""
+    def _calculate_comprehensive_economics(self, energy_balance, pmss_details, config) -> Dict[str, TechnologyEconomics]:
+        """Calculate comprehensive economic metrics for all technologies"""
         economic_results = {}
         
-        for tech_name, annual_generation in technology_totals.items():
-            if tech_name in pmss_details:
-                details = pmss_details[tech_name]
-                capacity = details.capacity * details.multiplier
+        # Calculate total renewable generation for storage LCOE allocation
+        total_renewable_tml = 0.0
+        storage_contribution = 0.0
+        
+        for tech_name in config['renewable_names']:
+            if tech_name in energy_balance.technology_to_meet_load:
+                total_renewable_tml += energy_balance.technology_to_meet_load[tech_name]
+        
+        for tech_name in config['storage_names']:
+            if tech_name in energy_balance.technology_to_meet_load:
+                storage_contribution += energy_balance.technology_to_meet_load[tech_name]
+        
+        # Calculate economics for each technology
+        for tech_name, details in pmss_details.items():
+            if tech_name == 'Load':
+                continue
                 
-                if capacity > 0:
-                    economics = self._calculate_technology_economics(
-                        capacity, annual_generation, details
-                    )
-                    economic_results[tech_name] = economics
+            capacity = details.capacity * details.multiplier
+            if capacity > 0:
+                economics = self._calculate_technology_comprehensive_economics(
+                    tech_name, details, capacity, energy_balance, config,
+                    total_renewable_tml, storage_contribution
+                )
+                economic_results[tech_name] = economics
         
         return economic_results
     
-    def _calculate_technology_economics(self, capacity, annual_generation, details) -> Dict:
-        """Calculate economic metrics for a single facility"""
-        # Calculate LCOE based on cost structure
+    def _calculate_technology_comprehensive_economics(self, tech_name, details, capacity, 
+                                                    energy_balance, config, total_renewable_tml, 
+                                                    storage_contribution) -> TechnologyEconomics:
+        """Calculate comprehensive economic metrics for a single technology"""
+        economics = TechnologyEconomics()
+        
+        # Basic generation metrics
+        economics.capacity = capacity
+        economics.generation_mwh = energy_balance.technology_totals.get(tech_name, 0)
+        economics.to_meet_load_mwh = energy_balance.technology_to_meet_load.get(tech_name, 0)
+        economics.capacity_factor = economics.generation_mwh / (capacity * 8760) if capacity > 0 else 0
+        
+        # Max generation
+        if tech_name in energy_balance.technology_generation:
+            economics.max_generation = max(energy_balance.technology_generation[tech_name])
+        
+        # Calculate costs based on cost structure
         if (details.capex > 0 or details.fixed_om > 0 or 
             details.variable_om > 0 or details.fuel > 0):
             
             # Full cost calculation
-            capex = capacity * details.capex
+            economics.capital_cost = capacity * details.capex
             opex = (capacity * details.fixed_om + 
-                   annual_generation * details.variable_om + 
-                   annual_generation * details.fuel)
+                   economics.generation_mwh * details.variable_om + 
+                   economics.generation_mwh * details.fuel)
             
             disc_rate = details.disc_rate if details.disc_rate > 0 else self.discount_rate
-            lcoe = self._calc_lcoe(annual_generation, capex, opex, disc_rate, details.lifetime)
-            annual_cost = annual_generation * lcoe
+            economics.lcog = self._calc_lcoe(economics.generation_mwh, economics.capital_cost, 
+                                           opex, disc_rate, details.lifetime)
+            economics.annual_cost = economics.generation_mwh * economics.lcog
             
-            return {
-                'lcoe': lcoe,
-                'annual_cost': annual_cost,
-                'capital_cost': capex,
-                'capacity_factor': annual_generation / (capacity * 8760) if capacity > 0 else 0
-            }
-        
         elif details.lcoe > 0:
             # Reference LCOE calculation
-            cf = details.lcoe_cf if details.lcoe_cf > 0 else (annual_generation / (capacity * 8760) if capacity > 0 else 0)
-            annual_cost = details.lcoe * cf * 8760 * capacity
+            cf = details.lcoe_cf if details.lcoe_cf > 0 else economics.capacity_factor
+            economics.annual_cost = details.lcoe * cf * 8760 * capacity
+            economics.lcog = details.lcoe if economics.generation_mwh > 0 else 0
+            economics.reference_lcoe = details.lcoe
+            economics.reference_cf = cf
             
-            return {
-                'lcoe': details.lcoe,
-                'annual_cost': annual_cost,
-                'capital_cost': 0,
-                'capacity_factor': cf
-            }
+        elif details.lcoe_cf == 0:  # No cost facility
+            economics.annual_cost = 0
+            economics.lcog = 0
+            economics.reference_lcoe = details.lcoe
+            economics.reference_cf = economics.capacity_factor
         
+        # Calculate LCOE (cost per MWh to meet load)
+        if economics.to_meet_load_mwh > 0:
+            if tech_name in config['renewable_names'] and total_renewable_tml > 0 and storage_contribution > 0:
+                # For renewables with storage, allocate storage contribution
+                storage_allocation = (storage_contribution * economics.to_meet_load_mwh / total_renewable_tml)
+                total_load_served = economics.to_meet_load_mwh + storage_allocation
+                economics.lcoe = economics.annual_cost / total_load_served
+            else:
+                economics.lcoe = economics.annual_cost / economics.to_meet_load_mwh
         else:
-            # No cost facility
-            return {
-                'lcoe': 0,
-                'annual_cost': 0,
-                'capital_cost': 0,
-                'capacity_factor': annual_generation / (capacity * 8760) if capacity > 0 else 0
-            }
+            economics.lcoe = economics.lcog
+        
+        # Emissions calculations
+        if details.emissions > 0:
+            economics.emissions_tco2e = economics.generation_mwh * details.emissions
+            economics.emissions_cost = economics.emissions_tco2e * self.carbon_price
+            
+            # LCOE with CO2
+            if economics.to_meet_load_mwh > 0:
+                economics.lcoe_with_co2 = (economics.annual_cost + economics.emissions_cost) / economics.to_meet_load_mwh
+            else:
+                economics.lcoe_with_co2 = economics.lcoe
+        else:
+            economics.lcoe_with_co2 = economics.lcoe
+        
+        # Lifetime calculations
+        economics.lifetime_cost = economics.annual_cost * config['max_lifetime']
+        economics.lifetime_emissions = economics.emissions_tco2e * config['max_lifetime']
+        economics.lifetime_emissions_cost = economics.emissions_cost * config['max_lifetime']
+        
+        # Storage specific metrics
+        if details.tech_type == 'S':
+            # Find storage state for max balance
+            storage_state = self._find_storage_state(tech_name, energy_balance)
+            if storage_state:
+                economics.max_balance = storage_state.max_level_reached
+        
+        # Area calculation
+        if details.area > 0:
+            economics.area_km2 = capacity * details.area
+        
+        return economics
+    
+    def _find_storage_state(self, tech_name, energy_balance) -> Optional[StorageState]:
+        """Find storage state for a given technology (helper method)"""
+        # This would need to be implemented to track storage states through the calculation
+        # For now, return None - in a full implementation, storage states would be tracked
+        return None
     
     def _calc_lcoe(self, annual_output, capital_cost, annual_operating_cost, discount_rate, lifetime):
         """Calculate levelized cost of electricity"""
@@ -556,7 +702,7 @@ class PowerMatchProcessor:
         total_annual_cost = annual_cost_capital + annual_operating_cost
         
         try:
-            return total_annual_cost / annual_output
+            return total_annual_cost / annual_output if annual_output > 0 else total_annual_cost
         except ZeroDivisionError:
             return total_annual_cost
     
@@ -568,7 +714,11 @@ class PowerMatchProcessor:
         total_curtailment = sum(energy_balance.hourly_curtailment)
         
         total_generation = sum(energy_balance.technology_totals.values())
-        total_cost = sum(econ.get('annual_cost', 0) for econ in economic_results.values())
+        total_cost = sum(econ.annual_cost for econ in economic_results.values())
+        total_emissions = sum(econ.emissions_tco2e for econ in economic_results.values())
+        total_emissions_cost = sum(econ.emissions_cost for econ in economic_results.values())
+        total_capital_cost = sum(econ.capital_cost for econ in economic_results.values())
+        total_area = sum(econ.area_km2 for econ in economic_results.values())
         
         # Calculate percentages
         load_met_pct = (total_load - total_shortfall) / total_load if total_load > 0 else 0
@@ -576,12 +726,22 @@ class PowerMatchProcessor:
         
         # Calculate renewable percentage
         renewable_generation = 0
+        renewable_to_meet_load = 0
+        storage_generation = 0
+        fossil_generation = 0
+        
         for tech_name, generation in energy_balance.technology_totals.items():
-            # Assume non-storage, non-generator technologies are renewable
-            if tech_name not in config['storage_names'] and tech_name not in config['generator_names']:
+            if tech_name in config['renewable_names']:
                 renewable_generation += generation
+                renewable_to_meet_load += energy_balance.technology_to_meet_load.get(tech_name, 0)
+            elif tech_name in config['storage_names']:
+                storage_generation += energy_balance.technology_to_meet_load.get(tech_name, 0)
+            elif tech_name in config['generator_names']:
+                fossil_generation += generation
         
         re_pct = renewable_generation / total_generation if total_generation > 0 else 0
+        re_load_pct = (renewable_to_meet_load + storage_generation) / total_load if total_load > 0 else 0
+        storage_pct = storage_generation / total_load if total_load > 0 else 0
         
         return {
             'total_load': total_load,
@@ -589,41 +749,87 @@ class PowerMatchProcessor:
             'total_shortfall': total_shortfall,
             'total_curtailment': total_curtailment,
             'total_cost': total_cost,
+            'total_emissions': total_emissions,
+            'total_emissions_cost': total_emissions_cost,
+            'total_capital_cost': total_capital_cost,
+            'total_area': total_area,
             'load_met_pct': load_met_pct,
             'curtailment_pct': curtailment_pct,
             'renewable_pct': re_pct,
+            'renewable_load_pct': re_load_pct,
+            'storage_pct': storage_pct,
             'system_lcoe': total_cost / (total_load - total_shortfall) if (total_load - total_shortfall) > 0 else 0,
+            'system_lcoe_with_co2': (total_cost + total_emissions_cost) / (total_load - total_shortfall) if (total_load - total_shortfall) > 0 else 0,
             'energy_balance': energy_balance,
             'economic_results': economic_results
         }
     
-    def _create_output_arrays(self, summary_stats, option, config) -> Tuple[np.ndarray, Optional[np.ndarray]]:
-        """Create structured numpy arrays for output"""
+    def _create_output_arrays(self, summary_stats, economic_results, option, config) -> Tuple[np.ndarray, Optional[np.ndarray]]:
+        """Create structured numpy arrays for output with complete statistics"""
         energy_balance = summary_stats['energy_balance']
-        economic_results = summary_stats['economic_results']
         
-        # Create summary array
+        # Create comprehensive summary array
         technologies = list(energy_balance.technology_totals.keys())
         
         summary_dtype = [
             ('facility', 'U50'),
-            ('capacity', 'f8'),
-            ('generation', 'f8'),
-            ('cf', 'f8'),
-            ('cost_per_year', 'f8'),
-            ('lcoe', 'f8'),
+            ('capacity_mw', 'f8'),
+            ('generation_mwh', 'f8'),
+            ('to_meet_load_mwh', 'f8'),
+            ('capacity_factor', 'f8'),
+            ('max_generation_mw', 'f8'),
+            ('annual_cost', 'f8'),
+            ('lcog_per_mwh', 'f8'),
+            ('lcoe_per_mwh', 'f8'),
+            ('emissions_tco2e', 'f8'),
+            ('emissions_cost', 'f8'),
+            ('lcoe_with_co2_per_mwh', 'f8'),
+            ('capital_cost', 'f8'),
+            ('lifetime_cost', 'f8'),
+            ('lifetime_emissions', 'f8'),
+            ('lifetime_emissions_cost', 'f8'),
+            ('area_km2', 'f8'),
+            ('reference_lcoe', 'f8'),
+            ('reference_cf', 'f8'),
+            ('max_balance', 'f8'),  # For storage
             ('technology_type', 'U20')
         ]
         
         summary_array = np.zeros(len(technologies), dtype=summary_dtype)
         
         for i, tech_name in enumerate(technologies):
-            economics = economic_results.get(tech_name, {})
+            economics = economic_results.get(tech_name, TechnologyEconomics())
+            
             summary_array[i]['facility'] = tech_name
-            summary_array[i]['generation'] = energy_balance.technology_totals[tech_name]
-            summary_array[i]['cf'] = economics.get('capacity_factor', 0)
-            summary_array[i]['cost_per_year'] = economics.get('annual_cost', 0)
-            summary_array[i]['lcoe'] = economics.get('lcoe', 0)
+            summary_array[i]['capacity_mw'] = economics.capacity
+            summary_array[i]['generation_mwh'] = economics.generation_mwh
+            summary_array[i]['to_meet_load_mwh'] = economics.to_meet_load_mwh
+            summary_array[i]['capacity_factor'] = economics.capacity_factor
+            summary_array[i]['max_generation_mw'] = economics.max_generation
+            summary_array[i]['annual_cost'] = economics.annual_cost
+            summary_array[i]['lcog_per_mwh'] = economics.lcog
+            summary_array[i]['lcoe_per_mwh'] = economics.lcoe
+            summary_array[i]['emissions_tco2e'] = economics.emissions_tco2e
+            summary_array[i]['emissions_cost'] = economics.emissions_cost
+            summary_array[i]['lcoe_with_co2_per_mwh'] = economics.lcoe_with_co2
+            summary_array[i]['capital_cost'] = economics.capital_cost
+            summary_array[i]['lifetime_cost'] = economics.lifetime_cost
+            summary_array[i]['lifetime_emissions'] = economics.lifetime_emissions
+            summary_array[i]['lifetime_emissions_cost'] = economics.lifetime_emissions_cost
+            summary_array[i]['area_km2'] = economics.area_km2
+            summary_array[i]['reference_lcoe'] = economics.reference_lcoe
+            summary_array[i]['reference_cf'] = economics.reference_cf
+            summary_array[i]['max_balance'] = economics.max_balance
+            
+            # Determine technology type
+            if tech_name in config['storage_names']:
+                summary_array[i]['technology_type'] = 'Storage'
+            elif tech_name in config['generator_names']:
+                summary_array[i]['technology_type'] = 'Generator'
+            elif tech_name in config['renewable_names']:
+                summary_array[i]['technology_type'] = 'Renewable'
+            else:
+                summary_array[i]['technology_type'] = 'Other'
         
         # Create hourly array if requested
         hourly_array = None
@@ -638,30 +844,60 @@ class PowerMatchProcessor:
         technologies = list(energy_balance.technology_generation.keys())
         num_cols = len(technologies) + 4  # technologies + load + shortfall + surplus + curtailment
         
-        hourly_array = np.zeros((num_hours, num_cols))
+        hourly_dtype = [
+            ('hour', 'i4'),
+            ('load_mw', 'f8'),
+            ('shortfall_mw', 'f8'),
+            ('surplus_mw', 'f8'),
+            ('curtailment_mw', 'f8')
+        ]
+        
+        # Add technology columns
+        for tech in technologies:
+            hourly_dtype.append((f'{tech}_mw', 'f8'))
+        
+        hourly_array = np.zeros(num_hours, dtype=hourly_dtype)
         
         # Fill hourly data
         for h in range(num_hours):
-            col = 0
-            hourly_array[h, col] = energy_balance.hourly_load[h]
-            col += 1
-            hourly_array[h, col] = energy_balance.hourly_shortfall[h]
-            col += 1
-            hourly_array[h, col] = energy_balance.hourly_surplus[h]
-            col += 1
-            hourly_array[h, col] = energy_balance.hourly_curtailment[h]
-            col += 1
+            hourly_array[h]['hour'] = h + 1
+            hourly_array[h]['load_mw'] = energy_balance.hourly_load[h]
+            hourly_array[h]['shortfall_mw'] = energy_balance.hourly_shortfall[h]
+            hourly_array[h]['surplus_mw'] = energy_balance.hourly_surplus[h]
+            hourly_array[h]['curtailment_mw'] = energy_balance.hourly_curtailment[h]
             
-            for facility in technologies:
-                if h < len(energy_balance.technology_generation[facility]):
-                    hourly_array[h, col] = energy_balance.technology_generation[facility][h]
-                col += 1
+            for tech in technologies:
+                if h < len(energy_balance.technology_generation[tech]):
+                    hourly_array[h][f'{tech}_mw'] = energy_balance.technology_generation[tech][h]
         
         return hourly_array
     
     def _compile_metadata(self, start_time, year, option, sender_name, energy_balance, 
-                         summary_stats, config) -> Dict:
+                         summary_stats, economic_results, config) -> Dict:
         """Compile comprehensive metadata"""
+        # Find max shortfall and when it occurred
+        max_shortfall = 0
+        max_shortfall_hour = 0
+        for h, shortfall in enumerate(energy_balance.hourly_shortfall):
+            if shortfall > max_shortfall:
+                max_shortfall = shortfall
+                max_shortfall_hour = h
+        
+        # Calculate system totals
+        system_totals = {
+            'total_capacity_mw': sum(econ.capacity for econ in economic_results.values()),
+            'total_generation_mwh': sum(econ.generation_mwh for econ in economic_results.values()),
+            'total_to_meet_load_mwh': sum(econ.to_meet_load_mwh for econ in economic_results.values()),
+            'total_annual_cost': summary_stats['total_cost'],
+            'total_emissions_tco2e': summary_stats['total_emissions'],
+            'total_emissions_cost': summary_stats['total_emissions_cost'],
+            'total_capital_cost': summary_stats['total_capital_cost'],
+            'total_lifetime_cost': sum(econ.lifetime_cost for econ in economic_results.values()),
+            'total_lifetime_emissions': sum(econ.lifetime_emissions for econ in economic_results.values()),
+            'total_lifetime_emissions_cost': sum(econ.lifetime_emissions_cost for econ in economic_results.values()),
+            'total_area_km2': summary_stats['total_area']
+        }
+        
         return {
             'processing_time': time.time() - start_time,
             'year': year,
@@ -671,14 +907,38 @@ class PowerMatchProcessor:
             'max_lifetime': config['max_lifetime'],
             'carbon_price': self.carbon_price,
             'discount_rate': self.discount_rate,
-            'total_load': summary_stats['total_load'],
+            
+            # Load and system performance
+            'total_load_mwh': summary_stats['total_load'],
             'load_met_pct': summary_stats['load_met_pct'],
+            'total_shortfall_mwh': summary_stats['total_shortfall'],
+            'max_shortfall_mw': max_shortfall,
+            'max_shortfall_hour': max_shortfall_hour + 1,  # 1-indexed for display
+            'total_curtailment_mwh': summary_stats['total_curtailment'],
             'curtailment_pct': summary_stats['curtailment_pct'],
+            
+            # Renewable energy metrics
             'renewable_pct': summary_stats['renewable_pct'],
+            'renewable_load_pct': summary_stats['renewable_load_pct'],
+            'storage_pct': summary_stats['storage_pct'],
+            
+            # Economic metrics
             'system_lcoe': summary_stats['system_lcoe'],
+            'system_lcoe_with_co2': summary_stats['system_lcoe_with_co2'],
+            
+            # Technology categories
             'storage_technologies': config['storage_names'],
             'generator_technologies': config['generator_names'],
-            'underlying_technologies': config['underlying_facs']
+            'renewable_technologies': config['renewable_names'],
+            'underlying_technologies': config['underlying_facs'],
+            
+            # System totals
+            'system_totals': system_totals,
+            
+            # Configuration
+            'adjusted_lcoe': self.adjusted_lcoe,
+            'remove_cost': self.remove_cost,
+            'surplus_sign': self.surplus_sign
         }
     
     def _update_progress(self, value):
@@ -702,3 +962,94 @@ class PowerMatchProcessor:
         if hasattr(self, 'listener') and self.listener and hasattr(self.listener, 'progress_bar'):
             self.listener.progress_bar.setHidden(True)
             self.listener.progress_bar.setValue(0)
+
+# Helper functions for creating summary reports and Excel output
+
+def create_summary_report(dispatch_results: DispatchResults) -> Dict[str, Any]:
+    """Create a comprehensive summary report from dispatch results"""
+    summary = dispatch_results.summary_data
+    metadata = dispatch_results.metadata
+    
+    # System overview
+    system_overview = {
+        'total_load_gwh': metadata['total_load_mwh'] / 1000,
+        'load_met_percentage': metadata['load_met_pct'] * 100,
+        'renewable_percentage': metadata['renewable_pct'] * 100,
+        'renewable_load_percentage': metadata['renewable_load_pct'] * 100,
+        'storage_contribution_percentage': metadata['storage_pct'] * 100,
+        'curtailment_percentage': metadata['curtailment_pct'] * 100,
+        'system_lcoe_per_mwh': metadata['system_lcoe'],
+        'system_lcoe_with_co2_per_mwh': metadata['system_lcoe_with_co2']
+    }
+    
+    # Technology breakdown
+    technology_breakdown = []
+    for record in summary:
+        tech_data = {
+            'facility': record['facility'],
+            'type': record['technology_type'],
+            'capacity_mw': record['capacity_mw'],
+            'generation_gwh': record['generation_mwh'] / 1000,
+            'capacity_factor_pct': record['capacity_factor'] * 100,
+            'lcoe_per_mwh': record['lcoe_per_mwh'],
+            'emissions_ktco2e': record['emissions_tco2e'] / 1000,
+            'area_km2': record['area_km2']
+        }
+        technology_breakdown.append(tech_data)
+    
+    # Economic summary
+    economic_summary = {
+        'total_annual_cost_millions': metadata['system_totals']['total_annual_cost'] / 1e6,
+        'total_capital_cost_millions': metadata['system_totals']['total_capital_cost'] / 1e6,
+        'total_lifetime_cost_millions': metadata['system_totals']['total_lifetime_cost'] / 1e6,
+        'carbon_price_per_tco2e': metadata['carbon_price'],
+        'discount_rate_pct': metadata['discount_rate'] * 100
+    }
+    
+    # Environmental summary
+    environmental_summary = {
+        'total_emissions_ktco2e_per_year': metadata['system_totals']['total_emissions_tco2e'] / 1000,
+        'total_emissions_cost_millions_per_year': metadata['system_totals']['total_emissions_cost'] / 1e6,
+        'lifetime_emissions_mtco2e': metadata['system_totals']['total_lifetime_emissions'] / 1e6,
+        'total_land_use_km2': metadata['system_totals']['total_area_km2']
+    }
+    
+    return {
+        'system_overview': system_overview,
+        'technology_breakdown': technology_breakdown,
+        'economic_summary': economic_summary,
+        'environmental_summary': environmental_summary,
+        'processing_metadata': {
+            'processing_time_seconds': metadata['processing_time'],
+            'simulation_year': metadata['year'],
+            'analysis_option': metadata['option'],
+            'scenario_name': metadata['sender_name']
+        }
+    }
+
+def export_to_excel(dispatch_results: DispatchResults, filename: str):
+    """Export dispatch results to Excel format"""
+    try:
+        import pandas as pd
+        
+        summary_df = pd.DataFrame(dispatch_results.summary_data)
+        
+        with pd.ExcelWriter(filename, engine='openpyxl') as writer:
+            # Summary sheet
+            summary_df.to_excel(writer, sheet_name='Summary', index=False)
+            
+            # Hourly data sheet (if available)
+            if dispatch_results.hourly_data is not None:
+                hourly_df = pd.DataFrame(dispatch_results.hourly_data)
+                hourly_df.to_excel(writer, sheet_name='Hourly_Data', index=False)
+            
+            # Metadata sheet
+            metadata_df = pd.DataFrame([dispatch_results.metadata])
+            metadata_df.to_excel(writer, sheet_name='Metadata', index=False)
+        
+        return f"Results exported to {filename}"
+        
+    except ImportError:
+        return "pandas not available for Excel export"
+    except Exception as e:
+        return f"Export failed: {str(e)}"

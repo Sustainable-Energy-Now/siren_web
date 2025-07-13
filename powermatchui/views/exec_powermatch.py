@@ -198,15 +198,7 @@ def submit_powermatch(request, demand_year, scenario,
         print(f"System LCOE: ${metadata['system_lcoe']:.2f}/MWh")
         print(f"Renewable percentage: {metadata['renewable_pct']*100:.1f}%")
         print(f"Load met: {metadata['load_met_pct']*100:.1f}%")
-    
-        # Work with summary data
-        if len(sp_data) > 0:
-            # Find wind data if it exists
-            wind_indices = [i for i, row in enumerate(sp_data) if 'Wind' in str(row['facility'])]
-            if wind_indices:
-                wind_data = sp_data[wind_indices[0]]
-                print(f"Wind capacity factor: {wind_data['cf']*100:.1f}%")
-        
+            
         # Work with hourly data (if available)
         if hourly_data is not None:
             # Example: Plot first week (hours 0-167)
