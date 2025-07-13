@@ -14,7 +14,7 @@ from siren_web.models import Analysis, Demand, facilities, Generatorattributes, 
     Scenarios, ScenariosTechnologies, ScenariosSettings, Settings, Storageattributes, supplyfactors, \
     Technologies, TechnologyYears, TradingPrice, variations, Zones
 from siren_web.siren.powermatch.logic.logic import Constraint, Optimisation
-from powermatchui.views.restructured_dodispatch import Technology
+from powermatchui.views.balance_grid_load import Technology
 from typing import Dict
 
 def delete_analysis_scenario(idscenario):

@@ -44,8 +44,8 @@ class EnergyBalance:
     hourly_shortfall: List[float]
     hourly_surplus: List[float]
     hourly_curtailment: List[float]
-    facility_generation: Dict[str, List[float]]
-    facility_totals: Dict[str, float]
+    technology_generation: Dict[str, List[float]]
+    technology_totals: Dict[str, float]
     correlation_data: Optional[List]
 
 @dataclass
@@ -111,7 +111,7 @@ class PowerMatchProcessor:
         energy_balance = self._calculate_energy_balance(pmss_details, pmss_data)
         
         # Calculate economic metrics
-        economic_results = self._calculate_economics(energy_balance.facility_totals, pmss_details)
+        economic_results = self._calculate_economics(energy_balance.technology_totals, pmss_details)
         
         # Generate summary statistics
         summary_stats = self._generate_summary_statistics(energy_balance, economic_results, config)
@@ -137,12 +137,12 @@ class PowerMatchProcessor:
             'sf_test': ['<', '>'] if self.surplus_sign >= 0 else ['>', '<'],
             'sf_sign': ['-', '+'] if self.surplus_sign >= 0 else ['+', '-'],
             'max_lifetime': self._calculate_max_lifetime(pmss_details),
-            'underlying_facs': self._identify_underlying_facilities(pmss_details),
+            'underlying_facs': self._identify_underlying_technologies(pmss_details),
             'storage_names': [],
             'generator_names': [],
         }
         
-        # Identify storage and generator facilities
+        # Identify storage and generator technologies
         for tech_name, details in pmss_details.items():
             if tech_name == 'Load':
                 continue
@@ -164,8 +164,8 @@ class PowerMatchProcessor:
                 max_lifetime = max(max_lifetime, details.lifetime)
         return max_lifetime
     
-    def _identify_underlying_facilities(self, pmss_details) -> List[str]:
-        """Identify facilities that contribute to underlying load"""
+    def _identify_underlying_technologies(self, pmss_details) -> List[str]:
+        """Identify technologies that contribute to underlying load"""
         underlying_facs = []
         for tech_name, details in pmss_details.items():
             if tech_name == 'Load':
@@ -188,8 +188,8 @@ class PowerMatchProcessor:
         hourly_shortfall = []
         hourly_surplus = []
         hourly_curtailment = []
-        facility_generation = {}
-        facility_totals = {}
+        technology_generation = {}
+        technology_totals = {}
         
         # Get load data
         load_col = pmss_details['Load'].merit_order
@@ -201,8 +201,8 @@ class PowerMatchProcessor:
         # Initialize facility tracking
         for tech_name in pmss_details.keys():
             if tech_name != 'Load':
-                facility_generation[tech_name] = []
-                facility_totals[tech_name] = 0.0
+                technology_generation[tech_name] = []
+                technology_totals[tech_name] = 0.0
         
         # Process each hour
         for h in range(8760):
@@ -220,14 +220,14 @@ class PowerMatchProcessor:
                     parasitic_loss = storage_state.current_level * storage_state.parasitic_loss / 24
                     storage_state.current_level = max(0, storage_state.current_level - parasitic_loss)
             
-            # Process facilities in merit order (pmss_details should already be ordered)
+            # Process technologies in merit order (pmss_details should already be ordered)
             for tech_name, details in pmss_details.items():
                 if tech_name == 'Load':
                     continue
                 
                 capacity = details.capacity * details.multiplier
                 if capacity == 0:
-                    facility_generation[tech_name].append(0)
+                    technology_generation[tech_name].append(0)
                     continue
                 
                 hour_generation = 0.0
@@ -263,10 +263,10 @@ class PowerMatchProcessor:
                         hour_generation = 0
                 
                 # Track generation
-                facility_generation[tech_name].append(hour_generation)
-                facility_totals[tech_name] += hour_generation
+                technology_generation[tech_name].append(hour_generation)
+                technology_totals[tech_name] += hour_generation
             
-            # After all facilities dispatched, handle any excess capacity for storage charging
+            # After all technologies dispatched, handle any excess capacity for storage charging
             if remaining_demand < 0:  # We have excess generation (should not happen with proper dispatch)
                 excess = abs(remaining_demand)
                 excess = self._charge_storage_systems(storage_states, excess)
@@ -288,7 +288,7 @@ class PowerMatchProcessor:
         correlation_data = None
         if self.show_correlation:
             correlation_data = self._calculate_correlation(
-                hourly_load, facility_generation, pmss_data, load_col
+                hourly_load, technology_generation, pmss_data, load_col
             )
         
         return EnergyBalance(
@@ -296,8 +296,8 @@ class PowerMatchProcessor:
             hourly_shortfall=hourly_shortfall,
             hourly_surplus=hourly_surplus,
             hourly_curtailment=hourly_curtailment,
-            facility_generation=facility_generation,
-            facility_totals=facility_totals,
+            technology_generation=technology_generation,
+            technology_totals=technology_totals,
             correlation_data=correlation_data
         )
     
@@ -460,14 +460,14 @@ class PowerMatchProcessor:
         
         return charged_total
     
-    def _calculate_correlation(self, hourly_load, facility_generation, pmss_data, load_col) -> List:
+    def _calculate_correlation(self, hourly_load, technology_generation, pmss_data, load_col) -> List:
         """Calculate correlation between load and renewable generation"""
         try:
             # Calculate total renewable contribution
             total_renewable = []
             for h in range(len(hourly_load)):
                 hour_renewable = 0
-                for tech_name, generation_profile in facility_generation.items():
+                for tech_name, generation_profile in technology_generation.items():
                     if h < len(generation_profile):
                         hour_renewable += generation_profile[h]
                 total_renewable.append(hour_renewable)
@@ -484,24 +484,24 @@ class PowerMatchProcessor:
         except Exception:
             return [['Correlation To Load'], ['RE Contribution', 0]]
     
-    def _calculate_economics(self, facility_totals, pmss_details) -> Dict:
-        """Calculate economic metrics for all facilities"""
+    def _calculate_economics(self, technology_totals, pmss_details) -> Dict:
+        """Calculate economic metrics for all technologies"""
         economic_results = {}
         
-        for tech_name, annual_generation in facility_totals.items():
+        for tech_name, annual_generation in technology_totals.items():
             if tech_name in pmss_details:
                 details = pmss_details[tech_name]
                 capacity = details.capacity * details.multiplier
                 
                 if capacity > 0:
-                    economics = self._calculate_facility_economics(
+                    economics = self._calculate_technology_economics(
                         capacity, annual_generation, details
                     )
                     economic_results[tech_name] = economics
         
         return economic_results
     
-    def _calculate_facility_economics(self, capacity, annual_generation, details) -> Dict:
+    def _calculate_technology_economics(self, capacity, annual_generation, details) -> Dict:
         """Calculate economic metrics for a single facility"""
         # Calculate LCOE based on cost structure
         if (details.capex > 0 or details.fixed_om > 0 or 
@@ -567,7 +567,7 @@ class PowerMatchProcessor:
         total_shortfall = sum(energy_balance.hourly_shortfall)
         total_curtailment = sum(energy_balance.hourly_curtailment)
         
-        total_generation = sum(energy_balance.facility_totals.values())
+        total_generation = sum(energy_balance.technology_totals.values())
         total_cost = sum(econ.get('annual_cost', 0) for econ in economic_results.values())
         
         # Calculate percentages
@@ -576,7 +576,7 @@ class PowerMatchProcessor:
         
         # Calculate renewable percentage
         renewable_generation = 0
-        for tech_name, generation in energy_balance.facility_totals.items():
+        for tech_name, generation in energy_balance.technology_totals.items():
             # Assume non-storage, non-generator technologies are renewable
             if tech_name not in config['storage_names'] and tech_name not in config['generator_names']:
                 renewable_generation += generation
@@ -603,7 +603,7 @@ class PowerMatchProcessor:
         economic_results = summary_stats['economic_results']
         
         # Create summary array
-        facilities = list(energy_balance.facility_totals.keys())
+        technologies = list(energy_balance.technology_totals.keys())
         
         summary_dtype = [
             ('facility', 'U50'),
@@ -612,15 +612,15 @@ class PowerMatchProcessor:
             ('cf', 'f8'),
             ('cost_per_year', 'f8'),
             ('lcoe', 'f8'),
-            ('facility_type', 'U20')
+            ('technology_type', 'U20')
         ]
         
-        summary_array = np.zeros(len(facilities), dtype=summary_dtype)
+        summary_array = np.zeros(len(technologies), dtype=summary_dtype)
         
-        for i, facility_name in enumerate(facilities):
-            economics = economic_results.get(facility_name, {})
-            summary_array[i]['facility'] = facility_name
-            summary_array[i]['generation'] = energy_balance.facility_totals[facility_name]
+        for i, tech_name in enumerate(technologies):
+            economics = economic_results.get(tech_name, {})
+            summary_array[i]['facility'] = tech_name
+            summary_array[i]['generation'] = energy_balance.technology_totals[tech_name]
             summary_array[i]['cf'] = economics.get('capacity_factor', 0)
             summary_array[i]['cost_per_year'] = economics.get('annual_cost', 0)
             summary_array[i]['lcoe'] = economics.get('lcoe', 0)
@@ -635,8 +635,8 @@ class PowerMatchProcessor:
     def _create_hourly_array(self, energy_balance) -> np.ndarray:
         """Create hourly data array for detailed output"""
         num_hours = 8760
-        facilities = list(energy_balance.facility_generation.keys())
-        num_cols = len(facilities) + 4  # facilities + load + shortfall + surplus + curtailment
+        technologies = list(energy_balance.technology_generation.keys())
+        num_cols = len(technologies) + 4  # technologies + load + shortfall + surplus + curtailment
         
         hourly_array = np.zeros((num_hours, num_cols))
         
@@ -652,9 +652,9 @@ class PowerMatchProcessor:
             hourly_array[h, col] = energy_balance.hourly_curtailment[h]
             col += 1
             
-            for facility in facilities:
-                if h < len(energy_balance.facility_generation[facility]):
-                    hourly_array[h, col] = energy_balance.facility_generation[facility][h]
+            for facility in technologies:
+                if h < len(energy_balance.technology_generation[facility]):
+                    hourly_array[h, col] = energy_balance.technology_generation[facility][h]
                 col += 1
         
         return hourly_array
@@ -676,9 +676,9 @@ class PowerMatchProcessor:
             'curtailment_pct': summary_stats['curtailment_pct'],
             'renewable_pct': summary_stats['renewable_pct'],
             'system_lcoe': summary_stats['system_lcoe'],
-            'storage_facilities': config['storage_names'],
-            'generator_facilities': config['generator_names'],
-            'underlying_facilities': config['underlying_facs']
+            'storage_technologies': config['storage_names'],
+            'generator_technologies': config['generator_names'],
+            'underlying_technologies': config['underlying_facs']
         }
     
     def _update_progress(self, value):

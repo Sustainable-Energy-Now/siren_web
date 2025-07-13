@@ -1,4 +1,4 @@
-    def doDispatch(
+    def dispatch_technologies(
         self, year, option, sender_name, pmss_details, pmss_data, re_order, dispatch_order, pm_data_file, 
         data_file, files, sheets, title=None
         ):

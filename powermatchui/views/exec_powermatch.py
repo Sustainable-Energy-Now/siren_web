@@ -3,7 +3,7 @@ from django.contrib.auth.decorators import login_required
 from siren_web.database_operations import fetch_all_config_data, fetch_all_settings_data,  \
     fetch_technology_attributes, fetch_supplyfactors_data
 from siren_web.models import Analysis, ScenariosSettings
-from .restructured_dodispatch import Technology, PowerMatchProcessor
+from .balance_grid_load import Technology, PowerMatchProcessor
 
 def insert_data(i, sp_data, scenario_obj, variation, Stage):
     for count, row in enumerate(sp_data):
