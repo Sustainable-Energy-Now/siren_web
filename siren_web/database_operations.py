@@ -582,7 +582,9 @@ def fetch_technology_attributes(demand_year, scenario):
         pmss_details[name] = Technology(
             tech_name=name,
             tech_type=technology_row.category[0],  # 'G' for Generator, 'S' for Storage
-            category=technology_row.category, 
+            category=technology_row.category,
+            renewable=technology_row.renewable,
+            dispatchable=technology_row.dispatchable,
             capacity=scenario_tech.capacity,
             multiplier=scenario_tech.mult,
             capacity_max=generator.capacity_max, 
@@ -605,8 +607,7 @@ def fetch_technology_attributes(demand_year, scenario):
             variable_om=tech_year_data.vom,
             fuel=fuel,
             lifetime=technology_row.lifetime, 
-            area=area, 
-            disc_rate=technology_row.discount_rate
+            area=area
         )
 
     return pmss_details

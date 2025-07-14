@@ -108,9 +108,9 @@ def baseline_scenario(request):
             
             # Render the form with errors
             technologies = fetch_technologies_with_multipliers(scenario)
-            scenario_settings = fetch_module_settings_data('Powermatch')
+            scenario_settings = fetch_scenario_settings_data(scenario)
             if not scenario_settings:
-                scenario_settings = fetch_scenario_settings_data(scenario)
+                scenario_settings = fetch_module_settings_data('Powermatch')
 
             carbon_price = scenario_settings.get('carbon_price', None)
             discount_rate = scenario_settings.get('discount_rate', None)

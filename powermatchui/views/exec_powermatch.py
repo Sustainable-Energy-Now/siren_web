@@ -1,6 +1,6 @@
 # run_powermatch.py
 from django.contrib.auth.decorators import login_required
-from siren_web.database_operations import fetch_all_config_data, fetch_all_settings_data,  \
+from siren_web.database_operations import fetch_all_config_data, fetch_module_settings_data, fetch_scenario_settings_data, \
     fetch_technology_attributes, fetch_supplyfactors_data
 from siren_web.models import Analysis, ScenariosSettings
 from .balance_grid_load import Technology, PowerMatchProcessor
@@ -99,7 +99,9 @@ def insert_data(i, sp_data, scenario_obj, variation, Stage):
 def submit_powermatch(request, demand_year, scenario, 
                       option, stages, variation_inst, save_data):
     config = fetch_all_config_data(request)
-    settings = fetch_all_settings_data()
+    scenario_settings = fetch_scenario_settings_data(scenario)
+    if not scenario_settings:
+        scenario_settings = fetch_module_settings_data('Powermatch')
     pmss_data = \
         fetch_supplyfactors_data(demand_year, scenario)
     pmss_details = \
@@ -173,12 +175,11 @@ def submit_powermatch(request, demand_year, scenario,
                     fuel=original_facility.fuel,
                     lifetime=original_facility.lifetime + lifetime_step,
                     area=original_facility.area,
-                    disc_rate=original_facility.disc_rate,
                     lcoe=original_facility.lcoe,
                     lcoe_cfs=original_facility.lcoe_cfs
                 )
 
-        pm = PowerMatchProcessor(config, scenario)
+        pm = PowerMatchProcessor(scenario_settings)
         if option == 'D':
             action = 'Detail'
         else:
