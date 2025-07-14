@@ -1,5 +1,5 @@
     def dispatch_technologies(
-        self, year, option, sender_name, pmss_details, pmss_data, re_order, dispatch_order, pm_data_file, 
+        self, year, option, sender_name, technology_attributes, load_and_supply, re_order, dispatch_order, pm_data_file, 
         data_file, files, sheets, title=None
         ):
         def calcLCOE(annual_output, capital_cost, annual_operating_cost, discount_rate, lifetime):
@@ -96,7 +96,7 @@
                 else:
                     load_mult = ''
                     try:
-                        mult = round(pmss_details['Load'].multiplier, 3)
+                        mult = round(technology_attributes['Load'].multiplier, 3)
                         if mult != 1:
                             load_mult = ' x ' + str(mult)
                     except:
@@ -146,12 +146,12 @@
             if fac in self.generators.keys():
                 gen = fac
             else:
-                gen = pmss_details[fac].generator
+                gen = technology_attributes[fac].generator
             col += 1
             sp_cols.append(fac)
-            sp_cap.append(pmss_details[fac].capacity * pmss_details[fac].multiplier)
-            if do_zone and pmss_details[fac].zone != '':
-                ns.cell(row=zone_row, column=col).value = pmss_details[fac].zone
+            sp_cap.append(technology_attributes[fac].capacity * technology_attributes[fac].multiplier)
+            if do_zone and technology_attributes[fac].zone != '':
+                ns.cell(row=zone_row, column=col).value = technology_attributes[fac].zone
                 ns.cell(row=zone_row, column=col).alignment = oxl.styles.Alignment(wrap_text=True,
                     vertical='bottom', horizontal='center')
             try:
@@ -229,20 +229,20 @@
             ns.cell(row=hrs_row, column=col).value = '=COUNTIF(' + ssCol(col) + str(hrows) + \
                                            ':' + ssCol(col) + str(hrows + 8759) + ',">0")'
             ns.cell(row=hrs_row, column=col).number_format = '#,##0'
-            di = pmss_details[fac].col
-            if pmss_details[fac].multiplier == 1:
+            di = technology_attributes[fac].col
+            if technology_attributes[fac].multiplier == 1:
                 for row in range(hrows, 8760 + hrows):
-                    ns.cell(row=row, column=col).value = pmss_data[di][row - hrows]
+                    ns.cell(row=row, column=col).value = load_and_supply[di][row - hrows]
                     ns.cell(row=row, column=col).number_format = '#,##0.00'
             else:
                 for row in range(hrows, 8760 + hrows):
-                    ns.cell(row=row, column=col).value = pmss_data[di][row - hrows] * \
-                                                         pmss_details[fac].multiplier
+                    ns.cell(row=row, column=col).value = load_and_supply[di][row - hrows] * \
+                                                         technology_attributes[fac].multiplier
                     ns.cell(row=row, column=col).number_format = '#,##0.00'
             return col
 
         def do_detail_summary(fac, col, ss_row, dd_tml_sum, dd_re_sum):
-            if do_zone and pmss_details[fac].zone != '':
+            if do_zone and technology_attributes[fac].zone != '':
                 ss.cell(row=ss_row, column=st_fac+1).value = '=Detail!' + ssCol(col) + str(zone_row) + \
                                                       '&"."&Detail!' + ssCol(col) + str(what_row)
             else:
@@ -250,7 +250,7 @@
             if fac in self.generators.keys():
                 gen = fac
             else:
-                gen = pmss_details[fac].generator
+                gen = technology_attributes[fac].generator
             # capacity
             ss.cell(row=ss_row, column=st_cap+1).value = '=Detail!' + ssCol(col) + str(cap_row)
             ss.cell(row=ss_row, column=st_cap+1).number_format = '#,##0.00'
@@ -512,7 +512,7 @@
             ld_row = ss_row
             load_mult = ''
             try:
-                mult = round(pmss_details['Load'].multiplier, 3)
+                mult = round(technology_attributes['Load'].multiplier, 3)
                 if mult != 1:
                     load_mult = ' x ' + str(mult)
             except:
@@ -575,7 +575,7 @@
 
     # The "guts" of Powermatch processing. Have a single calculation algorithm
     # for Summary, Powermatch (detail), and Optimise. The detail makes it messy
-    # Note: For Batch pmss_data is reused so don't update it in doDispatch
+    # Note: For Batch load_and_supply is reused so don't update it in matchSupplytoLoad
         self.files = files
         self.sheets = sheets
         the_days = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
@@ -593,14 +593,14 @@
         do_zone = False # could pass as a parameter
         max_lifetime = 0
         # find max. lifetime years for all technologies selected
-        for key in pmss_details.keys():
+        for key in technology_attributes.keys():
             if key == 'Load'or key == 'Total':
                 continue
-            if pmss_details[key].capacity * pmss_details[key].multiplier > 0:
+            if technology_attributes[key].capacity * technology_attributes[key].multiplier > 0:
              #   gen = key.split('.')[-1]
-                gen = pmss_details[key].generator
+                gen = technology_attributes[key].generator
                 max_lifetime = max(max_lifetime, self.generators[gen].lifetime)
-        for key in pmss_details.keys():
+        for key in technology_attributes.keys():
             if key.find('.') > 0:
                 do_zone = True
                 break
@@ -622,42 +622,42 @@
             elif fac in self.underlying:
                 underlying_facs.append(fac)
                 continue
-        load_col = pmss_details['Load'].col
-        for h in range(len(pmss_data[load_col])):
-            load_h = pmss_data[load_col][h] * pmss_details['Load'].multiplier
+        load_col = technology_attributes['Load'].col
+        for h in range(len(load_and_supply[load_col])):
+            load_h = load_and_supply[load_col][h] * technology_attributes['Load'].multiplier
             shortfall[h] = load_h
             for fac in fac_tml.keys():
                 if fac in underlying_facs:
                     continue
-                shortfall[h] -= pmss_data[pmss_details[fac].col][h] * pmss_details[fac].multiplier
+                shortfall[h] -= load_and_supply[technology_attributes[fac].col][h] * technology_attributes[fac].multiplier
             if shortfall[h] >= 0:
                 alloc = 1.
             else:
                 alloc = load_h / (load_h - shortfall[h])
             for fac in fac_tml.keys():
                 if fac in underlying_facs:
-                    fac_tml[fac] += pmss_data[pmss_details[fac].col][h] * pmss_details[fac].multiplier
+                    fac_tml[fac] += load_and_supply[technology_attributes[fac].col][h] * technology_attributes[fac].multiplier
                 else:
-                    fac_tml[fac] += pmss_data[pmss_details[fac].col][h] * pmss_details[fac].multiplier * alloc
+                    fac_tml[fac] += load_and_supply[technology_attributes[fac].col][h] * technology_attributes[fac].multiplier * alloc
             line = ''
         fac_tml_sum = 0
         for fac in fac_tml.keys():
             fac_tml_sum += fac_tml[fac]
         if self.show_correlation:
-            col = pmss_details['Load'].col
-            if pmss_details['Load'].multiplier == 1:
-                df1 = pmss_data[col]
+            col = technology_attributes['Load'].col
+            if technology_attributes['Load'].multiplier == 1:
+                df1 = load_and_supply[col]
             else:
                 tgt = []
-                for h in range(len(pmss_data[col])):
-                    tgt.append(pmss_data[col][h] * pmss_details['Load'].multiplier)
+                for h in range(len(load_and_supply[col])):
+                    tgt.append(load_and_supply[col][h] * technology_attributes['Load'].multiplier)
                 df1 = tgt
             corr_src = []
             for h in range(len(shortfall)):
                 if shortfall[h] < 0:
-                    corr_src.append(pmss_data[col][h])
+                    corr_src.append(load_and_supply[col][h])
                 else:
-                    corr_src.append(pmss_data[col][h] - shortfall[h])
+                    corr_src.append(load_and_supply[col][h] - shortfall[h])
             try:
                 corr = np.corrcoef(df1, corr_src)
                 if np.isnan(corr.item((0, 1))):
@@ -751,15 +751,15 @@
                 ns.cell(row=row, column=1).value = row - hrows + 1
                 ns.cell(row=row, column=2).value = format_period(row - hrows)
             # and load
-            load_col = pmss_details['Load'].col
-            if pmss_details['Load'].multiplier == 1:
+            load_col = technology_attributes['Load'].col
+            if technology_attributes['Load'].multiplier == 1:
                 for row in range(hrows, 8760 + hrows):
-                    ns.cell(row=row, column=3).value = pmss_data[load_col][row - hrows]
+                    ns.cell(row=row, column=3).value = load_and_supply[load_col][row - hrows]
                     ns.cell(row=row, column=col).number_format = '#,##0.00'
             else:
                 for row in range(hrows, 8760 + hrows):
-                    ns.cell(row=row, column=3).value = pmss_data[load_col][row - hrows] * \
-                            pmss_details['Load'].multiplier
+                    ns.cell(row=row, column=3).value = load_and_supply[load_col][row - hrows] * \
+                            technology_attributes['Load'].multiplier
                     ns.cell(row=row, column=col).number_format = '#,##0.00'
             # here we're processing renewables (so no storage)
             for fac in re_order:
@@ -767,7 +767,7 @@
                     continue
                 if fac in underlying_facs:
                     continue
-                if pmss_details[fac].col <= 0:
+                if technology_attributes[fac].col <= 0:
                     continue
                 ss_row += 1
                 col = do_detail(fac, col, ss_row)
@@ -808,15 +808,15 @@
                     vertical='bottom', horizontal='center')
             for row in range(hrows, 8760 + hrows):
                 if shortfall[row - hrows] < 0:
-                    if pmss_details['Load'].multiplier == 1:
-                        rec = pmss_data[load_col][row - hrows]
+                    if technology_attributes['Load'].multiplier == 1:
+                        rec = load_and_supply[load_col][row - hrows]
                     else:
-                        rec = pmss_data[load_col][row - hrows] * pmss_details['Load'].multiplier
+                        rec = load_and_supply[load_col][row - hrows] * technology_attributes['Load'].multiplier
                 else:
-                    if pmss_details['Load'].multiplier == 1:
-                        rec = pmss_data[load_col][row - hrows] - shortfall[row - hrows]
+                    if technology_attributes['Load'].multiplier == 1:
+                        rec = load_and_supply[load_col][row - hrows] - shortfall[row - hrows]
                     else:
-                        rec = pmss_data[load_col][row - hrows] * pmss_details['Load'].multiplier - \
+                        rec = load_and_supply[load_col][row - hrows] * technology_attributes['Load'].multiplier - \
                               shortfall[row - hrows]
                 ns.cell(row=row, column=col).value = rec
                # the following formula will do the same computation
@@ -831,7 +831,7 @@
             nsul_sums = ['C']
             nsul_sum_cols = [3]
             for fac in underlying_facs:
-                if pmss_details[fac].capacity * pmss_details[fac].multiplier == 0:
+                if technology_attributes[fac].capacity * technology_attributes[fac].multiplier == 0:
                     continue
                 col = do_detail(fac, col, -1)
                 nsul_sums.append(ssCol(col))
@@ -863,16 +863,16 @@
             load_hr = 0
             tml = 0.
             try:
-                load_col = pmss_details['Load'].col
+                load_col = technology_attributes['Load'].col
             except:
                 load_col = 0
             if (option == B or option == T) and len(underlying_facs) > 0:
                 load_facs = underlying_facs[:]
                 load_facs.insert(0, 'Load')
-                for h in range(len(pmss_data[load_col])):
+                for h in range(len(load_and_supply[load_col])):
                     amt = 0
                     for fac in load_facs:
-                        amt += pmss_data[pmss_details[fac].col][h] * pmss_details[fac].multiplier
+                        amt += load_and_supply[technology_attributes[fac].col][h] * technology_attributes[fac].multiplier
                     if amt > load_max:
                         load_max = amt
                         load_hr = h
@@ -880,32 +880,32 @@
                 underlying_facs = []
             else:
                 fac = 'Load'
-                sp_load = sum(pmss_data[load_col]) * pmss_details[fac].multiplier
-                for h in range(len(pmss_data[load_col])):
-                    amt = pmss_data[load_col][h] * pmss_details[fac].multiplier
+                sp_load = sum(load_and_supply[load_col]) * technology_attributes[fac].multiplier
+                for h in range(len(load_and_supply[load_col])):
+                    amt = load_and_supply[load_col][h] * technology_attributes[fac].multiplier
                     if amt > load_max:
                         load_max = amt
                         load_hr = h
             for fac in re_order:
                 if fac == 'Load' or fac in underlying_facs:
                     continue
-                if pmss_details[fac].capacity * pmss_details[fac].multiplier == 0:
+                if technology_attributes[fac].capacity * technology_attributes[fac].multiplier == 0:
                     continue
                 sp_d = [' '] * len(headers)
                 sp_d[st_fac] = fac
-                sp_d[st_cap] = pmss_details[fac].capacity * pmss_details[fac].multiplier
+                sp_d[st_cap] = technology_attributes[fac].capacity * technology_attributes[fac].multiplier
                 try:
                     sp_d[st_tml] = fac_tml[fac]
                 except:
                     pass
-                sp_d[st_sub] = sum(pmss_data[pmss_details[fac].col]) * pmss_details[fac].multiplier
-                sp_d[st_max] = max(pmss_data[pmss_details[fac].col]) * pmss_details[fac].multiplier
+                sp_d[st_sub] = sum(load_and_supply[technology_attributes[fac].col]) * technology_attributes[fac].multiplier
+                sp_d[st_max] = max(load_and_supply[technology_attributes[fac].col]) * technology_attributes[fac].multiplier
                 sp_data.append(sp_d)
        #     for h in range(len(shortfall)):
         #        if shortfall[h] < 0:
-         #           tml += pmss_data[load_col][h] * pmss_details['Load'].multiplier
+         #           tml += load_and_supply[load_col][h] * technology_attributes['Load'].multiplier
           #      else:
-           #         tml += pmss_data[load_col][h] * pmss_details['Load'].multiplier - shortfall[h]
+           #         tml += load_and_supply[load_col][h] * technology_attributes['Load'].multiplier - shortfall[h]
         if option not in [O, O1, B, T]:
             self.listener.progress_bar.setValue(6)
             if self.event_callback:
@@ -915,7 +915,7 @@
         short_taken = {}
         short_taken_tot = 0
         for gen in dispatch_order:
-            if pmss_details[gen].tech_type == 'G': # generators
+            if technology_attributes[gen].tech_type == 'G': # generators
                 try:
                     const = self.generators[gen].constraint
                 except:
@@ -926,10 +926,10 @@
                         continue
                 if self.constraints[const].capacity_min != 0:
                     try:
-                        short_taken[gen] = pmss_details[gen].capacity * pmss_details[gen].multiplier * \
+                        short_taken[gen] = technology_attributes[gen].capacity * technology_attributes[gen].multiplier * \
                             self.constraints[const].capacity_min
                     except:
-                        short_taken[gen] = pmss_details[gen].capacity * \
+                        short_taken[gen] = technology_attributes[gen].capacity * \
                             self.constraints[const].capacity_min
                     short_taken_tot += short_taken[gen]
                     for row in range(8760):
@@ -939,10 +939,10 @@
          #   min_after = [0, 0, -1, 0, 0, 0] # initial, low balance, period, final, low after, period
          #  Min_after is there to see if storage is as full at the end as at the beginning
             try:
-                capacity = pmss_details[gen].capacity * pmss_details[gen].multiplier
+                capacity = technology_attributes[gen].capacity * technology_attributes[gen].multiplier
             except:
                 try:
-                    capacity = pmss_details[gen].capacity
+                    capacity = technology_attributes[gen].capacity
                 except:
                     continue
             if gen not in self.generators.keys():
@@ -956,7 +956,7 @@
                     ns.cell(row=cap_row, column=col + 2).value = capacity
                     ns.cell(row=cap_row, column=col + 2).number_format = '#,##0.00'
                 try:
-                    storage[1] = self.generators[gen].initial * pmss_details[gen].multiplier
+                    storage[1] = self.generators[gen].initial * technology_attributes[gen].multiplier
                 except:
                     storage[1] = self.generators[gen].initial
                 if self.constraints[self.generators[gen].constraint].capacity_min > 0:
@@ -1221,13 +1221,13 @@
             except:
                 corr = 0
             corr_data.append(['RE plus Storage', corr])
-            col = pmss_details['Load'].col
+            col = technology_attributes['Load'].col
             corr_src = []
             for h in range(len(shortfall)):
                 if shortfall[h] < 0:
-                    corr_src.append(pmss_data[col][h])
+                    corr_src.append(load_and_supply[col][h])
                 else:
-                    corr_src.append(pmss_data[col][h] - shortfall[h])
+                    corr_src.append(load_and_supply[col][h] - shortfall[h])
             try:
                 corr = np.corrcoef(df1, corr_src)
                 if np.isnan(corr.item((0, 1))):
@@ -1251,7 +1251,7 @@
                 else:
                     corr_data[c].append('Very high')
         if option != D:
-            load_col = pmss_details['Load'].col
+            load_col = technology_attributes['Load'].col
             cap_sum = 0.
             gen_sum = 0.
             re_sum = 0.
@@ -1386,10 +1386,10 @@
             for sf in range(len(shortfall)):
                 if shortfall[sf] > 0:
                     sf_sums[0] += shortfall[sf]
-                    sf_sums[2] += pmss_data[load_col][sf] * pmss_details['Load'].multiplier
+                    sf_sums[2] += load_and_supply[load_col][sf] * technology_attributes['Load'].multiplier
                 else:
                     sf_sums[1] += shortfall[sf]
-                    sf_sums[2] += pmss_data[load_col][sf] * pmss_details['Load'].multiplier
+                    sf_sums[2] += load_and_supply[load_col][sf] * technology_attributes['Load'].multiplier
             if gen_sum > 0:
                 gs = cost_sum / gen_sum
             else:
@@ -1407,31 +1407,31 @@
             do_underlying = False
             if len(underlying_facs) > 0:
                 for fac in underlying_facs:
-                    if pmss_details[fac].capacity * pmss_details[fac].multiplier > 0:
+                    if technology_attributes[fac].capacity * technology_attributes[fac].multiplier > 0:
                         do_underlying = True
                         break
             if do_underlying:
                 sp_data.append(' ')
                 sp_data.append('Additional Underlying Load')
                 for fac in underlying_facs:
-                    if pmss_details[fac].capacity * pmss_details[fac].multiplier == 0:
+                    if technology_attributes[fac].capacity * technology_attributes[fac].multiplier == 0:
                         continue
                     if fac in self.generators.keys():
                         gen = fac
                     else:
-                        gen = pmss_details[fac].generator
-                    col = pmss_details[fac].col
+                        gen = technology_attributes[fac].generator
+                    col = technology_attributes[fac].col
                     sp_d = [' '] * len(headers)
                     sp_d[st_fac] = fac
-                    sp_d[st_cap] = pmss_details[fac].capacity * pmss_details[fac].multiplier
+                    sp_d[st_cap] = technology_attributes[fac].capacity * technology_attributes[fac].multiplier
                     cap_sum += sp_d[st_cap]
-                    sp_d[st_tml] = sum(pmss_data[pmss_details[fac].col]) * pmss_details[fac].multiplier
+                    sp_d[st_tml] = sum(load_and_supply[technology_attributes[fac].col]) * technology_attributes[fac].multiplier
                     tml_sum += sp_d[st_tml]
                     sp_d[st_sub] = sp_d[st_tml]
                     gen_sum += sp_d[st_tml]
                     sp_load += sp_d[st_tml]
                     sp_d[st_cfa] = '{:.1f}%'.format(sp_d[st_sub] / sp_d[st_cap] / 8760 * 100.)
-                    sp_d[st_max] = max(pmss_data[pmss_details[fac].col]) * pmss_details[fac].multiplier
+                    sp_d[st_max] = max(load_and_supply[technology_attributes[fac].col]) * technology_attributes[fac].multiplier
                     if self.generators[gen].capex > 0 or self.generators[gen].fixed_om > 0 \
                       or self.generators[gen].variable_om > 0 or self.generators[gen].fuel > 0:
                         capex = sp_d[st_cap] * self.generators[gen].capex
@@ -1500,11 +1500,11 @@
                 if option == S:
                     load_max = 0
                     load_hr = 0
-                    load_col = pmss_details['Load'].col
-                    for h in range(len(pmss_data[load_col])):
-                        amt = pmss_data[load_col][h] * pmss_details['Load'].multiplier
+                    load_col = technology_attributes['Load'].col
+                    for h in range(len(load_and_supply[load_col])):
+                        amt = load_and_supply[load_col][h] * technology_attributes['Load'].multiplier
                         for fac in underlying_facs:
-                            amt += pmss_data[pmss_details[fac].col][h] * pmss_details[fac].multiplier
+                            amt += load_and_supply[technology_attributes[fac].col][h] * technology_attributes[fac].multiplier
                         if amt > load_max:
                             load_max = amt
                             load_hr = h
@@ -1536,7 +1536,7 @@
                         sp_pts[st_cap] = 3 # compromise between capacity (2) and correlation (4)
                 return sp_data, corr_data
             if option == O or option == O1:
-                op_load_tot = pmss_details['Load'].capacity * pmss_details['Load'].multiplier
+                op_load_tot = technology_attributes['Load'].capacity * technology_attributes['Load'].multiplier
                 if gswc != '':
                     lcoe = gswc
                 elif self.adjusted_lcoe:
@@ -1949,13 +1949,13 @@
             for fac in re_order:
                 if fac == 'Load':
                     continue
-                if pmss_details[fac].multiplier <= 0:
+                if technology_attributes[fac].multiplier <= 0:
                     continue
                 if fac.find('.') > 0:
                     gens.append(fac[fac.find('.') + 1:])
                 else:
                     gens.append(fac)
-                cons.append(self.generators[pmss_details[fac].generator].constraint)
+                cons.append(self.generators[technology_attributes[fac].generator].constraint)
             for gen in dispatch_order:
                 gens.append(gen)
                 cons.append(self.generators[gen].constraint)

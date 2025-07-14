@@ -102,9 +102,9 @@ def submit_powermatch(request, demand_year, scenario,
     scenario_settings = fetch_scenario_settings_data(scenario)
     if not scenario_settings:
         scenario_settings = fetch_module_settings_data('Powermatch')
-    pmss_data = \
+    load_and_supply = \
         fetch_supplyfactors_data(demand_year, scenario)
-    pmss_details = \
+    technology_attributes = \
         fetch_technology_attributes(demand_year, scenario)
     
     for i in range(stages):
@@ -138,12 +138,12 @@ def submit_powermatch(request, demand_year, scenario,
             lifetime_step = 0
             
             if dimension == 'capacity':
-                pmss_details[technology_name] = Technology(
-                    pmss_details[technology_name].name, 
-                    pmss_details[technology_name].name, 
-                    pmss_details[technology_name].capacity + step, 'R', 
-                    pmss_details[technology_name].col, 
-                    pmss_details[technology_name].multiplier
+                technology_attributes[technology_name] = Technology(
+                    technology_attributes[technology_name].name, 
+                    technology_attributes[technology_name].name, 
+                    technology_attributes[technology_name].capacity + step, 'R', 
+                    technology_attributes[technology_name].col, 
+                    technology_attributes[technology_name].multiplier
                 )
             elif dimension == 'capex':
                 capex_step = step
@@ -151,9 +151,9 @@ def submit_powermatch(request, demand_year, scenario,
                 lifetime_step = step
                 
             # Update generator with variation if it affects this technology
-            if technology_name in pmss_details:
-                original_facility = pmss_details[technology_name]
-                pmss_details[technology_name] = Technology(
+            if technology_name in technology_attributes:
+                original_facility = technology_attributes[technology_name]
+                technology_attributes[technology_name] = Technology(
                     generator_name=original_facility.generator_name,
                     category=original_facility.category,
                     capacity=original_facility.capacity,
@@ -185,11 +185,11 @@ def submit_powermatch(request, demand_year, scenario,
         else:
             action = 'Summary'
             
-        # sp_data, corr_data, headers, sp_pts = pm.doDispatch(
-        #     demand_year, option, action, pmss_details, pmss_data
+        # sp_data, corr_data, headers, sp_pts = pm.matchSupplytoLoad(
+        #     demand_year, option, action, technology_attributes, load_and_supply
         # )
-        dispatch_results = pm.doDispatch(
-            demand_year, option, action, pmss_details, pmss_data
+        dispatch_results = pm.matchSupplytoLoad(
+            demand_year, option, action, technology_attributes, load_and_supply
         )
         # Extract data from DispatchResults object
         sp_data = dispatch_results.summary_data

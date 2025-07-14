@@ -136,7 +136,7 @@ def run_variations(request) -> HttpResponse:
                 option = 'S'
                 scenario_obj = Scenarios.objects.get(title=scenario)
                 clearScenario(scenario_obj, variation_name)
-                # Iterate and call doDispatch
+                # Iterate and call matchSupplytoLoad
                 save_data = True
                 sp_output, headers, sp_pts = submit_powermatch(
                     demand_year, scenario, option, stages, variation_inst,

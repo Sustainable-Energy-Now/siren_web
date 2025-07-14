@@ -194,7 +194,7 @@ def fetch_supplyfactors_data(demand_year, scenario):
         )
         
         # Create a dictionary of supplyfactors from the model 
-        pmss_data = {}
+        load_and_supply = {}
         
         for supplyfactors_row in supplyfactors_query:
             technology = supplyfactors_row.idfacilities.idtechnologies
@@ -210,16 +210,16 @@ def fetch_supplyfactors_data(demand_year, scenario):
                 
             load = supplyfactors_row.quantum
             
-            if merit_order not in pmss_data:
-                pmss_data[merit_order] = []
-            pmss_data[merit_order].append(load)
+            if merit_order not in load_and_supply:
+                load_and_supply[merit_order] = []
+            load_and_supply[merit_order].append(load)
             
     except Exception as e:
         # Handle any errors that occur during the database query
         print(f"Error fetching supplyfactors data: {e}")
         return None
 
-    return pmss_data
+    return load_and_supply
 
 def get_technology_with_year_data(idtechnologies, demand_year):
     """
@@ -535,8 +535,8 @@ def fetch_technology_attributes(demand_year, scenario):
         )
     ).order_by('merit_order')
     # Initialize dictionaries to hold results
-    pmss_details = {}
-    pmss_details['Load'] = Technology(
+    technology_attributes = {}
+    technology_attributes['Load'] = Technology(
         category='Load', 
         capacity=0,
         generator_name='Load',
@@ -550,8 +550,8 @@ def fetch_technology_attributes(demand_year, scenario):
         name = technology_row.technology_name
         if name == 'Load':
             continue
-        if name not in pmss_details:
-            pmss_details[name] = {}
+        if name not in technology_attributes:
+            technology_attributes[name] = {}
         
         # Get year-specific data from TechnologyYears
         tech_year_data = technology_row.tech_years[0] if technology_row.tech_years else None
@@ -579,7 +579,7 @@ def fetch_technology_attributes(demand_year, scenario):
         merit_order = scenario_tech.merit_order
         
         # Create Technology object using TechnologyYears data for financial parameters
-        pmss_details[name] = Technology(
+        technology_attributes[name] = Technology(
             tech_name=name,
             tech_type=technology_row.category[0],  # 'G' for Generator, 'S' for Storage
             category=technology_row.category,
@@ -610,7 +610,7 @@ def fetch_technology_attributes(demand_year, scenario):
             area=area
         )
 
-    return pmss_details
+    return technology_attributes
 
 def get_emission_color(emissions):
     if emissions < 0.3:

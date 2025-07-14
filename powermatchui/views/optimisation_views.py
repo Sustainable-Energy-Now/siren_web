@@ -145,9 +145,9 @@ def run_optimisation(request):
     if request.method == 'POST':
         option = 'O'
         settings = fetch_all_config_data(request)
-        pmss_data, pmss_details, max_col = \
+        load_and_supply, technology_attributes, max_col = \
             fetch_supplyfactors_data(demand_year)
-        generators, dispatch_order, re_order, pmss_details = fetch_technology_attributes(demand_year, scenario, pmss_details, max_col)
+        generators, dispatch_order, re_order, technology_attributes = fetch_technology_attributes(demand_year, scenario, technology_attributes, max_col)
 
         scenario_obj = Scenarios.objects.get(title=scenario)
         opt_settings_data = ScenariosSettings.objects.filter(
@@ -156,7 +156,7 @@ def run_optimisation(request):
         OptParms = {setting['parameter']: setting['value'] for setting in opt_settings_data}
         optimisation_data = fetch_optimisation_data(scenario)
         message = powerMatch.optClicked(
-            settings, demand_year, option, pmss_details, pmss_data, generators, re_order, 
+            settings, demand_year, option, technology_attributes, load_and_supply, generators, re_order, 
             dispatch_order, OptParms, None, None
         )
 
