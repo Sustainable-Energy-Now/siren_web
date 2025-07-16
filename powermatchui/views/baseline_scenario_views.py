@@ -4,11 +4,14 @@ from decimal import Decimal
 from django.contrib import messages
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import render, redirect
+import numpy as np
 from siren_web.database_operations import delete_analysis_scenario, fetch_analysis_scenario, \
     fetch_technologies_with_multipliers, fetch_module_settings_data, fetch_scenario_settings_data, update_scenario_settings_data
 from siren_web.models import Demand, Generatorattributes, Technologies, Scenarios, ScenariosSettings, \
-    ScenariosTechnologies, Settings, supplyfactors
+    ScenariosTechnologies
+from typing import Dict, Any
 from ..forms import BaselineScenarioForm, RunPowermatchForm
+from .balance_grid_load import DispatchResults
 from powermatchui.views.exec_powermatch import submit_powermatch
 
 @login_required
@@ -196,13 +199,13 @@ def run_baseline(request):
             
             if save_baseline:
                 delete_analysis_scenario(scenario_obj)
-            
-            results = submit_powermatch(
-                request, demand_year, scenario, option, 1, 
+
+            dispatch_results = submit_powermatch(
+                demand_year, scenario, option, 1, 
                 None, save_baseline
                 )
-            sp_output = results
-            
+            sp_output = dispatch_results.summary_data
+            metadata = dispatch_results.metadata
             if option == 'D':
                 data_file = f"{scenario}-baseline detailed results"
                 response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
@@ -223,15 +226,49 @@ def run_baseline(request):
                     success_message = "Baseline re-established"
                 else:
                     success_message = "Baseline run complete"
-                
-                headers = ['Technology', 'Capacity\n(Gen, MW;\nStor, MWh)', 'To meet\nLoad (MWh)',
-                    'Subtotal\n(MWh)', 'CF', 'Cost ($/yr)', 'LCOG\nCost\n($/MWh)', 'LCOE\nCost\n($/MWh)',
-                    'Emissions\n(tCO2e)', 'Emissions\nCost', 'LCOE With\nCO2 Cost\n($/MWh)', 'Max.\nMWH',
-                    'Max.\nBalance', 'Capital\nCost', 'Lifetime\nCost', 'Lifetime\nEmissions',
-                    'Lifetime\nEmissions\nCost', 'Area (km^2)', 'Reference\nLCOE', 'Reference\nCF']
-                sp_pts = []
+                # Prepare headers for display
+                header_mapping = {
+                    'capacity_mw': 'Capacity',
+                    'generation_mwh': 'Generation',
+                    'to_meet_load_mwh': 'To Meet Load',
+                    'capacity_factor': 'CF',
+                    'annual_cost': 'Cost',
+                    'lcog_per_mwh': 'LCOG Cost',
+                    'lcoe_per_mwh': 'LCOE Cost',
+                    'emissions_tco2e': 'Emissions',
+                    'emissions_cost': 'Emissions Cost',
+                    'lcoe_with_co2_per_mwh': 'LCOE with CO2 Cost',
+                    'max_generation_mw': 'Max Generation',
+                    'max_balance': 'Max Balance',
+                    'capital_cost': 'Capital Cost',
+                    'lifetime_cost': 'Lifetime Cost',
+                    'lifetime_emissions': 'Lifetime Emissions',
+                    'lifetime_emissions_cost': 'Lifetime Emissions Cost',
+                    'area_km2': 'Area km²',
+                    'reference_lcoe': 'Reference LCOE',
+                    'reference_cf': 'Reference CF'
+                }
+                original_headers = list(sp_output.dtype.names)
+                readable_headers = []
+                for header in original_headers:
+                    readable_headers.append(header_mapping.get(header, header))
+                # Convert structured array to list of lists
+                sp_data_list = []
+                for row in sp_output:
+                    row_data = []
+                    for field in original_headers:
+                        value = row[field]
+                        # Check if value is numeric and round to 2 decimal places
+                        if isinstance(value, (int, float, np.number)):
+                            row_data.append(round(float(value), 2))
+                        else:
+                            row_data.append(value)
+                    sp_data_list.append(row_data)
+                # Create the summary report
+                summary_report = create_summary_report(scenario, dispatch_results)
                 context = {
-                    'sp_data': sp_data, 'headers': headers, 'sp_pts': sp_pts,
+                    'sp_data': sp_data_list, 'headers': readable_headers,
+                    'summary_report': summary_report,
                     'success_message': success_message,
                     'demand_year': demand_year,
                     'scenario': scenario,
@@ -254,3 +291,62 @@ def run_baseline(request):
             'success_message': success_message
         }
         return render(request, 'baseline_scenario.html', context)
+
+def create_summary_report(scenario, dispatch_results: DispatchResults) -> Dict[str, Any]:
+    """Create a comprehensive summary report from dispatch results"""
+    summary = dispatch_results.summary_data
+    metadata = dispatch_results.metadata
+    
+    # System overview
+    system_overview = {
+        'total_load_gwh': metadata['total_load_mwh'] / 1000,
+        'load_met_percentage': metadata['load_met_pct'] * 100,
+        'renewable_percentage': metadata['renewable_pct'] * 100,
+        'renewable_load_percentage': metadata['renewable_load_pct'] * 100,
+        'storage_contribution_percentage': metadata['storage_pct'] * 100,
+        'curtailment_percentage': metadata['curtailment_pct'] * 100,
+        'system_lcoe_per_mwh': metadata['system_lcoe'],
+        'system_lcoe_with_co2_per_mwh': metadata['system_lcoe_with_co2']
+    }
+    
+    # Technology breakdown
+    technology_breakdown = []
+    for record in summary:
+        tech_data = {
+            'technology': record['technology'],
+            'capacity_mw': record['capacity_mw'],
+            'generation_gwh': record['generation_mwh'] / 1000,
+            'capacity_factor_pct': record['capacity_factor'] * 100,
+            'lcoe_per_mwh': record['lcoe_per_mwh'],
+            'emissions_ktco2e': record['emissions_tco2e'] / 1000,
+            'area_km2': record['area_km2']
+        }
+        technology_breakdown.append(tech_data)
+    
+    # Economic summary
+    economic_summary = {
+        'total_annual_cost_millions': metadata['system_totals']['total_annual_cost'] / 1e6,
+        'total_capital_cost_millions': metadata['system_totals']['total_capital_cost'] / 1e6,
+        'total_lifetime_cost_millions': metadata['system_totals']['total_lifetime_cost'] / 1e6,
+        'carbon_price_per_tco2e': metadata['carbon_price'],
+        'discount_rate_pct': metadata['discount_rate'] * 100
+    }
+    
+    # Environmental summary
+    environmental_summary = {
+        'total_emissions_ktco2e_per_year': metadata['system_totals']['total_emissions_tco2e'] / 1000,
+        'total_emissions_cost_millions_per_year': metadata['system_totals']['total_emissions_cost'] / 1e6,
+        'lifetime_emissions_mtco2e': metadata['system_totals']['total_lifetime_emissions'] / 1e6,
+        'total_land_use_km2': metadata['system_totals']['total_area_km2']
+    }
+    
+    return {
+        'system_overview': system_overview,
+        'technology_breakdown': technology_breakdown,
+        'economic_summary': economic_summary,
+        'environmental_summary': environmental_summary,
+        'processing_metadata': {
+            'simulation_year': metadata['year'],
+            'scenario_name': scenario
+        }
+    }

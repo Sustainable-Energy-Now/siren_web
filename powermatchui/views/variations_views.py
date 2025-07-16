@@ -1,5 +1,5 @@
 #  variations_views.py
-from siren_web.database_operations import fetch_included_technologies_data, check_analysis_baseline, get_technology_with_year_data
+from siren_web.database_operations import fetch_technology_attributes, check_analysis_baseline, get_technology_with_year_data
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import render
 from django.http import HttpResponse
@@ -25,7 +25,7 @@ def setup_variation(request):
     success_message = ""
     if demand_year:
         baseline = check_analysis_baseline(scenario)
-        technologies= fetch_included_technologies_data(scenario)
+        technologies= fetch_technology_attributes(demand_year, scenario)
         if not baseline:
             success_message = "Baseline the scenario first."
     else:
@@ -85,7 +85,7 @@ def run_variations(request) -> HttpResponse:
         scenario = request.session.get('scenario')
         config_file = request.session.get('config_file')
         success_message = ""
-        technologies= fetch_included_technologies_data(scenario)
+        technologies= fetch_technology_attributes(demand_year, scenario)
         variations_form = RunVariationForm(request.POST, technologies=technologies)
         if variations_form.is_valid():
             cleaned_data = variations_form.cleaned_data
@@ -139,8 +139,7 @@ def run_variations(request) -> HttpResponse:
                 # Iterate and call matchSupplytoLoad
                 save_data = True
                 sp_output, headers, sp_pts = submit_powermatch(
-                    demand_year, scenario, option, stages, variation_inst,
-                    save_data,
+                    demand_year, scenario, option, stages, variation_inst
                     )
                 sp_data = []
                 for row in sp_output:

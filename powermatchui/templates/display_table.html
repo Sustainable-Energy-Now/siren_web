@@ -3,26 +3,179 @@
 
 {% block powermatchui_content %}
 {% load custom_filters %}
+
 <body>
-    <h3>Powermatch Summary Data</h3>
-    <table>
-        <thead>
-            <tr>
-                {% for header in headers %}
-                <th>{{ header }}</th>
-                {% endfor %}
-            </tr>
-        </thead>
-        <tbody>
-          {% for row in sp_data %}
-            <tr>
-              {% for field in row %}
-                <td>{{ field }}</td>
+    <h2>Modelling Results</h2>
+    
+    {% if summary_report %}
+          <!-- Processing Metadata -->
+          <div class="summary-section">
+            <h4>Analysis Details</h4>
+            <div class="metric-grid">
+                <div class="metric-item">
+                    <div class="metric-label">Simulation Year</div>
+                    <div class="metric-value">{{ summary_report.processing_metadata.simulation_year }}</div>
+                </div>
+                <div class="metric-item">
+                    <div class="metric-label">Scenario</div>
+                    <div class="metric-value">{{ summary_report.processing_metadata.scenario_name }}</div>
+                </div>
+            </div>
+        </div>
+        <!-- System Overview Section -->
+        <div class="summary-section">
+            <h4>Load vs Supply</h4>
+            <div class="metric-grid">
+                <div class="metric-item">
+                    <div class="metric-label">Total Load</div>
+                    <div class="metric-value">{{ summary_report.system_overview.total_load_gwh|floatformat:1 }} GWh</div>
+                </div>
+                <div class="metric-item">
+                    <div class="metric-label">Load Met</div>
+                    <div class="metric-value">{{ summary_report.system_overview.load_met_percentage|floatformat:1 }}%</div>
+                </div>
+                <div class="metric-item">
+                    <div class="metric-label">Renewable Energy</div>
+                    <div class="metric-value">{{ summary_report.system_overview.renewable_percentage|floatformat:1 }}%</div>
+                </div>
+                <div class="metric-item">
+                    <div class="metric-label">Storage Contribution</div>
+                    <div class="metric-value">{{ summary_report.system_overview.storage_contribution_percentage|floatformat:1 }}%</div>
+                </div>
+                <div class="metric-item">
+                    <div class="metric-label">Curtailment</div>
+                    <div class="metric-value">{{ summary_report.system_overview.curtailment_percentage|floatformat:1 }}%</div>
+                </div>
+                <div class="metric-item">
+                    <div class="metric-label">System LCOE</div>
+                    <div class="metric-value">${{ summary_report.system_overview.system_lcoe_per_mwh|floatformat:2 }}/MWh</div>
+                </div>
+            </div>
+            
+            {% if summary_report.system_overview.load_met_percentage < 95 %}
+                <div class="alert alert-warning">
+                    <strong>Warning:</strong> Load is not fully met. Consider adding more generation capacity.
+                </div>
+            {% endif %}
+            
+            {% if summary_report.system_overview.curtailment_percentage > 10 %}
+                <div class="alert alert-info">
+                    <strong>Info:</strong> High curtailment detected. Consider adding storage or reducing renewable capacity.
+                </div>
+            {% endif %}
+        </div>
+
+        <!-- Economic Summary Section -->
+        <div class="summary-section">
+            <h4>Economic View</h4>
+            <div class="metric-grid">
+                <div class="metric-item">
+                    <div class="metric-label">Total Annual Cost</div>
+                    <div class="metric-value">${{ summary_report.economic_summary.total_annual_cost_millions|floatformat:1 }}M/year</div>
+                </div>
+                <div class="metric-item">
+                    <div class="metric-label">Total Capital Cost</div>
+                    <div class="metric-value">${{ summary_report.economic_summary.total_capital_cost_millions|floatformat:1 }}M</div>
+                </div>
+                <div class="metric-item">
+                    <div class="metric-label">Lifetime Cost</div>
+                    <div class="metric-value">${{ summary_report.economic_summary.total_lifetime_cost_millions|floatformat:1 }}M</div>
+                </div>
+                <div class="metric-item">
+                    <div class="metric-label">Carbon Price</div>
+                    <div class="metric-value">${{ summary_report.economic_summary.carbon_price_per_tco2e|floatformat:2 }}/tCO2e</div>
+                </div>
+                <div class="metric-item">
+                    <div class="metric-label">Discount Rate</div>
+                    <div class="metric-value">{{ summary_report.economic_summary.discount_rate_pct|floatformat:1 }}%</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Environmental Summary Section -->
+        <div class="summary-section">
+            <h4>Environmental View</h4>
+            <div class="metric-grid">
+                <div class="metric-item">
+                    <div class="metric-label">Annual Emissions</div>
+                    <div class="metric-value">{{ summary_report.environmental_summary.total_emissions_ktco2e_per_year|floatformat:1 }} ktCO2e/year</div>
+                </div>
+                <div class="metric-item">
+                    <div class="metric-label">Emissions Cost</div>
+                    <div class="metric-value">${{ summary_report.environmental_summary.total_emissions_cost_millions_per_year|floatformat:2 }}M/year</div>
+                </div>
+                <div class="metric-item">
+                    <div class="metric-label">Lifetime Emissions</div>
+                    <div class="metric-value">{{ summary_report.environmental_summary.lifetime_emissions_mtco2e|floatformat:2 }} MtCO2e</div>
+                </div>
+                <div class="metric-item">
+                    <div class="metric-label">Total Land Use</div>
+                    <div class="metric-value">{{ summary_report.environmental_summary.total_land_use_km2|floatformat:1 }} km²</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Technology Breakdown Section -->
+        <div class="summary-section">
+            <h4>Technology Breakdown</h4>
+            <table class="technology-table">
+                <thead>
+                    <tr>
+                        <th>Technology</th>
+                        <th>Capacity (MW)</th>
+                        <th>Generation (GWh)</th>
+                        <th>Capacity Factor (%)</th>
+                        <th>LCOE ($/MWh)</th>
+                        <th>Emissions (ktCO2e)</th>
+                        <th>Area (km²)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for tech in summary_report.technology_breakdown %}
+                    <tr>
+                        <td>{{ tech.technology }}</td>
+                        <td>{{ tech.capacity_mw|floatformat:1 }}</td>
+                        <td>{{ tech.generation_gwh|floatformat:1 }}</td>
+                        <td>{{ tech.capacity_factor_pct|floatformat:1 }}</td>
+                        <td>{{ tech.lcoe_per_mwh|floatformat:2 }}</td>
+                        <td>{{ tech.emissions_ktco2e|floatformat:1 }}</td>
+                        <td>{{ tech.area_km2|floatformat:1 }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% endif %}
+
+    <!-- Original Summary Data Table -->
+    <div class="summary-section">
+        <h4>Detailed Technology Data</h4>
+        <table class="technology-table">
+            <thead>
+                <tr>
+                    {% for header in headers %}
+                    <th>{{ header }}</th>
+                    {% endfor %}
+                </tr>
+            </thead>
+            <tbody>
+              {% for row in sp_data %}
+                <tr>
+                  {% for field in row %}
+                    <td>
+                        {% if forloop.first %}
+                            {{ field }}
+                        {% else %}
+                            {{ field|floatformat:2 }}
+                        {% endif %}
+                    </td>
+                  {% endfor %}
+                </tr>
               {% endfor %}
-            </tr>
-          {% endfor %}
-        </tbody>
-    </table>
+            </tbody>
+        </table>
+    </div>
+
 </body>
 
 {% endblock %}

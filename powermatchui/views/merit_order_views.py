@@ -7,7 +7,7 @@ from django.http import JsonResponse, HttpResponse
 from django.shortcuts import redirect, render
 from django.urls import reverse
 import json
-from siren_web.database_operations import copy_technologies_from_year0, fetch_technology_by_id, fetch_merit_order_technologies
+from siren_web.database_operations import fetch_technology_by_id, fetch_merit_order_technologies
 from siren_web.models import ScenariosTechnologies, Scenarios
 from urllib.parse import urlencode
 

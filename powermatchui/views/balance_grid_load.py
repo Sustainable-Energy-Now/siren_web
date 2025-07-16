@@ -11,7 +11,7 @@ class Technology:
         self.order = 0
         self.lifetime = 20
         self.area = 0.0
-        for attr in ['tech_name', 'tech_type', 'category', 'renewable', 'dispatchable', 'capacity', 'multiplier', 
+        for attr in ['tech_id', 'tech_name', 'tech_type', 'category', 'renewable', 'dispatchable', 'capacity', 'multiplier', 
                      'capacity_max', 'capacity_min', 'lcoe', 'lcoe_cf', 'recharge_max', 'recharge_loss', 'min_runtime', 
                      'warm_time', 'discharge_max', 'discharge_loss', 'parasitic_loss', 'emissions', 'initial','merit_order',
                      'capex', 'fixed_om', 'variable_om', 'fuel', 'lifetime', 'area']:
@@ -164,7 +164,7 @@ class PowerMatchProcessor:
         
         # Compile metadata
         metadata = self._compile_metadata(
-            start_time, year, option, sender_name, energy_balance, 
+            start_time, year, energy_balance, 
             summary_stats, economic_results, config
         )
         
@@ -859,7 +859,7 @@ class PowerMatchProcessor:
         
         return hourly_array
     
-    def _compile_metadata(self, start_time, year, option, sender_name, energy_balance, 
+    def _compile_metadata(self, start_time, year, energy_balance, 
                          summary_stats, economic_results, config) -> Dict:
         """Compile comprehensive metadata"""
         # Find max shortfall and when it occurred
@@ -888,8 +888,6 @@ class PowerMatchProcessor:
         return {
             'processing_time': time.time() - start_time,
             'year': year,
-            'option': option,
-            'sender_name': sender_name,
             'correlation_data': energy_balance.correlation_data,
             'max_lifetime': config['max_lifetime'],
             'carbon_price': self.carbon_price,
@@ -951,67 +949,6 @@ class PowerMatchProcessor:
             self.listener.progress_bar.setValue(0)
 
 # Helper functions for creating summary reports and Excel output
-
-def create_summary_report(dispatch_results: DispatchResults) -> Dict[str, Any]:
-    """Create a comprehensive summary report from dispatch results"""
-    summary = dispatch_results.summary_data
-    metadata = dispatch_results.metadata
-    
-    # System overview
-    system_overview = {
-        'total_load_gwh': metadata['total_load_mwh'] / 1000,
-        'load_met_percentage': metadata['load_met_pct'] * 100,
-        'renewable_percentage': metadata['renewable_pct'] * 100,
-        'renewable_load_percentage': metadata['renewable_load_pct'] * 100,
-        'storage_contribution_percentage': metadata['storage_pct'] * 100,
-        'curtailment_percentage': metadata['curtailment_pct'] * 100,
-        'system_lcoe_per_mwh': metadata['system_lcoe'],
-        'system_lcoe_with_co2_per_mwh': metadata['system_lcoe_with_co2']
-    }
-    
-    # Technology breakdown
-    technology_breakdown = []
-    for record in summary:
-        tech_data = {
-            'technology': record['technology'],
-            'capacity_mw': record['capacity_mw'],
-            'generation_gwh': record['generation_mwh'] / 1000,
-            'capacity_factor_pct': record['capacity_factor'] * 100,
-            'lcoe_per_mwh': record['lcoe_per_mwh'],
-            'emissions_ktco2e': record['emissions_tco2e'] / 1000,
-            'area_km2': record['area_km2']
-        }
-        technology_breakdown.append(tech_data)
-    
-    # Economic summary
-    economic_summary = {
-        'total_annual_cost_millions': metadata['system_totals']['total_annual_cost'] / 1e6,
-        'total_capital_cost_millions': metadata['system_totals']['total_capital_cost'] / 1e6,
-        'total_lifetime_cost_millions': metadata['system_totals']['total_lifetime_cost'] / 1e6,
-        'carbon_price_per_tco2e': metadata['carbon_price'],
-        'discount_rate_pct': metadata['discount_rate'] * 100
-    }
-    
-    # Environmental summary
-    environmental_summary = {
-        'total_emissions_ktco2e_per_year': metadata['system_totals']['total_emissions_tco2e'] / 1000,
-        'total_emissions_cost_millions_per_year': metadata['system_totals']['total_emissions_cost'] / 1e6,
-        'lifetime_emissions_mtco2e': metadata['system_totals']['total_lifetime_emissions'] / 1e6,
-        'total_land_use_km2': metadata['system_totals']['total_area_km2']
-    }
-    
-    return {
-        'system_overview': system_overview,
-        'technology_breakdown': technology_breakdown,
-        'economic_summary': economic_summary,
-        'environmental_summary': environmental_summary,
-        'processing_metadata': {
-            'processing_time_seconds': metadata['processing_time'],
-            'simulation_year': metadata['year'],
-            'analysis_option': metadata['option'],
-            'scenario_name': metadata['sender_name']
-        }
-    }
 
 def export_to_excel(dispatch_results: DispatchResults, filename: str):
     """Export dispatch results to Excel format"""

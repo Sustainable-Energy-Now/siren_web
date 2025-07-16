@@ -254,16 +254,18 @@ class RunVariationForm(forms.Form):
             )
 
         accordion_groups = []
-        for technology in technologies:
-            tech_key = f"{technology.pk}"
-            tech_name = technology.technology_name
+        for key, value in technologies.items():
+            # Create a field for each technology
+            tech_name = key
+            if tech_name == 'Load':
+                continue
+            technology = value
+            tech_key = f"{technology.tech_id}"
             self.fields[f"capacity_{tech_key}"] = forms.Field(initial=technology.capacity, label=f"Capacity")
-            self.fields[f"mult_{tech_key}"] = forms.Field(initial=technology.mult, label=f"Multiplier")
             self.fields[f"capex_{tech_key}"] = forms.FloatField(initial=technology.capex, label=f"Capex")
-            self.fields[f"fom_{tech_key}"] = forms.FloatField(initial=technology.fom, label=f"FOM")
-            self.fields[f"vom_{tech_key}"] = forms.FloatField(initial=technology.vom, label=f"VOM")            
+            self.fields[f"fom_{tech_key}"] = forms.FloatField(initial=technology.fixed_om, label=f"FOM")
+            self.fields[f"vom_{tech_key}"] = forms.FloatField(initial=technology.variable_om, label=f"VOM")            
             self.fields[f"lifetime_{tech_key}"] = forms.FloatField(initial=technology.lifetime, label=f"Lifetime")
-            self.fields[f"discount_rate_{tech_key}"] = forms.FloatField(initial=technology.discount_rate, label=f"Discount Rate", required=False)
             if variation_data and variation_data.get('variation_name') != 'new' and \
                 variation_data.get('idtechnologies').idtechnologies == int(tech_key):
                 dimension_value = variation_data.get('dimension')

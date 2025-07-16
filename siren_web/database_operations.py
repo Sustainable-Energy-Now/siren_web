@@ -138,7 +138,10 @@ def fetch_full_facilities_data(demand_year, scenario):
         print("Error executing query:", e)
 
 def get_scenario_by_title(scenario):
-    return Scenarios.objects.get(title=scenario)
+    try:
+        return Scenarios.objects.get(title=scenario)
+    except Exception as e:
+        print(f"Error fetching title for scenario '{scenario}': {e}")
  
 def get_supply_unique_technology(demand_year, scenario):
     # Get the scenario object
@@ -395,84 +398,6 @@ def get_all_technologies_for_year(demand_year):
         
     return result
 
-def copy_technologies_from_year0(technology_name, demand_year, scenario):
-    scenario_obj = get_scenario_by_title(scenario)
-    try:
-        technology_year0 = Technologies.objects.get(
-            technology_name=technology_name,
-            year=0
-            )
-    except Exception as e:
-        # Assume it is the demand_year
-        return None
-    technology_new, created = Technologies.objects.get_or_create(
-        technology_name=technology_name,
-        year=demand_year,
-        defaults={
-            'idtechnologies': None,
-            'technology_name': technology_year0.technology_name,
-            'technology_signature': technology_year0.technology_signature,
-            # 'scenarios': technology_year0.scenarios,
-            'image': technology_year0.image,
-            'caption': technology_year0.caption,
-            'category': technology_year0.category,
-            'renewable': technology_year0.renewable,
-            'dispatchable': technology_year0.dispatchable,
-            'capex': technology_year0.capex,
-            'fom': technology_year0.fom,
-            'vom': technology_year0.vom,
-            'lifetime': technology_year0.lifetime,
-            'discount_rate': technology_year0.discount_rate,
-            'description': technology_year0.description,
-            'mult': technology_year0.mult,
-            'capacity': technology_year0.capacity,
-            'capacity_max': technology_year0.capacity_max,
-            'capacity_min': technology_year0.capacity_min,
-            'emissions': technology_year0.emissions,
-            'initial': technology_year0.initial,
-            'lcoe': technology_year0.lcoe,
-            'lcoe_cf': technology_year0.lcoe_cf,
-        }
-    )
-    if created:
-    # Remove the scenario from the year0 technology and add to the new
-        technology_year0.scenarios.remove(scenario_obj)
-        technology_new.scenarios.add(scenario_obj)
-        # if the created technology is a Generator also create the GeneratorAttributes
-        if technology_new.category == 'Generator':
-            old_genattr = Generatorattributes(
-                idtechnologies=technology_year0
-            )
-            new_genattr = Generatorattributes.objects.create(
-                idtechnologies=technology_new,
-                year=demand_year,
-                fuel=old_genattr.fuel
-            )
-        if technology_new.category == 'Storage':
-            old_storattr = Storageattributes(
-                idtechnologies=technology_year0
-            )
-            new_storattr = Storageattributes.objects.create(
-                idtechnologies=technology_new,
-                year=demand_year,
-                discharge_loss=old_storattr.discharge_loss,
-                discharge_max=old_storattr.discharge_max,
-                parasitic_loss=old_storattr.parasitic_loss,
-                rampdown_max=old_storattr.rampdown_max,
-                rampup_max=old_storattr.rampup_max,
-                recharge_loss=old_storattr.recharge_loss,
-                recharge_max=old_storattr.recharge_max,
-                min_runtime=old_storattr.min_runtime,
-                warm_time=old_storattr.warm_time,
-            )
-            # Create a ScenariosTechnologies instance
-            ScenariosTechnologies.objects.create(
-                idscenarios=scenario_obj,
-                idtechnologies=technology_new,
-                merit_order=1,
-                )
-    return technology_new
-
 def fetch_full_generator_storage_data(demand_year):
     """
     Fetch technologies with their associated year-specific data, generator attributes,
@@ -580,6 +505,7 @@ def fetch_technology_attributes(demand_year, scenario):
         
         # Create Technology object using TechnologyYears data for financial parameters
         technology_attributes[name] = Technology(
+            tech_id=technology_row.idtechnologies,
             tech_name=name,
             tech_type=technology_row.category[0],  # 'G' for Generator, 'S' for Storage
             category=technology_row.category,
@@ -651,7 +577,6 @@ def fetch_merit_order_technologies(idscenarios):
 
     return merit_order_data, excluded_resources_data
 
-# In siren_web/database_operations.py
 def fetch_included_technologies_data(scenario):
     """
     Fetch technologies included in a scenario with their capacities from ScenariosTechnologies
@@ -671,6 +596,7 @@ def fetch_included_technologies_data(scenario):
         for st in scenario_technologies:
             tech = st.idtechnologies
             tech.capacity = st.capacity  # Add capacity from ScenariosTechnologies
+            tech.mult = st.mult  # Add multiplier from ScenariosTechnologies
             technologies.append(tech)
             
         return technologies
