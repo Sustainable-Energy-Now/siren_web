@@ -4,133 +4,788 @@
 {% load crispy_forms_tags %}
 {% load custom_filters %}
 
-  <h3>Baseline Scenario</h3>
-  <p>Select the level of detail and click submit to run Power Match.</p>
+<h3>Baseline Scenario</h3>
+<p>Select the level of detail and click submit to run Power Match.</p>
 
-  {% load crispy_forms_tags %}
+{% load crispy_forms_tags %}
+{% csrf_token %}
+
+<!-- Carbon Price and Discount Rate Section -->
+<form method="post" id="configForm">
   {% csrf_token %}
-
-  <!-- Carbon Price and Discount Rate Section -->
-  <form method="post">
-    {% csrf_token %}
-    
-    <div class="row form-row">
-      <div class="col-md-6">
-        <div class="form-group">
-          {{ baseline_form.carbon_price.label_tag }}
-          {{ baseline_form.carbon_price }}
-          {% for error in baseline_form.carbon_price.errors %}
-            <div class="alert alert-danger">{{ error }}</div>
-          {% endfor %}
-        </div>
-      </div>
-      <div class="col-md-6">
-        <div class="form-group">
-          {{ baseline_form.discount_rate.label_tag }}
-          {{ baseline_form.discount_rate }}
-          {% for error in baseline_form.discount_rate.errors %}
-            <div class="alert alert-danger">{{ error }}</div>
-          {% endfor %}
-        </div>
+  
+  <div class="row form-row">
+    <div class="col-md-6">
+      <div class="form-group">
+        {{ baseline_form.carbon_price.label_tag }}
+        {{ baseline_form.carbon_price }}
+        {% for error in baseline_form.carbon_price.errors %}
+          <div class="alert alert-danger">{{ error }}</div>
+        {% endfor %}
       </div>
     </div>
-
-    <hr>
-
-    <!-- Technology Capacity and Multiplier Table -->
-    <div class="technology-table">
-      <div class="row technology-header">
-        <div class="col-md-3">Technology</div>
-        <div class="col-md-3">Capacity (MW/MWh)</div>
-        <div class="col-md-3">Multiplier</div>
-        <div class="col-md-3">Effective Capacity</div>
+    <div class="col-md-6">
+      <div class="form-group">
+        {{ baseline_form.discount_rate.label_tag }}
+        {{ baseline_form.discount_rate }}
+        {% for error in baseline_form.discount_rate.errors %}
+          <div class="alert alert-danger">{{ error }}</div>
+        {% endfor %}
       </div>
-
-      {% for technology in technologies %}
-        <div class="row technology-row">
-          <div class="col-md-3">
-            <label class="form-label">{{ technology.technology_name }}</label>
-          </div>
-          <div class="col-md-3">
-            <input type="text" 
-                   class="form-control readonly-input" 
-                   value="{{ technology.capacity|floatformat:2 }}" 
-                   readonly>
-            <!-- Hidden field for capacity -->
-            <input type="hidden" 
-                   name="capacity_{{ technology.pk }}" 
-                   value="{{ technology.capacity }}">
-          </div>
-          <div class="col-md-3">
-            <input type="number" 
-                   class="form-control multiplier-input" 
-                   name="multiplier_{{ technology.pk }}" 
-                   value="{{ technology.mult|default:1.0|floatformat:2 }}"
-                   step="0.01"
-                   min="0"
-                   data-tech-id="{{ technology.pk }}"
-                   data-capacity="{{ technology.capacity|default:0 }}">
-          </div>
-          <div class="col-md-3">
-            <input type="text" 
-                   class="form-control product-display" 
-                   id="product_{{ technology.pk }}" 
-                   value="{{ technology.capacity|default:0|mul:technology.mult|default:1.0|floatformat:2 }}" 
-                   readonly>
-          </div>
-        </div>
-      {% endfor %}
     </div>
+  </div>
 
-    <hr>
-
-    <!-- Display form errors -->
-    {% for field in baseline_form %}
-      {% for error in field.errors %}
-        <div class="alert alert-danger">
-            <strong>{{ error|escape }}</strong>
-        </div>
-      {% endfor %}
-    {% endfor %}
-
-    <!-- Save button -->
-    <div class="form-actions">
-      <button type="submit" name="save" class="btn btn-primary">Save Runtime Parameters</button>
-    </div>
-  </form>
-
-  <!-- Run Powermatch Form -->
   <hr>
-  {% csrf_token %}
-  {% crispy runpowermatch_form %}
 
-  <!-- JavaScript for real-time calculation -->
-  <script>
-    document.addEventListener('DOMContentLoaded', function() {
-      const multiplierInputs = document.querySelectorAll('.multiplier-input');
-      
-      multiplierInputs.forEach(function(input) {
-        input.addEventListener('input', function() {
-          const techId = this.getAttribute('data-tech-id');
-          const capacity = parseFloat(this.getAttribute('data-capacity')) || 0;
-          const multiplier = parseFloat(this.value) || 0;
-          const product = capacity * multiplier;
-          
-          const productDisplay = document.getElementById(`product_${techId}`);
-          if (productDisplay) {
-            productDisplay.value = product.toFixed(2);
-          }
-        });
+  <!-- Technology Capacity and Multiplier Table -->
+  <div class="technology-table">
+    <div class="row technology-header">
+      <div class="col-md-3">Technology</div>
+      <div class="col-md-3">Capacity (MW/MWh)</div>
+      <div class="col-md-3">Multiplier</div>
+      <div class="col-md-3">Effective Capacity</div>
+    </div>
+
+    {% for technology in technologies %}
+      <div class="row technology-row">
+        <div class="col-md-3">
+          <label class="form-label">{{ technology.technology_name }}</label>
+        </div>
+        <div class="col-md-3">
+          <input type="text" 
+                 class="form-control readonly-input" 
+                 value="{{ technology.capacity|floatformat:2 }}" 
+                 readonly>
+          <!-- Hidden field for capacity -->
+          <input type="hidden" 
+                 name="capacity_{{ technology.pk }}" 
+                 value="{{ technology.capacity }}">
+        </div>
+        <div class="col-md-3">
+          <input type="number" 
+                 class="form-control multiplier-input" 
+                 name="multiplier_{{ technology.pk }}" 
+                 value="{{ technology.mult|default:1.0|floatformat:2 }}"
+                 step="0.01"
+                 min="0"
+                 data-tech-id="{{ technology.pk }}"
+                 data-capacity="{{ technology.capacity|default:0 }}">
+        </div>
+        <div class="col-md-3">
+          <input type="text" 
+                 class="form-control product-display" 
+                 id="product_{{ technology.pk }}" 
+                 value="{{ technology.capacity|default:0|mul:technology.mult|default:1.0|floatformat:2 }}" 
+                 readonly>
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+
+  <hr>
+
+  <!-- Display form errors -->
+  {% for field in baseline_form %}
+    {% for error in field.errors %}
+      <div class="alert alert-danger">
+          <strong>{{ error|escape }}</strong>
+      </div>
+    {% endfor %}
+  {% endfor %}
+
+  <!-- Save button -->
+  <div class="form-actions">
+    <button type="submit" name="save" class="btn btn-primary">Save Runtime Parameters</button>
+  </div>
+</form>
+
+<!-- Run Powermatch Section with Progress -->
+<hr>
+
+<div class="row">
+  <div class="col-md-8">
+    <!-- Enhanced Run Powermatch Form -->
+    <div class="card">
+      <div class="card-header">
+        <h5>Run PowerMatch Analysis</h5>
+      </div>
+      <div class="card-body">
+        {% csrf_token %}
+        {{ runpowermatch_form.level_of_detail.label_tag }}
+        {{ runpowermatch_form.level_of_detail }}
         
-        // Also trigger on blur to ensure formatting
-        input.addEventListener('blur', function() {
-          const value = parseFloat(this.value);
-          if (!isNaN(value)) {
-            this.value = value.toFixed(2);
-          }
-        });
-      });
+        <div class="form-check mt-2">
+          {{ runpowermatch_form.save_baseline }}
+          {{ runpowermatch_form.save_baseline.label_tag }}
+        </div>
+        
+        <!-- Enhanced submit buttons -->
+        <div class="mt-3">
+          <button type="button" id="runStandardBtn" class="btn btn-success" onclick="runStandardAnalysis()">
+            <i class="fas fa-play"></i> Run Standard Analysis
+          </button>
+          <button type="button" id="runProgressBtn" class="btn btn-primary" onclick="runProgressAnalysis()">
+            <i class="fas fa-chart-line"></i> Run with Progress Tracking
+          </button>
+          <button type="button" id="cancelBtn" class="btn btn-danger" onclick="cancelAnalysis()" style="display: none;">
+            <i class="fas fa-stop"></i> Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <div class="col-md-4">
+    <!-- Progress Panel -->
+    <div class="card" id="progressPanel" style="display: none;">
+      <div class="card-header">
+        <h6>
+          <i class="fas fa-chart-line me-2"></i>
+          Analysis Progress
+          <span class="badge bg-info ms-2" id="connectionStatus">Disconnected</span>
+        </h6>
+      </div>
+      <div class="card-body">
+        <!-- Progress Bar -->
+        <div class="progress mb-3" style="height: 25px;">
+          <div class="progress-bar progress-bar-striped" 
+               id="progressBar" role="progressbar" 
+               style="width: 0%; font-weight: bold;" 
+               aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+            0%
+          </div>
+        </div>
+        
+        <!-- Status -->
+        <div class="alert alert-info" id="statusAlert">
+          <small id="statusMessage">Ready to start</small>
+        </div>
+        
+        <!-- Timing -->
+        <div class="row text-center">
+          <div class="col-6">
+            <small class="text-muted">Elapsed</small><br>
+            <strong id="elapsedTime">0s</strong>
+          </div>
+          <div class="col-6">
+            <small class="text-muted">Remaining</small><br>
+            <strong id="remainingTime">--</strong>
+          </div>
+        </div>
+        
+        <!-- Connection Info -->
+        <div class="mt-2 text-center">
+          <small class="text-muted" id="connectionInfo">Real-time updates ready</small>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Toast Container for Messages -->
+<div aria-live="polite" aria-atomic="true" style="position: relative; min-height: 200px;">
+  <div class="toast-container position-fixed top-0 end-0 p-3" id="toastContainer">
+    <!-- Toasts will be added here -->
+  </div>
+</div>
+
+<!-- CSS Styles -->
+<style>
+.progress-bar-animated {
+  animation: progress-bar-stripes 1s linear infinite;
+}
+
+.summary-card {
+  background: #f8f9fa;
+  border: 1px solid #dee2e6;
+  border-radius: 0.375rem;
+  padding: 1rem;
+  margin-bottom: 1rem;
+  border-left: 4px solid #28a745;
+}
+
+.summary-metric {
+  display: flex;
+  justify-content: space-between;
+  margin: 0.5rem 0;
+  padding: 0.25rem 0;
+  border-bottom: 1px solid #dee2e6;
+}
+
+.summary-metric:last-child {
+  border-bottom: none;
+}
+
+.metric-label {
+  color: #6c757d;
+  font-size: 0.875rem;
+}
+
+.metric-value {
+  font-weight: 600;
+  color: #212529;
+}
+
+.card {
+  box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+  border: 1px solid rgba(0, 0, 0, 0.125);
+}
+
+.progress {
+  background-color: #e9ecef;
+}
+
+.toast {
+  min-width: 300px;
+}
+
+#progressPanel {
+  transition: all 0.3s ease;
+}
+
+.technology-table .technology-header {
+  font-weight: bold;
+  background-color: #f8f9fa;
+  padding: 10px 0;
+  border-bottom: 2px solid #dee2e6;
+}
+
+.technology-row {
+  padding: 8px 0;
+  border-bottom: 1px solid #dee2e6;
+}
+
+.readonly-input {
+  background-color: #f8f9fa;
+}
+
+.multiplier-input:focus {
+  border-color: #80bdff;
+  box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+}
+
+/* SSE Connection Status Styles */
+#connectionStatus.connected {
+  background-color: #198754 !important;
+}
+
+#connectionStatus.connecting {
+  background-color: #fd7e14 !important;
+}
+
+#connectionStatus.disconnected {
+  background-color: #dc3545 !important;
+}
+
+#connectionStatus.error {
+  background-color: #dc3545 !important;
+  animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+  0% { opacity: 1; }
+  50% { opacity: 0.5; }
+  100% { opacity: 1; }
+}
+
+/* Progress Bar Enhancement */
+.progress-bar.completed {
+  background-color: #198754 !important;
+}
+
+.progress-bar.error {
+  background-color: #dc3545 !important;
+}
+</style>
+
+<!-- JavaScript for SSE Progress Tracking -->
+<script>
+// Global variables for SSE progress tracking
+let eventSource = null;
+let sessionId = null;
+let analysisRunning = false;
+
+// Configuration
+const CONFIG = {
+  csrf_token: '{{ csrf_token }}',
+  urls: {
+    start_analysis: '{% url "run_baseline_progress" %}',
+    standard_analysis: '{% url "run_baseline" %}',
+    download_results: '{% url "download_results" %}'
+  }
+};
+
+// Initialize page
+document.addEventListener('DOMContentLoaded', function() {
+  // Existing multiplier calculation functionality
+  const multiplierInputs = document.querySelectorAll('.multiplier-input');
+  
+  multiplierInputs.forEach(function(input) {
+    input.addEventListener('input', function() {
+      const techId = this.getAttribute('data-tech-id');
+      const capacity = parseFloat(this.getAttribute('data-capacity')) || 0;
+      const multiplier = parseFloat(this.value) || 0;
+      const product = capacity * multiplier;
+      
+      const productDisplay = document.getElementById(`product_${techId}`);
+      if (productDisplay) {
+        productDisplay.value = product.toFixed(2);
+      }
     });
-  </script>
+    
+    input.addEventListener('blur', function() {
+      const value = parseFloat(this.value);
+      if (!isNaN(value)) {
+        this.value = value.toFixed(2);
+      }
+    });
+  });
+  
+  // Initialize connection status
+  updateConnectionStatus('disconnected', 'Real-time updates ready');
+});
+
+// Run standard analysis (existing functionality)
+function runStandardAnalysis() {
+  if (analysisRunning) {
+    showToast('Analysis is already running', 'warning');
+    return;
+  }
+  
+  const form = document.getElementById('configForm');
+  const formData = new FormData(form);
+  
+  // Add level of detail and save baseline from the form
+  const levelOfDetail = document.querySelector('[name="level_of_detail"]').value;
+  const saveBaseline = document.querySelector('[name="save_baseline"]').checked;
+  
+  formData.append('level_of_detail', levelOfDetail);
+  formData.append('save_baseline', saveBaseline);
+  
+  // Disable buttons
+  analysisRunning = true;
+  updateButtonStates();
+  
+  // Submit to standard endpoint
+  fetch(CONFIG.urls.standard_analysis, {
+    method: 'POST',
+    headers: {
+      'X-CSRFToken': CONFIG.csrf_token,
+    },
+    body: formData
+  })
+  .then(response => {
+    if (response.headers.get('content-type').includes('text/html')) {
+      // Handle HTML response (redirect to results page)
+      return response.text().then(html => {
+        document.open();
+        document.write(html);
+        document.close();
+      });
+    } else {
+      return response.json();
+    }
+  })
+  .catch(error => {
+    console.error('Error:', error);
+    showToast('Failed to run analysis', 'error');
+    resetAnalysis();
+  });
+}
+
+// Run analysis with SSE progress tracking
+function runProgressAnalysis() {
+  if (analysisRunning) {
+    showToast('Analysis is already running', 'warning');
+    return;
+  }
+  
+  const form = document.getElementById('configForm');
+  const formData = new FormData(form);
+  
+  // Add level of detail and save baseline
+  const levelOfDetail = document.querySelector('[name="level_of_detail"]').value;
+  const saveBaseline = document.querySelector('[name="save_baseline"]').checked;
+  
+  formData.append('level_of_detail', levelOfDetail);
+  formData.append('save_baseline', saveBaseline);
+  
+  // Show progress panel
+  document.getElementById('progressPanel').style.display = 'block';
+  updateConnectionStatus('connecting', 'Starting analysis...');
+  
+  // Update UI
+  analysisRunning = true;
+  updateButtonStates();
+  
+  // Start the analysis
+  fetch(CONFIG.urls.start_analysis, {
+    method: 'POST',
+    headers: {
+      'X-CSRFToken': CONFIG.csrf_token,
+    },
+    body: formData
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.session_id && data.sse_url) {
+      sessionId = data.session_id;
+      
+      // Connect to Server-Sent Events stream
+      connectToProgressStream(data.sse_url);
+      
+      showToast(data.message || 'Analysis started with real-time progress', 'success');
+    } else {
+      throw new Error(data.error || 'Failed to start analysis');
+    }
+  })
+  .catch(error => {
+    console.error('Error:', error);
+    showToast(error.message || 'Failed to start analysis', 'error');
+    resetAnalysis();
+  });
+}
+
+function connectToProgressStream(sseUrl) {
+  // Close existing connection if any
+  if (eventSource) {
+    eventSource.close();
+  }
+  
+  updateConnectionStatus('connecting', 'Connecting to progress stream...');
+  
+  // Create new EventSource connection
+  eventSource = new EventSource(sseUrl);
+  
+  eventSource.onopen = function(event) {
+    console.log('SSE connection opened');
+    updateConnectionStatus('connected', 'Connected - receiving real-time updates');
+  };
+  
+  eventSource.onmessage = function(event) {
+    try {
+      const data = JSON.parse(event.data);
+      handleProgressUpdate(data);
+    } catch (error) {
+      console.error('Error parsing SSE data:', error);
+      updateConnectionStatus('error', 'Data parsing error');
+    }
+  };
+  
+  eventSource.onerror = function(event) {
+    console.error('SSE connection error:', event);
+    
+    if (eventSource.readyState === EventSource.CLOSED) {
+      console.log('SSE connection closed');
+      updateConnectionStatus('disconnected', 'Connection closed');
+      if (analysisRunning) {
+        showToast('Connection lost. Analysis may still be running.', 'warning');
+      }
+    } else {
+      updateConnectionStatus('error', 'Connection error - retrying...');
+    }
+  };
+}
+
+function handleProgressUpdate(data) {
+  switch (data.type) {
+    case 'connected':
+      console.log('Connected to progress stream');
+      updateConnectionStatus('connected', 'Connected - receiving updates');
+      break;
+      
+    case 'progress':
+      updateProgressDisplay(data);
+      break;
+      
+    case 'completed':
+      handleAnalysisComplete(data);
+      break;
+      
+    case 'completed_download':
+      handleDownloadComplete(data);
+      break;
+      
+    case 'error':
+      handleAnalysisError(data);
+      break;
+      
+    case 'keepalive':
+      // Just a keepalive message, update last seen
+      updateConnectionStatus('connected', 'Connected - receiving updates');
+      break;
+      
+    default:
+      console.log('Unknown SSE message type:', data.type, data);
+  }
+}
+
+function updateProgressDisplay(data) {
+  const progressBar = document.getElementById('progressBar');
+  const statusMessage = document.getElementById('statusMessage');
+  const elapsedTime = document.getElementById('elapsedTime');
+  const remainingTime = document.getElementById('remainingTime');
+  
+  // Update progress bar
+  const percentage = Math.round(data.percentage || 0);
+  progressBar.style.width = `${percentage}%`;
+  progressBar.setAttribute('aria-valuenow', percentage);
+  progressBar.textContent = `${percentage}%`;
+  
+  // Add animation if not already present
+  if (percentage > 0 && !progressBar.classList.contains('progress-bar-animated')) {
+    progressBar.classList.add('progress-bar-animated');
+  }
+  
+  // Update status message
+  statusMessage.textContent = data.message || 'Processing...';
+  
+  // Update timing information
+  if (data.elapsed_time !== undefined) {
+    const elapsed = data.elapsed_time;
+    elapsedTime.textContent = elapsed < 60 ? `${elapsed.toFixed(1)}s` : `${(elapsed/60).toFixed(1)}m`;
+  }
+  
+  if (data.estimated_remaining !== undefined && data.estimated_remaining > 0) {
+    const remaining = data.estimated_remaining;
+    remainingTime.textContent = remaining < 60 ? `${remaining.toFixed(0)}s` : `${(remaining/60).toFixed(1)}m`;
+  } else if (data.percentage > 0) {
+    remainingTime.textContent = 'Calculating...';
+  }
+  
+  // Update connection info with progress details
+  updateConnectionStatus('connected', `Receiving updates - ${percentage}% complete`);
+}
+
+function handleAnalysisComplete(data) {
+  // Update progress to 100%
+  updateProgressDisplay({
+    percentage: 100,
+    message: data.message || 'Analysis complete! Redirecting...'
+  });
+  
+  // Update progress bar style
+  const progressBar = document.getElementById('progressBar');
+  progressBar.classList.remove('progress-bar-animated');
+  progressBar.classList.add('completed');
+  
+  // Close SSE connection
+  if (eventSource) {
+    eventSource.close();
+    eventSource = null;
+  }
+  
+  updateConnectionStatus('disconnected', 'Analysis complete - redirecting...');
+  showToast('Analysis completed successfully! Redirecting to results...', 'success');
+  
+  // Redirect to results page after a brief delay
+  setTimeout(() => {
+    window.location.href = data.redirect_url;
+  }, 1500);
+}
+
+function handleDownloadComplete(data) {
+  // Close SSE connection
+  if (eventSource) {
+    eventSource.close();
+    eventSource = null;
+  }
+  
+  // Update progress display
+  updateProgressDisplay({
+    percentage: 100,
+    message: 'Analysis complete! Preparing download...'
+  });
+  
+  const progressBar = document.getElementById('progressBar');
+  progressBar.classList.remove('progress-bar-animated');
+  progressBar.classList.add('completed');
+  
+  updateConnectionStatus('disconnected', 'Analysis complete - download ready');
+  showToast('Analysis completed! Download will start automatically.', 'success');
+  
+  // Trigger download
+  const downloadUrl = `/download-results/${sessionId}/`;
+  const link = document.createElement('a');
+  link.href = downloadUrl;
+  link.download = data.download_filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  
+  // Reset UI after download
+  setTimeout(resetAnalysis, 2000);
+}
+
+function handleAnalysisError(data) {
+  // Close SSE connection
+  if (eventSource) {
+    eventSource.close();
+    eventSource = null;
+  }
+  
+  // Update progress bar to show error
+  const progressBar = document.getElementById('progressBar');
+  progressBar.classList.remove('progress-bar-animated');
+  progressBar.classList.add('error');
+  
+  updateConnectionStatus('error', 'Analysis failed');
+  showToast(data.error || 'Analysis failed', 'error');
+  resetAnalysis();
+}
+
+function updateConnectionStatus(status, message) {
+  const statusBadge = document.getElementById('connectionStatus');
+  const connectionInfo = document.getElementById('connectionInfo');
+  
+  // Remove all status classes
+  statusBadge.classList.remove('connected', 'connecting', 'disconnected', 'error');
+  
+  // Add current status class
+  statusBadge.classList.add(status);
+  
+  // Update text
+  switch(status) {
+    case 'connected':
+      statusBadge.textContent = 'Connected';
+      break;
+    case 'connecting':
+      statusBadge.textContent = 'Connecting';
+      break;
+    case 'disconnected':
+      statusBadge.textContent = 'Disconnected';
+      break;
+    case 'error':
+      statusBadge.textContent = 'Error';
+      break;
+  }
+  
+  if (connectionInfo) {
+    connectionInfo.textContent = message;
+  }
+}
+
+function cancelAnalysis() {
+  if (!sessionId) return;
+  
+  // Close SSE connection
+  if (eventSource) {
+    eventSource.close();
+    eventSource = null;
+  }
+  
+  updateConnectionStatus('disconnected', 'Cancelling analysis...');
+  
+  // Send cancel request
+  fetch(`/cancel-analysis/${sessionId}/`, {
+    method: 'POST',
+    headers: {
+      'X-CSRFToken': CONFIG.csrf_token,
+    }
+  })
+  .then(response => response.json())
+  .then(data => {
+    showToast(data.message || 'Analysis cancelled', 'warning');
+    resetAnalysis();
+  })
+  .catch(error => {
+    console.error('Error cancelling analysis:', error);
+    resetAnalysis();
+  });
+}
+
+function resetAnalysis() {
+  analysisRunning = false;
+  sessionId = null;
+  
+  // Close SSE connection if still open
+  if (eventSource) {
+    eventSource.close();
+    eventSource = null;
+  }
+  
+  updateButtonStates();
+  document.getElementById('progressPanel').style.display = 'none';
+  
+  // Reset progress display
+  const progressBar = document.getElementById('progressBar');
+  progressBar.style.width = '0%';
+  progressBar.setAttribute('aria-valuenow', 0);
+  progressBar.textContent = '0%';
+  progressBar.classList.remove('progress-bar-animated', 'completed', 'error');
+  
+  document.getElementById('statusMessage').textContent = 'Ready to start';
+  document.getElementById('elapsedTime').textContent = '0s';
+  document.getElementById('remainingTime').textContent = '--';
+  
+  updateConnectionStatus('disconnected', 'Real-time updates ready');
+}
+
+function updateButtonStates() {
+  const runStandardBtn = document.getElementById('runStandardBtn');
+  const runProgressBtn = document.getElementById('runProgressBtn');
+  const cancelBtn = document.getElementById('cancelBtn');
+  
+  if (analysisRunning) {
+    runStandardBtn.disabled = true;
+    runProgressBtn.disabled = true;
+    cancelBtn.style.display = 'inline-block';
+  } else {
+    runStandardBtn.disabled = false;
+    runProgressBtn.disabled = false;
+    cancelBtn.style.display = 'none';
+  }
+}
+
+function showToast(message, type = 'info') {
+  const toastContainer = document.getElementById('toastContainer');
+  
+  const toast = document.createElement('div');
+  toast.className = `toast align-items-center text-white bg-${type === 'error' ? 'danger' : type === 'warning' ? 'warning' : type === 'success' ? 'success' : 'primary'} border-0`;
+  toast.setAttribute('role', 'alert');
+  toast.setAttribute('aria-live', 'assertive');
+  toast.setAttribute('aria-atomic', 'true');
+  
+  toast.innerHTML = `
+    <div class="d-flex">
+      <div class="toast-body">
+        ${message}
+      </div>
+      <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+    </div>
+  `;
+  
+  toastContainer.appendChild(toast);
+  
+  // Initialize Bootstrap toast if available, otherwise use setTimeout
+  if (typeof bootstrap !== 'undefined' && bootstrap.Toast) {
+    const bsToast = new bootstrap.Toast(toast);
+    bsToast.show();
+  } else {
+    toast.style.display = 'block';
+    setTimeout(() => {
+      if (toastContainer.contains(toast)) {
+        toastContainer.removeChild(toast);
+      }
+    }, 5000);
+  }
+}
+
+// Clean up on page unload
+window.addEventListener('beforeunload', function() {
+  if (eventSource) {
+    eventSource.close();
+  }
+});
+
+// Handle visibility changes (user switches tabs)
+document.addEventListener('visibilitychange', function() {
+  if (document.hidden && eventSource) {
+    console.log('Page hidden but SSE connection maintained');
+  } else if (!document.hidden && sessionId && !eventSource) {
+    console.log('Page visible again - SSE should be reconnected by browser');
+  }
+});
+</script>
 
 {% endblock %}

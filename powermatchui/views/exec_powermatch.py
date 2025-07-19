@@ -1,11 +1,12 @@
 # run_powermatch.py
 from django.contrib.auth.decorators import login_required
 import numpy as np
-from siren_web.database_operations import get_scenario_by_title, fetch_module_settings_data, fetch_scenario_settings_data, \
-    fetch_technology_attributes, fetch_supplyfactors_data
+from siren_web.database_operations import get_scenario_by_title, delete_analysis_scenario, fetch_module_settings_data, \
+    fetch_scenario_settings_data, fetch_technology_attributes, fetch_supplyfactors_data
 from siren_web.models import Analysis, ScenariosSettings
 from typing import Dict, Any, Tuple
 from .balance_grid_load import Technology, PowerMatchProcessor, DispatchResults
+from .progress_handler import enhance_powermatch_progress
 
 def save_analysis(i, sp_data, metadata, scenario, variation, stage):
     """
@@ -46,6 +47,7 @@ def save_analysis(i, sp_data, metadata, scenario, variation, stage):
     # Insert technology-specific data
     analysis_records = []
     scenario_obj = get_scenario_by_title(scenario)
+    delete_analysis_scenario(scenario_obj)
     for row in sp_data:
         technology_name = row['technology']
         
@@ -478,3 +480,92 @@ def submit_powermatch(demand_year, scenario,
                 save_analysis(i, sp_data, metadata, scenario, variation, Stage)
 
         return dispatch_results
+
+def submit_powermatch_with_progress(demand_year, scenario, option, stages, 
+                                   variation_inst, save_data, progress_handler) -> DispatchResults:
+    """Enhanced submit_powermatch with progress reporting"""
+    if progress_handler:
+        progress_handler.update(10, "Initializing PowerMatch submission...")
+    try:
+        progress_handler.update(12, "Loading scenario settings...")
+        scenario_settings = fetch_scenario_settings_data(scenario)
+        if not scenario_settings:
+            scenario_settings = fetch_module_settings_data('Powermatch')
+        
+        if save_data or option == 'D':
+            progress_handler.update(20, "Loading supply factors data...")
+            load_and_supply = fetch_supplyfactors_data(demand_year, scenario)
+            progress_handler.update(30, "Loading technology attributes data...")
+            technology_attributes = fetch_technology_attributes(demand_year, scenario)
+        
+        progress_handler.update(35, "Processing analysis stages...")
+        
+        for i in range(stages):
+            stage_progress = 35 + (50 * (i + 1) / stages)
+            progress_handler.update(int(stage_progress), f"Processing stage {i+1} of {stages}...")
+            
+            # Handle variations (if any)
+            if variation_inst:
+                # Your existing variation handling code here
+                pass
+            
+            # Determine action type
+            if option == 'D':
+                action = 'Detail'
+            else:
+                action = 'Summary'
+            
+            # Run PowerMatch with enhanced progress tracking
+            if save_data or option == 'D':
+                progress_handler.update(message="Running PowerMatch analysis...")
+                pm = PowerMatchProcessor(
+                    scenario_settings, 
+                    progress_handler=progress_handler,
+                    event_callback=lambda: progress_handler.update(increment=False)
+                )
+                
+                # Enhance the processor with detailed progress tracking
+                pm = enhance_powermatch_progress(pm)
+                
+                dispatch_results = pm.matchSupplytoLoad(
+                    demand_year, option, action, technology_attributes, load_and_supply
+                )
+                sp_data = dispatch_results.summary_data
+                metadata = dispatch_results.metadata
+                hourly_data = dispatch_results.hourly_data
+            else:
+                from powermatchui.views.exec_powermatch import fetch_analysis
+                progress_handler.update(message="Fetching existing analysis...")
+                sp_data, metadata = fetch_analysis(scenario, 'Baseline', 0)
+                hourly_data = None
+                dispatch_results = DispatchResults(
+                    summary_data=sp_data,
+                    metadata=metadata,
+                    hourly_data=hourly_data
+                )
+        
+        
+        
+        # Save results if requested
+        if save_data and option != 'D':
+            progress_handler.update(85, "Saving analysis results...")
+            if variation_inst:
+                variation = variation_inst.variation_name
+                Stage = i + 1
+            else:
+                variation = 'Baseline'
+                Stage = 0
+            if save_data:
+                save_analysis(i, sp_data, metadata, scenario, variation, Stage)
+        
+        progress_handler.update(100, "Analysis complete!")
+        return dispatch_results
+    
+    except Exception as e:
+        if progress_handler:
+            progress_handler.update(
+                step=progress_handler.current_step, 
+                message=f"Error: {str(e)}", 
+                increment=False
+            )
+        raise e

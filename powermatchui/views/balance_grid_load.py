@@ -926,10 +926,13 @@ class PowerMatchProcessor:
             'surplus_sign': self.surplus_sign
         }
     
-    def _update_progress(self, value):
+    def _update_progress(self, value, message=None):
         """Update progress bar if available"""
-        if hasattr(self, 'listener') and self.listener and hasattr(self.listener, 'progress_bar'):
-            self.listener.progress_bar.setValue(value)
+        if hasattr(self, 'listener') and self.listener:
+            if hasattr(self.listener, 'progress_bar'):
+                self.listener.progress_bar.setValue(value)
+            if hasattr(self.listener, 'update') and message:
+                self.listener.update(step=value, message=message, increment=False)
         if self.event_callback:
             self.event_callback()
     
