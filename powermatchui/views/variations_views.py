@@ -1,11 +1,12 @@
 #  variations_views.py
-from siren_web.database_operations import fetch_technology_attributes, check_analysis_baseline, get_technology_with_year_data
+from siren_web.database_operations import fetch_technology_attributes, check_analysis_baseline, fetch_technology_by_id
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import render
 from django.http import HttpResponse
-from siren_web.models import Analysis, Scenarios, Technologies, variations  # Import the Scenario model
+from siren_web.models import Analysis, Scenarios, variations  # Import the Scenario model
 from ..forms import RunVariationForm, SelectVariationForm
-from powermatchui.views.exec_powermatch import submit_powermatch
+from powermatchui.views.exec_powermatch import submit_powermatch_with_progress
+from powermatchui.views.baseline_scenario_views import process_results_for_template, create_summary_report
 
 # Process form data
 @login_required
@@ -94,22 +95,30 @@ def run_variations(request) -> HttpResponse:
             # Refresh the existing variation or create a new one if selected.
             variation_name = cleaned_data['variation_name']
             idtechnologies = cleaned_data['idtechnologies']
+            technology_obj = fetch_technology_by_id(idtechnologies)
+            tech_name = technology_obj[0].technology_name
             dimension = cleaned_data['dimension']
             step = cleaned_data['step']
-            technology = get_technology_with_year_data(idtechnologies, demand_year)# Get the first technology
-            variation_gen_name = f"{technology.technology_signature}{dimension[:3]}{str(step)}.{str(stages)}"
+            technology = technologies[tech_name]
+            variation_gen_name = f"{technology.tech_signature}{dimension[:3]}{str(step)}.{str(stages)}"
             variation_description = \
-                f"A variation for {technology.technology_name} with {dimension} changed by {str(step)} over {str(stages)} stages."
+                f"A variation for {technology.tech_name} with {dimension} changed by {str(step)} over {str(stages)} stages."
             scenario_obj = Scenarios.objects.get(title=scenario)
-            if dimension == 'capacity':
-                startval = technology.capacity
+            if dimension == 'multiplier':
+                startval = technology.multiplier
+            elif dimension == 'capex':
+                startval = technology.capex
+            elif dimension == 'fom':
+                startval = technology.fixed_om
+            elif dimension == 'vom':
+                startval = technology.variable_om
             elif dimension == 'lifetime':
                 startval = technology.lifetime
             if variation_name == 'new':
                 try:
                     variation = variations.objects.create(
                         idscenarios=scenario_obj,
-                        idtechnologies=technology,
+                        idtechnologies=technology_obj[0],
                         variation_name=variation_gen_name,
                         variation_description=variation_description,
                         dimension=dimension,
@@ -125,7 +134,7 @@ def run_variations(request) -> HttpResponse:
                     variation_name=variation_name,
                     idscenarios=scenario_obj,
                     )
-                variation_inst.idtechnologies = technology
+                variation_inst.idtechnologies = technology_obj[0]
                 variation_inst.variation_description = variation_description
                 variation_inst.variation_name = variation_gen_name
                 variation_inst.dimension = dimension
@@ -136,30 +145,19 @@ def run_variations(request) -> HttpResponse:
                 option = 'S'
                 scenario_obj = Scenarios.objects.get(title=scenario)
                 clearScenario(scenario_obj, variation_name)
-                # Iterate and call matchSupplytoLoad
-                save_data = True
-                sp_output, headers, sp_pts = submit_powermatch(
-                    demand_year, scenario, option, stages, variation_inst
-                    )
-                sp_data = []
-                for row in sp_output:
-                    formatted_row = []
-                    for item in row:
-                        if isinstance(item, float):
-                            formatted_row.append('{:,.2f}'.format(item))
-                        else:
-                            formatted_row.append(item)
-                    sp_data.append(formatted_row)
+                # Iterate and call powerMatch
+                dispatch_results = submit_powermatch_with_progress(
+                    demand_year, scenario, option, stages,
+                    variation_inst, True, progress_handler=None
+                )
+                # Process data for display
+                context = process_results_for_template(
+                    dispatch_results, scenario, True, 
+                    demand_year, request.session.get('config_file')
+                )
                 success_message = 'Create variants run has completed.'
-                context = {
-                    'sp_data': sp_data, 'headers': headers, 
-                    'sp_pts': sp_pts,
-                    'demand_year': demand_year,
-                    'scenario': scenario,
-                    'config_file': config_file,
-                    'success_message': success_message, 
-                }
                 return render(request, 'display_table.html', context)
+            
     variation_name = request.POST.get('variation_name')
     variation_form = SelectVariationForm(selected_variation=variation_name)
     success_message = 'Select a variation and hit the Refresh button first.'

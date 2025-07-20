@@ -227,13 +227,11 @@ class RunPowermatchForm(forms.Form):
 class RunVariationForm(forms.Form):
     def __init__(self, *args, **kwargs):
         DIMENSION_CHOICES = [
-            ('capacity', 'Capacity'),
             ('multiplier', 'Multiplier'),
             ('capex', 'Capex'),
             ('fom', 'FOM'),
             ('vom', 'VOM'),
             ('lifetime', 'Lifetime'),
-            ('discount_rate', 'Discount Rate'),
         ]
         technologies = kwargs.pop('technologies')
         variation_data = kwargs.pop('variation_data', None)
@@ -261,7 +259,7 @@ class RunVariationForm(forms.Form):
                 continue
             technology = value
             tech_key = f"{technology.tech_id}"
-            self.fields[f"capacity_{tech_key}"] = forms.Field(initial=technology.capacity, label=f"Capacity")
+            self.fields[f"mult_{tech_key}"] = forms.Field(initial=technology.multiplier, label=f"Multiplier")
             self.fields[f"capex_{tech_key}"] = forms.FloatField(initial=technology.capex, label=f"Capex")
             self.fields[f"fom_{tech_key}"] = forms.FloatField(initial=technology.fixed_om, label=f"FOM")
             self.fields[f"vom_{tech_key}"] = forms.FloatField(initial=technology.variable_om, label=f"VOM")            
@@ -283,16 +281,14 @@ class RunVariationForm(forms.Form):
                     required=False
                 )
                 self.fields[f"step_{tech_key}"] = forms.FloatField(label=f"Step", required=False)
-                
+
             accordion_group_fields = [
                 # Div(f"{tech_name} details",
-                Div(Field(f"capacity_{tech_key}", readonly=True, css_class='row col-md-4'),
-                    Field(f"mult_{tech_key}", readonly=True, css_class='row col-md-4'),
+                Div(Field(f"mult_{tech_key}", readonly=True, css_class='row col-md-4'),
                     Field(f"capex_{tech_key}", readonly=True, css_class='row col-md-4'),
                     Field(f"fom_{tech_key}", readonly=True, css_class='row col-md-4'),
                     Field(f"vom_{tech_key}", readonly=True, css_class='row col-md-4'),
                     Field(f"lifetime_{tech_key}", readonly=True, css_class='row col-md-4'),
-                    Field(f"discount_rate_{tech_key}", readonly=True, css_class='row col-md-4'),
                     HTML("<hr>"),
                 ),
                 Div(
@@ -305,8 +301,8 @@ class RunVariationForm(forms.Form):
                 ),
                 HTML("<hr>")
             ]
-            
-            accordion_groups.append(AccordionGroup(f"{tech_name} Details", *accordion_group_fields)) 
+            accordion_groups.append(AccordionGroup(f"{tech_name} Details", *accordion_group_fields))
+
         self.helper = FormHelper()
         self.helper.form_action = '/variations/'
         self.helper.layout = Layout(

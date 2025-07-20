@@ -6,7 +6,7 @@ from siren_web.database_operations import get_scenario_by_title, delete_analysis
 from siren_web.models import Analysis, ScenariosSettings
 from typing import Dict, Any, Tuple
 from .balance_grid_load import Technology, PowerMatchProcessor, DispatchResults
-from .progress_handler import enhance_powermatch_progress
+
 
 def save_analysis(i, sp_data, metadata, scenario, variation, stage):
     """
@@ -47,7 +47,7 @@ def save_analysis(i, sp_data, metadata, scenario, variation, stage):
     # Insert technology-specific data
     analysis_records = []
     scenario_obj = get_scenario_by_title(scenario)
-    delete_analysis_scenario(scenario_obj)
+
     for row in sp_data:
         technology_name = row['technology']
         
@@ -370,76 +370,23 @@ def submit_powermatch(demand_year, scenario,
             fetch_technology_attributes(demand_year, scenario)
     
     for i in range(stages):
-        # 0 Technology
-        # 1 Capacity (Gen, MW Stor, MWh)  
-        # 2 To meet Load (MWh)
-        # 3 Subtotal (MWh)
-        # 4 CF
-        # 5 Cost ($/yr)
-        # 6 LCOG Cost ($/MWh)
-        # 7 LCOE Cost ($/MWh)
-        # 8 Emissions (tCO2e)
-        # 9 Emissions Cost
-        # 10 LCOE incl. Carbon Cost
-        # 11 Max. MWH
-        # 12 Max. Balance
-        # 13 Capital Cost
-        # 14 Lifetime Cost
-        # 15 Lifetime Emissions
-        # 16 Lifetime Emissions Cost
-        # 17 Reference LCOE
-        # 18 Reference CF
                 
-        # If dimension is capacity then adjust capacity by step value each iteration
+        # For variations adjust the dimension up by the step value each iteration
         if variation_inst:
             technology = variation_inst.idtechnologies
             dimension = variation_inst.dimension
             step = variation_inst.step
             technology_name = technology.technology_name
-            capex_step = 0
-            lifetime_step = 0
-            
-            if dimension == 'capacity':
-                technology_attributes[technology_name] = Technology(
-                    technology_attributes[technology_name].name, 
-                    technology_attributes[technology_name].name, 
-                    technology_attributes[technology_name].capacity + step, 'R', 
-                    technology_attributes[technology_name].col, 
-                    technology_attributes[technology_name].multiplier
-                )
+            if dimension == 'multiplier':
+                technology_attributes[technology_name].multiplier += step
             elif dimension == 'capex':
-                capex_step = step
+                technology_attributes[technology_name].capex += step
+            elif dimension == 'fom':
+                technology_attributes[technology_name].fixed_om += step
+            elif dimension == 'vom':
+                technology_attributes[technology_name].variable_om += step
             elif dimension == 'lifetime':
-                lifetime_step = step
-                
-            # Update generator with variation if it affects this technology
-            if technology_name in technology_attributes:
-                original_facility = technology_attributes[technology_name]
-                technology_attributes[technology_name] = Technology(
-                    generator_name=original_facility.generator_name,
-                    category=original_facility.category,
-                    capacity=original_facility.capacity,
-                    capacity_max=original_facility.capacity_max,
-                    capacity_min=original_facility.capacity_min,
-                    recharge_max=original_facility.recharge_max,
-                    recharge_loss=original_facility.recharge_loss,
-                    min_runtime=original_facility.min_runtime,
-                    warm_time=original_facility.warm_time,
-                    discharge_max=original_facility.discharge_max,
-                    discharge_loss=original_facility.discharge_loss,
-                    parasitic_loss=original_facility.parasitic_loss,
-                    emissions=original_facility.emissions,
-                    initial=original_facility.initial,
-                    order=original_facility.order,
-                    capex=original_facility.capex + capex_step,
-                    fixed_om=original_facility.fixed_om,
-                    variable_om=original_facility.variable_om,
-                    fuel=original_facility.fuel,
-                    lifetime=original_facility.lifetime + lifetime_step,
-                    area=original_facility.area,
-                    lcoe=original_facility.lcoe,
-                    lcoe_cfs=original_facility.lcoe_cfs
-                )
+                technology_attributes[technology_name].lifetime += step
 
         if option == 'D':
             action = 'Detail'
@@ -469,11 +416,13 @@ def submit_powermatch(demand_year, scenario,
             print(f"Hourly data available for {hourly_data.shape[0]} hours, {hourly_data.shape[1]} columns")
     
         # Save results if not detailed option
-        if save_data and option != 'D':
+        if save_data:
             if variation_inst:
                 variation = variation_inst.variation_name
                 Stage = i + 1
             else:
+                scenario_obj = get_scenario_by_title(scenario)
+                delete_analysis_scenario(scenario_obj)
                 variation = 'Baseline'
                 Stage = 0
             if save_data:
@@ -487,45 +436,65 @@ def submit_powermatch_with_progress(demand_year, scenario, option, stages,
     if progress_handler:
         progress_handler.update(10, "Initializing PowerMatch submission...")
     try:
-        progress_handler.update(12, "Loading scenario settings...")
+        if progress_handler:
+            progress_handler.update(12, "Loading scenario settings...")
         scenario_settings = fetch_scenario_settings_data(scenario)
         if not scenario_settings:
             scenario_settings = fetch_module_settings_data('Powermatch')
         
         if save_data or option == 'D':
-            progress_handler.update(20, "Loading supply factors data...")
+            if progress_handler:
+                progress_handler.update(20, "Loading supply factors data...")
             load_and_supply = fetch_supplyfactors_data(demand_year, scenario)
-            progress_handler.update(30, "Loading technology attributes data...")
+            if progress_handler:
+                progress_handler.update(30, "Loading technology attributes data...")
             technology_attributes = fetch_technology_attributes(demand_year, scenario)
+        if progress_handler:
+            progress_handler.update(35, "Processing analysis stages...")
+
+        # Determine action type
+        if option == 'D':
+            action = 'Detail'
+        else:
+            action = 'Summary'
         
-        progress_handler.update(35, "Processing analysis stages...")
-        
-        for i in range(stages):
-            stage_progress = 35 + (50 * (i + 1) / stages)
-            progress_handler.update(int(stage_progress), f"Processing stage {i+1} of {stages}...")
-            
-            # Handle variations (if any)
-            if variation_inst:
-                # Your existing variation handling code here
-                pass
-            
-            # Determine action type
-            if option == 'D':
-                action = 'Detail'
-            else:
-                action = 'Summary'
-            
-            # Run PowerMatch with enhanced progress tracking
-            if save_data or option == 'D':
+        # Run PowerMatch with enhanced progress tracking
+        if save_data or option == 'D':
+            if progress_handler:
                 progress_handler.update(message="Running PowerMatch analysis...")
                 pm = PowerMatchProcessor(
                     scenario_settings, 
                     progress_handler=progress_handler,
                     event_callback=lambda: progress_handler.update(increment=False)
                 )
-                
-                # Enhance the processor with detailed progress tracking
-                pm = enhance_powermatch_progress(pm)
+            else:
+                pm = PowerMatchProcessor(
+                    scenario_settings, 
+                    progress_handler=None,
+                    event_callback=None
+                )
+
+        for i in range(stages):
+            stage_progress = 35 + (50 * (i + 1) / stages)
+            if progress_handler:
+                progress_handler.update(int(stage_progress), f"Processing stage {i+1} of {stages}...")
+            
+            # For variations adjust the dimension up by the step value each iteration
+            if variation_inst:
+                technology = variation_inst.idtechnologies
+                dimension = variation_inst.dimension
+                step = variation_inst.step
+                technology_name = technology.technology_name
+                if dimension == 'multiplier':
+                    technology_attributes[technology_name].multiplier += step
+                elif dimension == 'capex':
+                    technology_attributes[technology_name].capex += step
+                elif dimension == 'fom':
+                    technology_attributes[technology_name].fixed_om += step
+                elif dimension == 'vom':
+                    technology_attributes[technology_name].variable_om += step
+                elif dimension == 'lifetime':
+                    technology_attributes[technology_name].lifetime += step
                 
                 dispatch_results = pm.matchSupplytoLoad(
                     demand_year, option, action, technology_attributes, load_and_supply
@@ -535,7 +504,8 @@ def submit_powermatch_with_progress(demand_year, scenario, option, stages,
                 hourly_data = dispatch_results.hourly_data
             else:
                 from powermatchui.views.exec_powermatch import fetch_analysis
-                progress_handler.update(message="Fetching existing analysis...")
+                if progress_handler:
+                    progress_handler.update(80, "Fetching existing analysis...")
                 sp_data, metadata = fetch_analysis(scenario, 'Baseline', 0)
                 hourly_data = None
                 dispatch_results = DispatchResults(
@@ -544,21 +514,22 @@ def submit_powermatch_with_progress(demand_year, scenario, option, stages,
                     hourly_data=hourly_data
                 )
         
-        
-        
-        # Save results if requested
-        if save_data and option != 'D':
-            progress_handler.update(85, "Saving analysis results...")
-            if variation_inst:
-                variation = variation_inst.variation_name
-                Stage = i + 1
-            else:
-                variation = 'Baseline'
-                Stage = 0
+            # Save results if requested
             if save_data:
+                if progress_handler:
+                    progress_handler.update(85, "Saving analysis results...")
+                if variation_inst:
+                    variation = variation_inst.variation_name
+                    Stage = i + 1
+                else:
+                    variation = 'Baseline'
+                    Stage = 0
+                    scenario_obj = get_scenario_by_title(scenario)
+                    delete_analysis_scenario(scenario_obj)
                 save_analysis(i, sp_data, metadata, scenario, variation, Stage)
         
-        progress_handler.update(100, "Analysis complete!")
+        if progress_handler:
+            progress_handler.update(100, "Analysis complete!")
         return dispatch_results
     
     except Exception as e:

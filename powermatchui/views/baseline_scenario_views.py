@@ -488,76 +488,17 @@ def run_baseline(request):
                 demand_year, scenario, option, 1, 
                 None, save_baseline
                 )
-            sp_output = dispatch_results.summary_data
-            metadata = dispatch_results.metadata
             if option == 'D':
                 data_file = f"{scenario}-baseline detailed results"
                 response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
                 response['Content-Disposition'] = f"attachment; filename={data_file}.xlsx"
                 return response
             else:
-                sp_data = []
-                for row in sp_output:
-                    formatted_row = []
-                    for item in row:
-                        if isinstance(item, float):
-                            formatted_row.append('{:,.2f}'.format(item))
-                        else:
-                            formatted_row.append(item)
-                    sp_data.append(formatted_row)
-                
-                if save_baseline:
-                    success_message = "Baseline re-established"
-                else:
-                    success_message = "Baseline run complete"
-                # Prepare headers for display
-                header_mapping = {
-                    'capacity_mw': 'Capacity',
-                    'generation_mwh': 'Generation',
-                    'to_meet_load_mwh': 'To Meet Load',
-                    'capacity_factor': 'CF',
-                    'annual_cost': 'Cost',
-                    'lcog_per_mwh': 'LCOG Cost',
-                    'lcoe_per_mwh': 'LCOE Cost',
-                    'emissions_tco2e': 'Emissions',
-                    'emissions_cost': 'Emissions Cost',
-                    'lcoe_with_co2_per_mwh': 'LCOE with CO2 Cost',
-                    'max_generation_mw': 'Max Generation',
-                    'max_balance': 'Max Balance',
-                    'capital_cost': 'Capital Cost',
-                    'lifetime_cost': 'Lifetime Cost',
-                    'lifetime_emissions': 'Lifetime Emissions',
-                    'lifetime_emissions_cost': 'Lifetime Emissions Cost',
-                    'area_km2': 'Area km²',
-                    'reference_lcoe': 'Reference LCOE',
-                    'reference_cf': 'Reference CF'
-                }
-                original_headers = list(sp_output.dtype.names)
-                readable_headers = []
-                for header in original_headers:
-                    readable_headers.append(header_mapping.get(header, header))
-                # Convert structured array to list of lists
-                sp_data_list = []
-                for row in sp_output:
-                    row_data = []
-                    for field in original_headers:
-                        value = row[field]
-                        # Check if value is numeric and round to 2 decimal places
-                        if isinstance(value, (int, float, np.number)):
-                            row_data.append(round(float(value), 2))
-                        else:
-                            row_data.append(value)
-                    sp_data_list.append(row_data)
-                # Create the summary report
-                summary_report = create_summary_report(scenario, dispatch_results)
-                context = {
-                    'sp_data': sp_data_list, 'headers': readable_headers,
-                    'summary_report': summary_report,
-                    'success_message': success_message,
-                    'demand_year': demand_year,
-                    'scenario': scenario,
-                    'config_file': config_file,
-                }
+                # Process data for display
+                context = process_results_for_template(
+                    dispatch_results, scenario, save_baseline, 
+                    demand_year, request.session.get('config_file')
+                )
                 return render(request, 'display_table.html', context)
                 
         technologies = fetch_technologies_with_multipliers(scenario)

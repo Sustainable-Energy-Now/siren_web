@@ -11,7 +11,7 @@ class Technology:
         self.order = 0
         self.lifetime = 20
         self.area = 0.0
-        for attr in ['tech_id', 'tech_name', 'tech_type', 'category', 'renewable', 'dispatchable', 'capacity', 'multiplier', 
+        for attr in ['tech_id', 'tech_name', 'tech_signature', 'tech_type', 'category', 'renewable', 'dispatchable', 'capacity', 'multiplier', 
                      'capacity_max', 'capacity_min', 'lcoe', 'lcoe_cf', 'recharge_max', 'recharge_loss', 'min_runtime', 
                      'warm_time', 'discharge_max', 'discharge_loss', 'parasitic_loss', 'emissions', 'initial','merit_order',
                      'capex', 'fixed_om', 'variable_om', 'fuel', 'lifetime', 'area']:
