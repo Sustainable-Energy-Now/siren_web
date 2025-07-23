@@ -2,7 +2,8 @@ import altair as alt
 import base64
 from django.http import HttpResponse
 from django.views.generic import TemplateView
-from django.shortcuts import render, redirect
+from django.shortcuts import render
+from django.contrib import messages
 from ..forms import PlotForm
 import io
 import logging
@@ -232,6 +233,37 @@ class PowerPlotHomeView(TemplateView):
                 }
                 return render(request, 'echarts.html', context)
         elif 'export' in request.POST:
-            return self.export_to_excel(request)
-        
-        return render(request, 'powerplotui_home.html', context)
+            try:
+                # Get scenario and variant names for the message
+                scenario_name = Scenarios.objects.get(pk=idscenarios).title
+                variant_name = variations.objects.get(pk=idvariant).variation_name
+                
+                # Generate the file
+                file_response = self.export_to_excel(request)
+                
+                # Add success message (will appear on next page load)
+                messages.success(request, f'Excel file for {scenario_name} - {variant_name} exported successfully!')
+                # Reload the page with download message
+                analysis_queryset = Analysis.objects.all()[:8]
+                analysis_data = self.get_analysis_data(analysis_queryset)
+                plotform = PlotForm()
+                context = {
+                    'analysis_data': analysis_data,
+                    'plotform': plotform,
+                    'download_ready': True,
+                    'filename': file_response,
+                    'file_data': base64.b64encode(file_response.content).decode('utf-8'),
+                    'content_type': file_response['Content-Type'],
+                }
+            except Exception as e:
+                messages.error(request, f'Error exporting to Excel: {str(e)}')
+                # Reload the page with error message
+                analysis_queryset = Analysis.objects.all()[:8]
+                analysis_data = self.get_analysis_data(analysis_queryset)
+                plotform = PlotForm()
+                context = {
+                    'analysis_data': analysis_data,
+                    'plotform': plotform,
+                }
+
+            return render(request, 'powerplotui_home.html', context)

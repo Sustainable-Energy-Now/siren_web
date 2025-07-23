@@ -1,0 +1,290 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8">
+        <h2>Generate Document</h2>
+        <p class="text-muted">Select a document type and provide the required information to generate your document.</p>
+        
+        <form method="post" id="reportForm" class="needs-validation" novalidate>
+            {% csrf_token %}
+            
+            <!-- Document Type Selection -->
+            <div class="mb-4">
+                <label for="report_type" class="form-label">Document Type <span class="text-danger">*</span></label>
+                <select class="form-select" name="report_type" id="report_type" required>
+                    <option value="">Select a document type...</option>
+                    <option value="modelling_report">Modelling Report</option>
+                </select>
+                <div class="invalid-feedback">
+                    Please select a document type.
+                </div>
+            </div>
+
+            <!-- Dynamic Fields Container -->
+            <div id="dynamic-fields"></div>
+
+            <!-- Common Date Range Fields -->
+            <div class="row mb-3" id="date-range-fields" style="display: none;">
+                <div class="col-md-6">
+                    <label for="start_date" class="form-label">Start Date</label>
+                    <input type="date" class="form-control" name="start_date" id="start_date">
+                </div>
+                <div class="col-md-6">
+                    <label for="end_date" class="form-label">End Date</label>
+                    <input type="date" class="form-control" name="end_date" id="end_date">
+                </div>
+            </div>
+
+            <!-- Scenario Selection -->
+            <div class="mb-3" id="scenario_field" style="display: none;">
+                <label for="scenario_id" class="form-label">Scenario</label>
+                <select class="form-select" name="scenario_id" id="scenario_id">
+                    <option value="">All Scenarios</option>
+                    <option value="1">Current</option>
+                </select>
+            </div>
+
+            <!-- Technology Category -->
+            <div class="mb-3" id="category-field" style="display: none;">
+                <label for="category" class="form-label">Product Category</label>
+                <select class="form-select" name="category" id="category">
+                    <option value="">All Categories</option>
+                    <option value="Operational">Operational</option>
+                    <option value="Underlying">Underlying</option>
+                </select>
+            </div>
+
+            <!-- Status Filter -->
+            <div class="mb-3" id="status-field" style="display: none;">
+                <label for="status" class="form-label">Status</label>
+                <select class="form-select" name="status" id="status">
+                    <option value="">All Statuses</option>
+                    <option value="pending">Pending</option>
+                    <option value="completed">Completed</option>
+                    <option value="cancelled">Cancelled</option>
+                </select>
+            </div>
+
+            <!-- Additional Options -->
+            <div class="mb-4">
+                <h5>Additional Options</h5>
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" name="include_charts" id="include_charts">
+                    <label class="form-check-label" for="include_charts">
+                        Include charts and graphs
+                    </label>
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" name="detailed_breakdown" id="detailed_breakdown">
+                    <label class="form-check-label" for="detailed_breakdown">
+                        Include detailed breakdown
+                    </label>
+                </div>
+            </div>
+
+            <!-- Submit Button -->
+            <div class="d-grid gap-2 d-md-flex justify-content-md-start">
+                <button type="submit" class="btn btn-primary btn-lg me-md-2" id="generate-btn">
+                    <i class="bi bi-file-earmark-text"></i> Generate Document
+                </button>
+                <button type="reset" class="btn btn-outline-secondary btn-lg">
+                    <i class="bi bi-arrow-clockwise"></i> Reset
+                </button>
+            </div>
+        </form>
+        
+        <!-- Results Area -->
+        <div id="result" class="mt-4"></div>
+    </div>
+    
+    <!-- Preview/Help Column -->
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Document Preview</h5>
+            </div>
+            <div class="card-body">
+                <div id="document-preview">
+                    <p class="text-muted">Select a document type to see preview information.</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card mt-3">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Quick Tips</h5>
+            </div>
+            <div class="card-body">
+                <ul class="list-unstyled">
+                    <li class="mb-2"><i class="bi bi-download text-success"></i> Documents can be generated in Word or PDF format</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Loading Modal -->
+<div class="modal fade" id="loadingModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-body text-center">
+                <div class="spinner-border text-primary mb-3" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <h5>Generating Document...</h5>
+                <p class="text-muted">Please wait while we create your document.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.card {
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    border: 1px solid rgba(0, 0, 0, 0.125);
+}
+
+.form-label {
+    font-weight: 600;
+    color: #495057;
+}
+
+.btn-primary {
+    background-color: #0d6efd;
+    border-color: #0d6efd;
+}
+
+.text-danger {
+    color: #dc3545!important;
+}
+
+#result .alert {
+    margin-top: 1rem;
+}
+</style>
+
+<script>
+// Form field visibility based on document type
+const fieldVisibility = {
+    'modelling_report': ['date-range-fields', 'scenario_field', 'category-field']
+};
+
+// Document type descriptions
+const documentDescriptions = {
+    'modelling_report': 'Comprehensive modelling analysis.'
+};
+
+document.getElementById('report_type').addEventListener('change', function() {
+    const selectedType = this.value;
+    
+    // Hide all conditional fields
+    ['date-range-fields', 'category-field', 'status-field', 'low-stock-field'].forEach(id => {
+        document.getElementById(id).style.display = 'none';
+    });
+    
+    // Show relevant fields for selected type
+    if (fieldVisibility[selectedType]) {
+        fieldVisibility[selectedType].forEach(fieldId => {
+            document.getElementById(fieldId).style.display = 'block';
+        });
+    }
+    
+    // Update preview
+    const previewDiv = document.getElementById('document-preview');
+    if (selectedType && documentDescriptions[selectedType]) {
+        previewDiv.innerHTML = `
+            <h6>${this.options[this.selectedIndex].text}</h6>
+            <p class="small text-muted">${documentDescriptions[selectedType]}</p>
+            <div class="alert alert-info alert-sm">
+                <small><i class="bi bi-info-circle"></i> This document will be generated as a Word (.docx) file</small>
+            </div>
+        `;
+    } else {
+        previewDiv.innerHTML = '<p class="text-muted">Select a document type to see preview information.</p>';
+    }
+});
+
+// Form submission with loading state
+document.getElementById('reportForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const formData = new FormData(this);
+    const resultDiv = document.getElementById('result');
+    const generateBtn = document.getElementById('generate-btn');
+    const loadingModal = new bootstrap.Modal(document.getElementById('loadingModal'));
+    
+    // Show loading modal
+    loadingModal.show();
+    generateBtn.disabled = true;
+    
+    fetch('{% url "gendocs:generate_report" %}', {
+        method: 'POST',
+        body: formData,
+        headers: {
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        loadingModal.hide();
+        generateBtn.disabled = false;
+        
+        if (data.success) {
+            resultDiv.innerHTML = `
+                <div class="alert alert-success alert-dismissible fade show">
+                    <i class="bi bi-check-circle"></i> ${data.message}
+                    <br>
+                    <a href="${data.download_url}" class="btn btn-outline-success btn-sm mt-2">
+                        <i class="bi bi-download"></i> Download Document
+                    </a>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            `;
+        } else {
+            resultDiv.innerHTML = `
+                <div class="alert alert-danger alert-dismissible fade show">
+                    <i class="bi bi-exclamation-triangle"></i> ${data.error}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            `;
+        }
+    })
+    .catch(error => {
+        loadingModal.hide();
+        generateBtn.disabled = false;
+        resultDiv.innerHTML = `
+            <div class="alert alert-danger alert-dismissible fade show">
+                <i class="bi bi-exclamation-triangle"></i> Error: ${error.message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        `;
+    });
+});
+
+// Set default dates (last 30 days)
+const today = new Date();
+const thirtyDaysAgo = new Date(today);
+thirtyDaysAgo.setDate(today.getDate() - 30);
+
+document.getElementById('start_date').value = thirtyDaysAgo.toISOString().split('T')[0];
+document.getElementById('end_date').value = today.toISOString().split('T')[0];
+
+// Form validation
+(function() {
+    'use strict';
+    window.addEventListener('load', function() {
+        var forms = document.getElementsByClassName('needs-validation');
+        var validation = Array.prototype.filter.call(forms, function(form) {
+            form.addEventListener('submit', function(event) {
+                if (form.checkValidity() === false) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                }
+                form.classList.add('was-validated');
+            }, false);
+        });
+    }, false);
+})();
+</script>
+{% endblock %}

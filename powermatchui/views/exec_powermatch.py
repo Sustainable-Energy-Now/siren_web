@@ -71,17 +71,17 @@ def save_analysis(i, sp_data, metadata, scenario, variation, stage):
     # Insert system totals from metadata
     system_totals = metadata.get('system_totals', {})
     system_mappings = [
-        ('total_capacity_mw', 'Total Capacity', 'System Total', 'MW'),
-        ('total_generation_mwh', 'Total Generation', 'System Total', 'MWh'),
-        ('total_to_meet_load_mwh', 'Total To Meet Load', 'System Total', 'MWh'),
-        ('total_annual_cost', 'Total Annual Cost', 'System Total', '$/yr'),
-        ('total_emissions_tco2e', 'Total Emissions', 'System Total', 'tCO2e'),
-        ('total_emissions_cost', 'Total Emissions Cost', 'System Total', '$'),
-        ('total_capital_cost', 'Total Capital Cost', 'System Total', '$'),
-        ('total_lifetime_cost', 'Total Lifetime Cost', 'System Total', '$'),
-        ('total_lifetime_emissions', 'Total Lifetime Emissions', 'System Total', 'tCO2e'),
-        ('total_lifetime_emissions_cost', 'Total Lifetime Emissions Cost', 'System Total', '$'),
-        ('total_area_km2', 'Total Area', 'System Total', 'km²'),
+        ('total_capacity_mw', 'Capacity', 'Total', 'MW'),
+        ('total_generation_mwh', 'Generation', 'Total', 'MWh'),
+        ('total_to_meet_load_mwh', 'To Meet Load', 'Total', 'MWh'),
+        ('total_annual_cost', 'Annual Cost', 'Total', '$/yr'),
+        ('total_emissions_tco2e', 'Emissions', 'Total', 'tCO2e'),
+        ('total_emissions_cost', 'Emissions Cost', 'Total', '$'),
+        ('total_capital_cost', 'Capital Cost', 'Total', '$'),
+        ('total_lifetime_cost', 'Lifetime Cost', 'Total', '$'),
+        ('total_lifetime_emissions', 'Lifetime Emissions', 'Total', 'tCO2e'),
+        ('total_lifetime_emissions_cost', 'Lifetime Emissions Cost', 'Total', '$'),
+        ('total_area_km2', 'Area', 'Total', 'km²'),
     ]
     
     for field_name, heading, component, units in system_mappings:
@@ -99,7 +99,7 @@ def save_analysis(i, sp_data, metadata, scenario, variation, stage):
     
     # Insert system-level statistics from metadata
     system_stats = [
-        ('total_load_mwh', 'Total Load', 'Load Analysis', 'MWh'),
+        ('total_load_mwh', 'Load', 'Load Analysis', 'MWh'),
         ('load_met_pct', '% Load Met', 'Load Analysis', '%'),
         ('total_shortfall_mwh', 'Shortfall', 'Load Analysis', 'MWh'),
         ('max_shortfall_mw', 'Max Shortfall', 'Load Analysis', 'MW'),
@@ -289,17 +289,17 @@ def fetch_analysis(scenario, variation: str, stage: int) -> Tuple[np.ndarray, Di
     
     # System totals mapping
     system_totals_mapping = {
-        'Total Capacity': 'total_capacity_mw',
-        'Total Generation': 'total_generation_mwh',
-        'Total To Meet Load': 'total_to_meet_load_mwh',
-        'Total Annual Cost': 'total_annual_cost',
-        'Total Emissions': 'total_emissions_tco2e',
-        'Total Emissions Cost': 'total_emissions_cost',
-        'Total Capital Cost': 'total_capital_cost',
-        'Total Lifetime Cost': 'total_lifetime_cost',
-        'Total Lifetime Emissions': 'total_lifetime_emissions',
-        'Total Lifetime Emissions Cost': 'total_lifetime_emissions_cost',
-        'Total Area': 'total_area_km2',
+        'Capacity': 'total_capacity_mw',
+        'Generation': 'total_generation_mwh',
+        'To Meet Load': 'total_to_meet_load_mwh',
+        'Annual Cost': 'total_annual_cost',
+        'Emissions': 'total_emissions_tco2e',
+        'Emissions Cost': 'total_emissions_cost',
+        'Capital Cost': 'total_capital_cost',
+        'Lifetime Cost': 'total_lifetime_cost',
+        'Lifetime Emissions': 'total_lifetime_emissions',
+        'Lifetime Emissions Cost': 'total_lifetime_emissions_cost',
+        'Area': 'total_area_km2',
     }
     
     metadata['system_totals'] = {}

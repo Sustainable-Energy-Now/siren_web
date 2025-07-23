@@ -24,6 +24,7 @@ urlpatterns = [
     path("", include("powermapui.urls")),
     path("", include("powermatchui.urls")),
     path("", include("powerplotui.urls")),
+    path('gendocs/', include('gendocs.urls')),
     path('config_views/', config_views.edit_config, name='edit_config'),
     path("admin/", admin.site.urls),
     path('accounts/', include('django.contrib.auth.urls')),

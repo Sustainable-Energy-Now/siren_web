@@ -6,7 +6,7 @@ from django.http import HttpResponse
 from siren_web.models import Analysis, Scenarios, variations  # Import the Scenario model
 from ..forms import RunVariationForm, SelectVariationForm
 from powermatchui.views.exec_powermatch import submit_powermatch_with_progress
-from powermatchui.views.baseline_scenario_views import process_results_for_template, create_summary_report
+from powermatchui.views.baseline_scenario_views import process_results_for_template
 
 # Process form data
 @login_required

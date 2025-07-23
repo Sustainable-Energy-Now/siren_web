@@ -106,6 +106,7 @@ INSTALLED_APPS = [
     "powermapui",
     "powermatchui",
     "powerplotui",
+    'gendocs',
     "crispy_forms",
     "crispy_bootstrap5",
 ]
@@ -223,4 +224,5 @@ CRISPY_TEMPLATE_PACK = "bootstrap5"
 CRISPY_RENDERER_CLASS = "crispy_bootstrap5.renderers.AccordionJsRenderer"
 # Powermap settings
 WEATHER_DATA_DIR = BASE_DIR / 'siren_web' / 'siren_files' / 'SWIS' / 'siren_data' / 'weather_files'
-POWER_CURVES_DIR = BASE_DIR = BASE_DIR / 'siren_web' / 'siren_files' / 'siren_data' / 'plant_data'
+POWER_CURVES_DIR = BASE_DIR / 'siren_web' / 'siren_files' / 'siren_data' / 'plant_data'
+MEDIA_ROOT = BASE_DIR / 'media'

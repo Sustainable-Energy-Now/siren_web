@@ -1,0 +1,24 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8">
+        <h1>Document Generator</h1>
+        <p class="lead">Generate template modelling reports from the database data.</p>
+        
+        <div class="row">
+            {% for template in available_templates %}
+            <div class="col-md-4 mb-3">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">{{ template.name }}</h5>
+                        <p class="card-text">Generate {{ template.type }} documents.</p>
+                        <a href="{% url 'gendocs:generate_report' %}" class="btn btn-primary">Generate</a>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endblock %}
