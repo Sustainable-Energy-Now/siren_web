@@ -2,6 +2,7 @@ from django.shortcuts import render
 from docxtpl import DocxTemplate
 import os
 from siren_web.models import facilities
+from siren_web.database_operations import fetch_full_generator_storage_data
 from django.http import HttpResponse, JsonResponse
 from django.contrib.auth.decorators import login_required
 from django.views.decorators.http import require_http_methods
@@ -50,6 +51,9 @@ def index(request):
 def get_document_context(doc_type, request):
     """Generate context data for different document types"""
     
+    # Get demand year from session or use default
+    demand_year = request.session.get('demand_year', 2024)
+    
     # Base context that all documents use
     base_context = {
         'company_name': 'Sustainable Energy Now',
@@ -60,12 +64,67 @@ def get_document_context(doc_type, request):
         'report_date': datetime.now().strftime('%B %d, %Y'),
         'generated_by': request.user.get_full_name() if request.user.is_authenticated else 'System',
         'generation_date': datetime.now().strftime('%B %d, %Y at %I:%M %p'),
+        'demand_year': demand_year,
     }
+    
+    # Get technologies data
+    technology_queryset = fetch_full_generator_storage_data(demand_year)
+    
+    # Process technologies data for the template
+    technologies_data = []
+    for technology in technology_queryset:
+        # Get the first technology year data
+        tech_year = technology.technologyyears_set.first()
+        
+        # Get generator or storage attributes
+        generator_attrs = technology.generatorattributes_set.first()
+        storage_attrs = technology.storageattributes_set.first()
+        
+        tech_data = {
+            'name': technology.technology_name,
+            'description': technology.description,
+            'image_url': f"https://sen.asn.au/wp-content/uploads/{technology.image}" if technology.image else None,
+            'renewable': 'Yes' if technology.renewable else 'No',
+            'dispatchable': 'Yes' if technology.dispatchable else 'No',
+            'lifetime': technology.lifetime,
+            'discount_rate': technology.discount_rate,
+            'emissions': technology.emissions,
+            'area': technology.area,
+            'capex': tech_year.capex if tech_year else None,
+            'fom': tech_year.fom if tech_year else None,
+            'vom': tech_year.vom if tech_year else None,
+            'fuel': tech_year.fuel if tech_year else None,
+            'is_generator': bool(generator_attrs),
+            'is_storage': bool(storage_attrs),
+        }
+        
+        # Add generator-specific attributes if applicable
+        if generator_attrs:
+            tech_data.update({
+                'capacity_max': generator_attrs.capacity_max,
+                'capacity_min': generator_attrs.capacity_min,
+                'rampdown_max': generator_attrs.rampdown_max,
+                'rampup_max': generator_attrs.rampup_max,
+            })
+        
+        # Add storage-specific attributes if applicable
+        if storage_attrs:
+            tech_data.update({
+                'discharge_loss': storage_attrs.discharge_loss,
+                'discharge_max': storage_attrs.discharge_max,
+                'parasitic_loss': storage_attrs.parasitic_loss,
+                'recharge_loss': storage_attrs.recharge_loss,
+                'recharge_max': storage_attrs.recharge_max,
+            })
+        
+        technologies_data.append(tech_data)
     
     # Document-specific context
     specific_context = {
-    'facilities': facilities.objects.all(),  # This is a QuerySet
+        'facilities': facilities.objects.all(),
+        'technologies': technologies_data,
 }
+    
     # Merge base and specific context
     return {**base_context, **specific_context}
 
@@ -178,7 +237,7 @@ def download_document(request, doc_type):
 def get_template_fields(request, template_name):
     """Return available fields for a specific template"""
     template_fields = {
-        'modelling_report': ['system_capacity', 'panel_count', 'client_name'],
+        'modelling_report': ['system_capacity', 'client_name', 'technologies'],
     }
     
     fields = template_fields.get(template_name, [])
