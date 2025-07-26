@@ -8,20 +8,20 @@ from typing import Dict, Any, Tuple
 from .balance_grid_load import Technology, PowerMatchProcessor, DispatchResults
 
 
-def save_analysis(i, sp_data, metadata, scenario, variation, stage):
+def save_analysis(i, dispatch_summary, metadata, scenario, variation, stage):
     """
     Insert power system analysis data into the Analysis model.
     
     Args:
         i: Iteration number (used for static variables insertion)
-        sp_data: Numpy structured array with technology data
+        dispatch_summary: Numpy structured array with technology data
         metadata: Dictionary containing system totals and parameters
         scenario_obj: Scenario model instance
         variation: Variation name string
         stage: Stage number
     """
     
-    # Define the mapping from sp_data fields to Analysis records
+    # Define the mapping from dispatch_summary fields to Analysis records
     field_mappings = [
         ('capacity_mw', 'Capacity', 'MW'),
         ('generation_mwh', 'Generation', 'MWh'),
@@ -48,7 +48,7 @@ def save_analysis(i, sp_data, metadata, scenario, variation, stage):
     analysis_records = []
     scenario_obj = get_scenario_by_title(scenario)
 
-    for row in sp_data:
+    for row in dispatch_summary:
         technology_name = row['technology']
         
         for field_name, heading, units in field_mappings:
@@ -155,7 +155,7 @@ def save_analysis(i, sp_data, metadata, scenario, variation, stage):
 
 def fetch_analysis(scenario, variation: str, stage: int) -> Tuple[np.ndarray, Dict[str, Any]]:
     """
-    Fetch power system analysis data from the Analysis model and reconstruct sp_data and metadata.
+    Fetch power system analysis data from the Analysis model and reconstruct dispatch_summary and metadata.
     
     Args:
         scenario_obj: Scenario model instance
@@ -163,8 +163,8 @@ def fetch_analysis(scenario, variation: str, stage: int) -> Tuple[np.ndarray, Di
         stage: Stage number
         
     Returns:
-        Tuple of (sp_data, metadata) where:
-        - sp_data: Numpy structured array with technology data
+        Tuple of (dispatch_summary, metadata) where:
+        - dispatch_summary: Numpy structured array with technology data
         - metadata: Dictionary containing system totals and parameters
     """
     scenario_obj = get_scenario_by_title(scenario)
@@ -200,7 +200,7 @@ def fetch_analysis(scenario, variation: str, stage: int) -> Tuple[np.ndarray, Di
                 data_by_component[component] = {}
             data_by_component[component][heading] = quantity
     
-    # Define the reverse mapping from Analysis headings to sp_data fields
+    # Define the reverse mapping from Analysis headings to dispatch_summary fields
     heading_to_field = {
         'Capacity': 'capacity_mw',
         'Generation': 'generation_mwh',
@@ -223,8 +223,8 @@ def fetch_analysis(scenario, variation: str, stage: int) -> Tuple[np.ndarray, Di
         'Reference CF': 'reference_cf',
     }
     
-    # Create sp_data structured array
-    sp_data_dtype = [
+    # Create dispatch_summary structured array
+    dispatch_summary_dtype = [
         ('technology', '<U50'),
         ('capacity_mw', '<f8'),
         ('generation_mwh', '<f8'),
@@ -252,10 +252,10 @@ def fetch_analysis(scenario, variation: str, stage: int) -> Tuple[np.ndarray, Di
                        if comp not in ['System Total', 'Load Analysis', 'System Economics']]
     
     # Create numpy structured array
-    sp_data = np.zeros(len(technology_names), dtype=sp_data_dtype)
+    dispatch_summary = np.zeros(len(technology_names), dtype=dispatch_summary_dtype)
     
     for i, tech_name in enumerate(technology_names):
-        sp_data[i]['technology'] = tech_name
+        dispatch_summary[i]['technology'] = tech_name
         tech_data = data_by_component[tech_name]
         
         for heading, field_name in heading_to_field.items():
@@ -264,9 +264,9 @@ def fetch_analysis(scenario, variation: str, stage: int) -> Tuple[np.ndarray, Di
                 # Convert percentage back to decimal for capacity factor
                 if heading == 'CF':
                     value = value / 100.0
-                sp_data[i][field_name] = value
+                dispatch_summary[i][field_name] = value
             else:
-                sp_data[i][field_name] = 0.0
+                dispatch_summary[i][field_name] = 0.0
     
     # Reconstruct metadata
     metadata = {}
@@ -356,83 +356,11 @@ def fetch_analysis(scenario, variation: str, stage: int) -> Tuple[np.ndarray, Di
     metadata.setdefault('generator_technologies', [tech for tech in technology_names])
     metadata.setdefault('underlying_technologies', [])
     
-    return sp_data, metadata
+    return dispatch_summary, metadata
     
-def submit_powermatch(demand_year, scenario, 
-                      option, stages, variation_inst, save_data=False):
-    scenario_settings = fetch_scenario_settings_data(scenario)
-    if not scenario_settings:
-        scenario_settings = fetch_module_settings_data('Powermatch')
-    if save_data:
-        load_and_supply = \
-            fetch_supplyfactors_data(demand_year, scenario)
-        technology_attributes = \
-            fetch_technology_attributes(demand_year, scenario)
-    
-    for i in range(stages):
-                
-        # For variations adjust the dimension up by the step value each iteration
-        if variation_inst:
-            technology = variation_inst.idtechnologies
-            dimension = variation_inst.dimension
-            step = variation_inst.step
-            technology_name = technology.technology_name
-            if dimension == 'multiplier':
-                technology_attributes[technology_name].multiplier += step
-            elif dimension == 'capex':
-                technology_attributes[technology_name].capex += step
-            elif dimension == 'fom':
-                technology_attributes[technology_name].fixed_om += step
-            elif dimension == 'vom':
-                technology_attributes[technology_name].variable_om += step
-            elif dimension == 'lifetime':
-                technology_attributes[technology_name].lifetime += step
-
-        if option == 'D':
-            action = 'Detail'
-        else:
-            action = 'Summary'
-        # Run PowerMatch
-        if save_data or option == 'D':
-            pm = PowerMatchProcessor(scenario_settings)
-            dispatch_results = pm.matchSupplytoLoad(
-                demand_year, option, action, technology_attributes, load_and_supply
-            )
-            sp_data = dispatch_results.summary_data
-            metadata = dispatch_results.metadata
-            hourly_data = dispatch_results.hourly_data
-        else:
-            sp_data, metadata = fetch_analysis(scenario, 'Baseline', 0)
-            hourly_data = None
-            dispatch_results = DispatchResults(
-                summary_data=sp_data,
-                metadata=metadata,
-                hourly_data=hourly_data
-            )
-        
-        # Work with hourly data (if available)
-        if hourly_data is not None:
-            # Example: Plot first week (hours 0-167)
-            print(f"Hourly data available for {hourly_data.shape[0]} hours, {hourly_data.shape[1]} columns")
-    
-        # Save results if not detailed option
-        if save_data:
-            if variation_inst:
-                variation = variation_inst.variation_name
-                Stage = i + 1
-            else:
-                scenario_obj = get_scenario_by_title(scenario)
-                delete_analysis_scenario(scenario_obj)
-                variation = 'Baseline'
-                Stage = 0
-            if save_data:
-                save_analysis(i, sp_data, metadata, scenario, variation, Stage)
-
-        return dispatch_results
-
 def submit_powermatch_with_progress(demand_year, scenario, option, stages, 
-                                   variation_inst, save_data, progress_handler) -> DispatchResults:
-    """Enhanced submit_powermatch with progress reporting"""
+                                   variation_inst, save_data, progress_handler) -> Tuple[DispatchResults, Dict[str, Any]]:
+    """ Progress reporting if handler supplied"""
     if progress_handler:
         progress_handler.update(10, "Initializing PowerMatch submission...")
     try:
@@ -495,21 +423,22 @@ def submit_powermatch_with_progress(demand_year, scenario, option, stages,
                     technology_attributes[technology_name].variable_om += step
                 elif dimension == 'lifetime':
                     technology_attributes[technology_name].lifetime += step
-                
+            
+            if save_data:
                 dispatch_results = pm.matchSupplytoLoad(
                     demand_year, option, action, technology_attributes, load_and_supply
                 )
-                sp_data = dispatch_results.summary_data
+                dispatch_summary = dispatch_results.summary_data
                 metadata = dispatch_results.metadata
                 hourly_data = dispatch_results.hourly_data
             else:
                 from powermatchui.views.exec_powermatch import fetch_analysis
                 if progress_handler:
                     progress_handler.update(80, "Fetching existing analysis...")
-                sp_data, metadata = fetch_analysis(scenario, 'Baseline', 0)
+                dispatch_summary, metadata = fetch_analysis(scenario, 'Baseline', 0)
                 hourly_data = None
                 dispatch_results = DispatchResults(
-                    summary_data=sp_data,
+                    summary_data=dispatch_summary,
                     metadata=metadata,
                     hourly_data=hourly_data
                 )
@@ -526,11 +455,12 @@ def submit_powermatch_with_progress(demand_year, scenario, option, stages,
                     Stage = 0
                     scenario_obj = get_scenario_by_title(scenario)
                     delete_analysis_scenario(scenario_obj)
-                save_analysis(i, sp_data, metadata, scenario, variation, Stage)
+                save_analysis(i, dispatch_summary, metadata, scenario, variation, Stage)
         
         if progress_handler:
             progress_handler.update(100, "Analysis complete!")
-        return dispatch_results
+        summary_totals = create_summary_totals(scenario, dispatch_results)
+        return dispatch_results, summary_totals
     
     except Exception as e:
         if progress_handler:
@@ -540,3 +470,62 @@ def submit_powermatch_with_progress(demand_year, scenario, option, stages,
                 increment=False
             )
         raise e
+
+def create_summary_totals(scenario, dispatch_results: DispatchResults) -> Dict[str, Any]:
+    """Create a comprehensive summary report from dispatch results"""
+    summary = dispatch_results.summary_data
+    metadata = dispatch_results.metadata
+    
+    # System overview
+    system_overview = {
+        'total_load_gwh': metadata['total_load_mwh'] / 1000,
+        'load_met_percentage': metadata['load_met_pct'] * 100,
+        'renewable_percentage': metadata['renewable_pct'] * 100,
+        'renewable_load_percentage': metadata['renewable_load_pct'] * 100,
+        'storage_contribution_percentage': metadata['storage_pct'] * 100,
+        'curtailment_percentage': metadata['curtailment_pct'] * 100,
+        'system_lcoe_per_mwh': metadata['system_lcoe'],
+        'system_lcoe_with_co2_per_mwh': metadata['system_lcoe_with_co2']
+    }
+    
+    # Technology breakdown
+    technology_breakdown = []
+    for record in summary:
+        tech_data = {
+            'technology': record['technology'],
+            'capacity_mw': record['capacity_mw'],
+            'generation_gwh': record['generation_mwh'] / 1000,
+            'capacity_factor_pct': record['capacity_factor'] * 100,
+            'lcoe_per_mwh': record['lcoe_per_mwh'],
+            'emissions_ktco2e': record['emissions_tco2e'] / 1000,
+            'area_km2': record['area_km2']
+        }
+        technology_breakdown.append(tech_data)
+    
+    # Economic summary
+    economic_summary = {
+        'total_annual_cost_millions': metadata['system_totals']['total_annual_cost'] / 1e6,
+        'total_capital_cost_millions': metadata['system_totals']['total_capital_cost'] / 1e6,
+        'total_lifetime_cost_millions': metadata['system_totals']['total_lifetime_cost'] / 1e6,
+        'carbon_price_per_tco2e': metadata['carbon_price'],
+        'discount_rate_pct': metadata['discount_rate'] * 100
+    }
+    
+    # Environmental summary
+    environmental_summary = {
+        'total_emissions_ktco2e_per_year': metadata['system_totals']['total_emissions_tco2e'] / 1000,
+        'total_emissions_cost_millions_per_year': metadata['system_totals']['total_emissions_cost'] / 1e6,
+        'lifetime_emissions_mtco2e': metadata['system_totals']['total_lifetime_emissions'] / 1e6,
+        'total_land_use_km2': metadata['system_totals']['total_area_km2']
+    }
+    
+    return {
+        'system_overview': system_overview,
+        'technology_breakdown': technology_breakdown,
+        'economic_summary': economic_summary,
+        'environmental_summary': environmental_summary,
+        'processing_metadata': {
+            'simulation_year': metadata['year'],
+            'scenario_name': scenario
+        }
+    }

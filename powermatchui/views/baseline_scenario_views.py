@@ -15,12 +15,11 @@ from siren_web.database_operations import (
     fetch_technologies_with_multipliers, fetch_module_settings_data, 
     fetch_scenario_settings_data, update_scenario_settings_data
 )
-from siren_web.models import Demand, Generatorattributes, Technologies, Scenarios, ScenariosSettings, \
-    ScenariosTechnologies
+from siren_web.models import Scenarios, ScenariosTechnologies
 from typing import Dict, Any
 from ..forms import BaselineScenarioForm, RunPowermatchForm
 from .balance_grid_load import DispatchResults
-from powermatchui.views.exec_powermatch import submit_powermatch, submit_powermatch_with_progress
+from powermatchui.views.exec_powermatch import submit_powermatch_with_progress
 from .progress_handler import (
     ProgressHandler, ProgressChannel, ProgressUpdate
 )
@@ -253,7 +252,7 @@ def run_baseline_progress(request):
                                        
                     progress_handler.update(5, "Starting PowerMatch analysis...")
                     
-                    dispatch_results = submit_powermatch_with_progress(
+                    dispatch_results, summary_report = submit_powermatch_with_progress(
                         demand_year, scenario, option, 1, None, save_baseline, progress_handler
                     )
                     
@@ -484,9 +483,9 @@ def run_baseline(request):
             save_baseline = runpowermatch_form.cleaned_data['save_baseline']
             option = level_of_detail[0]
 
-            dispatch_results = submit_powermatch(
+            dispatch_results, summary_report = submit_powermatch_with_progress(
                 demand_year, scenario, option, 1, 
-                None, save_baseline
+                None, save_baseline, None
                 )
             if option == 'D':
                 data_file = f"{scenario}-baseline detailed results"
@@ -499,7 +498,8 @@ def run_baseline(request):
                     dispatch_results, scenario, save_baseline, 
                     demand_year, request.session.get('config_file')
                 )
-                return render(request, 'display_table.html', context)
+                # Add summary report to context
+                return render(request, 'display_table.html', {**context, 'summary_report': summary_report})
                 
         technologies = fetch_technologies_with_multipliers(scenario)
         baseline_form = BaselineScenarioForm(technologies=technologies)
@@ -560,77 +560,15 @@ def process_results_for_template(dispatch_results, scenario, save_baseline, dema
                 row_data.append(value)
         sp_data_list.append(row_data)
     
-    # Create summary report
-    summary_report = create_summary_report(scenario, dispatch_results)
     success_message = "Baseline re-established" if save_baseline else "Baseline run complete"
     
     return {
         'sp_data': sp_data_list,
         'headers': readable_headers,
-        'summary_report': summary_report,
         'success_message': success_message,
         'demand_year': demand_year,
         'scenario': scenario,
         'config_file': config_file,
-    }
-
-def create_summary_report(scenario, dispatch_results: DispatchResults) -> Dict[str, Any]:
-    """Create a comprehensive summary report from dispatch results"""
-    summary = dispatch_results.summary_data
-    metadata = dispatch_results.metadata
-    
-    # System overview
-    system_overview = {
-        'total_load_gwh': metadata['total_load_mwh'] / 1000,
-        'load_met_percentage': metadata['load_met_pct'] * 100,
-        'renewable_percentage': metadata['renewable_pct'] * 100,
-        'renewable_load_percentage': metadata['renewable_load_pct'] * 100,
-        'storage_contribution_percentage': metadata['storage_pct'] * 100,
-        'curtailment_percentage': metadata['curtailment_pct'] * 100,
-        'system_lcoe_per_mwh': metadata['system_lcoe'],
-        'system_lcoe_with_co2_per_mwh': metadata['system_lcoe_with_co2']
-    }
-    
-    # Technology breakdown
-    technology_breakdown = []
-    for record in summary:
-        tech_data = {
-            'technology': record['technology'],
-            'capacity_mw': record['capacity_mw'],
-            'generation_gwh': record['generation_mwh'] / 1000,
-            'capacity_factor_pct': record['capacity_factor'] * 100,
-            'lcoe_per_mwh': record['lcoe_per_mwh'],
-            'emissions_ktco2e': record['emissions_tco2e'] / 1000,
-            'area_km2': record['area_km2']
-        }
-        technology_breakdown.append(tech_data)
-    
-    # Economic summary
-    economic_summary = {
-        'total_annual_cost_millions': metadata['system_totals']['total_annual_cost'] / 1e6,
-        'total_capital_cost_millions': metadata['system_totals']['total_capital_cost'] / 1e6,
-        'total_lifetime_cost_millions': metadata['system_totals']['total_lifetime_cost'] / 1e6,
-        'carbon_price_per_tco2e': metadata['carbon_price'],
-        'discount_rate_pct': metadata['discount_rate'] * 100
-    }
-    
-    # Environmental summary
-    environmental_summary = {
-        'total_emissions_ktco2e_per_year': metadata['system_totals']['total_emissions_tco2e'] / 1000,
-        'total_emissions_cost_millions_per_year': metadata['system_totals']['total_emissions_cost'] / 1e6,
-        'lifetime_emissions_mtco2e': metadata['system_totals']['total_lifetime_emissions'] / 1e6,
-        'total_land_use_km2': metadata['system_totals']['total_area_km2']
-    }
-    
-    return {
-        'system_overview': system_overview,
-        'technology_breakdown': technology_breakdown,
-        'economic_summary': economic_summary,
-        'environmental_summary': environmental_summary,
-        'processing_metadata': {
-            'simulation_year': metadata['year'],
-            'scenario_name': scenario
-        }
     }
 
 def download_results(request):

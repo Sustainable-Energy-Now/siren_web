@@ -146,7 +146,7 @@ def run_variations(request) -> HttpResponse:
                 scenario_obj = Scenarios.objects.get(title=scenario)
                 clearScenario(scenario_obj, variation_name)
                 # Iterate and call powerMatch
-                dispatch_results = submit_powermatch_with_progress(
+                dispatch_results, summary_report = submit_powermatch_with_progress(
                     demand_year, scenario, option, stages,
                     variation_inst, True, progress_handler=None
                 )

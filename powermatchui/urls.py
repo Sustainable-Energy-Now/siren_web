@@ -20,7 +20,6 @@ urlpatterns = [
     path('variations/', variations_views.run_variations, name='run_variations'),
     path('optimisation/', optimisation_views.optimisation, name='optimisation'),
     path('run_optimisation/', optimisation_views.run_optimisation, name='run_optimisation'),
-    path('submit_powermatch/', exec_powermatch.submit_powermatch, name='submit_powermatch'),
     # path('optimisation/', under_construction_views.under_construction, name='under_construction'),
     # Add additional URL patterns here if needed
 ]
