@@ -7,19 +7,21 @@ from django.http import HttpResponse, JsonResponse
 from django.contrib.auth.decorators import login_required
 from django.views.decorators.http import require_http_methods
 from django.conf import settings
-from datetime import datetime, timedelta
+from datetime import datetime
 from io import BytesIO
 
 TEMPLATE_MAPPING = {
+    'facilities_report': 'facilities_report.docx',
+    'technologies_report': 'technologies_report.docx',
+    'scenarios_report': 'scenarios_report.docx',
     'modelling_report': 'modelling_report.docx',
-    'sales_report': 'sales_report.docx',
-    'invoice': 'invoice_template.docx',
 }
 
 REPORT_TYPES = [
+    {'value': 'facilities_report', 'label': 'Facilities Report'},
+    {'value': 'technologies_report', 'label': 'Technologies Report'},
+    {'value': 'scenarios_report', 'label': 'Scenarios Report'},
     {'value': 'modelling_report', 'label': 'Modelling Report'},
-    {'value': 'sales_report', 'label': 'Sales Report'},
-    {'value': 'invoice', 'label': 'Invoice'},
 ]
 
 class DocumentGenerationError(Exception):
@@ -44,6 +46,9 @@ def index(request):
     return render(request, 'index.html', {
         'title': 'Document Generator',
         'available_templates': [
+            {'name': 'Facilities Report', 'type': 'facilities_report'},
+            {'name': 'Technologies Report', 'type': 'technologies_report'},
+            {'name': 'Scenarios Report', 'type': 'scenarios_report'},
             {'name': 'Modelling Report', 'type': 'report'},
         ]
     })
@@ -57,10 +62,10 @@ def get_document_context(doc_type, request):
     # Base context that all documents use
     base_context = {
         'company_name': 'Sustainable Energy Now',
-        'company_address': '123 Green Energy Street',
-        'company_city': 'Perth, WA 6000',
+        'company_address': '3 Dyer Sttreet',
+        'company_city': 'West Perth, WA 6000',
         'company_phone': '+61 8 1234 5678',
-        'company_email': 'info@sustainableenergynow.com',
+        'company_email': 'contact@sen.asn.au',
         'report_date': datetime.now().strftime('%B %d, %Y'),
         'generated_by': request.user.get_full_name() if request.user.is_authenticated else 'System',
         'generation_date': datetime.now().strftime('%B %d, %Y at %I:%M %p'),
@@ -68,65 +73,88 @@ def get_document_context(doc_type, request):
     }
     
     # Get technologies data
-    technology_queryset = fetch_full_generator_storage_data(demand_year)
-    
-    # Process technologies data for the template
-    technologies_data = []
-    for technology in technology_queryset:
-        # Get the first technology year data
-        tech_year = technology.technologyyears_set.first()
+    if doc_type == 'modelling_report':
+        technology_queryset = fetch_full_generator_storage_data(demand_year)
         
-        # Get generator or storage attributes
-        generator_attrs = technology.generatorattributes_set.first()
-        storage_attrs = technology.storageattributes_set.first()
+        # Process technologies data for the template
+        technologies_data = []
+        for technology in technology_queryset:
+            # Get the first technology year data
+            tech_year = technology.technologyyears_set.first()
+            
+            # Get generator or storage attributes
+            generator_attrs = technology.generatorattributes_set.first()
+            storage_attrs = technology.storageattributes_set.first()
+            
+            tech_data = {
+                'name': technology.technology_name,
+                'description': technology.description,
+                'image_url': f"https://sen.asn.au/wp-content/uploads/{technology.image}" if technology.image else None,
+                'renewable': 'Yes' if technology.renewable else 'No',
+                'dispatchable': 'Yes' if technology.dispatchable else 'No',
+                'lifetime': technology.lifetime,
+                'discount_rate': technology.discount_rate,
+                'emissions': technology.emissions,
+                'area': technology.area,
+                'capex': tech_year.capex if tech_year else None,
+                'fom': tech_year.fom if tech_year else None,
+                'vom': tech_year.vom if tech_year else None,
+                'fuel': tech_year.fuel if tech_year else None,
+                'is_generator': bool(generator_attrs),
+                'is_storage': bool(storage_attrs),
+            }
+            
+            # Add generator-specific attributes if applicable
+            if generator_attrs:
+                tech_data.update({
+                    'capacity_max': generator_attrs.capacity_max,
+                    'capacity_min': generator_attrs.capacity_min,
+                    'rampdown_max': generator_attrs.rampdown_max,
+                    'rampup_max': generator_attrs.rampup_max,
+                })
+            
+            # Add storage-specific attributes if applicable
+            if storage_attrs:
+                tech_data.update({
+                    'discharge_loss': storage_attrs.discharge_loss,
+                    'discharge_max': storage_attrs.discharge_max,
+                    'parasitic_loss': storage_attrs.parasitic_loss,
+                    'recharge_loss': storage_attrs.recharge_loss,
+                    'recharge_max': storage_attrs.recharge_max,
+                })
+            
+            technologies_data.append(tech_data)
         
-        tech_data = {
-            'name': technology.technology_name,
-            'description': technology.description,
-            'image_url': f"https://sen.asn.au/wp-content/uploads/{technology.image}" if technology.image else None,
-            'renewable': 'Yes' if technology.renewable else 'No',
-            'dispatchable': 'Yes' if technology.dispatchable else 'No',
-            'lifetime': technology.lifetime,
-            'discount_rate': technology.discount_rate,
-            'emissions': technology.emissions,
-            'area': technology.area,
-            'capex': tech_year.capex if tech_year else None,
-            'fom': tech_year.fom if tech_year else None,
-            'vom': tech_year.vom if tech_year else None,
-            'fuel': tech_year.fuel if tech_year else None,
-            'is_generator': bool(generator_attrs),
-            'is_storage': bool(storage_attrs),
+        # Document-specific context
+        specific_context = {
+            'technologies': technologies_data,
+    }
+        
+        # Merge base and specific context
+        return {**base_context, **specific_context}
+
+    elif doc_type == 'facilities_report':
+        # Get all facilities
+        facilities_data = facilities.objects.all()
+        
+        # Document-specific context
+        specific_context = {
+            'facilities': facilities_data,
         }
         
-        # Add generator-specific attributes if applicable
-        if generator_attrs:
-            tech_data.update({
-                'capacity_max': generator_attrs.capacity_max,
-                'capacity_min': generator_attrs.capacity_min,
-                'rampdown_max': generator_attrs.rampdown_max,
-                'rampup_max': generator_attrs.rampup_max,
-            })
+        # Merge base and specific context
+        return {**base_context, **specific_context}
+    elif doc_type == 'scenarios_report':
+        # Get all scenarios
+        scenarios_data = Scenarios.objects.all()
         
-        # Add storage-specific attributes if applicable
-        if storage_attrs:
-            tech_data.update({
-                'discharge_loss': storage_attrs.discharge_loss,
-                'discharge_max': storage_attrs.discharge_max,
-                'parasitic_loss': storage_attrs.parasitic_loss,
-                'recharge_loss': storage_attrs.recharge_loss,
-                'recharge_max': storage_attrs.recharge_max,
-            })
+        # Document-specific context
+        specific_context = {
+            'scenarios': scenarios_data,
+        }
         
-        technologies_data.append(tech_data)
-    
-    # Document-specific context
-    specific_context = {
-        'facilities': facilities.objects.all(),
-        'technologies': technologies_data,
-}
-    
-    # Merge base and specific context
-    return {**base_context, **specific_context}
+        # Merge base and specific context
+        return {**base_context, **specific_context}
 
 def validate_document_request(doc_type):
     """Validate document generation request"""
@@ -156,15 +184,6 @@ def create_document(doc_type, request):
     doc.render(context)
     
     return doc
-
-def index(request):
-    """Main gendocs page"""
-    return render(request, 'index.html', {
-        'title': 'Document Generator',
-        'available_templates': [
-            {'name': 'Modelling Report', 'type': 'report'},
-        ]
-    })
 
 @login_required
 @require_http_methods(["GET", "POST"])

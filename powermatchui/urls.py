@@ -18,8 +18,8 @@ urlpatterns = [
     path('merit_order/save_merit_order/', merit_order_views.set_merit_order, name='save_merit_order'),
     path('variation/', variations_views.setup_variation, name='setup_variation'),
     path('variations/', variations_views.run_variations, name='run_variations'),
-    path('optimisation/', optimisation_views.optimisation, name='optimisation'),
+    # path('optimisation/', optimisation_views.optimisation, name='optimisation'),
     path('run_optimisation/', optimisation_views.run_optimisation, name='run_optimisation'),
-    # path('optimisation/', under_construction_views.under_construction, name='under_construction'),
+    path('optimisation/', under_construction_views.under_construction, name='under_construction'),
     # Add additional URL patterns here if needed
 ]

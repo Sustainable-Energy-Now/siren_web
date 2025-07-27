@@ -156,7 +156,9 @@ def run_variations(request) -> HttpResponse:
                     demand_year, request.session.get('config_file')
                 )
                 success_message = 'Create variants run has completed.'
-                return render(request, 'display_table.html', context)
+                return render(request, 'display_table.html', \
+                    {**context, 'summary_report': summary_report, 
+                     'success_message': success_message})
             
     variation_name = request.POST.get('variation_name')
     variation_form = SelectVariationForm(selected_variation=variation_name)

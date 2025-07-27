@@ -128,7 +128,7 @@ def create_sse_progress_callback(sse_channel):
                 sse_channel.send_update(update_data)
                 
             # Debug logging
-            print(f"Progress Update: {progress_update.percentage:.1f}% - {progress_update.message}")
+            # print(f"Progress Update: {progress_update.percentage:.1f}% - {progress_update.message}")
             
         except Exception as e:
             print(f"Error in progress callback: {e}")

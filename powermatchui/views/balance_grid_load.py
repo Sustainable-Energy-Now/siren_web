@@ -254,15 +254,26 @@ class PowerMatchProcessor:
                 technology_totals[tech_name] = 0.0
                 technology_to_meet_load[tech_name] = 0.0
         
+        # Calculate total minimum capacity from dispatchable generators
+        total_minimum_generation = 0.0
+        minimum_generators = {}
+        
+        for tech_name, details in technology_attributes.items():
+            if (tech_name != 'Load' and 
+                details.tech_type == 'G' and 
+                details.dispatchable and 
+                details.capacity_min > 0):
+                
+                capacity = details.capacity * details.multiplier
+                min_generation = capacity * details.capacity_min
+                minimum_generators[tech_name] = min_generation
+                total_minimum_generation += min_generation
+        
         # Process each hour
         for h in range(8760):
             # Get hourly load
             load_h = load_and_supply[load_col][h] * load_multiplier
             hourly_load.append(load_h)
-            
-            # Start with load as the remaining demand to meet
-            remaining_demand = load_h
-            hour_curtailment = 0.0
             
             # Track what each technology contributes to meeting load
             hour_to_meet_load = {}
@@ -277,15 +288,40 @@ class PowerMatchProcessor:
                     storage_state.current_level = max(0, storage_state.current_level - parasitic_loss)
                     storage_state.total_losses += parasitic_loss
             
-            # Process technologies in merit order
+            # First pass: Handle minimum capacity requirements for dispatchable generators
+            remaining_demand = load_h
+            hour_curtailment = 0.0
+            
+            for tech_name, min_generation in minimum_generators.items():
+                # Generate at minimum capacity regardless of demand
+                hour_generation = min_generation
+                
+                # Track generation
+                technology_generation[tech_name].append(hour_generation)
+                technology_totals[tech_name] += hour_generation
+                
+                # Apply to meeting load
+                contribution_to_load = min(hour_generation, remaining_demand)
+                hour_to_meet_load[tech_name] = contribution_to_load
+                technology_to_meet_load[tech_name] += contribution_to_load
+                remaining_demand = max(0, remaining_demand - contribution_to_load)
+                
+                # Any excess from minimum generation becomes curtailment
+                excess = hour_generation - contribution_to_load
+                if excess > 0:
+                    hour_curtailment += excess
+            
+            # Second pass: Process remaining technologies in merit order
             for tech_name, details in technology_attributes.items():
                 if tech_name == 'Load':
                     continue
-                # For dispatchable technologies use the nameplate capacity otherwise the the SAM derived capacity
+                    
+                # For dispatchable technologies use the nameplate capacity otherwise use the SAM derived capacity
                 if details.dispatchable:
                     capacity = details.capacity * details.multiplier
                 else:
                     capacity = load_and_supply[details.merit_order][h] * details.multiplier
+                
                 if capacity == 0:
                     technology_generation[tech_name].append(0)
                     continue
@@ -301,12 +337,33 @@ class PowerMatchProcessor:
                 
                 elif details.tech_type == 'G':  # Generator
                     if details.dispatchable:
-                        hour_generation = self._dispatch_generator_hour(
-                            tech_name, details, remaining_demand, h
-                        )
-                        hour_to_meet_load[tech_name] = hour_generation
-                        remaining_demand = max(0, remaining_demand - hour_generation)
-                
+                        # For dispatchable generators, handle additional capacity above minimum
+                        if tech_name in minimum_generators:
+                            # This generator already provided minimum - now provide additional capacity
+                            total_capacity = capacity
+                            min_capacity = minimum_generators[tech_name]
+                            available_capacity = total_capacity - min_capacity
+                            
+                            if available_capacity > 0 and remaining_demand > 0:
+                                hour_generation = self._dispatch_generator_hour_above_minimum(
+                                    tech_name, details, available_capacity, remaining_demand, h
+                                )
+                                # Add to existing generation from minimum pass
+                                technology_generation[tech_name][h] += hour_generation
+                                technology_totals[tech_name] += hour_generation
+                                hour_to_meet_load[tech_name] += hour_generation
+                                technology_to_meet_load[tech_name] += hour_generation
+                                remaining_demand = max(0, remaining_demand - hour_generation)
+                            # Don't append to generation array again - already done in minimum pass
+                            continue
+                        else:
+                            # Regular dispatchable generator without minimum requirements
+                            hour_generation = self._dispatch_generator_hour(
+                                tech_name, details, remaining_demand, h
+                            )
+                            hour_to_meet_load[tech_name] = hour_generation
+                            remaining_demand = max(0, remaining_demand - hour_generation)
+                    
                     else:  # Non-dispatchable renewable
                         available_generation = self._get_renewable_generation(
                             tech_name, details, load_and_supply, h
@@ -327,10 +384,13 @@ class PowerMatchProcessor:
                             hour_generation = 0
                             hour_to_meet_load[tech_name] = 0
                     
-                # Track generation
-                technology_generation[tech_name].append(hour_generation)
-                technology_totals[tech_name] += hour_generation
-                technology_to_meet_load[tech_name] += hour_to_meet_load[tech_name]
+                # Track generation (handle different cases properly)
+                if tech_name not in minimum_generators:
+                    # Regular technologies - append new generation
+                    technology_generation[tech_name].append(hour_generation)
+                    technology_totals[tech_name] += hour_generation
+                    technology_to_meet_load[tech_name] += hour_to_meet_load[tech_name]
+                # Minimum generators already handled their tracking above
             
             # Handle any excess capacity for storage charging
             if hour_curtailment > 0:
@@ -345,7 +405,7 @@ class PowerMatchProcessor:
         # Update storage statistics
         for storage_state in self.storage_states:
             if storage_state.max_level_reached < storage_state.capacity:
-                # Cpture the final level as a potential maximum
+                # Capture the final level as a potential maximum
                 storage_state.max_level_reached = max(
                     storage_state.max_level_reached,
                     storage_state.current_level
@@ -368,6 +428,22 @@ class PowerMatchProcessor:
             technology_to_meet_load=technology_to_meet_load,
             correlation_data=correlation_data
         )
+
+    def _dispatch_generator_hour_above_minimum(self, tech_name, details, available_capacity, remaining_demand, hour) -> float:
+        """Dispatch generator above minimum capacity for one hour"""
+        if remaining_demand <= 0 or available_capacity <= 0:
+            return 0.0
+        
+        # Calculate maximum additional generation above minimum
+        max_capacity = available_capacity * details.capacity_max if details.capacity_max > 0 else available_capacity
+        
+        # Calculate generation needed
+        if remaining_demand >= max_capacity:
+            generation = max_capacity
+        else:
+            generation = remaining_demand
+        
+        return generation
     
     def _initialize_storage_states(self, technology_attributes) -> List[StorageState]:
         """Initialize storage system states"""

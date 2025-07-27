@@ -10,9 +10,6 @@ from siren_web.database_operations import (
     fetch_all_config_data
 )
 from siren_web.models import facilities, supplyfactors, Scenarios
-from pathlib import Path
-from powermapui.views.wasceneweb import WASceneWeb as WAScene
-from powermapui.views.powermodelweb import PowerModelWeb as PowerModel
 
 # Import the SAM processor
 from powermapui.views.sam_resource_processor import SAMResourceProcessor, SAMError, WeatherFileError, SimulationResults

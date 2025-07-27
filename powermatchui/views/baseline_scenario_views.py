@@ -499,8 +499,11 @@ def run_baseline(request):
                     demand_year, request.session.get('config_file')
                 )
                 # Add summary report to context
-                return render(request, 'display_table.html', {**context, 'summary_report': summary_report})
-                
+                success_message = "Baseline re-established" if save_baseline else "Baseline run complete"
+                return render(request, 'display_table.html', \
+                    {**context, 'summary_report': summary_report, 
+                     'success_message': success_message})
+
         technologies = fetch_technologies_with_multipliers(scenario)
         baseline_form = BaselineScenarioForm(technologies=technologies)
 
@@ -560,12 +563,9 @@ def process_results_for_template(dispatch_results, scenario, save_baseline, dema
                 row_data.append(value)
         sp_data_list.append(row_data)
     
-    success_message = "Baseline re-established" if save_baseline else "Baseline run complete"
-    
     return {
         'sp_data': sp_data_list,
         'headers': readable_headers,
-        'success_message': success_message,
         'demand_year': demand_year,
         'scenario': scenario,
         'config_file': config_file,
