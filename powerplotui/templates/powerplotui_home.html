@@ -30,22 +30,159 @@
     {% load crispy_forms_tags %}
     {% crispy plotform %}
     {% if download_ready %}
-    <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        const downloadBtn = document.getElementById('downloadBtn');
-        if (downloadBtn) {
-            downloadBtn.addEventListener('click', function() {
-                // Create download link with the file data
-                const link = document.createElement('a');
-                link.href = 'data:{{ content_type }};base64,{{ file_data }}';
-                link.download = '{{ filename }}';
-                link.style.display = 'none';
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
+        <script>
+            document.addEventListener('DOMContentLoaded', function() {
+                const downloadBtn = document.getElementById('downloadBtn');
+                if (downloadBtn) {
+                    downloadBtn.addEventListener('click', function() {
+                        // Create download link with the file data
+                        const link = document.createElement('a');
+                        link.href = 'data:{{ content_type }};base64,{{ file_data }}';
+                        link.download = '{{ filename }}';
+                        link.style.display = 'none';
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                    });
+                }
             });
-        }
-    });
-    </script>
+        </script>
     {% endif %}
+    <script>
+        debugger;
+        $(document).ready(function() {
+            // Function to update variant choices when scenario changes
+            function updateVariants() {
+                var scenarioId = $('#id_scenario').val();
+                
+                if (!scenarioId) {
+                    $('#id_variant').empty().append('<option value="">Select a Variant</option>');
+                    clearSeriesChoices();
+                    return;
+                }
+                
+                $.ajax({
+                    url: '{% url "get_valid_choices" %}',
+                    data: {'scenario': scenarioId},
+                    success: function(data) {
+                        // Update variant dropdown
+                        $('#id_variant').empty().append('<option value="">Select a Variant</option>');
+                        $.each(data.variants, function(index, variant) {
+                            $('#id_variant').append($('<option></option>')
+                                .attr('value', variant.id)
+                                .text(variant.name));
+                        });
+                        
+                        // Update series choices with scenario-filtered options
+                        updateSeriesChoices(data.headings, data.components);
+                    },
+                    error: function() {
+                        console.log('Error loading variants');
+                    }
+                });
+            }
+            
+            // Function to update series choices when variant changes
+            function updateSeriesForVariant() {
+                var scenarioId = $('#id_scenario').val();
+                var variantId = $('#id_variant').val();
+                
+                if (!scenarioId) return;
+                
+                $.ajax({
+                    url: '{% url "get_valid_choices" %}',
+                    data: {
+                        'scenario': scenarioId,
+                        'variant': variantId
+                    },
+                    success: function(data) {
+                        updateSeriesChoices(data.headings, data.components);
+                    },
+                    error: function() {
+                        console.log('Error loading series choices');
+                    }
+                });
+            }
+            
+            // Function to update heading and component dropdowns (general)
+            function updateSeriesChoices(headings, components) {
+                // Update heading choices
+                $('#id_series_1, #id_series_2').empty();
+                $.each(headings, function(index, heading) {
+                    $('#id_series_1, #id_series_2').append($('<option></option>')
+                        .attr('value', heading)
+                        .text(heading));
+                });
+                
+                // Update component choices with all available components
+                // These will be filtered when specific headings are selected
+                $('#id_series_1_component, #id_series_2_component').empty();
+                $.each(components, function(index, component) {
+                    $('#id_series_1_component, #id_series_2_component').append($('<option></option>')
+                        .attr('value', component)
+                        .text(component));
+                });
+            }
+            
+            // New function to update components for a specific series based on selected heading
+            function updateSeriesComponents(seriesNumber) {
+                var scenarioId = $('#id_scenario').val();
+                var variantId = $('#id_variant').val();
+                var headingId = $('#id_series_' + seriesNumber).val();
+                
+                if (!scenarioId || !headingId) {
+                    return;
+                }
+                
+                var ajaxData = {
+                    'scenario': scenarioId,
+                    'variant': variantId
+                };
+                ajaxData['series_' + seriesNumber + '_heading'] = headingId;
+                
+                $.ajax({
+                    url: '{% url "get_valid_choices" %}',
+                    data: ajaxData,
+                    success: function(data) {
+                        var componentField = '#id_series_' + seriesNumber + '_component';
+                        $(componentField).empty();
+                        
+                        var componentsKey = 'series_' + seriesNumber + '_components';
+                        $.each(data[componentsKey], function(index, component) {
+                            $(componentField).append($('<option></option>')
+                                .attr('value', component)
+                                .text(component));
+                        });
+                    },
+                    error: function() {
+                        console.log('Error loading components for series ' + seriesNumber);
+                    }
+                });
+            }
+            
+            // Function to clear series choices
+            function clearSeriesChoices() {
+                $('#id_series_1, #id_series_2').empty();
+                $('#id_series_1_component, #id_series_2_component').empty();
+            }
+            
+            // Event handlers
+            $('#id_scenario').change(updateVariants);
+            $('#id_variant').change(updateSeriesForVariant);
+            
+            // New event handlers for series heading selections
+            $('#id_series_1').change(function() {
+                updateSeriesComponents(1);
+            });
+            
+            $('#id_series_2').change(function() {
+                updateSeriesComponents(2);
+            });
+            
+            // Initialize on page load if a scenario is already selected
+            if ($('#id_scenario').val()) {
+                updateVariants();
+            }
+        });
+    </script>
 {% endblock %}

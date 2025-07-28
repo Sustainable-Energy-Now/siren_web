@@ -1,6 +1,6 @@
 import altair as alt
 import base64
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 from django.views.generic import TemplateView
 from django.shortcuts import render
 from django.contrib import messages
@@ -266,4 +266,65 @@ class PowerPlotHomeView(TemplateView):
                     'plotform': plotform,
                 }
 
-            return render(request, 'powerplotui_home.html', context)
+    def get_valid_choices(request):
+        scenario_id = request.GET.get('scenario')
+        variant_id = request.GET.get('variant')
+        series_1_heading = request.GET.get('series_1_heading')
+        series_2_heading = request.GET.get('series_2_heading')
+        
+        response_data = {
+            'variants': [],
+            'headings': [],
+            'components': [],
+            'series_1_components': [],
+            'series_2_components': []
+        }
+        
+        try:
+            # Get variants for the selected scenario
+            if scenario_id:
+                variants_queryset = variations.objects.filter(idscenarios=scenario_id)
+                response_data['variants'] = [
+                    {'id': variant.idvariations, 'name': variant.variation_name} 
+                    for variant in variants_queryset
+                ]
+                
+                # Filter Analysis based on scenario
+                analysis_filter = {'idscenarios': scenario_id}
+                
+                # If a specific variant is selected
+                if variant_id:
+                    try:
+                        selected_variant = variations.objects.get(idvariations=variant_id)
+                        analysis_filter['variation'] = selected_variant.variation_name
+                    except variations.DoesNotExist:
+                        pass
+                
+                # Get valid headings
+                valid_analysis = Analysis.objects.filter(**analysis_filter)
+                response_data['headings'] = list(valid_analysis.values_list('heading', flat=True).distinct().order_by('heading'))
+                
+                # For general components, we don't filter by heading since no heading is selected yet
+                # This will be empty initially and populated when headings are selected
+                response_data['components'] = []
+                
+                # Get components for specific headings
+                if series_1_heading:
+                    series_1_filter = analysis_filter.copy()
+                    series_1_filter['heading'] = series_1_heading
+                    response_data['series_1_components'] = list(
+                        Analysis.objects.filter(**series_1_filter).values_list('component', flat=True).distinct().order_by('component')
+                    )
+                
+                if series_2_heading:
+                    series_2_filter = analysis_filter.copy()
+                    series_2_filter['heading'] = series_2_heading
+                    response_data['series_2_components'] = list(
+                        Analysis.objects.filter(**series_2_filter).values_list('component', flat=True).distinct().order_by('component')
+                    )
+        
+        except Exception as e:
+            # Log the error in production
+            pass
+        
+        return JsonResponse(response_data)

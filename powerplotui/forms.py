@@ -19,20 +19,18 @@ class PlotForm(forms.Form):
         label="Choose a Scenario",
     )
 
-    variant_choices = [(variant.idvariations, variant.variation_name) for variant in variations.objects.all()]
     variant = forms.ChoiceField(
         choices=[],
         initial="Select a Variant",
         label="Choose a Variant"
     )
 
-    heading_choices = [(heading, heading) for heading in Analysis.objects.values_list('heading', flat=True).distinct()]
-    series_1 = forms.ChoiceField(choices=heading_choices, label='Select statistic for series 1')
-    series_2 = forms.ChoiceField(choices=heading_choices, label='Select statistic for series 2')
+    # Start with empty choices - they'll be populated via AJAX
+    series_1 = forms.ChoiceField(choices=[], label='Select statistic for series 1')
+    series_2 = forms.ChoiceField(choices=[], label='Select statistic for series 2')
 
-    component_choices = [(component, component) for component in Analysis.objects.values_list('component', flat=True).distinct()]
-    series_1_component = forms.ChoiceField(choices=component_choices, label='Select component for series 1')
-    series_2_component = forms.ChoiceField(choices=component_choices, label='Select component for series 2')
+    series_1_component = forms.ChoiceField(choices=[], label='Select component for series 1')
+    series_2_component = forms.ChoiceField(choices=[], label='Select component for series 2')
 
     chart_type = forms.ChoiceField(
         choices=[('line', 'Line'), ('bar', 'Bar')], label='Select chart type'
@@ -56,12 +54,46 @@ class PlotForm(forms.Form):
         selected_scenario = kwargs.pop('selected_scenario', None)
         super().__init__(*args, **kwargs)
 
+        # Get the 'Current' scenario
+        try:
+            current_scenario = Scenarios.objects.get(title='Current')
+            default_scenario_id = current_scenario.idscenarios
+        except Scenarios.DoesNotExist:
+            # Fallback if 'Current' scenario doesn't exist
+            default_scenario_id = None
         if selected_scenario:
+            # Use the selected scenario
             variant_queryset = variations.objects.filter(idscenarios=selected_scenario)
             self.fields['variant'].choices = [(variant.idvariations, variant.variation_name) for variant in variant_queryset]
             self.fields['scenario'].initial = selected_scenario
+            
+            # Set initial choices for headings and components based on scenario
+            analysis_queryset = Analysis.objects.filter(idscenarios=selected_scenario)
+            heading_choices = [(heading, heading) for heading in analysis_queryset.values_list('heading', flat=True).distinct()]
+            component_choices = [(component, component) for component in analysis_queryset.values_list('component', flat=True).distinct()]
+            
+            self.fields['series_1'].choices = heading_choices
+            self.fields['series_2'].choices = heading_choices
+            self.fields['series_1_component'].choices = component_choices
+            self.fields['series_2_component'].choices = component_choices
+        elif default_scenario_id:
+            # Use 'Current' scenario as default
+            variant_queryset = variations.objects.filter(idscenarios=default_scenario_id)
+            self.fields['variant'].choices = [(variant.idvariations, variant.variation_name) for variant in variant_queryset]
+            self.fields['scenario'].initial = default_scenario_id
+            
+            # Set initial choices for headings and components based on 'Current' scenario
+            analysis_queryset = Analysis.objects.filter(idscenarios=default_scenario_id)
+            heading_choices = [(heading, heading) for heading in analysis_queryset.values_list('heading', flat=True).distinct()]
+            component_choices = [(component, component) for component in analysis_queryset.values_list('component', flat=True).distinct()]
+            
+            self.fields['series_1'].choices = heading_choices
+            self.fields['series_2'].choices = heading_choices
+            self.fields['series_1_component'].choices = component_choices
+            self.fields['series_2_component'].choices = component_choices
         else:
-            self.fields['variant'].choices = self.variant_choices
+            # No scenario selected and no 'Current' scenario found
+            self.fields['variant'].choices = []
             self.fields['scenario'].initial = "Select a Scenario"
 
         self.helper = FormHelper()

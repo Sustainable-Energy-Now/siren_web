@@ -6,6 +6,7 @@ from .views import echart_views, tradingprice_views, plot3D_views
 
 urlpatterns = [
     path('powerplotui/', PowerPlotHomeView.as_view(), name='powerplotui_home'),
+    path('get-valid-choices/', PowerPlotHomeView.get_valid_choices, name='get_valid_choices'),
     path('powerplotui/echart', eChartView.as_view(), name='echarts'),
     path('get_analysis_data/', eChartView.as_view(), name='get_analysis_data'),
     path('trading_prices/', tradingprice_views.trading_price_list, name='trading_price_list'),
