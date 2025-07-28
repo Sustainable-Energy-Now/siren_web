@@ -4,7 +4,7 @@ from . import views
 app_name = 'gendocs'
 
 urlpatterns = [
-    path('', views.index, name='index'),
+    path('', views.generate_report, name='generate_report'),
     path('generate/', views.generate_report, name='generate_report'),
     path('download/<str:doc_type>/', views.download_document, name='download_document'),
     path('api/template-fields/<str:template_name>/', views.get_template_fields, name='template_fields'),
