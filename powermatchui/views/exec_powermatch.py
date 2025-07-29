@@ -27,7 +27,7 @@ def save_analysis(i, dispatch_summary, metadata, scenario, variation, stage):
         ('generation_mwh', 'Generation', 'MWh'),
         ('to_meet_load_mwh', 'To Meet Load', 'MWh'),
         ('capacity_factor', 'CF', '%'),
-        ('annual_cost', 'Cost', '$/yr'),
+        ('annual_cost', 'Annual Cost', '$/yr'),
         ('lcog_per_mwh', 'LCOG Cost', '$/MWh'),
         ('lcoe_per_mwh', 'LCOE Cost', '$/MWh'),
         ('emissions_tco2e', 'Emissions', 'tCO2e'),
@@ -71,17 +71,17 @@ def save_analysis(i, dispatch_summary, metadata, scenario, variation, stage):
     # Insert system totals from metadata
     system_totals = metadata.get('system_totals', {})
     system_mappings = [
-        ('total_capacity_mw', 'Capacity', 'Total', 'MW'),
-        ('total_generation_mwh', 'Generation', 'Total', 'MWh'),
-        ('total_to_meet_load_mwh', 'To Meet Load', 'Total', 'MWh'),
-        ('total_annual_cost', 'Annual Cost', 'Total', '$/yr'),
-        ('total_emissions_tco2e', 'Emissions', 'Total', 'tCO2e'),
-        ('total_emissions_cost', 'Emissions Cost', 'Total', '$'),
-        ('total_capital_cost', 'Capital Cost', 'Total', '$'),
-        ('total_lifetime_cost', 'Lifetime Cost', 'Total', '$'),
-        ('total_lifetime_emissions', 'Lifetime Emissions', 'Total', 'tCO2e'),
-        ('total_lifetime_emissions_cost', 'Lifetime Emissions Cost', 'Total', '$'),
-        ('total_area_km2', 'Area', 'Total', 'km²'),
+        ('total_capacity_mw', 'Capacity', 'System Total', 'MW'),
+        ('total_generation_mwh', 'Generation', 'System Total', 'MWh'),
+        ('total_to_meet_load_mwh', 'To Meet Load', 'System Total', 'MWh'),
+        ('total_annual_cost', 'Annual Cost', 'System Total', '$/yr'),
+        ('total_emissions_tco2e', 'Emissions', 'System Total', 'tCO2e'),
+        ('total_emissions_cost', 'Emissions Cost', 'System Total', '$'),
+        ('total_capital_cost', 'Capital Cost', 'System Total', '$'),
+        ('total_lifetime_cost', 'Lifetime Cost', 'System Total', '$'),
+        ('total_lifetime_emissions', 'Lifetime Emissions', 'System Total', 'tCO2e'),
+        ('total_lifetime_emissions_cost', 'Lifetime Emissions Cost', 'System Total', '$'),
+        ('total_area_km2', 'Area', 'System Total', 'km²'),
     ]
     
     for field_name, heading, component, units in system_mappings:
@@ -99,7 +99,7 @@ def save_analysis(i, dispatch_summary, metadata, scenario, variation, stage):
     
     # Insert system-level statistics from metadata
     system_stats = [
-        ('total_load_mwh', 'Load', 'Load Analysis', 'MWh'),
+        ('total_load_mwh', 'Total Load', 'Load Analysis', 'MWh'),
         ('load_met_pct', '% Load Met', 'Load Analysis', '%'),
         ('total_shortfall_mwh', 'Shortfall', 'Load Analysis', 'MWh'),
         ('max_shortfall_mw', 'Max Shortfall', 'Load Analysis', 'MW'),
@@ -137,7 +137,7 @@ def save_analysis(i, dispatch_summary, metadata, scenario, variation, stage):
     if i == 0:
         static_variables = [
             ('carbon_price', metadata.get('carbon_price', 0), '$/tCO2e'),
-            ('discount_rate', metadata.get('discount_rate', 0) * 100, '%'),  # Convert to percentage
+            ('discount_rate', metadata.get('discount_rate', 0), '%'),  # Convert to percentage
             ('max_lifetime', metadata.get('max_lifetime', 0), 'years'),
         ]
         
@@ -206,7 +206,7 @@ def fetch_analysis(scenario, variation: str, stage: int) -> Tuple[np.ndarray, Di
         'Generation': 'generation_mwh',
         'To Meet Load': 'to_meet_load_mwh',
         'CF': 'capacity_factor',
-        'Cost': 'annual_cost',
+        'Annual Cost': 'annual_cost',
         'LCOG Cost': 'lcog_per_mwh',
         'LCOE Cost': 'lcoe_per_mwh',
         'Emissions': 'emissions_tco2e',
@@ -261,8 +261,8 @@ def fetch_analysis(scenario, variation: str, stage: int) -> Tuple[np.ndarray, Di
         for heading, field_name in heading_to_field.items():
             if heading in tech_data:
                 value = tech_data[heading]
-                # Convert percentage back to decimal for capacity factor
-                if heading == 'CF':
+                # Convert percentage back to decimal for capacity factor and reference CF
+                if heading in ['CF', 'Reference CF']:
                     value = value / 100.0
                 dispatch_summary[i][field_name] = value
             else:
@@ -280,10 +280,15 @@ def fetch_analysis(scenario, variation: str, stage: int) -> Tuple[np.ndarray, Di
     for record in settings_records:
         param = record['parameter']
         value = record['value']
+        units = record['units']
         if param == 'carbon_price':
             metadata['carbon_price'] = value
         elif param == 'discount_rate':
-            metadata['discount_rate'] = float(value.rstrip('%')) / 100.0
+            # Fixed: properly handle percentage conversion
+            if units == '%':
+                metadata['discount_rate'] = float(value) / 100.0
+            else:
+                metadata['discount_rate'] = value
         elif param == 'max_lifetime':
             metadata['max_lifetime'] = value
     
@@ -324,7 +329,7 @@ def fetch_analysis(scenario, variation: str, stage: int) -> Tuple[np.ndarray, Di
         if heading in load_analysis:
             value = load_analysis[heading]
             # Convert percentages back to decimals
-            if heading.startswith('%') and value > 1.0:
+            if heading.startswith('%'):
                 value = value / 100.0
             metadata[field_name] = value
     
