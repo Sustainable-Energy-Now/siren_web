@@ -126,12 +126,50 @@ input[name=message] {
     margin: 0;
 }
 
+.alert-dismissible {
+    padding-right: 3rem !important;
+    position: relative;
+}
+
+.alert-dismissible .btn-close {
+    position: absolute;
+    top: 50%;
+    right: 0rem;
+    transform: translateY(-50%);
+    padding: 0.1rem;
+    z-index: 2;
+}
+.alert-dismissible .btn-close:hover {
+    color: #fff;
+}
+.alert .btn {
+    margin-top: 0.5rem;
+}
+
 .alert {
+    border-radius: 0.5rem;
+    border: none;
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
     background-color: #d4edda;
     color: #155724;
     padding: 10px;
-    margin-top: 10px;
     display: inline-block;
+}
+
+.alert-success {
+    background-color: #d1e7dd;
+    color: #0a3622;
+}
+
+.alert-warning {
+    background-color: #fff3cd;
+    border: 1px solid #ffeaa7;
+    color: #856404;
+}
+
+.alert-danger {
+    background-color: #f8d7da;
+    color: #58151c;
 }
 
 .table-fixed {
@@ -465,10 +503,4 @@ select.form-control {
 .technology-table td:first-child {
     text-align: left;
     font-weight: bold;
-}
-
-.alert-warning {
-    background-color: #fff3cd;
-    border: 1px solid #ffeaa7;
-    color: #856404;
 }

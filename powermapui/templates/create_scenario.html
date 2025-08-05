@@ -20,13 +20,13 @@
 </div>
 {% endif %}
 
-<form method="post" action="{% url 'update_scenario' %}">
+<form method="post" action="{% url 'powermapui:update_scenario' %}">
     {% csrf_token %}
     
     <!-- Button row -->
     <div class="d-flex mb-3">
       <button type="submit" class="btn btn-primary">Save Associations</button>
-      <a href="{% url 'clone_scenario' %}" class="btn btn-success ml-2">Clone Existing Scenario</a>
+      <a href="{% url 'powermapui:clone_scenario' %}" class="btn btn-success ml-2">Clone Existing Scenario</a>
     </div>
     
     <table class="table">
@@ -47,7 +47,7 @@
                             <!-- Action buttons for non-protected scenarios -->
                             {% if scenario.title != 'Current' %}
                                 <div class="scenario-actions mt-1">
-                                    <a href="{% url 'edit_scenario' scenario.idscenarios %}" 
+                                    <a href="{% url 'powermapui:edit_scenario' scenario.idscenarios %}" 
                                        class="btn btn-sm btn-outline-primary" 
                                        title="Edit Scenario">
                                         <i class="fas fa-edit"></i>

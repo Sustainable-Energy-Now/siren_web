@@ -52,7 +52,7 @@ class Scenarios(models.Model):
 
     class Meta:
         db_table = 'Scenarios'
-        
+
 class facilities(models.Model):
     idfacilities = models.AutoField(db_column='idfacilities', primary_key=True)
     facility_name = models.CharField(db_column='facility_name', unique=True, max_length=45, blank=True, null=True)
@@ -76,11 +76,45 @@ class facilities(models.Model):
     tilt = models.IntegerField(null=True)
     storage_hours = models.FloatField(blank=True, null=True)
     power_file = models.CharField( max_length=45, blank=True, null=True)
-    grid_line = models.CharField( max_length=45, blank=True, null=True)
-    direction = models.CharField( max_length=20, blank=True, null=True)
+    direction = models.CharField( max_length=28, blank=True, null=True)
+    grid_connections = models.ManyToManyField('GridLines', through='FacilityGridConnections', 
+                                            blank=True, related_name='connected_facilities')
+    primary_grid_line = models.ForeignKey('GridLines', on_delete=models.SET_NULL, 
+                                        null=True, blank=True, related_name='primary_facilities')
 
     class Meta:
         db_table = 'facilities'
+    
+    def get_primary_grid_connection(self):
+        """Get the primary grid connection for this facility"""
+        try:
+            return self.facilitygridconnections_set.filter(is_primary=True).first()
+        except:
+            return None
+    
+    def get_all_grid_connections(self):
+        """Get all grid connections for this facility"""
+        return self.facilitygridconnections_set.filter(active=True)
+    
+    def calculate_total_grid_losses_mw(self, power_output_mw):
+        """Calculate total losses from facility through all grid connections"""
+        total_losses = 0
+        connections = self.get_all_grid_connections()
+        
+        # Distribute power across connections (simplified - equal distribution)
+        if connections:
+            power_per_connection = power_output_mw / len(connections)
+            
+            for connection in connections:
+                # Connection losses (facility to grid line)
+                connection_losses = connection.calculate_connection_losses_mw(power_per_connection)
+                
+                # Grid line losses (simplified)
+                grid_line_losses = connection.idgridlines.calculate_line_losses_mw(power_per_connection)
+                
+                total_losses += connection_losses + grid_line_losses
+        
+        return total_losses
 
 class Generatorattributes(models.Model):
     idgeneratorattributes = models.AutoField(db_column='idGeneratorAttributes', primary_key=True)  
@@ -108,7 +142,150 @@ class Genetics(models.Model):
     class Meta:
         db_table = 'Genetics'
         db_table_comment = 'Parameters used for genetic optimisation'
+
+class GridLines(models.Model):
+    """Model to store grid line data for calculating losses and capacity"""
+    idgridlines = models.AutoField(primary_key=True, db_column='idgridlines')
+    line_name = models.CharField(max_length=100, unique=True, help_text="Unique identifier for the grid line")
+    line_code = models.CharField(max_length=30, unique=True, help_text="Short code for the grid line")
+    line_type = models.CharField(max_length=20, choices=[
+        ('transmission', 'Transmission'),
+        ('distribution', 'Distribution'),
+        ('subtransmission', 'Sub-transmission')
+    ], default='transmission')
+    voltage_level = models.FloatField(help_text="Voltage level in kV")
+    
+    # Physical characteristics for loss calculations
+    length_km = models.FloatField(help_text="Line length in kilometers")
+    resistance_per_km = models.FloatField(help_text="Resistance per km (ohms/km)")
+    reactance_per_km = models.FloatField(help_text="Reactance per km (ohms/km)")
+    conductance_per_km = models.FloatField(default=0, help_text="Conductance per km (S/km)")
+    susceptance_per_km = models.FloatField(default=0, help_text="Susceptance per km (S/km)")
+    
+    # Capacity constraints
+    thermal_capacity_mw = models.FloatField(help_text="Thermal capacity in MW")
+    emergency_capacity_mw = models.FloatField(null=True, blank=True, help_text="Emergency capacity in MW")
+    
+    # Geographic endpoints
+    from_latitude = models.FloatField(help_text="Starting point latitude")
+    from_longitude = models.FloatField(help_text="Starting point longitude")
+    to_latitude = models.FloatField(help_text="Ending point latitude")
+    to_longitude = models.FloatField(help_text="Ending point longitude")
+    
+    # Additional attributes
+    active = models.BooleanField(default=True)
+    commissioned_date = models.DateField(null=True, blank=True)
+    decommissioned_date = models.DateField(null=True, blank=True)
+    owner = models.CharField(max_length=100, blank=True, null=True)
+    
+    # Text field to store KML geometry data as string
+    kml_geometry = models.TextField(null=True, blank=True, help_text="KML geometry data (stored as text)")
+    
+    created_date = models.DateTimeField(auto_now_add=True)
+    modified_date = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        db_table = 'GridLines'
+        ordering = ['line_name']
+    
+    def __str__(self):
+        return f"{self.line_name} ({self.voltage_level}kV)"
+    
+    def calculate_resistance(self):
+        """Calculate total resistance of the line"""
+        return self.resistance_per_km * self.length_km
+    
+    def calculate_reactance(self):
+        """Calculate total reactance of the line"""
+        return self.reactance_per_km * self.length_km
+    
+    def calculate_impedance(self):
+        """Calculate impedance magnitude"""
+        r = self.calculate_resistance()
+        x = self.calculate_reactance()
+        return (r**2 + x**2)**0.5
+    
+    def calculate_line_losses_mw(self, power_flow_mw):
+        """Calculate line losses for a given power flow"""
+        if power_flow_mw == 0:
+            return 0
         
+        # Simplified loss calculation: P_loss = I²R = (P²R)/(V²cos²φ)
+        # Assuming power factor of 0.95 and using line-to-line voltage
+        voltage_kv = self.voltage_level
+        resistance = self.calculate_resistance()
+        power_factor = 0.95
+        
+        # Convert to per-unit system for calculation
+        current_pu = power_flow_mw / (voltage_kv * (3**0.5) * power_factor)
+        losses_mw = (current_pu**2) * resistance * (voltage_kv**2) / 1000  # Convert to MW
+        
+        return losses_mw
+    
+    def get_utilization_percent(self, current_flow_mw):
+        """Get current utilization as percentage of thermal capacity"""
+        if self.thermal_capacity_mw == 0:
+            return 0
+        return (abs(current_flow_mw) / self.thermal_capacity_mw) * 100
+
+class FacilityGridConnections(models.Model):
+    """Junction table to connect facilities to grid lines"""
+    idfacilitygridconnections = models.AutoField(primary_key=True)
+    idfacilities = models.ForeignKey('facilities', on_delete=models.CASCADE, db_column='idfacilities')
+    idgridlines = models.ForeignKey('GridLines', on_delete=models.CASCADE, db_column='idgridlines')
+    
+    # Connection details
+    connection_type = models.CharField(max_length=20, choices=[
+        ('direct', 'Direct Connection'),
+        ('substation', 'Via Substation'),
+        ('transformer', 'Via Transformer')
+    ], default='direct')
+    
+    connection_point_latitude = models.FloatField(help_text="Exact connection point latitude")
+    connection_point_longitude = models.FloatField(help_text="Exact connection point longitude")
+    
+    # Technical connection data
+    connection_voltage_kv = models.FloatField(help_text="Connection voltage in kV")
+    transformer_capacity_mva = models.FloatField(null=True, blank=True, help_text="Transformer capacity if applicable")
+    connection_capacity_mw = models.FloatField(help_text="Maximum connection capacity in MW")
+    
+    # Distance from facility to grid line
+    connection_distance_km = models.FloatField(help_text="Distance from facility to grid connection point")
+    
+    # Administrative
+    connection_date = models.DateField(null=True, blank=True)
+    is_primary = models.BooleanField(default=True, help_text="Is this the primary grid connection for the facility?")
+    active = models.BooleanField(default=True)
+    
+    created_date = models.DateTimeField(auto_now_add=True)
+    modified_date = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        db_table = 'FacilityGridConnections'
+        unique_together = [['idfacilities', 'idgridlines', 'is_primary']]  # Only one primary connection per facility-gridline pair
+    
+    def __str__(self):
+        return f"{self.idfacilities.facility_name} -> {self.idgridlines.line_name}"
+    
+    def calculate_connection_losses_mw(self, power_output_mw):
+        """Calculate losses from facility to grid connection point"""
+        if self.connection_distance_km == 0 or power_output_mw == 0:
+            return 0
+        
+        # Simplified calculation for connection losses
+        # Assuming typical conductor characteristics for connection lines
+        typical_resistance_per_km = 0.1  # ohms/km for typical HV connection
+        connection_resistance = typical_resistance_per_km * self.connection_distance_km
+        
+        # Use connection voltage for loss calculation
+        voltage_kv = self.connection_voltage_kv
+        power_factor = 0.95
+        
+        current = power_output_mw / (voltage_kv * (3**0.5) * power_factor)
+        connection_losses_mw = (current**2) * connection_resistance * (voltage_kv**2) / 1000
+        
+        return connection_losses_mw
+
 class Optimisations(models.Model):
     idoptimisation = models.AutoField(db_column='idOptimisation', primary_key=True)
     idscenarios = models.ForeignKey('Scenarios', on_delete=models.CASCADE, db_column='idScenarios')

@@ -20,7 +20,7 @@
 
 <div class="row">
   <div class="col-md-6">
-    <form method="post" action="{% url 'clone_scenario' %}">
+    <form method="post" action="{% url 'powermapui:clone_scenario' %}">
       {% csrf_token %}
       
       <div class="form-group">
@@ -45,7 +45,7 @@
       
       <div class="form-group mt-3">
         <button type="submit" class="btn btn-primary">Create Clone</button>
-        <a href="{% url 'clone_scenario' %}" class="btn btn-secondary">Cancel</a>
+        <a href="{% url 'powermapui:clone_scenario' %}" class="btn btn-secondary">Cancel</a>
       </div>
     </form>
   </div>

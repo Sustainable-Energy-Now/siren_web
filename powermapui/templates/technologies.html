@@ -45,7 +45,7 @@
         The data has been sourced from the CSIRO GENCOST report. From the Capex down the attributes vary by year.  
         The reference year can be chosen from the 'Demand year*' drop down list.
     </p>
-    <form method="post" action="{% url 'technologies' %}">
+    <form method="post" action="{% url 'powermapui:technologies' %}">
         {% csrf_token %}
         {% crispy demand_year_form %}
     </form>

@@ -137,21 +137,20 @@ def save_analysis(i, dispatch_summary, metadata, scenario, variation, stage):
     if i == 0:
         static_variables = [
             ('carbon_price', metadata.get('carbon_price', 0), '$/tCO2e'),
-            ('discount_rate', metadata.get('discount_rate', 0), '%'),  # Convert to percentage
+            ('discount_rate', metadata.get('discount_rate', 0) * 100, '%'),  # Convert to percentage
             ('max_lifetime', metadata.get('max_lifetime', 0), 'years'),
         ]
-        
-        settings_records = []
+
         for parameter, value, units in static_variables:
-            settings_records.append(ScenariosSettings(
+            ScenariosSettings.objects.update_or_create(
                 idscenarios=scenario_obj,
                 sw_context='Powermatch',
                 parameter=parameter,
-                value=float(value),
-                units=units,
-            ))
-        
-        ScenariosSettings.objects.bulk_create(settings_records)
+                defaults={
+                    'value': float(value),
+                    'units': units,
+                }
+            )
 
 def fetch_analysis(scenario, variation: str, stage: int) -> Tuple[np.ndarray, Dict[str, Any]]:
     """

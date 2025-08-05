@@ -5,7 +5,7 @@
 <h2>Editable MySQL Table</h2>
 
 <!-- Form for selecting the table and populating the page -->
-<form method="post" action="{% url 'table_update' %}">
+<form method="post" action="{% url 'powermapui:table_update' %}">
     {% csrf_token %}
     <input type="hidden" name="action" value="populate">
     <label for="table_selection">Select a table:</label>
@@ -18,7 +18,7 @@
 </form>
 
 <!-- Form for saving changes made to the table -->
-<form method="post" action="{% url 'table_update_process' %}">
+<form method="post" action="{% url 'powermapui:table_update_process' %}">
     {% csrf_token %}
     <input type="hidden" name="action" value="save">
     <input type="hidden" name="selected_table_name" value="{{ selected_table_name }}">

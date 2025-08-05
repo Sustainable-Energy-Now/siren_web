@@ -38,7 +38,7 @@
             </ul>
             <p><strong>Use this when:</strong> Adding new facilities, regular updates, daily operations</p>
             
-            <a href="{% url 'generate_power' %}?confirm=true&refresh_supply_factors=false" 
+            <a href="{% url 'powermapui:generate_power' %}?confirm=true&refresh_supply_factors=false" 
                class="btn btn-success">
                 Start Smart Process
             </a>
@@ -55,7 +55,7 @@
             </ul>
             <p><strong>Use this when:</strong> Configuration changes, parameter updates, troubleshooting data issues</p>
             
-            <a href="{% url 'generate_power' %}?confirm=true&refresh_supply_factors=true" 
+            <a href="{% url 'powermapui:generate_power' %}?confirm=true&refresh_supply_factors=true" 
                class="btn btn-warning"
                onclick="return confirm('⚠️ This will delete and recreate ALL supply factors data for ALL facilities. This may take a long time. Are you sure?')">
                 Force Refresh All
@@ -63,7 +63,7 @@
         </div>
 
         <div style="margin-top: 30px; text-align: center;">
-            <a href="{% url 'powermapui_home' %}" class="btn btn-secondary">
+            <a href="{% url 'powermapui:powermapui_home' %}" class="btn btn-secondary">
                 <span class="icon">← </span>Cancel and Return
             </a>
         </div>

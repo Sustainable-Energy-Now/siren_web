@@ -161,6 +161,10 @@ DATABASES = {
         'HOST': secrets['database']['host'],
         'PORT': secrets['database']['port'],
         'sql_mode': 'STRICT_TRANS_TABLES',
+        'OPTIONS': {
+            'init_command': "SET default_storage_engine=INNODB;",
+            'charset': 'utf8mb4',
+        },
     }
 }
 USER_PASS = {

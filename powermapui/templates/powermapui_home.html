@@ -26,6 +26,9 @@
         <button id="addFacilityBtn" class="btn btn-primary" type="button">
             Add New Facility
         </button>
+        <button id="addGridLineBtn" class="btn btn-success" type="button">
+            Add New Grid Line
+        </button>
     {% else %}
         {% if scenario == 'Current' %}
             <button class="btn btn-secondary" type="button" disabled title="Cannot add facilities to the 'Current' scenario">
@@ -50,6 +53,59 @@
     <p>Demand Year and Scenario must be specified.</p>
 {% endif %}
 
+<!-- Add Grid Line Form (initially hidden) -->
+<div id="addGridLineForm" style="display: none; margin-bottom: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
+    <h4 style="padding: 15px; background-color: #e8f5e8; margin: 0; border-top-left-radius: 8px; border-top-right-radius: 8px; border-bottom: 1px solid #dee2e6;">Add New Grid Line</h4>
+    
+    <div style="padding: 15px; background-color: white;">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+            <div>
+                <label for="grid_line_name">Line Name:</label>
+                <input type="text" id="grid_line_name" class="form-control" required>
+            </div>
+            <div>
+                <label for="grid_line_code">Line Code:</label>
+                <input type="text" id="grid_line_code" class="form-control" required>
+            </div>
+            <div>
+                <label for="grid_line_type">Line Type:</label>
+                <select id="grid_line_type" class="form-control">
+                    <option value="transmission">Transmission</option>
+                    <option value="subtransmission">Sub-transmission</option>
+                    <option value="distribution">Distribution</option>
+                </select>
+            </div>
+            <div>
+                <label for="grid_voltage_level">Voltage Level (kV):</label>
+                <input type="number" id="grid_voltage_level" class="form-control" step="0.1" min="0" value="132">
+            </div>
+            <div>
+                <label for="grid_thermal_capacity">Thermal Capacity (MW):</label>
+                <input type="number" id="grid_thermal_capacity" class="form-control" step="0.1" min="0" value="100">
+            </div>
+            <div>
+                <label for="grid_resistance">Resistance per km (Ω/km):</label>
+                <input type="number" id="grid_resistance" class="form-control" step="0.001" min="0" value="0.1">
+            </div>
+        </div>
+        
+        <div style="margin-top: 15px;">
+            <label>Grid Line Endpoints:</label>
+            <div id="grid-endpoints-display" style="padding: 10px; background-color: #f8f9fa; border-radius: 4px;">
+                <div>From: <span id="grid_from_coords">Click on map for start point</span></div>
+                <div>To: <span id="grid_to_coords">Click on map for end point</span></div>
+                <div>Length: <span id="grid_length_display">0 km</span></div>
+            </div>
+            <div class="technology-info">Click two points on the map to define the grid line</div>
+        </div>
+        
+        <div style="display: flex; justify-content: space-between; margin-top: 20px;">
+            <button id="cancelAddGridLine" class="btn btn-secondary">Cancel</button>
+            <button id="submitAddGridLine" class="btn-custom-swish2">Save Grid Line</button>
+        </div>
+    </div>
+</div>
+
 <!-- Add Facility Form (initially hidden) -->
 <div id="addFacilityForm" style="display: none; margin-bottom: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
     <h4 style="padding: 15px; background-color: #f8f9fa; margin: 0; border-top-left-radius: 8px; border-top-right-radius: 8px; border-bottom: 1px solid #dee2e6;">Add New Facility</h4>
@@ -73,6 +129,36 @@
             <label for="capacity">Capacity (MW):</label>
             <input type="number" id="capacity" class="form-control" step="0.01" min="0">
             <div class="technology-info">Total facility capacity in megawatts</div>
+        </div>
+        
+        <!-- Grid Connection Section -->
+        <div style="margin-bottom: 15px; border: 1px solid #ddd; padding: 10px; border-radius: 5px;">
+            <h5>Grid Connection</h5>
+            <div style="margin-bottom: 10px;">
+                <label>
+                    <input type="radio" name="grid_connection_option" value="auto" checked> 
+                    Auto-connect to nearest grid line
+                </label>
+            </div>
+            <div style="margin-bottom: 10px;">
+                <label>
+                    <input type="radio" name="grid_connection_option" value="select"> 
+                    Select existing grid line
+                </label>
+                <select id="existing_grid_lines" class="form-control" style="margin-top: 5px; display: none;">
+                    <option value="">Select Grid Line</option>
+                </select>
+            </div>
+            <div style="margin-bottom: 10px;">
+                <label>
+                    <input type="radio" name="grid_connection_option" value="create"> 
+                    Create new grid line
+                </label>
+            </div>
+            <div id="nearby_grid_lines" style="margin-top: 10px; display: none;">
+                <strong>Nearby Grid Lines:</strong>
+                <div id="nearby_lines_list"></div>
+            </div>
         </div>
         
         <!-- Wind turbine specific fields (initially hidden) -->
@@ -129,6 +215,15 @@ integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
 crossorigin=""></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet-omnivore/0.3.4/leaflet-omnivore.min.js"></script>
 <script src="https://cdn.jsdelivr.net/gh/shramov/leaflet-plugins/layer/vector/KML.js"></script>
+
+<style>
+.technology-info {
+    font-size: 0.85em;
+    color: #666;
+    margin-top: 2px;
+}
+</style>
+
 <script>
     // Initialize the map and set its view to South West of Western Australia
     var map = L.map('map').setView([-33.45, 121.25], 7);  // Coordinates for South West WA
@@ -138,106 +233,94 @@ crossorigin=""></script>
         attribution: 'Map data © <a href="https://openstreetmap.org">OpenStreetMap</a> contributors'
     }).addTo(map);
     
-    // Facility data passed from Django view
+    // Data passed from Django view
     var facilities = {{ facilities_json|safe }};
+    var gridLines = {{ grid_lines_json|safe }};
     
     // Define custom icons for each technology type
-    var bessIcon = L.icon({
-        iconUrl: "{% static 'icons/bess.png' %}",  // Path to CCGT icon image
-        iconSize: [32, 32],
-    });
-    var biomassIcon = L.icon({
-        iconUrl: "{% static 'icons/biomass.png' %}",  // Path to biomass icon image
-        iconSize: [32, 32],
-    });
-    var CCGTIcon = L.icon({
-        iconUrl: "{% static 'icons/CCGT.png' %}",  // Path to CCGT icon image
-        iconSize: [32, 32],
-    });
-    var CSTIcon = L.icon({
-        iconUrl: "{% static 'icons/CST.png' %}",  // Path to CST icon image
-        iconSize: [32, 32],
-    });
-    var coalIcon = L.icon({
-        iconUrl: "{% static 'icons/coal.png' %}",  // Path to coal icon image
-        iconSize: [32, 32],
-    });
-    var geothermalIcon = L.icon({
-        iconUrl: "{% static 'icons/geothermal.png' %}",  // Path to geothermal icon image
-        iconSize: [32, 32],
-    });
-
-    var nuclearIcon = L.icon({
-        iconUrl: "{% static 'icons/nuclear.png' %}",  // Path to nuclear icon image
-        iconSize: [32, 32],
-    });
+    var bessIcon = L.icon({ iconUrl: "{% static 'icons/bess.png' %}", iconSize: [32, 32] });
+    var biomassIcon = L.icon({ iconUrl: "{% static 'icons/biomass.png' %}", iconSize: [32, 32] });
+    var CCGTIcon = L.icon({ iconUrl: "{% static 'icons/CCGT.png' %}", iconSize: [32, 32] });
+    var CSTIcon = L.icon({ iconUrl: "{% static 'icons/CST.png' %}", iconSize: [32, 32] });
+    var coalIcon = L.icon({ iconUrl: "{% static 'icons/coal.png' %}", iconSize: [32, 32] });
+    var geothermalIcon = L.icon({ iconUrl: "{% static 'icons/geothermal.png' %}", iconSize: [32, 32] });
+    var nuclearIcon = L.icon({ iconUrl: "{% static 'icons/nuclear.png' %}", iconSize: [32, 32] });
+    var PHESIcon = L.icon({ iconUrl: "{% static 'icons/PHES.png' %}", iconSize: [32, 32] });
+    var recipIcon = L.icon({ iconUrl: "{% static 'icons/recip.png' %}", iconSize: [32, 32] });
+    var solarIcon = L.icon({ iconUrl: "{% static 'icons/solar.png' %}", iconSize: [32, 32] });
+    var windIcon = L.icon({ iconUrl: "{% static 'icons/wind.png' %}", iconSize: [32, 32] });
+    var defaultIcon = L.icon({ iconUrl: "{% static 'icons/power_technology.png' %}", iconSize: [32, 32] });
     
-    var PHESIcon = L.icon({
-        iconUrl: "{% static 'icons/PHES.png' %}",  // Path to PHES icon image
-        iconSize: [32, 32],
-    });
-    
-    var recipIcon = L.icon({
-        iconUrl: "{% static 'icons/recip.png' %}",  // Path to recip icon image
-        iconSize: [32, 32],
-    });
-    var solarIcon = L.icon({
-        iconUrl: "{% static 'icons/solar.png' %}",  // Path to solar icon image
-        iconSize: [32, 32],  // size of the icon
-    });
-
-    var windIcon = L.icon({
-        iconUrl: "{% static 'icons/wind.png' %}",  // Path to wind icon image
-        iconSize: [32, 32],
-    });
-
-    var defaultIcon = L.icon({
-        iconUrl: "{% static 'icons/power_technology.png' %}",  // Fallback/default icon image
-        iconSize: [32, 32],
-    });
-    
-    // Create a layer group for the facilities
+    // Create layer groups
     var facilityLayer = L.layerGroup();
-    var gridLayer = L.layerGroup();
+    var gridLinesLayer = L.layerGroup();
     
+    // Variables for Add Facility and Grid Line functionality
+    var addFacilityMode = false;
+    var addGridLineMode = false;
+    var selectedLocation = null;
+    var locationMarker = null;
+    var gridLinePoints = [];
+    var gridLineMarkers = [];
+
     // Function to get the correct icon based on technology type
     function getIconForTechnology(technologyId) {
         switch (technologyId) {
-            case 1:  //  Black coal
-                return coalIcon;
-            case 2:
-            case 3:
-            case 4:
-            case 5:
-            case 143:
-            case 144:  //  bess
-                return bessIcon;
-            case 6:  //  biomass
-                return biomassIcon;
-            case 7:
-            case 19:  //  OCGT
-                return CCGTIcon;
-            case 8:
-            case 9:  //  PHES
-                return PHESIcon;
-            case 11:
-            case 13:
-            case 14:  // solar
-                return solarIcon;
-            case 15: // wind
-            case 16:
-            case 147:
-                return windIcon;
-            case 18:  // Concentrated Solar Thermal
-                return CSTIcon;
-            case 20:  // Reciprocating Gas
-                return recipIcon;
-            case 145:
-            case 146:  // Nuclear
-                return nuclearIcon;
-            default:
-                return defaultIcon;
+            case 1: return coalIcon;
+            case 2: case 3: case 4: case 5: case 143: case 144: return bessIcon;
+            case 6: return biomassIcon;
+            case 7: case 19: return CCGTIcon;
+            case 8: case 9: return PHESIcon;
+            case 11: case 13: case 14: return solarIcon;
+            case 15: case 16: case 147: return windIcon;
+            case 18: return CSTIcon;
+            case 20: return recipIcon;
+            case 145: case 146: return nuclearIcon;
+            default: return defaultIcon;
         }
+    }
+    
+    // Function to load grid lines on map
+    function loadGridLinesOnMap(gridLinesData) {
+        gridLinesLayer.clearLayers();
+        
+        gridLinesData.forEach(function(gridLine) {
+            // Create line between from and to points
+            var lineCoords = [
+                [gridLine.from_latitude, gridLine.from_longitude],
+                [gridLine.to_latitude, gridLine.to_longitude]
+            ];
+            
+            // Color based on voltage level
+            var lineColor = '#ff0000'; // Default red
+            if (gridLine.voltage_level >= 330) {
+                lineColor = '#8B0000'; // Dark red for high voltage
+            } else if (gridLine.voltage_level >= 220) {
+                lineColor = '#FF4500'; // Orange red
+            } else if (gridLine.voltage_level >= 132) {
+                lineColor = '#FFA500'; // Orange
+            } else if (gridLine.voltage_level >= 66) {
+                lineColor = '#FFD700'; // Gold
+            } else {
+                lineColor = '#FFFF00'; // Yellow for lower voltage
+            }
+            
+            var polyline = L.polyline(lineCoords, {
+                color: lineColor,
+                weight: Math.max(2, Math.min(8, gridLine.voltage_level / 50)),
+                opacity: 0.7
+            });
+            
+            // Add popup with grid line information
+            polyline.bindPopup(`
+                <strong>${gridLine.line_name}</strong><br>
+                Type: ${gridLine.line_type}<br>
+                Voltage: ${gridLine.voltage_level} kV<br>
+                Capacity: ${gridLine.thermal_capacity_mw} MW
+            `);
+            
+            gridLinesLayer.addLayer(polyline);
+        });
     }
     
     // Function to clear and reload facilities on the map
@@ -254,184 +337,74 @@ crossorigin=""></script>
         });
     }
     
-    // Initial load of facilities
-    loadFacilitiesOnMap(facilities);
-    
-    // Add the facility layer to the map
-    facilityLayer.addTo(map);
-
-    // Create a layer group for all KML layers
-    //var gridLayer = L.layerGroup().addTo(map);
-
-    var boundaryLayer = new L.KML("{% static 'kml//SWIS_Boundary.kml' %}", {
-        async: true  // Load asynchronously to avoid blocking
-    });
-    boundaryLayer.on("loaded", function(e) {
-        map.fitBounds(e.target.getBounds());  // Adjust the map to fit the KML boundary
-    });
-    map.addLayer(boundaryLayer);
-    boundaryLayer.on("loaded", function(e) {
-        map.fitBounds(e.target.getBounds());  // Adjust the map to fit the bounds of the KML layer
-    
-        // Override polygon styles
-        e.target.eachLayer(function(layer) {
-            if (layer instanceof L.Polygon) {
-                layer.setStyle({
-                    fillColor: '#ddffcc',   // Light Green fill
-                    fillOpacity: 0.4,       // 70% opacity for fill
-                    color: '#ff7800',       // Orange border
-                    weight: 3,              // 3px border width
-                    opacity: 0.8,           // 80% opacity for border
-                    dashArray: '5, 5',      // Dashed border
-                    dashOffset: '0'         // No offset for dashes
-                });
-            }
-        });
-    });
-    
-    var gridLayer = new L.KML("{% static 'kml//SWIS_Grid.kml' %}", {
-        async: true  // Load asynchronously to avoid blocking
-    });
-    gridLayer.on("loaded", function(e) {
-        map.fitBounds(e.target.getBounds());  // Adjust the map to fit the KML boundary
-    });
-    map.addLayer(gridLayer);
-
-    var zoneLayer = new L.KML("{% static 'kml//SWIS_2023_Zones.kml' %}", {
-        async: true  // Load asynchronously to avoid blocking
-    });
-    zoneLayer.on("loaded", function(e) {
-        map.fitBounds(e.target.getBounds());  // Adjust the map to fit the KML zone
-    });
-    map.addLayer(zoneLayer);
-
-     // Add a layer control to toggle the facility layer on and off
-    var baseLayers = {};
-    var overlays = {
-        "SWIS Boundary":boundaryLayer,
-        "Zones":zoneLayer,
-        "Grid Facilities": facilityLayer,
-        "Transmission": gridLayer,
-    };
-
-    // Add layer control to the map
-    L.control.layers(baseLayers, overlays).addTo(map);
-
-    // Function to refresh facilities when scenario changes
-function refreshFacilities(scenarioTitle) {
-    console.log('refreshFacilities called with scenario:', scenarioTitle);
-    
-    if (!scenarioTitle) {
-        // Clear facilities if no scenario selected
-        facilityLayer.clearLayers();
-        return;
+    // Calculate distance between two points
+    function calculateDistance(lat1, lon1, lat2, lon2) {
+        const R = 6371; // Earth's radius in km
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLon = (lon2 - lon1) * Math.PI / 180;
+        const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                  Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                  Math.sin(dLon/2) * Math.sin(dLon/2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        return R * c;
     }
-    
-    // Show loading indicator
-    const loadingMessage = document.createElement('div');
-    loadingMessage.id = 'loading-facilities';
-    loadingMessage.style.cssText = 'position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0,0,0,0.8); color: white; padding: 20px; border-radius: 5px; z-index: 10000;';
-    loadingMessage.textContent = 'Loading facilities...';
-    document.body.appendChild(loadingMessage);
-    
-    const url = `/powermap/get_facilities/?scenario=${encodeURIComponent(scenarioTitle)}`;
-    console.log('Fetching from URL:', url);
-    
-    // Fetch facilities for the new scenario
-    fetch(url)
-        .then(response => {
-            console.log('Response status:', response.status);
-            console.log('Response ok:', response.ok);
-            
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-            return response.json();
-        })
-        .then(data => {
-            console.log('Received data:', data);
-            
-            if (Array.isArray(data)) {
-                // Update facilities on map
-                loadFacilitiesOnMap(data);
-                
-                // Update facilities count display (optional)
-                console.log(`Loaded ${data.length} facilities for scenario: ${scenarioTitle}`);
-            } else if (data.error) {
-                console.error('Error loading facilities:', data.error);
-                alert('Error loading facilities: ' + data.error);
-            } else {
-                console.error('Unexpected response format:', data);
-                alert('Unexpected response format from server');
-            }
-        })
-        .catch(error => {
-            console.error('Fetch error:', error);
-            console.error('Error details:', error.message);
-            
-            // More specific error messages
-            if (error.message.includes('404')) {
-                alert('URL not found. Please check if the get_facilities URL is configured correctly.');
-            } else if (error.message.includes('500')) {
-                alert('Server error occurred. Please check the server logs.');
-            } else {
-                alert('Failed to load facilities: ' + error.message);
-            }
-        })
-        .finally(() => {
-            // Remove loading indicator
-            const loading = document.getElementById('loading-facilities');
-            if (loading) {
-                loading.remove();
-            }
-        });
-}
 
-    // Monitor form submission to detect scenario changes
-    document.querySelector('form').addEventListener('submit', function(e) {
-        const scenarioSelect = document.querySelector('select[name="scenario"]');
-        if (scenarioSelect) {
-            const selectedScenario = scenarioSelect.value;
-            
-            // Show that settings are being applied
-            const button = this.querySelector('button[name="apply_settings"]');
-            const originalText = button.textContent;
-            button.textContent = 'Applying...';
-            button.disabled = true;
-            
-            // Allow the form to submit normally
-            setTimeout(() => {
-                refreshFacilities(selectedScenario);
+    // Function to find and display nearby grid lines
+    function findNearbyGridLines(lat, lng) {
+        fetch(`/powermapui/find_nearest_grid_lines/?lat=${lat}&lon=${lng}&max_distance=50`)
+            .then(response => response.json())
+            .then(data => {
+                const nearbyLinesDiv = document.getElementById('nearby_lines_list');
+                const nearbyGridLinesDiv = document.getElementById('nearby_grid_lines');
                 
-                // Reset button after a delay
-                setTimeout(() => {
-                    button.textContent = originalText;
-                    button.disabled = false;
-                }, 1000);
-            }, 100);
-        }
-    });
-
-    // Also monitor scenario dropdown changes for immediate feedback (optional)
-    document.addEventListener('DOMContentLoaded', function() {
-        const scenarioSelect = document.querySelector('select[name="scenario"]');
-        if (scenarioSelect) {
-            scenarioSelect.addEventListener('change', function() {
-                // Optional: Provide immediate visual feedback when scenario changes
-                // (before clicking Apply Settings)
-                console.log('Scenario selection changed to:', this.value);
+                if (data.length > 0) {
+                    nearbyGridLinesDiv.style.display = 'block';
+                    nearbyLinesDiv.innerHTML = '';
+                    
+                    data.slice(0, 5).forEach(line => {
+                        const lineDiv = document.createElement('div');
+                        lineDiv.style.cssText = 'padding: 5px; margin: 2px 0; background: #f0f0f0; border-radius: 3px;';
+                        lineDiv.innerHTML = `
+                            <strong>${line.line_name}</strong> (${line.voltage_level}kV)<br>
+                            Distance: ${line.distance_km} km | Capacity: ${line.thermal_capacity_mw} MW
+                        `;
+                        nearbyLinesDiv.appendChild(lineDiv);
+                    });
+                } else {
+                    nearbyGridLinesDiv.style.display = 'none';
+                }
+            })
+            .catch(error => {
+                console.error('Error finding nearby grid lines:', error);
             });
-        }
-    });
+    }
 
-    // Variables for Add Facility functionality
-    var addFacilityMode = false;
-    var selectedLocation = null;
-    var locationMarker = null;
+    // Load grid lines for selection dropdown
+    function loadGridLinesForSelection() {
+        fetch('/powermapui/get_grid_lines/')
+            .then(response => response.json())
+            .then(data => {
+                const select = document.getElementById('existing_grid_lines');
+                
+                // Clear existing options
+                while (select.options.length > 1) {
+                    select.remove(1);
+                }
+                
+                // Add new options
+                data.forEach(gridLine => {
+                    const option = document.createElement('option');
+                    option.value = gridLine.idgridlines;
+                    option.textContent = `${gridLine.line_name} (${gridLine.voltage_level}kV)`;
+                    select.appendChild(option);
+                });
+            })
+            .catch(error => console.error('Error loading grid lines:', error));
+    }
 
-    // Load technology options when the page loads
+    // Load technologies when the page loads
     function loadTechnologies() {
-        fetch('/powermap/get_technologies/')
+        fetch('/powermapui/get_technologies/')
             .then(response => response.json())
             .then(data => {
                 const select = document.getElementById('technology_id');
@@ -452,373 +425,72 @@ function refreshFacilities(scenarioTitle) {
             .catch(error => console.error('Error loading technologies:', error));
     }
     
-    // Load technologies when page loads
-    document.addEventListener('DOMContentLoaded', function() {
-        loadTechnologies();
+    function resetFacilityForm() {
+        document.getElementById('facility_name').value = '';
+        document.getElementById('technology_id').value = '';
+        document.getElementById('capacity').value = '';
+        document.getElementById('selected_lat').textContent = 'Latitude: (Click on map)';
+        document.getElementById('selected_lng').textContent = 'Longitude: (Click on map)';
+        document.querySelectorAll('input[name="grid_connection_option"]')[0].checked = true;
+        document.getElementById('existing_grid_lines').style.display = 'none';
+        document.getElementById('nearby_grid_lines').style.display = 'none';
+        selectedLocation = null;
+    }
+
+    // Function to refresh facilities when scenario changes
+    function refreshFacilities(scenarioTitle) {
+        console.log('refreshFacilities called with scenario:', scenarioTitle);
         
-        // Add event listener for Add New Facility button
-        const addFacilityBtn = document.getElementById('addFacilityBtn');
+        if (!scenarioTitle) {
+            facilityLayer.clearLayers();
+            return;
+        }
         
-        // Only add event listener if the button exists (i.e., not disabled)
-        if (addFacilityBtn) {
-            addFacilityBtn.addEventListener('click', function() {
-                // Check scenario again as a safety measure
-                const currentScenario = '{{ scenario|escapejs }}';
-                
-                if (currentScenario === 'Current') {
-                    alert('Cannot add facilities to the "Current" scenario. Please select a different scenario.');
-                    return;
+        const loadingMessage = document.createElement('div');
+        loadingMessage.id = 'loading-facilities';
+        loadingMessage.style.cssText = 'position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0,0,0,0.8); color: white; padding: 20px; border-radius: 5px; z-index: 10000;';
+        loadingMessage.textContent = 'Loading facilities...';
+        document.body.appendChild(loadingMessage);
+        
+        const url = `/powermapui/get_facilities/?scenario=${encodeURIComponent(scenarioTitle)}`;
+        
+        fetch(url)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
                 }
-                
-                if (!currentScenario) {
-                    alert('Please select a scenario first.');
-                    return;
-                }
-                
-                // Proceed with existing add facility logic
-                addFacilityMode = !addFacilityMode;
-                
-                if (addFacilityMode) {
-                    // Enable facility addition mode
-                    this.textContent = 'Cancel Add Facility';
-                    this.classList.add('active');
-                    document.getElementById('addFacilityForm').style.display = 'block';
-                    map.getContainer().style.cursor = 'crosshair';
-                    
-                    // Show instruction
-                    alert('Click OK to enter the new facility details in the form provided.');
+                return response.json();
+            })
+            .then(data => {
+                if (Array.isArray(data)) {
+                    loadFacilitiesOnMap(data);
+                    console.log(`Loaded ${data.length} facilities for scenario: ${scenarioTitle}`);
+                } else if (data.error) {
+                    console.error('Error loading facilities:', data.error);
+                    alert('Error loading facilities: ' + data.error);
                 } else {
-                    // Disable facility addition mode
-                    this.textContent = 'Add New Facility';
-                    this.classList.remove('active');
-                    document.getElementById('addFacilityForm').style.display = 'none';
-                    map.getContainer().style.cursor = '';
-                    
-                    // Remove temporary marker if exists
-                    if (locationMarker) {
-                        map.removeLayer(locationMarker);
-                        locationMarker = null;
-                    }
-                    
-                    // Reset form
-                    document.getElementById('facility_name').value = '';
-                    document.getElementById('technology_id').value = '';
-                    document.getElementById('capacity').value = '';
-                    document.getElementById('selected_lat').textContent = 'Latitude: (Click on map)';
-                    document.getElementById('selected_lng').textContent = 'Longitude: (Click on map)';
-                    selectedLocation = null;
+                    console.error('Unexpected response format:', data);
+                    alert('Unexpected response format from server');
+                }
+            })
+            .catch(error => {
+                console.error('Fetch error:', error);
+                
+                if (error.message.includes('404')) {
+                    alert('URL not found. Please check if the get_facilities URL is configured correctly.');
+                } else if (error.message.includes('500')) {
+                    alert('Server error occurred. Please check the server logs.');
+                } else {
+                    alert('Failed to load facilities: ' + error.message);
+                }
+            })
+            .finally(() => {
+                const loading = document.getElementById('loading-facilities');
+                if (loading) {
+                    loading.remove();
                 }
             });
-        }
-    });
-
-    // Handle map clicks when in Add Facility mode
-    map.on('click', function(e) {
-        if (addFacilityMode) {
-            selectedLocation = e.latlng;
-            
-            // Update form with selected coordinates
-            document.getElementById('selected_lat').textContent = 'Latitude: ' + selectedLocation.lat.toFixed(6);
-            document.getElementById('selected_lng').textContent = 'Longitude: ' + selectedLocation.lng.toFixed(6);
-            
-            // Remove previous marker if exists
-            if (locationMarker) {
-                map.removeLayer(locationMarker);
-            }
-            
-            // Add marker at clicked location
-            locationMarker = L.marker(selectedLocation).addTo(map);
-            locationMarker.bindPopup('New Facility Location').openPopup();
-        }
-    });
-
-    // Cancel button handler
-    document.getElementById('cancelAddFacility').addEventListener('click', function() {
-        const addFacilityBtn = document.getElementById('addFacilityBtn');
-        if (addFacilityBtn && addFacilityMode) {
-            addFacilityBtn.click(); // Trigger the toggle
-        }
-    });
-
-    // Submit button handler
-    document.getElementById('submitAddFacility').addEventListener('click', function() {
-        // Validate form
-        const facilityName = document.getElementById('facility_name').value.trim();
-        const technologyId = document.getElementById('technology_id').value;
-        const capacity = document.getElementById('capacity').value;
-        
-        if (!facilityName) {
-            alert('Please enter a facility name.');
-            return;
-        }
-        
-        if (!technologyId) {
-            alert('Please select a technology.');
-            return;
-        }
-        
-        if (!selectedLocation) {
-            alert('Please click on the map to select a location.');
-            return;
-        }
-        
-        // Prepare data for submission
-        const data = {
-            facility_name: facilityName,
-            technology_id: technologyId,
-            capacity: capacity || 0,
-            latitude: selectedLocation.lat,
-            longitude: selectedLocation.lng
-        };
-        // Add wind turbine specific data if applicable
-        if (windTechnologyIds.includes(parseInt(technologyId))) {
-            const turbineSelect = document.getElementById('turbine');
-            data.turbine = turbineSelect.value;
-            data.hub_height = document.getElementById('hub_height').value || null;
-            data.no_turbines = document.getElementById('no_turbines').value || null;
-            data.tilt = document.getElementById('tilt').value || null;
-            
-            // Validate wind turbine fields
-            if (!data.turbine) {
-                alert('Please select a turbine model.');
-                return;
-            }
-            
-            if (!data.hub_height) {
-                alert('Please enter hub height.');
-                return;
-            }
-            
-            if (!data.no_turbines || parseInt(data.no_turbines) < 1) {
-                alert('Please enter a valid number of turbines (at least 1).');
-                return;
-            }
-        }
-        // Submit data to server
-        fetch('/powermap/add_facility/', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': getCookie('csrftoken')
-            },
-            body: JSON.stringify(data)
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.status === 'success') {
-                // Show success message
-                alert('Facility added successfully!');
-                
-                // Add the new facility to the map
-                const newIcon = getIconForTechnology(parseInt(technologyId));
-                const newMarker = L.marker([selectedLocation.lat, selectedLocation.lng], { icon: newIcon })
-                    .bindPopup(facilityName);
-                facilityLayer.addLayer(newMarker);
-                
-                // Reset the add facility mode
-                const addFacilityBtn = document.getElementById('addFacilityBtn');
-                if (addFacilityBtn) {
-                    addFacilityBtn.click();
-                }
-            } else {
-                alert('Error: ' + data.message);
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            alert('Failed to add facility. Please try again.');
-        });
-    });
-
-    // Array of wind turbine technology IDs
-    const OFFSHORE_WIND = 15;
-    const ONSHORE_WIND = 16;
-    const FLOATING_WIND = 147;
-    const windTechnologyIds = [ONSHORE_WIND, OFFSHORE_WIND, FLOATING_WIND];
-    // Turbine data with capacity information
-    const turbineData = {
-        // Onshore wind turbines (technology ID 15)
-        "Siemens Gamesa SG 11.0-200 DD": { capacity: 11.0, technology: OFFSHORE_WIND },
-        "Siemens Gamesa SWT-7.0-154": { capacity: 7.0, technology: OFFSHORE_WIND },
-        "Vestas V164-10.0 MW": { capacity: 10.0, technology: OFFSHORE_WIND },
-        "Vestas V164-8.0 MW": { capacity: 8.0, technology: OFFSHORE_WIND },
-        "Vestas V112-3.45 MW": { capacity: 3.45, technology: OFFSHORE_WIND },
-        "Goldwind GWH252-16MW": { capacity: 16.0, technology: OFFSHORE_WIND },
-        
-        // Offshore wind turbines (technology ID 16)
-        "Enercon E66_1870kw(MG)": { capacity: 1.87, technology: ONSHORE_WIND },
-        "Siemens SWT-3.6MW-130m": { capacity: 3.6, technology: ONSHORE_WIND },
-        "Vestas_V82_1.65mw(MG);Vestas V82-1.65": { capacity: 1.65, technology: ONSHORE_WIND },
-        "Vestas V136-3.6Mw": { capacity: 3.6, technology: ONSHORE_WIND },
-        "Vestas V150-4.2Mw": { capacity: 4.2, technology: ONSHORE_WIND },
-        "Vestas V-90 GridStreamer 2mW (MG)Vestas V90-2.0": { capacity: 2.0, technology: ONSHORE_WIND },
-        "Enercon E48_800kw": { capacity: 0.8, technology: ONSHORE_WIND },
-        "General Electric2.5xl_100m_2500kw(MG)": { capacity: 2.5, technology: ONSHORE_WIND },
-        "Enercon E70_2300kw": { capacity: 2.3, technology: ONSHORE_WIND },
-        
-        // Floating offshore wind turbines (technology ID 17)
-        "Siemens Gamesa SG 14-222 DD": { capacity: 14.0, technology: FLOATING_WIND },
-        "Goldwind GW171-6.0MW": { capacity: 6.0, technology: FLOATING_WIND }
-    };
-    // Get technology name based on ID
-    function getTechnologyName(techId) {
-        switch(techId) {
-            case ONSHORE_WIND:
-                return "Onshore Wind";
-            case OFFSHORE_WIND:
-                return "Offshore Wind";
-            case FLOATING_WIND:
-                return "Floating Offshore Wind";
-            default:
-                return "Wind";
-        }
     }
-    // Show/hide wind turbine fields and populate turbine options based on technology selection
-    document.getElementById('technology_id').addEventListener('change', function() {
-        const selectedTechId = parseInt(this.value);
-        const windTurbineFields = document.getElementById('windTurbineFields');
-        const turbineSelect = document.getElementById('turbine');
-        
-        // Show/hide wind turbine section
-        if (windTechnologyIds.includes(selectedTechId)) {
-            // Use CSS classes for better animation
-            windTurbineFields.classList.add('active');
-            windTurbineFields.style.display = 'block';
-            
-            // Clear existing options except the first one
-            while (turbineSelect.options.length > 1) {
-                turbineSelect.remove(1);
-            }
-            
-            // Create option group for the selected technology
-            const techName = getTechnologyName(selectedTechId);
-            const optgroup = document.createElement('optgroup');
-            optgroup.label = `${techName} Turbines`;
-            
-            // Filter and add turbine options for the selected technology
-            let optionsAdded = false;
-            for (const [turbineName, data] of Object.entries(turbineData)) {
-                if (data.technology === selectedTechId) {
-                    const option = document.createElement('option');
-                    option.value = turbineName;
-                    option.textContent = turbineName;
-                    option.dataset.capacity = data.capacity;
-                    optgroup.appendChild(option);
-                    optionsAdded = true;
-                }
-            }
-            
-            // Add the option group to the select if it has options
-            if (optionsAdded) {
-                turbineSelect.appendChild(optgroup);
-            }
-        } else {
-            windTurbineFields.classList.remove('active');
-            setTimeout(() => {
-                if (!windTurbineFields.classList.contains('active')) {
-                    windTurbineFields.style.display = 'none';
-                }
-            }, 300); // Match transition duration
-            
-            // Clear wind turbine fields
-            document.getElementById('turbine').value = '';
-            document.getElementById('hub_height').value = '';
-            document.getElementById('no_turbines').value = '';
-            document.getElementById('tilt').value = '';
-        }
-    });
-
-    // Function to populate default values based on turbine selection
-    document.getElementById('turbine').addEventListener('change', function() {
-        const selectedTurbine = this.value;
-        
-        // Set default hub heights based on turbine model
-        const hubHeightDefaults = {
-            // Onshore defaults
-            "Enercon E66_1870kw(MG)": 65,
-            "Siemens SWT-3.6MW-130m": 85,
-            "Vestas_V82_1.65mw(MG);Vestas V82-1.65": 80,
-            "Vestas V136-3.6Mw": 112,
-            "Vestas V150-4.2Mw": 125,
-            "Vestas V-90 GridStreamer 2mW (MG)Vestas V90-2.0": 80,
-            "Enercon E48_800kw": 50,
-            "General Electric2.5xl_100m_2500kw(MG)": 100,
-            "Enercon E70_2300kw": 64,
-            
-            // Offshore defaults
-            "Siemens Gamesa SG 11.0-200 DD": 118,
-            "Siemens Gamesa SWT-7.0-154": 106,
-            "Vestas V164-10.0 MW": 105,
-            "Vestas V164-8.0 MW": 105,
-            "Vestas V112-3.45 MW": 84,
-            "Goldwind GWH252-16MW": 146,
-            
-            // Floating defaults
-            "Siemens Gamesa SG 14-222 DD": 140,
-            "Goldwind GW171-6.0MW": 120
-        };
-        
-        // Set default tilt for the selected turbine
-        const tiltDefaults = {
-            // Most land turbines have similar tilt
-            "Enercon E66_1870kw(MG)": 5,
-            "Siemens SWT-3.6MW-130m": 5,
-            "Vestas_V82_1.65mw(MG);Vestas V82-1.65": 5,
-            "Vestas V136-3.6Mw": 5,
-            "Vestas V150-4.2Mw": 5,
-            "Vestas V-90 GridStreamer 2mW (MG)Vestas V90-2.0": 5,
-            "Enercon E48_800kw": 5,
-            "General Electric2.5xl_100m_2500kw(MG)": 5,
-            "Enercon E70_2300kw": 5,
-            
-            // Offshore turbines
-            "Siemens Gamesa SG 11.0-200 DD": 0,
-            "Siemens Gamesa SWT-7.0-154": 0,
-            "Vestas V164-10.0 MW": 0,
-            "Vestas V164-8.0 MW": 0,
-            "Vestas V112-3.45 MW": 0,
-            "Goldwind GWH252-16MW": 0,
-            
-            // Floating turbines
-            "Siemens Gamesa SG 14-222 DD": 0,
-            "Goldwind GW171-6.0MW": 0
-        };
-        
-        // Set default number of turbines (typically one for initial placement)
-        if (!document.getElementById('no_turbines').value) {
-            document.getElementById('no_turbines').value = 1;
-        }
-        
-        // Set default hub height if available
-        if (hubHeightDefaults[selectedTurbine]) {
-            document.getElementById('hub_height').value = hubHeightDefaults[selectedTurbine];
-        }
-        
-        // Set default tilt if available
-        if (tiltDefaults[selectedTurbine]) {
-            document.getElementById('tilt').value = tiltDefaults[selectedTurbine];
-        }
-        
-        // Update capacity based on the selected turbine and number of turbines
-        const selectedOption = this.options[this.selectedIndex];
-        if (selectedOption && selectedOption.dataset.capacity) {
-            const perTurbineCapacity = parseFloat(selectedOption.dataset.capacity);
-            const noTurbines = parseInt(document.getElementById('no_turbines').value) || 1;
-            const totalCapacity = perTurbineCapacity * noTurbines;
-            document.getElementById('capacity').value = totalCapacity.toFixed(2);
-        }
-    });
-
-    // Update capacity when number of turbines changes
-    document.getElementById('no_turbines').addEventListener('change', function() {
-        const selectedOption = document.getElementById('turbine').options[document.getElementById('turbine').selectedIndex];
-        if (selectedOption && selectedOption.dataset.capacity) {
-            const perTurbineCapacity = parseFloat(selectedOption.dataset.capacity);
-            const noTurbines = parseInt(this.value) || 1;
-            const totalCapacity = perTurbineCapacity * noTurbines;
-            document.getElementById('capacity').value = totalCapacity.toFixed(2);
-        }
-    });
 
     // Helper function to get CSRF token from cookies
     function getCookie(name) {
@@ -835,6 +507,591 @@ function refreshFacilities(scenarioTitle) {
         }
         return cookieValue;
     }
+
+    // Initial load
+    loadFacilitiesOnMap(facilities);
+    loadGridLinesOnMap(gridLines);
+    
+    // Add layers to map
+    facilityLayer.addTo(map);
+    gridLinesLayer.addTo(map);
+
+    // Load KML layers
+    var boundaryLayer = new L.KML("{% static 'kml//SWIS_Boundary.kml' %}", { async: true });
+    boundaryLayer.on("loaded", function(e) {
+        map.fitBounds(e.target.getBounds());
+        e.target.eachLayer(function(layer) {
+            if (layer instanceof L.Polygon) {
+                layer.setStyle({
+                    fillColor: '#ddffcc',
+                    fillOpacity: 0.4,
+                    color: '#ff7800',
+                    weight: 3,
+                    opacity: 0.8,
+                    dashArray: '5, 5',
+                    dashOffset: '0'
+                });
+            }
+        });
+    });
+    map.addLayer(boundaryLayer);
+    
+    var gridLayer = new L.KML("{% static 'kml//SWIS_Grid.kml' %}", { async: true });
+    gridLayer.on("loaded", function(e) { map.fitBounds(e.target.getBounds()); });
+    map.addLayer(gridLayer);
+
+    var zoneLayer = new L.KML("{% static 'kml//SWIS_2023_Zones.kml' %}", { async: true });
+    zoneLayer.on("loaded", function(e) { map.fitBounds(e.target.getBounds()); });
+    map.addLayer(zoneLayer);
+
+    // Layer control
+    var baseLayers = {};
+    var overlays = {
+        "SWIS Boundary": boundaryLayer,
+        "Zones": zoneLayer,
+        "Grid Facilities": facilityLayer,
+        "Grid Lines": gridLinesLayer,
+        "Transmission (KML)": gridLayer,
+    };
+    L.control.layers(baseLayers, overlays).addTo(map);
+
+    // Handle map clicks for both facility and grid line creation
+    map.on('click', function(e) {
+        if (addGridLineMode) {
+            // Grid line creation mode
+            if (gridLinePoints.length < 2) {
+                gridLinePoints.push(e.latlng);
+                
+                // Add marker
+                const marker = L.marker(e.latlng).addTo(map);
+                gridLineMarkers.push(marker);
+                
+                // Update UI
+                if (gridLinePoints.length === 1) {
+                    document.getElementById('grid_from_coords').textContent = 
+                        `${e.latlng.lat.toFixed(6)}, ${e.latlng.lng.toFixed(6)}`;
+                    marker.bindPopup('Grid Line Start Point').openPopup();
+                } else if (gridLinePoints.length === 2) {
+                    document.getElementById('grid_to_coords').textContent = 
+                        `${e.latlng.lat.toFixed(6)}, ${e.latlng.lng.toFixed(6)}`;
+                    marker.bindPopup('Grid Line End Point').openPopup();
+                    
+                    // Calculate length
+                    const distance = calculateDistance(
+                        gridLinePoints[0].lat, gridLinePoints[0].lng,
+                        gridLinePoints[1].lat, gridLinePoints[1].lng
+                    );
+                    document.getElementById('grid_length_display').textContent = 
+                        `${distance.toFixed(2)} km`;
+                    
+                    // Draw line between points
+                    const line = L.polyline(gridLinePoints, {
+                        color: 'red',
+                        weight: 3,
+                        opacity: 0.7,
+                        dashArray: '10, 10'
+                    }).addTo(map);
+                    gridLineMarkers.push(line);
+                }
+            }
+        } else if (addFacilityMode) {
+            // Facility creation mode
+            selectedLocation = e.latlng;
+            
+            // Update form with selected coordinates
+            document.getElementById('selected_lat').textContent = 'Latitude: ' + selectedLocation.lat.toFixed(6);
+            document.getElementById('selected_lng').textContent = 'Longitude: ' + selectedLocation.lng.toFixed(6);
+            
+            // Remove previous marker if exists
+            if (locationMarker) {
+                map.removeLayer(locationMarker);
+            }
+            
+            // Add marker at clicked location
+            locationMarker = L.marker(selectedLocation).addTo(map);
+            locationMarker.bindPopup('New Facility Location').openPopup();
+            
+            // Find nearby grid lines when location is selected
+            findNearbyGridLines(selectedLocation.lat, selectedLocation.lng);
+        }
+    });
+
+    // Monitor form submission to detect scenario changes
+    document.querySelector('form').addEventListener('submit', function(e) {
+        const scenarioSelect = document.querySelector('select[name="scenario"]');
+        if (scenarioSelect) {
+            const selectedScenario = scenarioSelect.value;
+            
+            const button = this.querySelector('button[name="apply_settings"]');
+            const originalText = button.textContent;
+            button.textContent = 'Applying...';
+            button.disabled = true;
+            
+            setTimeout(() => {
+                refreshFacilities(selectedScenario);
+                
+                setTimeout(() => {
+                    button.textContent = originalText;
+                    button.disabled = false;
+                }, 1000);
+            }, 100);
+        }
+    });
+
+    // Wind turbine handling code
+    const OFFSHORE_WIND = 15;
+    const ONSHORE_WIND = 16;
+    const FLOATING_WIND = 147;
+    const windTechnologyIds = [ONSHORE_WIND, OFFSHORE_WIND, FLOATING_WIND];
+    
+    const turbineData = {
+        "Siemens Gamesa SG 11.0-200 DD": { capacity: 11.0, technology: OFFSHORE_WIND },
+        "Siemens Gamesa SWT-7.0-154": { capacity: 7.0, technology: OFFSHORE_WIND },
+        "Vestas V164-10.0 MW": { capacity: 10.0, technology: OFFSHORE_WIND },
+        "Vestas V164-8.0 MW": { capacity: 8.0, technology: OFFSHORE_WIND },
+        "Vestas V112-3.45 MW": { capacity: 3.45, technology: OFFSHORE_WIND },
+        "Goldwind GWH252-16MW": { capacity: 16.0, technology: OFFSHORE_WIND },
+        "Enercon E66_1870kw(MG)": { capacity: 1.87, technology: ONSHORE_WIND },
+        "Siemens SWT-3.6MW-130m": { capacity: 3.6, technology: ONSHORE_WIND },
+        "Vestas_V82_1.65mw(MG);Vestas V82-1.65": { capacity: 1.65, technology: ONSHORE_WIND },
+        "Vestas V136-3.6Mw": { capacity: 3.6, technology: ONSHORE_WIND },
+        "Vestas V150-4.2Mw": { capacity: 4.2, technology: ONSHORE_WIND },
+        "Vestas V-90 GridStreamer 2mW (MG)Vestas V90-2.0": { capacity: 2.0, technology: ONSHORE_WIND },
+        "Enercon E48_800kw": { capacity: 0.8, technology: ONSHORE_WIND },
+        "General Electric2.5xl_100m_2500kw(MG)": { capacity: 2.5, technology: ONSHORE_WIND },
+        "Enercon E70_2300kw": { capacity: 2.3, technology: ONSHORE_WIND },
+        "Siemens Gamesa SG 14-222 DD": { capacity: 14.0, technology: FLOATING_WIND },
+        "Goldwind GW171-6.0MW": { capacity: 6.0, technology: FLOATING_WIND }
+    };
+
+    function getTechnologyName(techId) {
+        switch(techId) {
+            case ONSHORE_WIND: return "Onshore Wind";
+            case OFFSHORE_WIND: return "Offshore Wind";
+            case FLOATING_WIND: return "Floating Offshore Wind";
+            default: return "Wind";
+        }
+    }
+
+    // Load initial data and set up event listeners when page loads
+    document.addEventListener('DOMContentLoaded', function() {
+        loadTechnologies();
+        loadGridLinesForSelection();
+        
+        // Handle grid connection radio buttons
+        document.querySelectorAll('input[name="grid_connection_option"]').forEach(radio => {
+            radio.addEventListener('change', function() {
+                const existingGridSelect = document.getElementById('existing_grid_lines');
+                
+                if (this.value === 'select') {
+                    existingGridSelect.style.display = 'block';
+                } else {
+                    existingGridSelect.style.display = 'none';
+                }
+            });
+        });
+        
+        // Grid line button functionality
+        const addGridLineBtn = document.getElementById('addGridLineBtn');
+        if (addGridLineBtn) {
+            addGridLineBtn.addEventListener('click', function() {
+                addGridLineMode = !addGridLineMode;
+                
+                if (addGridLineMode) {
+                    this.textContent = 'Cancel Add Grid Line';
+                    this.classList.add('active');
+                    document.getElementById('addGridLineForm').style.display = 'block';
+                    map.getContainer().style.cursor = 'crosshair';
+                    
+                    // Reset grid line creation
+                    gridLinePoints = [];
+                    gridLineMarkers.forEach(marker => map.removeLayer(marker));
+                    gridLineMarkers = [];
+                    
+                    // Reset form
+                    document.getElementById('grid_from_coords').textContent = 'Click on map for start point';
+                    document.getElementById('grid_to_coords').textContent = 'Click on map for end point';
+                    document.getElementById('grid_length_display').textContent = '0 km';
+                    
+                    alert('Click two points on the map to define the grid line endpoints.');
+                } else {
+                    this.textContent = 'Add New Grid Line';
+                    this.classList.remove('active');
+                    document.getElementById('addGridLineForm').style.display = 'none';
+                    map.getContainer().style.cursor = '';
+                    
+                    // Clean up markers
+                    gridLineMarkers.forEach(marker => map.removeLayer(marker));
+                    gridLineMarkers = [];
+                    gridLinePoints = [];
+                }
+            });
+        }
+        
+        // Facility button functionality
+        const addFacilityBtn = document.getElementById('addFacilityBtn');
+        if (addFacilityBtn) {
+            addFacilityBtn.addEventListener('click', function() {
+                const currentScenario = '{{ scenario|escapejs }}';
+                
+                if (currentScenario === 'Current') {
+                    alert('Cannot add facilities to the "Current" scenario. Please select a different scenario.');
+                    return;
+                }
+                
+                if (!currentScenario) {
+                    alert('Please select a scenario first.');
+                    return;
+                }
+                
+                addFacilityMode = !addFacilityMode;
+                
+                if (addFacilityMode) {
+                    this.textContent = 'Cancel Add Facility';
+                    this.classList.add('active');
+                    document.getElementById('addFacilityForm').style.display = 'block';
+                    map.getContainer().style.cursor = 'crosshair';
+                    
+                    alert('Click on the map to select the facility location.');
+                } else {
+                    this.textContent = 'Add New Facility';
+                    this.classList.remove('active');
+                    document.getElementById('addFacilityForm').style.display = 'none';
+                    map.getContainer().style.cursor = '';
+                    
+                    // Remove temporary marker if exists
+                    if (locationMarker) {
+                        map.removeLayer(locationMarker);
+                        locationMarker = null;
+                    }
+                    
+                    // Reset form
+                    resetFacilityForm();
+                }
+            });
+        }
+        
+        // Cancel buttons
+        document.getElementById('cancelAddGridLine').addEventListener('click', function() {
+            const addGridLineBtn = document.getElementById('addGridLineBtn');
+            if (addGridLineBtn && addGridLineMode) {
+                addGridLineBtn.click();
+            }
+        });
+        
+        document.getElementById('cancelAddFacility').addEventListener('click', function() {
+            const addFacilityBtn = document.getElementById('addFacilityBtn');
+            if (addFacilityBtn && addFacilityMode) {
+                addFacilityBtn.click();
+            }
+        });
+        
+        // Submit grid line button
+        document.getElementById('submitAddGridLine').addEventListener('click', function() {
+            const lineName = document.getElementById('grid_line_name').value.trim();
+            const lineCode = document.getElementById('grid_line_code').value.trim();
+            const lineType = document.getElementById('grid_line_type').value;
+            const voltageLevel = document.getElementById('grid_voltage_level').value;
+            const thermalCapacity = document.getElementById('grid_thermal_capacity').value;
+            const resistance = document.getElementById('grid_resistance').value;
+            
+            if (!lineName || !lineCode || !voltageLevel || !thermalCapacity) {
+                alert('Please fill in all required fields.');
+                return;
+            }
+            
+            if (gridLinePoints.length !== 2) {
+                alert('Please click two points on the map to define the grid line.');
+                return;
+            }
+            
+            const data = {
+                line_name: lineName,
+                line_code: lineCode,
+                line_type: lineType,
+                voltage_level: parseFloat(voltageLevel),
+                thermal_capacity_mw: parseFloat(thermalCapacity),
+                resistance_per_km: parseFloat(resistance),
+                reactance_per_km: parseFloat(resistance) * 4, // Typical X/R ratio
+                from_latitude: gridLinePoints[0].lat,
+                from_longitude: gridLinePoints[0].lng,
+                to_latitude: gridLinePoints[1].lat,
+                to_longitude: gridLinePoints[1].lng
+            };
+            
+            fetch('/powermapui/create_grid_line/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken')
+                },
+                body: JSON.stringify(data)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    alert('Grid line created successfully!');
+                    
+                    // Add the new grid line to the map
+                    const newGridLine = {
+                        idgridlines: data.grid_line.idgridlines,
+                        line_name: data.grid_line.line_name,
+                        line_code: data.grid_line.line_code,
+                        line_type: lineType,
+                        voltage_level: data.grid_line.voltage_level,
+                        thermal_capacity_mw: parseFloat(thermalCapacity),
+                        from_latitude: gridLinePoints[0].lat,
+                        from_longitude: gridLinePoints[0].lng,
+                        to_latitude: gridLinePoints[1].lat,
+                        to_longitude: gridLinePoints[1].lng
+                    };
+                    
+                    gridLines.push(newGridLine);
+                    loadGridLinesOnMap([newGridLine]);
+                    
+                    // Reset the add grid line mode
+                    const addGridLineBtn = document.getElementById('addGridLineBtn');
+                    if (addGridLineBtn) {
+                        addGridLineBtn.click();
+                    }
+                    
+                    // Refresh grid lines dropdown for facilities
+                    loadGridLinesForSelection();
+                } else {
+                    alert('Error: ' + data.message);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Failed to create grid line. Please try again.');
+            });
+        });
+
+        // Submit facility button
+        document.getElementById('submitAddFacility').addEventListener('click', function() {
+            // Validate form
+            const facilityName = document.getElementById('facility_name').value.trim();
+            const technologyId = document.getElementById('technology_id').value;
+            const capacity = document.getElementById('capacity').value;
+            
+            if (!facilityName) {
+                alert('Please enter a facility name.');
+                return;
+            }
+            
+            if (!technologyId) {
+                alert('Please select a technology.');
+                return;
+            }
+            
+            if (!selectedLocation) {
+                alert('Please click on the map to select a location.');
+                return;
+            }
+            
+            // Prepare data for submission
+            const data = {
+                facility_name: facilityName,
+                technology_id: technologyId,
+                capacity: capacity || 0,
+                latitude: selectedLocation.lat,
+                longitude: selectedLocation.lng
+            };
+            
+            // Handle grid connection option
+            const gridConnectionOption = document.querySelector('input[name="grid_connection_option"]:checked').value;
+            
+            if (gridConnectionOption === 'select') {
+                const selectedGridLine = document.getElementById('existing_grid_lines').value;
+                if (selectedGridLine) {
+                    data.grid_line_id = selectedGridLine;
+                }
+            } else if (gridConnectionOption === 'create') {
+                // For simplicity, we'll auto-create a basic grid line
+                data.create_new_grid_line = true;
+                data.new_grid_line_data = {
+                    line_name: `${facilityName}_Connection`,
+                    line_code: `${facilityName.substring(0,3).toUpperCase()}_CON`,
+                    line_type: 'transmission',
+                    voltage_level: 132,
+                    length_km: 1,
+                    resistance_per_km: 0.1,
+                    reactance_per_km: 0.4,
+                    thermal_capacity_mw: parseFloat(capacity) || 100,
+                    from_latitude: selectedLocation.lat,
+                    from_longitude: selectedLocation.lng,
+                    to_latitude: selectedLocation.lat,
+                    to_longitude: selectedLocation.lng
+                };
+            }
+            
+            // Add wind turbine specific data if applicable
+            const windTechnologyIds = [15, 16, 147];
+            if (windTechnologyIds.includes(parseInt(technologyId))) {
+                const turbineSelect = document.getElementById('turbine');
+                data.turbine = turbineSelect.value;
+                data.hub_height = document.getElementById('hub_height').value || null;
+                data.no_turbines = document.getElementById('no_turbines').value || null;
+                data.tilt = document.getElementById('tilt').value || null;
+                
+                // Validate wind turbine fields
+                if (!data.turbine) {
+                    alert('Please select a turbine model.');
+                    return;
+                }
+                
+                if (!data.hub_height) {
+                    alert('Please enter hub height.');
+                    return;
+                }
+                
+                if (!data.no_turbines || parseInt(data.no_turbines) < 1) {
+                    alert('Please enter a valid number of turbines (at least 1).');
+                    return;
+                }
+            }
+            
+            // Submit data to server
+            fetch('/powermapui/add_facility/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken')
+                },
+                body: JSON.stringify(data)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    let message = 'Facility added successfully!';
+                    if (data.grid_connection) {
+                        message += `\nConnected to: ${data.grid_connection.grid_line_name}`;
+                        message += `\nConnection distance: ${data.grid_connection.connection_distance_km} km`;
+                    }
+                    alert(message);
+                    
+                    // Add the new facility to the map
+                    const newIcon = getIconForTechnology(parseInt(technologyId));
+                    const newMarker = L.marker([selectedLocation.lat, selectedLocation.lng], { icon: newIcon })
+                        .bindPopup(facilityName);
+                    facilityLayer.addLayer(newMarker);
+                    
+                    // Reset the add facility mode
+                    const addFacilityBtn = document.getElementById('addFacilityBtn');
+                    if (addFacilityBtn) {
+                        addFacilityBtn.click();
+                    }
+                } else {
+                    alert('Error: ' + data.message);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Failed to add facility. Please try again.');
+            });
+        });
+
+        // Technology selection change handler
+        document.getElementById('technology_id').addEventListener('change', function() {
+            const selectedTechId = parseInt(this.value);
+            const windTurbineFields = document.getElementById('windTurbineFields');
+            const turbineSelect = document.getElementById('turbine');
+            
+            if (windTechnologyIds.includes(selectedTechId)) {
+                windTurbineFields.style.display = 'block';
+                
+                while (turbineSelect.options.length > 1) {
+                    turbineSelect.remove(1);
+                }
+                
+                const techName = getTechnologyName(selectedTechId);
+                const optgroup = document.createElement('optgroup');
+                optgroup.label = `${techName} Turbines`;
+                
+                let optionsAdded = false;
+                for (const [turbineName, data] of Object.entries(turbineData)) {
+                    if (data.technology === selectedTechId) {
+                        const option = document.createElement('option');
+                        option.value = turbineName;
+                        option.textContent = turbineName;
+                        option.dataset.capacity = data.capacity;
+                        optgroup.appendChild(option);
+                        optionsAdded = true;
+                    }
+                }
+                
+                if (optionsAdded) {
+                    turbineSelect.appendChild(optgroup);
+                }
+            } else {
+                windTurbineFields.style.display = 'none';
+                document.getElementById('turbine').value = '';
+                document.getElementById('hub_height').value = '';
+                document.getElementById('no_turbines').value = '';
+                document.getElementById('tilt').value = '';
+            }
+        });
+
+        // Turbine selection change handler
+        document.getElementById('turbine').addEventListener('change', function() {
+            const selectedTurbine = this.value;
+            
+            const hubHeightDefaults = {
+                "Enercon E66_1870kw(MG)": 65, "Siemens SWT-3.6MW-130m": 85,
+                "Vestas_V82_1.65mw(MG);Vestas V82-1.65": 80, "Vestas V136-3.6Mw": 112,
+                "Vestas V150-4.2Mw": 125, "Vestas V-90 GridStreamer 2mW (MG)Vestas V90-2.0": 80,
+                "Enercon E48_800kw": 50, "General Electric2.5xl_100m_2500kw(MG)": 100,
+                "Enercon E70_2300kw": 64, "Siemens Gamesa SG 11.0-200 DD": 118,
+                "Siemens Gamesa SWT-7.0-154": 106, "Vestas V164-10.0 MW": 105,
+                "Vestas V164-8.0 MW": 105, "Vestas V112-3.45 MW": 84,
+                "Goldwind GWH252-16MW": 146, "Siemens Gamesa SG 14-222 DD": 140,
+                "Goldwind GW171-6.0MW": 120
+            };
+            
+            const tiltDefaults = {
+                "Enercon E66_1870kw(MG)": 5, "Siemens SWT-3.6MW-130m": 5,
+                "Vestas_V82_1.65mw(MG);Vestas V82-1.65": 5, "Vestas V136-3.6Mw": 5,
+                "Vestas V150-4.2Mw": 5, "Vestas V-90 GridStreamer 2mW (MG)Vestas V90-2.0": 5,
+                "Enercon E48_800kw": 5, "General Electric2.5xl_100m_2500kw(MG)": 5,
+                "Enercon E70_2300kw": 5, "Siemens Gamesa SG 11.0-200 DD": 0,
+                "Siemens Gamesa SWT-7.0-154": 0, "Vestas V164-10.0 MW": 0,
+                "Vestas V164-8.0 MW": 0, "Vestas V112-3.45 MW": 0,
+                "Goldwind GWH252-16MW": 0, "Siemens Gamesa SG 14-222 DD": 0,
+                "Goldwind GW171-6.0MW": 0
+            };
+            
+            if (!document.getElementById('no_turbines').value) {
+                document.getElementById('no_turbines').value = 1;
+            }
+            
+            if (hubHeightDefaults[selectedTurbine]) {
+                document.getElementById('hub_height').value = hubHeightDefaults[selectedTurbine];
+            }
+            
+            if (tiltDefaults[selectedTurbine]) {
+                document.getElementById('tilt').value = tiltDefaults[selectedTurbine];
+            }
+            
+            const selectedOption = this.options[this.selectedIndex];
+            if (selectedOption && selectedOption.dataset.capacity) {
+                const perTurbineCapacity = parseFloat(selectedOption.dataset.capacity);
+                const noTurbines = parseInt(document.getElementById('no_turbines').value) || 1;
+                const totalCapacity = perTurbineCapacity * noTurbines;
+                document.getElementById('capacity').value = totalCapacity.toFixed(2);
+            }
+        });
+
+        // Number of turbines change handler
+        document.getElementById('no_turbines').addEventListener('change', function() {
+            const selectedOption = document.getElementById('turbine').options[document.getElementById('turbine').selectedIndex];
+            if (selectedOption && selectedOption.dataset.capacity) {
+                const perTurbineCapacity = parseFloat(selectedOption.dataset.capacity);
+                const noTurbines = parseInt(this.value) || 1;
+                const totalCapacity = perTurbineCapacity * noTurbines;
+                document.getElementById('capacity').value = totalCapacity.toFixed(2);
+            }
+        });
+    });
 </script>
 
 {% endblock %}
