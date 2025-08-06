@@ -46,6 +46,13 @@
             </small>
         {% endif %}
     {% endif %}
+    
+    <!-- Grid Line Controls -->
+    <div style="margin-top: 10px; text-align: center;">
+        <button onclick="toggleGridLineLabels()" class="btn btn-secondary btn-sm" style="margin: 2px;">
+            Toggle Grid Line Labels
+        </button>
+    </div>
 </div>
 
 <br>
@@ -222,6 +229,39 @@ crossorigin=""></script>
     color: #666;
     margin-top: 2px;
 }
+.grid-line-popup table {
+    margin: 0;
+    font-size: 12px;
+}
+.grid-line-popup td {
+    padding: 2px 5px;
+    border: none;
+}
+.grid-line-details .table {
+    margin-bottom: 15px;
+}
+.grid-line-details .table td {
+    padding: 4px 8px;
+    border-top: 1px solid #dee2e6;
+}
+.facility-connection {
+    background: #f8f9fa;
+}
+.grid-line-label {
+    pointer-events: none;
+}
+.modal-overlay {
+    font-family: Arial, sans-serif;
+}
+.modal-overlay h2 {
+    margin-top: 0;
+    color: #333;
+}
+.modal-overlay h4 {
+    color: #666;
+    margin-top: 20px;
+    margin-bottom: 10px;
+}
 </style>
 
 <script>
@@ -233,9 +273,9 @@ crossorigin=""></script>
         attribution: 'Map data © <a href="https://openstreetmap.org">OpenStreetMap</a> contributors'
     }).addTo(map);
     
-    // Data passed from Django view
+    // Data passed from view
     var facilities = {{ facilities_json|safe }};
-    var gridLines = {{ grid_lines_json|safe }};
+    var gridLines = JSON.parse('{{ grid_lines_json|escapejs }}');
     
     // Define custom icons for each technology type
     var bessIcon = L.icon({ iconUrl: "{% static 'icons/bess.png' %}", iconSize: [32, 32] });
@@ -262,6 +302,10 @@ crossorigin=""></script>
     var locationMarker = null;
     var gridLinePoints = [];
     var gridLineMarkers = [];
+    
+    // Grid line label functionality
+    var gridLineLabels = [];
+    var showLabels = false;
 
     // Function to get the correct icon based on technology type
     function getIconForTechnology(technologyId) {
@@ -285,42 +329,175 @@ crossorigin=""></script>
         gridLinesLayer.clearLayers();
         
         gridLinesData.forEach(function(gridLine) {
-            // Create line between from and to points
-            var lineCoords = [
-                [gridLine.from_latitude, gridLine.from_longitude],
-                [gridLine.to_latitude, gridLine.to_longitude]
-            ];
-            
-            // Color based on voltage level
-            var lineColor = '#ff0000'; // Default red
-            if (gridLine.voltage_level >= 330) {
-                lineColor = '#8B0000'; // Dark red for high voltage
-            } else if (gridLine.voltage_level >= 220) {
-                lineColor = '#FF4500'; // Orange red
-            } else if (gridLine.voltage_level >= 132) {
-                lineColor = '#FFA500'; // Orange
-            } else if (gridLine.voltage_level >= 66) {
-                lineColor = '#FFD700'; // Gold
+            // Use detailed coordinates if available, fallback to simple from/to
+            var lineCoords;
+            if (gridLine.coordinates && gridLine.coordinates.length > 0) {
+                lineCoords = gridLine.coordinates;  // Full path from KML
             } else {
-                lineColor = '#FFFF00'; // Yellow for lower voltage
+                lineCoords = [
+                    [gridLine.from_latitude, gridLine.from_longitude],
+                    [gridLine.to_latitude, gridLine.to_longitude]
+                ];
             }
             
-            var polyline = L.polyline(lineCoords, {
-                color: lineColor,
+            // Use style from database if available
+            var lineStyle = gridLine.style || {
+                color: getVoltageColor(gridLine.voltage_level),
                 weight: Math.max(2, Math.min(8, gridLine.voltage_level / 50)),
-                opacity: 0.7
-            });
+                opacity: gridLine.active ? 0.8 : 0.4,
+                dashArray: gridLine.active ? null : '5, 5'
+            };
             
-            // Add popup with grid line information
-            polyline.bindPopup(`
+            var polyline = L.polyline(lineCoords, lineStyle);
+            
+            // Use popup content from database if available
+            var popupContent = gridLine.popup_content || `
                 <strong>${gridLine.line_name}</strong><br>
                 Type: ${gridLine.line_type}<br>
                 Voltage: ${gridLine.voltage_level} kV<br>
-                Capacity: ${gridLine.thermal_capacity_mw} MW
-            `);
+                Capacity: ${gridLine.thermal_capacity_mw} MW<br>
+                Length: ${gridLine.length_km} km
+            `;
+            
+            polyline.bindPopup(popupContent);
+            
+            // Add click handler for detailed info
+            polyline.on('click', function(e) {
+                showGridLineDetails(gridLine.idgridlines);
+            });
             
             gridLinesLayer.addLayer(polyline);
         });
+    }
+    
+    // Function to get voltage-based color (fallback)
+    function getVoltageColor(voltageLevel) {
+        if (voltageLevel >= 330) return '#ff0000';
+        if (voltageLevel >= 220) return '#00ffee';
+        if (voltageLevel >= 132) return '#ffaa00';
+        if (voltageLevel >= 66) return '#ee1100';
+        return '#FFFF00';
+    }
+    
+    // Function to show detailed grid line information
+    function showGridLineDetails(gridLineId) {
+        fetch(`/powermapui/grid_line/${gridLineId}/details/`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    alert('Error: ' + data.error);
+                    return;
+                }
+                
+                // Create detailed popup or modal
+                var detailsHtml = `
+                    <div class="grid-line-details">
+                        <h3>${data.line_name} (${data.line_code})</h3>
+                        <table class="table table-sm">
+                            <tr><td><strong>Type:</strong></td><td>${data.line_type}</td></tr>
+                            <tr><td><strong>Voltage:</strong></td><td>${data.voltage_level} kV</td></tr>
+                            <tr><td><strong>Length:</strong></td><td>${data.length_km} km</td></tr>
+                            <tr><td><strong>Capacity:</strong></td><td>${data.thermal_capacity_mw} MW</td></tr>
+                            ${data.emergency_capacity_mw ? `<tr><td><strong>Emergency:</strong></td><td>${data.emergency_capacity_mw} MW</td></tr>` : ''}
+                            <tr><td><strong>Resistance:</strong></td><td>${data.resistance_total.toFixed(4)} Ω</td></tr>
+                            <tr><td><strong>Reactance:</strong></td><td>${data.reactance_total.toFixed(4)} Ω</td></tr>
+                            <tr><td><strong>Impedance:</strong></td><td>${data.impedance_total.toFixed(4)} Ω</td></tr>
+                            ${data.owner ? `<tr><td><strong>Owner:</strong></td><td>${data.owner}</td></tr>` : ''}
+                            ${data.commissioned_date ? `<tr><td><strong>Commissioned:</strong></td><td>${new Date(data.commissioned_date).toLocaleDateString()}</td></tr>` : ''}
+                            <tr><td><strong>Losses at Full Load:</strong></td><td>${data.losses_at_full_capacity.toFixed(2)} MW</td></tr>
+                        </table>
+                        
+                        ${data.connected_facilities.length > 0 ? `
+                        <h4>Connected Facilities (${data.connected_facilities.length})</h4>
+                        <div class="connected-facilities" style="max-height: 200px; overflow-y: auto;">
+                            ${data.connected_facilities.map(facility => `
+                                <div class="facility-connection" style="border: 1px solid #ddd; margin: 5px 0; padding: 8px; border-radius: 4px;">
+                                    <strong>${facility.facility_name}</strong> (${facility.technology})<br>
+                                    <small>Capacity: ${facility.capacity} MW | Distance: ${facility.connection_distance} km ${facility.is_primary ? '| Primary Connection' : ''}</small>
+                                </div>
+                            `).join('')}
+                        </div>
+                        ` : '<p>No facilities connected to this line.</p>'}
+                    </div>
+                `;
+                
+                // Show in a modal or large popup
+                showModal('Grid Line Details', detailsHtml);
+            })
+            .catch(error => {
+                console.error('Error fetching grid line details:', error);
+                alert('Failed to load grid line details');
+            });
+    }
+    
+    // Function to show modal
+    function showModal(title, content) {
+        var modal = document.createElement('div');
+        modal.style.cssText = `
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+            background: rgba(0,0,0,0.5); z-index: 10000; display: flex; 
+            align-items: center; justify-content: center;
+        `;
+        
+        var modalContent = document.createElement('div');
+        modalContent.style.cssText = `
+            background: white; padding: 20px; border-radius: 8px; 
+            max-width: 600px; max-height: 80vh; overflow-y: auto;
+            position: relative;
+        `;
+        
+        modalContent.innerHTML = `
+            <button onclick="this.closest('.modal-overlay').remove()" 
+                    style="position: absolute; top: 10px; right: 15px; 
+                           background: none; border: none; font-size: 24px; cursor: pointer;">
+                ×
+            </button>
+            <h2>${title}</h2>
+            ${content}
+        `;
+        
+        modal.className = 'modal-overlay';
+        modal.appendChild(modalContent);
+        document.body.appendChild(modal);
+        
+        // Close on background click
+        modal.addEventListener('click', function(e) {
+            if (e.target === modal) {
+                modal.remove();
+            }
+        });
+    }
+    
+    function toggleGridLineLabels() {
+        showLabels = !showLabels;
+        
+        if (showLabels) {
+            // Add labels to grid lines
+            gridLines.forEach(function(gridLine) {
+                if (gridLine.coordinates && gridLine.coordinates.length > 0) {
+                    // Place label at midpoint of line
+                    const midIndex = Math.floor(gridLine.coordinates.length / 2);
+                    const midPoint = gridLine.coordinates[midIndex];
+                    
+                    const label = L.marker(midPoint, {
+                        icon: L.divIcon({
+                            className: 'grid-line-label',
+                            html: `<div style="background: rgba(255,255,255,0.8); padding: 2px 4px; border-radius: 3px; font-size: 10px; font-weight: bold;">${gridLine.line_name}</div>`,
+                            iconSize: [0, 0],
+                            iconAnchor: [0, 0]
+                        })
+                    }).addTo(map);
+                    
+                    gridLineLabels.push(label);
+                }
+            });
+        } else {
+            // Remove labels
+            gridLineLabels.forEach(function(label) {
+                map.removeLayer(label);
+            });
+            gridLineLabels = [];
+        }
     }
     
     // Function to clear and reload facilities on the map
@@ -508,6 +685,10 @@ crossorigin=""></script>
         return cookieValue;
     }
 
+    // Initialize layers - this needs to happen AFTER all layers are defined
+    var boundaryLayer = null;
+    var zoneLayer = null;
+
     // Initial load
     loadFacilitiesOnMap(facilities);
     loadGridLinesOnMap(gridLines);
@@ -517,43 +698,55 @@ crossorigin=""></script>
     gridLinesLayer.addTo(map);
 
     // Load KML layers
-    var boundaryLayer = new L.KML("{% static 'kml//SWIS_Boundary.kml' %}", { async: true });
-    boundaryLayer.on("loaded", function(e) {
-        map.fitBounds(e.target.getBounds());
-        e.target.eachLayer(function(layer) {
-            if (layer instanceof L.Polygon) {
-                layer.setStyle({
-                    fillColor: '#ddffcc',
-                    fillOpacity: 0.4,
-                    color: '#ff7800',
-                    weight: 3,
-                    opacity: 0.8,
-                    dashArray: '5, 5',
-                    dashOffset: '0'
-                });
-            }
+    function initializeKMLLayers() {
+        // Load boundary layer
+        boundaryLayer = new L.KML("{% static 'kml//SWIS_Boundary.kml' %}", { async: true });
+        boundaryLayer.on("loaded", function(e) {
+            map.fitBounds(e.target.getBounds());
+            e.target.eachLayer(function(layer) {
+                if (layer instanceof L.Polygon) {
+                    layer.setStyle({
+                        fillColor: '#ddffcc',
+                        fillOpacity: 0.4,
+                        color: '#ff7800',
+                        weight: 3,
+                        opacity: 0.8,
+                        dashArray: '5, 5',
+                        dashOffset: '0'
+                    });
+                }
+            });
+            
+            // Initialize layer control after all layers are loaded
+            initializeLayerControl();
         });
-    });
-    map.addLayer(boundaryLayer);
-    
-    var gridLayer = new L.KML("{% static 'kml//SWIS_Grid.kml' %}", { async: true });
-    gridLayer.on("loaded", function(e) { map.fitBounds(e.target.getBounds()); });
-    map.addLayer(gridLayer);
+        map.addLayer(boundaryLayer);
 
-    var zoneLayer = new L.KML("{% static 'kml//SWIS_2023_Zones.kml' %}", { async: true });
-    zoneLayer.on("loaded", function(e) { map.fitBounds(e.target.getBounds()); });
-    map.addLayer(zoneLayer);
+        // Load zone layer
+        zoneLayer = new L.KML("{% static 'kml//SWIS_2023_Zones.kml' %}", { async: true });
+        zoneLayer.on("loaded", function(e) { 
+            map.fitBounds(e.target.getBounds()); 
+        });
+        map.addLayer(zoneLayer);
+    }
 
-    // Layer control
-    var baseLayers = {};
-    var overlays = {
-        "SWIS Boundary": boundaryLayer,
-        "Zones": zoneLayer,
-        "Grid Facilities": facilityLayer,
-        "Grid Lines": gridLinesLayer,
-        "Transmission (KML)": gridLayer,
-    };
-    L.control.layers(baseLayers, overlays).addTo(map);
+    // Initialize layer control only after all layers are ready
+    function initializeLayerControl() {
+        // Only create layer control if all layers exist
+        if (boundaryLayer && zoneLayer) {
+            var baseLayers = {};
+            var overlays = {
+                "SWIS Boundary": boundaryLayer,
+                "Zones": zoneLayer,
+                "Grid Facilities": facilityLayer,
+                "Grid Lines": gridLinesLayer,
+            };
+            L.control.layers(baseLayers, overlays).addTo(map);
+        }
+    }
+
+    // Start loading KML layers
+    initializeKMLLayers();
 
     // Handle map clicks for both facility and grid line creation
     map.on('click', function(e) {

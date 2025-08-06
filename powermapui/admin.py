@@ -1,4 +1,5 @@
 from django.contrib import admin
+from django.urls import path
 from django.utils.html import format_html
 from siren_web.models import GridLines, FacilityGridConnections, facilities
 
@@ -28,13 +29,22 @@ class GridLinesAdmin(admin.ModelAdmin):
                 'length_km', 'calculated_length'
             ]
         }),
+        ('KML Integration', {
+            'fields': ['kml_geometry'],
+            'classes': ['collapse']
+        }),
         ('Administrative', {
             'fields': ['owner', 'commissioned_date', 'decommissioned_date']
         }),
         ('System Data', {
-            'fields': ['kml_geometry', 'created_date', 'modified_date'],
+            'fields': ['created_date', 'modified_date'],
             'classes': ['collapse']
         })
+    ]
+    
+    actions = [
+        'activate_lines', 'deactivate_lines', 'calculate_impedances',
+        'sync_from_kml', 'export_to_kml', 'validate_coordinates'
     ]
     
     def calculated_length(self, obj):
@@ -101,7 +111,121 @@ class GridLinesAdmin(admin.ModelAdmin):
             count += 1
         self.message_user(request, f"Recalculated impedances for {count} grid lines.")
     calculate_impedances.short_description = "Recalculate impedances"
-
+    
+    def sync_from_kml(self, request, queryset):
+        """Sync selected grid lines from their KML source"""
+        from django.core.management import call_command
+        from io import StringIO
+        
+        try:
+            out = StringIO()
+            call_command('import_kml_gridlines', 
+                        update_existing=True,
+                        stdout=out)
+            
+            output = out.getvalue()
+            self.message_user(request, f"KML sync completed: {output}")
+            
+        except Exception as e:
+            self.message_user(request, f"KML sync failed: {str(e)}", level='ERROR')
+    
+    sync_from_kml.short_description = "Sync from KML source"
+    
+    def export_to_kml(self, request, queryset):
+        """Export selected grid lines to KML format"""
+        try:
+            import tempfile
+            import os
+            from django.http import HttpResponse
+            
+            # Create KML content for selected lines
+            kml_header = '''<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+  <Document>
+    <name>Selected Grid Lines</name>
+    <description>Exported from admin interface</description>
+'''
+            kml_footer = '''  </Document>
+</kml>'''
+            
+            kml_content = kml_header
+            for grid_line in queryset:
+                kml_content += grid_line.export_to_kml() + '\n'
+            kml_content += kml_footer
+            
+            response = HttpResponse(kml_content, content_type='application/vnd.google-earth.kml+xml')
+            response['Content-Disposition'] = 'attachment; filename="selected_gridlines.kml"'
+            
+            return response
+            
+        except Exception as e:
+            self.message_user(request, f"KML export failed: {str(e)}", level='ERROR')
+    
+    export_to_kml.short_description = "Export to KML"
+    
+    def validate_coordinates(self, request, queryset):
+        """Validate coordinate data and KML geometry"""
+        validated_count = 0
+        error_count = 0
+        
+        for grid_line in queryset:
+            try:
+                # Check if coordinates are valid
+                if not all([grid_line.from_latitude, grid_line.from_longitude,
+                           grid_line.to_latitude, grid_line.to_longitude]):
+                    error_count += 1
+                    continue
+                
+                # Validate KML geometry if present
+                kml_data = grid_line.get_kml_geometry_data()
+                if kml_data and 'coordinates' in kml_data:
+                    coords = kml_data['coordinates']
+                    if len(coords) < 2:
+                        error_count += 1
+                        continue
+                
+                validated_count += 1
+                
+            except Exception:
+                error_count += 1
+        
+        self.message_user(
+            request, 
+            f"Validation complete: {validated_count} valid, {error_count} errors"
+        )
+    
+    validate_coordinates.short_description = "Validate coordinates"
+    
+    def get_urls(self):
+        urls = super().get_urls()
+        custom_urls = [
+            path('kml-import/', self.admin_site.admin_view(self.kml_import_view), 
+                 name='gridlines-kml-import'),
+            path('bulk-export/', self.admin_site.admin_view(self.bulk_export_view), 
+                 name='gridlines-bulk-export'),
+        ]
+        return custom_urls + urls
+    
+    def kml_import_view(self, request):
+        """Custom view for KML import with file upload"""
+        if request.method == 'POST':
+            # Handle file upload and import
+            # This would include file upload handling
+            pass
+        
+        from django.shortcuts import render
+        return render(request, 'admin/kml_import.html', {
+            'title': 'Import KML Grid Lines',
+            'opts': self.model._meta,
+        })
+    
+    def bulk_export_view(self, request):
+        """Custom view for bulk export options"""
+        from django.shortcuts import render
+        return render(request, 'admin/bulk_export.html', {
+            'title': 'Bulk Export Grid Lines',
+            'opts': self.model._meta,
+        })
 
 @admin.register(FacilityGridConnections)
 class FacilityGridConnectionsAdmin(admin.ModelAdmin):
@@ -176,8 +300,6 @@ class FacilityGridConnectionsAdmin(admin.ModelAdmin):
         self.message_user(request, f"{updated} connections deactivated.")
     deactivate_connections.short_description = "Deactivate selected connections"
 
-
-# Enhance the existing facilities admin to show grid connections
 class FacilityGridConnectionsInline(admin.TabularInline):
     model = FacilityGridConnections
     extra = 0
@@ -187,13 +309,6 @@ class FacilityGridConnectionsInline(admin.TabularInline):
     ]
     raw_id_fields = ['idgridlines']
 
-
-# If you have an existing FacilitiesAdmin, add this inline to it:
-# class FacilitiesAdmin(admin.ModelAdmin):
-#     inlines = [FacilityGridConnectionsInline]
-#     # ... other existing configuration
-
-# Or create a new one if it doesn't exist:
 @admin.register(facilities)
 class FacilitiesAdmin(admin.ModelAdmin):
     list_display = [

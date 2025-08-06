@@ -7,7 +7,6 @@
 # Feel free to rename the models, but don't rename db_table values or field names.
 from django.db import models
 
-
 class Analysis(models.Model):
     idanalysis = models.AutoField(db_column='idAnalysis', primary_key=True)
     idscenarios = models.ForeignKey('Scenarios', on_delete=models.CASCADE, db_column='idScenarios', blank=True, null=True)
@@ -227,6 +226,182 @@ class GridLines(models.Model):
         if self.thermal_capacity_mw == 0:
             return 0
         return (abs(current_flow_mw) / self.thermal_capacity_mw) * 100
+    
+    def set_kml_geometry_data(self, geometry_dict):
+        """Store geometry data as JSON string in the kml_geometry TextField"""
+        import json
+        if geometry_dict:
+            self.kml_geometry = json.dumps(geometry_dict, separators=(',', ':'))
+        else:
+            self.kml_geometry = None
+    
+    def get_kml_geometry_data(self):
+        """Retrieve geometry data as Python dict from kml_geometry TextField"""
+        import json
+        if self.kml_geometry:
+            try:
+                return json.loads(self.kml_geometry)
+            except (json.JSONDecodeError, TypeError):
+                return None
+        return None
+    
+    def has_kml_geometry(self):
+        """Check if this grid line has KML geometry data"""
+        return bool(self.kml_geometry)
+    
+    def get_kml_coordinates_count(self):
+        """Get the number of coordinate points in the KML geometry"""
+        kml_data = self.get_kml_geometry_data()
+        if kml_data and 'coordinates' in kml_data:
+            return len(kml_data['coordinates'])
+        return 0
+    
+    def validate_kml_geometry(self):
+        """Validate the KML geometry data structure"""
+        kml_data = self.get_kml_geometry_data()
+        if not kml_data:
+            return True, "No KML geometry data"
+        
+        # Check required fields
+        if 'type' not in kml_data:
+            return False, "Missing 'type' field in KML geometry"
+        
+        if 'coordinates' not in kml_data:
+            return False, "Missing 'coordinates' field in KML geometry"
+        
+        coordinates = kml_data['coordinates']
+        if not isinstance(coordinates, list) or len(coordinates) < 2:
+            return False, "Invalid coordinates: must be a list with at least 2 points"
+        
+        # Validate coordinate format
+        for i, coord in enumerate(coordinates):
+            if not isinstance(coord, list) or len(coord) < 2:
+                return False, f"Invalid coordinate at index {i}: must be [lon, lat] or [lon, lat, alt]"
+            
+            try:
+                lon, lat = float(coord[0]), float(coord[1])
+                if not (-180 <= lon <= 180) or not (-90 <= lat <= 90):
+                    return False, f"Invalid coordinate at index {i}: longitude/latitude out of range"
+            except (ValueError, TypeError):
+                return False, f"Invalid coordinate at index {i}: non-numeric values"
+        
+        return True, "Valid KML geometry"
+
+    def get_line_coordinates(self):
+        """Get all coordinates for the line (for detailed rendering)"""
+        kml_data = self.get_kml_geometry_data()
+        if kml_data and 'coordinates' in kml_data:
+            # Return as [lat, lng] pairs for Leaflet
+            return [[coord[1], coord[0]] for coord in kml_data['coordinates']]
+        else:
+            # Fallback to simple from/to coordinates
+            return [
+                [self.from_latitude, self.from_longitude],
+                [self.to_latitude, self.to_longitude]
+            ]
+    
+    def get_line_style(self):
+        """Get styling information for map rendering"""
+        # Color based on voltage level
+        if self.voltage_level >= 330:
+            color = '#8B0000'  # Dark red for high voltage
+        elif self.voltage_level >= 220:
+            color = '#FF4500'  # Orange red
+        elif self.voltage_level >= 132:
+            color = '#FFA500'  # Orange
+        elif self.voltage_level >= 66:
+            color = '#FFD700'  # Gold
+        else:
+            color = '#FFFF00'  # Yellow for lower voltage
+        
+        # Line weight based on voltage
+        weight = max(2, min(8, self.voltage_level / 50))
+        
+        return {
+            'color': color,
+            'weight': weight,
+            'opacity': 0.8 if self.active else 0.4,
+            'dashArray': None if self.active else '5, 5'
+        }
+    
+    def get_popup_content(self):
+        """Get HTML content for map popup"""
+        status = "Active" if self.active else "Inactive"
+        emergency_cap = f" / {self.emergency_capacity_mw} MW (Emergency)" if self.emergency_capacity_mw else ""
+        
+        return f"""
+        <div class="grid-line-popup">
+            <h4>{self.line_name}</h4>
+            <table style="font-size: 12px;">
+                <tr><td><strong>Code:</strong></td><td>{self.line_code}</td></tr>
+                <tr><td><strong>Type:</strong></td><td>{self.line_type.title()}</td></tr>
+                <tr><td><strong>Voltage:</strong></td><td>{self.voltage_level} kV</td></tr>
+                <tr><td><strong>Length:</strong></td><td>{self.length_km} km</td></tr>
+                <tr><td><strong>Capacity:</strong></td><td>{self.thermal_capacity_mw}{emergency_cap} MW</td></tr>
+                <tr><td><strong>Status:</strong></td><td>{status}</td></tr>
+                {f'<tr><td><strong>Owner:</strong></td><td>{self.owner}</td></tr>' if self.owner else ''}
+            </table>
+        </div>
+        """
+    
+    def export_to_kml(self):
+        """Export this grid line back to KML format"""
+        coordinates = self.get_line_coordinates()
+        # Convert back to KML coordinate format (lon,lat,alt)
+        kml_coords = []
+        for coord in coordinates:
+            kml_coords.append(f"{coord[1]},{coord[0]},0")
+        
+        kml_content = f"""
+        <Placemark>
+            <name>{self.line_name}</name>
+            <description>
+                <![CDATA[
+                Line Code: {self.line_code}<br/>
+                Type: {self.line_type}<br/>
+                Voltage: {self.voltage_level} kV<br/>
+                Capacity: {self.thermal_capacity_mw} MW<br/>
+                Length: {self.length_km} km<br/>
+                Owner: {self.owner or 'Unknown'}
+                ]]>
+            </description>
+            <LineString>
+                <coordinates>
+                    {' '.join(kml_coords)}
+                </coordinates>
+            </LineString>
+        </Placemark>
+        """
+        return kml_content.strip()
+    
+    @classmethod
+    def export_all_to_kml(cls, filename=None):
+        """Export all active grid lines to a KML file"""
+        if not filename:
+            from django.conf import settings
+            import os
+            filename = os.path.join(settings.STATIC_ROOT or 'static', 'kml', 'Generated_GridLines.kml')
+        
+        kml_header = '''<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+  <Document>
+    <name>Grid Lines</name>
+    <description>Generated from GridLines database</description>
+'''
+        
+        kml_footer = '''  </Document>
+</kml>'''
+        
+        with open(filename, 'w', encoding='utf-8') as f:
+            f.write(kml_header)
+            
+            for grid_line in cls.objects.filter(active=True):
+                f.write(grid_line.export_to_kml())
+                f.write('\n')
+            
+            f.write(kml_footer)
+        
+        return filename
 
 class FacilityGridConnections(models.Model):
     """Junction table to connect facilities to grid lines"""

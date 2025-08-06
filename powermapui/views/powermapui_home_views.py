@@ -101,14 +101,33 @@ def home(request):
         # If no scenario is selected, return an empty queryset
         facilities_data = facilities.objects.none().values('facility_name', 'idtechnologies', 'latitude', 'longitude', 'idfacilities')
     
-    # Convert the queryset to a list and then to JSON
+    # Convert the queryset to JSON
     facilities_json = json.dumps(list(facilities_data))
     
-    # Get grid lines data for the map
-    grid_lines_data = list(GridLines.objects.filter(active=True).values(
-        'idgridlines', 'line_name', 'line_type', 'voltage_level', 'thermal_capacity_mw',
-        'from_latitude', 'from_longitude', 'to_latitude', 'to_longitude'
-    ))
+    # Get grid lines data for the map with detailed coordinates
+    grid_lines_data = []
+    for grid_line in GridLines.objects.filter(active=True):
+        grid_line_data = {
+            'idgridlines': grid_line.idgridlines,
+            'line_name': grid_line.line_name,
+            'line_code': grid_line.line_code,
+            'line_type': grid_line.line_type,
+            'voltage_level': grid_line.voltage_level,
+            'thermal_capacity_mw': grid_line.thermal_capacity_mw,
+            'length_km': grid_line.length_km,
+            'owner': grid_line.owner,
+            'active': grid_line.active,
+            'coordinates': grid_line.get_line_coordinates(),  # Full coordinate path
+            'style': grid_line.get_line_style(),  # Styling info
+            'popup_content': grid_line.get_popup_content(),  # Popup HTML
+            # Simple from/to for backward compatibility
+            'from_latitude': grid_line.from_latitude,
+            'from_longitude': grid_line.from_longitude,
+            'to_latitude': grid_line.to_latitude,
+            'to_longitude': grid_line.to_longitude
+        }
+        grid_lines_data.append(grid_line_data)
+        
     grid_lines_json = json.dumps(grid_lines_data)
     
     context = {
@@ -503,5 +522,114 @@ def get_facilities_for_scenario(request):
         return JsonResponse(list(facilities_data), safe=False)
     except Scenarios.DoesNotExist:
         return JsonResponse({'error': 'Scenario not found'}, status=404)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+@login_required
+def sync_kml_gridlines(request):
+    """API endpoint to sync KML data with GridLines database"""
+    if request.method == 'POST':
+        try:
+            from django.core.management import call_command
+            from io import StringIO
+            
+            # Capture command output
+            out = StringIO()
+            call_command('import_kml_gridlines', 
+                        kml_file='kml/SWIS_Grid.kml',
+                        update_existing=True,
+                        stdout=out)
+            
+            output = out.getvalue()
+            
+            return JsonResponse({
+                'status': 'success',
+                'message': 'KML sync completed successfully',
+                'output': output
+            })
+            
+        except Exception as e:
+            return JsonResponse({
+                'status': 'error',
+                'message': f'KML sync failed: {str(e)}'
+            }, status=500)
+    
+    return JsonResponse({'status': 'error', 'message': 'Invalid request method'}, status=405)
+
+@login_required
+def export_gridlines_kml(request):
+    """Export current GridLines to KML format"""
+    try:
+        from django.http import HttpResponse
+        import tempfile
+        import os
+        
+        # Create temporary KML file
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.kml', delete=False) as tmp_file:
+            filename = GridLines.export_all_to_kml(tmp_file.name)
+        
+        # Read the file and return as response
+        with open(filename, 'r', encoding='utf-8') as f:
+            kml_content = f.read()
+        
+        # Clean up temp file
+        os.unlink(filename)
+        
+        response = HttpResponse(kml_content, content_type='application/vnd.google-earth.kml+xml')
+        response['Content-Disposition'] = 'attachment; filename="gridlines.kml"'
+        
+        return response
+        
+    except Exception as e:
+        return JsonResponse({
+            'status': 'error',
+            'message': f'KML export failed: {str(e)}'
+        }, status=500)
+
+@login_required
+def get_grid_line_details(request, grid_line_id):
+    """Get detailed information about a specific grid line"""
+    try:
+        grid_line = GridLines.objects.get(pk=grid_line_id)
+        
+        # Get connected facilities
+        connected_facilities = []
+        for connection in grid_line.facilitygridconnections_set.filter(active=True):
+            connected_facilities.append({
+                'facility_name': connection.idfacilities.facility_name,
+                'technology': connection.idfacilities.idtechnologies.technology_name,
+                'capacity': connection.idfacilities.capacity,
+                'connection_distance': connection.connection_distance_km,
+                'is_primary': connection.is_primary
+            })
+        
+        # Calculate current utilization if we have power flow data
+        # This would need to be connected to your power flow analysis
+        current_utilization = 0  # Placeholder
+        
+        grid_line_data = {
+            'idgridlines': grid_line.idgridlines,
+            'line_name': grid_line.line_name,
+            'line_code': grid_line.line_code,
+            'line_type': grid_line.line_type,
+            'voltage_level': grid_line.voltage_level,
+            'length_km': grid_line.length_km,
+            'thermal_capacity_mw': grid_line.thermal_capacity_mw,
+            'emergency_capacity_mw': grid_line.emergency_capacity_mw,
+            'resistance_total': grid_line.calculate_resistance(),
+            'reactance_total': grid_line.calculate_reactance(),
+            'impedance_total': grid_line.calculate_impedance(),
+            'owner': grid_line.owner,
+            'commissioned_date': grid_line.commissioned_date.isoformat() if grid_line.commissioned_date else None,
+            'coordinates': grid_line.get_line_coordinates(),
+            'connected_facilities': connected_facilities,
+            'current_utilization_percent': current_utilization,
+            'losses_at_full_capacity': grid_line.calculate_line_losses_mw(grid_line.thermal_capacity_mw)
+        }
+        
+        return JsonResponse(grid_line_data)
+        
+    except GridLines.DoesNotExist:
+        return JsonResponse({'error': 'Grid line not found'}, status=404)
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
