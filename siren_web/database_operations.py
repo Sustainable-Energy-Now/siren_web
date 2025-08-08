@@ -1,21 +1,16 @@
 # database operations
 from configparser import ConfigParser
-from datetime import datetime, timedelta
-from decimal import Decimal
-from django.db import connection, models
+from django.db import connection
 from django.db.models import Prefetch
-from django.http import HttpResponse
 import logging
 from django.db.models import Avg, Q, F, Sum, Count, When, OuterRef, Subquery
-from django.db.models.query import RawQuerySet
 from django.db.models.functions import TruncDay
 import os
-from siren_web.models import Analysis, Demand, facilities, Generatorattributes, Optimisations, \
+from siren_web.models import Analysis, facilities, Generatorattributes, Optimisations, \
     Scenarios, ScenariosTechnologies, ScenariosSettings, Settings, Storageattributes, supplyfactors, \
     Technologies, TechnologyYears, TradingPrice, variations, Zones
 from siren_web.siren.powermatch.logic.logic import Constraint, Optimisation
 from powermatchui.views.balance_grid_load import Technology
-from typing import Dict
 
 def delete_analysis_scenario(idscenario):
     Analysis.objects.filter(
@@ -147,7 +142,7 @@ def get_supply_unique_technology(demand_year, scenario):
     # Get the scenario object
     scenario_obj = get_scenario_by_title(scenario)
 
-    # Filter the Demand objects for the given demand_year and scenario
+    # Filter the SupplyFactors objects for the given demand_year and scenario
     unique_technologies = Technologies.objects.filter(
         id__in=supplyfactors.objects.values('idtechnologies')
                                     .annotate(count=Count('idtechnologies'))
@@ -160,7 +155,7 @@ def get_supply_by_technology(demand_year, scenario):
     # Get the scenario object
     scenario_obj = get_scenario_by_title(scenario)
 
-    # Filter the Demand objects for the given demand_year and scenario
+    # Filter the SupplyFactors objects for the given demand_year and scenario
     supplyfactors_queryset = supplyfactors.objects.filter(year=demand_year, idscenarios=scenario_obj)
 
     # Calculate the total load by technology

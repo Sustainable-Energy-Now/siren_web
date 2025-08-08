@@ -1,19 +1,11 @@
 from django.views.generic import TemplateView
-
-class PowerPlotHomeView(TemplateView):
-    template_name = 'powermatchui_home'
-
-
-# homes_views.py
-from decimal import Decimal
-from django.apps import apps
 from django.contrib.auth.decorators import login_required
-from django.db.models import Max
-from django.http import HttpResponse, JsonResponse
 from django.shortcuts import render
 from django.urls import path
 from ..forms import DemandScenarioSettings
-from siren_web.models import Demand, supplyfactors
+
+class PowerPlotHomeView(TemplateView):
+    template_name = 'powermatchui_home'
 
 @login_required
 def powermatchui_home(request):

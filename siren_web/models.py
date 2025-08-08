@@ -30,19 +30,6 @@ class capacities(models.Model):
     class Meta:
         db_table = 'capacities'
         
-class Demand(models.Model):
-    iddemand = models.AutoField(db_column='idDemand', primary_key=True)
-    idtechnologies = models.ForeignKey('Technologies', on_delete=models.CASCADE, db_column='idTechnologies')  
-    idscenarios = models.ForeignKey('Scenarios', on_delete=models.CASCADE, db_column='idScenarios')
-    year = models.PositiveIntegerField()
-    hour = models.PositiveIntegerField()
-    period = models.DateTimeField(blank=True, null=True)
-    load = models.DecimalField(max_digits=9, decimal_places=2, blank=True, null=True)
-    col = models.PositiveIntegerField(db_column='Col', blank=True, null=True)  
-
-    class Meta:
-        db_table = 'Demand'
-        
 class Scenarios(models.Model):
     idscenarios = models.AutoField(db_column='idScenarios', primary_key=True)  
     title = models.CharField(db_column='Title', unique=True, max_length=45, blank=True, null=True)  
@@ -570,6 +557,7 @@ class Technologies(models.Model):
     emissions = models.FloatField(null=True)
     description = models.CharField(max_length=1000, db_collation='utf8mb4_0900_ai_ci', blank=True, null=True)
     area = models.FloatField(blank=True, null=True)
+    water_usage = models.FloatField(blank=True, null=True)
 
     class Meta:
         db_table = 'Technologies'

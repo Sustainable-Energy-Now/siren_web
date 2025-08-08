@@ -429,34 +429,6 @@ def create_grid_line(request):
     return JsonResponse({'status': 'error', 'message': 'Invalid request method'}, status=405)
 
 @login_required
-def get_facility_grid_connections(request, facility_id):
-    """Get grid connections for a specific facility"""
-    try:
-        facility = facilities.objects.get(pk=facility_id)
-        connections = facility.get_all_grid_connections()
-        
-        connection_data = []
-        for conn in connections:
-            connection_data.append({
-                'connection_id': conn.idfacilitygridconnections,
-                'grid_line_name': conn.idgridlines.line_name,
-                'grid_line_id': conn.idgridlines.idgridlines,
-                'connection_type': conn.connection_type,
-                'voltage_level': conn.connection_voltage_kv,
-                'capacity_mw': conn.connection_capacity_mw,
-                'distance_km': conn.connection_distance_km,
-                'is_primary': conn.is_primary,
-                'active': conn.active
-            })
-        
-        return JsonResponse(connection_data, safe=False)
-        
-    except facilities.DoesNotExist:
-        return JsonResponse({'error': 'Facility not found'}, status=404)
-    except Exception as e:
-        return JsonResponse({'error': str(e)}, status=500)
-
-@login_required
 def calculate_grid_losses(request):
     """Calculate grid losses for a facility at given power output"""
     facility_id = request.GET.get('facility_id')
@@ -633,3 +605,358 @@ def get_grid_line_details(request, grid_line_id):
         return JsonResponse({'error': 'Grid line not found'}, status=404)
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
+
+@login_required
+def get_facility_details(request, facility_id):
+    """Get detailed information about a specific facility"""
+    try:
+        facility = facilities.objects.get(pk=facility_id)
+        
+        # Get technology information
+        technology_info = {
+            'technology_id': facility.idtechnologies.idtechnologies,
+            'technology_name': facility.idtechnologies.technology_name
+        }
+        
+        # Get basic facility data
+        facility_data = {
+            'facility_id': facility.idfacilities,
+            'facility_name': facility.facility_name,
+            'facility_code': facility.facility_code,
+            'technology_name': technology_info['technology_name'],
+            'technology_id': technology_info['technology_id'],
+            'capacity': float(facility.capacity) if facility.capacity else None,
+            'latitude': float(facility.latitude) if facility.latitude else None,
+            'longitude': float(facility.longitude) if facility.longitude else None,
+            'active': facility.active,
+            'existing': facility.existing,
+            # 'registered_from': facility.registered_from.isoformat()
+        }
+        
+        # Add wind turbine specific details if applicable
+        wind_tech_ids = [15, 16, 147]  # Onshore, Offshore, Floating wind
+        if technology_info['technology_id'] in wind_tech_ids:
+            turbine_details = {
+                'turbine': getattr(facility, 'turbine', None),
+                'hub_height': float(facility.hub_height) if getattr(facility, 'hub_height', None) else None,
+                'no_turbines': int(facility.no_turbines) if getattr(facility, 'no_turbines', None) else None,
+                'tilt': float(facility.tilt) if getattr(facility, 'tilt', None) else None,
+            }
+            
+            # Calculate additional turbine metrics if we have the data
+            if turbine_details['turbine'] and facility.capacity and turbine_details['no_turbines']:
+                turbine_details['capacity_per_turbine'] = float(facility.capacity) / int(turbine_details['no_turbines'])
+            
+            # Add rotor diameter if available (you might need to add this field to your model)
+            if hasattr(facility, 'rotor_diameter') and facility.rotor_diameter:
+                turbine_details['rotor_diameter'] = float(facility.rotor_diameter)
+            
+            facility_data['turbine_details'] = turbine_details
+        
+        # Get economic data if available
+        economic_data = {}
+        if hasattr(facility, 'capex') and facility.capex:
+            economic_data['capex'] = float(facility.capex)
+        if hasattr(facility, 'opex') and facility.opex:
+            economic_data['opex'] = float(facility.opex)
+        if hasattr(facility, 'discount_rate') and facility.discount_rate:
+            economic_data['discount_rate'] = float(facility.discount_rate)
+        if hasattr(facility, 'lifetime') and facility.lifetime:
+            economic_data['lifetime'] = int(facility.lifetime)
+        
+        if economic_data:
+            facility_data['economic_data'] = economic_data
+        
+        # Get grid connections
+        grid_connections = []
+        facility_connections = FacilityGridConnections.objects.filter(
+            idfacilities=facility, 
+            active=True
+        ).select_related('idgridlines')
+        
+        for connection in facility_connections:
+            connection_data = {
+                'connection_id': connection.idfacilitygridconnections,
+                'grid_line_name': connection.idgridlines.line_name,
+                'grid_line_id': connection.idgridlines.idgridlines,
+                'voltage_level': connection.connection_voltage_kv,
+                'capacity_mw': float(connection.connection_capacity_mw),
+                'distance_km': float(connection.connection_distance_km),
+                'connection_type': connection.connection_type,
+                'is_primary': connection.is_primary,
+                'active': connection.active
+            }
+            
+            # Calculate losses for this connection if capacity is available
+            if facility.capacity and facility.capacity > 0:
+                try:
+                    connection_losses = connection.calculate_connection_losses_mw(float(facility.capacity))
+                    grid_line_losses = connection.idgridlines.calculate_line_losses_mw(float(facility.capacity))
+                    total_losses = connection_losses + grid_line_losses
+                    
+                    connection_data['losses_at_full_output'] = total_losses
+                    connection_data['loss_percentage'] = (total_losses / float(facility.capacity)) * 100
+                except (AttributeError, ZeroDivisionError):
+                    # If loss calculation methods don't exist or there's a division by zero
+                    pass
+            
+            grid_connections.append(connection_data)
+        
+        facility_data['grid_connections'] = grid_connections
+        
+        # Get associated scenarios
+        scenarios = []
+        for scenario in facility.scenarios.all():
+            scenarios.append(scenario.title)
+        facility_data['scenarios'] = scenarios
+        
+        # Get performance metrics if available
+        performance_metrics = {}
+        if hasattr(facility, 'capacity_factor') and facility.capacity_factor:
+            performance_metrics['capacity_factor'] = float(facility.capacity_factor)
+        
+        if hasattr(facility, 'annual_output') and facility.annual_output:
+            performance_metrics['annual_output'] = float(facility.annual_output)
+        elif facility.capacity and 'capacity_factor' in performance_metrics:
+            # Calculate annual output if we have capacity and capacity factor
+            hours_per_year = 8760
+            performance_metrics['annual_output'] = float(facility.capacity) * performance_metrics['capacity_factor'] * hours_per_year
+        
+        if hasattr(facility, 'availability') and facility.availability:
+            performance_metrics['availability'] = float(facility.availability)
+        
+        if performance_metrics:
+            facility_data['performance_metrics'] = performance_metrics
+        
+        # Add additional technical specifications based on technology type
+        technical_specs = {}
+        
+        # Solar PV specifications
+        if technology_info['technology_id'] in [11, 13, 14]:  # Solar PV types
+            if hasattr(facility, 'tilt') and facility.tilt is not None:
+                technical_specs['panel_tilt'] = float(facility.tilt)
+            if hasattr(facility, 'azimuth') and facility.azimuth is not None:
+                technical_specs['azimuth'] = float(facility.azimuth)
+            if hasattr(facility, 'tracking') and facility.tracking is not None:
+                technical_specs['tracking_system'] = facility.tracking
+            if hasattr(facility, 'inverter_efficiency') and facility.inverter_efficiency:
+                technical_specs['inverter_efficiency'] = float(facility.inverter_efficiency)
+        
+        # Battery storage specifications
+        elif technology_info['technology_id'] in [2, 3, 4, 5, 143, 144]:  # Battery types
+            if hasattr(facility, 'storage_capacity_mwh') and facility.storage_capacity_mwh:
+                technical_specs['storage_capacity_mwh'] = float(facility.storage_capacity_mwh)
+            if hasattr(facility, 'round_trip_efficiency') and facility.round_trip_efficiency:
+                technical_specs['round_trip_efficiency'] = float(facility.round_trip_efficiency)
+            if hasattr(facility, 'max_charge_rate') and facility.max_charge_rate:
+                technical_specs['max_charge_rate'] = float(facility.max_charge_rate)
+            if hasattr(facility, 'max_discharge_rate') and facility.max_discharge_rate:
+                technical_specs['max_discharge_rate'] = float(facility.max_discharge_rate)
+            if hasattr(facility, 'min_soc') and facility.min_soc is not None:
+                technical_specs['min_state_of_charge'] = float(facility.min_soc)
+        
+        # Gas/thermal specifications
+        elif technology_info['technology_id'] in [1, 7, 19, 20]:  # Coal, CCGT, Gas peaking, Reciprocating
+            if hasattr(facility, 'heat_rate') and facility.heat_rate:
+                technical_specs['heat_rate'] = float(facility.heat_rate)
+            if hasattr(facility, 'fuel_type') and facility.fuel_type:
+                technical_specs['fuel_type'] = facility.fuel_type
+            if hasattr(facility, 'emission_factor') and facility.emission_factor:
+                technical_specs['emission_factor'] = float(facility.emission_factor)
+            if hasattr(facility, 'min_load_factor') and facility.min_load_factor:
+                technical_specs['min_load_factor'] = float(facility.min_load_factor)
+        
+        # Pumped hydro specifications
+        elif technology_info['technology_id'] in [8, 9]:  # PHES
+            if hasattr(facility, 'upper_reservoir_capacity') and facility.upper_reservoir_capacity:
+                technical_specs['upper_reservoir_capacity'] = float(facility.upper_reservoir_capacity)
+            if hasattr(facility, 'lower_reservoir_capacity') and facility.lower_reservoir_capacity:
+                technical_specs['lower_reservoir_capacity'] = float(facility.lower_reservoir_capacity)
+            if hasattr(facility, 'head_height') and facility.head_height:
+                technical_specs['head_height'] = float(facility.head_height)
+            if hasattr(facility, 'pump_efficiency') and facility.pump_efficiency:
+                technical_specs['pump_efficiency'] = float(facility.pump_efficiency)
+            if hasattr(facility, 'turbine_efficiency') and facility.turbine_efficiency:
+                technical_specs['turbine_efficiency'] = float(facility.turbine_efficiency)
+        
+        if technical_specs:
+            facility_data['technical_specifications'] = technical_specs
+        
+        # Add environmental data if available
+        environmental_data = {}
+        if hasattr(facility, 'water_usage') and facility.water_usage:
+            environmental_data['water_usage'] = float(facility.water_usage)
+        if hasattr(facility, 'noise_level') and facility.noise_level:
+            environmental_data['noise_level'] = float(facility.noise_level)
+        if hasattr(facility, 'visual_impact_score') and facility.visual_impact_score:
+            environmental_data['visual_impact_score'] = float(facility.visual_impact_score)
+        if hasattr(facility, 'carbon_intensity') and facility.carbon_intensity:
+            environmental_data['carbon_intensity'] = float(facility.carbon_intensity)
+        
+        if environmental_data:
+            facility_data['environmental_data'] = environmental_data
+        
+        # Add maintenance and operational data
+        operational_data = {}
+        if hasattr(facility, 'maintenance_factor') and facility.maintenance_factor:
+            operational_data['maintenance_factor'] = float(facility.maintenance_factor)
+        if hasattr(facility, 'forced_outage_rate') and facility.forced_outage_rate:
+            operational_data['forced_outage_rate'] = float(facility.forced_outage_rate)
+        if hasattr(facility, 'planned_outage_rate') and facility.planned_outage_rate:
+            operational_data['planned_outage_rate'] = float(facility.planned_outage_rate)
+        if hasattr(facility, 'ramp_up_rate') and facility.ramp_up_rate:
+            operational_data['ramp_up_rate'] = float(facility.ramp_up_rate)
+        if hasattr(facility, 'ramp_down_rate') and facility.ramp_down_rate:
+            operational_data['ramp_down_rate'] = float(facility.ramp_down_rate)
+        
+        if operational_data:
+            facility_data['operational_data'] = operational_data
+        
+        return JsonResponse(facility_data)
+        
+    except facilities.DoesNotExist:
+        return JsonResponse({'error': 'Facility not found'}, status=404)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@login_required
+def get_facility_connections(request, facility_id):
+    """Get all grid connections for a specific facility with detailed information"""
+    try:
+        facility = facilities.objects.get(pk=facility_id)
+        
+        connections = FacilityGridConnections.objects.filter(
+            idfacilities=facility
+        ).select_related('idgridlines').order_by('-is_primary', 'connection_distance_km')
+        
+        connection_data = []
+        for conn in connections:
+            grid_line = conn.idgridlines
+            
+            # Calculate connection losses if possible
+            connection_losses = 0
+            grid_line_losses = 0
+            total_losses = 0
+            
+            if facility.capacity and facility.capacity > 0:
+                try:
+                    if hasattr(conn, 'calculate_connection_losses_mw'):
+                        connection_losses = conn.calculate_connection_losses_mw(float(facility.capacity))
+                    if hasattr(grid_line, 'calculate_line_losses_mw'):
+                        grid_line_losses = grid_line.calculate_line_losses_mw(float(facility.capacity))
+                    total_losses = connection_losses + grid_line_losses
+                except (AttributeError, TypeError):
+                    pass
+            
+            connection_info = {
+                'connection_id': conn.idfacilitygridconnections,
+                'facility_name': facility.facility_name,
+                'grid_line_id': grid_line.idgridlines,
+                'grid_line_name': grid_line.line_name,
+                'grid_line_code': grid_line.line_code,
+                'grid_line_type': grid_line.line_type,
+                'voltage_level': conn.connection_voltage_kv,
+                'grid_line_voltage': grid_line.voltage_level,
+                'connection_type': conn.connection_type,
+                'capacity_mw': float(conn.connection_capacity_mw),
+                'distance_km': float(conn.connection_distance_km),
+                'is_primary': conn.is_primary,
+                'active': conn.active,
+                'connection_point_lat': float(conn.connection_point_latitude) if conn.connection_point_latitude else None,
+                'connection_point_lng': float(conn.connection_point_longitude) if conn.connection_point_longitude else None,
+                'connection_losses_mw': round(connection_losses, 3),
+                'grid_line_losses_mw': round(grid_line_losses, 3),
+                'total_losses_mw': round(total_losses, 3),
+                'loss_percentage': round((total_losses / float(facility.capacity)) * 100, 2) if facility.capacity and facility.capacity > 0 else 0
+            }
+            
+            connection_data.append(connection_info)
+        
+        return JsonResponse({
+            'facility_id': facility.idfacilities,
+            'facility_name': facility.facility_name,
+            'total_connections': len(connection_data),
+            'connections': connection_data
+        })
+        
+    except facilities.DoesNotExist:
+        return JsonResponse({'error': 'Facility not found'}, status=404)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+@login_required
+def calculate_facility_performance(request, facility_id):
+    """Calculate detailed performance metrics for a facility"""
+    try:
+        facility = facilities.objects.get(pk=facility_id)
+        
+        # Get parameters from request
+        weather_year = request.GET.get('weather_year', '2019')
+        scenario = request.GET.get('scenario', request.session.get('scenario', ''))
+        
+        performance_data = {
+            'facility_id': facility.idfacilities,
+            'facility_name': facility.facility_name,
+            'technology': facility.idtechnologies.technology_name,
+            'capacity_mw': float(facility.capacity) if facility.capacity else 0,
+            'weather_year': weather_year,
+            'scenario': scenario
+        }
+        
+        # Calculate basic performance metrics
+        if facility.capacity and facility.capacity > 0:
+            # These calculations would typically use SAM or other modeling tools
+            # For now, we'll use simplified calculations or stored values
+            
+            capacity_factor = 0.35  # Default capacity factor
+            if hasattr(facility, 'capacity_factor') and facility.capacity_factor:
+                capacity_factor = float(facility.capacity_factor)
+            elif facility.idtechnologies.idtechnologies == 11:  # Solar PV
+                capacity_factor = 0.25
+            elif facility.idtechnologies.idtechnologies in [15, 16]:  # Wind
+                capacity_factor = 0.35
+            elif facility.idtechnologies.idtechnologies == 1:  # Coal
+                capacity_factor = 0.75
+            
+            hours_per_year = 8760
+            annual_output = float(facility.capacity) * capacity_factor * hours_per_year
+            
+            # Calculate grid losses
+            total_grid_losses = 0
+            if hasattr(facility, 'calculate_total_grid_losses_mw'):
+                total_grid_losses = facility.calculate_total_grid_losses_mw(float(facility.capacity))
+            
+            net_annual_output = annual_output - (total_grid_losses * hours_per_year)
+            
+            performance_data.update({
+                'capacity_factor': round(capacity_factor, 3),
+                'annual_output_mwh': round(annual_output, 0),
+                'total_grid_losses_mw': round(total_grid_losses, 3),
+                'net_annual_output_mwh': round(net_annual_output, 0),
+                'availability_factor': 0.95,  # Default availability
+                'performance_ratio': 0.85     # Default performance ratio
+            })
+            
+            # Add technology-specific metrics
+            if facility.idtechnologies.idtechnologies in [11, 13, 14]:  # Solar
+                performance_data.update({
+                    'specific_yield_kwh_kw': round(annual_output / float(facility.capacity), 0),
+                    'degradation_rate_per_year': 0.005,
+                    'temperature_coefficient': -0.004
+                })
+            
+            elif facility.idtechnologies.idtechnologies in [15, 16, 147]:  # Wind
+                performance_data.update({
+                    'wind_speed_average': 7.5,  # m/s
+                    'turbulence_intensity': 0.15,
+                    'air_density': 1.225  # kg/m³
+                })
+        
+        return JsonResponse(performance_data)
+        
+    except facilities.DoesNotExist:
+        return JsonResponse({'error': 'Facility not found'}, status=404)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+    

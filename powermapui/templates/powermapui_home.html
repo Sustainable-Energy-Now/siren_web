@@ -34,12 +34,18 @@
             <button class="btn btn-secondary" type="button" disabled title="Cannot add facilities to the 'Current' scenario">
                 Add New Facility (Disabled)
             </button>
+            <button class="btn btn-secondary" type="button" disabled title="Cannot add grid lines to the 'Current' scenario">
+                Add New Grid Line (Disabled)
+            </button>
             <small class="text-muted d-block mt-1">
-                Select a different scenario to add new facilities
+                Select a different scenario to add new facilities and grid lines
             </small>
         {% else %}
             <button class="btn btn-secondary" type="button" disabled title="Please select a scenario first">
                 Add New Facility (Disabled)
+            </button>
+            <button class="btn btn-secondary" type="button" disabled title="Please select a scenario first">
+                Add New Grid Line (Disabled)
             </button>
             <small class="text-muted d-block mt-1">
                 Please select a scenario first
@@ -224,44 +230,165 @@ crossorigin=""></script>
 <script src="https://cdn.jsdelivr.net/gh/shramov/leaflet-plugins/layer/vector/KML.js"></script>
 
 <style>
-.technology-info {
-    font-size: 0.85em;
-    color: #666;
-    margin-top: 2px;
-}
-.grid-line-popup table {
-    margin: 0;
-    font-size: 12px;
-}
-.grid-line-popup td {
-    padding: 2px 5px;
-    border: none;
-}
-.grid-line-details .table {
-    margin-bottom: 15px;
-}
-.grid-line-details .table td {
-    padding: 4px 8px;
-    border-top: 1px solid #dee2e6;
-}
-.facility-connection {
-    background: #f8f9fa;
-}
-.grid-line-label {
-    pointer-events: none;
-}
-.modal-overlay {
-    font-family: Arial, sans-serif;
-}
-.modal-overlay h2 {
-    margin-top: 0;
-    color: #333;
-}
-.modal-overlay h4 {
-    color: #666;
-    margin-top: 20px;
-    margin-bottom: 10px;
-}
+    .facility-details {
+        font-family: Arial, sans-serif;
+        max-width: 800px;
+    }
+    
+    .facility-details h3 {
+        color: #333;
+        border-bottom: 2px solid #007bff;
+        padding-bottom: 10px;
+        margin-bottom: 20px;
+    }
+    
+    .facility-details h4 {
+        color: #666;
+        margin-top: 20px;
+        margin-bottom: 10px;
+        font-size: 16px;
+        font-weight: 600;
+    }
+    
+    .facility-details .table {
+        margin-bottom: 0;
+        font-size: 13px;
+    }
+    
+    .facility-details .table td {
+        padding: 4px 8px;
+        border-top: 1px solid #dee2e6;
+        vertical-align: top;
+    }
+    
+    .facility-details .table td:first-child {
+        font-weight: 500;
+        background-color: #f8f9fa;
+        width: 40%;
+    }
+    
+    .grid-connection-item {
+        transition: all 0.2s ease;
+        cursor: pointer;
+    }
+    
+    .grid-connection-item:hover {
+        background-color: #e3f2fd !important;
+        transform: translateY(-1px);
+        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+    
+    .modal-overlay {
+        animation: fadeIn 0.3s ease;
+    }
+    
+    @keyframes fadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+    }
+    
+    .modal-overlay > div {
+        animation: slideUp 0.3s ease;
+    }
+    
+    @keyframes slideUp {
+        from { 
+            transform: translateY(50px); 
+            opacity: 0; 
+        }
+        to { 
+            transform: translateY(0); 
+            opacity: 1; 
+        }
+    }
+    
+    /* Responsive design for smaller screens */
+    @media (max-width: 768px) {
+        .facility-details {
+            max-width: 95vw;
+            max-height: 90vh;
+        }
+        
+        .facility-details > div[style*="grid"] {
+            grid-template-columns: 1fr !important;
+            gap: 10px !important;
+        }
+    }
+    .technology-info {
+        font-size: 0.85em;
+        color: #666;
+        margin-top: 2px;
+    }
+    .facility-tooltip {
+        background: rgba(0, 0, 0, 0.8);
+        color: white;
+        border: none;
+        border-radius: 4px;
+        font-size: 12px;
+        padding: 5px 8px;
+    }
+
+    .facility-popup h5 {
+        margin: 0 0 10px 0;
+        color: #333;
+    }
+
+    .facility-popup p {
+        margin: 5px 0;
+        font-size: 13px;
+    }
+
+    .highlighted-facility {
+        filter: drop-shadow(0 0 10px #ff6b6b);
+        animation: pulse 1s infinite;
+    }
+
+    @keyframes pulse {
+        0% { transform: scale(1); }
+        50% { transform: scale(1.1); }
+        100% { transform: scale(1); }
+    }
+
+    .grid-connection-item {
+        transition: background-color 0.2s;
+    }
+
+    .grid-connection-item:hover {
+        background-color: #f0f8ff !important;
+    }
+    .grid-line-popup table {
+        margin: 0;
+        font-size: 12px;
+    }
+    .grid-line-popup td {
+        padding: 2px 5px;
+        border: none;
+    }
+    .grid-line-details .table {
+        margin-bottom: 15px;
+    }
+    .grid-line-details .table td {
+        padding: 4px 8px;
+        border-top: 1px solid #dee2e6;
+    }
+    .facility-connection {
+        background: #f8f9fa;
+    }
+    .grid-line-label {
+        pointer-events: none;
+    }
+    .modal-overlay {
+        font-family: Arial, sans-serif;
+    }
+    .modal-overlay h2 {
+        margin-top: 0;
+        color: #333;
+    }
+    .modal-overlay h4 {
+        color: #666;
+        margin-top: 20px;
+        margin-bottom: 10px;
+    }
 </style>
 
 <script>
@@ -326,50 +453,154 @@ crossorigin=""></script>
     
     // Function to load grid lines on map
     function loadGridLinesOnMap(gridLinesData) {
+        
+        // Clear existing grid lines completely
         gridLinesLayer.clearLayers();
         
-        gridLinesData.forEach(function(gridLine) {
-            // Use detailed coordinates if available, fallback to simple from/to
+        // Remove layer from map temporarily to prevent rendering issues
+        if (map.hasLayer(gridLinesLayer)) {
+            map.removeLayer(gridLinesLayer);
+        }
+        
+        // Process each grid line
+        gridLinesData.forEach(function(gridLine, index) {
+            
+            // Determine coordinates for the line
             var lineCoords;
             if (gridLine.coordinates && gridLine.coordinates.length > 0) {
-                lineCoords = gridLine.coordinates;  // Full path from KML
+                lineCoords = gridLine.coordinates;
             } else {
+                // Fallback to from/to coordinates
                 lineCoords = [
                     [gridLine.from_latitude, gridLine.from_longitude],
                     [gridLine.to_latitude, gridLine.to_longitude]
                 ];
             }
             
-            // Use style from database if available
+            // Validate coordinates
+            if (!lineCoords || lineCoords.length < 2) {
+                console.warn('Invalid coordinates for grid line:', gridLine.line_name);
+                return; // Skip this grid line
+            }
+            
+            // Determine line style
             var lineStyle = gridLine.style || {
                 color: getVoltageColor(gridLine.voltage_level),
                 weight: Math.max(2, Math.min(8, gridLine.voltage_level / 50)),
-                opacity: gridLine.active ? 0.8 : 0.4,
-                dashArray: gridLine.active ? null : '5, 5'
+                opacity: gridLine.active !== false ? 0.8 : 0.4, // Default to active if not specified
+                dashArray: gridLine.active !== false ? null : '5, 5'
             };
             
+            // Create the polyline
             var polyline = L.polyline(lineCoords, lineStyle);
             
-            // Use popup content from database if available
-            var popupContent = gridLine.popup_content || `
-                <strong>${gridLine.line_name}</strong><br>
-                Type: ${gridLine.line_type}<br>
-                Voltage: ${gridLine.voltage_level} kV<br>
-                Capacity: ${gridLine.thermal_capacity_mw} MW<br>
-                Length: ${gridLine.length_km} km
-            `;
+            // IMMEDIATELY attach the click handler and grid line ID
+            polyline.gridLineId = gridLine.idgridlines;
+            polyline.gridLineData = gridLine; // Store full data for reference
             
-            polyline.bindPopup(popupContent);
-            
-            // Add click handler for detailed info
+            // Attach click handler directly to the polyline
             polyline.on('click', function(e) {
-                showGridLineDetails(gridLine.idgridlines);
+                
+                // Stop event propagation to prevent map click
+                L.DomEvent.stopPropagation(e);
+                
+                // Show grid line details
+                showGridLineDetails(this.gridLineId);
             });
             
+            // Optional: Add hover effects for better UX
+            polyline.on('mouseover', function(e) {
+                this.setStyle({
+                    weight: this.options.weight + 2,
+                    opacity: Math.min(1.0, this.options.opacity + 0.2)
+                });
+            });
+            
+            polyline.on('mouseout', function(e) {
+                this.setStyle({
+                    weight: lineStyle.weight,
+                    opacity: lineStyle.opacity
+                });
+            });
+            
+            // Add tooltip with basic info
+            polyline.bindTooltip(
+                `<strong>${gridLine.line_name}</strong><br>` +
+                `${gridLine.voltage_level} kV<br>` +
+                `Capacity: ${gridLine.thermal_capacity_mw || 'N/A'} MW`,
+                {
+                    sticky: true,
+                    className: 'grid-line-tooltip'
+                }
+            );
+            
+            // Add the polyline to the layer group
             gridLinesLayer.addLayer(polyline);
         });
+        
+        // Re-add the layer to the map
+        gridLinesLayer.addTo(map);
+        
+        // Ensure the layer is properly rendered
+        map.invalidateSize();
+    }
+    function refreshGridLines() {      
+        fetch('/powermapui/get_grid_lines/')
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log('Received grid lines data:', data);
+                
+                // Update the global gridLines variable
+                gridLines = data;
+                
+                // Reload grid lines on map
+                loadGridLinesOnMap(data);
+                
+                // Also refresh the grid lines dropdown for facility creation
+                loadGridLinesForSelection();
+            })
+            .catch(error => {
+                console.error('Error refreshing grid lines:', error);
+                alert('Failed to refresh grid lines: ' + error.message);
+            });
+    }
+    function initializeGridLines() {
+        
+        // Create a fresh layer group
+        if (gridLinesLayer) {
+            map.removeLayer(gridLinesLayer);
+        }
+        gridLinesLayer = L.layerGroup();
+        
+        // Load initial grid lines
+        if (typeof gridLines !== 'undefined' && gridLines.length > 0) {
+            loadGridLinesOnMap(gridLines);
+        } else {
+            console.log('No initial grid lines data, fetching from server...');
+            refreshGridLines();
+        }
     }
     
+    // Call this function to reinitialize grid lines if needed
+    function reinitializeGridLines() {
+        
+        // Clear any existing handlers and layers
+        if (gridLinesLayer) {
+            gridLinesLayer.eachLayer(function(layer) {
+                layer.off(); // Remove all event handlers
+            });
+            gridLinesLayer.clearLayers();
+            map.removeLayer(gridLinesLayer);
+        }
+        
+        // Recreate and initialize
+        initializeGridLines();
+    }
     // Function to get voltage-based color (fallback)
     function getVoltageColor(voltageLevel) {
         if (voltageLevel >= 330) return '#ff0000';
@@ -502,18 +733,373 @@ crossorigin=""></script>
     
     // Function to clear and reload facilities on the map
     function loadFacilitiesOnMap(facilitiesData) {
-        // Clear existing facilities
+        
+        // Clear existing facilities completely
         facilityLayer.clearLayers();
         
-        // Add new facilities to the map
-        facilitiesData.forEach(function(facility) {
+        // Remove layer from map temporarily to prevent rendering issues
+        if (map.hasLayer(facilityLayer)) {
+            map.removeLayer(facilityLayer);
+        }
+        
+        // Process each facility
+        facilitiesData.forEach(function(facility, index) {
+            console.log(`Processing facility ${index + 1}:`, facility.facility_name);
+            
+            // Validate coordinates
+            if (!facility.latitude || !facility.longitude) {
+                console.warn('Invalid coordinates for facility:', facility.facility_name);
+                return; // Skip this facility
+            }
+            
+            // Get the appropriate icon for the technology
             var icon = getIconForTechnology(facility.idtechnologies);
-            var marker = L.marker([facility.latitude, facility.longitude], { icon: icon })
-                .bindPopup(facility.facility_name);
+            
+            // Create the marker
+            var marker = L.marker([facility.latitude, facility.longitude], { icon: icon });
+            
+            // IMMEDIATELY attach facility data and click handler
+            marker.facilityId = facility.idfacilities;
+            marker.facilityData = facility;
+            
+            // Attach click handler directly to the marker
+            marker.on('click', function(e) {
+                console.log('Facility clicked:', this.facilityId, this.facilityData.facility_name);
+                
+                // Stop event propagation to prevent map click
+                L.DomEvent.stopPropagation(e);
+                
+                // Show facility details
+                showFacilityDetails(this.facilityId);
+            });
+            
+            // Add hover effects for better UX
+            marker.on('mouseover', function(e) {
+                // Show basic tooltip on hover
+                this.bindTooltip(
+                    `<strong>${facility.facility_name}</strong><br>` +
+                    `Technology: ${getTechnologyName(facility.idtechnologies)}<br>` +
+                    `Capacity: ${facility.capacity || 'N/A'} MW`,
+                    {
+                        permanent: false,
+                        sticky: true,
+                        className: 'facility-tooltip'
+                    }
+                ).openTooltip();
+            });
+            
+            marker.on('mouseout', function(e) {
+                this.closeTooltip();
+            });
+            
+            // Add basic popup (for backward compatibility)
+            marker.bindPopup(`
+                <div class="facility-popup">
+                    <h5>${facility.facility_name}</h5>
+                    <p><strong>Technology:</strong> ${getTechnologyName(facility.idtechnologies)}</p>
+                    <p><strong>Capacity:</strong> ${facility.capacity || 'N/A'} MW</p>
+                    <button onclick="showFacilityDetails(${facility.idfacilities})" class="btn btn-sm btn-primary">
+                        View Details
+                    </button>
+                </div>
+            `);
+            
+            // Add the marker to the layer group
             facilityLayer.addLayer(marker);
         });
+        
+        // Re-add the layer to the map
+        facilityLayer.addTo(map);
+        
+        // Ensure the layer is properly rendered
+        map.invalidateSize();
+    }
+
+    function showFacilityDetails(facilityId) {
+        console.log('Fetching facility details for ID:', facilityId);
+        
+        // Show loading indicator
+        showModal('Facility Details', '<div style="text-align: center; padding: 20px;">Loading facility details...</div>');
+        
+        fetch(`/powermapui/facility/${facilityId}/details/`)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+                
+                // Create detailed facility information
+                var detailsHtml = createFacilityDetailsHtml(data);
+                
+                // Update the modal content
+                showModal('Facility Details', detailsHtml);
+            })
+            .catch(error => {
+                console.error('Error fetching facility details:', error);
+                showModal('Error', `
+                    <div style="color: red; text-align: center; padding: 20px;">
+                        <h4>Failed to load facility details</h4>
+                        <p>${error.message}</p>
+                    </div>
+                `);
+            });
     }
     
+    function createFacilityDetailsHtml(data) {
+        var html = `
+            <div class="facility-details">
+                <h3>${data.facility_name} (${data.facility_code || 'N/A'})</h3>
+                
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px;">
+                    <div>
+                        <h4>Basic Information</h4>
+                        <table class="table table-sm">
+                            <tr><td><strong>Technology:</strong></td><td>${data.technology_name}</td></tr>
+                            <tr><td><strong>Capacity:</strong></td><td>${data.capacity || 'N/A'} MW</td></tr>
+                            <tr><td><strong>Status:</strong></td><td>${data.active ? 'Active' : 'Inactive'}</td></tr>
+                            <tr><td><strong>Existing:</strong></td><td>${data.existing ? 'Yes' : 'No'}</td></tr>
+                            ${data.commissioned_date ? `<tr><td><strong>Commissioned:</strong></td><td>${new Date(data.commissioned_date).toLocaleDateString()}</td></tr>` : ''}
+                            ${data.decommission_date ? `<tr><td><strong>Decommission:</strong></td><td>${new Date(data.decommission_date).toLocaleDateString()}</td></tr>` : ''}
+                        </table>
+                    </div>
+                    
+                    <div>
+                        <h4>Location</h4>
+                        <table class="table table-sm">
+                            <tr><td><strong>Latitude:</strong></td><td>${data.latitude?.toFixed(6) || 'N/A'}</td></tr>
+                            <tr><td><strong>Longitude:</strong></td><td>${data.longitude?.toFixed(6) || 'N/A'}</td></tr>
+                            ${data.elevation ? `<tr><td><strong>Elevation:</strong></td><td>${data.elevation} m</td></tr>` : ''}
+                            ${data.land_use_area ? `<tr><td><strong>Land Use:</strong></td><td>${data.land_use_area} ha</td></tr>` : ''}
+                        </table>
+                    </div>
+                </div>
+        `;
+        
+        // Add wind turbine specific information
+        if (data.turbine_details) {
+            html += `
+                <div style="margin-bottom: 20px;">
+                    <h4>Wind Turbine Details</h4>
+                    <table class="table table-sm">
+                        <tr><td><strong>Turbine Model:</strong></td><td>${data.turbine_details.turbine || 'N/A'}</td></tr>
+                        <tr><td><strong>Hub Height:</strong></td><td>${data.turbine_details.hub_height || 'N/A'} m</td></tr>
+                        <tr><td><strong>Number of Turbines:</strong></td><td>${data.turbine_details.no_turbines || 'N/A'}</td></tr>
+                        <tr><td><strong>Rotor Tilt:</strong></td><td>${data.turbine_details.tilt || 'N/A'}°</td></tr>
+                        ${data.turbine_details.rotor_diameter ? `<tr><td><strong>Rotor Diameter:</strong></td><td>${data.turbine_details.rotor_diameter} m</td></tr>` : ''}
+                        ${data.turbine_details.capacity_per_turbine ? `<tr><td><strong>Capacity per Turbine:</strong></td><td>${data.turbine_details.capacity_per_turbine} MW</td></tr>` : ''}
+                    </table>
+                </div>
+            `;
+        }
+        
+        // Add economic information if available
+        if (data.economic_data && Object.keys(data.economic_data).length > 0) {
+            html += `
+                <div style="margin-bottom: 20px;">
+                    <h4>Economic Data</h4>
+                    <table class="table table-sm">
+                        ${data.economic_data.capex ? `<tr><td><strong>CAPEX:</strong></td><td>$${data.economic_data.capex.toLocaleString()}/MW</td></tr>` : ''}
+                        ${data.economic_data.opex ? `<tr><td><strong>OPEX:</strong></td><td>$${data.economic_data.opex.toLocaleString()}/MW/year</td></tr>` : ''}
+                        ${data.economic_data.discount_rate ? `<tr><td><strong>Discount Rate:</strong></td><td>${(data.economic_data.discount_rate * 100).toFixed(1)}%</td></tr>` : ''}
+                        ${data.economic_data.lifetime ? `<tr><td><strong>Lifetime:</strong></td><td>${data.economic_data.lifetime} years</td></tr>` : ''}
+                    </table>
+                </div>
+            `;
+        }
+        if (data.grid_connections && data.grid_connections.length > 0) {
+            html += `
+                <div style="margin-bottom: 20px;">
+                    <h4>Grid Connections (${data.grid_connections.length})</h4>
+                    <div style="max-height: 300px; overflow-y: auto;">
+                        ${data.grid_connections.map(conn => `
+                            <div class="grid-connection-item" style="border: 1px solid #ddd; margin: 5px 0; padding: 10px; border-radius: 4px; ${conn.is_primary ? 'background-color: #e8f5e8;' : ''}">
+                                <div style="display: flex; justify-content: space-between; align-items: start;">
+                                    <div>
+                                        <strong>${conn.grid_line_name}</strong> ${conn.is_primary ? '<span style="background: #28a745; color: white; padding: 2px 6px; border-radius: 3px; font-size: 10px;">PRIMARY</span>' : ''}
+                                        <br><small>${conn.voltage_level} kV | ${conn.connection_type} connection</small>
+                                    </div>
+                                    <div style="text-align: right;">
+                                        <div><strong>${conn.capacity_mw} MW</strong></div>
+                                        <div><small>${conn.distance_km} km</small></div>
+                                    </div>
+                                </div>
+                                ${conn.losses_at_full_output ? `
+                                    <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #eee;">
+                                        <small>Losses at full output: ${conn.losses_at_full_output.toFixed(2)} MW (${((conn.losses_at_full_output / data.capacity) * 100).toFixed(1)}%)</small>
+                                    </div>
+                                ` : ''}
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        }
+        
+        // Add scenarios information
+        if (data.scenarios && data.scenarios.length > 0) {
+            html += `
+                <div style="margin-bottom: 20px;">
+                    <h4>Associated Scenarios</h4>
+                    <div>
+                        ${data.scenarios.map(scenario => `
+                            <span style="background: #007bff; color: white; padding: 4px 8px; border-radius: 12px; margin: 2px; display: inline-block; font-size: 12px;">
+                                ${scenario}
+                            </span>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        }
+        
+        // Add performance metrics if available
+        if (data.performance_metrics) {
+            html += `
+                <div style="margin-bottom: 20px;">
+                    <h4>Performance Metrics</h4>
+                    <table class="table table-sm">
+                        ${data.performance_metrics.capacity_factor ? `<tr><td><strong>Capacity Factor:</strong></td><td>${(data.performance_metrics.capacity_factor * 100).toFixed(1)}%</td></tr>` : ''}
+                        ${data.performance_metrics.annual_output ? `<tr><td><strong>Annual Output:</strong></td><td>${data.performance_metrics.annual_output.toLocaleString()} MWh</td></tr>` : ''}
+                        ${data.performance_metrics.availability ? `<tr><td><strong>Availability:</strong></td><td>${(data.performance_metrics.availability * 100).toFixed(1)}%</td></tr>` : ''}
+                    </table>
+                </div>
+            `;
+        }
+        
+        // Add action buttons
+        html += `
+            <div style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #dee2e6;">
+                <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                    <button onclick="showFacilityOnMap(${data.facility_id})" class="btn btn-sm btn-info">
+                        Show on Map
+                    </button>
+                    <button onclick="calculateGridLosses(${data.facility_id})" class="btn btn-sm btn-warning">
+                        Calculate Losses
+                    </button>
+                    ${data.can_edit ? `
+                        <button onclick="editFacility(${data.facility_id})" class="btn btn-sm btn-primary">
+                            Edit Facility
+                        </button>
+                    ` : ''}
+                </div>
+            </div>
+        `;
+        
+        html += '</div>';
+        
+        return html;
+    }
+
+    function showFacilityOnMap(facilityId) {
+        // Find the facility marker and center the map on it
+        facilityLayer.eachLayer(function(marker) {
+            if (marker.facilityId === facilityId) {
+                map.setView(marker.getLatLng(), 12);
+                marker.openPopup();
+                
+                // Temporarily highlight the marker
+                const originalIcon = marker.getIcon();
+                const highlightIcon = L.icon({
+                    iconUrl: originalIcon.options.iconUrl,
+                    iconSize: [48, 48], // Larger size
+                    className: 'highlighted-facility'
+                });
+                
+                marker.setIcon(highlightIcon);
+                
+                // Reset after 3 seconds
+                setTimeout(() => {
+                    marker.setIcon(originalIcon);
+                }, 3000);
+            }
+        });
+        
+        // Close the modal
+        const modal = document.querySelector('.modal-overlay');
+        if (modal) {
+            modal.remove();
+        }
+    }
+
+    function calculateGridLosses(facilityId) {
+        // Get the facility capacity for calculation
+        let facilityCapacity = 0;
+        facilityLayer.eachLayer(function(marker) {
+            if (marker.facilityId === facilityId && marker.facilityData.capacity) {
+                facilityCapacity = marker.facilityData.capacity;
+            }
+        });
+        
+        if (facilityCapacity === 0) {
+            alert('Cannot calculate losses: facility capacity not available');
+            return;
+        }
+        
+        // Show loading
+        showModal('Grid Losses Calculation', '<div style="text-align: center; padding: 20px;">Calculating grid losses...</div>');
+        
+        fetch(`/powermapui/calculate_grid_losses/?facility_id=${facilityId}&power_output=${facilityCapacity}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+                
+                let lossesHtml = `
+                    <div class="grid-losses-details">
+                        <h3>Grid Losses for ${data.facility_name}</h3>
+                        
+                        <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
+                            <h4>Summary</h4>
+                            <table class="table">
+                                <tr><td><strong>Total Power Output:</strong></td><td>${data.total_power_output_mw} MW</td></tr>
+                                <tr><td><strong>Total Losses:</strong></td><td>${data.total_losses_mw} MW</td></tr>
+                                <tr><td><strong>Loss Percentage:</strong></td><td>${data.total_loss_percentage}%</td></tr>
+                                <tr><td><strong>Net Output:</strong></td><td>${(data.total_power_output_mw - data.total_losses_mw).toFixed(2)} MW</td></tr>
+                            </table>
+                        </div>
+                        
+                        ${data.loss_breakdown.length > 0 ? `
+                            <h4>Detailed Breakdown</h4>
+                            <div style="max-height: 300px; overflow-y: auto;">
+                                ${data.loss_breakdown.map(breakdown => `
+                                    <div style="border: 1px solid #ddd; margin: 5px 0; padding: 10px; border-radius: 4px;">
+                                        <strong>${breakdown.grid_line}</strong><br>
+                                        <small>Power Flow: ${breakdown.power_flow_mw} MW</small>
+                                        <table class="table table-sm" style="margin-top: 10px;">
+                                            <tr><td>Connection Losses:</td><td>${breakdown.connection_losses_mw} MW</td></tr>
+                                            <tr><td>Grid Line Losses:</td><td>${breakdown.grid_line_losses_mw} MW</td></tr>
+                                            <tr><td><strong>Total:</strong></td><td><strong>${breakdown.total_losses_mw} MW (${breakdown.loss_percentage}%)</strong></td></tr>
+                                        </table>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        ` : ''}
+                    </div>
+                `;
+                
+                showModal('Grid Losses Calculation', lossesHtml);
+            })
+            .catch(error => {
+                console.error('Error calculating grid losses:', error);
+                showModal('Error', `
+                    <div style="color: red; text-align: center; padding: 20px;">
+                        <h4>Failed to calculate grid losses</h4>
+                        <p>${error.message}</p>
+                    </div>
+                `);
+            });
+    }
+
+    function editFacility(facilityId) {
+        // This would open an edit form - implement based on your needs
+        alert(`Edit facility functionality would go here for facility ID: ${facilityId}`);
+    }
+
     // Calculate distance between two points
     function calculateDistance(lat1, lon1, lat2, lon2) {
         const R = 6371; // Earth's radius in km
@@ -615,59 +1201,56 @@ crossorigin=""></script>
     }
 
     // Function to refresh facilities when scenario changes
-    function refreshFacilities(scenarioTitle) {
-        console.log('refreshFacilities called with scenario:', scenarioTitle);
-        
-        if (!scenarioTitle) {
-            facilityLayer.clearLayers();
-            return;
-        }
-        
-        const loadingMessage = document.createElement('div');
-        loadingMessage.id = 'loading-facilities';
-        loadingMessage.style.cssText = 'position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0,0,0,0.8); color: white; padding: 20px; border-radius: 5px; z-index: 10000;';
-        loadingMessage.textContent = 'Loading facilities...';
-        document.body.appendChild(loadingMessage);
-        
-        const url = `/powermapui/get_facilities/?scenario=${encodeURIComponent(scenarioTitle)}`;
-        
-        fetch(url)
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-                return response.json();
-            })
-            .then(data => {
-                if (Array.isArray(data)) {
-                    loadFacilitiesOnMap(data);
-                    console.log(`Loaded ${data.length} facilities for scenario: ${scenarioTitle}`);
-                } else if (data.error) {
-                    console.error('Error loading facilities:', data.error);
-                    alert('Error loading facilities: ' + data.error);
-                } else {
-                    console.error('Unexpected response format:', data);
-                    alert('Unexpected response format from server');
-                }
-            })
-            .catch(error => {
-                console.error('Fetch error:', error);
-                
-                if (error.message.includes('404')) {
-                    alert('URL not found. Please check if the get_facilities URL is configured correctly.');
-                } else if (error.message.includes('500')) {
-                    alert('Server error occurred. Please check the server logs.');
-                } else {
-                    alert('Failed to load facilities: ' + error.message);
-                }
-            })
-            .finally(() => {
-                const loading = document.getElementById('loading-facilities');
-                if (loading) {
-                    loading.remove();
-                }
-            });
+function refreshFacilities(scenarioTitle) {
+    if (!scenarioTitle) {
+        facilityLayer.clearLayers();
+        return;
     }
+    
+    const loadingMessage = document.createElement('div');
+    loadingMessage.id = 'loading-facilities';
+    loadingMessage.style.cssText = 'position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0,0,0,0.8); color: white; padding: 20px; border-radius: 5px; z-index: 10000;';
+    loadingMessage.textContent = 'Loading facilities...';
+    document.body.appendChild(loadingMessage);
+    
+    const url = `/powermapui/get_facilities/?scenario=${encodeURIComponent(scenarioTitle)}`;
+    
+    fetch(url)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (Array.isArray(data)) {
+                loadFacilitiesOnMap(data);
+            } else if (data.error) {
+                console.error('Error loading facilities:', data.error);
+                alert('Error loading facilities: ' + data.error);
+            } else {
+                console.error('Unexpected response format:', data);
+                alert('Unexpected response format from server');
+            }
+        })
+        .catch(error => {
+            console.error('Fetch error:', error);
+            
+            if (error.message.includes('404')) {
+                alert('URL not found. Please check if the get_facilities URL is configured correctly.');
+            } else if (error.message.includes('500')) {
+                alert('Server error occurred. Please check the server logs.');
+            } else {
+                alert('Failed to load facilities: ' + error.message);
+            }
+        })
+        .finally(() => {
+            const loading = document.getElementById('loading-facilities');
+            if (loading) {
+                loading.remove();
+            }
+        });
+}
 
     // Helper function to get CSRF token from cookies
     function getCookie(name) {
@@ -691,12 +1274,22 @@ crossorigin=""></script>
 
     // Initial load
     loadFacilitiesOnMap(facilities);
-    loadGridLinesOnMap(gridLines);
+    var baseTileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: 'Map data © <a href="https://openstreetmap.org">OpenStreetMap</a> contributors'
+    });
+    
+    baseTileLayer.on('load', function () {
+        loadGridLinesOnMap(gridLines);
+        gridLinesLayer.addTo(map);  // Add explicitly after load
+    });
+    
+    baseTileLayer.addTo(map);
+    
     
     // Add layers to map
     facilityLayer.addTo(map);
     gridLinesLayer.addTo(map);
-
+    
     // Load KML layers
     function initializeKMLLayers() {
         // Load boundary layer
@@ -741,7 +1334,8 @@ crossorigin=""></script>
                 "Grid Facilities": facilityLayer,
                 "Grid Lines": gridLinesLayer,
             };
-            L.control.layers(baseLayers, overlays).addTo(map);
+            
+            var layerControl = L.control.layers(baseLayers, overlays).addTo(map);
         }
     }
 
@@ -857,13 +1451,33 @@ crossorigin=""></script>
         "Goldwind GW171-6.0MW": { capacity: 6.0, technology: FLOATING_WIND }
     };
 
-    function getTechnologyName(techId) {
-        switch(techId) {
-            case ONSHORE_WIND: return "Onshore Wind";
-            case OFFSHORE_WIND: return "Offshore Wind";
-            case FLOATING_WIND: return "Floating Offshore Wind";
-            default: return "Wind";
-        }
+    function getTechnologyName(technologyId) {
+        const techMap = {
+            1: 'Coal',
+            2: 'Battery Storage (Li-ion)',
+            3: 'Battery Storage (Other)',
+            4: 'Battery Storage (Vanadium)',
+            5: 'Battery Storage (Zinc)',
+            6: 'Biomass',
+            7: 'Gas (CCGT)',
+            8: 'Pumped Hydro (Existing)',
+            9: 'Pumped Hydro (New)',
+            11: 'Solar PV (Fixed)',
+            13: 'Solar PV (Tracking)',
+            14: 'Solar PV (Rooftop)',
+            15: 'Wind (Onshore)',
+            16: 'Wind (Offshore)',
+            18: 'Concentrated Solar Thermal',
+            19: 'Gas (Peaking)',
+            20: 'Reciprocating Engine',
+            143: 'Battery Storage (Generic)',
+            144: 'Battery Storage (Utility)',
+            145: 'Nuclear (SMR)',
+            146: 'Nuclear (Large)',
+            147: 'Wind (Floating Offshore)'
+        };
+        
+        return techMap[technologyId] || `Technology ${technologyId}`;
     }
 
     // Load initial data and set up event listeners when page loads

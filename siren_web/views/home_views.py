@@ -4,7 +4,7 @@ from django.db.models import Model
 from django.shortcuts import render, get_object_or_404
 from django.urls import reverse
 from django.http import HttpResponse, JsonResponse
-from siren_web.models import Analysis, Demand, facilities, Generatorattributes, \
+from siren_web.models import Analysis, facilities, Generatorattributes, \
     Genetics, Optimisations, sirensystem, Scenarios, Settings, Storageattributes, supplyfactors, Technologies, Zones
 
 
@@ -84,7 +84,6 @@ def home_view(request):
         # Dictionary mapping table names to their respective model classes
         models = {
             'Analysis': Analysis,
-            'Demand': Demand,
             'Facilities': facilities,
             'Generatorattributes': Generatorattributes,
             'Genetics': Genetics,
