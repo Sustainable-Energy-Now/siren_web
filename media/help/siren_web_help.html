@@ -1,0 +1,355 @@
+<h1 id="siren-web-user-manual">Siren-Web User Manual</h1>
+<h2 id="interactive-map-interface-for-renewable-energy-planning">Interactive Map Interface for Renewable Energy Planning</h2>
+<hr />
+<h2 id="table-of-contents">Table of Contents</h2>
+<ol>
+<li><a href="#getting-started">Getting Started</a></li>
+<li><a href="#map-navigation">Map Navigation</a></li>
+<li><a href="#scenario-management">Scenario Management</a></li>
+<li><a href="#viewing-facilities">Viewing Facilities</a></li>
+<li><a href="#grid-line-management">Grid Line Management</a></li>
+<li><a href="#adding-new-facilities">Adding New Facilities</a></li>
+<li><a href="#adding-new-grid-lines">Adding New Grid Lines</a></li>
+<li><a href="#advanced-features">Advanced Features</a></li>
+<li><a href="#troubleshooting">Troubleshooting</a></li>
+</ol>
+<hr />
+<h2 id="getting-started">Getting Started</h2>
+<p>Siren-Web is an interactive mapping tool for modeling renewable energy generation in the South West Interconnected System (SWIS). It integrates with the System Advisor Model (SAM) to provide comprehensive energy planning capabilities.</p>
+<h3 id="initial-setup">Initial Setup</h3>
+<ol>
+<li><strong>Login</strong> to the SIREN system</li>
+<li><strong>Navigate</strong> to the Siren-Web module</li>
+<li><strong>Select</strong> a demand year and scenario to begin</li>
+</ol>
+<h3 id="understanding-the-interface">Understanding the Interface</h3>
+<p>The Siren-Web interface consists of:
+- <strong>Control Panel</strong>: Top section for scenario selection and facility management
+- <strong>Interactive Map</strong>: Central map showing facilities, grid lines, and infrastructure
+- <strong>Layer Controls</strong>: Toggle different map layers (boundaries, zones, facilities, grid lines)</p>
+<hr />
+<h2 id="map-navigation">Map Navigation</h2>
+<h3 id="basic-navigation">Basic Navigation</h3>
+<ul>
+<li><strong>Pan</strong>: Click and drag to move around the map</li>
+<li><strong>Zoom</strong>: Use mouse wheel or zoom controls (+/-) </li>
+<li><strong>Reset View</strong>: Double-click to reset to default zoom level</li>
+</ul>
+<h3 id="map-layers">Map Layers</h3>
+<p>Use the layer control panel (top-right of map) to toggle:
+- ✅ <strong>SWIS Boundary</strong>: Regional boundary overlay
+- ✅ <strong>Zones</strong>: Planning zones within SWIS
+- ✅ <strong>Grid Facilities</strong>: Power generation facilities
+- ✅ <strong>Grid Lines</strong>: Transmission and distribution infrastructure</p>
+<h3 id="visual-elements">Visual Elements</h3>
+<ul>
+<li><strong>Facility Icons</strong>: Different colored icons represent various technologies:</li>
+<li>🔴 Coal plants</li>
+<li>🟡 Solar installations</li>
+<li>🔵 Wind farms  </li>
+<li>🟢 Battery storage</li>
+<li>🟠 Gas plants</li>
+<li>
+<p>🟣 Other technologies</p>
+</li>
+<li>
+<p><strong>Grid Lines</strong>: Color-coded by voltage level:</p>
+</li>
+<li><strong>Red</strong>: 330kV+ (High voltage transmission)</li>
+<li><strong>Cyan</strong>: 220kV (Sub-transmission)</li>
+<li><strong>Orange</strong>: 132kV (Distribution)</li>
+<li><strong>Yellow</strong>: &lt;66kV (Local distribution)</li>
+</ul>
+<hr />
+<h2 id="scenario-management">Scenario Management</h2>
+<h3 id="selecting-a-scenario">Selecting a Scenario</h3>
+<ol>
+<li>Use the <strong>Demand Year</strong> dropdown to select the planning year</li>
+<li>Choose a <strong>Scenario</strong> from the available options</li>
+<li>Click <strong>Apply Settings</strong> to load the scenario data</li>
+</ol>
+<h3 id="scenario-types">Scenario Types</h3>
+<ul>
+<li><strong>Current</strong>: Existing infrastructure (read-only, no additions allowed)</li>
+<li><strong>Planning Scenarios</strong>: Modifiable scenarios for future planning</li>
+<li><strong>Custom Scenarios</strong>: User-created scenarios for specific studies</li>
+</ul>
+<blockquote>
+<p><strong>Note</strong>: You cannot add facilities or grid lines to the "Current" scenario. Select a different scenario to add new infrastructure.</p>
+</blockquote>
+<hr />
+<h2 id="viewing-facilities">Viewing Facilities</h2>
+<h3 id="basic-facility-information">Basic Facility Information</h3>
+<ul>
+<li><strong>Hover</strong> over any facility icon to see basic information in a tooltip</li>
+<li><strong>Click</strong> on a facility icon to open detailed information</li>
+</ul>
+<h3 id="facility-details-modal">Facility Details Modal</h3>
+<p>When you click on a facility, a detailed modal window opens showing:</p>
+<h4 id="basic-information">Basic Information</h4>
+<ul>
+<li>Facility name and code</li>
+<li>Technology type and capacity (MW)</li>
+<li>Operational status (Active/Inactive)</li>
+<li>Commission and decommission dates</li>
+<li>Location coordinates</li>
+</ul>
+<h4 id="technical-specifications">Technical Specifications</h4>
+<p><strong>For Wind Facilities:</strong>
+- Turbine model and specifications
+- Hub height and number of turbines
+- Rotor tilt angle and diameter
+- Capacity per turbine</p>
+<p><strong>For Solar Facilities:</strong>
+- Panel tilt and azimuth angles
+- Tracking system type
+- Inverter efficiency ratings</p>
+<p><strong>For Battery Storage:</strong>
+- Storage capacity (MWh)
+- Round-trip efficiency
+- Charge/discharge rates
+- State of charge limits</p>
+<p><strong>For Thermal Plants:</strong>
+- Heat rate and fuel type
+- Emission factors
+- Minimum load factors</p>
+<h4 id="grid-connections">Grid Connections</h4>
+<ul>
+<li>Connected transmission lines</li>
+<li>Connection voltage levels</li>
+<li>Distance to grid connection points</li>
+<li>Primary vs. secondary connections</li>
+<li>Calculated transmission losses</li>
+</ul>
+<h4 id="economic-data">Economic Data</h4>
+<ul>
+<li>Capital expenditure (CAPEX)</li>
+<li>Operating expenditure (OPEX) </li>
+<li>Project lifetime and discount rates</li>
+</ul>
+<h4 id="performance-metrics">Performance Metrics</h4>
+<ul>
+<li>Capacity factor and annual output</li>
+<li>System availability</li>
+<li>Performance ratios</li>
+</ul>
+<h3 id="facility-actions">Facility Actions</h3>
+<p>From the facility details modal, you can:
+- <strong>Show on Map</strong>: Center the map on the facility with highlighting
+- <strong>Calculate Losses</strong>: View detailed transmission loss calculations
+- <strong>Edit Facility</strong>: Modify facility parameters (if permissions allow)</p>
+<hr />
+<h2 id="grid-line-management">Grid Line Management</h2>
+<h3 id="viewing-grid-lines">Viewing Grid Lines</h3>
+<ul>
+<li>Grid lines appear as colored lines based on voltage level</li>
+<li><strong>Click</strong> on any grid line to view detailed information</li>
+<li>Use <strong>Toggle Grid Line Labels</strong> button to show/hide line names</li>
+</ul>
+<h3 id="grid-line-details-modal">Grid Line Details Modal</h3>
+<p>Clicking on a grid line opens a detailed modal showing:</p>
+<h4 id="technical-specifications_1">Technical Specifications</h4>
+<ul>
+<li>Line name, code, and voltage level</li>
+<li>Line type (transmission, sub-transmission, distribution)</li>
+<li>Length and thermal capacity</li>
+<li>Electrical characteristics (resistance, reactance, impedance)</li>
+</ul>
+<h4 id="connected-facilities">Connected Facilities</h4>
+<ul>
+<li>List of all facilities connected to the line</li>
+<li>Connection distances and capacity allocations</li>
+<li>Primary vs. secondary connection indicators</li>
+</ul>
+<h4 id="performance-data">Performance Data</h4>
+<ul>
+<li>Current utilization levels</li>
+<li>Transmission losses at full capacity</li>
+<li>Emergency capacity ratings</li>
+</ul>
+<h4 id="operational-information">Operational Information</h4>
+<ul>
+<li>Owner and commissioning date</li>
+<li>Maintenance status and operational history</li>
+</ul>
+<hr />
+<h2 id="adding-new-facilities">Adding New Facilities</h2>
+<blockquote>
+<p><strong>Prerequisites</strong>: Select a modifiable scenario (not "Current")</p>
+</blockquote>
+<h3 id="starting-the-process">Starting the Process</h3>
+<ol>
+<li>Click <strong>Add New Facility</strong> button</li>
+<li>The button changes to "Cancel Add Facility" and your cursor becomes a crosshair</li>
+<li>Click on the map to select the facility location</li>
+</ol>
+<h3 id="facility-configuration">Facility Configuration</h3>
+<h4 id="basic-settings">Basic Settings</h4>
+<ol>
+<li><strong>Facility Name</strong>: Enter a descriptive name</li>
+<li><strong>Technology</strong>: Select from available technology types</li>
+<li><strong>Capacity</strong>: Enter capacity in megawatts (MW)</li>
+</ol>
+<h4 id="location-selection">Location Selection</h4>
+<ul>
+<li>Click anywhere on the map to set facility coordinates</li>
+<li>Coordinates are displayed and can be verified</li>
+<li>A temporary marker shows the selected location</li>
+</ul>
+<h4 id="grid-connection-options">Grid Connection Options</h4>
+<p>Choose one of three connection methods:</p>
+<p><strong>Auto-connect to nearest grid line</strong> (Recommended)
+- System automatically finds the closest suitable grid line
+- Shows nearby grid lines with distances and capacities</p>
+<p><strong>Select existing grid line</strong>
+- Choose from a dropdown of available grid lines
+- View technical specifications before selection</p>
+<p><strong>Create new grid line</strong>
+- System creates a basic connection line
+- Useful for remote locations without nearby infrastructure</p>
+<h4 id="wind-turbine-specific-settings">Wind Turbine Specific Settings</h4>
+<p>For wind facilities, additional fields appear:
+- <strong>Turbine Model</strong>: Select from available turbine types
+- <strong>Hub Height</strong>: Height from ground to hub (meters)
+- <strong>Number of Turbines</strong>: Total turbine count
+- <strong>Tilt</strong>: Rotor tilt angle (typically 5° onshore, 0° offshore)</p>
+<h3 id="completing-the-process">Completing the Process</h3>
+<ol>
+<li>Fill in all required fields</li>
+<li>Click <strong>Save Facility</strong> to create the facility</li>
+<li>The new facility appears immediately on the map</li>
+<li>Success message confirms creation and grid connection details</li>
+</ol>
+<h3 id="canceling">Canceling</h3>
+<ul>
+<li>Click <strong>Cancel Add Facility</strong> to exit without saving</li>
+<li>This removes temporary markers and resets the form</li>
+</ul>
+<hr />
+<h2 id="adding-new-grid-lines">Adding New Grid Lines</h2>
+<blockquote>
+<p><strong>Prerequisites</strong>: Select a modifiable scenario (not "Current")</p>
+</blockquote>
+<h3 id="starting-the-process_1">Starting the Process</h3>
+<ol>
+<li>Click <strong>Add New Grid Line</strong> button</li>
+<li>The button changes to "Cancel Add Grid Line" and your cursor becomes a crosshair</li>
+<li>Click two points on the map to define the line endpoints</li>
+</ol>
+<h3 id="grid-line-configuration">Grid Line Configuration</h3>
+<h4 id="basic-information_1">Basic Information</h4>
+<ul>
+<li><strong>Line Name</strong>: Descriptive name for the transmission line</li>
+<li><strong>Line Code</strong>: Short code identifier</li>
+<li><strong>Line Type</strong>: Choose from transmission, sub-transmission, or distribution</li>
+</ul>
+<h4 id="technical-specifications_2">Technical Specifications</h4>
+<ul>
+<li><strong>Voltage Level</strong>: Operating voltage in kilovolts (kV)</li>
+<li><strong>Thermal Capacity</strong>: Maximum power transfer capacity (MW)</li>
+<li><strong>Resistance</strong>: Electrical resistance per kilometer (Ω/km)</li>
+</ul>
+<h4 id="endpoint-definition">Endpoint Definition</h4>
+<ol>
+<li><strong>First Click</strong>: Sets the starting point of the line</li>
+<li><strong>Second Click</strong>: Sets the ending point of the line</li>
+<li><strong>Automatic Calculation</strong>: System calculates line length and displays coordinates</li>
+</ol>
+<h3 id="visual-feedback">Visual Feedback</h3>
+<ul>
+<li>First endpoint shows a marker labeled "Grid Line Start Point"</li>
+<li>Second endpoint shows a marker labeled "Grid Line End Point"  </li>
+<li>A dashed red line connects the two points</li>
+<li>Length is automatically calculated and displayed</li>
+</ul>
+<h3 id="completing-the-process_1">Completing the Process</h3>
+<ol>
+<li>Define both endpoints by clicking on the map</li>
+<li>Fill in all technical specifications</li>
+<li>Click <strong>Save Grid Line</strong> to create the line</li>
+<li>The new grid line appears on the map with appropriate styling</li>
+<li>Grid line becomes available for facility connections</li>
+</ol>
+<h3 id="canceling_1">Canceling</h3>
+<ul>
+<li>Click <strong>Cancel Add Grid Line</strong> to exit without saving</li>
+<li>This removes all temporary markers and lines</li>
+</ul>
+<hr />
+<h2 id="advanced-features">Advanced Features</h2>
+<h3 id="grid-line-labels">Grid Line Labels</h3>
+<ul>
+<li>Click <strong>Toggle Grid Line Labels</strong> to show/hide line names on the map</li>
+<li>Labels appear at the midpoint of each grid line</li>
+<li>Useful for identifying specific transmission corridors</li>
+</ul>
+<h3 id="layer-management">Layer Management</h3>
+<p>Use the layer control to customize your view:
+- Toggle facility visibility to focus on grid infrastructure
+- Hide boundary layers for cleaner facility views
+- Combine different layers for comprehensive planning views</p>
+<h3 id="loss-calculations">Loss Calculations</h3>
+<p>Access detailed transmission loss analysis:
+1. Click on any facility to open details modal
+2. Click <strong>Calculate Losses</strong> button
+3. View breakdown of connection losses vs. line losses
+4. See percentage losses relative to facility capacity</p>
+<h3 id="nearby-infrastructure-analysis">Nearby Infrastructure Analysis</h3>
+<p>When placing new facilities:
+- System automatically identifies nearby grid lines
+- Distance and capacity information helps with siting decisions
+- Transmission constraints are highlighted</p>
+<h3 id="performance-metrics_1">Performance Metrics</h3>
+<p>For existing facilities, view:
+- Historical capacity factors
+- Annual energy output projections
+- Grid connection utilization rates
+- Environmental impact assessments</p>
+<hr />
+<h2 id="troubleshooting">Troubleshooting</h2>
+<h3 id="common-issues">Common Issues</h3>
+<p><strong>Facilities Not Loading</strong>
+- Ensure a valid scenario is selected
+- Check that demand year is specified
+- Refresh the page if data appears stale</p>
+<p><strong>Cannot Add Facilities</strong>
+- Verify you're not using the "Current" scenario
+- Ensure you have appropriate permissions
+- Check that required fields are completed</p>
+<p><strong>Map Performance Issues</strong>
+- Disable unnecessary layers to improve performance
+- Zoom to specific regions rather than viewing entire system
+- Clear browser cache if map tiles fail to load</p>
+<p><strong>Grid Connection Problems</strong>
+- Verify grid lines exist in the selected scenario
+- Check that connection distances are reasonable (&lt;50km typically)
+- Ensure grid line has sufficient available capacity</p>
+<h3 id="error-messages">Error Messages</h3>
+<p><strong>"Cannot add facilities to the 'Current' scenario"</strong>
+- Switch to a modifiable planning scenario
+- Current scenario is read-only for reference</p>
+<p><strong>"No suitable grid line found within 50km"</strong>
+- Location is too remote for automatic connection
+- Use "Create new grid line" option
+- Consider relocating facility closer to existing infrastructure</p>
+<p><strong>"Please fill in all required fields"</strong>
+- Complete facility name, technology, and capacity
+- Ensure location is selected on map
+- For wind facilities, include turbine specifications</p>
+<h3 id="getting-help">Getting Help</h3>
+<ul>
+<li>Check system status indicators for service availability</li>
+<li>Contact system administrator for permission issues</li>
+<li>Refer to SIREN documentation for detailed technical specifications</li>
+<li>Use the feedback system to report bugs or request features</li>
+</ul>
+<h3 id="best-practices">Best Practices</h3>
+<ul>
+<li><strong>Save work frequently</strong> by applying settings after major changes</li>
+<li><strong>Use descriptive names</strong> for facilities and grid lines</li>
+<li><strong>Verify coordinates</strong> before finalizing facility locations</li>
+<li><strong>Consider transmission constraints</strong> when planning facility clusters</li>
+<li><strong>Document assumptions</strong> in facility or scenario descriptions</li>
+</ul>
+<hr />
+<p><em>This manual covers Siren-Web version 2.0. For the latest updates and additional features, please refer to the online documentation or contact your system administrator.</em></p>

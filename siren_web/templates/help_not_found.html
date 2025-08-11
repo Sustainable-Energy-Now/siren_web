@@ -1,0 +1,31 @@
+<!-- templates/help_not_found.html -->
+{% extends 'base.html' %}
+
+{% block title %}Help Not Found - Siren Web{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-body text-center">
+                    <h2 class="card-title text-warning">📖 Help Documentation Not Found</h2>
+                    <p class="card-text">
+                        The help documentation has not been generated yet or the file is missing.
+                    </p>
+                    <div class="mt-4">
+                        <a href="{% url 'generate_help_html' %}" class="btn btn-primary btn-lg">
+                            🔄 Generate Help Documentation
+                        </a>
+                    </div>
+                    <div class="mt-3">
+                        <a href="{% url 'home' %}" class="btn btn-outline-secondary">
+                            ← Back to Home
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

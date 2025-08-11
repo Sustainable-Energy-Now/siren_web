@@ -17,7 +17,7 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import include, path
 from django.contrib.staticfiles.urls import staticfiles_urlpatterns
-from .views import home_views, settings_views, config_views
+from .views import home_views, config_views, help_views
 
 urlpatterns = [
     path('', home_views.home_view, name='home'),
@@ -26,6 +26,9 @@ urlpatterns = [
     path("", include("powerplotui.urls")),
     path('gendocs/', include('gendocs.urls')),
     path('config_views/', config_views.edit_config, name='edit_config'),
+    path('generate-help/', help_views.generate_help_html, name='generate_help_html'),
+    path('help/', help_views.display_help_html, name='display_help_html'),
+    path('help/edit/', help_views.edit_help_template, name='edit_help_template'),
     path("admin/", admin.site.urls),
     path('accounts/', include('django.contrib.auth.urls')),
 ]

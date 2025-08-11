@@ -1,0 +1,32 @@
+<!-- templates/help/help_error.html -->
+{% extends 'base.html' %}
+
+{% block title %}Help Error - PowerMap{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card border-danger">
+                <div class="card-body">
+                    <h2 class="card-title text-danger">❌ Error Loading Help Documentation</h2>
+                    <p class="card-text">
+                        An error occurred while loading the help documentation:
+                    </p>
+                    <div class="alert alert-danger">
+                        <code>{{ error }}</code>
+                    </div>
+                    <div class="mt-4">
+                        <a href="{% url 'generate_help_html' %}" class="btn btn-warning">
+                            🔄 Try Regenerating Help
+                        </a>
+                        <a href="{% url 'home' %}" class="btn btn-outline-secondary ms-2">
+                            ← Back to Siren Web
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -461,7 +461,17 @@ class Optimisations(models.Model):
 
     class Meta:
         db_table = 'Optimisations'
-           
+      
+class references(models.Model):
+    """Data source references"""
+    idreferences = models.AutoField( db_column='idreferences', primary_key=True)
+    source = models.CharField(db_column='source', max_length=250, blank=True, null=True)
+    reference_date = models.DateTimeField(auto_now=True)
+    accessed_date = models.DateTimeField(auto_now_add=True)
+    location = models.CharField(db_column='location', max_length=250, blank=True, null=True)
+    section = models.CharField(db_column='section', max_length=250, blank=True, null=True)
+    notes = models.CharField(db_column='notes', max_length=250, blank=True, null=True)
+     
 class ScenariosFacilities(models.Model):
     idscenariosfacilities = models.AutoField(primary_key=True)  
     idscenarios = models.ForeignKey('Scenarios', on_delete=models.CASCADE, db_column='idScenarios')

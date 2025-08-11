@@ -1,0 +1,60 @@
+<!-- templates/help/help_generated.html -->
+{% extends 'base.html' %}
+
+{% block title %}Help Generated - Siren Web{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card border-success">
+                <div class="card-body text-center">
+                    <h2 class="card-title text-success">✅ Help Documentation Generated Successfully!</h2>
+                    <p class="card-text">
+                        The Siren Web help documentation has been generated and is ready to view.
+                    </p>
+                    
+                    <div class="row mt-4">
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-body">
+                                    <h5 class="card-title">📖 View Documentation</h5>
+                                    <p class="card-text">Read the complete help manual</p>
+                                    <a href="{% url 'display_help_html' %}" class="btn btn-primary" target="_blank">
+                                        View Help
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-body">
+                                    <h5 class="card-title">✏️ Edit Template</h5>
+                                    <p class="card-text">Customize the help content</p>
+                                    <a href="{% url 'edit_help_template' %}" class="btn btn-outline-secondary">
+                                        Edit Template
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mt-4">
+                        <a href="{% url 'home' %}" class="btn btn-outline-primary">
+                            ← Back to Siren Web
+                        </a>
+                    </div>
+                    
+                    {% if generation_stats %}
+                    <div class="mt-4">
+                        <small class="text-muted">
+                            Generated {{ generation_stats.charts_created }} charts in {{ generation_stats.generation_time }}ms
+                        </small>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
