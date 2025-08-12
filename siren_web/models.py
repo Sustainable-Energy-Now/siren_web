@@ -461,7 +461,7 @@ class Optimisations(models.Model):
 
     class Meta:
         db_table = 'Optimisations'
-      
+
 class references(models.Model):
     """Data source references"""
     idreferences = models.AutoField( db_column='idreferences', primary_key=True)
@@ -471,7 +471,10 @@ class references(models.Model):
     location = models.CharField(db_column='location', max_length=250, blank=True, null=True)
     section = models.CharField(db_column='section', max_length=250, blank=True, null=True)
     notes = models.CharField(db_column='notes', max_length=250, blank=True, null=True)
-     
+    
+    class Meta:
+        db_table = 'references'
+
 class ScenariosFacilities(models.Model):
     idscenariosfacilities = models.AutoField(primary_key=True)  
     idscenarios = models.ForeignKey('Scenarios', on_delete=models.CASCADE, db_column='idScenarios')
@@ -479,7 +482,7 @@ class ScenariosFacilities(models.Model):
 
     class Meta:
         db_table = 'ScenariosFacilities'
-        
+
 class ScenariosTechnologies(models.Model):
     idscenariostechnologies = models.AutoField(primary_key=True)  
     idscenarios = models.ForeignKey('Scenarios', on_delete=models.CASCADE)
@@ -502,7 +505,7 @@ class ScenariosTechnologies(models.Model):
         self.capacity = total_capacity
         self.save(update_fields=['capacity'])
         return total_capacity
-    
+
 class ScenariosSettings(models.Model):
     idscenariossettings = models.AutoField(primary_key=True)
     idscenarios = models.ForeignKey('Scenarios', on_delete=models.CASCADE)

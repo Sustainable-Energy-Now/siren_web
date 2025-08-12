@@ -5,6 +5,17 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "Python Debugger: import_geojson",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}\\manage.py",
+            "args": [
+                "import_geojson_gridlines", "--geojson-file", "geojson/Transmission_Overhead_Powerlines_WP_032_WA_GDA2020_Public_Secure.geojson", "--update-existing"
+            ],
+            "django": true,
+            "autoStartBrowser": false
+        },
+        {
             "name": "Python Debugger: import_KML",
             "type": "debugpy",
             "request": "launch",

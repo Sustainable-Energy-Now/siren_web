@@ -25,6 +25,39 @@ def calculate_distance_km(lat1, lon1, lat2, lon2):
     
     return R * c
 
+def find_nearest_grid_line_point(facility_lat, facility_lon, grid_line):
+    """Find the nearest point on a grid line to a facility location"""
+    line_coords = grid_line.get_line_coordinates()
+    
+    if len(line_coords) < 2:
+        # Fallback to endpoints
+        coords = [[grid_line.from_latitude, grid_line.from_longitude],
+                 [grid_line.to_latitude, grid_line.to_longitude]]
+    else:
+        coords = line_coords
+    
+    min_distance = float('inf')
+    closest_point = None
+    
+    # Check distance to each point on the line
+    for coord in coords:
+        distance = calculate_distance_km(facility_lat, facility_lon, coord[0], coord[1])
+        if distance < min_distance:
+            min_distance = distance
+            closest_point = coord
+    
+    # Also check distances to line segments (simplified)
+    for i in range(len(coords) - 1):
+        # Calculate distance to line segment (simplified to midpoint)
+        mid_lat = (coords[i][0] + coords[i+1][0]) / 2
+        mid_lon = (coords[i][1] + coords[i+1][1]) / 2
+        distance = calculate_distance_km(facility_lat, facility_lon, mid_lat, mid_lon)
+        if distance < min_distance:
+            min_distance = distance
+            closest_point = [mid_lat, mid_lon]
+    
+    return min_distance, closest_point
+
 def find_nearest_grid_line(facility_lat, facility_lon, max_distance_km=50):
     """Find the nearest grid line to a facility location"""
     nearest_line = None
@@ -32,24 +65,12 @@ def find_nearest_grid_line(facility_lat, facility_lon, max_distance_km=50):
     connection_point = None
     
     for grid_line in GridLines.objects.filter(active=True):
-        # Calculate distance to both endpoints
-        dist_from = calculate_distance_km(facility_lat, facility_lon, 
-                                         grid_line.from_latitude, grid_line.from_longitude)
-        dist_to = calculate_distance_km(facility_lat, facility_lon, 
-                                       grid_line.to_latitude, grid_line.to_longitude)
+        distance, point = find_nearest_grid_line_point(facility_lat, facility_lon, grid_line)
         
-        # Find the closest point (simplified - using endpoints only)
-        if dist_from < dist_to:
-            closest_distance = dist_from
-            closest_point = (grid_line.from_latitude, grid_line.from_longitude)
-        else:
-            closest_distance = dist_to
-            closest_point = (grid_line.to_latitude, grid_line.to_longitude)
-        
-        if closest_distance < min_distance and closest_distance <= max_distance_km:
-            min_distance = closest_distance
+        if distance < min_distance and distance <= max_distance_km:
+            min_distance = distance
             nearest_line = grid_line
-            connection_point = closest_point
+            connection_point = point
     
     return nearest_line, min_distance, connection_point
 
@@ -92,21 +113,37 @@ def home(request):
     if scenario:
         # Filter facilities that belong to the selected scenario and have coordinates
         scenario_obj = Scenarios.objects.get(title=scenario)
-        facilities_data = facilities.objects.filter(
+        facilities_queryset = facilities.objects.filter(
             scenarios=scenario_obj,
             latitude__isnull=False, 
             longitude__isnull=False
-        ).values('facility_name', 'idtechnologies', 'latitude', 'longitude', 'idfacilities')
+        ).select_related('idtechnologies', 'primary_grid_line').prefetch_related('grid_connections')
+        
+        facilities_data = []
+        for facility in facilities_queryset:
+            facility_dict = {
+                'facility_name': facility.facility_name,
+                'idtechnologies': facility.idtechnologies.idtechnologies,
+                'latitude': facility.latitude,
+                'longitude': facility.longitude,
+                'idfacilities': facility.idfacilities,
+                'capacity': float(facility.capacity) if facility.capacity else 0,
+                'technology_name': facility.idtechnologies.technology_name,
+                'has_grid_connection': facility.grid_connections.exists(),
+                'primary_grid_line_id': facility.primary_grid_line.idgridlines if facility.primary_grid_line else None,
+                'primary_grid_line_name': facility.primary_grid_line.line_name if facility.primary_grid_line else None,
+                'connection_count': facility.grid_connections.count()
+            }
+            facilities_data.append(facility_dict)
     else:
-        # If no scenario is selected, return an empty queryset
-        facilities_data = facilities.objects.none().values('facility_name', 'idtechnologies', 'latitude', 'longitude', 'idfacilities')
+        facilities_data = []
     
-    # Convert the queryset to JSON
-    facilities_json = json.dumps(list(facilities_data))
+    # Convert to JSON
+    facilities_json = json.dumps(facilities_data)
     
-    # Get grid lines data for the map with detailed coordinates
+    # Get grid lines data with enhanced information
     grid_lines_data = []
-    for grid_line in GridLines.objects.filter(active=True):
+    for grid_line in GridLines.objects.filter(active=True).prefetch_related('connected_facilities'):
         grid_line_data = {
             'idgridlines': grid_line.idgridlines,
             'line_name': grid_line.line_name,
@@ -117,14 +154,15 @@ def home(request):
             'length_km': grid_line.length_km,
             'owner': grid_line.owner,
             'active': grid_line.active,
-            'coordinates': grid_line.get_line_coordinates(),  # Full coordinate path
-            'style': grid_line.get_line_style(),  # Styling info
-            'popup_content': grid_line.get_popup_content(),  # Popup HTML
-            # Simple from/to for backward compatibility
+            'coordinates': grid_line.get_line_coordinates(),
+            'style': grid_line.get_line_style(),
+            'popup_content': grid_line.get_popup_content(),
             'from_latitude': grid_line.from_latitude,
             'from_longitude': grid_line.from_longitude,
             'to_latitude': grid_line.to_latitude,
-            'to_longitude': grid_line.to_longitude
+            'to_longitude': grid_line.to_longitude,
+            'connected_facilities_count': grid_line.connected_facilities.count(),
+            'total_connected_capacity': sum(f.capacity or 0 for f in grid_line.connected_facilities.all())
         }
         grid_lines_data.append(grid_line_data)
         
@@ -153,7 +191,7 @@ def add_facility(request):
             technology_id = data.get('technology_id')
             latitude = data.get('latitude')
             longitude = data.get('longitude')
-            capacity = data.get('capacity')
+            capacity = data.get('capacity', 0)
             
             # Grid connection data
             grid_line_id = data.get('grid_line_id')
@@ -190,13 +228,13 @@ def add_facility(request):
             except Scenarios.DoesNotExist:
                 return JsonResponse({'status': 'error', 'message': 'Selected scenario not found'}, status=400)
             
-            # Create a basic facility code based on name and technology
+            # Create facility code
             tech_prefix = technology.technology_name[:3].upper() if technology.technology_name else "FAC"
             facility_code = f"{tech_prefix}_{facility_name.replace(' ', '_').lower()}"[:30]
             
-            # Validate wind turbine specific fields if applicable
-            wind_tech_ids = [15, 16, 17]  # Onshore, Offshore, Floating wind IDs
-            if technology_id in wind_tech_ids:
+            # Validate wind turbine fields
+            wind_tech_ids = [15, 16, 147]
+            if int(technology_id) in wind_tech_ids:
                 if not turbine:
                     return JsonResponse({'status': 'error', 'message': 'Turbine model is required for wind facilities'}, status=400)
                 if not hub_height:
@@ -207,6 +245,7 @@ def add_facility(request):
             # Handle grid line connection
             grid_line = None
             connection_distance = 0
+            connection_point = None
             
             if create_new_grid_line and new_grid_line_data:
                 # Create new grid line
@@ -226,15 +265,16 @@ def add_facility(request):
                         to_longitude=float(new_grid_line_data.get('to_longitude', longitude)),
                     )
                     connection_distance = 0  # Direct connection to new line
+                    connection_point = [latitude, longitude]
                 except Exception as e:
                     return JsonResponse({'status': 'error', 'message': f'Error creating grid line: {str(e)}'}, status=400)
             
             elif grid_line_id:
                 # Use existing grid line
                 try:
-                    grid_line = GridLines.objects.get(pk=grid_line_id)
                     # Calculate connection distance
-                    _, connection_distance, _ = find_nearest_grid_line(latitude, longitude)
+                    grid_line = GridLines.objects.get(pk=grid_line_id)
+                    connection_distance, connection_point = find_nearest_grid_line_point(latitude, longitude, grid_line)
                 except GridLines.DoesNotExist:
                     return JsonResponse({'status': 'error', 'message': 'Selected grid line not found'}, status=400)
             
@@ -250,63 +290,61 @@ def add_facility(request):
                 facility_code=facility_code,
                 active=True,
                 idtechnologies=technology,
-                capacity=capacity or 0.0,
+                capacity=float(capacity) if capacity else 0.0,
                 latitude=latitude,
                 longitude=longitude,
                 existing=False,
                 primary_grid_line=grid_line
             )
             
-            # Add wind turbine specific fields if applicable
-            if technology_id in wind_tech_ids:
+            # Add wind turbine specific fields
+            if int(technology_id) in wind_tech_ids:
                 new_facility.turbine = turbine
-                new_facility.hub_height = hub_height
-                new_facility.no_turbines = no_turbines
-                new_facility.tilt = tilt
+                new_facility.hub_height = float(hub_height) if hub_height else None
+                new_facility.no_turbines = int(no_turbines) if no_turbines else None
+                new_facility.tilt = int(tilt) if tilt else None
             
             new_facility.save()
             
-            # Add the facility to the current scenario
+            # Add facility to scenario
             new_facility.scenarios.add(scenario_obj)
             
             # Create grid connection
-            if grid_line:
-                connection_voltage = 132  # Default connection voltage
-                if grid_line.voltage_level >= 220:
-                    connection_voltage = grid_line.voltage_level
-                elif grid_line.voltage_level < 66:
+            if grid_line and connection_point:
+                # Determine appropriate connection voltage
+                connection_voltage = min(grid_line.voltage_level, 132)  # Cap at 132kV for facility connections
+                if grid_line.voltage_level < 66:
                     connection_voltage = grid_line.voltage_level
                 
                 FacilityGridConnections.objects.create(
                     idfacilities=new_facility,
                     idgridlines=grid_line,
                     connection_type='direct',
-                    connection_point_latitude=latitude,  # Simplified - using facility location
-                    connection_point_longitude=longitude,
+                    connection_point_latitude=connection_point[0],
+                    connection_point_longitude=connection_point[1],
                     connection_voltage_kv=connection_voltage,
-                    connection_capacity_mw=capacity or 0.0,
+                    connection_capacity_mw=float(capacity) if capacity else 0.0,
                     connection_distance_km=connection_distance,
                     is_primary=True,
                     active=True
                 )
             
-            # Get the technology name for the response
-            tech_name = technology.technology_name
-            
             response_data = {
                 'status': 'success',
-                'message': f'{tech_name} facility added successfully to scenario "{scenario_title}"',
+                'message': f'{technology.technology_name} facility added successfully to scenario "{scenario_title}"',
                 'facility_id': new_facility.idfacilities,
                 'facility_name': new_facility.facility_name,
-                'technology': tech_name,
+                'technology': technology.technology_name,
                 'scenario': scenario_title
             }
             
             if grid_line:
                 response_data['grid_connection'] = {
                     'grid_line_name': grid_line.line_name,
+                    'grid_line_id': grid_line.idgridlines,
                     'connection_distance_km': round(connection_distance, 2),
-                    'voltage_level': grid_line.voltage_level
+                    'voltage_level': grid_line.voltage_level,
+                    'connection_voltage_kv': connection_voltage if 'connection_voltage' in locals() else grid_line.voltage_level
                 }
             
             return JsonResponse(response_data)
@@ -314,61 +352,7 @@ def add_facility(request):
         except Exception as e:
             return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
     
-    # If not POST, return error
     return JsonResponse({'status': 'error', 'message': 'Invalid request method'}, status=405)
-
-@login_required
-def get_technologies(request):
-    techs = Technologies.objects.all().values('idtechnologies', 'technology_name')
-    return JsonResponse(list(techs), safe=False)
-
-@login_required
-def get_grid_lines(request):
-    """Return available grid lines for facility connection"""
-    grid_lines = GridLines.objects.filter(active=True).values(
-        'idgridlines', 'line_name', 'line_code', 'line_type', 'voltage_level', 
-        'thermal_capacity_mw', 'from_latitude', 'from_longitude', 'to_latitude', 'to_longitude'
-    )
-    return JsonResponse(list(grid_lines), safe=False)
-
-@login_required
-def find_nearest_grid_lines(request):
-    """Find nearest grid lines to a given location"""
-    lat = float(request.GET.get('lat', 0))
-    lon = float(request.GET.get('lon', 0))
-    max_distance = float(request.GET.get('max_distance', 50))
-    
-    if not lat or not lon:
-        return JsonResponse({'error': 'Latitude and longitude required'}, status=400)
-    
-    nearby_lines = []
-    
-    for grid_line in GridLines.objects.filter(active=True):
-        # Calculate distance to line endpoints
-        dist_from = calculate_distance_km(lat, lon, grid_line.from_latitude, grid_line.from_longitude)
-        dist_to = calculate_distance_km(lat, lon, grid_line.to_latitude, grid_line.to_longitude)
-        
-        min_distance = min(dist_from, dist_to)
-        
-        if min_distance <= max_distance:
-            nearby_lines.append({
-                'idgridlines': grid_line.idgridlines,
-                'line_name': grid_line.line_name,
-                'line_code': grid_line.line_code,
-                'line_type': grid_line.line_type,
-                'voltage_level': grid_line.voltage_level,
-                'thermal_capacity_mw': grid_line.thermal_capacity_mw,
-                'distance_km': round(min_distance, 2),
-                'from_lat': grid_line.from_latitude,
-                'from_lon': grid_line.from_longitude,
-                'to_lat': grid_line.to_latitude,
-                'to_lon': grid_line.to_longitude
-            })
-    
-    # Sort by distance
-    nearby_lines.sort(key=lambda x: x['distance_km'])
-    
-    return JsonResponse(nearby_lines, safe=False)
 
 @login_required
 @csrf_exempt
@@ -429,6 +413,120 @@ def create_grid_line(request):
     return JsonResponse({'status': 'error', 'message': 'Invalid request method'}, status=405)
 
 @login_required
+@csrf_exempt
+def manage_facility_grid_connections(request, facility_id):
+    """Add, update, or remove grid connections for a facility"""
+    if request.method == 'POST':
+        try:
+            facility = facilities.objects.get(pk=facility_id)
+            data = json.loads(request.body)
+            action = data.get('action')  # 'add', 'remove', 'update', 'set_primary'
+            
+            if action == 'add':
+                grid_line_id = data.get('grid_line_id')
+                connection_type = data.get('connection_type', 'direct')
+                is_primary = data.get('is_primary', False)
+                
+                if not grid_line_id:
+                    return JsonResponse({'status': 'error', 'message': 'Grid line ID required'}, status=400)
+                
+                try:
+                    grid_line = GridLines.objects.get(pk=grid_line_id)
+                except GridLines.DoesNotExist:
+                    return JsonResponse({'status': 'error', 'message': 'Grid line not found'}, status=400)
+                
+                # Calculate connection details
+                connection_distance, connection_point = find_nearest_grid_line_point(
+                    facility.latitude, facility.longitude, grid_line
+                )
+                
+                # If setting as primary, unset other primary connections
+                if is_primary:
+                    FacilityGridConnections.objects.filter(
+                        idfacilities=facility, is_primary=True
+                    ).update(is_primary=False)
+                    facility.primary_grid_line = grid_line
+                    facility.save()
+                
+                # Create connection
+                connection = FacilityGridConnections.objects.create(
+                    idfacilities=facility,
+                    idgridlines=grid_line,
+                    connection_type=connection_type,
+                    connection_point_latitude=connection_point[0],
+                    connection_point_longitude=connection_point[1],
+                    connection_voltage_kv=min(grid_line.voltage_level, 132),
+                    connection_capacity_mw=facility.capacity or 0,
+                    connection_distance_km=connection_distance,
+                    is_primary=is_primary,
+                    active=True
+                )
+                
+                return JsonResponse({
+                    'status': 'success',
+                    'message': f'Connection to {grid_line.line_name} added successfully',
+                    'connection_id': connection.idfacilitygridconnections
+                })
+            
+            elif action == 'remove':
+                connection_id = data.get('connection_id')
+                try:
+                    connection = FacilityGridConnections.objects.get(
+                        pk=connection_id, idfacilities=facility
+                    )
+                    grid_line_name = connection.idgridlines.line_name
+                    
+                    # If removing primary connection, update facility
+                    if connection.is_primary:
+                        facility.primary_grid_line = None
+                        facility.save()
+                    
+                    connection.delete()
+                    
+                    return JsonResponse({
+                        'status': 'success',
+                        'message': f'Connection to {grid_line_name} removed successfully'
+                    })
+                except FacilityGridConnections.DoesNotExist:
+                    return JsonResponse({'status': 'error', 'message': 'Connection not found'}, status=404)
+            
+            elif action == 'set_primary':
+                connection_id = data.get('connection_id')
+                try:
+                    # Unset all primary connections for this facility
+                    FacilityGridConnections.objects.filter(
+                        idfacilities=facility, is_primary=True
+                    ).update(is_primary=False)
+                    
+                    # Set new primary connection
+                    connection = FacilityGridConnections.objects.get(
+                        pk=connection_id, idfacilities=facility
+                    )
+                    connection.is_primary = True
+                    connection.save()
+                    
+                    # Update facility primary grid line
+                    facility.primary_grid_line = connection.idgridlines
+                    facility.save()
+                    
+                    return JsonResponse({
+                        'status': 'success',
+                        'message': f'Primary connection set to {connection.idgridlines.line_name}'
+                    })
+                except FacilityGridConnections.DoesNotExist:
+                    return JsonResponse({'status': 'error', 'message': 'Connection not found'}, status=404)
+            
+            else:
+                return JsonResponse({'status': 'error', 'message': 'Invalid action'}, status=400)
+                
+        except facilities.DoesNotExist:
+            return JsonResponse({'status': 'error', 'message': 'Facility not found'}, status=404)
+        except Exception as e:
+            return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+    
+    return JsonResponse({'status': 'error', 'message': 'Invalid request method'}, status=405)
+
+@login_required
 def calculate_grid_losses(request):
     """Calculate grid losses for a facility at given power output"""
     facility_id = request.GET.get('facility_id')
@@ -475,6 +573,60 @@ def calculate_grid_losses(request):
         return JsonResponse({'error': str(e)}, status=500)
 
 @login_required
+def get_facility_grid_connections(request, facility_id):
+    """Get all grid connections for a facility"""
+    try:
+        facility = facilities.objects.get(pk=facility_id)
+        connections = FacilityGridConnections.objects.filter(
+            idfacilities=facility
+        ).select_related('idgridlines').order_by('-is_primary', 'connection_distance_km')
+        
+        connection_data = []
+        for conn in connections:
+            grid_line = conn.idgridlines
+            
+            # Calculate losses if possible
+            connection_losses = 0
+            grid_line_losses = 0
+            if facility.capacity and facility.capacity > 0:
+                try:
+                    connection_losses = conn.calculate_connection_losses_mw(float(facility.capacity))
+                    grid_line_losses = grid_line.calculate_line_losses_mw(float(facility.capacity))
+                except (AttributeError, TypeError):
+                    pass
+            
+            connection_info = {
+                'connection_id': conn.idfacilitygridconnections,
+                'grid_line_id': grid_line.idgridlines,
+                'grid_line_name': grid_line.line_name,
+                'grid_line_code': grid_line.line_code,
+                'voltage_level': conn.connection_voltage_kv,
+                'grid_line_voltage': grid_line.voltage_level,
+                'connection_type': conn.connection_type,
+                'capacity_mw': float(conn.connection_capacity_mw),
+                'distance_km': float(conn.connection_distance_km),
+                'is_primary': conn.is_primary,
+                'active': conn.active,
+                'connection_losses_mw': round(connection_losses, 3),
+                'grid_line_losses_mw': round(grid_line_losses, 3),
+                'total_losses_mw': round(connection_losses + grid_line_losses, 3),
+                'loss_percentage': round(((connection_losses + grid_line_losses) / float(facility.capacity)) * 100, 2) if facility.capacity and facility.capacity > 0 else 0
+            }
+            connection_data.append(connection_info)
+        
+        return JsonResponse({
+            'facility_id': facility.idfacilities,
+            'facility_name': facility.facility_name,
+            'total_connections': len(connection_data),
+            'connections': connection_data
+        })
+        
+    except facilities.DoesNotExist:
+        return JsonResponse({'error': 'Facility not found'}, status=404)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+@login_required
 # Refresh facilities when the scenario is changed
 def get_facilities_for_scenario(request):
     """Return facilities data for the selected scenario"""
@@ -496,67 +648,6 @@ def get_facilities_for_scenario(request):
         return JsonResponse({'error': 'Scenario not found'}, status=404)
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
-
-@login_required
-def sync_kml_gridlines(request):
-    """API endpoint to sync KML data with GridLines database"""
-    if request.method == 'POST':
-        try:
-            from django.core.management import call_command
-            from io import StringIO
-            
-            # Capture command output
-            out = StringIO()
-            call_command('import_kml_gridlines', 
-                        kml_file='kml/SWIS_Grid.kml',
-                        update_existing=True,
-                        stdout=out)
-            
-            output = out.getvalue()
-            
-            return JsonResponse({
-                'status': 'success',
-                'message': 'KML sync completed successfully',
-                'output': output
-            })
-            
-        except Exception as e:
-            return JsonResponse({
-                'status': 'error',
-                'message': f'KML sync failed: {str(e)}'
-            }, status=500)
-    
-    return JsonResponse({'status': 'error', 'message': 'Invalid request method'}, status=405)
-
-@login_required
-def export_gridlines_kml(request):
-    """Export current GridLines to KML format"""
-    try:
-        from django.http import HttpResponse
-        import tempfile
-        import os
-        
-        # Create temporary KML file
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.kml', delete=False) as tmp_file:
-            filename = GridLines.export_all_to_kml(tmp_file.name)
-        
-        # Read the file and return as response
-        with open(filename, 'r', encoding='utf-8') as f:
-            kml_content = f.read()
-        
-        # Clean up temp file
-        os.unlink(filename)
-        
-        response = HttpResponse(kml_content, content_type='application/vnd.google-earth.kml+xml')
-        response['Content-Disposition'] = 'attachment; filename="gridlines.kml"'
-        
-        return response
-        
-    except Exception as e:
-        return JsonResponse({
-            'status': 'error',
-            'message': f'KML export failed: {str(e)}'
-        }, status=500)
 
 @login_required
 def get_grid_line_details(request, grid_line_id):
@@ -819,7 +910,6 @@ def get_facility_details(request, facility_id):
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
 
-
 @login_required
 def get_facility_connections(request, facility_id):
     """Get all grid connections for a specific facility with detailed information"""
@@ -841,21 +931,16 @@ def get_facility_connections(request, facility_id):
             
             if facility.capacity and facility.capacity > 0:
                 try:
-                    if hasattr(conn, 'calculate_connection_losses_mw'):
-                        connection_losses = conn.calculate_connection_losses_mw(float(facility.capacity))
-                    if hasattr(grid_line, 'calculate_line_losses_mw'):
-                        grid_line_losses = grid_line.calculate_line_losses_mw(float(facility.capacity))
-                    total_losses = connection_losses + grid_line_losses
+                    connection_losses = conn.calculate_connection_losses_mw(float(facility.capacity))
+                    grid_line_losses = grid_line.calculate_line_losses_mw(float(facility.capacity))
                 except (AttributeError, TypeError):
                     pass
             
             connection_info = {
                 'connection_id': conn.idfacilitygridconnections,
-                'facility_name': facility.facility_name,
                 'grid_line_id': grid_line.idgridlines,
                 'grid_line_name': grid_line.line_name,
                 'grid_line_code': grid_line.line_code,
-                'grid_line_type': grid_line.line_type,
                 'voltage_level': conn.connection_voltage_kv,
                 'grid_line_voltage': grid_line.voltage_level,
                 'connection_type': conn.connection_type,
@@ -863,12 +948,10 @@ def get_facility_connections(request, facility_id):
                 'distance_km': float(conn.connection_distance_km),
                 'is_primary': conn.is_primary,
                 'active': conn.active,
-                'connection_point_lat': float(conn.connection_point_latitude) if conn.connection_point_latitude else None,
-                'connection_point_lng': float(conn.connection_point_longitude) if conn.connection_point_longitude else None,
                 'connection_losses_mw': round(connection_losses, 3),
                 'grid_line_losses_mw': round(grid_line_losses, 3),
-                'total_losses_mw': round(total_losses, 3),
-                'loss_percentage': round((total_losses / float(facility.capacity)) * 100, 2) if facility.capacity and facility.capacity > 0 else 0
+                'total_losses_mw': round(connection_losses + grid_line_losses, 3),
+                'loss_percentage': round(((connection_losses + grid_line_losses) / float(facility.capacity)) * 100, 2) if facility.capacity and facility.capacity > 0 else 0
             }
             
             connection_data.append(connection_info)
@@ -960,3 +1043,71 @@ def calculate_facility_performance(request, facility_id):
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
     
+@login_required
+def get_technologies(request):
+    techs = Technologies.objects.all().values('idtechnologies', 'technology_name')
+    return JsonResponse(list(techs), safe=False)
+
+@login_required
+def get_grid_lines(request):
+    """Return available grid lines for facility connection with enhanced data"""
+    grid_lines = GridLines.objects.filter(active=True).prefetch_related('connected_facilities').values(
+        'idgridlines', 'line_name', 'line_code', 'line_type', 'voltage_level', 
+        'thermal_capacity_mw', 'from_latitude', 'from_longitude', 'to_latitude', 'to_longitude'
+    )
+    
+    # Add connection counts and utilization
+    enhanced_lines = []
+    for line_data in grid_lines:
+        line = GridLines.objects.get(idgridlines=line_data['idgridlines'])
+        connected_capacity = sum(f.capacity or 0 for f in line.connected_facilities.all())
+        utilization = (connected_capacity / line_data['thermal_capacity_mw']) * 100 if line_data['thermal_capacity_mw'] > 0 else 0
+        
+        line_data.update({
+            'connected_facilities_count': line.connected_facilities.count(),
+            'connected_capacity_mw': connected_capacity,
+            'utilization_percent': round(utilization, 1)
+        })
+        enhanced_lines.append(line_data)
+    
+    return JsonResponse(enhanced_lines, safe=False)
+
+@login_required
+def find_nearest_grid_lines(request):
+    """Find nearest grid lines to a given location with enhanced data"""
+    lat = float(request.GET.get('lat', 0))
+    lon = float(request.GET.get('lon', 0))
+    max_distance = float(request.GET.get('max_distance', 50))
+    
+    if not lat or not lon:
+        return JsonResponse({'error': 'Latitude and longitude required'}, status=400)
+    
+    nearby_lines = []
+    
+    for grid_line in GridLines.objects.filter(active=True).prefetch_related('connected_facilities'):
+        distance, connection_point = find_nearest_grid_line_point(lat, lon, grid_line)
+        
+        if distance <= max_distance:
+            connected_capacity = sum(f.capacity or 0 for f in grid_line.connected_facilities.all())
+            available_capacity = grid_line.thermal_capacity_mw - connected_capacity
+            
+            nearby_lines.append({
+                'idgridlines': grid_line.idgridlines,
+                'line_name': grid_line.line_name,
+                'line_code': grid_line.line_code,
+                'line_type': grid_line.line_type,
+                'voltage_level': grid_line.voltage_level,
+                'thermal_capacity_mw': grid_line.thermal_capacity_mw,
+                'connected_capacity_mw': connected_capacity,
+                'available_capacity_mw': available_capacity,
+                'utilization_percent': round((connected_capacity / grid_line.thermal_capacity_mw) * 100, 1),
+                'distance_km': round(distance, 2),
+                'connection_point_lat': connection_point[0] if connection_point else grid_line.from_latitude,
+                'connection_point_lon': connection_point[1] if connection_point else grid_line.from_longitude,
+                'suitability_score': max(0, 100 - (distance * 2) - (connected_capacity / grid_line.thermal_capacity_mw * 50))
+            })
+    
+    # Sort by suitability score (combination of distance and available capacity)
+    nearby_lines.sort(key=lambda x: x['suitability_score'], reverse=True)
+    
+    return JsonResponse(nearby_lines, safe=False)
