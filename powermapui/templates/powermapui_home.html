@@ -40,8 +40,8 @@
             <button class="btn btn-secondary" type="button" disabled title="Cannot add grid lines to the 'Current' scenario">
                 Add New Grid Line (Disabled)
             </button>
-            <button class="btn btn-secondary" type="button" disabled title="Cannot manage connections in the 'Current' scenario">
-                Manage Connections (Disabled)
+            <button id="manageConnectionsBtn" class="btn btn-info" type="button">
+                Manage Connections
             </button>
             <small class="text-muted d-block mt-1">
                 Select a different scenario to add new facilities and manage connections
@@ -632,7 +632,16 @@ crossorigin=""></script>
         facilityLayer.addTo(map);
         map.invalidateSize();
     }
-    
+
+    function getLineWeightFromVoltage(voltageLevel) {
+        // More controlled weight calculation
+        if (voltageLevel >= 330) return 6;      // Extra high voltage
+        if (voltageLevel >= 220) return 5;      // High voltage  
+        if (voltageLevel >= 132) return 4;      // Medium voltage
+        if (voltageLevel >= 66) return 3;       // Low voltage
+        return 2;                               // Distribution voltage
+    }
+
     // Function to load grid lines on map
     function loadGridLinesOnMap(gridLinesData) {
         
@@ -646,43 +655,48 @@ crossorigin=""></script>
         
         // Process each grid line
         gridLinesData.forEach(function(gridLine, index) {
-            
-            // Determine coordinates for the line
+
+                    // Determine coordinates for the line
             var lineCoords;
             if (gridLine.coordinates && gridLine.coordinates.length > 0) {
                 lineCoords = gridLine.coordinates;
             } else {
-                // Fallback to from/to coordinates
                 lineCoords = [
                     [gridLine.from_latitude, gridLine.from_longitude],
                     [gridLine.to_latitude, gridLine.to_longitude]
                 ];
             }
             
-            // Validate coordinates
             if (!lineCoords || lineCoords.length < 2) {
                 console.warn('Invalid coordinates for grid line:', gridLine.line_name);
-                return; // Skip this grid line
+                return;
             }
             
-            // Determine line style
+            // Calculate utilization
             var utilization = gridLine.total_connected_capacity / gridLine.thermal_capacity_mw;
+            
+            // FIXED: Better line style calculation
+            var baseWeight = getLineWeightFromVoltage(gridLine.voltage_level);
             var lineStyle = gridLine.style || {
                 color: getVoltageColor(gridLine.voltage_level),
-                weight: Math.max(2, Math.min(8, gridLine.voltage_level / 50)),
-                opacity: gridLine.active !== false ? 0.8 : 0.4, // Default to active if not specified
+                weight: baseWeight,  // Use the controlled weight function
+                opacity: gridLine.active !== false ? 0.8 : 0.4,
                 dashArray: gridLine.active !== false ? null : '5, 5'
             };
             
-            // Modify opacity based on utilization
+            // Modify style based on utilization (but keep weight reasonable)
             if (utilization > 0.8) {
                 lineStyle.color = '#dc3545'; // Red for high utilization
-                lineStyle.weight += 1;
+                lineStyle.weight = Math.min(baseWeight + 2, 8); // Cap at 8
             } else if (utilization > 0.6) {
                 lineStyle.color = '#fd7e14'; // Orange for medium utilization
+                lineStyle.weight = Math.min(baseWeight + 1, 7); // Cap at 7
             } else if (utilization > 0.3) {
                 lineStyle.color = '#ffc107'; // Yellow for low utilization
             }
+            
+            // Ensure weight is always reasonable
+            lineStyle.weight = Math.max(2, Math.min(8, lineStyle.weight));
             
             var polyline = L.polyline(lineCoords, lineStyle);
             
@@ -1247,9 +1261,6 @@ crossorigin=""></script>
                 <button onclick="addNewConnection(${facilityData.facility_id})" class="btn btn-success btn-sm">
                     Add New Connection
                 </button>
-                <button onclick="optimizeConnections(${facilityData.facility_id})" class="btn btn-warning btn-sm">
-                    Optimize Connections
-                </button>
             </div>
             
             <div class="connections-list">
@@ -1468,13 +1479,6 @@ crossorigin=""></script>
             console.error('Error removing connection:', error);
             alert('Failed to remove connection');
         });
-    }
-
-    function optimizeConnections(facilityId) {
-        if (!confirm('This will optimize the grid connections for this facility. Continue?')) return;
-        
-        // This would implement connection optimization logic
-        alert('Connection optimization functionality would be implemented here');
     }
 
     function closeConnectionManagement() {
