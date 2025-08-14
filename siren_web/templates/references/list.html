@@ -1,0 +1,139 @@
+<!-- templates/references/list.html -->
+{% extends 'base.html' %}
+
+{% block title %}References List{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1>References</h1>
+    <a href="{% url 'reference_create' %}" class="btn btn-primary">
+        <i class="bi bi-plus-circle"></i> Add Reference
+    </a>
+</div>
+
+<!-- Search and Filter Form -->
+<div class="row mb-4">
+    <div class="col-md-8">
+        <form method="get" class="d-flex">
+            <input type="text" name="search" class="form-control me-2" 
+                   placeholder="Search references..." value="{{ search_query }}">
+            <select name="type" class="form-select me-2" style="width: 150px;">
+                <option value="">All Types</option>
+                {% for value, label in reference_types %}
+                    <option value="{{ value }}" {% if value == ref_type %}selected{% endif %}>
+                        {{ label }}
+                    </option>
+                {% endfor %}
+            </select>
+            <button type="submit" class="btn btn-outline-primary">
+                <i class="bi bi-search"></i>
+            </button>
+            {% if search_query or ref_type %}
+                <a href="{% url 'reference_list' %}" class="btn btn-outline-secondary ms-2">
+                    <i class="bi bi-x-circle"></i>
+                </a>
+            {% endif %}
+        </form>
+    </div>
+</div>
+
+<!-- References List -->
+{% if page_obj %}
+    <div class="row">
+        {% for reference in page_obj %}
+            <div class="col-md-6 mb-3">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <h5 class="card-title">
+                            <a href="{{ reference.get_absolute_url }}" class="text-decoration-none">
+                                {{ reference.source|truncatechars:50 }}
+                            </a>
+                            <span class="badge bg-secondary ms-2">{{ reference.get_reference_type_display }}</span>
+                        </h5>
+                        
+                        {% if reference.title %}
+                            <h6 class="card-subtitle mb-2 text-muted">{{ reference.title }}</h6>
+                        {% endif %}
+                        
+                        {% if reference.author %}
+                            <p class="text-muted mb-1">
+                                <i class="bi bi-person"></i> {{ reference.author }}
+                            </p>
+                        {% endif %}
+                        
+                        {% if reference.notes %}
+                            <p class="card-text">{{ reference.notes|truncatewords:20 }}</p>
+                        {% endif %}
+                        
+                        {% if reference.tags %}
+                            <div class="mb-2">
+                                {% for tag in reference.get_tags_list %}
+                                    <span class="badge bg-light text-dark me-1">#{{ tag }}</span>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                        
+                        <div class="d-flex justify-content-between align-items-center">
+                            <small class="text-muted">
+                                <i class="bi bi-calendar"></i> {{ reference.accessed_date|date:"M j, Y" }}
+                            </small>
+                            <div class="btn-group btn-group-sm">
+                                <a href="{{ reference.get_absolute_url }}" class="btn btn-outline-primary">
+                                    <i class="bi bi-eye"></i>
+                                </a>
+                                <a href="{% url 'reference_update' reference.pk %}" class="btn btn-outline-secondary">
+                                    <i class="bi bi-pencil"></i>
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+
+    <!-- Pagination -->
+    {% if page_obj.has_other_pages %}
+        <nav aria-label="References pagination">
+            <ul class="pagination justify-content-center">
+                {% if page_obj.has_previous %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page=1{% if search_query %}&search={{ search_query }}{% endif %}{% if ref_type %}&type={{ ref_type }}{% endif %}">&laquo; First</a>
+                    </li>
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}{% if ref_type %}&type={{ ref_type }}{% endif %}">&lsaquo; Previous</a>
+                    </li>
+                {% endif %}
+
+                <li class="page-item active">
+                    <span class="page-link">{{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+                </li>
+
+                {% if page_obj.has_next %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}{% if ref_type %}&type={{ ref_type }}{% endif %}">Next &rsaquo;</a>
+                    </li>
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{% if search_query %}&search={{ search_query }}{% endif %}{% if ref_type %}&type={{ ref_type }}{% endif %}">Last &raquo;</a>
+                    </li>
+                {% endif %}
+            </ul>
+        </nav>
+    {% endif %}
+{% else %}
+    <div class="text-center py-5">
+        <i class="bi bi-bookmark-x display-1 text-muted"></i>
+        <h3 class="mt-3">No References Found</h3>
+        <p class="text-muted">
+            {% if search_query %}
+                No references match your search criteria.
+            {% else %}
+                Start by adding your first reference!
+            {% endif %}
+        </p>
+        <a href="{% url 'reference_create' %}" class="btn btn-primary">
+            <i class="bi bi-plus-circle"></i> Add Reference
+        </a>
+    </div>
+{% endif %}
+{% endblock %}

@@ -17,13 +17,19 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import include, path
 from django.contrib.staticfiles.urls import staticfiles_urlpatterns
-from .views import home_views, config_views, help_views
+from .views import home_views, config_views, help_views, reference_views
 
 urlpatterns = [
     path('', home_views.home_view, name='home'),
     path("", include("powermapui.urls")),
     path("", include("powermatchui.urls")),
     path("", include("powerplotui.urls")),
+    path('references', reference_views.reference_list, name='reference_list'),
+    path('references/add/', reference_views.reference_create, name='reference_create'),
+    path('references/<int:pk>/', reference_views.reference_detail, name='reference_detail'),
+    path('references/<int:pk>/edit/', reference_views.reference_update, name='reference_update'),
+    path('references/<int:pk>/delete/', reference_views.reference_delete, name='reference_delete'),
+    path('references/api/search/', reference_views.reference_search_api, name='reference_search_api'),
     path('gendocs/', include('gendocs.urls')),
     path('config_views/', config_views.edit_config, name='edit_config'),
     path('generate-help/', help_views.generate_help_html, name='generate_help_html'),

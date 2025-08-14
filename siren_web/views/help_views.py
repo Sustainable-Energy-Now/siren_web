@@ -115,7 +115,7 @@ def display_help_html(request):
 
 def edit_help_template(request):
     """Allow editing of the help template file"""
-    template_path = os.path.join(settings.MEDIA_ROOT, 'templates', 'help', 'help.md')
+    template_path = os.path.join(settings.MEDIA_ROOT, 'templates', 'help', 'siren_web_manual.md')
     
     if request.method == 'POST':
         try:
@@ -244,7 +244,7 @@ def restore_template_backup(request, backup_filename):
    """Restore a template from backup"""
    if request.method == 'POST':
        try:
-           template_path = os.path.join(settings.MEDIA_ROOT, 'templates', 'help', 'help.md')
+           template_path = os.path.join(settings.MEDIA_ROOT, 'templates', 'help', 'siren_web_manual.md')
            backup_path = os.path.join(os.path.dirname(template_path), 'backups', backup_filename)
            
            if os.path.exists(backup_path):

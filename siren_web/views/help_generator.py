@@ -15,13 +15,13 @@ class SirenWebHelpGenerator:
         self.help_template = self._load_help_template()
 
     def _load_help_template(self) -> str | Template:
-        """Load markdown template from media/templates/help/help.md"""
+        """Load markdown template from media/templates/help/siren_web_manual.md"""
         # Construct the path to the template file
         template_path = os.path.join(
             settings.MEDIA_ROOT, 
             'templates', 
             'help', 
-            'help.md'
+            'siren_web_manual.md'
         )
         
         try:

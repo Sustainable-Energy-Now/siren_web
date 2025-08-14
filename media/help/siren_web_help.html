@@ -1,74 +1,168 @@
-<h1 id="siren-web-user-manual">Siren-Web User Manual</h1>
-<h2 id="interactive-map-interface-for-renewable-energy-planning">Interactive Map Interface for Renewable Energy Planning</h2>
+<h1 id="siren-web-user-manual">Siren Web User Manual</h1>
+<h2 id="complete-guide-to-renewable-energy-modeling-system">Complete Guide to Renewable Energy Modeling System</h2>
 <hr />
 <h2 id="table-of-contents">Table of Contents</h2>
 <ol>
+<li><a href="#system-overview">System Overview</a></li>
 <li><a href="#getting-started">Getting Started</a></li>
-<li><a href="#map-navigation">Map Navigation</a></li>
-<li><a href="#scenario-management">Scenario Management</a></li>
-<li><a href="#viewing-facilities">Viewing Facilities</a></li>
-<li><a href="#grid-line-management">Grid Line Management</a></li>
-<li><a href="#adding-new-facilities">Adding New Facilities</a></li>
-<li><a href="#adding-new-grid-lines">Adding New Grid Lines</a></li>
-<li><a href="#advanced-features">Advanced Features</a></li>
+<li><a href="#main-interface">Main Interface</a></li>
+<li><a href="#system-navigation">System Navigation</a></li>
+<li><a href="#powermap-module">Powermap Module</a></li>
+<li><a href="#powermatch-module">Powermatch Module</a></li>
+<li><a href="#powerplot-module">Powerplot Module</a></li>
+<li><a href="#technical-features">Technical Features</a></li>
 <li><a href="#troubleshooting">Troubleshooting</a></li>
+<li><a href="#support-and-further-information">Support and Further Information</a></li>
 </ol>
 <hr />
+<h2 id="system-overview">System Overview</h2>
+<p>Siren Web is a web-based interface for the Siren renewable energy modeling application. Siren is an open-source Python application designed for modeling renewable energy systems within the South West Interconnected System (SWIS). The system provides comprehensive tools for energy planning through three main modules: Powermap, Powermatch, and Powerplot.</p>
+<h3 id="core-modules">Core Modules</h3>
+<ul>
+<li><strong>Powermap</strong>: Interactive mapping tool for modeling renewable energy generation and infrastructure</li>
+<li><strong>Powermatch</strong>: Power supply and demand matching algorithms and analysis</li>
+<li><strong>Powerplot</strong>: Visualization and plotting tools for modeling results</li>
+</ul>
+<hr />
 <h2 id="getting-started">Getting Started</h2>
-<p>Siren-Web is an interactive mapping tool for modeling renewable energy generation in the South West Interconnected System (SWIS). It integrates with the System Advisor Model (SAM) to provide comprehensive energy planning capabilities.</p>
+<h3 id="system-requirements">System Requirements</h3>
+<ul>
+<li>Web browser with JavaScript enabled</li>
+<li>Internet connection</li>
+<li>Valid user credentials (membership-based access)</li>
+</ul>
+<h3 id="access-levels">Access Levels</h3>
+<p>Siren Web implements a membership-based access system with three tiers:</p>
+<ul>
+<li><strong>Active Member</strong>: Full access to all features and data</li>
+<li><strong>Lapsed Member</strong>: Limited access to system functionality  </li>
+<li><strong>Subscriber/Non-member</strong>: Basic access with restricted features</li>
+</ul>
+<p>Access is automatically granted based on membership status when accessing the system through the appropriate authentication flow.</p>
 <h3 id="initial-setup">Initial Setup</h3>
 <ol>
-<li><strong>Login</strong> to the SIREN system</li>
-<li><strong>Navigate</strong> to the Siren-Web module</li>
-<li><strong>Select</strong> a demand year and scenario to begin</li>
+<li><strong>Login</strong> to the Siren Web system</li>
+<li><strong>Review</strong> your access level and available modules</li>
+<li><strong>Select</strong> appropriate demand year and scenario settings</li>
+<li><strong>Navigate</strong> to desired module (Powermap, Powermatch, or Powerplot)</li>
 </ol>
-<h3 id="understanding-the-interface">Understanding the Interface</h3>
-<p>The Siren-Web interface consists of:
+<hr />
+<h2 id="main-interface">Main Interface</h2>
+<h3 id="home-page-layout">Home Page Layout</h3>
+<p>The main interface displays:</p>
+<ol>
+<li><strong>System Information Panel</strong>: Shows current configuration settings</li>
+<li><strong>Demand Year</strong>: The year being used for demand modeling</li>
+<li><strong>Scenario</strong>: Currently selected modeling scenario</li>
+<li>
+<p><strong>Config</strong>: Active configuration file</p>
+</li>
+<li>
+<p><strong>Interactive System Architecture Diagram</strong>: A clickable diagram showing the Siren system components</p>
+</li>
+<li>
+<p><strong>Module Navigation</strong>: Quick access to the three main analysis modules</p>
+</li>
+</ol>
+<h3 id="current-session-settings">Current Session Settings</h3>
+<p>The settings panel at the top of the page displays your current modeling parameters:</p>
+<p><code>Demand Year: [Year]
+Scenario: [Scenario Name]
+Config: [Configuration File]</code></p>
+<p>These settings persist throughout your session and affect how the system processes your requests across all modules.</p>
+<hr />
+<h2 id="system-navigation">System Navigation</h2>
+<h3 id="interactive-system-diagram">Interactive System Diagram</h3>
+<h4 id="overview">Overview</h4>
+<p>The main feature of Siren Web is an interactive diagram that illustrates the system architecture. This diagram contains clickable areas (hotspots) that provide detailed information about each component.</p>
+<h4 id="available-components">Available Components</h4>
+<p>Click on any of the following components to view detailed information:</p>
+<p><strong>Database Tables</strong>
+- <strong>Demand</strong>: Load demand data and forecasting information
+- <strong>Weather</strong>: Meteorological data used for renewable energy calculations
+- <strong>Facilities</strong>: Power generation and storage facility specifications
+- <strong>Scenarios</strong>: Different modeling scenarios and assumptions
+- <strong>Technologies</strong>: Technology specifications and parameters
+- <strong>SupplyFactors</strong>: Resource availability and capacity factors
+- <strong>Variations</strong>: Parameter variations for sensitivity analysis</p>
+<p><strong>Analysis Modules</strong>
+- <strong>Powermap</strong>: Geographic mapping of power resources and infrastructure
+- <strong>Powermatch</strong>: Power supply and demand matching algorithms
+- <strong>Powerplot</strong>: Visualization and plotting tools for results
+- <strong>SAM</strong>: System Advisor Model integration
+- <strong>MAP</strong>: Geographic information system components
+- <strong>Optimisation</strong>: Optimization algorithms and parameters
+- <strong>Analysis</strong>: Results analysis and reporting tools</p>
+<h4 id="using-the-interactive-diagram">Using the Interactive Diagram</h4>
+<ol>
+<li><strong>Click on any component</strong> in the diagram to view its details</li>
+<li>A <strong>modal window</strong> will appear displaying:</li>
+<li>Component name and description</li>
+<li>Database structure (for data tables)</li>
+<li>Sample data (first 5 rows)</li>
+<li>
+<p>Column definitions</p>
+</li>
+<li>
+<p><strong>Close the modal</strong> by clicking the X button or clicking outside the modal area</p>
+</li>
+</ol>
+<h4 id="component-information-display">Component Information Display</h4>
+<p>When you click on a component, you'll see:</p>
+<ul>
+<li><strong>Model Name</strong>: The technical name of the component</li>
+<li><strong>Description</strong>: Detailed explanation of the component's purpose and function</li>
+<li><strong>Data Structure</strong>: </li>
+<li>Column names and their purposes</li>
+<li>Sample data showing the format and typical values</li>
+<li>Up to 5 example rows from the database</li>
+</ul>
+<hr />
+<h2 id="powermap-module">Powermap Module</h2>
+<h3 id="overview_1">Overview</h3>
+<p>Powermap is an interactive mapping tool for modeling renewable energy generation in the South West Interconnected System (SWIS). It integrates with the System Advisor Model (SAM) to provide comprehensive energy planning capabilities.</p>
+<h3 id="interface-components">Interface Components</h3>
+<p>The Powermap interface consists of:
 - <strong>Control Panel</strong>: Top section for scenario selection and facility management
 - <strong>Interactive Map</strong>: Central map showing facilities, grid lines, and infrastructure
 - <strong>Layer Controls</strong>: Toggle different map layers (boundaries, zones, facilities, grid lines)</p>
-<hr />
-<h2 id="map-navigation">Map Navigation</h2>
-<h3 id="basic-navigation">Basic Navigation</h3>
+<h3 id="map-navigation">Map Navigation</h3>
+<h4 id="basic-navigation">Basic Navigation</h4>
 <ul>
 <li><strong>Pan</strong>: Click and drag to move around the map</li>
 <li><strong>Zoom</strong>: Use mouse wheel or zoom controls (+/-) </li>
 <li><strong>Reset View</strong>: Double-click to reset to default zoom level</li>
 </ul>
-<h3 id="map-layers">Map Layers</h3>
+<h4 id="map-layers">Map Layers</h4>
 <p>Use the layer control panel (top-right of map) to toggle:
 - ✅ <strong>SWIS Boundary</strong>: Regional boundary overlay
 - ✅ <strong>Zones</strong>: Planning zones within SWIS
 - ✅ <strong>Grid Facilities</strong>: Power generation facilities
 - ✅ <strong>Grid Lines</strong>: Transmission and distribution infrastructure</p>
-<h3 id="visual-elements">Visual Elements</h3>
-<ul>
-<li><strong>Facility Icons</strong>: Different colored icons represent various technologies:</li>
-<li>🔴 Coal plants</li>
-<li>🟡 Solar installations</li>
-<li>🔵 Wind farms  </li>
-<li>🟢 Battery storage</li>
-<li>🟠 Gas plants</li>
-<li>
-<p>🟣 Other technologies</p>
-</li>
-<li>
-<p><strong>Grid Lines</strong>: Color-coded by voltage level:</p>
-</li>
-<li><strong>Red</strong>: 330kV+ (High voltage transmission)</li>
-<li><strong>Cyan</strong>: 220kV (Sub-transmission)</li>
-<li><strong>Orange</strong>: 132kV (Distribution)</li>
-<li><strong>Yellow</strong>: &lt;66kV (Local distribution)</li>
-</ul>
-<hr />
-<h2 id="scenario-management">Scenario Management</h2>
-<h3 id="selecting-a-scenario">Selecting a Scenario</h3>
+<h4 id="visual-elements">Visual Elements</h4>
+<p><strong>Facility Icons</strong>: Different colored icons represent various technologies:
+- ⚫ Coal (coal.png)
+- 🌞 Solar PV (solar.png)
+- 💨 Wind (wind.png) 
+- 🔋 Battery Storage (bess.png)
+- 🏭 Reciprocating Engine (RECIP.png)
+- ⚡ Combined Cycle Gas Turbine (CCGT.png)
+- 🌱 Biomass (biomass.png)
+- 💧 Pumped Hydro Storage (PHES.png)
+- ⚙️ Default/Other (power_technology.png)</p>
+<p><strong>Grid Lines</strong>: Color-coded by voltage level:
+- <strong>Red</strong>: 330kV+ (High voltage transmission)
+- <strong>Cyan</strong>: 220kV (Sub-transmission)
+- <strong>Orange</strong>: 132kV (Distribution)
+- <strong>Yellow</strong>: &lt;66kV (Local distribution)</p>
+<h3 id="scenario-management">Scenario Management</h3>
+<h4 id="selecting-a-scenario">Selecting a Scenario</h4>
 <ol>
 <li>Use the <strong>Demand Year</strong> dropdown to select the planning year</li>
 <li>Choose a <strong>Scenario</strong> from the available options</li>
 <li>Click <strong>Apply Settings</strong> to load the scenario data</li>
 </ol>
-<h3 id="scenario-types">Scenario Types</h3>
+<h4 id="scenario-types">Scenario Types</h4>
 <ul>
 <li><strong>Current</strong>: Existing infrastructure (read-only, no additions allowed)</li>
 <li><strong>Planning Scenarios</strong>: Modifiable scenarios for future planning</li>
@@ -77,192 +171,162 @@
 <blockquote>
 <p><strong>Note</strong>: You cannot add facilities or grid lines to the "Current" scenario. Select a different scenario to add new infrastructure.</p>
 </blockquote>
-<hr />
-<h2 id="viewing-facilities">Viewing Facilities</h2>
-<h3 id="basic-facility-information">Basic Facility Information</h3>
+<h3 id="viewing-facilities">Viewing Facilities</h3>
+<h4 id="basic-facility-information">Basic Facility Information</h4>
 <ul>
 <li><strong>Hover</strong> over any facility icon to see basic information in a tooltip</li>
 <li><strong>Click</strong> on a facility icon to open detailed information</li>
 </ul>
-<h3 id="facility-details-modal">Facility Details Modal</h3>
+<h4 id="facility-details-modal">Facility Details Modal</h4>
 <p>When you click on a facility, a detailed modal window opens showing:</p>
-<h4 id="basic-information">Basic Information</h4>
-<ul>
-<li>Facility name and code</li>
-<li>Technology type and capacity (MW)</li>
-<li>Operational status (Active/Inactive)</li>
-<li>Commission and decommission dates</li>
-<li>Location coordinates</li>
-</ul>
-<h4 id="technical-specifications">Technical Specifications</h4>
-<p><strong>For Wind Facilities:</strong>
+<p><strong>Basic Information</strong>
+- Facility name and code
+- Technology type and capacity (MW)
+- Operational status (Active/Inactive)
+- Commission and decommission dates
+- Location coordinates</p>
+<p><strong>Technical Specifications</strong></p>
+<p><em>For Wind Facilities:</em>
 - Turbine model and specifications
 - Hub height and number of turbines
 - Rotor tilt angle and diameter
 - Capacity per turbine</p>
-<p><strong>For Solar Facilities:</strong>
+<p><em>For Solar Facilities:</em>
 - Panel tilt and azimuth angles
 - Tracking system type
 - Inverter efficiency ratings</p>
-<p><strong>For Battery Storage:</strong>
+<p><em>For Battery Storage:</em>
 - Storage capacity (MWh)
 - Round-trip efficiency
 - Charge/discharge rates
 - State of charge limits</p>
-<p><strong>For Thermal Plants:</strong>
+<p><em>For Thermal Plants:</em>
 - Heat rate and fuel type
 - Emission factors
 - Minimum load factors</p>
-<h4 id="grid-connections">Grid Connections</h4>
-<ul>
-<li>Connected transmission lines</li>
-<li>Connection voltage levels</li>
-<li>Distance to grid connection points</li>
-<li>Primary vs. secondary connections</li>
-<li>Calculated transmission losses</li>
-</ul>
-<h4 id="economic-data">Economic Data</h4>
-<ul>
-<li>Capital expenditure (CAPEX)</li>
-<li>Operating expenditure (OPEX) </li>
-<li>Project lifetime and discount rates</li>
-</ul>
-<h4 id="performance-metrics">Performance Metrics</h4>
-<ul>
-<li>Capacity factor and annual output</li>
-<li>System availability</li>
-<li>Performance ratios</li>
-</ul>
-<h3 id="facility-actions">Facility Actions</h3>
+<p><strong>Grid Connections</strong>
+- Connected transmission lines
+- Connection voltage levels
+- Distance to grid connection points
+- Primary vs. secondary connections
+- Calculated transmission losses</p>
+<p><strong>Economic Data</strong>
+- Capital expenditure (CAPEX)
+- Operating expenditure (OPEX) 
+- Project lifetime and discount rates</p>
+<p><strong>Performance Metrics</strong>
+- Capacity factor and annual output
+- System availability
+- Performance ratios</p>
+<h4 id="facility-actions">Facility Actions</h4>
 <p>From the facility details modal, you can:
 - <strong>Show on Map</strong>: Center the map on the facility with highlighting
 - <strong>Calculate Losses</strong>: View detailed transmission loss calculations
 - <strong>Edit Facility</strong>: Modify facility parameters (if permissions allow)</p>
-<hr />
-<h2 id="grid-line-management">Grid Line Management</h2>
-<h3 id="viewing-grid-lines">Viewing Grid Lines</h3>
+<h3 id="grid-line-management">Grid Line Management</h3>
+<h4 id="viewing-grid-lines">Viewing Grid Lines</h4>
 <ul>
 <li>Grid lines appear as colored lines based on voltage level</li>
 <li><strong>Click</strong> on any grid line to view detailed information</li>
 <li>Use <strong>Toggle Grid Line Labels</strong> button to show/hide line names</li>
 </ul>
-<h3 id="grid-line-details-modal">Grid Line Details Modal</h3>
+<h4 id="grid-line-details-modal">Grid Line Details Modal</h4>
 <p>Clicking on a grid line opens a detailed modal showing:</p>
-<h4 id="technical-specifications_1">Technical Specifications</h4>
-<ul>
-<li>Line name, code, and voltage level</li>
-<li>Line type (transmission, sub-transmission, distribution)</li>
-<li>Length and thermal capacity</li>
-<li>Electrical characteristics (resistance, reactance, impedance)</li>
-</ul>
-<h4 id="connected-facilities">Connected Facilities</h4>
-<ul>
-<li>List of all facilities connected to the line</li>
-<li>Connection distances and capacity allocations</li>
-<li>Primary vs. secondary connection indicators</li>
-</ul>
-<h4 id="performance-data">Performance Data</h4>
-<ul>
-<li>Current utilization levels</li>
-<li>Transmission losses at full capacity</li>
-<li>Emergency capacity ratings</li>
-</ul>
-<h4 id="operational-information">Operational Information</h4>
-<ul>
-<li>Owner and commissioning date</li>
-<li>Maintenance status and operational history</li>
-</ul>
-<hr />
-<h2 id="adding-new-facilities">Adding New Facilities</h2>
+<p><strong>Technical Specifications</strong>
+- Line name, code, and voltage level
+- Line type (transmission, sub-transmission, distribution)
+- Length and thermal capacity
+- Electrical characteristics (resistance, reactance, impedance)</p>
+<p><strong>Connected Facilities</strong>
+- List of all facilities connected to the line
+- Connection distances and capacity allocations
+- Primary vs. secondary connection indicators</p>
+<p><strong>Performance Data</strong>
+- Current utilization levels
+- Transmission losses at full capacity
+- Emergency capacity ratings</p>
+<p><strong>Operational Information</strong>
+- Owner and commissioning date
+- Maintenance status and operational history</p>
+<h3 id="adding-new-facilities">Adding New Facilities</h3>
 <blockquote>
 <p><strong>Prerequisites</strong>: Select a modifiable scenario (not "Current")</p>
 </blockquote>
-<h3 id="starting-the-process">Starting the Process</h3>
+<h4 id="starting-the-process">Starting the Process</h4>
 <ol>
 <li>Click <strong>Add New Facility</strong> button</li>
 <li>The button changes to "Cancel Add Facility" and your cursor becomes a crosshair</li>
 <li>Click on the map to select the facility location</li>
 </ol>
-<h3 id="facility-configuration">Facility Configuration</h3>
-<h4 id="basic-settings">Basic Settings</h4>
-<ol>
-<li><strong>Facility Name</strong>: Enter a descriptive name</li>
-<li><strong>Technology</strong>: Select from available technology types</li>
-<li><strong>Capacity</strong>: Enter capacity in megawatts (MW)</li>
-</ol>
-<h4 id="location-selection">Location Selection</h4>
-<ul>
-<li>Click anywhere on the map to set facility coordinates</li>
-<li>Coordinates are displayed and can be verified</li>
-<li>A temporary marker shows the selected location</li>
-</ul>
-<h4 id="grid-connection-options">Grid Connection Options</h4>
+<h4 id="facility-configuration">Facility Configuration</h4>
+<p><strong>Basic Settings</strong>
+1. <strong>Facility Name</strong>: Enter a descriptive name
+2. <strong>Technology</strong>: Select from available technology types
+3. <strong>Capacity</strong>: Enter capacity in megawatts (MW)</p>
+<p><strong>Location Selection</strong>
+- Click anywhere on the map to set facility coordinates
+- Coordinates are displayed and can be verified
+- A temporary marker shows the selected location</p>
+<p><strong>Grid Connection Options</strong></p>
 <p>Choose one of three connection methods:</p>
-<p><strong>Auto-connect to nearest grid line</strong> (Recommended)
+<p><em>Auto-connect to nearest grid line</em> (Recommended)
 - System automatically finds the closest suitable grid line
 - Shows nearby grid lines with distances and capacities</p>
-<p><strong>Select existing grid line</strong>
+<p><em>Select existing grid line</em>
 - Choose from a dropdown of available grid lines
 - View technical specifications before selection</p>
-<p><strong>Create new grid line</strong>
+<p><em>Create new grid line</em>
 - System creates a basic connection line
 - Useful for remote locations without nearby infrastructure</p>
-<h4 id="wind-turbine-specific-settings">Wind Turbine Specific Settings</h4>
+<p><strong>Wind Turbine Specific Settings</strong></p>
 <p>For wind facilities, additional fields appear:
 - <strong>Turbine Model</strong>: Select from available turbine types
 - <strong>Hub Height</strong>: Height from ground to hub (meters)
 - <strong>Number of Turbines</strong>: Total turbine count
 - <strong>Tilt</strong>: Rotor tilt angle (typically 5° onshore, 0° offshore)</p>
-<h3 id="completing-the-process">Completing the Process</h3>
+<h4 id="completing-the-process">Completing the Process</h4>
 <ol>
 <li>Fill in all required fields</li>
 <li>Click <strong>Save Facility</strong> to create the facility</li>
 <li>The new facility appears immediately on the map</li>
 <li>Success message confirms creation and grid connection details</li>
 </ol>
-<h3 id="canceling">Canceling</h3>
+<h4 id="canceling">Canceling</h4>
 <ul>
 <li>Click <strong>Cancel Add Facility</strong> to exit without saving</li>
 <li>This removes temporary markers and resets the form</li>
 </ul>
-<hr />
-<h2 id="adding-new-grid-lines">Adding New Grid Lines</h2>
+<h3 id="adding-new-grid-lines">Adding New Grid Lines</h3>
 <blockquote>
 <p><strong>Prerequisites</strong>: Select a modifiable scenario (not "Current")</p>
 </blockquote>
-<h3 id="starting-the-process_1">Starting the Process</h3>
+<h4 id="starting-the-process_1">Starting the Process</h4>
 <ol>
 <li>Click <strong>Add New Grid Line</strong> button</li>
 <li>The button changes to "Cancel Add Grid Line" and your cursor becomes a crosshair</li>
 <li>Click two points on the map to define the line endpoints</li>
 </ol>
-<h3 id="grid-line-configuration">Grid Line Configuration</h3>
-<h4 id="basic-information_1">Basic Information</h4>
-<ul>
-<li><strong>Line Name</strong>: Descriptive name for the transmission line</li>
-<li><strong>Line Code</strong>: Short code identifier</li>
-<li><strong>Line Type</strong>: Choose from transmission, sub-transmission, or distribution</li>
-</ul>
-<h4 id="technical-specifications_2">Technical Specifications</h4>
-<ul>
-<li><strong>Voltage Level</strong>: Operating voltage in kilovolts (kV)</li>
-<li><strong>Thermal Capacity</strong>: Maximum power transfer capacity (MW)</li>
-<li><strong>Resistance</strong>: Electrical resistance per kilometer (Ω/km)</li>
-</ul>
-<h4 id="endpoint-definition">Endpoint Definition</h4>
-<ol>
-<li><strong>First Click</strong>: Sets the starting point of the line</li>
-<li><strong>Second Click</strong>: Sets the ending point of the line</li>
-<li><strong>Automatic Calculation</strong>: System calculates line length and displays coordinates</li>
-</ol>
-<h3 id="visual-feedback">Visual Feedback</h3>
+<h4 id="grid-line-configuration">Grid Line Configuration</h4>
+<p><strong>Basic Information</strong>
+- <strong>Line Name</strong>: Descriptive name for the transmission line
+- <strong>Line Code</strong>: Short code identifier
+- <strong>Line Type</strong>: Choose from transmission, sub-transmission, or distribution</p>
+<p><strong>Technical Specifications</strong>
+- <strong>Voltage Level</strong>: Operating voltage in kilovolts (kV)
+- <strong>Thermal Capacity</strong>: Maximum power transfer capacity (MW)
+- <strong>Resistance</strong>: Electrical resistance per kilometer (Ω/km)</p>
+<p><strong>Endpoint Definition</strong>
+1. <strong>First Click</strong>: Sets the starting point of the line
+2. <strong>Second Click</strong>: Sets the ending point of the line
+3. <strong>Automatic Calculation</strong>: System calculates line length and displays coordinates</p>
+<h4 id="visual-feedback">Visual Feedback</h4>
 <ul>
 <li>First endpoint shows a marker labeled "Grid Line Start Point"</li>
 <li>Second endpoint shows a marker labeled "Grid Line End Point"  </li>
 <li>A dashed red line connects the two points</li>
 <li>Length is automatically calculated and displayed</li>
 </ul>
-<h3 id="completing-the-process_1">Completing the Process</h3>
+<h4 id="completing-the-process_1">Completing the Process</h4>
 <ol>
 <li>Define both endpoints by clicking on the map</li>
 <li>Fill in all technical specifications</li>
@@ -270,60 +334,496 @@
 <li>The new grid line appears on the map with appropriate styling</li>
 <li>Grid line becomes available for facility connections</li>
 </ol>
-<h3 id="canceling_1">Canceling</h3>
+<h4 id="canceling_1">Canceling</h4>
 <ul>
 <li>Click <strong>Cancel Add Grid Line</strong> to exit without saving</li>
 <li>This removes all temporary markers and lines</li>
 </ul>
-<hr />
-<h2 id="advanced-features">Advanced Features</h2>
-<h3 id="grid-line-labels">Grid Line Labels</h3>
+<h3 id="advanced-powermap-features">Advanced Powermap Features</h3>
+<h4 id="grid-line-labels">Grid Line Labels</h4>
 <ul>
 <li>Click <strong>Toggle Grid Line Labels</strong> to show/hide line names on the map</li>
 <li>Labels appear at the midpoint of each grid line</li>
 <li>Useful for identifying specific transmission corridors</li>
 </ul>
-<h3 id="layer-management">Layer Management</h3>
+<h4 id="layer-management">Layer Management</h4>
 <p>Use the layer control to customize your view:
 - Toggle facility visibility to focus on grid infrastructure
 - Hide boundary layers for cleaner facility views
 - Combine different layers for comprehensive planning views</p>
-<h3 id="loss-calculations">Loss Calculations</h3>
+<h4 id="loss-calculations">Loss Calculations</h4>
 <p>Access detailed transmission loss analysis:
 1. Click on any facility to open details modal
 2. Click <strong>Calculate Losses</strong> button
 3. View breakdown of connection losses vs. line losses
 4. See percentage losses relative to facility capacity</p>
-<h3 id="nearby-infrastructure-analysis">Nearby Infrastructure Analysis</h3>
+<h4 id="nearby-infrastructure-analysis">Nearby Infrastructure Analysis</h4>
 <p>When placing new facilities:
 - System automatically identifies nearby grid lines
 - Distance and capacity information helps with siting decisions
 - Transmission constraints are highlighted</p>
-<h3 id="performance-metrics_1">Performance Metrics</h3>
+<h4 id="performance-metrics">Performance Metrics</h4>
 <p>For existing facilities, view:
 - Historical capacity factors
 - Annual energy output projections
 - Grid connection utilization rates
 - Environmental impact assessments</p>
 <hr />
+<h2 id="powermatch-module">Powermatch Module</h2>
+<h3 id="overview_2">Overview</h3>
+<p>PowerMatch is a web-based interface for matching and balancing Renewable Energy resources to the load on the South West Interconnected System (SWIS). The application quantifies and costs dispatchable energy generation, storage, and CO2-e emissions by taking input from Powermap load and generation data.</p>
+<h3 id="key-features">Key Features</h3>
+<ul>
+<li><strong>Renewable Energy Matching</strong>: Balance renewable resources with system load</li>
+<li><strong>Cost Analysis</strong>: Calculate levelised cost of energy (LCOE)</li>
+<li><strong>Emissions Tracking</strong>: Quantify CO2-e emissions</li>
+<li><strong>Scenario Analysis</strong>: Create and compare different energy scenarios</li>
+<li><strong>Real-time Progress</strong>: Monitor analysis progress with live updates</li>
+</ul>
+<h3 id="navigation-overview">Navigation Overview</h3>
+<p>The PowerMatch interface consists of four main sections:
+1. <strong>Home</strong>: Scenario and demand year selection
+2. <strong>Merit Order</strong>: Configure technology dispatch priority
+3. <strong>Baseline Scenario</strong>: Set parameters and run analysis
+4. <strong>Variations</strong>: Create and analyze scenario variants</p>
+<h3 id="home-page-scenario-selection">Home Page - Scenario Selection</h3>
+<h4 id="purpose">Purpose</h4>
+<p>The home page allows you to select the demand year and scenario that will be used throughout your PowerMatch session. This selection is a prerequisite for all other functions.</p>
+<h4 id="steps-to-configure">Steps to Configure</h4>
+<ol>
+<li><strong>Select Demand Year</strong>: Choose from available demand years in the dropdown</li>
+<li><strong>Select Scenario</strong>: Choose the scenario you want to analyze</li>
+<li><strong>Apply Settings</strong>: Click the "Apply Settings" button to confirm your selection</li>
+</ol>
+<h4 id="important-notes">Important Notes</h4>
+<ul>
+<li>Both demand year and scenario must be specified before proceeding</li>
+<li>The selected scenario becomes the basis for all subsequent analysis</li>
+<li>Data availability depends on what has been imported from Powermap</li>
+</ul>
+<h3 id="merit-order-configuration">Merit Order Configuration</h3>
+<h4 id="purpose_1">Purpose</h4>
+<p>The merit order determines the dispatch priority of different energy technologies. Technologies higher in the list are dispatched first when demand needs to be met.</p>
+<h4 id="interface-components_1">Interface Components</h4>
+<p><strong>Merit Order Panel (Left Side)</strong>
+- <strong>Active Technologies</strong>: Technologies that will be used in the analysis
+- <strong>Drag and Drop</strong>: Reorder technologies by dragging items up or down
+- <strong>Color Coding</strong>: Each technology has a color based on emissions characteristics</p>
+<p><strong>Excluded Resources Panel (Right Side)</strong>
+- <strong>Excluded Technologies</strong>: Technologies not included in the current analysis
+- <strong>Move Between Lists</strong>: Drag technologies between merit order and excluded lists</p>
+<h4 id="how-to-configure-merit-order">How to Configure Merit Order</h4>
+<ol>
+<li><strong>Reorder Technologies</strong>:</li>
+<li>Click and drag technology items within the Merit Order list</li>
+<li>Higher position = higher dispatch priority</li>
+<li>
+<p>Lower emissions technologies typically go higher</p>
+</li>
+<li>
+<p><strong>Include/Exclude Technologies</strong>:</p>
+</li>
+<li>Drag technologies between "Merit Order" and "Excluded Resources" lists</li>
+<li>
+<p>Only technologies in the Merit Order list will be used in analysis</p>
+</li>
+<li>
+<p><strong>Save Configuration</strong>:</p>
+</li>
+<li>Click "Save Merit Order" button to save your configuration</li>
+<li>Page will reload to confirm changes</li>
+</ol>
+<h4 id="best-practices">Best Practices</h4>
+<ul>
+<li>Place renewable technologies (solar, wind) at the top</li>
+<li>Order by emissions intensity (lowest first)</li>
+<li>Consider economic dispatch order for conventional technologies</li>
+</ul>
+<h3 id="baseline-scenario-management">Baseline Scenario Management</h3>
+<h4 id="purpose_2">Purpose</h4>
+<p>The baseline scenario establishes the foundation for your analysis by setting technology capacities, carbon pricing, and discount rates.</p>
+<h4 id="configuration-parameters">Configuration Parameters</h4>
+<p><strong>Economic Settings</strong>
+- <strong>Carbon Price</strong>: Set the carbon price ($/tonne CO2-e) for emissions costing
+- <strong>Discount Rate</strong>: Set the discount rate (%) for economic calculations</p>
+<p><strong>Technology Capacity Settings</strong>
+For each technology, you can configure:
+- <strong>Capacity</strong>: Base capacity in MW or MWh (read-only, from Powermap data)
+- <strong>Multiplier</strong>: Factor to scale the base capacity (editable)
+- <strong>Effective Capacity</strong>: Calculated result (Capacity × Multiplier)</p>
+<h4 id="setting-up-a-baseline">Setting Up a Baseline</h4>
+<ol>
+<li><strong>Configure Economic Parameters</strong>:</li>
+<li>Enter carbon price in the designated field</li>
+<li>
+<p>Set appropriate discount rate</p>
+</li>
+<li>
+<p><strong>Adjust Technology Multipliers</strong>:</p>
+</li>
+<li>Click in multiplier fields to edit values</li>
+<li>Use multipliers to scale technologies up or down from base capacity</li>
+<li>
+<p>Effective capacity updates automatically</p>
+</li>
+<li>
+<p><strong>Save Parameters</strong>:</p>
+</li>
+<li>Click "Save Runtime Parameters" to store your configuration</li>
+</ol>
+<h4 id="running-analysis">Running Analysis</h4>
+<p><strong>Standard Analysis</strong>
+- <strong>Quick Run</strong>: Click "Run Standard Analysis" for immediate results
+- <strong>No Progress Tracking</strong>: Analysis runs in background
+- <strong>Direct Results</strong>: Redirects to results page when complete</p>
+<p><strong>Progress Tracking Analysis</strong>
+- <strong>Real-time Updates</strong>: Click "Run with Progress Tracking"
+- <strong>Live Progress Bar</strong>: Shows completion percentage
+- <strong>Time Estimates</strong>: Displays elapsed and remaining time
+- <strong>Connection Status</strong>: Shows real-time connection status</p>
+<p><strong>Level of Detail Options</strong>
+- Choose analysis detail level from dropdown
+- Higher detail = more accurate results but longer processing time
+- Select "Save baseline" checkbox to store results for future use</p>
+<h4 id="analysis-controls">Analysis Controls</h4>
+<ul>
+<li><strong>Cancel</strong>: Stop running analysis at any time</li>
+<li><strong>Progress Panel</strong>: Shows real-time status and timing</li>
+<li><strong>Connection Status</strong>: Monitors live data feed</li>
+</ul>
+<h3 id="variations-and-analysis">Variations and Analysis</h3>
+<h4 id="purpose_3">Purpose</h4>
+<p>Variations allow you to explore different scenarios by systematically changing technology parameters and comparing results.</p>
+<h4 id="creating-variations">Creating Variations</h4>
+<p><strong>Prerequisites</strong>
+- Must have a baseline scenario established
+- Select existing variant or choose "Create a new variant"</p>
+<p><strong>Configuration Steps</strong>
+1. <strong>Select Variant</strong>: Choose existing variant or create new one
+2. <strong>Refresh Settings</strong>: Click "Refresh" to load variant parameters
+3. <strong>Set Analysis Parameters</strong>:
+   - <strong>Number of Stages</strong>: How many analysis steps to run
+   - <strong>Step Value</strong>: Increment for parameter changes
+   - <strong>Technology Selection</strong>: Choose which technology to vary</p>
+<p><strong>Technology Parameter Variation</strong>
+- <strong>Expand Technology</strong>: Click down arrow to show technology options
+- <strong>Set Step Change</strong>: Enter the increment value for each stage
+- <strong>Submit Analysis</strong>: Click "Submit" to run variation analysis</p>
+<h4 id="understanding-variations">Understanding Variations</h4>
+<ul>
+<li><strong>Iterative Analysis</strong>: PowerMatch runs multiple times with different parameters</li>
+<li><strong>Systematic Changes</strong>: One technology parameter changes by step value each iteration</li>
+<li><strong>Comparative Results</strong>: Results stored for plotting and comparison</li>
+<li><strong>Unique Naming</strong>: Each variation gets automatically generated unique name</li>
+</ul>
+<h4 id="best-practices_1">Best Practices</h4>
+<ul>
+<li>Start with small step changes to understand sensitivity</li>
+<li>Focus on technologies with significant impact on outcomes</li>
+<li>Use variations to optimize for specific goals (emissions, cost, reliability)</li>
+</ul>
+<h3 id="progress-tracking">Progress Tracking</h3>
+<h4 id="real-time-monitoring-features">Real-time Monitoring Features</h4>
+<p><strong>Connection Status Indicators</strong>
+- <strong>Connected</strong> (Green): Receiving real-time updates
+- <strong>Connecting</strong> (Orange): Establishing connection
+- <strong>Disconnected</strong> (Red): No active connection
+- <strong>Error</strong> (Red, Pulsing): Connection or analysis error</p>
+<p><strong>Progress Information</strong>
+- <strong>Progress Bar</strong>: Visual completion percentage
+- <strong>Status Messages</strong>: Current analysis step
+- <strong>Timing Data</strong>:
+  - Elapsed time since start
+  - Estimated remaining time
+- <strong>Completion Percentage</strong>: Numeric progress indicator</p>
+<p><strong>Browser Features</strong>
+- <strong>Background Processing</strong>: Analysis continues if you switch tabs
+- <strong>Automatic Reconnection</strong>: Reconnects if connection is lost
+- <strong>Download Integration</strong>: Automatic file download when complete</p>
+<h4 id="managing-long-running-analysis">Managing Long-Running Analysis</h4>
+<ul>
+<li><strong>Tab Switching</strong>: Safe to switch browser tabs during analysis</li>
+<li><strong>Connection Recovery</strong>: System attempts to reconnect automatically</li>
+<li><strong>Cancel Option</strong>: Stop analysis at any time using Cancel button</li>
+<li><strong>Result Persistence</strong>: Results saved even if connection is lost</li>
+</ul>
+<hr />
+<h2 id="powerplot-module">Powerplot Module</h2>
+<h3 id="overview_3">Overview</h3>
+<p>PowerPlot UI is a Django-based data visualization module that enables users to generate various plots and charts to visualize analysis data. The system provides an interactive interface for selecting scenarios, variants, and data series to create customized visualizations and export data to Excel spreadsheets.</p>
+<h3 id="main-features">Main Features</h3>
+<ul>
+<li><strong>Data Visualization</strong>: Generate various types of plots and charts</li>
+<li><strong>Interactive Data Selection</strong>: Dynamic filtering of scenarios, variants, and data series</li>
+<li><strong>Data Export</strong>: Export selected scenarios/variants to Excel spreadsheets</li>
+<li><strong>Real-time Data Preview</strong>: View analysis data in a scrollable table format</li>
+</ul>
+<h3 id="accessing-the-powerplot-interface">Accessing the PowerPlot Interface</h3>
+<p>Navigate to the PowerPlot landing page where you'll see:
+1. A data preview table showing your analysis data
+2. Interactive form controls for plot generation
+3. Export functionality for data processing</p>
+<h3 id="understanding-the-data-table">Understanding the Data Table</h3>
+<p>The top section displays your analysis data in a scrollable table (300px height) with:
+- <strong>Headers</strong>: Column names from your analysis data
+- <strong>Rows</strong>: Data values organized in a striped, bordered table format
+- <strong>Scrolling</strong>: Vertical scroll capability for large datasets</p>
+<h3 id="creating-plots-and-charts">Creating Plots and Charts</h3>
+<h4 id="step-1-select-a-scenario">Step 1: Select a Scenario</h4>
+<ol>
+<li>Use the <strong>Scenario</strong> dropdown to choose your desired scenario</li>
+<li>The system will automatically update available variants based on your selection</li>
+<li>If no scenario is selected, variant options will be cleared</li>
+</ol>
+<h4 id="step-2-choose-a-variant">Step 2: Choose a Variant</h4>
+<ol>
+<li>After selecting a scenario, choose from the available <strong>Variant</strong> options</li>
+<li>Variants are dynamically filtered based on the selected scenario</li>
+<li>This selection will update the available data series options</li>
+</ol>
+<h4 id="step-3-configure-data-series">Step 3: Configure Data Series</h4>
+<p>The system supports up to two data series for comparison:</p>
+<p><strong>Series 1 Configuration</strong>
+1. <strong>Series 1 Heading</strong>: Select the primary data category
+2. <strong>Series 1 Component</strong>: Choose specific components within the selected heading
+   - Components are automatically filtered based on the heading selection</p>
+<p><strong>Series 2 Configuration (Optional)</strong>
+1. <strong>Series 2 Heading</strong>: Select the secondary data category for comparison
+2. <strong>Series 2 Component</strong>: Choose specific components within the selected heading
+   - Components are automatically filtered based on the heading selection</p>
+<h4 id="step-4-generate-your-plot">Step 4: Generate Your Plot</h4>
+<p>Once you've configured your selections:
+1. Review your choices in the form
+2. Submit the form to generate your visualization
+3. The system will create the appropriate plot based on your selections</p>
+<h3 id="data-export-functionality">Data Export Functionality</h3>
+<h4 id="excel-export-feature">Excel Export Feature</h4>
+<p>When the download is ready:
+1. A <strong>Download</strong> button will appear on the interface
+2. Click the download button to save your data as an Excel file
+3. The file will be automatically downloaded to your default download location
+4. The exported file contains the selected scenario/variant data for further processing</p>
+<h4 id="export-process">Export Process</h4>
+<p>The export functionality:
+- Generates Excel files with base64 encoding for secure download
+- Includes proper MIME type handling for Excel compatibility
+- Provides automatic file naming for easy identification</p>
+<h3 id="interactive-features">Interactive Features</h3>
+<h4 id="dynamic-form-updates">Dynamic Form Updates</h4>
+<p>The interface provides real-time updates:</p>
+<ul>
+<li><strong>Scenario Change</strong>: Automatically updates variant options and clears series choices</li>
+<li><strong>Variant Change</strong>: Refreshes series options based on new variant selection</li>
+<li><strong>Series Heading Change</strong>: Filters component options for each series independently</li>
+</ul>
+<h4 id="error-handling">Error Handling</h4>
+<p>The system includes built-in error handling for:
+- Failed AJAX requests when loading variants
+- Component loading errors for series selections
+- Network connectivity issues</p>
+<h3 id="visualization-types">Visualization Types</h3>
+<p>Available chart and plot types include:
+- Time series plots showing power generation and demand over time
+- Capacity factor analysis charts
+- Generation profiles by technology type
+- Load duration curves
+- Geographic visualizations integrated with Powermap data
+- Economic analysis charts showing LCOE and costs
+- Comparative scenario plots for variations analysis
+- Emissions tracking and analysis charts</p>
+<h3 id="user-interface-features">User Interface Features</h3>
+<h4 id="main-plotting-interface">Main Plotting Interface</h4>
+<ul>
+<li>Clean, intuitive layout with logical workflow</li>
+<li>Form-based configuration with dropdown menus</li>
+<li>Real-time preview of selected data</li>
+<li>Responsive design for different screen sizes</li>
+</ul>
+<h4 id="chart-configuration-options">Chart Configuration Options</h4>
+<ul>
+<li>Multiple data series support for comparisons</li>
+<li>Dynamic filtering based on selections</li>
+<li>Automatic chart type selection based on data</li>
+<li>Customizable time ranges and parameters</li>
+</ul>
+<h4 id="data-selection-tools">Data Selection Tools</h4>
+<ul>
+<li>Hierarchical selection (Scenario → Variant → Series → Component)</li>
+<li>Automatic filtering to show only relevant options</li>
+<li>Clear visual feedback for selections</li>
+<li>Easy reset and modification of choices</li>
+</ul>
+<h4 id="styling-and-formatting">Styling and Formatting</h4>
+<ul>
+<li>Professional chart appearance with clear legends</li>
+<li>Consistent color schemes across different chart types</li>
+<li>Proper axis labeling and units</li>
+<li>Grid lines and annotations for clarity</li>
+</ul>
+<h4 id="export-options-and-formats">Export Options and Formats</h4>
+<ul>
+<li>High-quality PNG and SVG export for charts</li>
+<li>Excel export for underlying data</li>
+<li>PDF export for reports</li>
+<li>Copy to clipboard functionality</li>
+</ul>
+<h3 id="creating-custom-visualizations">Creating Custom Visualizations</h3>
+<h4 id="selecting-and-filtering-data">Selecting and Filtering Data</h4>
+<ol>
+<li><strong>Choose Base Dataset</strong>: Start with scenario selection</li>
+<li><strong>Refine Scope</strong>: Select specific variant for focused analysis</li>
+<li><strong>Pick Metrics</strong>: Choose relevant data series and components</li>
+<li><strong>Preview Data</strong>: Review the data table before plotting</li>
+</ol>
+<h4 id="configuring-chart-parameters">Configuring Chart Parameters</h4>
+<ol>
+<li><strong>Chart Type</strong>: System automatically selects appropriate visualization</li>
+<li><strong>Data Range</strong>: Specify time periods or capacity ranges</li>
+<li><strong>Comparison Series</strong>: Add second series for comparative analysis</li>
+<li><strong>Labels and Titles</strong>: Charts automatically include descriptive labels</li>
+</ol>
+<h4 id="customizing-appearance">Customizing Appearance</h4>
+<ol>
+<li><strong>Color Schemes</strong>: Consistent colors based on technology types</li>
+<li><strong>Scale and Units</strong>: Automatic unit conversion and scaling</li>
+<li><strong>Grid and Annotations</strong>: Professional formatting applied automatically</li>
+<li><strong>Legend Placement</strong>: Optimal legend positioning for clarity</li>
+</ol>
+<h4 id="adding-annotations-and-labels">Adding Annotations and Labels</h4>
+<ul>
+<li>Automatic labeling based on data categories</li>
+<li>Technology-specific color coding</li>
+<li>Time series markers for significant events</li>
+<li>Capacity and generation unit labels</li>
+</ul>
+<h4 id="exporting-high-quality-graphics">Exporting High-Quality Graphics</h4>
+<ol>
+<li><strong>Chart Export</strong>: High-resolution images for presentations</li>
+<li><strong>Data Export</strong>: Excel files for further analysis</li>
+<li><strong>Report Integration</strong>: Charts suitable for technical reports</li>
+<li><strong>Multiple Formats</strong>: PNG, SVG, PDF options available</li>
+</ol>
+<h4 id="creating-interactive-dashboards">Creating Interactive Dashboards</h4>
+<ul>
+<li>Multiple charts can be generated in sequence</li>
+<li>Consistent data selection across multiple visualizations</li>
+<li>Comparative analysis between different scenarios</li>
+<li>Progressive refinement of analysis through variations</li>
+</ul>
+<h3 id="integration-with-other-modules">Integration with Other Modules</h3>
+<h4 id="powermap-integration">Powermap Integration</h4>
+<ul>
+<li>Visualize facility performance data</li>
+<li>Geographic distribution of generation</li>
+<li>Transmission loss analysis charts</li>
+<li>Capacity utilization across regions</li>
+</ul>
+<h4 id="powermatch-integration">Powermatch Integration</h4>
+<ul>
+<li>Display optimization results</li>
+<li>Show supply-demand matching over time</li>
+<li>Economic dispatch visualization</li>
+<li>Emissions tracking and analysis</li>
+</ul>
+<h4 id="data-flow">Data Flow</h4>
+<ul>
+<li>Seamless access to results from both Powermap and Powermatch</li>
+<li>Consistent scenario and variant naming</li>
+<li>Real-time updates when new analysis results are available</li>
+<li>Cross-module data consistency checks</li>
+</ul>
+<hr />
+<h2 id="technical-features">Technical Features</h2>
+<h3 id="responsive-design">Responsive Design</h3>
+<p>The interface automatically adjusts to different screen sizes:
+- <strong>Desktop</strong>: Full-featured interface with complete functionality
+- <strong>Mobile/Tablet</strong>: Responsive layout with optimized touch controls
+- <strong>Zoom Support</strong>: All components scale automatically with browser zoom</p>
+<h3 id="dynamic-content-loading">Dynamic Content Loading</h3>
+<ul>
+<li>Module information is loaded dynamically via AJAX</li>
+<li>No page refresh required when switching between modules</li>
+<li>Fast response times for data retrieval and analysis</li>
+<li>Real-time updates for collaborative scenarios</li>
+</ul>
+<h3 id="session-management">Session Management</h3>
+<ul>
+<li>Your settings (Demand Year, Scenario, Config) persist throughout your session</li>
+<li>Automatic session handling for different access levels</li>
+<li>Secure authentication based on membership status</li>
+<li>Cross-module data consistency</li>
+</ul>
+<h3 id="integration-features">Integration Features</h3>
+<ul>
+<li>Seamless data flow between Powermap, Powermatch, and Powerplot</li>
+<li>Shared scenario and configuration management</li>
+<li>Coordinated analysis workflows</li>
+<li>Unified results and reporting</li>
+</ul>
+<hr />
 <h2 id="troubleshooting">Troubleshooting</h2>
 <h3 id="common-issues">Common Issues</h3>
-<p><strong>Facilities Not Loading</strong>
+<p><strong>Modules not loading properly:</strong>
+- Ensure JavaScript is enabled in your browser
+- Check internet connection stability
+- Verify your membership access level
+- Try refreshing the page or clearing browser cache</p>
+<p><strong>Powermap specific issues:</strong></p>
+<p><em>Facilities Not Loading</em>
 - Ensure a valid scenario is selected
 - Check that demand year is specified
 - Refresh the page if data appears stale</p>
-<p><strong>Cannot Add Facilities</strong>
+<p><em>Cannot Add Facilities</em>
 - Verify you're not using the "Current" scenario
 - Ensure you have appropriate permissions
 - Check that required fields are completed</p>
-<p><strong>Map Performance Issues</strong>
+<p><em>Map Performance Issues</em>
 - Disable unnecessary layers to improve performance
 - Zoom to specific regions rather than viewing entire system
 - Clear browser cache if map tiles fail to load</p>
-<p><strong>Grid Connection Problems</strong>
+<p><em>Grid Connection Problems</em>
 - Verify grid lines exist in the selected scenario
 - Check that connection distances are reasonable (&lt;50km typically)
 - Ensure grid line has sufficient available capacity</p>
+<p><strong>Powermatch specific issues:</strong></p>
+<p><em>Connection Problems</em>
+- <strong>Symptom</strong>: Connection status shows "Disconnected" or "Error"
+- <strong>Solutions</strong>:
+  - Refresh the page and restart analysis
+  - Check internet connection stability
+  - Try using Standard Analysis mode instead</p>
+<p><em>Analysis Fails to Start</em>
+- <strong>Symptom</strong>: No progress after clicking run button
+- <strong>Solutions</strong>:
+  - Verify all required parameters are set
+  - Check that baseline scenario exists
+  - Ensure merit order is configured
+  - Try refreshing the page</p>
+<p><em>Slow Performance</em>
+- <strong>Symptom</strong>: Analysis takes very long to complete
+- <strong>Solutions</strong>:
+  - Reduce level of detail setting
+  - Decrease number of variation stages
+  - Check system resource availability
+  - Consider running during off-peak hours</p>
+<p><em>Results Not Displaying</em>
+- <strong>Symptom</strong>: Analysis completes but no results shown
+- <strong>Solutions</strong>:
+  - Check if download was blocked by browser
+  - Look for downloaded files in browser downloads
+  - Try running analysis again
+  - Contact system administrator</p>
+<p><strong>Powerplot specific issues:</strong></p>
+<p><em>No Variants Available</em>
+- Ensure a scenario is selected first
+- Check that the scenario contains valid variants</p>
+<p><em>Series Components Not Loading</em>
+- Verify that a heading is selected for the series
+- Ensure the scenario and variant selections are valid</p>
+<p><em>Download Not Working</em>
+- Check browser download settings
+- Ensure pop-up blockers aren't preventing downloads
+- Verify file permissions in download directory</p>
 <h3 id="error-messages">Error Messages</h3>
 <p><strong>"Cannot add facilities to the 'Current' scenario"</strong>
 - Switch to a modifiable planning scenario
@@ -336,20 +836,167 @@
 - Complete facility name, technology, and capacity
 - Ensure location is selected on map
 - For wind facilities, include turbine specifications</p>
-<h3 id="getting-help">Getting Help</h3>
+<p><strong>"Analysis is already running"</strong>
+- Wait for current analysis to complete
+- Use Cancel button to stop current analysis
+- Refresh page if analysis appears stuck</p>
+<p><strong>"Failed to start analysis"</strong>
+- Check all required fields are completed
+- Verify scenario selection on home page
+- Ensure merit order is saved
+- Try logging out and back in</p>
+<p><strong>"Connection lost"</strong>
+- Analysis may still be running on server
+- Try reconnecting by refreshing page
+- Check results page directly
+- Contact administrator if problem persists</p>
+<p><strong>Access or authentication problems:</strong>
+- Verify your membership status with the system administrator
+- Clear browser cookies and cache if experiencing login issues
+- Contact support if access level seems incorrect</p>
+<h3 id="browser-compatibility">Browser Compatibility</h3>
 <ul>
-<li>Check system status indicators for service availability</li>
-<li>Contact system administrator for permission issues</li>
-<li>Refer to SIREN documentation for detailed technical specifications</li>
-<li>Use the feedback system to report bugs or request features</li>
+<li>Modern browsers (Chrome, Firefox, Safari, Edge) are fully supported</li>
+<li>Internet Explorer may have limited functionality</li>
+<li>Mobile browsers are supported with responsive design</li>
 </ul>
-<h3 id="best-practices">Best Practices</h3>
+<h3 id="best-practices_2">Best Practices</h3>
 <ul>
 <li><strong>Save work frequently</strong> by applying settings after major changes</li>
-<li><strong>Use descriptive names</strong> for facilities and grid lines</li>
-<li><strong>Verify coordinates</strong> before finalizing facility locations</li>
-<li><strong>Consider transmission constraints</strong> when planning facility clusters</li>
+<li><strong>Use descriptive names</strong> for facilities, grid lines, scenarios, and variations</li>
+<li><strong>Verify coordinates and parameters</strong> before finalizing configurations</li>
+<li><strong>Consider system constraints</strong> when planning facility clusters</li>
 <li><strong>Document assumptions</strong> in facility or scenario descriptions</li>
+<li><strong>Test scenarios</strong> across multiple modules for consistency</li>
+<li><strong>Export results regularly</strong> for backup and reporting</li>
+<li><strong>Use variations systematically</strong> to understand parameter sensitivity</li>
+<li><strong>Monitor progress</strong> during long-running analyses</li>
+<li><strong>Validate results</strong> by comparing with expected outcomes</li>
 </ul>
 <hr />
-<p><em>This manual covers Siren-Web version 2.0. For the latest updates and additional features, please refer to the online documentation or contact your system administrator.</em></p>
+<h2 id="support-and-further-information">Support and Further Information</h2>
+<h3 id="getting-help">Getting Help</h3>
+<p>For additional assistance with:</p>
+<p><strong>Technical Issues</strong>
+- Contact your system administrator
+- Check system status indicators for service availability
+- Use the feedback system to report bugs or request features</p>
+<p><strong>Powermap Module</strong>
+- Refer to facility and grid line troubleshooting sections above
+- Check SWIS modeling guidelines for planning constraints
+- Review transmission loss calculation methodologies</p>
+<p><strong>Powermatch Module</strong>
+- Contact support for optimization algorithm questions
+- Review supply-demand balancing documentation
+- Check merit order configuration guidelines
+- Refer to economic parameter setting best practices</p>
+<p><strong>Powerplot Module</strong>
+- Check visualization best practices guide
+- Contact support for custom chart requirements
+- Review data export troubleshooting
+- Refer to chart interpretation guidelines</p>
+<p><strong>Siren Application</strong>
+- Refer to the main Siren documentation
+- Consult renewable energy modeling best practices
+- Review SWIS system specifications and constraints</p>
+<p><strong>Data Interpretation</strong>
+- Review component descriptions and sample data in the interactive diagram
+- Consult the technical specifications for each module
+- Use help tooltips and modal information throughout the interface</p>
+<h3 id="documentation-updates">Documentation Updates</h3>
+<p>This manual covers Siren Web version 2.0 including:
+- Powermap module (complete documentation)
+- Powermatch module (complete documentation)
+- Powerplot module (complete documentation)</p>
+<p>For the latest updates and additional features, please refer to:
+- Online documentation portal
+- System administrator notifications
+- Release notes and changelog
+- Module-specific help systems</p>
+<h3 id="data-privacy-and-security">Data Privacy and Security</h3>
+<ul>
+<li>All data transmission is secured through standard web protocols</li>
+<li>Session data is managed securely on the server</li>
+<li>Access control is enforced based on membership levels</li>
+<li>No sensitive data is stored in browser localStorage</li>
+<li>Multi-module data consistency is maintained securely</li>
+<li>Scenario and configuration data is protected by user permissions</li>
+</ul>
+<h3 id="system-requirements-and-dependencies">System Requirements and Dependencies</h3>
+<p><strong>Browser Requirements</strong>
+- Modern web browsers with JavaScript enabled
+- AJAX support for dynamic content loading
+- Base64 download support for file exports
+- WebSocket support for real-time progress tracking</p>
+<p><strong>Network Requirements</strong>
+- Stable internet connection for real-time features
+- Sufficient bandwidth for map tile loading
+- WebSocket connectivity for progress monitoring
+- File download capabilities</p>
+<p><strong>Software Dependencies</strong>
+- jQuery library for dynamic interactions
+- Django CSRF token support for secure form submissions
+- Crispy Forms for enhanced form rendering
+- Leaflet.js for interactive mapping
+- Chart.js for data visualization</p>
+<h3 id="performance-optimization">Performance Optimization</h3>
+<p><strong>For Large Datasets</strong>
+- Use appropriate level of detail settings in Powermatch
+- Filter data appropriately in Powerplot
+- Disable unnecessary map layers in Powermap
+- Close unused browser tabs during analysis</p>
+<p><strong>For Long-Running Analysis</strong>
+- Use progress tracking for monitoring
+- Ensure stable network connection
+- Avoid browser sleep/hibernation during analysis
+- Save intermediate results when possible</p>
+<p><strong>Memory Management</strong>
+- Clear browser cache periodically
+- Limit number of concurrent analyses
+- Export and save results regularly
+- Monitor system resource usage</p>
+<h3 id="advanced-features-and-tips">Advanced Features and Tips</h3>
+<p><strong>Cross-Module Workflows</strong>
+1. <strong>Start with Powermap</strong>: Design your system infrastructure
+2. <strong>Configure Powermatch</strong>: Set up analysis parameters and run optimization
+3. <strong>Visualize with Powerplot</strong>: Create charts and export results
+4. <strong>Iterate and Refine</strong>: Use variations to optimize designs</p>
+<p><strong>Scenario Management Best Practices</strong>
+- Use consistent naming conventions across modules
+- Document scenario assumptions and parameters
+- Save baseline scenarios before creating variations
+- Export scenario data for backup and sharing</p>
+<p><strong>Analysis Workflow Optimization</strong>
+- Run quick analyses first to validate setup
+- Use variations systematically for sensitivity analysis
+- Export intermediate results for later comparison
+- Monitor progress and cancel if needed</p>
+<p><strong>Data Management</strong>
+- Regular exports to Excel for external analysis
+- Consistent file naming for organization
+- Version control for important scenarios
+- Backup critical analysis results</p>
+<h3 id="training-and-learning-resources">Training and Learning Resources</h3>
+<p><strong>Getting Started Tutorials</strong>
+- New user orientation workflow
+- Step-by-step scenario creation guides
+- Basic analysis and visualization tutorials
+- Common troubleshooting scenarios</p>
+<p><strong>Advanced User Guides</strong>
+- Complex scenario modeling techniques
+- Optimization strategy development
+- Advanced visualization techniques
+- Integration with external tools</p>
+<p><strong>Best Practices Documentation</strong>
+- SWIS system modeling guidelines
+- Renewable energy planning standards
+- Economic analysis methodologies
+- Technical parameter guidelines</p>
+<p><strong>Community Resources</strong>
+- User forums and discussion groups
+- Shared scenario repositories
+- Template libraries for common analyses
+- Case study examples and tutorials</p>
+<hr />
+<p><em>This comprehensive manual covers the complete Siren Web system including all three integrated modules: Powermap for infrastructure modeling, Powermatch for supply-demand optimization, and Powerplot for results visualization. The system provides a complete workflow for renewable energy planning and analysis within the South West Interconnected System (SWIS).</em></p>
+<p><em>For specific technical questions, advanced feature requests, or system administration support, please contact your system administrator or refer to the online documentation portal.</em></p>

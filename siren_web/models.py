@@ -1,11 +1,11 @@
-# This is an auto-generated Django model module.
-# You'll have to do the following manually to clean this up:
-#   * Rearrange models' order
 #   * Make sure each model has one field with primary_key=True
 #   * Make sure each ForeignKey and OneToOneField has `on_delete` set to the desired behavior
 #   * Remove `managed = False` lines if you wish to allow Django to create, modify, and delete the table
 # Feel free to rename the models, but don't rename db_table values or field names.
 from django.db import models
+from django.urls import reverse
+from django.core.exceptions import ValidationError
+from django.utils import timezone
 
 class Analysis(models.Model):
     idanalysis = models.AutoField(db_column='idAnalysis', primary_key=True)
@@ -462,18 +462,83 @@ class Optimisations(models.Model):
     class Meta:
         db_table = 'Optimisations'
 
-class references(models.Model):
+class Reference(models.Model):
     """Data source references"""
     idreferences = models.AutoField( db_column='idreferences', primary_key=True)
-    source = models.CharField(db_column='source', max_length=250, blank=True, null=True)
-    reference_date = models.DateTimeField(auto_now=True)
+    source = models.CharField(max_length=500, help_text="Source name, URL, or citation")
+    title = models.CharField(max_length=300, blank=True, help_text="Title of the referenced work")
+    author = models.CharField(max_length=200, blank=True, help_text="Author(s) of the referenced work")
+    publication_date = models.DateTimeField(null=True, blank=True, help_text="When the source was published")
     accessed_date = models.DateTimeField(auto_now_add=True)
-    location = models.CharField(db_column='location', max_length=250, blank=True, null=True)
-    section = models.CharField(db_column='section', max_length=250, blank=True, null=True)
-    notes = models.CharField(db_column='notes', max_length=250, blank=True, null=True)
+    modified_date = models.DateTimeField(auto_now=True, help_text="When this reference was last modified")
+    location = models.CharField(max_length=500, blank=True, help_text="URL or physical location")
+    section = models.CharField(max_length=250, blank=True, help_text="Specific section, page, or chapter")
+    notes = models.TextField(blank=True, help_text="Additional notes about this reference")
     
+    # Reference type categorization
+    REFERENCE_TYPES = [
+        ('web', 'Website'),
+        ('book', 'Book'),
+        ('journal', 'Journal Article'),
+        ('newspaper', 'Newspaper'),
+        ('report', 'Report'),
+        ('other', 'Other'),
+    ]
+    
+    reference_type = models.CharField(
+        max_length=20,
+        choices=REFERENCE_TYPES,
+        default='web',
+        help_text="Type of reference source"
+    )
+    
+    # Metadata
+    is_active = models.BooleanField(
+        default=True,
+        help_text="Whether this reference is still valid/active"
+    )
+    
+    tags = models.CharField(
+        max_length=300,
+        blank=True,
+        help_text="Comma-separated tags for categorization"
+    )
+
     class Meta:
-        db_table = 'references'
+        db_table = 'Reference'
+        ordering = ['-accessed_date']
+        verbose_name = 'Reference'
+        verbose_name_plural = 'References'
+        indexes = [
+            models.Index(fields=['reference_type']),
+            models.Index(fields=['accessed_date']),
+            models.Index(fields=['is_active']),
+        ]
+
+    def __str__(self):
+        return f"{self.source[:50]}..." if len(self.source) > 50 else self.source
+
+    def get_absolute_url(self):
+        return reverse('reference_detail', kwargs={'pk': self.pk})
+
+    def clean(self):
+        """Custom validation"""
+        if self.publication_date and self.publication_date > timezone.now():
+            raise ValidationError("Publication date cannot be in the future")
+        
+        if self.location and not (self.location.startswith('http') or self.location.startswith('/')):
+            # Assume it's a URL if it doesn't start with http or /
+            if not self.location.startswith('www.'):
+                raise ValidationError("Location should be a valid URL or file path")
+
+    def get_tags_list(self):
+        """Return tags as a list"""
+        return [tag.strip() for tag in self.tags.split(',') if tag.strip()]
+
+    @property
+    def is_web_source(self):
+        """Check if this is a web-based source"""
+        return self.reference_type == 'web' or (self.location and self.location.startswith('http'))
 
 class ScenariosFacilities(models.Model):
     idscenariosfacilities = models.AutoField(primary_key=True)  

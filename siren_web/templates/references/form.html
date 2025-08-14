@@ -1,0 +1,339 @@
+<!-- templates/references/form.html -->
+{% extends 'base.html' %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title mb-0">{{ title }}</h3>
+            </div>
+            <div class="card-body">
+                <form method="post" novalidate>
+                    {% csrf_token %}
+                    
+                    <!-- Source Field (Required) -->
+                    <div class="mb-3">
+                        <label for="{{ form.source.id_for_label }}" class="form-label">
+                            {{ form.source.label }} <span class="text-danger">*</span>
+                        </label>
+                        {{ form.source }}
+                        {% if form.source.help_text %}
+                            <div class="form-text">{{ form.source.help_text }}</div>
+                        {% endif %}
+                        {% if form.source.errors %}
+                            <div class="text-danger">
+                                {% for error in form.source.errors %}
+                                    <small>{{ error }}</small>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Title Field -->
+                    <div class="mb-3">
+                        <label for="{{ form.title.id_for_label }}" class="form-label">{{ form.title.label }}</label>
+                        {{ form.title }}
+                        {% if form.title.help_text %}
+                            <div class="form-text">{{ form.title.help_text }}</div>
+                        {% endif %}
+                        {% if form.title.errors %}
+                            <div class="text-danger">
+                                {% for error in form.title.errors %}
+                                    <small>{{ error }}</small>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Author Field -->
+                    <div class="mb-3">
+                        <label for="{{ form.author.id_for_label }}" class="form-label">{{ form.author.label }}</label>
+                        {{ form.author }}
+                        {% if form.author.help_text %}
+                            <div class="form-text">{{ form.author.help_text }}</div>
+                        {% endif %}
+                        {% if form.author.errors %}
+                            <div class="text-danger">
+                                {% for error in form.author.errors %}
+                                    <small>{{ error }}</small>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Reference Type and Publication Date Row -->
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="{{ form.reference_type.id_for_label }}" class="form-label">{{ form.reference_type.label }}</label>
+                                {{ form.reference_type }}
+                                {% if form.reference_type.help_text %}
+                                    <div class="form-text">{{ form.reference_type.help_text }}</div>
+                                {% endif %}
+                                {% if form.reference_type.errors %}
+                                    <div class="text-danger">
+                                        {% for error in form.reference_type.errors %}
+                                            <small>{{ error }}</small>
+                                        {% endfor %}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="{{ form.publication_date.id_for_label }}" class="form-label">{{ form.publication_date.label }}</label>
+                                {{ form.publication_date }}
+                                {% if form.publication_date.help_text %}
+                                    <div class="form-text">{{ form.publication_date.help_text }}</div>
+                                {% endif %}
+                                {% if form.publication_date.errors %}
+                                    <div class="text-danger">
+                                        {% for error in form.publication_date.errors %}
+                                            <small>{{ error }}</small>
+                                        {% endfor %}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Location Field -->
+                    <div class="mb-3">
+                        <label for="{{ form.location.id_for_label }}" class="form-label">{{ form.location.label }}</label>
+                        {{ form.location }}
+                        {% if form.location.help_text %}
+                            <div class="form-text">{{ form.location.help_text }}</div>
+                        {% endif %}
+                        {% if form.location.errors %}
+                            <div class="text-danger">
+                                {% for error in form.location.errors %}
+                                    <small>{{ error }}</small>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Section Field -->
+                    <div class="mb-3">
+                        <label for="{{ form.section.id_for_label }}" class="form-label">{{ form.section.label }}</label>
+                        {{ form.section }}
+                        {% if form.section.help_text %}
+                            <div class="form-text">{{ form.section.help_text }}</div>
+                        {% endif %}
+                        {% if form.section.errors %}
+                            <div class="text-danger">
+                                {% for error in form.section.errors %}
+                                    <small>{{ error }}</small>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Tags Field -->
+                    <div class="mb-3">
+                        <label for="{{ form.tags.id_for_label }}" class="form-label">{{ form.tags.label }}</label>
+                        {{ form.tags }}
+                        {% if form.tags.help_text %}
+                            <div class="form-text">{{ form.tags.help_text }}</div>
+                        {% endif %}
+                        {% if form.tags.errors %}
+                            <div class="text-danger">
+                                {% for error in form.tags.errors %}
+                                    <small>{{ error }}</small>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Notes Field -->
+                    <div class="mb-3">
+                        <label for="{{ form.notes.id_for_label }}" class="form-label">{{ form.notes.label }}</label>
+                        {{ form.notes }}
+                        {% if form.notes.help_text %}
+                            <div class="form-text">{{ form.notes.help_text }}</div>
+                        {% endif %}
+                        {% if form.notes.errors %}
+                            <div class="text-danger">
+                                {% for error in form.notes.errors %}
+                                    <small>{{ error }}</small>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Active Status -->
+                    <div class="mb-3">
+                        <div class="form-check">
+                            {{ form.is_active }}
+                            <label class="form-check-label" for="{{ form.is_active.id_for_label }}">
+                                {{ form.is_active.label }}
+                            </label>
+                        </div>
+                        {% if form.is_active.help_text %}
+                            <div class="form-text">{{ form.is_active.help_text }}</div>
+                        {% endif %}
+                        {% if form.is_active.errors %}
+                            <div class="text-danger">
+                                {% for error in form.is_active.errors %}
+                                    <small>{{ error }}</small>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Form Actions -->
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-check-circle"></i>
+                                {% if reference %}Update Reference{% else %}Create Reference{% endif %}
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary" onclick="window.history.back()">
+                                <i class="bi bi-x-circle"></i> Cancel
+                            </button>
+                        </div>
+                        {% if reference %}
+                            <a href="{{ reference.get_absolute_url }}" class="btn btn-outline-info">
+                                <i class="bi bi-eye"></i> View Reference
+                            </a>
+                        {% endif %}
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Quick Tips Card -->
+        <div class="card mt-4">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-lightbulb"></i> Tips for Better References
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6>Source Field</h6>
+                        <ul class="small">
+                            <li>Use the full URL for web sources</li>
+                            <li>Include author and title for books</li>
+                            <li>Be descriptive but concise</li>
+                        </ul>
+                    </div>
+                    <div class="col-md-6">
+                        <h6>Tags</h6>
+                        <ul class="small">
+                            <li>Use comma-separated values</li>
+                            <li>Keep tags short and consistent</li>
+                            <li>Examples: "api, documentation, python"</li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6>Location</h6>
+                        <ul class="small">
+                            <li>Full URLs for web content</li>
+                            <li>ISBN for books</li>
+                            <li>DOI for academic papers</li>
+                        </ul>
+                    </div>
+                    <div class="col-md-6">
+                        <h6>Section</h6>
+                        <ul class="small">
+                            <li>Page numbers for books</li>
+                            <li>Chapter or section names</li>
+                            <li>Timestamp for videos</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Auto-detect reference type based on location field
+    const locationField = document.getElementById('{{ form.location.id_for_label }}');
+    const typeField = document.getElementById('{{ form.reference_type.id_for_label }}');
+    
+    if (locationField && typeField) {
+        locationField.addEventListener('blur', function() {
+            const url = this.value.toLowerCase();
+            if (url.startsWith('http') && typeField.value === 'web') {
+                // Keep as web if it's already web and looks like a URL
+                return;
+            }
+            if (url.includes('arxiv.org') || url.includes('doi.org') || url.includes('pubmed')) {
+                typeField.value = 'journal';
+            } else if (url.includes('nytimes.com') || url.includes('bbc.com') || url.includes('news')) {
+                typeField.value = 'newspaper';
+            } else if (url.startsWith('http')) {
+                typeField.value = 'web';
+            }
+        });
+    }
+
+    // Character counter for notes field
+    const notesField = document.getElementById('{{ form.notes.id_for_label }}');
+    if (notesField && notesField.tagName === 'TEXTAREA') {
+        const counterDiv = document.createElement('div');
+        counterDiv.className = 'form-text text-end';
+        counterDiv.id = 'notesCounter';
+        notesField.parentNode.appendChild(counterDiv);
+        
+        function updateCounter() {
+            const length = notesField.value.length;
+            counterDiv.textContent = `${length} characters`;
+            if (length > 1000) {
+                counterDiv.className = 'form-text text-end text-warning';
+            } else {
+                counterDiv.className = 'form-text text-end';
+            }
+        }
+        
+        notesField.addEventListener('input', updateCounter);
+        updateCounter(); // Initial count
+    }
+
+    // Form validation feedback
+    const form = document.querySelector('form');
+    if (form) {
+        form.addEventListener('submit', function(e) {
+            const sourceField = document.getElementById('{{ form.source.id_for_label }}');
+            if (sourceField && !sourceField.value.trim()) {
+                e.preventDefault();
+                sourceField.focus();
+                sourceField.classList.add('is-invalid');
+                
+                // Remove existing error message
+                const existingError = sourceField.parentNode.querySelector('.invalid-feedback');
+                if (existingError) {
+                    existingError.remove();
+                }
+                
+                // Add error message
+                const errorDiv = document.createElement('div');
+                errorDiv.className = 'invalid-feedback';
+                errorDiv.textContent = 'Source field is required.';
+                sourceField.parentNode.appendChild(errorDiv);
+                
+                // Remove error styling when user starts typing
+                sourceField.addEventListener('input', function() {
+                    this.classList.remove('is-invalid');
+                    const errorMsg = this.parentNode.querySelector('.invalid-feedback');
+                    if (errorMsg) {
+                        errorMsg.remove();
+                    }
+                }, { once: true });
+            }
+        });
+    }
+});
+</script>
+{% endblock %}
+{% endblock %}
