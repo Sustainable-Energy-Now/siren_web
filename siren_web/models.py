@@ -67,6 +67,8 @@ class facilities(models.Model):
                                             blank=True, related_name='connected_facilities')
     primary_grid_line = models.ForeignKey('GridLines', on_delete=models.SET_NULL, 
                                         null=True, blank=True, related_name='primary_facilities')
+    wind_turbines = models.ManyToManyField('WindTurbines', through='FacilityWindTurbines', 
+                                         blank=True, related_name='connected_turbines')
 
     class Meta:
         db_table = 'facilities'
@@ -102,6 +104,34 @@ class facilities(models.Model):
         
         return total_losses
 
+    def get_total_wind_capacity(self):
+        """Calculate total wind capacity for this facility"""
+        total = 0
+        for installation in self.facilitywindturbines_set.filter(is_active=True):
+            if installation.total_capacity:
+                total += installation.total_capacity
+        return total
+    
+    def get_wind_turbine_summary(self):
+        """Get summary of wind turbines at this facility"""
+        installations = self.facilitywindturbines_set.filter(is_active=True)
+        summary = []
+        for installation in installations:
+            summary.append({
+                'model': installation.wind_turbine.turbine_model,
+                'manufacturer': installation.wind_turbine.manufacturer,
+                'count': installation.no_turbines,
+                'capacity': installation.total_capacity,
+                'tilt': installation.tilt,
+                'direction': installation.direction
+            })
+        return summary
+    
+    @property
+    def is_wind_farm(self):
+        """Check if this facility has wind turbines"""
+        return self.wind_turbines.exists()
+    
 class Generatorattributes(models.Model):
     idgeneratorattributes = models.AutoField(db_column='idGeneratorAttributes', primary_key=True)  
     idtechnologies = models.ForeignKey('Technologies', models.CASCADE, db_column='idTechnologies')
@@ -448,6 +478,123 @@ class FacilityGridConnections(models.Model):
         
         return connection_losses_mw
 
+class WindTurbines(models.Model):
+    idwindturbines = models.AutoField(db_column='idwindturbines', primary_key=True)
+    turbine_model = models.CharField(max_length=70, unique=True,
+                                   help_text="Wind turbine model/type (must be unique)")
+    manufacturer = models.CharField(max_length=50, blank=True, null=True,
+                                  help_text="Turbine manufacturer")
+    hub_height = models.FloatField(blank=True, null=True, 
+                                 help_text="Standard hub height in meters")
+    rated_power = models.FloatField(blank=True, null=True,
+                                  help_text="Rated power output in kW")
+    rotor_diameter = models.FloatField(blank=True, null=True,
+                                     help_text="Rotor diameter in meters")
+    cut_in_speed = models.FloatField(blank=True, null=True,
+                                   help_text="Cut-in wind speed in m/s")
+    cut_out_speed = models.FloatField(blank=True, null=True,
+                                    help_text="Cut-out wind speed in m/s")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'WindTurbines'
+        verbose_name = 'Wind Turbine Model'
+        verbose_name_plural = 'Wind Turbine Models'
+
+    def __str__(self):
+        return f"{self.manufacturer} {self.turbine_model}" if self.manufacturer else self.turbine_model
+
+    def get_total_installations(self):
+        """Get total number of this turbine model installed across all facilities"""
+        return sum(installation.no_turbines 
+                  for installation in self.facilitywindturbines_set.filter(is_active=True))
+    
+    def get_facilities_using(self):
+        """Get list of facilities using this turbine model"""
+        return [installation.facility 
+                for installation in self.facilitywindturbines_set.filter(is_active=True)]
+    
+    def get_active_power_curve(self):
+        """Get the currently active power curve for this turbine"""
+        return self.power_curves.filter(is_active=True).first()
+
+class FacilityWindTurbines(models.Model):
+    """
+    Through model for many-to-many relationship between facilities and WindTurbines
+    Contains installation-specific data for turbines at each facility
+    """
+    idfacilitywindturbines = models.AutoField(db_column='idfacilitywindturbines', primary_key=True)
+    idfacilities = models.ForeignKey(facilities, on_delete=models.CASCADE, db_column='idfacilities')
+    idwindturbines = models.ForeignKey(WindTurbines, on_delete=models.CASCADE, db_column='idwindturbines')
+    no_turbines = models.IntegerField(help_text="Number of this turbine model at this facility")
+    tilt = models.IntegerField(blank=True, null=True, 
+                             help_text="Turbine tilt angle in degrees")
+    direction = models.CharField(max_length=28, blank=True, null=True,
+                               help_text="Primary wind direction or turbine orientation")
+    installation_date = models.DateField(blank=True, null=True,
+                                       help_text="Date when these turbines were installed")
+    is_active = models.BooleanField(default=True,
+                                  help_text="Whether these turbines are currently active")
+    notes = models.TextField(blank=True, null=True,
+                           help_text="Additional notes about this turbine installation")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'FacilityWindTurbines'
+        verbose_name = 'Facility Wind Turbine Installation'
+        verbose_name_plural = 'Facility Wind Turbine Installations'
+        unique_together = [['idfacilities', 'idwindturbines']]  # Prevent duplicate entries
+
+    def __str__(self):
+        return f"{self.facility.facility_name} - {self.wind_turbine.turbine_model} ({self.no_turbines} units)"
+
+    @property
+    def total_capacity(self):
+        """Calculate total capacity for this turbine installation"""
+        if self.wind_turbine.rated_power and self.no_turbines:
+            return self.wind_turbine.rated_power * self.no_turbines
+        return None
+
+class TurbinePowerCurves(models.Model):
+    idturbinepowercurves = models.AutoField(db_column='idturbinepowercurves', primary_key=True)
+    idwindturbines = models.ForeignKey(WindTurbines, on_delete=models.CASCADE, related_name='power_curves', db_column='idwindturbines')
+    power_file_name = models.CharField(max_length=45, 
+                                     help_text="Original .pow file name")
+    power_curve_data = models.JSONField(
+        help_text="JSON stored power curve data from .pow file"
+    )
+    file_upload_date = models.DateTimeField(auto_now_add=True)
+    is_active = models.BooleanField(default=True, 
+                                  help_text="Whether this power curve is currently active")
+    notes = models.TextField(blank=True, null=True,
+                           help_text="Additional notes about this power curve")
+
+    class Meta:
+        db_table = 'TurbinePowerCurves'
+        verbose_name = 'Turbine Power Curve'
+        verbose_name_plural = 'Turbine Power Curves'
+        ordering = ['-file_upload_date']
+        unique_together = [['idwindturbines', 'power_file_name']]  # Prevent duplicate file uploads
+
+    def __str__(self):
+        return f"Power Curve - {self.wind_turbine.turbine_model} ({self.power_file_name})"
+
+    @property
+    def wind_speeds(self):
+        """Extract wind speeds from power curve data"""
+        if isinstance(self.power_curve_data, dict) and 'wind_speeds' in self.power_curve_data:
+            return self.power_curve_data['wind_speeds']
+        return []
+
+    @property 
+    def power_outputs(self):
+        """Extract power outputs from power curve data"""
+        if isinstance(self.power_curve_data, dict) and 'power_outputs' in self.power_curve_data:
+            return self.power_curve_data['power_outputs']
+        return []
+    
 class Optimisations(models.Model):
     idoptimisation = models.AutoField(db_column='idOptimisation', primary_key=True)
     idscenarios = models.ForeignKey('Scenarios', on_delete=models.CASCADE, db_column='idScenarios')
@@ -619,7 +766,95 @@ class supplyfactors(models.Model):
 
     class Meta:
         db_table = 'supplyfactors'
+
+class SystemComponent(models.Model):
+    """Model to store information about system components"""
+    COMPONENT_TYPES = [
+        ('model', 'Database Model'),
+        ('module', 'Processing Module'),
+        ('external', 'External System'),
+    ]
+    
+    name = models.CharField(max_length=100, unique=True)
+    display_name = models.CharField(max_length=100)
+    component_type = models.CharField(max_length=20, choices=COMPONENT_TYPES)
+    description = models.TextField()
+    model_class_name = models.CharField(max_length=100, blank=True, null=True)
+    is_active = models.BooleanField(default=True)
+    position_x = models.IntegerField(default=0)
+    position_y = models.IntegerField(default=0)
+    width = models.IntegerField(default=120)
+    height = models.IntegerField(default=60)
+    color_scheme = models.CharField(max_length=50, default='default')
+    
+    # Metadata
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        db_table = 'SystemComponent'
         
+    def __str__(self):
+        return f"{self.display_name} ({self.component_type})"
+    
+    def get_model_class(self):
+        """Dynamically get the associated Django model class"""
+        if not self.model_class_name:
+            return None
+            
+        from django.apps import apps
+        try:
+            return apps.get_model('siren_web', self.model_class_name)
+        except LookupError:
+            return None
+    
+    def get_sample_data(self, limit=5):
+        """Get sample data from the associated model"""
+        model_class = self.get_model_class()
+        if not model_class:
+            return [], []
+            
+        # Get column names
+        column_names = [field.name for field in model_class._meta.fields]
+        
+        # Get sample data
+        sample_data = [
+            list(row) for row in model_class.objects.all()[:limit].values_list()
+        ]
+        
+        return column_names, sample_data
+
+class ComponentConnection(models.Model):
+    """Model to define connections between components"""
+    from_component = models.ForeignKey(
+        SystemComponent, 
+        on_delete=models.CASCADE, 
+        related_name='outgoing_connections'
+    )
+    to_component = models.ForeignKey(
+        SystemComponent, 
+        on_delete=models.CASCADE, 
+        related_name='incoming_connections'
+    )
+    connection_type = models.CharField(
+        max_length=50, 
+        choices=[
+            ('data_flow', 'Data Flow'),
+            ('process_flow', 'Process Flow'),
+            ('dependency', 'Dependency'),
+        ],
+        default='data_flow'
+    )
+    description = models.TextField(blank=True)
+    is_active = models.BooleanField(default=True)
+    
+    class Meta:
+        db_table = 'ComponentConnection'
+        unique_together = ('from_component', 'to_component')
+    
+    def __str__(self):
+        return f"{self.from_component.name} -> {self.to_component.name}"
+  
 class Technologies(models.Model):
     idtechnologies = models.AutoField(db_column='idTechnologies', primary_key=True)  
     technology_name = models.CharField(unique=True, max_length=45)

@@ -23,7 +23,7 @@ def generate_help_html(request):
         os.makedirs(help_dir, exist_ok=True)
         
         # Save HTML file
-        help_file_path = os.path.join(help_dir, 'siren_web_help.html')
+        help_file_path = os.path.join(help_dir, 'siren_web_manual.html')
         with open(help_file_path, 'w', encoding='utf-8') as f:
             f.write(html_content)
         
@@ -83,7 +83,7 @@ def generate_help_html(request):
 
 def display_help_html(request):
     """Display the generated help HTML file using Django template"""
-    help_file_path = os.path.join(settings.MEDIA_ROOT, 'help', 'siren_web_help.html')
+    help_file_path = os.path.join(settings.MEDIA_ROOT, 'help', 'siren_web_manual.html')
     
     if not os.path.exists(help_file_path):
         return render(request, 'help_not_found.html', status=404)

@@ -302,6 +302,7 @@ background-color: #f8f9fa;
 .settings-box {
     background-color: #95bdeb;
     border: 2px solid #464545;
+    border-radius: 0.5rem;
     padding: 10px;
     margin-bottom: 20px;
     font-family: Arial, sans-serif;

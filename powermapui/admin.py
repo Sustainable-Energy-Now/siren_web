@@ -1,7 +1,10 @@
 from django.contrib import admin
+from django.forms import ModelForm, FileField
+from django.core.exceptions import ValidationError
 from django.urls import path
 from django.utils.html import format_html
-from siren_web.models import GridLines, FacilityGridConnections, facilities
+from siren_web.models import GridLines, FacilityGridConnections, facilities, WindTurbines, \
+    TurbinePowerCurves, FacilityWindTurbines
 
 @admin.register(GridLines)
 class GridLinesAdmin(admin.ModelAdmin):
@@ -308,15 +311,15 @@ class FacilityGridConnectionsInline(admin.TabularInline):
         'connection_capacity_mw', 'connection_distance_km', 'is_primary', 'active'
     ]
     raw_id_fields = ['idgridlines']
-
+   
 @admin.register(facilities)
 class FacilitiesAdmin(admin.ModelAdmin):
     list_display = [
         'facility_name', 'facility_code', 'technology_name', 'capacity', 
-        'primary_grid_line', 'active', 'existing'
+        'primary_grid_line', 'active', 'existing', 'wind_turbine_count', 'total_wind_turbines'
     ]
-    list_filter = ['active', 'existing', 'idtechnologies', 'primary_grid_line']
-    search_fields = ['facility_name', 'facility_code']
+    list_filter = ['active', 'existing', 'idtechnologies', 'active', 'existing', 'primary_grid_line']
+    search_fields = ['facility_name', 'facility_code', 'participant_code']
     inlines = [FacilityGridConnectionsInline]
     raw_id_fields = ['primary_grid_line']
     
@@ -351,3 +354,258 @@ class FacilitiesAdmin(admin.ModelAdmin):
         return obj.idtechnologies.technology_name if obj.idtechnologies else "Unknown"
     technology_name.short_description = "Technology"
     technology_name.admin_order_field = 'idtechnologies__technology_name'
+    
+    def wind_turbine_count(self, obj):
+        """Number of different turbine models at this facility"""
+        return obj.wind_turbines.count()
+    wind_turbine_count.short_description = 'Turbine Models'
+    
+    def total_wind_turbines(self, obj):
+        """Total number of individual turbines at this facility"""
+        total = sum(fwt.no_turbines for fwt in obj.facilitywindturbines_set.all())
+        return total if total > 0 else "-"
+    total_wind_turbines.short_description = 'Total Turbines'
+    
+class TurbinePowerCurveInline(admin.TabularInline):
+    model = TurbinePowerCurves
+    extra = 0
+    readonly_fields = ('file_upload_date',)
+    fields = ('power_file_name', 'is_active', 'notes', 'file_upload_date')
+
+
+class FacilityWindTurbinesInline(admin.TabularInline):
+    model = FacilityWindTurbines
+    extra = 0
+    readonly_fields = ('created_at', 'updated_at', 'total_capacity_display')
+    fields = ('wind_turbine', 'no_turbines', 'tilt', 'direction', 'installation_date', 
+             'is_active', 'total_capacity_display', 'notes')
+    
+    def total_capacity_display(self, obj):
+        if obj.total_capacity:
+            return f"{obj.total_capacity:,.0f} kW"
+        return "-"
+    total_capacity_display.short_description = 'Total Capacity'
+
+@admin.register(WindTurbines)
+class WindTurbinesAdmin(admin.ModelAdmin):
+    list_display = ('turbine_model', 'manufacturer', 'rated_power', 'hub_height', 
+                   'rotor_diameter', 'facility_count', 'power_curve_count')
+    list_filter = ('manufacturer', 'rated_power', 'hub_height')
+    search_fields = ('turbine_model', 'manufacturer')
+    inlines = [TurbinePowerCurveInline]
+    
+    def facility_count(self, obj):
+        return obj.facilities.count()
+    facility_count.short_description = 'Facilities Using'
+    
+    def power_curve_count(self, obj):
+        return obj.power_curves.count()
+    power_curve_count.short_description = 'Power Curves'
+
+@admin.register(FacilityWindTurbines)
+class FacilityWindTurbinesAdmin(admin.ModelAdmin):
+    list_display = ['idfacilities', 'idwindturbines', 'no_turbines', 'tilt', 'direction', 
+                   'is_active', 'total_capacity_display', 'installation_date']
+    list_filter = ['is_active', 'installation_date']
+    search_fields = ['facility__facility_name', 'turbine_model']
+    raw_id_fields = ['idfacilities', 'idwindturbines']
+    readonly_fields = ['total_capacity_display', 'created_at', 'updated_at']
+    
+    fieldsets = [
+        ('Installation Details', {
+            'fields': ('facility', 'wind_turbine', 'no_turbines')
+        }),
+        ('Configuration', {
+            'fields': ('tilt', 'direction', 'installation_date', 'is_active')
+        }),
+        ('Calculated Values', {
+            'fields': ('total_capacity_display',),
+            'classes': ('collapse',)
+        }),
+        ('Additional Information', {
+            'fields': ('notes',),
+            'classes': ('collapse',)
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    ]
+    
+    def total_capacity_display(self, obj):
+        if obj.total_capacity:
+            return format_html(
+                '<strong>{:,.0f} kW</strong> ({} × {:,.0f} kW)', 
+                obj.total_capacity, 
+                obj.no_turbines, 
+                obj.wind_turbine.rated_power
+            )
+        return "-"
+    total_capacity_display.short_description = 'Total Capacity'
+
+class PowerCurveUploadForm(ModelForm):
+    power_file = FileField(required=False, help_text="Upload .pow file")
+    
+    class Meta:
+        model = TurbinePowerCurves
+        fields = '__all__'
+    
+    def clean_power_file(self):
+        file = self.cleaned_data.get('power_file')
+        if file:
+            if not file.name.endswith('.pow'):
+                raise ValidationError("Please upload a .pow file")
+            
+            # Read and parse the .pow file
+            try:
+                content = file.read().decode('utf-8')
+                power_data = self.parse_pow_file(content)
+                
+                # Store the parsed data in power_curve_data field
+                self.cleaned_data['power_curve_data'] = power_data
+                self.cleaned_data['power_file_name'] = file.name
+                
+            except Exception as e:
+                raise ValidationError(f"Error parsing .pow file: {str(e)}")
+        
+        return file
+    
+    def parse_pow_file(self, content):
+        """
+        Parse .pow file content. Adjust this based on your actual .pow file format.
+        This is a generic example - you may need to modify based on your file structure.
+        """
+        lines = content.strip().split('\n')
+        wind_speeds = []
+        power_outputs = []
+        
+        # Skip header lines and parse data
+        for line in lines:
+            line = line.strip()
+            if not line or line.startswith('#'):
+                continue
+            
+            # Look for numeric data (wind_speed, power_output)
+            parts = re.split(r'\s+', line)
+            if len(parts) >= 2:
+                try:
+                    wind_speed = float(parts[0])
+                    power_output = float(parts[1])
+                    wind_speeds.append(wind_speed)
+                    power_outputs.append(power_output)
+                except ValueError:
+                    continue
+        
+        return {
+            'wind_speeds': wind_speeds,
+            'power_outputs': power_outputs,
+            'raw_content': content,
+            'data_points': len(wind_speeds),
+            'max_power': max(power_outputs) if power_outputs else 0,
+            'parsed_at': str(timezone.now()) if 'timezone' in globals() else str(datetime.now())
+        }
+    
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        
+        # If we parsed power file data, update the instance
+        if hasattr(self, 'cleaned_data') and 'power_curve_data' in self.cleaned_data:
+            instance.power_curve_data = self.cleaned_data['power_curve_data']
+            instance.power_file_name = self.cleaned_data['power_file_name']
+        
+        if commit:
+            instance.save()
+        return instance
+
+@admin.register(TurbinePowerCurves)
+class TurbinePowerCurveAdmin(admin.ModelAdmin):
+    form = PowerCurveUploadForm
+    list_display = ['idwindturbines', 'power_file_name', 'is_active', 'file_upload_date', 
+                   'data_points_count', 'max_power_output']
+    list_filter = ['is_active', 'file_upload_date', 'idwindturbines__manufacturer']
+    search_fields = ['wind_turbine__turbine_model', 'power_file_name']
+    readonly_fields = ['file_upload_date', 'power_curve_preview', 'power_curve_summary']
+    raw_id_fields = ['idwindturbines']
+    
+    fieldsets = [
+        ('Power Curve Details', {
+            'fields': ('idwindturbines', 'power_file_name', 'power_file', 'is_active')
+        }),
+        ('Data Summary', {
+            'fields': ('power_curve_summary',),
+            'classes': ('collapse',)
+        }),
+        ('Data Preview', {
+            'fields': ('power_curve_preview',),
+            'classes': ('collapse',)
+        }),
+        ('Additional Information', {
+            'fields': ('notes', 'file_upload_date'),
+            'classes': ('collapse',)
+        }),
+    ]
+    
+    def data_points_count(self, obj):
+        if obj.power_curve_data and isinstance(obj.power_curve_data, dict):
+            return obj.power_curve_data.get('data_points', 0)
+        return 0
+    data_points_count.short_description = 'Data Points'
+    
+    def max_power_output(self, obj):
+        if obj.power_curve_data and isinstance(obj.power_curve_data, dict):
+            max_power = obj.power_curve_data.get('max_power', 0)
+            return f"{max_power:,.0f} kW" if max_power else "-"
+        return "-"
+    max_power_output.short_description = 'Max Power'
+    
+    def power_curve_summary(self, obj):
+        """Display summary statistics of the power curve data"""
+        if obj.power_curve_data and isinstance(obj.power_curve_data, dict):
+            data_points = obj.power_curve_data.get('data_points', 0)
+            max_power = obj.power_curve_data.get('max_power', 0)
+            wind_speeds = obj.wind_speeds
+            
+            if wind_speeds:
+                min_wind = min(wind_speeds)
+                max_wind = max(wind_speeds)
+                summary = f"""
+                Data Points: {data_points}
+                Wind Speed Range: {min_wind} - {max_wind} m/s
+                Maximum Power Output: {max_power:,.0f} kW
+                """
+                return summary
+        return "No power curve data available"
+    
+    power_curve_summary.short_description = 'Power Curve Summary'
+    
+    def power_curve_preview(self, obj):
+        """Display a preview of the power curve data"""
+        if obj.power_curve_data:
+            wind_speeds = obj.wind_speeds[:10]  # Show first 10 points
+            power_outputs = obj.power_outputs[:10]
+            
+            if wind_speeds and power_outputs:
+                preview = "Wind Speed (m/s) → Power Output (kW):\n"
+                for ws, po in zip(wind_speeds, power_outputs):
+                    preview += f"{ws:>5.1f} → {po:>8.1f}\n"
+                if len(obj.wind_speeds) > 10:
+                    preview += f"... and {len(obj.wind_speeds) - 10} more data points"
+                return preview
+        return "No power curve data available"
+    
+    def power_curve_preview(self, obj):
+        """Display a preview of the power curve data"""
+        if obj.power_curve_data:
+            wind_speeds = obj.wind_speeds[:10]  # Show first 10 points
+            power_outputs = obj.power_outputs[:10]
+            
+            if wind_speeds and power_outputs:
+                preview = "Wind Speed (m/s) -> Power Output (kW):\n"
+                for ws, po in zip(wind_speeds, power_outputs):
+                    preview += f"{ws} -> {po}\n"
+                if len(obj.wind_speeds) > 10:
+                    preview += f"... and {len(obj.wind_speeds) - 10} more data points"
+                return preview
+        return "No power curve data available"
+    
+    power_curve_preview.short_description = 'Power Curve Data Preview'
