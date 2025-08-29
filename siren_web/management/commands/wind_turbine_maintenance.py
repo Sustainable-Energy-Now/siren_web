@@ -1,11 +1,15 @@
 # management/commands/wind_turbine_maintenance.py
+# Example usage:
+# python manage.py wind_turbine_maintenance import --wind_turbines_csv "Wind Turbines.csv"
+# python manage.py wind_turbine_maintenance stats
+# python manage.py wind_turbine_maintenance report --type power_curves
 
 from django.core.management.base import BaseCommand, CommandError
 from django.db.models import Sum, Count, F
+from django.db import transaction
 import os
 import csv
-from siren_web.models import Facilities, WindTurbines, FacilityWindTurbines, TurbinePowerCurves
-
+from siren_web.models import facilities, WindTurbines, FacilityWindTurbines, TurbinePowerCurves
 
 class Command(BaseCommand):
     help = 'Wind turbine data maintenance and reporting commands'
@@ -27,6 +31,7 @@ class Command(BaseCommand):
         import_parser = subparsers.add_parser('import', help='Bulk import data')
         import_parser.add_argument('--turbines', help='CSV file with turbine models to import')
         import_parser.add_argument('--power_curves', help='Directory with .pow files to import')
+        import_parser.add_argument('--wind_turbines_csv', help='Import from Wind Turbines.csv file')
         
         # Statistics
         stats_parser = subparsers.add_parser('stats', help='Show statistics')
@@ -65,8 +70,8 @@ class Command(BaseCommand):
             self.print_report(data, report_type)
 
     def get_summary_report(self):
-        total_facilities = Facilities.objects.count()
-        wind_facilities = Facilities.objects.filter(wind_turbines__isnull=False).distinct().count()
+        total_facilities = facilities.objects.count()
+        wind_facilities = facilities.objects.filter(wind_turbines__isnull=False).distinct().count()
         total_turbine_models = WindTurbines.objects.count()
         total_installations = FacilityWindTurbines.objects.filter(is_active=True).count()
         total_individual_turbines = FacilityWindTurbines.objects.filter(is_active=True).aggregate(
@@ -88,7 +93,7 @@ class Command(BaseCommand):
 
     def get_facilities_report(self):
         facilities = (
-            Facilities.objects
+            facilities.objects
             .filter(wind_turbines__isnull=False)
             .distinct()
             .prefetch_related('facilitywindturbines_set__wind_turbine')
@@ -138,14 +143,15 @@ class Command(BaseCommand):
         return {'turbines': data}
 
     def get_power_curves_report(self):
-        power_curves = TurbinePowerCurve.objects.select_related('wind_turbine').order_by('wind_turbine__turbine_model')
+        power_curves = TurbinePowerCurves.objects.select_related('wind_turbine').order_by('wind_turbine__turbine_model')
         
         data = [['Turbine Model', 'Power File', 'Active', 'Data Points', 'Upload Date']]
         
         for curve in power_curves:
             data_points = 0
             if curve.power_curve_data and isinstance(curve.power_curve_data, dict):
-                data_points = curve.power_curve_data.get('data_points', 0)
+                wind_speeds = curve.power_curve_data.get('wind_speeds', [])
+                data_points = len(wind_speeds)
             
             data.append([
                 curve.wind_turbine.turbine_model,
@@ -190,7 +196,7 @@ class Command(BaseCommand):
         self.stdout.write('Validating wind turbine data...\n')
         
         # Check for facilities with turbine data but no FacilityWindTurbines records
-        facilities_with_old_data = Facilities.objects.filter(
+        facilities_with_old_data = facilities.objects.filter(
             turbine__isnull=False
         ).exclude(turbine='').exclude(
             id__in=FacilityWindTurbines.objects.values_list('facility_id', flat=True)
@@ -204,9 +210,9 @@ class Command(BaseCommand):
                 # Could add migration logic here
         
         # Check for power curves without data
-        empty_power_curves = TurbinePowerCurve.objects.filter(
+        empty_power_curves = TurbinePowerCurves.objects.filter(
             power_curve_data__isnull=True
-        ) | TurbinePowerCurve.objects.filter(
+        ) | TurbinePowerCurves.objects.filter(
             power_curve_data={}
         )
         
@@ -242,12 +248,170 @@ class Command(BaseCommand):
     def import_data(self, options):
         turbines_file = options.get('turbines')
         power_curves_dir = options.get('power_curves')
+        wind_turbines_csv = options.get('wind_turbines_csv')
         
         if turbines_file:
             self.import_turbine_models(turbines_file)
         
         if power_curves_dir:
             self.import_power_curves(power_curves_dir)
+        
+        if wind_turbines_csv:
+            self.import_wind_turbines_csv(wind_turbines_csv)
+
+    def import_wind_turbines_csv(self, csv_file):
+        """Import turbine models and power curves from the Wind Turbines.csv file"""
+        if not os.path.exists(csv_file):
+            raise CommandError(f'File not found: {csv_file}')
+        
+        self.stdout.write(f'Importing wind turbine data from {csv_file}...')
+        
+        with open(csv_file, 'r', encoding='utf-8') as file:
+            reader = csv.DictReader(file)
+            
+            created_turbines = 0
+            updated_turbines = 0
+            created_power_curves = 0
+            skipped_rows = 0
+            
+            with transaction.atomic():
+                for row_num, row in enumerate(reader, 1):
+                    # Skip header rows (Units and column descriptions)
+                    if row_num <= 2:
+                        continue
+                    
+                    name = row.get('Name', '').strip()
+                    if not name:
+                        skipped_rows += 1
+                        continue
+                    
+                    try:
+                        # Extract turbine specifications
+                        kw_rating = self._parse_float(row.get('KW Rating'))
+                        rotor_diameter = self._parse_float(row.get('Rotor Diameter'))
+                        iec_class = row.get('IEC Wind Speed Class', '').strip()
+                        wind_speed_array = row.get('Wind Speed Array', '').strip()
+                        power_curve_array = row.get('Power Curve Array', '').strip()
+                        
+                        # Extract manufacturer from name if possible
+                        manufacturer = self._extract_manufacturer(name)
+                        
+                        # Create or update wind turbine model
+                        turbine, created = WindTurbines.objects.get_or_create(
+                            turbine_model=name,
+                            defaults={
+                                'manufacturer': manufacturer,
+                                'rated_power': kw_rating,
+                                'rotor_diameter': rotor_diameter,
+                            }
+                        )
+                        
+                        if created:
+                            created_turbines += 1
+                            self.stdout.write(f'  Created turbine: {name}')
+                        else:
+                            # Update existing turbine if data is better
+                            updated = False
+                            if not turbine.manufacturer and manufacturer:
+                                turbine.manufacturer = manufacturer
+                                updated = True
+                            if not turbine.rated_power and kw_rating:
+                                turbine.rated_power = kw_rating
+                                updated = True
+                            if not turbine.rotor_diameter and rotor_diameter:
+                                turbine.rotor_diameter = rotor_diameter
+                                updated = True
+                            
+                            if updated:
+                                turbine.save()
+                                updated_turbines += 1
+                        
+                        # Create power curve if data exists
+                        if wind_speed_array and power_curve_array:
+                            wind_speeds = self._parse_array(wind_speed_array)
+                            power_outputs = self._parse_array(power_curve_array)
+                            
+                            if wind_speeds and power_outputs and len(wind_speeds) == len(power_outputs):
+                                power_curve_data = {
+                                    'wind_speeds': wind_speeds,
+                                    'power_outputs': power_outputs,
+                                    'data_points': len(wind_speeds),
+                                    'iec_class': iec_class if iec_class != 'unknown' else None,
+                                    'source': 'Wind_Turbines_CSV'
+                                }
+                                
+                                # Create power curve (use unique filename based on turbine name)
+                                power_file_name = f"{name.replace(' ', '_')}_power_curve.csv"
+                                
+                                power_curve, pc_created = TurbinePowerCurves.objects.get_or_create(
+                                    idwindturbines=turbine,
+                                    power_file_name=power_file_name,
+                                    defaults={
+                                        'power_curve_data': power_curve_data,
+                                        'is_active': True,
+                                        'notes': f'Imported from Wind Turbines CSV. IEC Class: {iec_class}'
+                                    }
+                                )
+                                
+                                if pc_created:
+                                    created_power_curves += 1
+                    
+                    except Exception as e:
+                        self.stdout.write(
+                            self.style.WARNING(f'  Error processing row {row_num} ({name}): {str(e)}')
+                        )
+                        skipped_rows += 1
+                        continue
+        
+        # Print summary
+        self.stdout.write(self.style.SUCCESS(
+            f'\nImport completed:\n'
+            f'  - Turbine models created: {created_turbines}\n'
+            f'  - Turbine models updated: {updated_turbines}\n'
+            f'  - Power curves created: {created_power_curves}\n'
+            f'  - Rows skipped: {skipped_rows}'
+        ))
+
+    def _parse_float(self, value):
+        """Safely parse a float value"""
+        if value is None or value == '' or value == 'unknown':
+            return None
+        try:
+            return float(value)
+        except (ValueError, TypeError):
+            return None
+
+    def _parse_array(self, array_str):
+        """Parse pipe-separated array string into list of floats"""
+        if not array_str or array_str == 'unknown':
+            return []
+        try:
+            return [float(x.strip()) for x in array_str.split('|') if x.strip()]
+        except (ValueError, TypeError):
+            return []
+
+    def _extract_manufacturer(self, turbine_name):
+        """Extract manufacturer name from turbine model string"""
+        # Common manufacturer patterns in the data
+        manufacturers = [
+            'Vestas', 'Enercon', 'Siemens', 'Gamesa', 'Suzlon', 'Nordex',
+            'Acciona', 'Alstom', 'DeWind', 'Fuhrlaender', 'Goldwind',
+            'Mitsubishi', 'REpower', 'Senvion', 'Unison', 'WinWinD',
+            'Ampair', 'Bergey', 'Southwest Windpower', 'Proven', 'Kestrel',
+            'Marlec', 'Future Energy', 'Earth-Tech', 'Energy Ball'
+        ]
+        
+        name_upper = turbine_name.upper()
+        for mfg in manufacturers:
+            if mfg.upper() in name_upper:
+                return mfg
+        
+        # Try to extract first word as manufacturer for some patterns
+        first_word = turbine_name.split()[0] if turbine_name.split() else None
+        if first_word and len(first_word) > 2 and not first_word.isdigit():
+            return first_word
+        
+        return None
 
     def import_turbine_models(self, csv_file):
         if not os.path.exists(csv_file):
@@ -295,11 +459,11 @@ class Command(BaseCommand):
         
         # Basic counts
         stats = {
-            'Total Facilities': Facilities.objects.count(),
-            'Wind Facilities': Facilities.objects.filter(wind_turbines__isnull=False).distinct().count(),
+            'Total Facilities': facilities.objects.count(),
+            'Wind Facilities': facilities.objects.filter(wind_turbines__isnull=False).distinct().count(),
             'Turbine Models': WindTurbines.objects.count(),
             'Active Installations': FacilityWindTurbines.objects.filter(is_active=True).count(),
-            'Power Curves': TurbinePowerCurve.objects.count(),
+            'Power Curves': TurbinePowerCurves.objects.count(),
         }
         
         for key, value in stats.items():
@@ -321,12 +485,3 @@ class Command(BaseCommand):
             name = mfg['wind_turbine__manufacturer']
             capacity = mfg['total_capacity'] or 0
             self.stdout.write(f'  {name}: {capacity:,.0f} kW')
-
-
-# Example CSV format for turbine import (save as turbines.csv):
-"""
-turbine_model,manufacturer,hub_height,rated_power,rotor_diameter,cut_in_speed,cut_out_speed
-V90-2.0,Vestas,80,2000,90,4,25
-GE 1.5-77,General Electric,80,1500,77,3.5,25
-E-82,Enercon,78,2000,82,2.5,28
-"""

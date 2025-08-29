@@ -126,12 +126,50 @@ input[name=message] {
     margin: 0;
 }
 
+.alert-dismissible {
+    padding-right: 3rem !important;
+    position: relative;
+}
+
+.alert-dismissible .btn-close {
+    position: absolute;
+    top: 50%;
+    right: 0rem;
+    transform: translateY(-50%);
+    padding: 0.1rem;
+    z-index: 2;
+}
+.alert-dismissible .btn-close:hover {
+    color: #fff;
+}
+.alert .btn {
+    margin-top: 0.5rem;
+}
+
 .alert {
+    border-radius: 0.5rem;
+    border: none;
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
     background-color: #d4edda;
     color: #155724;
     padding: 10px;
-    margin-top: 10px;
     display: inline-block;
+}
+
+.alert-success {
+    background-color: #d1e7dd;
+    color: #0a3622;
+}
+
+.alert-warning {
+    background-color: #fff3cd;
+    border: 1px solid #ffeaa7;
+    color: #856404;
+}
+
+.alert-danger {
+    background-color: #f8d7da;
+    color: #58151c;
 }
 
 .table-fixed {
@@ -149,76 +187,42 @@ td {
 }
 
 /* Technology Table Styles - Baseline Scenario */
-.technology-table {
-    margin: 20px 0;
-    border: 1px solid #dee2e6;
-    border-radius: 8px;
-    overflow: hidden;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-}
 
+/* .technology-table {
+    margin: 20px 0;
+} */
 .technology-header {
-    background: linear-gradient(135deg, #6796f4 0%, #5DB474 100%);
-    color: white;
-    font-weight: bold;
-    font-size: 1.1em;
-    padding: 15px 10px;
-    border-bottom: 2px solid #dee2e6;
-    text-shadow: 1px 1px 2px rgba(0,0,0,0.2);
+background-color: #f8f9fa;
+font-weight: bold;
+padding: 10px;
+border-bottom: 2px solid #dee2e6;
 }
 
 .technology-row {
-    padding: 12px 0;
+    padding: 8px 0;
     border-bottom: 1px solid #dee2e6;
-    transition: background-color 0.2s ease;
-    background-color: white;
 }
-
 .technology-row:hover {
-    background-color: #f8f9fa;
-}
-
-.technology-row:last-child {
-    border-bottom: none;
-}
-
-.technology-row .form-label {
-    font-weight: 600;
-    color: #31333F;
-    margin-bottom: 0;
-    padding-top: 8px;
+background-color: #f8f9fa;
 }
 
 .readonly-input {
-    background-color: #e9ecef !important;
+    background-color: #e9ecef;
     cursor: not-allowed;
-    border-color: #ced4da;
-    color: #6c757d;
-    font-weight: 500;
 }
 
 .multiplier-input {
-    border-color: #5DB474;
-    transition: all 0.3s ease;
+    border-color: #007bff;
 }
 
 .multiplier-input:focus {
-    border-color: #4a9d60;
-    box-shadow: 0 0 0 0.2rem rgba(93, 180, 116, 0.25);
-    outline: none;
-}
-
-.multiplier-input:hover {
-    border-color: #4a9d60;
+    border-color: #0056b3;
+    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
 }
 
 .product-display {
-    background: linear-gradient(135deg, #e7f3ff 0%, #cce7ff 100%);
+    background-color: #e7f3ff;
     font-weight: bold;
-    color: #0066cc;
-    border-color: #b3d9ff;
-    cursor: not-allowed;
-    text-align: right;
 }
 
 /* Technology table responsive design */
@@ -298,6 +302,7 @@ td {
 .settings-box {
     background-color: #95bdeb;
     border: 2px solid #464545;
+    border-radius: 0.5rem;
     padding: 10px;
     margin-bottom: 20px;
     font-family: Arial, sans-serif;
@@ -435,4 +440,68 @@ select.form-control {
 .protected-checkbox:disabled {
     filter: none !important;
     -webkit-filter: none !important;
+}
+
+.summary-section {
+    margin: 20px 0;
+    padding: 15px;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    background-color: #f9f9f9;
+}
+
+.summary-section h4 {
+    margin-top: 0;
+    color: #333;
+    border-bottom: 2px solid #007bff;
+    padding-bottom: 5px;
+}
+
+.metric-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 10px;
+    margin: 10px 0;
+}
+
+.metric-item {
+    background: white;
+    padding: 10px;
+    border-radius: 3px;
+    border-left: 4px solid #007bff;
+}
+
+.metric-label {
+    font-weight: bold;
+    color: #555;
+    font-size: 0.9em;
+}
+
+.metric-value {
+    font-size: 1.1em;
+    color: #333;
+    margin-top: 2px;
+}
+
+.technology-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 15px 0;
+}
+
+.technology-table th,
+.technology-table td {
+    border: 1px solid #ddd;
+    padding: 8px;
+    text-align: right;
+}
+
+.technology-table th {
+    background-color: #f2f2f2;
+    font-weight: bold;
+}
+
+.technology-table td:first-child {
+    text-align: left;
+    font-weight: bold;
 }

@@ -43,13 +43,11 @@ def reference_list(request):
     }
     return render(request, 'references/list.html', context)
 
-
 @login_required
 def reference_detail(request, pk):
     """Show detailed view of a reference"""
     reference = get_object_or_404(Reference, pk=pk)
     return render(request, 'references/detail.html', {'reference': reference})
-
 
 @login_required
 def reference_create(request):
@@ -60,6 +58,11 @@ def reference_create(request):
             reference = form.save()
             messages.success(request, f'Reference "{reference.source}" created successfully.')
             return redirect('reference_detail', pk=reference.pk)
+        else:
+            # Handle form errors and display specific messages for fields
+            for field_name, errors in form.errors.items():
+                for error in errors:
+                        messages.error(request, f"{field_name}: {error}")
     else:
         form = ReferenceForm()
     
@@ -67,7 +70,6 @@ def reference_create(request):
         'form': form,
         'title': 'Add New Reference'
     })
-
 
 @login_required
 def reference_update(request, pk):
@@ -89,7 +91,6 @@ def reference_update(request, pk):
         'title': 'Edit Reference'
     })
 
-
 @login_required
 @require_http_methods(["POST"])
 def reference_delete(request, pk):
@@ -99,7 +100,6 @@ def reference_delete(request, pk):
     reference.save()
     messages.success(request, f'Reference "{reference.source}" has been archived.')
     return redirect('reference_list')
-
 
 @login_required
 def reference_search_api(request):

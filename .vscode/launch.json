@@ -5,6 +5,17 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "Python Debugger: wind turbines",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}\\manage.py",
+            "args": [
+                "wind_turbine_maintenance", "import", "--wind_turbines_csv", "siren_web/static/windturbines/Wind Turbines.csv"
+            ],
+            "django": true,
+            "autoStartBrowser": false
+        },
+        {
             "name": "Python Debugger: import_geojson",
             "type": "debugpy",
             "request": "launch",

@@ -114,14 +114,14 @@ def edit_scenario(request, scenario_id):
     # Protect 'Current' scenario from editing
     if scenario.title == 'Current':
         messages.error(request, 'The "Current" scenario cannot be edited.')
-        return redirect('display_scenarios')
+        return redirect('powermapui:display_scenarios')
     
     if request.method == 'POST':
         form = ScenarioForm(request.POST, instance=scenario)
         if form.is_valid():
             form.save()
             messages.success(request, f'Successfully updated scenario "{scenario.title}".')
-            return redirect('display_scenarios')
+            return redirect('powermapui:display_scenarios')
     else:
         form = ScenarioForm(instance=scenario)
     
@@ -142,7 +142,7 @@ def delete_scenario(request, scenario_id):
     # Protect 'Current' scenario from deletion
     if scenario.title == 'Current':
         messages.error(request, 'The "Current" scenario cannot be deleted.')
-        return redirect('display_scenarios')
+        return redirect('powermapui:display_scenarios')
     
     if request.method == 'POST':
         scenario_title = scenario.title
@@ -151,7 +151,7 @@ def delete_scenario(request, scenario_id):
         scenario.delete()
         
         messages.success(request, f'Successfully deleted scenario "{scenario_title}" and all its facility associations.')
-        return redirect('display_scenarios')
+        return redirect('powermapui:display_scenarios')
     
     # For GET requests, show confirmation page
     facility_count = ScenariosFacilities.objects.filter(idscenarios=scenario).count()
@@ -216,12 +216,12 @@ def clone_scenario(request):
         # Form validation
         if not source_scenario_id or not new_title:
             messages.error(request, 'Please select a source scenario and provide a name for the new scenario.')
-            return redirect('clone_scenario')
+            return redirect('powermapui:clone_scenario')
         
         # Check if scenario name already exists
         if Scenarios.objects.filter(title=new_title).exists():
             messages.error(request, f'A scenario with the name "{new_title}" already exists. Please choose a different name.')
-            return redirect('clone_scenario')
+            return redirect('powermapui:clone_scenario')
         
         try:
             # Get the source scenario
@@ -250,11 +250,11 @@ def clone_scenario(request):
             )
             
             # Redirect to the scenario management page
-            return HttpResponseRedirect(reverse('display_scenarios'))
+            return HttpResponseRedirect(reverse('powermapui:display_scenarios'))
             
         except Exception as e:
             messages.error(request, f'Error creating scenario: {str(e)}')
-            return redirect('clone_scenario')
+            return redirect('powermapui:clone_scenario')
     
     # Display the form for GET requests
     context = {
