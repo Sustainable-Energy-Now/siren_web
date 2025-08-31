@@ -1,4 +1,4 @@
-# views.py
+from django.contrib.auth.decorators import login_required
 from django.shortcuts import render, redirect
 from django.contrib import messages
 from django.http import JsonResponse
@@ -7,6 +7,7 @@ from configparser import ConfigParser
 import os
 import json
 
+@login_required
 def get_config_dict(config):
     """Convert ConfigParser object to dictionary."""
     return {
@@ -14,6 +15,7 @@ def get_config_dict(config):
         for section in config.sections()
     }
 
+@login_required
 def edit_config(request):
     config_dir = './siren_web/siren_files/preferences/'
     if request.GET.get('filename'):  # If specific file was requested

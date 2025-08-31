@@ -1,5 +1,6 @@
 # gendocs/help_views.py
 from datetime import datetime
+from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.http import HttpResponse
 from django.shortcuts import render, redirect
@@ -9,6 +10,7 @@ import os
 import shutil
 from .help_generator import SirenWebHelpGenerator
 
+@login_required
 def generate_help_html(request):
     """Generate and save help HTML file"""
     try:
@@ -113,6 +115,7 @@ def display_help_html(request):
         context = {'error': str(e)}
         return render(request, 'help_error.html', context, status=500)
 
+@login_required
 def edit_help_template(request):
     """Allow editing of the help template file"""
     template_path = os.path.join(settings.MEDIA_ROOT, 'templates', 'help', 'siren_web_manual.md')
