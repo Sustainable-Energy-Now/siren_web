@@ -81,7 +81,10 @@
 
     <!-- Footer -->
     <footer class="footer mt-auto py-3 bg-light">
-        <p class="text-muted">&copy; 2025 Sustainable Energy Now. All rights reserved.</p>
+        <div class="d-flex justify-content-between align-items-center">
+            <p class="text-muted mb-0">&copy; 2025 Sustainable Energy Now. All rights reserved.</p>
+            <small class="text-muted">v{{ APP_VERSION }}</small>
+        </div>
     </footer>
     <div class="top-right">
         {% if user.is_authenticated %}

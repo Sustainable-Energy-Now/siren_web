@@ -25,11 +25,14 @@ def add_technology_to_scenario_on_facility_add(sender, instance, created, **kwar
     scenario = instance.idscenarios
     technology = facility.idtechnologies
     
+    # Set merit_order based on technology name
+    merit_order = 0 if technology.technology_name == 'Load' else 999
+    
     # Check if this technology is already in the scenario
     scenario_tech, tech_created = ScenariosTechnologies.objects.get_or_create(
         idscenarios=scenario,
         idtechnologies=technology,
-        defaults={'merit_order': None, 'capacity': 0.0}
+        defaults={'merit_order': merit_order, 'capacity': 0.0}
     )
     
     # Update the capacity for this technology in this scenario
@@ -65,6 +68,9 @@ def handle_facility_scenario_m2m_changes(sender, instance, action, pk_set, **kwa
     facility = instance
     technology = facility.idtechnologies
     
+    # Set merit_order based on technology name
+    merit_order = 0 if technology.technology_name == 'Load' else 999
+    
     # Facilities were added to scenarios
     for scenario_id in pk_set:
         scenario = Scenarios.objects.get(pk=scenario_id)
@@ -73,7 +79,7 @@ def handle_facility_scenario_m2m_changes(sender, instance, action, pk_set, **kwa
         scenario_tech, created = ScenariosTechnologies.objects.get_or_create(
             idscenarios=scenario,
             idtechnologies=technology,
-            defaults={'merit_order': None, 'capacity': 0.0}
+            defaults={'merit_order': merit_order, 'capacity': 0.0}
         )
         
         # Update capacity
@@ -92,12 +98,15 @@ def ensure_technology_scenario_consistency(sender, instance, created, **kwargs):
     facility = instance
     technology = facility.idtechnologies
     
+    # Set merit_order based on technology name
+    merit_order = 0 if technology.technology_name == 'Load' else 999
+    
     # For each scenario this facility belongs to, ensure the technology is also there
     for scenario in facility.scenarios.all():
         scenario_tech, tech_created = ScenariosTechnologies.objects.get_or_create(
             idscenarios=scenario,
             idtechnologies=technology,
-            defaults={'merit_order': None, 'capacity': 0.0}
+            defaults={'merit_order': merit_order, 'capacity': 0.0}
         )
         
         # Update capacity
@@ -128,9 +137,14 @@ def sync_scenario_technologies_for_scenario(scenario):
     for tech_id in facility_technologies:
         if tech_id not in existing_scenario_techs:
             technology = Technologies.objects.get(pk=tech_id)
+            
+            # Set merit_order based on technology name
+            merit_order = 0 if technology.technology_name == 'Load' else 999
+            
             scenario_tech = ScenariosTechnologies.objects.create(
                 idscenarios=scenario,
                 idtechnologies=technology,
+                merit_order=merit_order,
                 capacity=0.0
             )
             scenario_tech.update_capacity()
@@ -138,4 +152,3 @@ def sync_scenario_technologies_for_scenario(scenario):
     # Update capacities for all technologies (no manual deletion needed)
     for scenario_tech in ScenariosTechnologies.objects.filter(idscenarios=scenario):
         scenario_tech.update_capacity()
-        

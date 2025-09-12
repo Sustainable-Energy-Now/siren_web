@@ -14,6 +14,7 @@ import logging
 from pathlib import Path
 import os, sys
 import toml
+from siren_web.version import __version__
 
 # Set up logging
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -52,7 +53,7 @@ LOGGING = {
 BASE_DIR = Path(__file__).resolve().parent.parent
 SECRETS_FILE = os.path.join(BASE_DIR, '.django', 'secrets.toml')
 
-# In development lLoad secrets from the secrets.toml file
+# In development load secrets from the secrets.toml file
 if os.path.exists(SECRETS_FILE):
     with open(SECRETS_FILE) as f:
         secrets = toml.load(f)
@@ -86,7 +87,7 @@ else:
 
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = secrets['django']['secret_key']
-
+VERSION = __version__
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
@@ -141,6 +142,7 @@ TEMPLATES = [
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
+                'siren_web.context_processors.version',
             ],
         },
     },
