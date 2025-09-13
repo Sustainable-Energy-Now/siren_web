@@ -21,6 +21,7 @@ from .views import home_views, home_views_alt, config_views, help_views, referen
 
 urlpatterns = [
     path('', home_views.home_view, name='home'),
+    path('release-notes/', home_views.release_notes, name='release_notes'),
     path("", include("powermapui.urls")),
     path("", include("powermatchui.urls")),
     path("", include("powerplotui.urls")),

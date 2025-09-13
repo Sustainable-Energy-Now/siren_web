@@ -185,87 +185,126 @@ class PowerPlotHomeView(TemplateView):
     def post(self, request):
         plotform = PlotForm(request.POST)
         idscenarios = request.POST.get('scenario')
-        idvariant  = request.POST.get('variant')
-        variant  = variations.objects.filter(pk=idvariant)
+        idvariant = request.POST.get('variant')
+        
+        # Validate required fields first
+        if not idvariant or idvariant == '':
+            messages.error(request, 'Please select a variant first.')
+            return self.render_form_with_error(request, plotform)
+        
+        if not idscenarios or idscenarios == '':
+            messages.error(request, 'Please select a scenario first.')
+            return self.render_form_with_error(request, plotform)
+        
+        # Validate that variant exists
+        try:
+            variant = variations.objects.get(pk=idvariant)
+        except variations.DoesNotExist:
+            messages.error(request, 'Selected variant does not exist.')
+            return self.render_form_with_error(request, plotform)
+        
+        # Get form data
         series_1 = request.POST.get('series_1')
         series_2 = request.POST.get('series_2')
         series_1_component = request.POST.get('series_1_component')
         series_2_component = request.POST.get('series_2_component')
         plot_type = request.POST.get('plot_type', '')
-        if 'filter' in request.POST:
-            # Filter the Analysis data based on the selected scenario and variant
-            analysis_queryset = \
-                Analysis.objects.filter(
-                    idscenarios_id=idscenarios,
-                    stage__in=[0, 1],
-                    variation__in=[variant[0].variation_name, 'Baseline'],
-                    heading__in=[series_1, series_2],
-                    component__in=[series_1_component, series_2_component],
-                    ).order_by('stage')
-            analysis_data = self.get_analysis_data(analysis_queryset)
-            plotform = PlotForm(selected_scenario=idscenarios)
-            context = {
-                'plotform': plotform,
-                'analysis_data': analysis_data,
-            }
-        elif plot_type:
-            # Render the appropriate template based on the selected plot_type
-            if plot_type in ['Altair', 'Matplotlib']:
-                return self.create_chart(request, plot_type)
-            elif plot_type == 'Echart':
-                # Get the selected values from the request.GET
-                series_1 = request.POST.get('series_1')
-                series_2 = request.POST.get('series_2')
-                series_1_component = request.POST.get('series_1_component')
-                series_2_component = request.POST.get('series_2_component')
-                chart_type = request.POST.get('chart_type')
-                chart_specialization = request.POST.get('chart_specialization')
-                # Prepare the context with the selected values
-                context = {
-                    'series_1': series_1,
-                    'series_2': series_2,
-                    'series_1_component': series_1_component,
-                    'series_2_component': series_2_component,
-                    'scenario': idscenarios,
-                    'variant': idvariant,
-                    'chart_type': chart_type,
-                    'chart_specialization': chart_specialization,
-                }
-                return render(request, 'echarts.html', context)
+        
+        # Handle different form actions
+        if plot_type:
+            return self.handle_plot_action(
+                request, plot_type, idscenarios, idvariant, 
+                series_1, series_2, series_1_component, series_2_component
+            )
+        
         elif 'export' in request.POST:
-            try:
-                # Get scenario and variant names for the message
-                scenario_name = Scenarios.objects.get(pk=idscenarios).title
-                variant_name = variations.objects.get(pk=idvariant).variation_name
-                
-                # Generate the file
-                file_response = self.export_to_excel(request)
-                
-                # Add success message (will appear on next page load)
-                messages.success(request, f'Excel file for {scenario_name} - {variant_name} exported successfully!')
-                # Reload the page with download message
-                analysis_queryset = Analysis.objects.all()[:8]
-                analysis_data = self.get_analysis_data(analysis_queryset)
-                plotform = PlotForm()
-                context = {
-                    'analysis_data': analysis_data,
-                    'plotform': plotform,
-                    'download_ready': True,
-                    'filename': file_response,
-                    'file_data': base64.b64encode(file_response.content).decode('utf-8'),
-                    'content_type': file_response['Content-Type'],
-                }
-            except Exception as e:
-                messages.error(request, f'Error exporting to Excel: {str(e)}')
-                # Reload the page with error message
-                analysis_queryset = Analysis.objects.all()[:8]
-                analysis_data = self.get_analysis_data(analysis_queryset)
-                plotform = PlotForm()
-                context = {
-                    'analysis_data': analysis_data,
-                    'plotform': plotform,
-                }
+            return self.handle_export_action(request, idscenarios, idvariant)
+        
+        # If no specific action, return to form
+        return self.render_form_with_error(request, plotform)
 
+    def render_form_with_error(self, request, plotform=None):
+        """Render the form with any error messages"""
+        if plotform is None:
+            plotform = PlotForm()
+        
+        # Get some default analysis data to display
+        analysis_queryset = Analysis.objects.all()[:8]
+        analysis_data = self.get_analysis_data(analysis_queryset)
+        
+        context = {
+            'plotform': plotform,
+            'analysis_data': analysis_data,
+        }
+        return render(request, 'powerplotui_home.html', context)
+
+    def handle_plot_action(self, request, plot_type, idscenarios, idvariant, series_1, series_2, series_1_component, series_2_component):
+        """Handle plot generation actions"""
+        if plot_type in ['Altair', 'Matplotlib']:
+            return self.create_chart(request, plot_type)
+        
+        elif plot_type == 'Echart':
+            chart_type = request.POST.get('chart_type')
+            chart_specialization = request.POST.get('chart_specialization')
+            
+            context = {
+                'series_1': series_1,
+                'series_2': series_2,
+                'series_1_component': series_1_component,
+                'series_2_component': series_2_component,
+                'scenario': idscenarios,
+                'variant': idvariant,
+                'chart_type': chart_type,
+                'chart_specialization': chart_specialization,
+            }
+            return render(request, 'echarts.html', context)
+        
+        else:
+            messages.error(request, f'Unknown plot type: {plot_type}')
+            return self.render_form_with_error(request)
+
+    def handle_export_action(self, request, idscenarios, idvariant):
+        """Handle export to Excel action"""
+        try:
+            # Get scenario and variant names for the message
+            scenario = Scenarios.objects.get(pk=idscenarios)
+            variant = variations.objects.get(pk=idvariant)
+            
+            # Generate the file
+            file_response = self.export_to_excel(request)
+            
+            # Add success message
+            messages.success(
+                request, 
+                f'Excel file for {scenario.title} - {variant.variation_name} exported successfully!'
+            )
+            
+            # Reload the page with download message
+            analysis_queryset = Analysis.objects.all()[:8]
+            analysis_data = self.get_analysis_data(analysis_queryset)
+            plotform = PlotForm()
+            
+            context = {
+                'analysis_data': analysis_data,
+                'plotform': plotform,
+                'download_ready': True,
+                'filename': file_response,
+                'file_data': base64.b64encode(file_response.content).decode('utf-8'),
+                'content_type': file_response['Content-Type'],
+            }
+            return render(request, 'powerplotui_home.html', context)
+            
+        except Scenarios.DoesNotExist:
+            messages.error(request, 'Selected scenario does not exist.')
+            return self.render_form_with_error(request)
+        except variations.DoesNotExist:
+            messages.error(request, 'Selected variant does not exist.')
+            return self.render_form_with_error(request)
+        except Exception as e:
+            messages.error(request, f'Error exporting to Excel: {str(e)}')
+            return self.render_form_with_error(request)
+    
+    @staticmethod
     def get_valid_choices(request):
         scenario_id = request.GET.get('scenario')
         variant_id = request.GET.get('variant')
@@ -284,10 +323,27 @@ class PowerPlotHomeView(TemplateView):
             # Get variants for the selected scenario
             if scenario_id:
                 variants_queryset = variations.objects.filter(idscenarios=scenario_id)
-                response_data['variants'] = [
-                    {'id': variant.idvariations, 'name': variant.variation_name} 
-                    for variant in variants_queryset
-                ]
+                variant_count = variants_queryset.count()
+                
+                if variant_count == 0:
+                    # No variants available
+                    response_data['variants'] = [
+                        {'id': '', 'name': 'No variants available for this scenario'}
+                    ]
+                elif variant_count == 1:
+                    # Only one variant - auto-select it
+                    variant = variants_queryset.first()
+                    response_data['variants'] = [
+                        {'id': variant.idvariations, 'name': variant.variation_name, 'selected': True}
+                    ]
+                else:
+                    # Multiple variants - show selection prompt
+                    response_data['variants'] = [
+                        {'id': '', 'name': 'Select a Variant'}
+                    ] + [
+                        {'id': variant.idvariations, 'name': variant.variation_name} 
+                        for variant in variants_queryset
+                    ]
                 
                 # Filter Analysis based on scenario
                 analysis_filter = {'idscenarios': scenario_id}

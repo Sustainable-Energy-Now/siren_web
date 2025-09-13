@@ -1,0 +1,24 @@
+{% extends 'base.html' %}
+
+{% block title %}Release Notes - Siren-web{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-lg-8 offset-lg-2">
+            <div class="release-notes">
+                {{ content|safe }}
+            </div>
+        </div>
+    </div>
+    
+    <div class="row mt-4">
+        <div class="col-lg-8 offset-lg-2">
+            <hr>
+            <p class="text-center">
+                <a href="{% url 'home' %}" class="btn btn-primary">← Back to Home</a>
+            </p>
+        </div>
+    </div>
+</div>
+{% endblock %}

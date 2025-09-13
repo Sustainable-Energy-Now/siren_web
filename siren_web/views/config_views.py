@@ -1,13 +1,11 @@
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import render, redirect
 from django.contrib import messages
-from django.http import JsonResponse
 from django.urls import reverse
 from configparser import ConfigParser
 import os
 import json
 
-@login_required
 def get_config_dict(config):
     """Convert ConfigParser object to dictionary."""
     return {

@@ -505,3 +505,30 @@ select.form-control {
     text-align: left;
     font-weight: bold;
 }
+/* Add to your main CSS file */
+.release-notes h1 {
+    border-bottom: 2px solid #dee2e6;
+    padding-bottom: 0.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.release-notes h2 {
+    border-bottom: 1px solid #dee2e6;
+    padding-bottom: 0.3rem;
+    margin-top: 2rem;
+    margin-bottom: 1rem;
+}
+
+.release-notes h3 {
+    margin-top: 1.5rem;
+    margin-bottom: 0.5rem;
+    color: #495057;
+}
+
+.release-notes ul {
+    margin-bottom: 1rem;
+}
+
+.release-notes li {
+    margin-bottom: 0.25rem;
+}

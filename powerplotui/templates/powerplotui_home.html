@@ -65,23 +65,70 @@
                     url: '{% url "get_valid_choices" %}',
                     data: {'scenario': scenarioId},
                     success: function(data) {
-                        // Update variant dropdown
-                        $('#id_variant').empty().append('<option value="">Select a Variant</option>');
-                        $.each(data.variants, function(index, variant) {
+                        // Clear the variant dropdown
+                        $('#id_variant').empty();
+                        
+                        // Handle different variant scenarios
+                        if (data.variants.length === 0) {
+                            // No variants available
+                            $('#id_variant').append($('<option></option>')
+                                .attr('value', '')
+                                .attr('disabled', true)
+                                .css({'font-style': 'italic', 'color': '#6c757d'})
+                                .text('No variants available for this scenario'));
+                        } else if (data.variants.length === 1 && data.variants[0].selected) {
+                            // Single variant - auto-select it
+                            var variant = data.variants[0];
                             $('#id_variant').append($('<option></option>')
                                 .attr('value', variant.id)
+                                .attr('selected', true)
                                 .text(variant.name));
-                        });
+                            
+                            // Trigger change event to update dependent dropdowns
+                            $('#id_variant').trigger('change');
+                        } else {
+                            // Multiple variants or single variant without auto-selection
+                            // Check if first item is a placeholder
+                            if (data.variants[0].id === '') {
+                                // First item is "Select a Variant" placeholder
+                                $('#id_variant').append($('<option></option>')
+                                    .attr('value', '')
+                                    .attr('disabled', true)
+                                    .attr('selected', true)
+                                    .css({'font-style': 'italic', 'color': '#6c757d'})
+                                    .text(data.variants[0].name));
+                                
+                                // Add the actual variants
+                                $.each(data.variants.slice(1), function(index, variant) {
+                                    $('#id_variant').append($('<option></option>')
+                                        .attr('value', variant.id)
+                                        .text(variant.name));
+                                });
+                            } else {
+                                // All items are actual variants
+                                $('#id_variant').append('<option value="" disabled selected>Select a Variant</option>');
+                                $.each(data.variants, function(index, variant) {
+                                    $('#id_variant').append($('<option></option>')
+                                        .attr('value', variant.id)
+                                        .text(variant.name));
+                                });
+                            }
+                        }
                         
                         // Update series choices with scenario-filtered options
                         updateSeriesChoices(data.headings, data.components);
                     },
                     error: function() {
                         console.log('Error loading variants');
+                        $('#id_variant').empty().append($('<option></option>')
+                            .attr('value', '')
+                            .attr('disabled', true)
+                            .css({'font-style': 'italic', 'color': '#dc3545'})
+                            .text('Error loading variants'));
                     }
                 });
             }
-            
+
             // Function to update series choices when variant changes
             function updateSeriesForVariant() {
                 var scenarioId = $('#id_scenario').val();

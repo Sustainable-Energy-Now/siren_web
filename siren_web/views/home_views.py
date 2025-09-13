@@ -3,10 +3,12 @@ from django.contrib.auth import authenticate, login
 from django.db.models import Model
 from django.shortcuts import render, get_object_or_404
 from django.urls import reverse
-from django.http import HttpResponse, JsonResponse
+from django.http import JsonResponse
 from siren_web.models import Analysis, facilities, Generatorattributes, \
     Genetics, Optimisations, sirensystem, Scenarios, Settings, Storageattributes, supplyfactors, Technologies, Zones
-
+import markdown
+import os
+from django.conf import settings
 
 def get_description(name, sirensystem_model):
     try:
@@ -121,4 +123,13 @@ def home_view(request):
         # Render the main template if no model is specified or if the model is not found
         return render(request, 'home.html', context)
 
-    # Define a custom template tag function
+def release_notes(request):
+    notes_file = os.path.join(settings.BASE_DIR, 'release_notes.md')
+    try:
+        with open(notes_file, 'r', encoding='utf-8') as f:
+            content = f.read()
+        html_content = markdown.markdown(content)
+    except FileNotFoundError:
+        html_content = "<p>Release notes not found.</p>"
+    
+    return render(request, 'release_notes.html', {'content': html_content})
