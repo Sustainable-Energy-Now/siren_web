@@ -1,5 +1,5 @@
 # urls.py
-from django.urls import path, include
+from django.urls import path
 from .views.powerplotui_home_views import PowerPlotHomeView
 from .views.echart_views import eChartView
 from .views import echart_views, tradingprice_views, plot3D_views

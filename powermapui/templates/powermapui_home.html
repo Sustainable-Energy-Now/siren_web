@@ -486,1712 +486,799 @@ crossorigin=""></script>
 </style>
 
 <script>
-    // Initialize the map and set its view to South West of Western Australia
-    var map = L.map('map').setView([-33.45, 121.25], 7);  // Coordinates for South West WA
+// ===== GLOBAL VARIABLES AND CONSTANTS =====
+// Initialize the map and set its view to South West of Western Australia
+var map = L.map('map').setView([-33.45, 121.25], 7);
 
+// Data passed from view
+var facilities = {{ facilities_json|safe }};
+var gridLines = JSON.parse('{{ grid_lines_json|escapejs }}');
+
+// Global variables for connection management
+var connectionManagementMode = false;
+var selectedFacilityForConnection = null;
+
+// Variables for Add Facility and Grid Line functionality
+var addFacilityMode = false;
+var addGridLineMode = false;
+var selectedLocation = null;
+var locationMarker = null;
+var gridLinePoints = [];
+var gridLineMarkers = [];
+
+// Grid line label functionality
+var gridLineLabels = [];
+var showLabels = false;
+
+// Layer groups
+var facilityLayer = L.layerGroup();
+var gridLinesLayer = L.layerGroup();
+var connectionLinesLayer = L.layerGroup();
+var boundaryLayer = null;
+var zoneLayer = null;
+
+// Wind turbine technology constants - FIXED
+const ONSHORE_WIND = 15;
+const OFFSHORE_WIND = 16;
+const FLOATING_WIND = 147;
+const windTechnologyIds = [ONSHORE_WIND, OFFSHORE_WIND, FLOATING_WIND];
+
+// Define custom icons for each technology type
+var bessIcon = L.icon({ iconUrl: "{% static 'icons/bess.png' %}", iconSize: [32, 32] });
+var biomassIcon = L.icon({ iconUrl: "{% static 'icons/biomass.png' %}", iconSize: [32, 32] });
+var CCGTIcon = L.icon({ iconUrl: "{% static 'icons/CCGT.png' %}", iconSize: [32, 32] });
+var CSTIcon = L.icon({ iconUrl: "{% static 'icons/CST.png' %}", iconSize: [32, 32] });
+var coalIcon = L.icon({ iconUrl: "{% static 'icons/coal.png' %}", iconSize: [32, 32] });
+var geothermalIcon = L.icon({ iconUrl: "{% static 'icons/geothermal.png' %}", iconSize: [32, 32] });
+var nuclearIcon = L.icon({ iconUrl: "{% static 'icons/nuclear.png' %}", iconSize: [32, 32] });
+var PHESIcon = L.icon({ iconUrl: "{% static 'icons/PHES.png' %}", iconSize: [32, 32] });
+var recipIcon = L.icon({ iconUrl: "{% static 'icons/recip.png' %}", iconSize: [32, 32] });
+var solarIcon = L.icon({ iconUrl: "{% static 'icons/solar.png' %}", iconSize: [32, 32] });
+var windIcon = L.icon({ iconUrl: "{% static 'icons/wind.png' %}", iconSize: [32, 32] });
+var defaultIcon = L.icon({ iconUrl: "{% static 'icons/power_technology.png' %}", iconSize: [32, 32] });
+
+// Turbine data with corrected technology IDs
+const turbineData = {
+    "Siemens Gamesa SG 11.0-200 DD": { capacity: 11.0, technology: OFFSHORE_WIND },
+    "Siemens Gamesa SWT-7.0-154": { capacity: 7.0, technology: OFFSHORE_WIND },
+    "Vestas V164-10.0 MW": { capacity: 10.0, technology: OFFSHORE_WIND },
+    "Vestas V164-8.0 MW": { capacity: 8.0, technology: OFFSHORE_WIND },
+    "Vestas V112-3.45 MW": { capacity: 3.45, technology: OFFSHORE_WIND },
+    "Goldwind GWH252-16MW": { capacity: 16.0, technology: OFFSHORE_WIND },
+    "Enercon E66_1870kw(MG)": { capacity: 1.87, technology: ONSHORE_WIND },
+    "Siemens SWT-3.6MW-130m": { capacity: 3.6, technology: ONSHORE_WIND },
+    "Vestas_V82_1.65mw(MG);Vestas V82-1.65": { capacity: 1.65, technology: ONSHORE_WIND },
+    "Vestas V136-3.6Mw": { capacity: 3.6, technology: ONSHORE_WIND },
+    "Vestas V150-4.2Mw": { capacity: 4.2, technology: ONSHORE_WIND },
+    "Vestas V-90 GridStreamer 2mW (MG)Vestas V90-2.0": { capacity: 2.0, technology: ONSHORE_WIND },
+    "Enercon E48_800kw": { capacity: 0.8, technology: ONSHORE_WIND },
+    "General Electric2.5xl_100m_2500kw(MG)": { capacity: 2.5, technology: ONSHORE_WIND },
+    "Enercon E70_2300kw": { capacity: 2.3, technology: ONSHORE_WIND },
+    "Siemens Gamesa SG 14-222 DD": { capacity: 14.0, technology: FLOATING_WIND },
+    "Goldwind GW171-6.0MW": { capacity: 6.0, technology: FLOATING_WIND }
+};
+
+// ===== FUNCTION DEFINITIONS =====
+
+// Function to get the correct icon based on technology type
+function getIconForTechnology(technologyId) {
+    switch (technologyId) {
+        case 1: return coalIcon;
+        case 2: case 3: case 4: case 5: case 143: case 144: return bessIcon;
+        case 6: return biomassIcon;
+        case 7: case 19: return CCGTIcon;
+        case 8: case 9: return PHESIcon;
+        case 11: case 13: case 14: return solarIcon;
+        case 15: case 16: case 147: return windIcon;
+        case 18: return CSTIcon;
+        case 20: return recipIcon;
+        case 145: case 146: return nuclearIcon;
+        default: return defaultIcon;
+    }
+}
+
+function getTechnologyName(technologyId) {
+    const techMap = {
+        1: 'Coal',
+        2: 'Battery Storage (Li-ion)',
+        3: 'Battery Storage (Other)',
+        4: 'Battery Storage (Vanadium)',
+        5: 'Battery Storage (Zinc)',
+        6: 'Biomass',
+        7: 'Gas (CCGT)',
+        8: 'Pumped Hydro (Existing)',
+        9: 'Pumped Hydro (New)',
+        11: 'Solar PV (Fixed)',
+        13: 'Solar PV (Tracking)',
+        14: 'Solar PV (Rooftop)',
+        15: 'Wind (Offshore)',
+        16: 'Wind (Onshore)',
+        18: 'Concentrated Solar Thermal',
+        19: 'Gas (Peaking)',
+        20: 'Reciprocating Engine',
+        143: 'Battery Storage (Generic)',
+        144: 'Battery Storage (Utility)',
+        145: 'Nuclear (SMR)',
+        146: 'Nuclear (Large)',
+        147: 'Wind (Floating Offshore)'
+    };
+    
+    return techMap[technologyId] || `Technology ${technologyId}`;
+}
+
+// Enhanced function to load facilities with connection indicators
+function loadFacilitiesOnMap(facilitiesData) {
+    facilityLayer.clearLayers();
+    
+    if (map.hasLayer(facilityLayer)) {
+        map.removeLayer(facilityLayer);
+    }
+    
+    facilitiesData.forEach(function(facility, index) {
+        console.log(`Processing facility ${index + 1}:`, facility.facility_name);
+        
+        if (!facility.latitude || !facility.longitude) {
+            console.warn('Invalid coordinates for facility:', facility.facility_name);
+            return;
+        }
+        
+        var icon = getIconForTechnology(facility.idtechnologies);
+        var marker = L.marker([facility.latitude, facility.longitude], { icon: icon });
+        
+        // Enhanced marker data
+        marker.facilityId = facility.idfacilities;
+        marker.facilityData = facility;
+        
+        // Enhanced popup content with connection info
+        var connectionStatus = facility.has_grid_connection ? 
+            `Connected (${facility.connection_count} connection${facility.connection_count !== 1 ? 's' : ''})` : 
+            'Not connected';
+        var connectionColor = facility.has_grid_connection ? '#28a745' : '#dc3545';
+        
+        var popupContent = `
+            <div class="facility-popup">
+                <h5>${facility.facility_name}</h5>
+                <p><strong>Technology:</strong> ${facility.technology_name}</p>
+                <p><strong>Capacity:</strong> ${facility.capacity || 'N/A'} MW</p>
+                <p><strong>Grid Connection:</strong> <span style="color: ${connectionColor};">${connectionStatus}</span></p>
+                ${facility.primary_grid_line_name ? `<p><strong>Primary Line:</strong> ${facility.primary_grid_line_name}</p>` : ''}
+                <div style="margin-top: 10px;">
+                    <button onclick="showFacilityDetails(${facility.idfacilities})" class="btn btn-sm btn-primary">Details</button>
+                    <button onclick="manageFacilityConnections(${facility.idfacilities})" class="btn btn-sm btn-info">Connections</button>
+                </div>
+            </div>
+        `;
+        
+        marker.bindPopup(popupContent);
+        
+        // Click handler for connection management mode
+        marker.on('click', function(e) {
+            L.DomEvent.stopPropagation(e);
+            
+            if (connectionManagementMode) {
+                manageFacilityConnections(this.facilityId);
+            } else {
+                this.openPopup();
+            }
+        });
+        
+        // Enhanced hover effects
+        marker.on('mouseover', function(e) {
+            var tooltipContent = `
+                <strong>${facility.facility_name}</strong><br>
+                Technology: ${facility.technology_name}<br>
+                Capacity: ${facility.capacity || 'N/A'} MW<br>
+                Connections: ${facility.connection_count}
+            `;
+            
+            this.bindTooltip(tooltipContent, {
+                permanent: false,
+                sticky: true,
+                className: 'facility-tooltip'
+            }).openTooltip();
+        });
+        
+        marker.on('mouseout', function(e) {
+            this.closeTooltip();
+        });
+        
+        facilityLayer.addLayer(marker);
+    });
+    
+    facilityLayer.addTo(map);
+    map.invalidateSize();
+}
+
+function getLineWeightFromVoltage(voltageLevel) {
+    if (voltageLevel >= 330) return 6; // Extra high voltage
+    if (voltageLevel >= 220) return 5;  // High voltage
+    if (voltageLevel >= 132) return 4;  // Medium voltage
+    if (voltageLevel >= 66) return 3;  // Low voltage
+    return 2;  // Distribution voltage
+}
+
+// Function to load grid lines on map
+function loadGridLinesOnMap(gridLinesData) {
+        // Clear existing grid lines completely
+    gridLinesLayer.clearLayers();
+    
+        // Remove layer from map temporarily to prevent rendering issues
+    if (map.hasLayer(gridLinesLayer)) {
+        map.removeLayer(gridLinesLayer);
+    }
+    
+        // Process each grid line
+    gridLinesData.forEach(function(gridLine, index) {
+                    // Determine coordinates for the line
+        var lineCoords;
+        if (gridLine.coordinates && gridLine.coordinates.length > 0) {
+            lineCoords = gridLine.coordinates;
+        } else {
+            lineCoords = [
+                [gridLine.from_latitude, gridLine.from_longitude],
+                [gridLine.to_latitude, gridLine.to_longitude]
+            ];
+        }
+        
+        if (!lineCoords || lineCoords.length < 2) {
+            console.warn('Invalid coordinates for grid line:', gridLine.line_name);
+            return;
+        }
+        
+            // Calculate utilization
+        var utilization = gridLine.total_connected_capacity / gridLine.thermal_capacity_mw;
+        var baseWeight = getLineWeightFromVoltage(gridLine.voltage_level);
+        var lineStyle = gridLine.style || {
+            color: getVoltageColor(gridLine.voltage_level),
+            weight: baseWeight,
+            opacity: gridLine.active !== false ? 0.8 : 0.4,
+            dashArray: gridLine.active !== false ? null : '5, 5'
+        };
+        
+            // Modify style based on utilization (but keep weight reasonable)
+        if (utilization > 0.8) {
+            lineStyle.color = '#dc3545'; // Red for high utilization
+            lineStyle.weight = Math.min(baseWeight + 2, 8);  // Cap at 8
+        } else if (utilization > 0.6) {
+            lineStyle.color = '#fd7e14';  // Orange for medium utilization
+            lineStyle.weight = Math.min(baseWeight + 1, 7); // Cap at 7
+        } else if (utilization > 0.3) {
+            lineStyle.color = '#ffc107';  // Yellow for low utilization
+        }
+        
+            // Ensure weight is always reasonable
+        lineStyle.weight = Math.max(2, Math.min(8, lineStyle.weight));
+        
+        var polyline = L.polyline(lineCoords, lineStyle);
+            // IMMEDIATELY attach the click handler and grid line ID
+        polyline.gridLineId = gridLine.idgridlines;
+        polyline.gridLineData = gridLine;
+        
+            // Attach click handler directly to the polyline
+        polyline.on('click', function(e) {
+                // Stop event propagation to prevent map click
+            L.DomEvent.stopPropagation(e);
+                // Show grid line details
+            showGridLineDetails(this.gridLineId);
+        });
+        
+            // Optional: Add hover effects for better UX
+        polyline.on('mouseover', function(e) {
+            this.setStyle({
+                weight: this.options.weight + 2,
+                opacity: Math.min(1.0, this.options.opacity + 0.2)
+            });
+        });
+        
+        polyline.on('mouseout', function(e) {
+            this.setStyle({
+                weight: lineStyle.weight,
+                opacity: lineStyle.opacity
+            });
+        });
+        
+            // Add tooltip with basic info
+        var utilizationPercent = (utilization * 100).toFixed(1);
+        polyline.bindTooltip(
+            `<strong>${gridLine.line_name}</strong><br>` +
+            `${gridLine.voltage_level} kV | ${gridLine.thermal_capacity_mw} MW<br>` +
+            `Connected: ${gridLine.total_connected_capacity.toFixed(1)} MW (${utilizationPercent}%)<br>` +
+            `Facilities: ${gridLine.connected_facilities_count}`,
+            {
+                sticky: true,
+                className: 'grid-line-tooltip'
+            }
+        );
+        
+            // Add the polyline to the layer group
+        gridLinesLayer.addLayer(polyline);
+    });
+    
+        // Re-add the layer to the map
+    gridLinesLayer.addTo(map);
+        
+        // Ensure the layer is properly rendered
+    map.invalidateSize();
+}
+
+    // Function to get voltage-based color (fallback)
+function getVoltageColor(voltageLevel) {
+    if (voltageLevel >= 330) return '#ff0000';
+    if (voltageLevel >= 220) return '#00ffee';
+    if (voltageLevel >= 132) return '#ffaa00';
+    if (voltageLevel >= 66) return '#ee1100';
+    return '#FFFF00';
+}
+
+// Calculate distance between two points
+function calculateDistance(lat1, lon1, lat2, lon2) {
+    const R = 6371;  // Earth's radius in km
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+              Math.sin(dLon/2) * Math.sin(dLon/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R * c;
+}
+
+// Helper function to get CSRF token
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
+function getCurrentScenario() {
+    return '{{ scenario|escapejs }}';
+}
+
+function resetFacilityForm() {
+    document.getElementById('facility_name').value = '';
+    document.getElementById('technology_id').value = '';
+    document.getElementById('capacity').value = '';
+    document.getElementById('selected_lat').textContent = 'Latitude: (Click on map)';
+    document.getElementById('selected_lng').textContent = 'Longitude: (Click on map)';
+    document.querySelectorAll('input[name="grid_connection_option"]')[0].checked = true;
+    document.getElementById('existing_grid_lines').style.display = 'none';
+    document.getElementById('nearby_grid_lines').style.display = 'none';
+    selectedLocation = null;
+}
+
+// Load technologies when the page loads
+function loadTechnologies() {
+    fetch('/get_technologies/')
+        .then(response => response.json())
+        .then(data => {
+            const select = document.getElementById('technology_id');
+            
+            while (select.options.length > 1) {
+                select.remove(1);
+            }
+            
+            data.forEach(tech => {
+                const option = document.createElement('option');
+                option.value = tech.idtechnologies;
+                option.textContent = tech.technology_name;
+                select.appendChild(option);
+            });
+        })
+        .catch(error => console.error('Error loading technologies:', error));
+}
+
+function loadGridLinesForSelection() {
+    fetch('/get_grid_lines/')
+        .then(response => response.json())
+        .then(data => {
+            const select = document.getElementById('existing_grid_lines');
+            
+            while (select.options.length > 1) {
+                select.remove(1);
+            }
+            
+            data.forEach(gridLine => {
+                const option = document.createElement('option');
+                option.value = gridLine.idgridlines;
+                option.textContent = `${gridLine.line_name} (${gridLine.voltage_level}kV)`;
+                select.appendChild(option);
+            });
+        })
+        .catch(error => console.error('Error loading grid lines:', error));
+}
+
+function findNearbyGridLines(lat, lng) {
+    fetch(`/find_nearest_grid_lines/?lat=${lat}&lon=${lng}&max_distance=50`)
+        .then(response => response.json())
+        .then(data => {
+            const nearbyLinesDiv = document.getElementById('nearby_lines_list');
+            const nearbyGridLinesDiv = document.getElementById('nearby_grid_lines');
+            
+            if (data.length > 0) {
+                nearbyGridLinesDiv.style.display = 'block';
+                nearbyLinesDiv.innerHTML = '';
+                
+                    // Sort by suitability score
+                data.sort((a, b) => b.suitability_score - a.suitability_score);
+                
+                data.slice(0, 5).forEach(line => {
+                    var utilizationColor = line.utilization_percent > 80 ? '#dc3545' : 
+                                         line.utilization_percent > 60 ? '#fd7e14' : 
+                                         line.utilization_percent > 30 ? '#ffc107' : '#28a745';
+                    
+                    const lineDiv = document.createElement('div');
+                    lineDiv.style.cssText = 'padding: 8px; margin: 3px 0; background: #f8f9fa; border-radius: 4px; border-left: 4px solid ' + utilizationColor + ';';
+                    lineDiv.innerHTML = `
+                        <div style="display: flex; justify-content: space-between;">
+                            <div>
+                                <strong>${line.line_name}</strong> (${line.voltage_level}kV)
+                                <br><small>Distance: ${line.distance_km} km | Score: ${line.suitability_score.toFixed(0)}/100</small>
+                            </div>
+                            <div style="text-align: right; font-size: 11px;">
+                                <div>Capacity: ${line.thermal_capacity_mw} MW</div>
+                                <div style="color: ${utilizationColor};">Available: ${line.available_capacity_mw.toFixed(0)} MW</div>
+                            </div>
+                        </div>
+                    `;
+                    nearbyLinesDiv.appendChild(lineDiv);
+                });
+            } else {
+                nearbyGridLinesDiv.style.display = 'none';
+            }
+        })
+        .catch(error => {
+            console.error('Error finding nearby grid lines:', error);
+        });
+}
+
+// ===== MAIN INITIALIZATION =====
+document.addEventListener('DOMContentLoaded', function() {
     // Add OpenStreetMap tiles to the map
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: 'Map data © <a href="https://openstreetmap.org">OpenStreetMap</a> contributors'
     }).addTo(map);
     
-    // Data passed from view
-    var facilities = {{ facilities_json|safe }};
-    var gridLines = JSON.parse('{{ grid_lines_json|escapejs }}');
-    
-    // Global variables for connection management
-    var connectionManagementMode = false;
-    var selectedFacilityForConnection = null;
-    
-    // Define custom icons for each technology type
-    var bessIcon = L.icon({ iconUrl: "{% static 'icons/bess.png' %}", iconSize: [32, 32] });
-    var biomassIcon = L.icon({ iconUrl: "{% static 'icons/biomass.png' %}", iconSize: [32, 32] });
-    var CCGTIcon = L.icon({ iconUrl: "{% static 'icons/CCGT.png' %}", iconSize: [32, 32] });
-    var CSTIcon = L.icon({ iconUrl: "{% static 'icons/CST.png' %}", iconSize: [32, 32] });
-    var coalIcon = L.icon({ iconUrl: "{% static 'icons/coal.png' %}", iconSize: [32, 32] });
-    var geothermalIcon = L.icon({ iconUrl: "{% static 'icons/geothermal.png' %}", iconSize: [32, 32] });
-    var nuclearIcon = L.icon({ iconUrl: "{% static 'icons/nuclear.png' %}", iconSize: [32, 32] });
-    var PHESIcon = L.icon({ iconUrl: "{% static 'icons/PHES.png' %}", iconSize: [32, 32] });
-    var recipIcon = L.icon({ iconUrl: "{% static 'icons/recip.png' %}", iconSize: [32, 32] });
-    var solarIcon = L.icon({ iconUrl: "{% static 'icons/solar.png' %}", iconSize: [32, 32] });
-    var windIcon = L.icon({ iconUrl: "{% static 'icons/wind.png' %}", iconSize: [32, 32] });
-    var defaultIcon = L.icon({ iconUrl: "{% static 'icons/power_technology.png' %}", iconSize: [32, 32] });
-    
-    // Create layer groups
-    var facilityLayer = L.layerGroup();
-    var gridLinesLayer = L.layerGroup();
-    var connectionLinesLayer = L.layerGroup(); // For showing connections
-    
-    // Variables for Add Facility and Grid Line functionality
-    var addFacilityMode = false;
-    var addGridLineMode = false;
-    var selectedLocation = null;
-    var locationMarker = null;
-    var gridLinePoints = [];
-    var gridLineMarkers = [];
-    
-    // Grid line label functionality
-    var gridLineLabels = [];
-    var showLabels = false;
-
-    // Function to get the correct icon based on technology type
-    function getIconForTechnology(technologyId) {
-        switch (technologyId) {
-            case 1: return coalIcon;
-            case 2: case 3: case 4: case 5: case 143: case 144: return bessIcon;
-            case 6: return biomassIcon;
-            case 7: case 19: return CCGTIcon;
-            case 8: case 9: return PHESIcon;
-            case 11: case 13: case 14: return solarIcon;
-            case 15: case 16: case 147: return windIcon;
-            case 18: return CSTIcon;
-            case 20: return recipIcon;
-            case 145: case 146: return nuclearIcon;
-            default: return defaultIcon;
-        }
-    }
-    
-    // Enhanced function to load facilities with connection indicators
-    function loadFacilitiesOnMap(facilitiesData) {
-        facilityLayer.clearLayers();
-        
-        if (map.hasLayer(facilityLayer)) {
-            map.removeLayer(facilityLayer);
-        }
-        
-        facilitiesData.forEach(function(facility, index) {
-            console.log(`Processing facility ${index + 1}:`, facility.facility_name);
-            
-            if (!facility.latitude || !facility.longitude) {
-                console.warn('Invalid coordinates for facility:', facility.facility_name);
-                return;
-            }
-            
-            var icon = getIconForTechnology(facility.idtechnologies);
-            var marker = L.marker([facility.latitude, facility.longitude], { icon: icon });
-            
-            // Enhanced marker data
-            marker.facilityId = facility.idfacilities;
-            marker.facilityData = facility;
-            
-            // Enhanced popup content with connection info
-            var connectionStatus = facility.has_grid_connection ? 
-                `Connected (${facility.connection_count} connection${facility.connection_count !== 1 ? 's' : ''})` : 
-                'Not connected';
-            var connectionColor = facility.has_grid_connection ? '#28a745' : '#dc3545';
-            
-            var popupContent = `
-                <div class="facility-popup">
-                    <h5>${facility.facility_name}</h5>
-                    <p><strong>Technology:</strong> ${facility.technology_name}</p>
-                    <p><strong>Capacity:</strong> ${facility.capacity || 'N/A'} MW</p>
-                    <p><strong>Grid Connection:</strong> <span style="color: ${connectionColor};">${connectionStatus}</span></p>
-                    ${facility.primary_grid_line_name ? `<p><strong>Primary Line:</strong> ${facility.primary_grid_line_name}</p>` : ''}
-                    <div style="margin-top: 10px;">
-                        <button onclick="showFacilityDetails(${facility.idfacilities})" class="btn btn-sm btn-primary">Details</button>
-                        <button onclick="manageFacilityConnections(${facility.idfacilities})" class="btn btn-sm btn-info">Connections</button>
-                    </div>
-                </div>
-            `;
-            
-            marker.bindPopup(popupContent);
-            
-            // Click handler for connection management mode
-            marker.on('click', function(e) {
-                L.DomEvent.stopPropagation(e);
-                
-                if (connectionManagementMode) {
-                    manageFacilityConnections(this.facilityId);
-                } else {
-                    this.openPopup();
-                }
-            });
-            
-            // Enhanced hover effects
-            marker.on('mouseover', function(e) {
-                var tooltipContent = `
-                    <strong>${facility.facility_name}</strong><br>
-                    Technology: ${facility.technology_name}<br>
-                    Capacity: ${facility.capacity || 'N/A'} MW<br>
-                    Connections: ${facility.connection_count}
-                `;
-                
-                this.bindTooltip(tooltipContent, {
-                    permanent: false,
-                    sticky: true,
-                    className: 'facility-tooltip'
-                }).openTooltip();
-            });
-            
-            marker.on('mouseout', function(e) {
-                this.closeTooltip();
-            });
-            
-            facilityLayer.addLayer(marker);
-        });
-        
-        facilityLayer.addTo(map);
-        map.invalidateSize();
-    }
-
-    function getLineWeightFromVoltage(voltageLevel) {
-        // More controlled weight calculation
-        if (voltageLevel >= 330) return 6;      // Extra high voltage
-        if (voltageLevel >= 220) return 5;      // High voltage  
-        if (voltageLevel >= 132) return 4;      // Medium voltage
-        if (voltageLevel >= 66) return 3;       // Low voltage
-        return 2;                               // Distribution voltage
-    }
-
-    // Function to load grid lines on map
-    function loadGridLinesOnMap(gridLinesData) {
-        
-        // Clear existing grid lines completely
-        gridLinesLayer.clearLayers();
-        
-        // Remove layer from map temporarily to prevent rendering issues
-        if (map.hasLayer(gridLinesLayer)) {
-            map.removeLayer(gridLinesLayer);
-        }
-        
-        // Process each grid line
-        gridLinesData.forEach(function(gridLine, index) {
-
-                    // Determine coordinates for the line
-            var lineCoords;
-            if (gridLine.coordinates && gridLine.coordinates.length > 0) {
-                lineCoords = gridLine.coordinates;
-            } else {
-                lineCoords = [
-                    [gridLine.from_latitude, gridLine.from_longitude],
-                    [gridLine.to_latitude, gridLine.to_longitude]
-                ];
-            }
-            
-            if (!lineCoords || lineCoords.length < 2) {
-                console.warn('Invalid coordinates for grid line:', gridLine.line_name);
-                return;
-            }
-            
-            // Calculate utilization
-            var utilization = gridLine.total_connected_capacity / gridLine.thermal_capacity_mw;
-            
-            // FIXED: Better line style calculation
-            var baseWeight = getLineWeightFromVoltage(gridLine.voltage_level);
-            var lineStyle = gridLine.style || {
-                color: getVoltageColor(gridLine.voltage_level),
-                weight: baseWeight,  // Use the controlled weight function
-                opacity: gridLine.active !== false ? 0.8 : 0.4,
-                dashArray: gridLine.active !== false ? null : '5, 5'
-            };
-            
-            // Modify style based on utilization (but keep weight reasonable)
-            if (utilization > 0.8) {
-                lineStyle.color = '#dc3545'; // Red for high utilization
-                lineStyle.weight = Math.min(baseWeight + 2, 8); // Cap at 8
-            } else if (utilization > 0.6) {
-                lineStyle.color = '#fd7e14'; // Orange for medium utilization
-                lineStyle.weight = Math.min(baseWeight + 1, 7); // Cap at 7
-            } else if (utilization > 0.3) {
-                lineStyle.color = '#ffc107'; // Yellow for low utilization
-            }
-            
-            // Ensure weight is always reasonable
-            lineStyle.weight = Math.max(2, Math.min(8, lineStyle.weight));
-            
-            var polyline = L.polyline(lineCoords, lineStyle);
-            
-            // IMMEDIATELY attach the click handler and grid line ID
-            polyline.gridLineId = gridLine.idgridlines;
-            polyline.gridLineData = gridLine; // Store full data for reference
-            
-            // Attach click handler directly to the polyline
-            polyline.on('click', function(e) {
-                
-                // Stop event propagation to prevent map click
-                L.DomEvent.stopPropagation(e);
-                
-                // Show grid line details
-                showGridLineDetails(this.gridLineId);
-            });
-            
-            // Optional: Add hover effects for better UX
-            polyline.on('mouseover', function(e) {
-                this.setStyle({
-                    weight: this.options.weight + 2,
-                    opacity: Math.min(1.0, this.options.opacity + 0.2)
-                });
-            });
-            
-            polyline.on('mouseout', function(e) {
-                this.setStyle({
-                    weight: lineStyle.weight,
-                    opacity: lineStyle.opacity
-                });
-            });
-            
-            // Add tooltip with basic info
-            var utilizationPercent = (utilization * 100).toFixed(1);
-            polyline.bindTooltip(
-                `<strong>${gridLine.line_name}</strong><br>` +
-                `${gridLine.voltage_level} kV | ${gridLine.thermal_capacity_mw} MW<br>` +
-                `Connected: ${gridLine.total_connected_capacity.toFixed(1)} MW (${utilizationPercent}%)<br>` +
-                `Facilities: ${gridLine.connected_facilities_count}`,
-                {
-                    sticky: true,
-                    className: 'grid-line-tooltip'
-                }
-            );
-            
-            // Add the polyline to the layer group
-            gridLinesLayer.addLayer(polyline);
-        });
-        
-        // Re-add the layer to the map
-        gridLinesLayer.addTo(map);
-        
-        // Ensure the layer is properly rendered
-        map.invalidateSize();
-    }
-    function refreshGridLines() {      
-        fetch('/get_grid_lines/')
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-                return response.json();
-            })
-            .then(data => {
-                console.log('Received grid lines data:', data);
-                
-                // Update the global gridLines variable
-                gridLines = data;
-                
-                // Reload grid lines on map
-                loadGridLinesOnMap(data);
-                
-                // Also refresh the grid lines dropdown for facility creation
-                loadGridLinesForSelection();
-            })
-            .catch(error => {
-                console.error('Error refreshing grid lines:', error);
-                alert('Failed to refresh grid lines: ' + error.message);
-            });
-    }
-    function initializeGridLines() {
-        
-        // Create a fresh layer group
-        if (gridLinesLayer) {
-            map.removeLayer(gridLinesLayer);
-        }
-        gridLinesLayer = L.layerGroup();
-        
-        // Load initial grid lines
-        if (typeof gridLines !== 'undefined' && gridLines.length > 0) {
-            loadGridLinesOnMap(gridLines);
-        } else {
-            console.log('No initial grid lines data, fetching from server...');
-            refreshGridLines();
-        }
-    }
-    
-    // Call this function to reinitialize grid lines if needed
-    function reinitializeGridLines() {
-        
-        // Clear any existing handlers and layers
-        if (gridLinesLayer) {
-            gridLinesLayer.eachLayer(function(layer) {
-                layer.off(); // Remove all event handlers
-            });
-            gridLinesLayer.clearLayers();
-            map.removeLayer(gridLinesLayer);
-        }
-        
-        // Recreate and initialize
-        initializeGridLines();
-    }
-    // Function to get voltage-based color (fallback)
-    function getVoltageColor(voltageLevel) {
-        if (voltageLevel >= 330) return '#ff0000';
-        if (voltageLevel >= 220) return '#00ffee';
-        if (voltageLevel >= 132) return '#ffaa00';
-        if (voltageLevel >= 66) return '#ee1100';
-        return '#FFFF00';
-    }
-    
-    // Function to show detailed grid line information
-    function showGridLineDetails(gridLineId) {
-        fetch(`/grid_line/${gridLineId}/details/`)
-            .then(response => response.json())
-            .then(data => {
-                if (data.error) {
-                    alert('Error: ' + data.error);
-                    return;
-                }
-                
-                // Create detailed popup or modal
-                var detailsHtml = `
-                    <div class="grid-line-details">
-                        <h3>${data.line_name} (${data.line_code})</h3>
-                        <table class="table table-sm">
-                            <tr><td><strong>Type:</strong></td><td>${data.line_type}</td></tr>
-                            <tr><td><strong>Voltage:</strong></td><td>${data.voltage_level} kV</td></tr>
-                            <tr><td><strong>Length:</strong></td><td>${data.length_km} km</td></tr>
-                            <tr><td><strong>Capacity:</strong></td><td>${data.thermal_capacity_mw} MW</td></tr>
-                            ${data.emergency_capacity_mw ? `<tr><td><strong>Emergency:</strong></td><td>${data.emergency_capacity_mw} MW</td></tr>` : ''}
-                            <tr><td><strong>Resistance:</strong></td><td>${data.resistance_total.toFixed(4)} Ω</td></tr>
-                            <tr><td><strong>Reactance:</strong></td><td>${data.reactance_total.toFixed(4)} Ω</td></tr>
-                            <tr><td><strong>Impedance:</strong></td><td>${data.impedance_total.toFixed(4)} Ω</td></tr>
-                            ${data.owner ? `<tr><td><strong>Owner:</strong></td><td>${data.owner}</td></tr>` : ''}
-                            ${data.commissioned_date ? `<tr><td><strong>Commissioned:</strong></td><td>${new Date(data.commissioned_date).toLocaleDateString()}</td></tr>` : ''}
-                            <tr><td><strong>Losses at Full Load:</strong></td><td>${data.losses_at_full_capacity.toFixed(2)} MW</td></tr>
-                        </table>
-                        
-                        ${data.connected_facilities.length > 0 ? `
-                        <h4>Connected Facilities (${data.connected_facilities.length})</h4>
-                        <div class="connected-facilities" style="max-height: 200px; overflow-y: auto;">
-                            ${data.connected_facilities.map(facility => `
-                                <div class="facility-connection" style="border: 1px solid #ddd; margin: 5px 0; padding: 8px; border-radius: 4px;">
-                                    <strong>${facility.facility_name}</strong> (${facility.technology})<br>
-                                    <small>Capacity: ${facility.capacity} MW | Distance: ${facility.connection_distance} km ${facility.is_primary ? '| Primary Connection' : ''}</small>
-                                </div>
-                            `).join('')}
-                        </div>
-                        ` : '<p>No facilities connected to this line.</p>'}
-                    </div>
-                `;
-                
-                // Show in a modal or large popup
-                showModal('Grid Line Details', detailsHtml);
-            })
-            .catch(error => {
-                console.error('Error fetching grid line details:', error);
-                alert('Failed to load grid line details');
-            });
-    }
-    
-    // Function to show modal
-    function showModal(title, content) {
-        var modal = document.createElement('div');
-        modal.style.cssText = `
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
-            background: rgba(0,0,0,0.5); z-index: 10000; display: flex; 
-            align-items: center; justify-content: center;
-        `;
-        
-        var modalContent = document.createElement('div');
-        modalContent.style.cssText = `
-            background: white; padding: 20px; border-radius: 8px; 
-            max-width: 600px; max-height: 80vh; overflow-y: auto;
-            position: relative;
-        `;
-        
-        modalContent.innerHTML = `
-            <button onclick="this.closest('.modal-overlay').remove()" 
-                    style="position: absolute; top: 10px; right: 15px; 
-                           background: none; border: none; font-size: 24px; cursor: pointer;">
-                ×
-            </button>
-            <h2>${title}</h2>
-            ${content}
-        `;
-        
-        modal.className = 'modal-overlay';
-        modal.appendChild(modalContent);
-        document.body.appendChild(modal);
-        
-        // Close on background click
-        modal.addEventListener('click', function(e) {
-            if (e.target === modal) {
-                modal.remove();
-            }
-        });
-    }
-    
-    function toggleGridLineLabels() {
-        showLabels = !showLabels;
-        
-        if (showLabels) {
-            // Add labels to grid lines
-            gridLines.forEach(function(gridLine) {
-                if (gridLine.coordinates && gridLine.coordinates.length > 0) {
-                    // Place label at midpoint of line
-                    const midIndex = Math.floor(gridLine.coordinates.length / 2);
-                    const midPoint = gridLine.coordinates[midIndex];
-                    
-                    const label = L.marker(midPoint, {
-                        icon: L.divIcon({
-                            className: 'grid-line-label',
-                            html: `<div style="background: rgba(255,255,255,0.8); padding: 2px 4px; border-radius: 3px; font-size: 10px; font-weight: bold;">${gridLine.line_name}</div>`,
-                            iconSize: [0, 0],
-                            iconAnchor: [0, 0]
-                        })
-                    }).addTo(map);
-                    
-                    gridLineLabels.push(label);
-                }
-            });
-        } else {
-            // Remove labels
-            gridLineLabels.forEach(function(label) {
-                map.removeLayer(label);
-            });
-            gridLineLabels = [];
-        }
-    }
-
-    function showFacilityDetails(facilityId) {
-        
-        fetch(`/facility/${facilityId}/details/`)
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-                return response.json();
-            })
-            .then(data => {
-                if (data.error) {
-                    throw new Error(data.error);
-                }
-                
-                // Create detailed facility information
-                var detailsHtml = createFacilityDetailsHtml(data);
-                
-                // Update the modal content
-                showModal('Facility Details', detailsHtml);
-            })
-            .catch(error => {
-                console.error('Error fetching facility details:', error);
-                showModal('Error', `
-                    <div style="color: red; text-align: center; padding: 20px;">
-                        <h4>Failed to load facility details</h4>
-                        <p>${error.message}</p>
-                    </div>
-                `);
-            });
-    }
-    
-    function createFacilityDetailsHtml(data) {
-        var html = `
-            <div class="facility-details">
-                <h3>${data.facility_name} (${data.facility_code || 'N/A'})</h3>
-                
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px;">
-                    <div>
-                        <h4>Basic Information</h4>
-                        <table class="table table-sm">
-                            <tr><td><strong>Technology:</strong></td><td>${data.technology_name}</td></tr>
-                            <tr><td><strong>Capacity:</strong></td><td>${data.capacity || 'N/A'} MW</td></tr>
-                            <tr><td><strong>Status:</strong></td><td>${data.active ? 'Active' : 'Inactive'}</td></tr>
-                            <tr><td><strong>Existing:</strong></td><td>${data.existing ? 'Yes' : 'No'}</td></tr>
-                            ${data.commissioned_date ? `<tr><td><strong>Commissioned:</strong></td><td>${new Date(data.commissioned_date).toLocaleDateString()}</td></tr>` : ''}
-                            ${data.decommission_date ? `<tr><td><strong>Decommission:</strong></td><td>${new Date(data.decommission_date).toLocaleDateString()}</td></tr>` : ''}
-                        </table>
-                    </div>
-                    
-                    <div>
-                        <h4>Location</h4>
-                        <table class="table table-sm">
-                            <tr><td><strong>Latitude:</strong></td><td>${data.latitude?.toFixed(6) || 'N/A'}</td></tr>
-                            <tr><td><strong>Longitude:</strong></td><td>${data.longitude?.toFixed(6) || 'N/A'}</td></tr>
-                            ${data.elevation ? `<tr><td><strong>Elevation:</strong></td><td>${data.elevation} m</td></tr>` : ''}
-                            ${data.land_use_area ? `<tr><td><strong>Land Use:</strong></td><td>${data.land_use_area} ha</td></tr>` : ''}
-                        </table>
-                    </div>
-                </div>
-        `;
-        
-        // Add wind turbine specific information
-        if (data.turbine_details) {
-            html += `
-                <div style="margin-bottom: 20px;">
-                    <h4>Wind Turbine Details</h4>
-                    <table class="table table-sm">
-                        <tr><td><strong>Turbine Model:</strong></td><td>${data.turbine_details.turbine || 'N/A'}</td></tr>
-                        <tr><td><strong>Hub Height:</strong></td><td>${data.turbine_details.hub_height || 'N/A'} m</td></tr>
-                        <tr><td><strong>Number of Turbines:</strong></td><td>${data.turbine_details.no_turbines || 'N/A'}</td></tr>
-                        <tr><td><strong>Rotor Tilt:</strong></td><td>${data.turbine_details.tilt || 'N/A'}°</td></tr>
-                        ${data.turbine_details.rotor_diameter ? `<tr><td><strong>Rotor Diameter:</strong></td><td>${data.turbine_details.rotor_diameter} m</td></tr>` : ''}
-                        ${data.turbine_details.capacity_per_turbine ? `<tr><td><strong>Capacity per Turbine:</strong></td><td>${data.turbine_details.capacity_per_turbine} MW</td></tr>` : ''}
-                    </table>
-                </div>
-            `;
-        }
-        
-        // Add economic information if available
-        if (data.economic_data && Object.keys(data.economic_data).length > 0) {
-            html += `
-                <div style="margin-bottom: 20px;">
-                    <h4>Economic Data</h4>
-                    <table class="table table-sm">
-                        ${data.economic_data.capex ? `<tr><td><strong>CAPEX:</strong></td><td>$${data.economic_data.capex.toLocaleString()}/MW</td></tr>` : ''}
-                        ${data.economic_data.opex ? `<tr><td><strong>OPEX:</strong></td><td>$${data.economic_data.opex.toLocaleString()}/MW/year</td></tr>` : ''}
-                        ${data.economic_data.discount_rate ? `<tr><td><strong>Discount Rate:</strong></td><td>${(data.economic_data.discount_rate * 100).toFixed(1)}%</td></tr>` : ''}
-                        ${data.economic_data.lifetime ? `<tr><td><strong>Lifetime:</strong></td><td>${data.economic_data.lifetime} years</td></tr>` : ''}
-                    </table>
-                </div>
-            `;
-        }
-        if (data.grid_connections && data.grid_connections.length > 0) {
-            html += `
-                <div style="margin-bottom: 20px;">
-                    <h4>Grid Connections (${data.grid_connections.length})</h4>
-                    <div style="max-height: 300px; overflow-y: auto;">
-                        ${data.grid_connections.map(conn => `
-                            <div class="grid-connection-item" style="border: 1px solid #ddd; margin: 5px 0; padding: 10px; border-radius: 4px; ${conn.is_primary ? 'background-color: #e8f5e8;' : ''}">
-                                <div style="display: flex; justify-content: space-between; align-items: start;">
-                                    <div>
-                                        <strong>${conn.grid_line_name}</strong> ${conn.is_primary ? '<span style="background: #28a745; color: white; padding: 2px 6px; border-radius: 3px; font-size: 10px;">PRIMARY</span>' : ''}
-                                        <br><small>${conn.voltage_level} kV | ${conn.connection_type} connection</small>
-                                    </div>
-                                    <div style="text-align: right;">
-                                        <div><strong>${conn.capacity_mw} MW</strong></div>
-                                        <div><small>${conn.distance_km} km</small></div>
-                                    </div>
-                                </div>
-                                ${conn.losses_at_full_output ? `
-                                    <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #eee;">
-                                        <small>Losses at full output: ${conn.losses_at_full_output.toFixed(2)} MW (${((conn.losses_at_full_output / data.capacity) * 100).toFixed(1)}%)</small>
-                                    </div>
-                                ` : ''}
-                            </div>
-                        `).join('')}
-                    </div>
-                </div>
-            `;
-        }
-        
-        // Add scenarios information
-        if (data.scenarios && data.scenarios.length > 0) {
-            html += `
-                <div style="margin-bottom: 20px;">
-                    <h4>Associated Scenarios</h4>
-                    <div>
-                        ${data.scenarios.map(scenario => `
-                            <span style="background: #007bff; color: white; padding: 4px 8px; border-radius: 12px; margin: 2px; display: inline-block; font-size: 12px;">
-                                ${scenario}
-                            </span>
-                        `).join('')}
-                    </div>
-                </div>
-            `;
-        }
-        
-        // Add performance metrics if available
-        if (data.performance_metrics) {
-            html += `
-                <div style="margin-bottom: 20px;">
-                    <h4>Performance Metrics</h4>
-                    <table class="table table-sm">
-                        ${data.performance_metrics.capacity_factor ? `<tr><td><strong>Capacity Factor:</strong></td><td>${(data.performance_metrics.capacity_factor * 100).toFixed(1)}%</td></tr>` : ''}
-                        ${data.performance_metrics.annual_output ? `<tr><td><strong>Annual Output:</strong></td><td>${data.performance_metrics.annual_output.toLocaleString()} MWh</td></tr>` : ''}
-                        ${data.performance_metrics.availability ? `<tr><td><strong>Availability:</strong></td><td>${(data.performance_metrics.availability * 100).toFixed(1)}%</td></tr>` : ''}
-                    </table>
-                </div>
-            `;
-        }
-        
-        // Add action buttons
-        html += `
-            <div style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #dee2e6;">
-                <div style="display: flex; gap: 10px; justify-content: flex-end;">
-                    <button onclick="showFacilityOnMap(${data.facility_id})" class="btn btn-sm btn-info">
-                        Show on Map
-                    </button>
-                    <button onclick="calculateGridLosses(${data.facility_id})" class="btn btn-sm btn-warning">
-                        Calculate Losses
-                    </button>
-                    ${data.can_edit ? `
-                        <button onclick="editFacility(${data.facility_id})" class="btn btn-sm btn-primary">
-                            Edit Facility
-                        </button>
-                    ` : ''}
-                </div>
-            </div>
-        `;
-        
-        html += '</div>';
-        
-        return html;
-    }
-
-    function showFacilityOnMap(facilityId) {
-        // Find the facility marker and center the map on it
-        facilityLayer.eachLayer(function(marker) {
-            if (marker.facilityId === facilityId) {
-                map.setView(marker.getLatLng(), 12);
-                marker.openPopup();
-                
-                // Temporarily highlight the marker
-                const originalIcon = marker.getIcon();
-                const highlightIcon = L.icon({
-                    iconUrl: originalIcon.options.iconUrl,
-                    iconSize: [48, 48], // Larger size
-                    className: 'highlighted-facility'
-                });
-                
-                marker.setIcon(highlightIcon);
-                
-                // Reset after 3 seconds
-                setTimeout(() => {
-                    marker.setIcon(originalIcon);
-                }, 3000);
-            }
-        });
-        
-        // Close the modal
-        const modal = document.querySelector('.modal-overlay');
-        if (modal) {
-            modal.remove();
-        }
-    }
-
-    function calculateGridLosses(facilityId) {
-        // Get the facility capacity for calculation
-        let facilityCapacity = 0;
-        facilityLayer.eachLayer(function(marker) {
-            if (marker.facilityId === facilityId && marker.facilityData.capacity) {
-                facilityCapacity = marker.facilityData.capacity;
-            }
-        });
-        
-        if (facilityCapacity === 0) {
-            alert('Cannot calculate losses: facility capacity not available');
-            return;
-        }
-        
-        // Show loading
-        showModal('Grid Losses Calculation', '<div style="text-align: center; padding: 20px;">Calculating grid losses...</div>');
-        
-        fetch(`/calculate_grid_losses/?facility_id=${facilityId}&power_output=${facilityCapacity}`)
-            .then(response => response.json())
-            .then(data => {
-                if (data.error) {
-                    throw new Error(data.error);
-                }
-                
-                let lossesHtml = `
-                    <div class="grid-losses-details">
-                        <h3>Grid Losses for ${data.facility_name}</h3>
-                        
-                        <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
-                            <h4>Summary</h4>
-                            <table class="table">
-                                <tr><td><strong>Total Power Output:</strong></td><td>${data.total_power_output_mw} MW</td></tr>
-                                <tr><td><strong>Total Losses:</strong></td><td>${data.total_losses_mw} MW</td></tr>
-                                <tr><td><strong>Loss Percentage:</strong></td><td>${data.total_loss_percentage}%</td></tr>
-                                <tr><td><strong>Net Output:</strong></td><td>${(data.total_power_output_mw - data.total_losses_mw).toFixed(2)} MW</td></tr>
-                            </table>
-                        </div>
-                        
-                        ${data.loss_breakdown.length > 0 ? `
-                            <h4>Detailed Breakdown</h4>
-                            <div style="max-height: 300px; overflow-y: auto;">
-                                ${data.loss_breakdown.map(breakdown => `
-                                    <div style="border: 1px solid #ddd; margin: 5px 0; padding: 10px; border-radius: 4px;">
-                                        <strong>${breakdown.grid_line}</strong><br>
-                                        <small>Power Flow: ${breakdown.power_flow_mw} MW</small>
-                                        <table class="table table-sm" style="margin-top: 10px;">
-                                            <tr><td>Connection Losses:</td><td>${breakdown.connection_losses_mw} MW</td></tr>
-                                            <tr><td>Grid Line Losses:</td><td>${breakdown.grid_line_losses_mw} MW</td></tr>
-                                            <tr><td><strong>Total:</strong></td><td><strong>${breakdown.total_losses_mw} MW (${breakdown.loss_percentage}%)</strong></td></tr>
-                                        </table>
-                                    </div>
-                                `).join('')}
-                            </div>
-                        ` : ''}
-                    </div>
-                `;
-                
-                showModal('Grid Losses Calculation', lossesHtml);
-            })
-            .catch(error => {
-                console.error('Error calculating grid losses:', error);
-                showModal('Error', `
-                    <div style="color: red; text-align: center; padding: 20px;">
-                        <h4>Failed to calculate grid losses</h4>
-                        <p>${error.message}</p>
-                    </div>
-                `);
-            });
-    }
-
-    function editFacility(facilityId) {
-        // This would open an edit form - implement based on your needs
-        alert(`Edit facility functionality would go here for facility ID: ${facilityId}`);
-    }
-
-    // Calculate distance between two points
-    function calculateDistance(lat1, lon1, lat2, lon2) {
-        const R = 6371; // Earth's radius in km
-        const dLat = (lat2 - lat1) * Math.PI / 180;
-        const dLon = (lon2 - lon1) * Math.PI / 180;
-        const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-                  Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-                  Math.sin(dLon/2) * Math.sin(dLon/2);
-        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-        return R * c;
-    }
-
-    // Enhanced facility connection management
-    function manageFacilityConnections(facilityId) {
-        selectedFacilityForConnection = facilityId;
-        
-        fetch(`/facility/${facilityId}/connections/`)
-            .then(response => response.json())
-            .then(data => {
-                if (data.error) {
-                    alert('Error: ' + data.error);
-                    return;
-                }
-                
-                showConnectionManagementModal(data);
-            })
-            .catch(error => {
-                console.error('Error fetching facility connections:', error);
-                alert('Failed to load facility connections');
-            });
-    }
-
-    function showConnectionManagementModal(facilityData) {
-        var connectionsHtml = `
-            <h4>${facilityData.facility_name} - Grid Connections</h4>
-            <p><strong>Total Connections:</strong> ${facilityData.total_connections}</p>
-            
-            <div style="margin-bottom: 20px;">
-                <button onclick="addNewConnection(${facilityData.facility_id})" class="btn btn-success btn-sm">
-                    Add New Connection
-                </button>
-            </div>
-            
-            <div class="connections-list">
-        `;
-        
-        if (facilityData.connections.length === 0) {
-            connectionsHtml += '<p>No grid connections found for this facility.</p>';
-        } else {
-            facilityData.connections.forEach(function(conn) {
-                var isPrimary = conn.is_primary;
-                var utilizationClass = conn.loss_percentage > 10 ? 'utilization-critical' : 
-                                     conn.loss_percentage > 5 ? 'utilization-high' : 
-                                     conn.loss_percentage > 2 ? 'utilization-medium' : 'utilization-low';
-                
-                connectionsHtml += `
-                    <div class="grid-connection-item ${isPrimary ? 'primary' : ''}" style="position: relative;">
-                        <div class="connection-actions">
-                            ${!isPrimary ? `<button onclick="setPrimaryConnection(${conn.connection_id})" class="btn btn-xs btn-outline-success" title="Set as Primary">★</button>` : '<span style="color: #28a745;" title="Primary Connection">★</span>'}
-                            <button onclick="removeConnection(${conn.connection_id})" class="btn btn-xs btn-outline-danger" title="Remove Connection">×</button>
-                        </div>
-                        
-                        <div style="display: flex; justify-content: space-between; align-items: start;">
-                            <div>
-                                <strong>${conn.grid_line_name}</strong> ${isPrimary ? '<span style="background: #28a745; color: white; padding: 2px 6px; border-radius: 3px; font-size: 10px;">PRIMARY</span>' : ''}
-                                <br><small>${conn.voltage_level} kV | ${conn.connection_type} connection</small>
-                                <br><small>Distance: ${conn.distance_km} km</small>
-                            </div>
-                            <div style="text-align: right;">
-                                <div><strong>${conn.capacity_mw} MW</strong></div>
-                                <div><small>Losses: ${conn.total_losses_mw} MW (${conn.loss_percentage}%)</small></div>
-                            </div>
-                        </div>
-                        
-                        <div class="utilization-bar" style="margin-top: 8px;">
-                            <div class="utilization-fill ${utilizationClass}" style="width: ${Math.min(100, conn.loss_percentage * 10)}%;"></div>
-                        </div>
-                    </div>
-                `;
-            });
-        }
-        
-        connectionsHtml += '</div>';
-        
-        document.getElementById('connectionManagementContent').innerHTML = connectionsHtml;
-        document.getElementById('connectionManagementModal').style.display = 'block';
-    }
-
-    function addNewConnection(facilityId) {
-        // Get facility location
-        var facility = facilities.find(f => f.idfacilities === facilityId);
-        if (!facility) {
-            alert('Facility not found');
-            return;
-        }
-        
-        // Find nearby grid lines
-        fetch(`/find_nearest_grid_lines/?lat=${facility.latitude}&lon=${facility.longitude}&max_distance=100`)
-            .then(response => response.json())
-            .then(data => {
-                if (data.length === 0) {
-                    alert('No nearby grid lines found within 100km');
-                    return;
-                }
-                
-                showAddConnectionModal(facilityId, data);
-            })
-            .catch(error => {
-                console.error('Error finding nearby grid lines:', error);
-                alert('Failed to find nearby grid lines');
-            });
-    }
-
-    function showAddConnectionModal(facilityId, nearbyLines) {
-        var modalHtml = `
-            <div style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 10001;">
-                <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 20px; border-radius: 8px; max-width: 600px; max-height: 80vh; overflow-y: auto;">
-                    <h4>Add New Grid Connection</h4>
-                    <p>Select a grid line to connect to:</p>
-                    
-                    <div style="max-height: 400px; overflow-y: auto;">
-        `;
-        
-        nearbyLines.forEach(function(line) {
-            var utilizationColor = line.utilization_percent > 80 ? '#dc3545' : 
-                                 line.utilization_percent > 60 ? '#fd7e14' : 
-                                 line.utilization_percent > 30 ? '#ffc107' : '#28a745';
-            
-            modalHtml += `
-                <div class="grid-connection-item" onclick="confirmAddConnection(${facilityId}, ${line.idgridlines})" style="cursor: pointer;">
-                    <div style="display: flex; justify-content: space-between; align-items: start;">
-                        <div>
-                            <strong>${line.line_name}</strong> (${line.line_code})
-                            <br><small>${line.voltage_level} kV | ${line.line_type}</small>
-                            <br><small>Distance: ${line.distance_km} km</small>
-                            <br><small>Suitability Score: ${line.suitability_score.toFixed(0)}/100</small>
-                        </div>
-                        <div style="text-align: right;">
-                            <div><strong>${line.thermal_capacity_mw} MW</strong></div>
-                            <div><small>Available: ${line.available_capacity_mw.toFixed(1)} MW</small></div>
-                            <div style="color: ${utilizationColor};"><small>Utilization: ${line.utilization_percent}%</small></div>
-                        </div>
-                    </div>
-                    <div class="utilization-bar" style="margin-top: 5px;">
-                        <div class="utilization-fill" style="width: ${line.utilization_percent}%; background-color: ${utilizationColor};"></div>
-                    </div>
-                </div>
-            `;
-        });
-        
-        modalHtml += `
-                    </div>
-                    <div style="margin-top: 20px; text-align: right;">
-                        <button onclick="this.closest('div').remove()" class="btn btn-secondary">Cancel</button>
-                    </div>
-                </div>
-            </div>
-        `;
-        
-        document.body.insertAdjacentHTML('beforeend', modalHtml);
-    }
-
-    function confirmAddConnection(facilityId, gridLineId) {
-        var isPrimary = confirm('Set this as the primary connection for this facility?');
-        
-        fetch(`/facility/${facilityId}/manage_connections/`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': getCookie('csrftoken')
-            },
-            body: JSON.stringify({
-                action: 'add',
-                grid_line_id: gridLineId,
-                is_primary: isPrimary
-            })
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.status === 'success') {
-                alert(data.message);
-                
-                // Remove the add connection modal
-                document.querySelector('div[style*="z-index: 10001"]').remove();
-                
-                // Refresh the connection management modal
-                manageFacilityConnections(facilityId);
-                
-                // Refresh the map
-                refreshFacilities(getCurrentScenario());
-            } else {
-                alert('Error: ' + data.message);
-            }
-        })
-        .catch(error => {
-            console.error('Error adding connection:', error);
-            alert('Failed to add connection');
-        });
-    }
-
-    function setPrimaryConnection(connectionId) {
-        if (!selectedFacilityForConnection) return;
-        
-        fetch(`/facility/${selectedFacilityForConnection}/manage_connections/`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': getCookie('csrftoken')
-            },
-            body: JSON.stringify({
-                action: 'set_primary',
-                connection_id: connectionId
-            })
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.status === 'success') {
-                alert(data.message);
-                manageFacilityConnections(selectedFacilityForConnection);
-                refreshFacilities(getCurrentScenario());
-            } else {
-                alert('Error: ' + data.message);
-            }
-        })
-        .catch(error => {
-            console.error('Error setting primary connection:', error);
-            alert('Failed to set primary connection');
-        });
-    }
-
-    function removeConnection(connectionId) {
-        if (!confirm('Are you sure you want to remove this grid connection?')) return;
-        if (!selectedFacilityForConnection) return;
-        
-        fetch(`/facility/${selectedFacilityForConnection}/manage_connections/`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': getCookie('csrftoken')
-            },
-            body: JSON.stringify({
-                action: 'remove',
-                connection_id: connectionId
-            })
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.status === 'success') {
-                alert(data.message);
-                manageFacilityConnections(selectedFacilityForConnection);
-                refreshFacilities(getCurrentScenario());
-            } else {
-                alert('Error: ' + data.message);
-            }
-        })
-        .catch(error => {
-            console.error('Error removing connection:', error);
-            alert('Failed to remove connection');
-        });
-    }
-
-    function closeConnectionManagement() {
-        document.getElementById('connectionManagementModal').style.display = 'none';
-        connectionManagementMode = false;
-        selectedFacilityForConnection = null;
-    }
-
-    // Grid utilization overview
-    function showGridUtilization() {
-        var utilizationHtml = `
-            <div style="margin-bottom: 20px;">
-                <h4>Grid Line Utilization Summary</h4>
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
-        `;
-        
-        var totalLines = gridLines.length;
-        var highUtilization = 0;
-        var mediumUtilization = 0;
-        var lowUtilization = 0;
-        
-        gridLines.forEach(function(line) {
-            var utilization = (line.total_connected_capacity / line.thermal_capacity_mw) * 100;
-            if (utilization > 80) highUtilization++;
-            else if (utilization > 50) mediumUtilization++;
-            else lowUtilization++;
-        });
-        
-        utilizationHtml += `
-                    <div style="text-align: center; padding: 15px; border: 1px solid #dc3545; border-radius: 5px;">
-                        <h5 style="color: #dc3545; margin: 0;">${highUtilization}</h5>
-                        <small>High Utilization (>80%)</small>
-                    </div>
-                    <div style="text-align: center; padding: 15px; border: 1px solid #ffc107; border-radius: 5px;">
-                        <h5 style="color: #ffc107; margin: 0;">${mediumUtilization}</h5>
-                        <small>Medium Utilization (50-80%)</small>
-                    </div>
-                    <div style="text-align: center; padding: 15px; border: 1px solid #28a745; border-radius: 5px;">
-                        <h5 style="color: #28a745; margin: 0;">${lowUtilization}</h5>
-                        <small>Low Utilization (<50%)</small>
-                    </div>
-                </div>
-            </div>
-            
-            <h4>Individual Grid Lines</h4>
-            <div style="max-height: 400px; overflow-y: auto;">
-        `;
-        
-        // Sort by utilization descending
-        var sortedLines = [...gridLines].sort((a, b) => {
-            var aUtil = (a.total_connected_capacity / a.thermal_capacity_mw) * 100;
-            var bUtil = (b.total_connected_capacity / b.thermal_capacity_mw) * 100;
-            return bUtil - aUtil;
-        });
-        
-        sortedLines.forEach(function(line) {
-            var utilization = (line.total_connected_capacity / line.thermal_capacity_mw) * 100;
-            var utilizationClass = utilization > 80 ? 'utilization-critical' : 
-                                 utilization > 60 ? 'utilization-high' : 
-                                 utilization > 30 ? 'utilization-medium' : 'utilization-low';
-            
-            utilizationHtml += `
-                <div class="grid-connection-item" onclick="highlightGridLine(${line.idgridlines})" style="cursor: pointer;">
-                    <div style="display: flex; justify-content: space-between; align-items: start;">
-                        <div>
-                            <strong>${line.line_name}</strong> (${line.line_code})
-                            <br><small>${line.voltage_level} kV | ${line.line_type}</small>
-                            <br><small>Facilities: ${line.connected_facilities_count}</small>
-                        </div>
-                        <div style="text-align: right;">
-                            <div><strong>${line.thermal_capacity_mw} MW</strong></div>
-                            <div><small>Connected: ${line.total_connected_capacity.toFixed(1)} MW</small></div>
-                            <div><small>Available: ${(line.thermal_capacity_mw - line.total_connected_capacity).toFixed(1)} MW</small></div>
-                        </div>
-                    </div>
-                    <div class="utilization-bar" style="margin-top: 8px;">
-                        <div class="utilization-fill ${utilizationClass}" style="width: ${Math.min(100, utilization)}%;"></div>
-                    </div>
-                    <div style="text-align: center; margin-top: 5px;">
-                        <small>${utilization.toFixed(1)}% utilized</small>
-                    </div>
-                </div>
-            `;
-        });
-        
-        utilizationHtml += '</div>';
-        
-        document.getElementById('gridUtilizationContent').innerHTML = utilizationHtml;
-        document.getElementById('gridUtilizationModal').style.display = 'block';
-    }
-
-    function highlightGridLine(gridLineId) {
-        // Find and highlight the grid line on the map
-        gridLinesLayer.eachLayer(function(layer) {
-            if (layer.gridLineId === gridLineId) {
-                // Temporarily highlight the line
-                var originalStyle = {
-                    color: layer.options.color,
-                    weight: layer.options.weight,
-                    opacity: layer.options.opacity
-                };
-                
-                layer.setStyle({
-                    color: '#ff0000',
-                    weight: originalStyle.weight + 3,
-                    opacity: 1
-                });
-                
-                // Center map on the line
-                map.fitBounds(layer.getBounds());
-                
-                // Reset style after 3 seconds
-                setTimeout(() => {
-                    layer.setStyle(originalStyle);
-                }, 3000);
-            }
-        });
-        
-        // Close the modal
-        closeGridUtilization();
-    }
-
-    function closeGridUtilization() {
-        document.getElementById('gridUtilizationModal').style.display = 'none';
-    }
-
-    function showConnectionsOverview() {
-        // This would show a comprehensive overview of all facility-grid connections
-        alert('Connections overview functionality would be implemented here');
-    }
-
-    function getCurrentScenario() {
-        return '{{ scenario|escapejs }}';
-    }
-
-    // Enhanced grid line functions with utilization
-    function getVoltageColor(voltageLevel) {
-        if (voltageLevel >= 330) return '#8B0000';
-        if (voltageLevel >= 220) return '#FF4500';
-        if (voltageLevel >= 132) return '#FFA500';
-        if (voltageLevel >= 66) return '#FFD700';
-        return '#FFFF00';
-    }
-
-    // Function to find and display nearby grid lines
-    function findNearbyGridLines(lat, lng) {
-        fetch(`/find_nearest_grid_lines/?lat=${lat}&lon=${lng}&max_distance=50`)
-            .then(response => response.json())
-            .then(data => {
-                const nearbyLinesDiv = document.getElementById('nearby_lines_list');
-                const nearbyGridLinesDiv = document.getElementById('nearby_grid_lines');
-                
-                if (data.length > 0) {
-                    nearbyGridLinesDiv.style.display = 'block';
-                    nearbyLinesDiv.innerHTML = '';
-                    
-                    // Sort by suitability score
-                    data.sort((a, b) => b.suitability_score - a.suitability_score);
-                    
-                    data.slice(0, 5).forEach(line => {
-                        var utilizationColor = line.utilization_percent > 80 ? '#dc3545' : 
-                                             line.utilization_percent > 60 ? '#fd7e14' : 
-                                             line.utilization_percent > 30 ? '#ffc107' : '#28a745';
-                        
-                        const lineDiv = document.createElement('div');
-                        lineDiv.style.cssText = 'padding: 8px; margin: 3px 0; background: #f8f9fa; border-radius: 4px; border-left: 4px solid ' + utilizationColor + ';';
-                        lineDiv.innerHTML = `
-                            <div style="display: flex; justify-content: space-between;">
-                                <div>
-                                    <strong>${line.line_name}</strong> (${line.voltage_level}kV)
-                                    <br><small>Distance: ${line.distance_km} km | Score: ${line.suitability_score.toFixed(0)}/100</small>
-                                </div>
-                                <div style="text-align: right; font-size: 11px;">
-                                    <div>Capacity: ${line.thermal_capacity_mw} MW</div>
-                                    <div style="color: ${utilizationColor};">Available: ${line.available_capacity_mw.toFixed(0)} MW</div>
-                                </div>
-                            </div>
-                        `;
-                        nearbyLinesDiv.appendChild(lineDiv);
-                    });
-                } else {
-                    nearbyGridLinesDiv.style.display = 'none';
-                }
-            })
-            .catch(error => {
-                console.error('Error finding nearby grid lines:', error);
-            });
-    }
-
-    // Load grid lines for selection dropdown
-    function loadGridLinesForSelection() {
-        fetch('/get_grid_lines/')
-            .then(response => response.json())
-            .then(data => {
-                const select = document.getElementById('existing_grid_lines');
-                
-                // Clear existing options
-                while (select.options.length > 1) {
-                    select.remove(1);
-                }
-                
-                // Add new options
-                data.forEach(gridLine => {
-                    const option = document.createElement('option');
-                    option.value = gridLine.idgridlines;
-                    option.textContent = `${gridLine.line_name} (${gridLine.voltage_level}kV)`;
-                    select.appendChild(option);
-                });
-            })
-            .catch(error => console.error('Error loading grid lines:', error));
-    }
-
-    // Load technologies when the page loads
-    function loadTechnologies() {
-        fetch('/get_technologies/')
-            .then(response => response.json())
-            .then(data => {
-                const select = document.getElementById('technology_id');
-                
-                // Clear existing options
-                while (select.options.length > 1) {
-                    select.remove(1);
-                }
-                
-                // Add new options
-                data.forEach(tech => {
-                    const option = document.createElement('option');
-                    option.value = tech.idtechnologies;
-                    option.textContent = tech.technology_name;
-                    select.appendChild(option);
-                });
-            })
-            .catch(error => console.error('Error loading technologies:', error));
-    }
-    
-    function resetFacilityForm() {
-        document.getElementById('facility_name').value = '';
-        document.getElementById('technology_id').value = '';
-        document.getElementById('capacity').value = '';
-        document.getElementById('selected_lat').textContent = 'Latitude: (Click on map)';
-        document.getElementById('selected_lng').textContent = 'Longitude: (Click on map)';
-        document.querySelectorAll('input[name="grid_connection_option"]')[0].checked = true;
-        document.getElementById('existing_grid_lines').style.display = 'none';
-        document.getElementById('nearby_grid_lines').style.display = 'none';
-        selectedLocation = null;
-    }
-
-    // Function to refresh facilities when scenario changes
-    function refreshFacilities(scenarioTitle) {
-        if (!scenarioTitle) {
-            facilityLayer.clearLayers();
-            return;
-        }
-        
-        const loadingMessage = document.createElement('div');
-        loadingMessage.id = 'loading-facilities';
-        loadingMessage.style.cssText = 'position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0,0,0,0.8); color: white; padding: 20px; border-radius: 5px; z-index: 10000;';
-        loadingMessage.textContent = 'Loading facilities...';
-        document.body.appendChild(loadingMessage);
-        
-        const url = `/get_facilities/?scenario=${encodeURIComponent(scenarioTitle)}`;
-        
-        fetch(url)
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-                return response.json();
-            })
-            .then(data => {
-                if (Array.isArray(data)) {
-                    loadFacilitiesOnMap(data);
-                } else if (data.error) {
-                    console.error('Error loading facilities:', data.error);
-                    alert('Error loading facilities: ' + data.error);
-                } else {
-                    console.error('Unexpected response format:', data);
-                    alert('Unexpected response format from server');
-                }
-            })
-            .catch(error => {
-                console.error('Fetch error:', error);
-                
-                if (error.message.includes('404')) {
-                    alert('URL not found. Please check if the get_facilities URL is configured correctly.');
-                } else if (error.message.includes('500')) {
-                    alert('Server error occurred. Please check the server logs.');
-                } else {
-                    alert('Failed to load facilities: ' + error.message);
-                }
-            })
-            .finally(() => {
-                const loading = document.getElementById('loading-facilities');
-                if (loading) {
-                    loading.remove();
-                }
-            });
-    }
-
-    // Helper function to get CSRF token
-    function getCookie(name) {
-        let cookieValue = null;
-        if (document.cookie && document.cookie !== '') {
-            const cookies = document.cookie.split(';');
-            for (let i = 0; i < cookies.length; i++) {
-                const cookie = cookies[i].trim();
-                if (cookie.substring(0, name.length + 1) === (name + '=')) {
-                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-                    break;
-                }
-            }
-        }
-        return cookieValue;
-    }
-
-    // Initialize layers - this needs to happen AFTER all layers are defined
-    var boundaryLayer = null;
-    var zoneLayer = null;
-
-    // Initial load
+    // Load initial data
     loadFacilitiesOnMap(facilities);
-    var baseTileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: 'Map data © <a href="https://openstreetmap.org">OpenStreetMap</a> contributors'
-    });
-    
-    baseTileLayer.on('load', function () {
-        loadGridLinesOnMap(gridLines);
-        gridLinesLayer.addTo(map);  // Add explicitly after load
-    });
-    
-    baseTileLayer.addTo(map);
-    
+    loadGridLinesOnMap(gridLines);
+    loadTechnologies();
+    loadGridLinesForSelection();
     
     // Add layers to map
     facilityLayer.addTo(map);
     gridLinesLayer.addTo(map);
     
-    // Load KML layers
-    function initializeKMLLayers() {
-        // Load boundary layer
-        boundaryLayer = new L.KML("{% static 'kml//SWIS_Boundary.kml' %}", { async: true });
-        boundaryLayer.on("loaded", function(e) {
-            map.fitBounds(e.target.getBounds());
-            e.target.eachLayer(function(layer) {
-                if (layer instanceof L.Polygon) {
-                    layer.setStyle({
-                        fillColor: '#ddffcc',
-                        fillOpacity: 0.4,
-                        color: '#ff7800',
-                        weight: 3,
-                        opacity: 0.8,
-                        dashArray: '5, 5',
-                        dashOffset: '0'
-                    });
-                }
-            });
+    const technologySelect = document.getElementById('technology_id');
+    if (technologySelect) {
+        technologySelect.addEventListener('change', function() {
+            console.log('Technology changed to:', this.value);
             
-            // Initialize layer control after all layers are loaded
-            initializeLayerControl();
+            const selectedTechId = parseInt(this.value);
+            const windTurbineFields = document.getElementById('windTurbineFields');
+            const turbineSelect = document.getElementById('turbine');
+            
+            console.log('Selected tech ID:', selectedTechId);
+            console.log('Wind tech IDs:', windTechnologyIds);
+            console.log('Is wind technology:', windTechnologyIds.includes(selectedTechId));
+            
+            if (windTechnologyIds.includes(selectedTechId)) {
+                console.log('Showing wind turbine fields');
+                windTurbineFields.style.display = 'block';
+                windTurbineFields.classList.add('active');
+                
+                // Clear existing turbine options
+                while (turbineSelect.options.length > 1) {
+                    turbineSelect.remove(1);
+                }
+                
+                const techName = getTechnologyName(selectedTechId);
+                console.log('Technology name:', techName);
+                
+                const optgroup = document.createElement('optgroup');
+                optgroup.label = `${techName} Turbines`;
+                
+                let optionsAdded = false;
+                
+                for (const [turbineName, data] of Object.entries(turbineData)) {
+                    if (data.technology === selectedTechId) {
+                        console.log('Adding turbine:', turbineName);
+                        const option = document.createElement('option');
+                        option.value = turbineName;
+                        option.textContent = turbineName;
+                        option.dataset.capacity = data.capacity;
+                        optgroup.appendChild(option);
+                        optionsAdded = true;
+                    }
+                }
+                
+                if (optionsAdded) {
+                    turbineSelect.appendChild(optgroup);
+                    console.log('Turbine options added successfully');
+                } else {
+                    console.log('No turbine options found for technology:', selectedTechId);
+                }
+            } else {
+                console.log('Hiding wind turbine fields');
+                windTurbineFields.classList.remove('active'); // Add this line
+                windTurbineFields.style.display = 'none';
+                
+                if (turbineSelect) turbineSelect.value = '';
+                const hubHeight = document.getElementById('hub_height');
+                if (hubHeight) hubHeight.value = '';
+                const noTurbines = document.getElementById('no_turbines');
+                if (noTurbines) noTurbines.value = '';
+                const tilt = document.getElementById('tilt');
+                if (tilt) tilt.value = '';
+            }
         });
-        map.addLayer(boundaryLayer);
-
-        // Load zone layer
-        zoneLayer = new L.KML("{% static 'kml//SWIS_2023_Zones.kml' %}", { async: true });
-        zoneLayer.on("loaded", function(e) { 
-            map.fitBounds(e.target.getBounds()); 
-        });
-        map.addLayer(zoneLayer);
+    } else {
+        console.error('Technology select element not found!');
     }
-
-    // Initialize layer control only after all layers are ready
-    function initializeLayerControl() {
-        // Only create layer control if all layers exist
-        if (boundaryLayer && zoneLayer) {
-            var baseLayers = {};
-            var overlays = {
-                "SWIS Boundary": boundaryLayer,
-                "Zones": zoneLayer,
-                "Grid Facilities": facilityLayer,
-                "Grid Lines": gridLinesLayer,
+    
+    // Turbine selection change handler
+    const turbineSelect = document.getElementById('turbine');
+    if (turbineSelect) {
+        turbineSelect.addEventListener('change', function() {
+            const selectedTurbine = this.value;
+            
+            const hubHeightDefaults = {
+                "Enercon E66_1870kw(MG)": 65, "Siemens SWT-3.6MW-130m": 85,
+                "Vestas_V82_1.65mw(MG);Vestas V82-1.65": 80, "Vestas V136-3.6Mw": 112,
+                "Vestas V150-4.2Mw": 125, "Vestas V-90 GridStreamer 2mW (MG)Vestas V90-2.0": 80,
+                "Enercon E48_800kw": 50, "General Electric2.5xl_100m_2500kw(MG)": 100,
+                "Enercon E70_2300kw": 64, "Siemens Gamesa SG 11.0-200 DD": 118,
+                "Siemens Gamesa SWT-7.0-154": 106, "Vestas V164-10.0 MW": 105,
+                "Vestas V164-8.0 MW": 105, "Vestas V112-3.45 MW": 84,
+                "Goldwind GWH252-16MW": 146, "Siemens Gamesa SG 14-222 DD": 140,
+                "Goldwind GW171-6.0MW": 120
             };
             
-            var layerControl = L.control.layers(baseLayers, overlays).addTo(map);
-        }
-    }
-
-    // Start loading KML layers
-    initializeKMLLayers();
-
-    // Handle map clicks for both facility and grid line creation
-    map.on('click', function(e) {
-        if (addGridLineMode) {
-            // Grid line creation mode
-            if (gridLinePoints.length < 2) {
-                gridLinePoints.push(e.latlng);
-                
-                // Add marker
-                const marker = L.marker(e.latlng).addTo(map);
-                gridLineMarkers.push(marker);
-                
-                // Update UI
-                if (gridLinePoints.length === 1) {
-                    document.getElementById('grid_from_coords').textContent = 
-                        `${e.latlng.lat.toFixed(6)}, ${e.latlng.lng.toFixed(6)}`;
-                    marker.bindPopup('Grid Line Start Point').openPopup();
-                } else if (gridLinePoints.length === 2) {
-                    document.getElementById('grid_to_coords').textContent = 
-                        `${e.latlng.lat.toFixed(6)}, ${e.latlng.lng.toFixed(6)}`;
-                    marker.bindPopup('Grid Line End Point').openPopup();
-                    
-                    // Calculate length
-                    const distance = calculateDistance(
-                        gridLinePoints[0].lat, gridLinePoints[0].lng,
-                        gridLinePoints[1].lat, gridLinePoints[1].lng
-                    );
-                    document.getElementById('grid_length_display').textContent = 
-                        `${distance.toFixed(2)} km`;
-                    
-                    // Draw line between points
-                    const line = L.polyline(gridLinePoints, {
-                        color: 'red',
-                        weight: 3,
-                        opacity: 0.7,
-                        dashArray: '10, 10'
-                    }).addTo(map);
-                    gridLineMarkers.push(line);
-                }
-            }
-        } else if (addFacilityMode) {
-            // Facility creation mode
-            selectedLocation = e.latlng;
+            const tiltDefaults = {
+                "Enercon E66_1870kw(MG)": 5, "Siemens SWT-3.6MW-130m": 5,
+                "Vestas_V82_1.65mw(MG);Vestas V82-1.65": 5, "Vestas V136-3.6Mw": 5,
+                "Vestas V150-4.2Mw": 5, "Vestas V-90 GridStreamer 2mW (MG)Vestas V90-2.0": 5,
+                "Enercon E48_800kw": 5, "General Electric2.5xl_100m_2500kw(MG)": 5,
+                "Enercon E70_2300kw": 5, "Siemens Gamesa SG 11.0-200 DD": 0,
+                "Siemens Gamesa SWT-7.0-154": 0, "Vestas V164-10.0 MW": 0,
+                "Vestas V164-8.0 MW": 0, "Vestas V112-3.45 MW": 0,
+                "Goldwind GWH252-16MW": 0, "Siemens Gamesa SG 14-222 DD": 0,
+                "Goldwind GW171-6.0MW": 0
+            };
             
-            // Update form with selected coordinates
-            document.getElementById('selected_lat').textContent = 'Latitude: ' + selectedLocation.lat.toFixed(6);
-            document.getElementById('selected_lng').textContent = 'Longitude: ' + selectedLocation.lng.toFixed(6);
-            
-            // Remove previous marker if exists
-            if (locationMarker) {
-                map.removeLayer(locationMarker);
+            if (!document.getElementById('no_turbines').value) {
+                document.getElementById('no_turbines').value = 1;
             }
             
-            // Add marker at clicked location
-            locationMarker = L.marker(selectedLocation).addTo(map);
-            locationMarker.bindPopup('New Facility Location').openPopup();
-            
-            // Find nearby grid lines when location is selected
-            findNearbyGridLines(selectedLocation.lat, selectedLocation.lng);
-        }
-    });
-
-    // Monitor form submission to detect scenario changes
-    document.querySelector('form').addEventListener('submit', function(e) {
-        const scenarioSelect = document.querySelector('select[name="scenario"]');
-        if (scenarioSelect) {
-            const selectedScenario = scenarioSelect.value;
-            
-            const button = this.querySelector('button[name="apply_settings"]');
-            const originalText = button.textContent;
-            button.textContent = 'Applying...';
-            button.disabled = true;
-            
-            setTimeout(() => {
-                refreshFacilities(selectedScenario);
-                
-                setTimeout(() => {
-                    button.textContent = originalText;
-                    button.disabled = false;
-                }, 1000);
-            }, 100);
-        }
-    });
-
-    // Wind turbine handling code
-    const OFFSHORE_WIND = 15;
-    const ONSHORE_WIND = 16;
-    const FLOATING_WIND = 147;
-    const windTechnologyIds = [ONSHORE_WIND, OFFSHORE_WIND, FLOATING_WIND];
-    
-    const turbineData = {
-        "Siemens Gamesa SG 11.0-200 DD": { capacity: 11.0, technology: OFFSHORE_WIND },
-        "Siemens Gamesa SWT-7.0-154": { capacity: 7.0, technology: OFFSHORE_WIND },
-        "Vestas V164-10.0 MW": { capacity: 10.0, technology: OFFSHORE_WIND },
-        "Vestas V164-8.0 MW": { capacity: 8.0, technology: OFFSHORE_WIND },
-        "Vestas V112-3.45 MW": { capacity: 3.45, technology: OFFSHORE_WIND },
-        "Goldwind GWH252-16MW": { capacity: 16.0, technology: OFFSHORE_WIND },
-        "Enercon E66_1870kw(MG)": { capacity: 1.87, technology: ONSHORE_WIND },
-        "Siemens SWT-3.6MW-130m": { capacity: 3.6, technology: ONSHORE_WIND },
-        "Vestas_V82_1.65mw(MG);Vestas V82-1.65": { capacity: 1.65, technology: ONSHORE_WIND },
-        "Vestas V136-3.6Mw": { capacity: 3.6, technology: ONSHORE_WIND },
-        "Vestas V150-4.2Mw": { capacity: 4.2, technology: ONSHORE_WIND },
-        "Vestas V-90 GridStreamer 2mW (MG)Vestas V90-2.0": { capacity: 2.0, technology: ONSHORE_WIND },
-        "Enercon E48_800kw": { capacity: 0.8, technology: ONSHORE_WIND },
-        "General Electric2.5xl_100m_2500kw(MG)": { capacity: 2.5, technology: ONSHORE_WIND },
-        "Enercon E70_2300kw": { capacity: 2.3, technology: ONSHORE_WIND },
-        "Siemens Gamesa SG 14-222 DD": { capacity: 14.0, technology: FLOATING_WIND },
-        "Goldwind GW171-6.0MW": { capacity: 6.0, technology: FLOATING_WIND }
-    };
-
-    function getTechnologyName(technologyId) {
-        const techMap = {
-            1: 'Coal',
-            2: 'Battery Storage (Li-ion)',
-            3: 'Battery Storage (Other)',
-            4: 'Battery Storage (Vanadium)',
-            5: 'Battery Storage (Zinc)',
-            6: 'Biomass',
-            7: 'Gas (CCGT)',
-            8: 'Pumped Hydro (Existing)',
-            9: 'Pumped Hydro (New)',
-            11: 'Solar PV (Fixed)',
-            13: 'Solar PV (Tracking)',
-            14: 'Solar PV (Rooftop)',
-            15: 'Wind (Onshore)',
-            16: 'Wind (Offshore)',
-            18: 'Concentrated Solar Thermal',
-            19: 'Gas (Peaking)',
-            20: 'Reciprocating Engine',
-            143: 'Battery Storage (Generic)',
-            144: 'Battery Storage (Utility)',
-            145: 'Nuclear (SMR)',
-            146: 'Nuclear (Large)',
-            147: 'Wind (Floating Offshore)'
-        };
-        
-        return techMap[technologyId] || `Technology ${technologyId}`;
-    }
-
-    // Load initial data and set up event listeners when page loads
-        // Initialize everything when page loads
-        document.addEventListener('DOMContentLoaded', function() {
-            // Load initial data
-            loadFacilitiesOnMap(facilities);
-            loadGridLinesOnMap(gridLines);
-            
-            // Set up event listeners for new functionality
-            const manageConnectionsBtn = document.getElementById('manageConnectionsBtn');
-            if (manageConnectionsBtn) {
-                manageConnectionsBtn.addEventListener('click', function() {
-                    connectionManagementMode = !connectionManagementMode;
-                    
-                    if (connectionManagementMode) {
-                        this.textContent = 'Exit Connection Mode';
-                        this.classList.add('active');
-                        alert('Click on any facility to manage its grid connections.');
-                    } else {
-                        this.textContent = 'Manage Connections';
-                        this.classList.remove('active');
-                        closeConnectionManagement();
-                    }
-                });
+            if (hubHeightDefaults[selectedTurbine]) {
+                document.getElementById('hub_height').value = hubHeightDefaults[selectedTurbine];
             }
             
-            // Enhanced grid connection option handlers
-            document.querySelectorAll('input[name="grid_connection_option"]').forEach(radio => {
-                radio.addEventListener('change', function() {
-                    const existingGridSelect = document.getElementById('existing_grid_lines');
-                    const selectedLineInfo = document.getElementById('selected_line_info');
-                    const connectionRequirements = document.getElementById('connection_requirements');
-                    
-                    // Reset all displays
-                    existingGridSelect.style.display = 'none';
-                    selectedLineInfo.style.display = 'none';
-                    connectionRequirements.style.display = 'none';
-                    
-                    if (this.value === 'select') {
-                        existingGridSelect.style.display = 'block';
-                        selectedLineInfo.style.display = 'block';
-                    } else if (this.value === 'auto') {
-                        connectionRequirements.style.display = 'block';
-                    }
-                });
-            });
+            if (tiltDefaults[selectedTurbine]) {
+                document.getElementById('tilt').value = tiltDefaults[selectedTurbine];
+            }
             
-            // Grid line selection handler with detailed info
-            document.getElementById('existing_grid_lines').addEventListener('change', function() {
-                const selectedLineInfo = document.getElementById('selected_line_info');
-                const selectedGridLineId = this.value;
-                
-                if (selectedGridLineId) {
-                    const gridLine = gridLines.find(line => line.idgridlines == selectedGridLineId);
-                    if (gridLine) {
-                        const utilization = (gridLine.total_connected_capacity / gridLine.thermal_capacity_mw) * 100;
-                        const available = gridLine.thermal_capacity_mw - gridLine.total_connected_capacity;
-                        
-                        selectedLineInfo.innerHTML = `
-                            <div style="font-size: 0.9em; margin-top: 5px; padding: 8px; background: #f8f9fa; border-radius: 4px;">
-                                <strong>${gridLine.line_name}</strong><br>
-                                Voltage: ${gridLine.voltage_level} kV<br>
-                                Capacity: ${gridLine.thermal_capacity_mw} MW<br>
-                                Available: ${available.toFixed(1)} MW<br>
-                                Utilization: ${utilization.toFixed(1)}%<br>
-                                Connected Facilities: ${gridLine.connected_facilities_count}
-                            </div>
-                        `;
-                    }
-                } else {
-                    selectedLineInfo.innerHTML = '';
-                }
-            });
-            
-            loadTechnologies();
-            loadGridLinesForSelection();
-        
-        // Handle grid connection radio buttons
-        document.querySelectorAll('input[name="grid_connection_option"]').forEach(radio => {
-            radio.addEventListener('change', function() {
-                const existingGridSelect = document.getElementById('existing_grid_lines');
-                
-                if (this.value === 'select') {
-                    existingGridSelect.style.display = 'block';
-                } else {
-                    existingGridSelect.style.display = 'none';
-                }
-            });
+            const selectedOption = this.options[this.selectedIndex];
+            if (selectedOption && selectedOption.dataset.capacity) {
+                const perTurbineCapacity = parseFloat(selectedOption.dataset.capacity);
+                const noTurbines = parseInt(document.getElementById('no_turbines').value) || 1;
+                const totalCapacity = perTurbineCapacity * noTurbines;
+                document.getElementById('capacity').value = totalCapacity.toFixed(2);
+            }
         });
+    }
+    
+    // Number of turbines change handler
+    const noTurbinesInput = document.getElementById('no_turbines');
+    if (noTurbinesInput) {
+        noTurbinesInput.addEventListener('change', function() {
+            const selectedOption = document.getElementById('turbine').options[document.getElementById('turbine').selectedIndex];
+            if (selectedOption && selectedOption.dataset.capacity) {
+                const perTurbineCapacity = parseFloat(selectedOption.dataset.capacity);
+                const noTurbines = parseInt(this.value) || 1;
+                const totalCapacity = perTurbineCapacity * noTurbines;
+                document.getElementById('capacity').value = totalCapacity.toFixed(2);
+            }
+        });
+    }
+    
+    // Set up event listeners for connection management
+    const manageConnectionsBtn = document.getElementById('manageConnectionsBtn');
+    if (manageConnectionsBtn) {
+        manageConnectionsBtn.addEventListener('click', function() {
+            connectionManagementMode = !connectionManagementMode;
+            
+            if (connectionManagementMode) {
+                this.textContent = 'Exit Connection Mode';
+                this.classList.add('active');
+                alert('Click on any facility to manage its grid connections.');
+            } else {
+                this.textContent = 'Manage Connections';
+                this.classList.remove('active');
+                closeConnectionManagement();
+            }
+        });
+    }
+    
+    // Enhanced grid connection option handlers
+    document.querySelectorAll('input[name="grid_connection_option"]').forEach(radio => {
+        radio.addEventListener('change', function() {
+            const existingGridSelect = document.getElementById('existing_grid_lines');
+            const selectedLineInfo = document.getElementById('selected_line_info');
+            const connectionRequirements = document.getElementById('connection_requirements');
+            
+                    // Reset all displays
+            existingGridSelect.style.display = 'none';
+            selectedLineInfo.style.display = 'none';
+            connectionRequirements.style.display = 'none';
+            
+            if (this.value === 'select') {
+                existingGridSelect.style.display = 'block';
+                selectedLineInfo.style.display = 'block';
+            } else if (this.value === 'auto') {
+                connectionRequirements.style.display = 'block';
+            }
+        });
+    });
+    
+    // Grid line selection handler with detailed info
+    const existingGridLinesSelect = document.getElementById('existing_grid_lines');
+    if (existingGridLinesSelect) {
+        existingGridLinesSelect.addEventListener('change', function() {
+            const selectedLineInfo = document.getElementById('selected_line_info');
+            const selectedGridLineId = this.value;
+            
+            if (selectedGridLineId) {
+                const gridLine = gridLines.find(line => line.idgridlines == selectedGridLineId);
+                if (gridLine) {
+                    const utilization = (gridLine.total_connected_capacity / gridLine.thermal_capacity_mw) * 100;
+                    const available = gridLine.thermal_capacity_mw - gridLine.total_connected_capacity;
+                    
+                    selectedLineInfo.innerHTML = `
+                        <div style="font-size: 0.9em; margin-top: 5px; padding: 8px; background: #f8f9fa; border-radius: 4px;">
+                            <strong>${gridLine.line_name}</strong><br>
+                            Voltage: ${gridLine.voltage_level} kV<br>
+                            Capacity: ${gridLine.thermal_capacity_mw} MW<br>
+                            Available: ${available.toFixed(1)} MW<br>
+                            Utilization: ${utilization.toFixed(1)}%<br>
+                            Connected Facilities: ${gridLine.connected_facilities_count}
+                        </div>
+                    `;
+                }
+            } else {
+                selectedLineInfo.innerHTML = '';
+            }
+        });
+}
+    // Initialize technologies and grid lines          
+    loadTechnologies();
+    loadGridLinesForSelection();
+    
+    // Handle grid connection radio buttons
+    document.querySelectorAll('input[name="grid_connection_option"]').forEach(radio => {
+        radio.addEventListener('change', function() {
+            const existingGridSelect = document.getElementById('existing_grid_lines');
+            
+            if (this.value === 'select') {
+                existingGridSelect.style.display = 'block';
+            } else {
+                existingGridSelect.style.display = 'none';
+            }
+        });
+    });
         
         // Grid line button functionality
-        const addGridLineBtn = document.getElementById('addGridLineBtn');
-        if (addGridLineBtn) {
-            addGridLineBtn.addEventListener('click', function() {
-                addGridLineMode = !addGridLineMode;
+    const addGridLineBtn = document.getElementById('addGridLineBtn');
+    if (addGridLineBtn) {
+        addGridLineBtn.addEventListener('click', function() {
+            addGridLineMode = !addGridLineMode;
+            
+            if (addGridLineMode) {
+                this.textContent = 'Cancel Add Grid Line';
+                this.classList.add('active');
+                document.getElementById('addGridLineForm').style.display = 'block';
+                map.getContainer().style.cursor = 'crosshair';
                 
-                if (addGridLineMode) {
-                    this.textContent = 'Cancel Add Grid Line';
-                    this.classList.add('active');
-                    document.getElementById('addGridLineForm').style.display = 'block';
-                    map.getContainer().style.cursor = 'crosshair';
-                    
                     // Reset grid line creation
-                    gridLinePoints = [];
-                    gridLineMarkers.forEach(marker => map.removeLayer(marker));
-                    gridLineMarkers = [];
-                    
+                gridLinePoints = [];
+                gridLineMarkers.forEach(marker => map.removeLayer(marker));
+                gridLineMarkers = [];
+                
                     // Reset form
-                    document.getElementById('grid_from_coords').textContent = 'Click on map for start point';
-                    document.getElementById('grid_to_coords').textContent = 'Click on map for end point';
-                    document.getElementById('grid_length_display').textContent = '0 km';
-                    
-                    alert('Click two points on the map to define the grid line endpoints.');
-                } else {
-                    this.textContent = 'Add New Grid Line';
-                    this.classList.remove('active');
-                    document.getElementById('addGridLineForm').style.display = 'none';
-                    map.getContainer().style.cursor = '';
-                    
+                document.getElementById('grid_from_coords').textContent = 'Click on map for start point';
+                document.getElementById('grid_to_coords').textContent = 'Click on map for end point';
+                document.getElementById('grid_length_display').textContent = '0 km';
+                
+                alert('Click two points on the map to define the grid line endpoints.');
+            } else {
+                this.textContent = 'Add New Grid Line';
+                this.classList.remove('active');
+                document.getElementById('addGridLineForm').style.display = 'none';
+                map.getContainer().style.cursor = '';
+                
                     // Clean up markers
-                    gridLineMarkers.forEach(marker => map.removeLayer(marker));
-                    gridLineMarkers = [];
-                    gridLinePoints = [];
-                }
-            });
-        }
-        
+                gridLineMarkers.forEach(marker => map.removeLayer(marker));
+                gridLineMarkers = [];
+                gridLinePoints = [];
+            }
+        });
+    }
+    
         // Facility button functionality
-        const addFacilityBtn = document.getElementById('addFacilityBtn');
-        if (addFacilityBtn) {
-            addFacilityBtn.addEventListener('click', function() {
-                const currentScenario = '{{ scenario|escapejs }}';
+    const addFacilityBtn = document.getElementById('addFacilityBtn');
+    if (addFacilityBtn) {
+        addFacilityBtn.addEventListener('click', function() {
+            const currentScenario = '{{ scenario|escapejs }}';
+            
+            if (currentScenario === 'Current') {
+                alert('Cannot add facilities to the "Current" scenario. Please select a different scenario.');
+                return;
+            }
+            
+            if (!currentScenario) {
+                alert('Please select a scenario first.');
+                return;
+            }
+            
+            addFacilityMode = !addFacilityMode;
+            
+            if (addFacilityMode) {
+                this.textContent = 'Cancel Add Facility';
+                this.classList.add('active');
+                document.getElementById('addFacilityForm').style.display = 'block';
+                map.getContainer().style.cursor = 'crosshair';
                 
-                if (currentScenario === 'Current') {
-                    alert('Cannot add facilities to the "Current" scenario. Please select a different scenario.');
-                    return;
-                }
+                alert('Click on the map to select the facility location.');
+            } else {
+                this.textContent = 'Add New Facility';
+                this.classList.remove('active');
+                document.getElementById('addFacilityForm').style.display = 'none';
+                map.getContainer().style.cursor = '';
                 
-                if (!currentScenario) {
-                    alert('Please select a scenario first.');
-                    return;
-                }
-                
-                addFacilityMode = !addFacilityMode;
-                
-                if (addFacilityMode) {
-                    this.textContent = 'Cancel Add Facility';
-                    this.classList.add('active');
-                    document.getElementById('addFacilityForm').style.display = 'block';
-                    map.getContainer().style.cursor = 'crosshair';
-                    
-                    alert('Click on the map to select the facility location.');
-                } else {
-                    this.textContent = 'Add New Facility';
-                    this.classList.remove('active');
-                    document.getElementById('addFacilityForm').style.display = 'none';
-                    map.getContainer().style.cursor = '';
-                    
                     // Remove temporary marker if exists
-                    if (locationMarker) {
-                        map.removeLayer(locationMarker);
-                        locationMarker = null;
-                    }
-                    
-                    // Reset form
-                    resetFacilityForm();
+                if (locationMarker) {
+                    map.removeLayer(locationMarker);
+                    locationMarker = null;
                 }
-            });
-        }
-        
-        // Cancel buttons
-        document.getElementById('cancelAddGridLine').addEventListener('click', function() {
+                
+                    // Reset form
+                resetFacilityForm();
+            }
+        });
+    }
+    
+    // Cancel button handlers
+    const cancelAddGridLine = document.getElementById('cancelAddGridLine');
+    if (cancelAddGridLine) {
+        cancelAddGridLine.addEventListener('click', function() {
             const addGridLineBtn = document.getElementById('addGridLineBtn');
             if (addGridLineBtn && addGridLineMode) {
                 addGridLineBtn.click();
             }
         });
-        
-        document.getElementById('cancelAddFacility').addEventListener('click', function() {
+    }
+    
+    const cancelAddFacility = document.getElementById('cancelAddFacility');
+    if (cancelAddFacility) {
+        cancelAddFacility.addEventListener('click', function() {
             const addFacilityBtn = document.getElementById('addFacilityBtn');
             if (addFacilityBtn && addFacilityMode) {
                 addFacilityBtn.click();
             }
         });
-        
-        // Submit grid line button
-        document.getElementById('submitAddGridLine').addEventListener('click', function() {
+    }
+    
+    // Submit grid line button
+    const submitAddGridLine = document.getElementById('submitAddGridLine');
+    if (submitAddGridLine) {
+        submitAddGridLine.addEventListener('click', function() {
             const lineName = document.getElementById('grid_line_name').value.trim();
             const lineCode = document.getElementById('grid_line_code').value.trim();
             const lineType = document.getElementById('grid_line_type').value;
@@ -2270,10 +1357,12 @@ crossorigin=""></script>
                 alert('Failed to create grid line. Please try again.');
             });
         });
-
-        // Submit facility button
-        document.getElementById('submitAddFacility').addEventListener('click', function() {
-            // Validate form
+    }
+    
+    // Submit facility button
+    const submitAddFacility = document.getElementById('submitAddFacility');
+    if (submitAddFacility) {
+        submitAddFacility.addEventListener('click', function() {
             const facilityName = document.getElementById('facility_name').value.trim();
             const technologyId = document.getElementById('technology_id').value;
             const capacity = document.getElementById('capacity').value;
@@ -2394,108 +1483,970 @@ crossorigin=""></script>
                 alert('Failed to add facility. Please try again.');
             });
         });
-
-        // Technology selection change handler
-        document.getElementById('technology_id').addEventListener('change', function() {
-            const selectedTechId = parseInt(this.value);
-            const windTurbineFields = document.getElementById('windTurbineFields');
-            const turbineSelect = document.getElementById('turbine');
-            
-            if (windTechnologyIds.includes(selectedTechId)) {
-                windTurbineFields.style.display = 'block';
+    }
+    
+    // Handle map clicks for both facility and grid line creation
+    map.on('click', function(e) {
+        if (addGridLineMode) {
+            if (gridLinePoints.length < 2) {
+                gridLinePoints.push(e.latlng);
                 
-                while (turbineSelect.options.length > 1) {
-                    turbineSelect.remove(1);
+                const marker = L.marker(e.latlng).addTo(map);
+                gridLineMarkers.push(marker);
+                
+                if (gridLinePoints.length === 1) {
+                    document.getElementById('grid_from_coords').textContent = 
+                        `${e.latlng.lat.toFixed(6)}, ${e.latlng.lng.toFixed(6)}`;
+                    marker.bindPopup('Grid Line Start Point').openPopup();
+                } else if (gridLinePoints.length === 2) {
+                    document.getElementById('grid_to_coords').textContent = 
+                        `${e.latlng.lat.toFixed(6)}, ${e.latlng.lng.toFixed(6)}`;
+                    marker.bindPopup('Grid Line End Point').openPopup();
+                    
+                    const distance = calculateDistance(
+                        gridLinePoints[0].lat, gridLinePoints[0].lng,
+                        gridLinePoints[1].lat, gridLinePoints[1].lng
+                    );
+                    document.getElementById('grid_length_display').textContent = 
+                        `${distance.toFixed(2)} km`;
+                    
+                    const line = L.polyline(gridLinePoints, {
+                        color: 'red',
+                        weight: 3,
+                        opacity: 0.7,
+                        dashArray: '10, 10'
+                    }).addTo(map);
+                    gridLineMarkers.push(line);
                 }
-                
-                const techName = getTechnologyName(selectedTechId);
-                const optgroup = document.createElement('optgroup');
-                optgroup.label = `${techName} Turbines`;
-                
-                let optionsAdded = false;
-                for (const [turbineName, data] of Object.entries(turbineData)) {
-                    if (data.technology === selectedTechId) {
-                        const option = document.createElement('option');
-                        option.value = turbineName;
-                        option.textContent = turbineName;
-                        option.dataset.capacity = data.capacity;
-                        optgroup.appendChild(option);
-                        optionsAdded = true;
-                    }
-                }
-                
-                if (optionsAdded) {
-                    turbineSelect.appendChild(optgroup);
-                }
-            } else {
-                windTurbineFields.style.display = 'none';
-                document.getElementById('turbine').value = '';
-                document.getElementById('hub_height').value = '';
-                document.getElementById('no_turbines').value = '';
-                document.getElementById('tilt').value = '';
             }
-        });
-
-        // Turbine selection change handler
-        document.getElementById('turbine').addEventListener('change', function() {
-            const selectedTurbine = this.value;
+        } else if (addFacilityMode) {
+            selectedLocation = e.latlng;
             
-            const hubHeightDefaults = {
-                "Enercon E66_1870kw(MG)": 65, "Siemens SWT-3.6MW-130m": 85,
-                "Vestas_V82_1.65mw(MG);Vestas V82-1.65": 80, "Vestas V136-3.6Mw": 112,
-                "Vestas V150-4.2Mw": 125, "Vestas V-90 GridStreamer 2mW (MG)Vestas V90-2.0": 80,
-                "Enercon E48_800kw": 50, "General Electric2.5xl_100m_2500kw(MG)": 100,
-                "Enercon E70_2300kw": 64, "Siemens Gamesa SG 11.0-200 DD": 118,
-                "Siemens Gamesa SWT-7.0-154": 106, "Vestas V164-10.0 MW": 105,
-                "Vestas V164-8.0 MW": 105, "Vestas V112-3.45 MW": 84,
-                "Goldwind GWH252-16MW": 146, "Siemens Gamesa SG 14-222 DD": 140,
-                "Goldwind GW171-6.0MW": 120
-            };
+            document.getElementById('selected_lat').textContent = 'Latitude: ' + selectedLocation.lat.toFixed(6);
+            document.getElementById('selected_lng').textContent = 'Longitude: ' + selectedLocation.lng.toFixed(6);
             
-            const tiltDefaults = {
-                "Enercon E66_1870kw(MG)": 5, "Siemens SWT-3.6MW-130m": 5,
-                "Vestas_V82_1.65mw(MG);Vestas V82-1.65": 5, "Vestas V136-3.6Mw": 5,
-                "Vestas V150-4.2Mw": 5, "Vestas V-90 GridStreamer 2mW (MG)Vestas V90-2.0": 5,
-                "Enercon E48_800kw": 5, "General Electric2.5xl_100m_2500kw(MG)": 5,
-                "Enercon E70_2300kw": 5, "Siemens Gamesa SG 11.0-200 DD": 0,
-                "Siemens Gamesa SWT-7.0-154": 0, "Vestas V164-10.0 MW": 0,
-                "Vestas V164-8.0 MW": 0, "Vestas V112-3.45 MW": 0,
-                "Goldwind GWH252-16MW": 0, "Siemens Gamesa SG 14-222 DD": 0,
-                "Goldwind GW171-6.0MW": 0
-            };
-            
-            if (!document.getElementById('no_turbines').value) {
-                document.getElementById('no_turbines').value = 1;
+            if (locationMarker) {
+                map.removeLayer(locationMarker);
             }
             
-            if (hubHeightDefaults[selectedTurbine]) {
-                document.getElementById('hub_height').value = hubHeightDefaults[selectedTurbine];
-            }
+            locationMarker = L.marker(selectedLocation).addTo(map);
+            locationMarker.bindPopup('New Facility Location').openPopup();
             
-            if (tiltDefaults[selectedTurbine]) {
-                document.getElementById('tilt').value = tiltDefaults[selectedTurbine];
-            }
-            
-            const selectedOption = this.options[this.selectedIndex];
-            if (selectedOption && selectedOption.dataset.capacity) {
-                const perTurbineCapacity = parseFloat(selectedOption.dataset.capacity);
-                const noTurbines = parseInt(document.getElementById('no_turbines').value) || 1;
-                const totalCapacity = perTurbineCapacity * noTurbines;
-                document.getElementById('capacity').value = totalCapacity.toFixed(2);
-            }
-        });
-
-        // Number of turbines change handler
-        document.getElementById('no_turbines').addEventListener('change', function() {
-            const selectedOption = document.getElementById('turbine').options[document.getElementById('turbine').selectedIndex];
-            if (selectedOption && selectedOption.dataset.capacity) {
-                const perTurbineCapacity = parseFloat(selectedOption.dataset.capacity);
-                const noTurbines = parseInt(this.value) || 1;
-                const totalCapacity = perTurbineCapacity * noTurbines;
-                document.getElementById('capacity').value = totalCapacity.toFixed(2);
-            }
-        });
+            findNearbyGridLines(selectedLocation.lat, selectedLocation.lng);
+        }
     });
+    
+    // Monitor form submission to detect scenario changes
+    const scenarioForm = document.querySelector('form');
+    if (scenarioForm) {
+        scenarioForm.addEventListener('submit', function(e) {
+            const scenarioSelect = document.querySelector('select[name="scenario"]');
+            if (scenarioSelect) {
+                const selectedScenario = scenarioSelect.value;
+                
+                const button = this.querySelector('button[name="apply_settings"]');
+                const originalText = button.textContent;
+                button.textContent = 'Applying...';
+                button.disabled = true;
+                
+                setTimeout(() => {
+                    refreshFacilities(selectedScenario);
+                    
+                    setTimeout(() => {
+                        button.textContent = originalText;
+                        button.disabled = false;
+                    }, 1000);
+                }, 100);
+            }
+        });
+    }
+    
+    // Load KML layers
+    function initializeKMLLayers() {
+        boundaryLayer = new L.KML("{% static 'kml//SWIS_Boundary.kml' %}", { async: true });
+        boundaryLayer.on("loaded", function(e) {
+            map.fitBounds(e.target.getBounds());
+            e.target.eachLayer(function(layer) {
+                if (layer instanceof L.Polygon) {
+                    layer.setStyle({
+                        fillColor: '#ddffcc',
+                        fillOpacity: 0.4,
+                        color: '#ff7800',
+                        weight: 3,
+                        opacity: 0.8,
+                        dashArray: '5, 5',
+                        dashOffset: '0'
+                    });
+                }
+            });
+            
+            initializeLayerControl();
+        });
+        map.addLayer(boundaryLayer);
+
+        zoneLayer = new L.KML("{% static 'kml//SWIS_2023_Zones.kml' %}", { async: true });
+        zoneLayer.on("loaded", function(e) { 
+            map.fitBounds(e.target.getBounds()); 
+        });
+        map.addLayer(zoneLayer);
+    }
+
+    function initializeLayerControl() {
+        if (boundaryLayer && zoneLayer) {
+            var baseLayers = {};
+            var overlays = {
+                "SWIS Boundary": boundaryLayer,
+                "Zones": zoneLayer,
+                "Grid Facilities": facilityLayer,
+                "Grid Lines": gridLinesLayer,
+            };
+            
+            var layerControl = L.control.layers(baseLayers, overlays).addTo(map);
+        }
+    }
+
+    initializeKMLLayers();
+});
+
+// ===== ADDITIONAL FUNCTION DEFINITIONS (outside DOMContentLoaded) =====
+
+function toggleGridLineLabels() {
+    showLabels = !showLabels;
+    
+    if (showLabels) {
+        gridLines.forEach(function(gridLine) {
+            if (gridLine.coordinates && gridLine.coordinates.length > 0) {
+                const midIndex = Math.floor(gridLine.coordinates.length / 2);
+                const midPoint = gridLine.coordinates[midIndex];
+                
+                const label = L.marker(midPoint, {
+                    icon: L.divIcon({
+                        className: 'grid-line-label',
+                        html: `<div style="background: rgba(255,255,255,0.8); padding: 2px 4px; border-radius: 3px; font-size: 10px; font-weight: bold;">${gridLine.line_name}</div>`,
+                        iconSize: [0, 0],
+                        iconAnchor: [0, 0]
+                    })
+                }).addTo(map);
+                
+                gridLineLabels.push(label);
+            }
+        });
+    } else {
+        gridLineLabels.forEach(function(label) {
+            map.removeLayer(label);
+        });
+        gridLineLabels = [];
+    }
+}
+
+function showGridUtilization() {
+    var utilizationHtml = `
+        <div style="margin-bottom: 20px;">
+            <h4>Grid Line Utilization Summary</h4>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+    `;
+    
+    var totalLines = gridLines.length;
+    var highUtilization = 0;
+    var mediumUtilization = 0;
+    var lowUtilization = 0;
+    
+    gridLines.forEach(function(line) {
+        var utilization = (line.total_connected_capacity / line.thermal_capacity_mw) * 100;
+        if (utilization > 80) highUtilization++;
+        else if (utilization > 50) mediumUtilization++;
+        else lowUtilization++;
+    });
+    
+    utilizationHtml += `
+                <div style="text-align: center; padding: 15px; border: 1px solid #dc3545; border-radius: 5px;">
+                    <h5 style="color: #dc3545; margin: 0;">${highUtilization}</h5>
+                    <small>High Utilization (>80%)</small>
+                </div>
+                <div style="text-align: center; padding: 15px; border: 1px solid #ffc107; border-radius: 5px;">
+                    <h5 style="color: #ffc107; margin: 0;">${mediumUtilization}</h5>
+                    <small>Medium Utilization (50-80%)</small>
+                </div>
+                <div style="text-align: center; padding: 15px; border: 1px solid #28a745; border-radius: 5px;">
+                    <h5 style="color: #28a745; margin: 0;">${lowUtilization}</h5>
+                    <small>Low Utilization (<50%)</small>
+                </div>
+            </div>
+        </div>
+        
+        <h4>Individual Grid Lines</h4>
+        <div style="max-height: 400px; overflow-y: auto;">
+    `;
+    
+    var sortedLines = [...gridLines].sort((a, b) => {
+        var aUtil = (a.total_connected_capacity / a.thermal_capacity_mw) * 100;
+        var bUtil = (b.total_connected_capacity / b.thermal_capacity_mw) * 100;
+        return bUtil - aUtil;
+    });
+    
+    sortedLines.forEach(function(line) {
+        var utilization = (line.total_connected_capacity / line.thermal_capacity_mw) * 100;
+        var utilizationClass = utilization > 80 ? 'utilization-critical' : 
+                             utilization > 60 ? 'utilization-high' : 
+                             utilization > 30 ? 'utilization-medium' : 'utilization-low';
+        
+        utilizationHtml += `
+            <div class="grid-connection-item" onclick="highlightGridLine(${line.idgridlines})" style="cursor: pointer;">
+                <div style="display: flex; justify-content: space-between; align-items: start;">
+                    <div>
+                        <strong>${line.line_name}</strong> (${line.line_code})
+                        <br><small>${line.voltage_level} kV | ${line.line_type}</small>
+                        <br><small>Facilities: ${line.connected_facilities_count}</small>
+                    </div>
+                    <div style="text-align: right;">
+                        <div><strong>${line.thermal_capacity_mw} MW</strong></div>
+                        <div><small>Connected: ${line.total_connected_capacity.toFixed(1)} MW</small></div>
+                        <div><small>Available: ${(line.thermal_capacity_mw - line.total_connected_capacity).toFixed(1)} MW</small></div>
+                    </div>
+                </div>
+                <div class="utilization-bar" style="margin-top: 8px;">
+                    <div class="utilization-fill ${utilizationClass}" style="width: ${Math.min(100, utilization)}%;"></div>
+                </div>
+                <div style="text-align: center; margin-top: 5px;">
+                    <small>${utilization.toFixed(1)}% utilized</small>
+                </div>
+            </div>
+        `;
+    });
+    
+    utilizationHtml += '</div>';
+    
+    document.getElementById('gridUtilizationContent').innerHTML = utilizationHtml;
+    document.getElementById('gridUtilizationModal').style.display = 'block';
+}
+
+function closeGridUtilization() {
+    document.getElementById('gridUtilizationModal').style.display = 'none';
+}
+
+function showConnectionsOverview() {
+    alert('Connections overview functionality would be implemented here');
+}
+
+function refreshFacilities(scenarioTitle) {
+    if (!scenarioTitle) {
+        facilityLayer.clearLayers();
+        return;
+    }
+    
+    const loadingMessage = document.createElement('div');
+    loadingMessage.id = 'loading-facilities';
+    loadingMessage.style.cssText = 'position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0,0,0,0.8); color: white; padding: 20px; border-radius: 5px; z-index: 10000;';
+    loadingMessage.textContent = 'Loading facilities...';
+    document.body.appendChild(loadingMessage);
+    
+    const url = `/get_facilities/?scenario=${encodeURIComponent(scenarioTitle)}`;
+    
+    fetch(url)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (Array.isArray(data)) {
+                loadFacilitiesOnMap(data);
+            } else if (data.error) {
+                console.error('Error loading facilities:', data.error);
+                alert('Error loading facilities: ' + data.error);
+            } else {
+                console.error('Unexpected response format:', data);
+                alert('Unexpected response format from server');
+            }
+        })
+        .catch(error => {
+            console.error('Fetch error:', error);
+            
+            if (error.message.includes('404')) {
+                alert('URL not found. Please check if the get_facilities URL is configured correctly.');
+            } else if (error.message.includes('500')) {
+                alert('Server error occurred. Please check the server logs.');
+            } else {
+                alert('Failed to load facilities: ' + error.message);
+            }
+        })
+        .finally(() => {
+            const loading = document.getElementById('loading-facilities');
+            if (loading) {
+                loading.remove();
+            }
+        });
+}
+
+function refreshGridLines() {      
+    fetch('/get_grid_lines/')
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            console.log('Received grid lines data:', data);
+            
+            gridLines = data;
+            loadGridLinesOnMap(data);
+            loadGridLinesForSelection();
+        })
+        .catch(error => {
+            console.error('Error refreshing grid lines:', error);
+            alert('Failed to refresh grid lines: ' + error.message);
+        });
+}
+
+function initializeGridLines() {
+    if (gridLinesLayer) {
+        map.removeLayer(gridLinesLayer);
+    }
+    gridLinesLayer = L.layerGroup();
+    
+    if (typeof gridLines !== 'undefined' && gridLines.length > 0) {
+        loadGridLinesOnMap(gridLines);
+    } else {
+        console.log('No initial grid lines data, fetching from server...');
+        refreshGridLines();
+    }
+}
+
+function reinitializeGridLines() {
+    if (gridLinesLayer) {
+        gridLinesLayer.eachLayer(function(layer) {
+            layer.off();
+        });
+        gridLinesLayer.clearLayers();
+        map.removeLayer(gridLinesLayer);
+    }
+    
+    initializeGridLines();
+}
+
+function showGridLineDetails(gridLineId) {
+    fetch(`/grid_line/${gridLineId}/details/`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                alert('Error: ' + data.error);
+                return;
+            }
+            
+            var detailsHtml = `
+                <div class="grid-line-details">
+                    <h3>${data.line_name} (${data.line_code})</h3>
+                    <table class="table table-sm">
+                        <tr><td><strong>Type:</strong></td><td>${data.line_type}</td></tr>
+                        <tr><td><strong>Voltage:</strong></td><td>${data.voltage_level} kV</td></tr>
+                        <tr><td><strong>Length:</strong></td><td>${data.length_km} km</td></tr>
+                        <tr><td><strong>Capacity:</strong></td><td>${data.thermal_capacity_mw} MW</td></tr>
+                        ${data.emergency_capacity_mw ? `<tr><td><strong>Emergency:</strong></td><td>${data.emergency_capacity_mw} MW</td></tr>` : ''}
+                        <tr><td><strong>Resistance:</strong></td><td>${data.resistance_total.toFixed(4)} Ω</td></tr>
+                        <tr><td><strong>Reactance:</strong></td><td>${data.reactance_total.toFixed(4)} Ω</td></tr>
+                        <tr><td><strong>Impedance:</strong></td><td>${data.impedance_total.toFixed(4)} Ω</td></tr>
+                        ${data.owner ? `<tr><td><strong>Owner:</strong></td><td>${data.owner}</td></tr>` : ''}
+                        ${data.commissioned_date ? `<tr><td><strong>Commissioned:</strong></td><td>${new Date(data.commissioned_date).toLocaleDateString()}</td></tr>` : ''}
+                        <tr><td><strong>Losses at Full Load:</strong></td><td>${data.losses_at_full_capacity.toFixed(2)} MW</td></tr>
+                    </table>
+                    
+                    ${data.connected_facilities.length > 0 ? `
+                    <h4>Connected Facilities (${data.connected_facilities.length})</h4>
+                    <div class="connected-facilities" style="max-height: 200px; overflow-y: auto;">
+                        ${data.connected_facilities.map(facility => `
+                            <div class="facility-connection" style="border: 1px solid #ddd; margin: 5px 0; padding: 8px; border-radius: 4px;">
+                                <strong>${facility.facility_name}</strong> (${facility.technology})<br>
+                                <small>Capacity: ${facility.capacity} MW | Distance: ${facility.connection_distance} km ${facility.is_primary ? '| Primary Connection' : ''}</small>
+                            </div>
+                        `).join('')}
+                    </div>
+                    ` : '<p>No facilities connected to this line.</p>'}
+                </div>
+            `;
+            
+            showModal('Grid Line Details', detailsHtml);
+        })
+        .catch(error => {
+            console.error('Error fetching grid line details:', error);
+            alert('Failed to load grid line details');
+        });
+}
+
+function showModal(title, content) {
+    var modal = document.createElement('div');
+    modal.style.cssText = `
+        position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+        background: rgba(0,0,0,0.5); z-index: 10000; display: flex; 
+        align-items: center; justify-content: center;
+    `;
+    
+    var modalContent = document.createElement('div');
+    modalContent.style.cssText = `
+        background: white; padding: 20px; border-radius: 8px; 
+        max-width: 600px; max-height: 80vh; overflow-y: auto;
+        position: relative;
+    `;
+    
+    modalContent.innerHTML = `
+        <button onclick="this.closest('.modal-overlay').remove()" 
+                style="position: absolute; top: 10px; right: 15px; 
+                       background: none; border: none; font-size: 24px; cursor: pointer;">
+            ×
+        </button>
+        <h2>${title}</h2>
+        ${content}
+    `;
+    
+    modal.className = 'modal-overlay';
+    modal.appendChild(modalContent);
+    document.body.appendChild(modal);
+    
+    modal.addEventListener('click', function(e) {
+        if (e.target === modal) {
+            modal.remove();
+        }
+    });
+}
+
+function showFacilityDetails(facilityId) {
+    fetch(`/facility/${facilityId}/details/`)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.error) {
+                throw new Error(data.error);
+            }
+            
+            var detailsHtml = createFacilityDetailsHtml(data);
+            showModal('Facility Details', detailsHtml);
+        })
+        .catch(error => {
+            console.error('Error fetching facility details:', error);
+            showModal('Error', `
+                <div style="color: red; text-align: center; padding: 20px;">
+                    <h4>Failed to load facility details</h4>
+                    <p>${error.message}</p>
+                </div>
+            `);
+        });
+}
+
+function createFacilityDetailsHtml(data) {
+    var html = `
+        <div class="facility-details">
+            <h3>${data.facility_name} (${data.facility_code || 'N/A'})</h3>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px;">
+                <div>
+                    <h4>Basic Information</h4>
+                    <table class="table table-sm">
+                        <tr><td><strong>Technology:</strong></td><td>${data.technology_name}</td></tr>
+                        <tr><td><strong>Capacity:</strong></td><td>${data.capacity || 'N/A'} MW</td></tr>
+                        <tr><td><strong>Status:</strong></td><td>${data.active ? 'Active' : 'Inactive'}</td></tr>
+                        <tr><td><strong>Existing:</strong></td><td>${data.existing ? 'Yes' : 'No'}</td></tr>
+                        ${data.commissioned_date ? `<tr><td><strong>Commissioned:</strong></td><td>${new Date(data.commissioned_date).toLocaleDateString()}</td></tr>` : ''}
+                        ${data.decommission_date ? `<tr><td><strong>Decommission:</strong></td><td>${new Date(data.decommission_date).toLocaleDateString()}</td></tr>` : ''}
+                    </table>
+                </div>
+                
+                <div>
+                    <h4>Location</h4>
+                    <table class="table table-sm">
+                        <tr><td><strong>Latitude:</strong></td><td>${data.latitude?.toFixed(6) || 'N/A'}</td></tr>
+                        <tr><td><strong>Longitude:</strong></td><td>${data.longitude?.toFixed(6) || 'N/A'}</td></tr>
+                        ${data.elevation ? `<tr><td><strong>Elevation:</strong></td><td>${data.elevation} m</td></tr>` : ''}
+                        ${data.land_use_area ? `<tr><td><strong>Land Use:</strong></td><td>${data.land_use_area} ha</td></tr>` : ''}
+                    </table>
+                </div>
+            </div>
+    `;
+    
+    if (data.turbine_details) {
+        html += `
+            <div style="margin-bottom: 20px;">
+                <h4>Wind Turbine Details</h4>
+                <table class="table table-sm">
+                    <tr><td><strong>Turbine Model:</strong></td><td>${data.turbine_details.turbine || 'N/A'}</td></tr>
+                    <tr><td><strong>Hub Height:</strong></td><td>${data.turbine_details.hub_height || 'N/A'} m</td></tr>
+                    <tr><td><strong>Number of Turbines:</strong></td><td>${data.turbine_details.no_turbines || 'N/A'}</td></tr>
+                    <tr><td><strong>Rotor Tilt:</strong></td><td>${data.turbine_details.tilt || 'N/A'}°</td></tr>
+                    ${data.turbine_details.rotor_diameter ? `<tr><td><strong>Rotor Diameter:</strong></td><td>${data.turbine_details.rotor_diameter} m</td></tr>` : ''}
+                    ${data.turbine_details.capacity_per_turbine ? `<tr><td><strong>Capacity per Turbine:</strong></td><td>${data.turbine_details.capacity_per_turbine} MW</td></tr>` : ''}
+                </table>
+            </div>
+        `;
+    }
+    
+    if (data.economic_data && Object.keys(data.economic_data).length > 0) {
+        html += `
+            <div style="margin-bottom: 20px;">
+                <h4>Economic Data</h4>
+                <table class="table table-sm">
+                    ${data.economic_data.capex ? `<tr><td><strong>CAPEX:</strong></td><td>${data.economic_data.capex.toLocaleString()}/MW</td></tr>` : ''}
+                    ${data.economic_data.opex ? `<tr><td><strong>OPEX:</strong></td><td>${data.economic_data.opex.toLocaleString()}/MW/year</td></tr>` : ''}
+                    ${data.economic_data.discount_rate ? `<tr><td><strong>Discount Rate:</strong></td><td>${(data.economic_data.discount_rate * 100).toFixed(1)}%</td></tr>` : ''}
+                    ${data.economic_data.lifetime ? `<tr><td><strong>Lifetime:</strong></td><td>${data.economic_data.lifetime} years</td></tr>` : ''}
+                </table>
+            </div>
+        `;
+    }
+    
+    if (data.grid_connections && data.grid_connections.length > 0) {
+        html += `
+            <div style="margin-bottom: 20px;">
+                <h4>Grid Connections (${data.grid_connections.length})</h4>
+                <div style="max-height: 300px; overflow-y: auto;">
+                    ${data.grid_connections.map(conn => `
+                        <div class="grid-connection-item" style="border: 1px solid #ddd; margin: 5px 0; padding: 10px; border-radius: 4px; ${conn.is_primary ? 'background-color: #e8f5e8;' : ''}">
+                            <div style="display: flex; justify-content: space-between; align-items: start;">
+                                <div>
+                                    <strong>${conn.grid_line_name}</strong> ${conn.is_primary ? '<span style="background: #28a745; color: white; padding: 2px 6px; border-radius: 3px; font-size: 10px;">PRIMARY</span>' : ''}
+                                    <br><small>${conn.voltage_level} kV | ${conn.connection_type} connection</small>
+                                </div>
+                                <div style="text-align: right;">
+                                    <div><strong>${conn.capacity_mw} MW</strong></div>
+                                    <div><small>${conn.distance_km} km</small></div>
+                                </div>
+                            </div>
+                            ${conn.losses_at_full_output ? `
+                                <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #eee;">
+                                    <small>Losses at full output: ${conn.losses_at_full_output.toFixed(2)} MW (${((conn.losses_at_full_output / data.capacity) * 100).toFixed(1)}%)</small>
+                                </div>
+                            ` : ''}
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+    }
+    
+    if (data.scenarios && data.scenarios.length > 0) {
+        html += `
+            <div style="margin-bottom: 20px;">
+                <h4>Associated Scenarios</h4>
+                <div>
+                    ${data.scenarios.map(scenario => `
+                        <span style="background: #007bff; color: white; padding: 4px 8px; border-radius: 12px; margin: 2px; display: inline-block; font-size: 12px;">
+                            ${scenario}
+                        </span>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+    }
+    
+    if (data.performance_metrics) {
+        html += `
+            <div style="margin-bottom: 20px;">
+                <h4>Performance Metrics</h4>
+                <table class="table table-sm">
+                    ${data.performance_metrics.capacity_factor ? `<tr><td><strong>Capacity Factor:</strong></td><td>${(data.performance_metrics.capacity_factor * 100).toFixed(1)}%</td></tr>` : ''}
+                    ${data.performance_metrics.annual_output ? `<tr><td><strong>Annual Output:</strong></td><td>${data.performance_metrics.annual_output.toLocaleString()} MWh</td></tr>` : ''}
+                    ${data.performance_metrics.availability ? `<tr><td><strong>Availability:</strong></td><td>${(data.performance_metrics.availability * 100).toFixed(1)}%</td></tr>` : ''}
+                </table>
+            </div>
+        `;
+    }
+    
+    html += `
+        <div style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #dee2e6;">
+            <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                <button onclick="showFacilityOnMap(${data.facility_id})" class="btn btn-sm btn-info">
+                    Show on Map
+                </button>
+                <button onclick="calculateGridLosses(${data.facility_id})" class="btn btn-sm btn-warning">
+                    Calculate Losses
+                </button>
+                ${data.can_edit ? `
+                    <button onclick="editFacility(${data.facility_id})" class="btn btn-sm btn-primary">
+                        Edit Facility
+                    </button>
+                ` : ''}
+            </div>
+        </div>
+    `;
+    
+    html += '</div>';
+    return html;
+}
+
+function showFacilityOnMap(facilityId) {
+    facilityLayer.eachLayer(function(marker) {
+        if (marker.facilityId === facilityId) {
+            map.setView(marker.getLatLng(), 12);
+            marker.openPopup();
+            
+            const originalIcon = marker.getIcon();
+            const highlightIcon = L.icon({
+                iconUrl: originalIcon.options.iconUrl,
+                iconSize: [48, 48],
+                className: 'highlighted-facility'
+            });
+            
+            marker.setIcon(highlightIcon);
+            
+            setTimeout(() => {
+                marker.setIcon(originalIcon);
+            }, 3000);
+        }
+    });
+    
+    const modal = document.querySelector('.modal-overlay');
+    if (modal) {
+        modal.remove();
+    }
+}
+
+function calculateGridLosses(facilityId) {
+    let facilityCapacity = 0;
+    facilityLayer.eachLayer(function(marker) {
+        if (marker.facilityId === facilityId && marker.facilityData.capacity) {
+            facilityCapacity = marker.facilityData.capacity;
+        }
+    });
+    
+    if (facilityCapacity === 0) {
+        alert('Cannot calculate losses: facility capacity not available');
+        return;
+    }
+    
+    showModal('Grid Losses Calculation', '<div style="text-align: center; padding: 20px;">Calculating grid losses...</div>');
+    
+    fetch(`/calculate_grid_losses/?facility_id=${facilityId}&power_output=${facilityCapacity}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                throw new Error(data.error);
+            }
+            
+            let lossesHtml = `
+                <div class="grid-losses-details">
+                    <h3>Grid Losses for ${data.facility_name}</h3>
+                    
+                    <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
+                        <h4>Summary</h4>
+                        <table class="table">
+                            <tr><td><strong>Total Power Output:</strong></td><td>${data.total_power_output_mw} MW</td></tr>
+                            <tr><td><strong>Total Losses:</strong></td><td>${data.total_losses_mw} MW</td></tr>
+                            <tr><td><strong>Loss Percentage:</strong></td><td>${data.total_loss_percentage}%</td></tr>
+                            <tr><td><strong>Net Output:</strong></td><td>${(data.total_power_output_mw - data.total_losses_mw).toFixed(2)} MW</td></tr>
+                        </table>
+                    </div>
+                    
+                    ${data.loss_breakdown.length > 0 ? `
+                        <h4>Detailed Breakdown</h4>
+                        <div style="max-height: 300px; overflow-y: auto;">
+                            ${data.loss_breakdown.map(breakdown => `
+                                <div style="border: 1px solid #ddd; margin: 5px 0; padding: 10px; border-radius: 4px;">
+                                    <strong>${breakdown.grid_line}</strong><br>
+                                    <small>Power Flow: ${breakdown.power_flow_mw} MW</small>
+                                    <table class="table table-sm" style="margin-top: 10px;">
+                                        <tr><td>Connection Losses:</td><td>${breakdown.connection_losses_mw} MW</td></tr>
+                                        <tr><td>Grid Line Losses:</td><td>${breakdown.grid_line_losses_mw} MW</td></tr>
+                                        <tr><td><strong>Total:</strong></td><td><strong>${breakdown.total_losses_mw} MW (${breakdown.loss_percentage}%)</strong></td></tr>
+                                    </table>
+                                </div>
+                            `).join('')}
+                        </div>
+                    ` : ''}
+                </div>
+            `;
+            
+            showModal('Grid Losses Calculation', lossesHtml);
+        })
+        .catch(error => {
+            console.error('Error calculating grid losses:', error);
+            showModal('Error', `
+                <div style="color: red; text-align: center; padding: 20px;">
+                    <h4>Failed to calculate grid losses</h4>
+                    <p>${error.message}</p>
+                </div>
+            `);
+        });
+}
+
+function editFacility(facilityId) {
+    alert(`Edit facility functionality would go here for facility ID: ${facilityId}`);
+}
+
+function manageFacilityConnections(facilityId) {
+    selectedFacilityForConnection = facilityId;
+    
+    fetch(`/facility/${facilityId}/connections/`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                alert('Error: ' + data.error);
+                return;
+            }
+            
+            showConnectionManagementModal(data);
+        })
+        .catch(error => {
+            console.error('Error fetching facility connections:', error);
+            alert('Failed to load facility connections');
+        });
+}
+
+function showConnectionManagementModal(facilityData) {
+    var connectionsHtml = `
+        <h4>${facilityData.facility_name} - Grid Connections</h4>
+        <p><strong>Total Connections:</strong> ${facilityData.total_connections}</p>
+        
+        <div style="margin-bottom: 20px;">
+            <button onclick="addNewConnection(${facilityData.facility_id})" class="btn btn-success btn-sm">
+                Add New Connection
+            </button>
+        </div>
+        
+        <div class="connections-list">
+    `;
+    
+    if (facilityData.connections.length === 0) {
+        connectionsHtml += '<p>No grid connections found for this facility.</p>';
+    } else {
+        facilityData.connections.forEach(function(conn) {
+            var isPrimary = conn.is_primary;
+            var utilizationClass = conn.loss_percentage > 10 ? 'utilization-critical' : 
+                                 conn.loss_percentage > 5 ? 'utilization-high' : 
+                                 conn.loss_percentage > 2 ? 'utilization-medium' : 'utilization-low';
+            
+            connectionsHtml += `
+                <div class="grid-connection-item ${isPrimary ? 'primary' : ''}" style="position: relative;">
+                    <div class="connection-actions">
+                        ${!isPrimary ? `<button onclick="setPrimaryConnection(${conn.connection_id})" class="btn btn-xs btn-outline-success" title="Set as Primary">★</button>` : '<span style="color: #28a745;" title="Primary Connection">★</span>'}
+                        <button onclick="removeConnection(${conn.connection_id})" class="btn btn-xs btn-outline-danger" title="Remove Connection">×</button>
+                    </div>
+                    
+                    <div style="display: flex; justify-content: space-between; align-items: start;">
+                        <div>
+                            <strong>${conn.grid_line_name}</strong> ${isPrimary ? '<span style="background: #28a745; color: white; padding: 2px 6px; border-radius: 3px; font-size: 10px;">PRIMARY</span>' : ''}
+                            <br><small>${conn.voltage_level} kV | ${conn.connection_type} connection</small>
+                            <br><small>Distance: ${conn.distance_km} km</small>
+                        </div>
+                        <div style="text-align: right;">
+                            <div><strong>${conn.capacity_mw} MW</strong></div>
+                            <div><small>Losses: ${conn.total_losses_mw} MW (${conn.loss_percentage}%)</small></div>
+                        </div>
+                    </div>
+                    
+                    <div class="utilization-bar" style="margin-top: 8px;">
+                        <div class="utilization-fill ${utilizationClass}" style="width: ${Math.min(100, conn.loss_percentage * 10)}%;"></div>
+                    </div>
+                </div>
+            `;
+        });
+    }
+    
+    connectionsHtml += '</div>';
+    
+    document.getElementById('connectionManagementContent').innerHTML = connectionsHtml;
+    document.getElementById('connectionManagementModal').style.display = 'block';
+}
+
+function addNewConnection(facilityId) {
+    var facility = facilities.find(f => f.idfacilities === facilityId);
+    if (!facility) {
+        alert('Facility not found');
+        return;
+    }
+    
+    fetch(`/find_nearest_grid_lines/?lat=${facility.latitude}&lon=${facility.longitude}&max_distance=100`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.length === 0) {
+                alert('No nearby grid lines found within 100km');
+                return;
+            }
+            
+            showAddConnectionModal(facilityId, data);
+        })
+        .catch(error => {
+            console.error('Error finding nearby grid lines:', error);
+            alert('Failed to find nearby grid lines');
+        });
+}
+
+function showAddConnectionModal(facilityId, nearbyLines) {
+    var modalHtml = `
+        <div style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 10001;">
+            <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 20px; border-radius: 8px; max-width: 600px; max-height: 80vh; overflow-y: auto;">
+                <h4>Add New Grid Connection</h4>
+                <p>Select a grid line to connect to:</p>
+                
+                <div style="max-height: 400px; overflow-y: auto;">
+    `;
+    
+    nearbyLines.forEach(function(line) {
+        var utilizationColor = line.utilization_percent > 80 ? '#dc3545' : 
+                             line.utilization_percent > 60 ? '#fd7e14' : 
+                             line.utilization_percent > 30 ? '#ffc107' : '#28a745';
+        
+        modalHtml += `
+            <div class="grid-connection-item" onclick="confirmAddConnection(${facilityId}, ${line.idgridlines})" style="cursor: pointer;">
+                <div style="display: flex; justify-content: space-between; align-items: start;">
+                    <div>
+                        <strong>${line.line_name}</strong> (${line.line_code})
+                        <br><small>${line.voltage_level} kV | ${line.line_type}</small>
+                        <br><small>Distance: ${line.distance_km} km</small>
+                        <br><small>Suitability Score: ${line.suitability_score.toFixed(0)}/100</small>
+                    </div>
+                    <div style="text-align: right;">
+                        <div><strong>${line.thermal_capacity_mw} MW</strong></div>
+                        <div><small>Available: ${line.available_capacity_mw.toFixed(1)} MW</small></div>
+                        <div style="color: ${utilizationColor};"><small>Utilization: ${line.utilization_percent}%</small></div>
+                    </div>
+                </div>
+                <div class="utilization-bar" style="margin-top: 5px;">
+                    <div class="utilization-fill" style="width: ${line.utilization_percent}%; background-color: ${utilizationColor};"></div>
+                </div>
+            </div>
+        `;
+    });
+    
+    modalHtml += `
+                </div>
+                <div style="margin-top: 20px; text-align: right;">
+                    <button onclick="this.closest('div').remove()" class="btn btn-secondary">Cancel</button>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+}
+
+function confirmAddConnection(facilityId, gridLineId) {
+    var isPrimary = confirm('Set this as the primary connection for this facility?');
+    
+    fetch(`/facility/${facilityId}/manage_connections/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCookie('csrftoken')
+        },
+        body: JSON.stringify({
+            action: 'add',
+            grid_line_id: gridLineId,
+            is_primary: isPrimary
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            alert(data.message);
+            
+            document.querySelector('div[style*="z-index: 10001"]').remove();
+            manageFacilityConnections(facilityId);
+            refreshFacilities(getCurrentScenario());
+        } else {
+            alert('Error: ' + data.message);
+        }
+    })
+    .catch(error => {
+        console.error('Error adding connection:', error);
+        alert('Failed to add connection');
+    });
+}
+
+function setPrimaryConnection(connectionId) {
+    if (!selectedFacilityForConnection) return;
+    
+    fetch(`/facility/${selectedFacilityForConnection}/manage_connections/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCookie('csrftoken')
+        },
+        body: JSON.stringify({
+            action: 'set_primary',
+            connection_id: connectionId
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            alert(data.message);
+            manageFacilityConnections(selectedFacilityForConnection);
+            refreshFacilities(getCurrentScenario());
+        } else {
+            alert('Error: ' + data.message);
+        }
+    })
+    .catch(error => {
+        console.error('Error setting primary connection:', error);
+        alert('Failed to set primary connection');
+    });
+}
+
+function removeConnection(connectionId) {
+    if (!confirm('Are you sure you want to remove this grid connection?')) return;
+    if (!selectedFacilityForConnection) return;
+    
+    fetch(`/facility/${selectedFacilityForConnection}/manage_connections/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCookie('csrftoken')
+        },
+        body: JSON.stringify({
+            action: 'remove',
+            connection_id: connectionId
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            alert(data.message);
+            manageFacilityConnections(selectedFacilityForConnection);
+            refreshFacilities(getCurrentScenario());
+        } else {
+            alert('Error: ' + data.message);
+        }
+    })
+    .catch(error => {
+        console.error('Error removing connection:', error);
+        alert('Failed to remove connection');
+    });
+}
+
+function closeConnectionManagement() {
+    document.getElementById('connectionManagementModal').style.display = 'none';
+    connectionManagementMode = false;
+    selectedFacilityForConnection = null;
+}
+
+function highlightGridLine(gridLineId) {
+    gridLinesLayer.eachLayer(function(layer) {
+        if (layer.gridLineId === gridLineId) {
+            var originalStyle = {
+                color: layer.options.color,
+                weight: layer.options.weight,
+                opacity: layer.options.opacity
+            };
+            
+            layer.setStyle({
+                color: '#ff0000',
+                weight: originalStyle.weight + 3,
+                opacity: 1
+            });
+            
+            map.fitBounds(layer.getBounds());
+            
+            setTimeout(() => {
+                layer.setStyle(originalStyle);
+            }, 3000);
+        }
+    });
+    
+    closeGridUtilization();
+}
 </script>
 
 {% endblock %}

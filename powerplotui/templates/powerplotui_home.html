@@ -1,12 +1,11 @@
 <!-- powerplotui/templates/plot_landing.html -->
-
 {% extends 'powerplotui_base.html' %}
-
+{% load static %}
 {% block powerplotui_content %}
     <p>Here you can generate various plots and charts to visualize your data.  You can also export a selected Scenario/ Variant to an excel
         spreadsheet for further processing.
     </p>
-        <div style="height: 300px; overflow-y: scroll;">
+    <div style="height: 300px; overflow-y: scroll;">
         <table class="table table-striped table-bordered">
             <thead>
                 <tr>
@@ -48,11 +47,13 @@
             });
         </script>
     {% endif %}
+
     <script>
-        debugger;
-        $(document).ready(function() {
+        const GET_VALID_CHOICES_URL = '{% url "get_valid_choices" %}';
+        $(document).ready(function() {   
             // Function to update variant choices when scenario changes
             function updateVariants() {
+                debugger;
                 var scenarioId = $('#id_scenario').val();
                 
                 if (!scenarioId) {
@@ -62,7 +63,7 @@
                 }
                 
                 $.ajax({
-                    url: '{% url "get_valid_choices" %}',
+                    url: GET_VALID_CHOICES_URL,
                     data: {'scenario': scenarioId},
                     success: function(data) {
                         // Clear the variant dropdown
@@ -137,7 +138,7 @@
                 if (!scenarioId) return;
                 
                 $.ajax({
-                    url: '{% url "get_valid_choices" %}',
+                    url: GET_VALID_CHOICES_URL,
                     data: {
                         'scenario': scenarioId,
                         'variant': variantId
@@ -188,7 +189,7 @@
                 ajaxData['series_' + seriesNumber + '_heading'] = headingId;
                 
                 $.ajax({
-                    url: '{% url "get_valid_choices" %}',
+                    url: GET_VALID_CHOICES_URL,
                     data: ajaxData,
                     success: function(data) {
                         var componentField = '#id_series_' + seriesNumber + '_component';
