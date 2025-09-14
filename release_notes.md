@@ -14,6 +14,9 @@
 ### 🆕 New Features
 - Feature: Release Notes Display ([#6](https://github.com/Sustainable-Energy-Now/siren_web/issues/6))
 
+## Version 3.1.0 - September 14, 2025
+### 🆕 New Features
+- Feature: Wind Turbines CRUD ([#7](https://github.com/Sustainable-Energy-Now/siren_web/issues/7))
 ---
 
 *For technical support or feature requests, please contact the Sustainable Energy Now Webmaster.*

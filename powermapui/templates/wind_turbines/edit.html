@@ -1,0 +1,182 @@
+<!-- wind_turbines/edit.html -->
+{% extends 'powermapui_base.html' %}
+
+{% block powermapui_content %}
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h3>Edit Wind Turbine</h3>
+      <small class="text-muted">{{ turbine.manufacturer }} {{ turbine.turbine_model }}</small>
+    </div>
+    <div>
+      <a href="{% url 'powermapui:wind_turbine_detail' turbine.pk %}" class="btn btn-outline-secondary">Back to Details</a>
+    </div>
+  </div>
+
+  <p>Update the specifications for this wind turbine model. Changes will not affect existing installations but will be used for new installations and analysis.</p>
+
+  <div class="row">
+    <div class="col-lg-8">
+      <div class="card">
+        <div class="card-body">
+          <form method="post" novalidate>
+            {% csrf_token %}
+            
+            <div class="row mb-3">
+              <div class="col-md-6">
+                <label for="turbine_model" class="form-label">Turbine Model <span class="text-danger">*</span></label>
+                <input type="text" 
+                       class="form-control" 
+                       id="turbine_model" 
+                       name="turbine_model" 
+                       value="{{ form_data.turbine_model|default:turbine.turbine_model }}"
+                       required>
+                <div class="form-text">Unique identifier for this turbine model</div>
+              </div>
+              <div class="col-md-6">
+                <label for="manufacturer" class="form-label">Manufacturer</label>
+                <input type="text" 
+                       class="form-control" 
+                       id="manufacturer" 
+                       name="manufacturer" 
+                       value="{{ form_data.manufacturer|default:turbine.manufacturer|default:'' }}">
+                <div class="form-text">e.g., Vestas, GE, Siemens Gamesa</div>
+              </div>
+            </div>
+              <div class="col-md-6">
+                <label for="application" class="form-label">Application</label>
+                <select class="form-select" id="application" name="application">
+                  <option value="">Select application type</option>
+                  {% for value, label in applications %}
+                    <option value="{{ value }}" 
+                            {% if form_data.application|default:turbine.application == value %}selected{% endif %}>
+                      {{ label }}
+                    </option>
+                  {% endfor %}
+                </select>
+                <div class="form-text">Turbine deployment environment</div>
+              </div>
+            </div>
+            <div class="row mb-3">
+              <div class="col-md-6">
+                <label for="rated_power" class="form-label">Rated Power (kW)</label>
+                <input type="number" 
+                       class="form-control" 
+                       id="rated_power" 
+                       name="rated_power" 
+                       step="0.1" 
+                       min="0"
+                       value="{{ form_data.rated_power|default:turbine.rated_power|default:'' }}">
+                <div class="form-text">Maximum power output at rated wind speed</div>
+              </div>
+              <div class="col-md-6">
+                <label for="hub_height" class="form-label">Hub Height (m)</label>
+                <input type="number" 
+                       class="form-control" 
+                       id="hub_height" 
+                       name="hub_height" 
+                       step="0.1" 
+                       min="0"
+                       value="{{ form_data.hub_height|default:turbine.hub_height|default:'' }}">
+                <div class="form-text">Height from ground to turbine hub</div>
+              </div>
+            </div>
+
+            <div class="row mb-3">
+              <div class="col-md-6">
+                <label for="rotor_diameter" class="form-label">Rotor Diameter (m)</label>
+                <input type="number" 
+                       class="form-control" 
+                       id="rotor_diameter" 
+                       name="rotor_diameter" 
+                       step="0.1" 
+                       min="0"
+                       value="{{ form_data.rotor_diameter|default:turbine.rotor_diameter|default:'' }}">
+                <div class="form-text">Total diameter of the rotor</div>
+              </div>
+              <div class="col-md-6">
+                <label for="cut_in_speed" class="form-label">Cut-in Speed (m/s)</label>
+                <input type="number" 
+                       class="form-control" 
+                       id="cut_in_speed" 
+                       name="cut_in_speed" 
+                       step="0.1" 
+                       min="0"
+                       value="{{ form_data.cut_in_speed|default:turbine.cut_in_speed|default:'' }}">
+                <div class="form-text">Minimum wind speed to start generating</div>
+              </div>
+            </div>
+
+            <div class="row mb-4">
+              <div class="col-md-6">
+                <label for="cut_out_speed" class="form-label">Cut-out Speed (m/s)</label>
+                <input type="number" 
+                       class="form-control" 
+                       id="cut_out_speed" 
+                       name="cut_out_speed" 
+                       step="0.1" 
+                       min="0"
+                       value="{{ form_data.cut_out_speed|default:turbine.cut_out_speed|default:'' }}">
+                <div class="form-text">Maximum wind speed before shutdown</div>
+              </div>
+            </div>
+
+            <div class="d-flex gap-2">
+              <button type="submit" class="btn btn-primary">Update Wind Turbine</button>
+              <a href="{% url 'powermapui:wind_turbine_detail' turbine.pk %}" class="btn btn-outline-secondary">Cancel</a>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-4">
+      <!-- Current Installations Warning -->
+      {% if turbine.get_total_installations > 0 %}
+        <div class="alert alert-info">
+          <h6 class="alert-heading">Installation Impact</h6>
+          <p class="mb-1">This turbine model is currently installed at {{ turbine.get_facilities_using.count }} facilit{{ turbine.get_facilities_using.count|pluralize:"y,ies" }} with {{ turbine.get_total_installations }} total units.</p>
+          <p class="mb-0">Changes to specifications will not affect existing installations but will apply to new installations and system analysis.</p>
+        </div>
+      {% endif %}
+
+      <!-- Audit Information -->
+      <div class="card">
+        <div class="card-header">
+          <h6 class="mb-0">Record Information</h6>
+        </div>
+        <div class="card-body">
+          <table class="table table-sm mb-0">
+            <tr>
+              <td><strong>Created:</strong></td>
+              <td>{{ turbine.created_at|date:"Y-m-d H:i" }}</td>
+            </tr>
+            <tr>
+              <td><strong>Last Updated:</strong></td>
+              <td>{{ turbine.updated_at|date:"Y-m-d H:i" }}</td>
+            </tr>
+            <tr>
+              <td><strong>Total Installations:</strong></td>
+              <td>{{ turbine.get_total_installations }}</td>
+            </tr>
+          </table>
+        </div>
+      </div>
+
+      <!-- Help Card -->
+      <div class="card mt-3">
+        <div class="card-header">
+          <h6 class="mb-0">Field Guidelines</h6>
+        </div>
+        <div class="card-body">
+          <div class="small">
+            <p><strong>Model Name:</strong> Keep consistent with manufacturer naming conventions.</p>
+            
+            <p><strong>Technical Data:</strong> Verify specifications with manufacturer datasheets for accuracy.</p>
+            
+            <p><strong>Power Curves:</strong> Upload detailed power curve files separately for precise modeling.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}

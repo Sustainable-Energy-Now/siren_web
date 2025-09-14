@@ -479,11 +479,19 @@ class FacilityGridConnections(models.Model):
         return connection_losses_mw
 
 class WindTurbines(models.Model):
+    APPLICATION_CHOICES = [
+        ('onshore', 'Onshore'),
+        ('offshore', 'Offshore'),
+        ('floating', 'Floating'),
+    ]
     idwindturbines = models.AutoField(db_column='idwindturbines', primary_key=True)
     turbine_model = models.CharField(max_length=70, unique=True,
                                    help_text="Wind turbine model/type (must be unique)")
     manufacturer = models.CharField(max_length=50, blank=True, null=True,
                                   help_text="Turbine manufacturer")
+    application = models.CharField(max_length=20, choices=APPLICATION_CHOICES,
+                                   blank=True, null=True,
+                                   help_text="Turbine application type")
     hub_height = models.FloatField(blank=True, null=True, 
                                  help_text="Standard hub height in meters")
     rated_power = models.FloatField(blank=True, null=True,

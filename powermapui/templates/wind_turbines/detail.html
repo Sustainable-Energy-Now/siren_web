@@ -1,0 +1,310 @@
+<!-- wind_turbines/detail.html -->
+{% extends 'powermapui_base.html' %}
+
+{% block powermapui_content %}
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h3>{{ turbine.manufacturer }} {{ turbine.turbine_model }}</h3>
+      <small class="text-muted">Wind Turbine Details</small>
+    </div>
+    <div>
+      <a href="{% url 'powermapui:wind_turbine_edit' turbine.pk %}" class="btn btn-warning">Edit</a>
+      <a href="{% url 'powermapui:wind_turbines_list' %}" class="btn btn-outline-secondary">Back to List</a>
+    </div>
+  </div>
+
+  <div class="row">
+    <!-- Basic Information -->
+    <div class="col-lg-8">
+      <div class="card mb-4">
+        <div class="card-header">
+          <h5 class="mb-0">Technical Specifications</h5>
+        </div>
+        <div class="card-body">
+          <div class="row">
+            <div class="col-md-6">
+              <table class="table table-sm">
+                <tr>
+                  <td><strong>Model:</strong></td>
+                  <td>{{ turbine.turbine_model }}</td>
+                </tr>
+                <tr>
+                  <td><strong>Manufacturer:</strong></td>
+                  <td>{{ turbine.manufacturer|default:"Not specified" }}</td>
+                </tr>
+                <tr>
+                  <td><strong>Application:</strong></td>
+                  <td>
+                    {% if turbine.application %}
+                      <span class="badge bg-secondary">{{ turbine.get_application_display }}</span>
+                    {% else %}
+                      Not specified
+                    {% endif %}
+                  </td>
+                </tr>
+                <tr>
+                  <td><strong>Rated Power:</strong></td>
+                  <td>
+                    {% if turbine.rated_power %}
+                      {{ turbine.rated_power|floatformat:0 }} kW
+                    {% else %}
+                      Not specified
+                    {% endif %}
+                  </td>
+                </tr>
+                <tr>
+                  <td><strong>Hub Height:</strong></td>
+                  <td>
+                    {% if turbine.hub_height %}
+                      {{ turbine.hub_height|floatformat:1 }} m
+                    {% else %}
+                      Not specified
+                    {% endif %}
+                  </td>
+                </tr>
+              </table>
+            </div>
+            <div class="col-md-6">
+              <table class="table table-sm">
+                <tr>
+                  <td><strong>Rotor Diameter:</strong></td>
+                  <td>
+                    {% if turbine.rotor_diameter %}
+                      {{ turbine.rotor_diameter|floatformat:1 }} m
+                    {% else %}
+                      Not specified
+                    {% endif %}
+                  </td>
+                </tr>
+                <tr>
+                  <td><strong>Cut-in Speed:</strong></td>
+                  <td>
+                    {% if turbine.cut_in_speed %}
+                      {{ turbine.cut_in_speed|floatformat:1 }} m/s
+                    {% else %}
+                      Not specified
+                    {% endif %}
+                  </td>
+                </tr>
+                <tr>
+                  <td><strong>Cut-out Speed:</strong></td>
+                  <td>
+                    {% if turbine.cut_out_speed %}
+                      {{ turbine.cut_out_speed|floatformat:1 }} m/s
+                    {% else %}
+                      Not specified
+                    {% endif %}
+                  </td>
+                </tr>
+                <tr>
+                  <td><strong>Created:</strong></td>
+                  <td>{{ turbine.created_at|date:"Y-m-d H:i" }}</td>
+                </tr>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Installation Summary -->
+      <div class="card mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <h5 class="mb-0">Installation Summary</h5>
+          <div>
+            <span class="badge bg-primary">{{ total_installations }} Total Units</span>
+            {% if total_capacity %}
+              <span class="badge bg-success">{{ total_capacity|floatformat:0 }} kW Total Capacity</span>
+            {% endif %}
+          </div>
+        </div>
+        <div class="card-body">
+          {% if facility_installations %}
+            <div class="table-responsive">
+              <table class="table table-sm">
+                <thead>
+                  <tr>
+                    <th>Facility</th>
+                    <th>Zone</th>
+                    <th>Units</th>
+                    <th>Capacity</th>
+                    <th>Tilt</th>
+                    <th>Direction</th>
+                    <th>Installation Date</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for installation in facility_installations %}
+                    <tr>
+                      <td>
+                        <a href="#" class="text-decoration-none">
+                          {{ installation.idfacilities.facility_name }}
+                        </a>
+                      </td>
+                      <td>{{ installation.idfacilities.idzones.name|default:"-" }}</td>
+                      <td>{{ installation.no_turbines }}</td>
+                      <td>
+                        {% if installation.total_capacity %}
+                          {{ installation.total_capacity|floatformat:0 }} kW
+                        {% else %}
+                          -
+                        {% endif %}
+                      </td>
+                      <td>
+                        {% if installation.tilt %}
+                          {{ installation.tilt }}°
+                        {% else %}
+                          -
+                        {% endif %}
+                      </td>
+                      <td>{{ installation.direction|default:"-" }}</td>
+                      <td>{{ installation.installation_date|default:"-" }}</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% else %}
+            <div class="text-center text-muted py-3">
+              <p>This turbine model is not currently installed at any facilities.</p>
+              <a href="{% url 'powermapui:facility_wind_turbine_create' %}" class="btn btn-outline-primary btn-sm">
+                Add Installation
+              </a>
+            </div>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Power Curves -->
+      <div class="card mb-4">
+        <div class="card-header">
+          <h5 class="mb-0">Power Curves</h5>
+        </div>
+        <div class="card-body">
+          {% if power_curves %}
+            <div class="table-responsive">
+              <table class="table table-sm">
+                <thead>
+                  <tr>
+                    <th>File Name</th>
+                    <th>Upload Date</th>
+                    <th>Status</th>
+                    <th>Notes</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for curve in power_curves %}
+                    <tr>
+                      <td>
+                        <code>{{ curve.power_file_name }}</code>
+                      </td>
+                      <td>{{ curve.file_upload_date|date:"Y-m-d H:i" }}</td>
+                      <td>
+                        {% if curve.is_active %}
+                          <span class="badge bg-success">Active</span>
+                        {% else %}
+                          <span class="badge bg-secondary">Inactive</span>
+                        {% endif %}
+                      </td>
+                      <td>{{ curve.notes|default:"-"|truncatechars:50 }}</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% else %}
+            <div class="text-center text-muted py-3">
+              <p>No power curves uploaded for this turbine model.</p>
+            </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Quick Actions Sidebar -->
+    <div class="col-lg-4">
+      <div class="card mb-4">
+        <div class="card-header">
+          <h6 class="mb-0">Quick Actions</h6>
+        </div>
+        <div class="card-body">
+          <div class="d-grid gap-2">
+            <a href="{% url 'powermapui:wind_turbine_edit' turbine.pk %}" class="btn btn-warning btn-sm">
+              Edit Turbine
+            </a>
+            <a href="{% url 'powermapui:facility_wind_turbine_create' %}" class="btn btn-primary btn-sm">
+              Add to Facility
+            </a>
+            <button class="btn btn-danger btn-sm" onclick="confirmDelete()">
+              Delete Turbine
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Statistics Card -->
+      <div class="card">
+        <div class="card-header">
+          <h6 class="mb-0">Statistics</h6>
+        </div>
+        <div class="card-body">
+          <div class="row text-center">
+            <div class="col-6">
+              <div class="border-end">
+                <h4 class="text-primary">{{ facility_installations.count }}</h4>
+                <small class="text-muted">Facilities</small>
+              </div>
+            </div>
+            <div class="col-6">
+              <h4 class="text-success">{{ total_installations }}</h4>
+              <small class="text-muted">Total Units</small>
+            </div>
+          </div>
+          {% if total_capacity %}
+            <hr>
+            <div class="text-center">
+              <h4 class="text-info">{{ total_capacity|floatformat:0 }}</h4>
+              <small class="text-muted">Total Capacity (kW)</small>
+            </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Delete Confirmation Modal -->
+  <div class="modal fade" id="deleteModal" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Confirm Delete</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <p>Are you sure you want to delete the wind turbine "{{ turbine.turbine_model }}"?</p>
+          {% if facility_installations %}
+            <div class="alert alert-warning">
+              <strong>Warning:</strong> This turbine is currently installed at {{ facility_installations.count }} facilit{{ facility_installations.count|pluralize:"y,ies" }}. 
+              It cannot be deleted until all installations are removed.
+            </div>
+          {% endif %}
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <form method="post" action="{% url 'powermapui:wind_turbine_delete' turbine.pk %}" style="display: inline;">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-danger" {% if facility_installations %}disabled{% endif %}>
+              Delete Turbine
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function confirmDelete() {
+      var deleteModal = new bootstrap.Modal(document.getElementById('deleteModal'));
+      deleteModal.show();
+    }
+  </script>
+{% endblock %}
