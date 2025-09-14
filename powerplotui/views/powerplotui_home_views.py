@@ -266,33 +266,12 @@ class PowerPlotHomeView(TemplateView):
     def handle_export_action(self, request, idscenarios, idvariant):
         """Handle export to Excel action"""
         try:
-            # Get scenario and variant names for the message
+            # Get scenario and variant names for validation
             scenario = Scenarios.objects.get(pk=idscenarios)
             variant = variations.objects.get(pk=idvariant)
             
-            # Generate the file
-            file_response = self.export_to_excel(request)
-            
-            # Add success message
-            messages.success(
-                request, 
-                f'Excel file for {scenario.title} - {variant.variation_name} exported successfully!'
-            )
-            
-            # Reload the page with download message
-            analysis_queryset = Analysis.objects.all()[:8]
-            analysis_data = self.get_analysis_data(analysis_queryset)
-            plotform = PlotForm()
-            
-            context = {
-                'analysis_data': analysis_data,
-                'plotform': plotform,
-                'download_ready': True,
-                'filename': file_response,
-                'file_data': base64.b64encode(file_response.content).decode('utf-8'),
-                'content_type': file_response['Content-Type'],
-            }
-            return render(request, 'powerplotui_home.html', context)
+            # Generate and return the file response directly
+            return self.export_to_excel(request)
             
         except Scenarios.DoesNotExist:
             messages.error(request, 'Selected scenario does not exist.')
