@@ -17,7 +17,7 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import include, path
 from django.contrib.staticfiles.urls import staticfiles_urlpatterns
-from .views import home_views, home_views_alt, config_views, help_views, reference_views
+from .views import home_views, config_views, help_views, reference_views
 
 urlpatterns = [
     path('', home_views.home_view, name='home'),
@@ -25,9 +25,6 @@ urlpatterns = [
     path("", include("powermapui.urls")),
     path("", include("powermatchui.urls")),
     path("", include("powerplotui.urls")),
-    path('alt', home_views_alt.home_view, name='home_view'),
-    path('api/component-config/', home_views_alt.get_component_config, name='component_config'),
-    path('api/component-details/<str:component_name>/', home_views_alt.get_component_details, name='component_details'),
     path('references', reference_views.reference_list, name='reference_list'),
     path('references/add/', reference_views.reference_create, name='reference_create'),
     path('references/<int:pk>/', reference_views.reference_detail, name='reference_detail'),
@@ -39,6 +36,7 @@ urlpatterns = [
     path('generate-help/', help_views.generate_help_html, name='generate_help_html'),
     path('help/', help_views.display_help_html, name='display_help_html'),
     path('help/edit/', help_views.edit_help_template, name='edit_help_template'),
+    path('download/', help_views.download_help_html, name='download_help_html'),
     path("admin/", admin.site.urls),
     path('accounts/', include('django.contrib.auth.urls')),
 ]

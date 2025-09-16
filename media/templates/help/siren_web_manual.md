@@ -2,26 +2,9 @@
 
 ## Complete Guide to Renewable Energy Modeling System
 
----
+### System Overview
 
-## Table of Contents
-
-1. [System Overview](#system-overview)
-2. [Getting Started](#getting-started)
-3. [Main Interface](#main-interface)
-4. [System Navigation](#system-navigation)
-5. [Powermap Module](#powermap-module)
-6. [Powermatch Module](#powermatch-module)
-7. [Powerplot Module](#powerplot-module)
-8. [Technical Features](#technical-features)
-9. [Troubleshooting](#troubleshooting)
-10. [Support and Further Information](#support-and-further-information)
-
----
-
-## System Overview
-
-Siren Web is a web-based interface for the Siren renewable energy modeling application. Siren is an open-source Python application designed for modeling renewable energy systems within the South West Interconnected System (SWIS). The system provides comprehensive tools for energy planning through three main modules: Powermap, Powermatch, and Powerplot.
+Siren Web is a web-based Django application modelled on Siren is an open-source Python application designed for modeling renewable energy systems within the South West Interconnected System (SWIS). The system provides comprehensive tools for energy planning through three main modules: Powermap, Powermatch, and Powerplot.
 
 ### Core Modules
 
@@ -30,8 +13,6 @@ Siren Web is a web-based interface for the Siren renewable energy modeling appli
 - **Powerplot**: Visualization and plotting tools for modeling results
 
 ---
-
-## Getting Started
 
 ### System Requirements
 - Web browser with JavaScript enabled
@@ -145,6 +126,8 @@ When you click on a component, you'll see:
 ### Overview
 
 Powermap is an interactive mapping tool for modeling renewable energy generation in the South West Interconnected System (SWIS). It integrates with the System Advisor Model (SAM) to provide comprehensive energy planning capabilities.
+
+---
 
 ### Interface Components
 
@@ -427,6 +410,249 @@ For existing facilities, view:
 - Annual energy output projections
 - Grid connection utilization rates
 - Environmental impact assessments
+
+---
+### Wind Turbine Management Overview
+
+The Wind Turbine Management System allows you to manage wind turbine models and their installations at facilities within your SIREN web application. The system consists of two main components:
+
+1. **Wind Turbine Models** - Master database of turbine specifications
+2. **Facility Installations** - Tracking of which turbines are installed where
+
+---
+
+### Wind Turbine Models
+
+#### Viewing Turbine Models
+
+**Access:** Navigate to `/wind-turbines/` or use the "Wind Turbines" menu option.
+
+The turbine models list displays all wind turbine types in your system with the following information:
+
+- **Model**: Turbine model designation
+- **Manufacturer**: Company that makes the turbine
+- **Application**: Deployment type (Onshore, Offshore, or Floating)
+- **Rated Power**: Maximum power output in kW
+- **Hub Height**: Height from ground to turbine hub in meters
+- **Rotor Diameter**: Total rotor diameter in meters
+- **Cut-in/Cut-out Speed**: Wind speeds for operation start/stop
+- **Installations**: Number of active installations using this model
+
+#### Search and Filtering
+
+Use the filters above the table to find specific turbines:
+
+- **Search Box**: Enter model name or manufacturer
+- **Manufacturer Filter**: Select specific manufacturer
+- **Application Filter**: Filter by Onshore, Offshore, or Floating
+- **Clear Button**: Reset all filters
+
+#### Pagination
+
+Large lists are paginated with 25 turbines per page. Use the pagination controls at the bottom to navigate between pages.
+
+#### Adding New Turbine Models
+
+**Access:** Click "Add New Wind Turbine" button on the turbine list page.
+
+##### Required Information
+
+- **Turbine Model** (Required): Unique identifier for the turbine
+  - Example: "V90-2.0 MW", "GE 2.5-120"
+  - Must be unique across all turbines in the system
+
+##### Optional Information
+
+- **Manufacturer**: Company name (e.g., Vestas, GE, Siemens Gamesa)
+- **Application**: Select from:
+  - Onshore
+  - Offshore  
+  - Floating
+- **Rated Power**: Maximum power output in kW
+- **Hub Height**: Standard hub height in meters
+- **Rotor Diameter**: Total rotor diameter in meters
+- **Cut-in Speed**: Minimum wind speed to start generating (m/s)
+- **Cut-out Speed**: Maximum wind speed before shutdown (m/s)
+
+##### Guidelines
+
+- Use exact manufacturer designations for consistency
+- Verify specifications with manufacturer datasheets
+- Typical values:
+  - Rated Power: 500-15,000 kW
+  - Hub Height: 80-140m
+  - Cut-in Speed: 3-4 m/s
+  - Cut-out Speed: 20-25 m/s
+
+#### Editing Turbine Models
+
+**Access:** Click "Edit" button next to any turbine in the list, or "Edit" from the detail view.
+
+- All fields can be modified except the database ID
+- Changes won't affect existing installations but apply to new installations
+- The system prevents duplicate model names
+- If turbines are already installed, you'll see a warning about the impact
+
+#### Deleting Turbine Models
+
+**Access:** Click "Delete Turbine" from the detail view or edit page.
+
+##### Important Notes
+
+- **Safety Check**: Turbines currently installed at facilities cannot be deleted
+- Remove all installations first before deleting the turbine model
+- Deletion is permanent and cannot be undone
+- The system will show which facilities are using the turbine if deletion is blocked
+
+---
+
+### Facility Wind Turbine Installations
+
+#### Viewing Installations
+
+**Access:** Navigate to `/facility-wind-turbines/` or click "View Facility Installations" from the turbine list.
+
+The installations list shows:
+
+- **Facility**: Where the turbines are installed
+- **Zone**: Geographic zone of the facility
+- **Turbine Model**: Which turbine type is installed
+- **Manufacturer**: Turbine manufacturer
+- **Units**: Number of turbines installed
+- **Total Capacity**: Combined capacity of all units
+- **Configuration**: Tilt angle and direction
+- **Installation Date**: When installed
+- **Status**: Active or Inactive
+
+##### Filtering Options
+
+- **Search**: Find by facility or turbine name
+- **Facility Filter**: Specific facility name
+- **Turbine Filter**: Specific turbine model
+- **Active Only**: Show only active installations (checked by default)
+
+#### Adding Installations
+
+**Access:** Click "Add Installation" button on the installations list.
+
+##### Required Information
+
+- **Facility**: Select from dropdown of available facilities
+- **Wind Turbine Model**: Select turbine type to install
+- **Number of Turbines**: How many units to install (minimum 1)
+
+##### Optional Configuration
+
+- **Tilt Angle**: Turbine blade tilt in degrees (-90 to +90)
+  - Typically 0° for horizontal axis turbines
+  - Negative values = tilt backward, positive = tilt forward
+- **Primary Direction**: Wind direction or turbine orientation
+  - Examples: "North", "SW", "225°"
+- **Installation Date**: When turbines were/will be installed
+- **Notes**: Additional information about the installation
+
+##### Automatic Calculations
+
+The system automatically calculates:
+- **Total Capacity**: Number of turbines × rated power
+- Real-time capacity display updates as you change the quantity
+
+##### Validation Rules
+
+- Cannot install the same turbine model twice at the same facility
+- Must select both facility and turbine model
+- Number of turbines must be at least 1
+
+#### Editing Installations
+
+**Access:** Click "Edit" button next to any installation in the list.
+
+##### Editable Fields
+
+- Number of turbines
+- Tilt angle
+- Primary direction
+- Installation date
+- Installation notes
+- Active/Inactive status
+
+##### Read-Only Information
+
+- Facility (cannot be changed after creation)
+- Turbine model (cannot be changed after creation)
+
+##### Status Management
+
+- Uncheck "Installation is Active" to deactivate without deleting
+- Inactive installations are shown with gray background
+- Inactive installations don't count toward capacity totals
+
+#### Removing Installations
+
+**Access:** Click "Remove" button next to any installation.
+
+- Removes the association between facility and turbine model
+- Does not delete the facility or turbine model
+- Requires confirmation before deletion
+- Action is permanent and cannot be undone
+
+---
+
+### Navigation
+
+#### Quick Access Links
+
+- **Wind Turbines List** → **Facility Installations**: "View Facility Installations" button
+- **Facility Installations** → **Wind Turbines List**: "View Wind Turbine Models" button  
+- **Any List** → **Add New**: Prominent "Add" buttons on each list page
+- **Detail View** → **Edit**: "Edit" button in header or quick actions sidebar
+
+#### Breadcrumb Navigation
+
+- Always use the "Back to List" buttons to return to list views
+- Detail pages show the current item in the page header
+- Edit pages show both item name and "Edit" indicator
+
+---
+
+### Tips and Best Practices
+
+#### Data Management
+
+1. **Consistent Naming**: Use manufacturer's exact model designations
+2. **Complete Specifications**: Fill in all available technical data for better analysis
+3. **Regular Updates**: Keep installation dates and status current
+4. **Validation**: Double-check specifications against manufacturer datasheets
+
+#### Performance
+
+1. **Search Efficiently**: Use specific terms rather than browsing long lists
+2. **Filter Combinations**: Combine multiple filters to narrow results quickly
+3. **Pagination**: Lists are capped at 25 items per page for optimal performance
+
+#### Workflow Recommendations
+
+1. **Add Turbine Models First**: Create turbine specifications before installing at facilities
+2. **Check for Duplicates**: Search existing turbines before adding new ones
+3. **Document Installations**: Use the notes field for important installation details
+4. **Regular Audits**: Periodically review and update installation status
+
+#### Error Prevention
+
+1. **Unique Models**: Each turbine model name must be unique
+2. **Installation Limits**: One turbine model per facility (create separate entries for different configurations)
+3. **Delete Order**: Remove installations before deleting turbine models
+4. **Backup Important Data**: Export or document critical specifications before major changes
+
+#### Common Issues
+
+| Issue | Solution |
+|-------|----------|
+| Cannot delete turbine | Remove all installations first |
+| Duplicate model error | Check existing turbines, use different model name |
+| Missing capacity calculation | Ensure turbine has rated power specified |
+| Filter not working | Clear all filters and try again |
+| Installation not showing | Check "Active Only" filter setting |
 
 ---
 

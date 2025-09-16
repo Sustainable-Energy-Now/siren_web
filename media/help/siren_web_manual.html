@@ -1,22 +1,548 @@
-<h1 id="siren-web-user-manual">Siren Web User Manual</h1>
-<h2 id="complete-guide-to-renewable-energy-modeling-system">Complete Guide to Renewable Energy Modeling System</h2>
-<hr />
-<h2 id="table-of-contents">Table of Contents</h2>
-<ol>
-<li><a href="#system-overview">System Overview</a></li>
-<li><a href="#getting-started">Getting Started</a></li>
-<li><a href="#main-interface">Main Interface</a></li>
-<li><a href="#system-navigation">System Navigation</a></li>
-<li><a href="#powermap-module">Powermap Module</a></li>
-<li><a href="#powermatch-module">Powermatch Module</a></li>
-<li><a href="#powerplot-module">Powerplot Module</a></li>
-<li><a href="#technical-features">Technical Features</a></li>
-<li><a href="#troubleshooting">Troubleshooting</a></li>
-<li><a href="#support-and-further-information">Support and Further Information</a></li>
-</ol>
-<hr />
-<h2 id="system-overview">System Overview</h2>
-<p>Siren Web is a web-based interface for the Siren renewable energy modeling application. Siren is an open-source Python application designed for modeling renewable energy systems within the South West Interconnected System (SWIS). The system provides comprehensive tools for energy planning through three main modules: Powermap, Powermatch, and Powerplot.</p>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Siren Web User Manual</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 0;
+            background: #f8f9fa;
+            color: #333;
+        }
+        
+        .container {
+            display: flex;
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            min-height: 100vh;
+            box-shadow: 0 0 20px rgba(0,0,0,0.1);
+        }
+        
+        .sidebar {
+            width: 350px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px 25px;
+            position: sticky;
+            top: 0;
+            height: 100vh;
+            overflow-y: auto;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+        }
+        
+        .sidebar h2 {
+            margin-top: 0;
+            color: #ffffff;
+            border-bottom: 2px solid rgba(255,255,255,0.3);
+            padding-bottom: 15px;
+            font-size: 1.4em;
+            font-weight: 600;
+        }
+        
+        .toc-list {
+            list-style: none;
+            padding: 0;
+            margin: 20px 0;
+        }
+        
+        .toc-item {
+            margin: 5px 0;
+        }
+        
+        .toc-link {
+            color: rgba(255,255,255,0.8);
+            text-decoration: none;
+            padding: 12px 15px;
+            display: block;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+            font-weight: 500;
+            border-left: 3px solid transparent;
+        }
+        
+        .toc-link:hover {
+            background: rgba(255,255,255,0.1);
+            color: white;
+            transform: translateX(5px);
+            border-left-color: rgba(255,255,255,0.5);
+        }
+        
+        .toc-link.active {
+            background: rgba(255,255,255,0.2);
+            color: white;
+            border-left-color: #ffd700;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+        }
+        .toc-subsections {
+            list-style: none;
+            padding: 0;
+            margin: 5px 0 0 20px;
+        }
+
+        .toc-subitem {
+            margin: 3px 0;
+        }
+
+        .toc-sublink {
+            color: rgba(255,255,255,0.6);
+            text-decoration: none;
+            padding: 6px 12px;
+            display: block;
+            border-radius: 5px;
+            transition: all 0.3s ease;
+            font-size: 0.9em;
+            border-left: 2px solid transparent;
+        }
+
+        .toc-sublink:hover {
+            background: rgba(255,255,255,0.05);
+            color: rgba(255,255,255,0.8);
+            border-left-color: rgba(255,255,255,0.3);
+        }
+        .content {
+            flex: 1;
+            padding: 40px 50px;
+            position: relative;
+            max-width: none;
+        }
+        
+        .page-section {
+            display: none;
+            animation: fadeIn 0.4s ease-in;
+        }
+        
+        .page-section.active {
+            display: block !important;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .navigation {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            display: flex;
+            gap: 15px;
+            z-index: 1000;
+        }
+        
+        .nav-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px 20px;
+            border-radius: 50px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+            min-width: 120px;
+        }
+        
+        .nav-btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+        }
+        
+        .nav-btn:disabled {
+            background: #cbd5e0;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        
+        .back-to-top {
+            position: fixed;
+            bottom: 120px;
+            right: 30px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px;
+            border-radius: 50%;
+            cursor: pointer;
+            width: 55px;
+            height: 55px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+            font-size: 18px;
+        }
+        
+        .back-to-top:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+        }
+        
+        .page-indicator {
+            position: fixed;
+            top: 30px;
+            right: 30px;
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 10px 15px;
+            border-radius: 25px;
+            font-size: 14px;
+            font-weight: 600;
+            z-index: 1000;
+            backdrop-filter: blur(10px);
+        }
+        
+        /* Content Styling */
+        h1, h2, h3, h4, h5, h6 {
+            color: #2d3748;
+            margin-top: 2em;
+            margin-bottom: 1em;
+        }
+        
+        h1 {
+            font-size: 2.5em;
+            border-bottom: 3px solid #667eea;
+            padding-bottom: 0.5em;
+            margin-top: 0;
+        }
+        
+        h2 {
+            font-size: 2em;
+            color: #4a5568;
+            border-bottom: 2px solid #e2e8f0;
+            padding-bottom: 0.3em;
+        }
+        
+        h3 {
+            font-size: 1.5em;
+            color: #667eea;
+        }
+        
+        p {
+            margin-bottom: 1.2em;
+            text-align: justify;
+        }
+        
+        ul, ol {
+            margin-bottom: 1.2em;
+            padding-left: 2em;
+        }
+        
+        li {
+            margin-bottom: 0.5em;
+        }
+        
+        code {
+            background: #f7fafc;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'Monaco', 'Consolas', monospace;
+            color: #e53e3e;
+            border: 1px solid #e2e8f0;
+        }
+        
+        pre {
+            background: #2d3748;
+            color: #e2e8f0;
+            padding: 20px;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin: 1.5em 0;
+        }
+        
+        pre code {
+            background: none;
+            padding: 0;
+            border: none;
+            color: inherit;
+        }
+        
+        strong {
+            color: #2d3748;
+            font-weight: 600;
+        }
+        
+        /* Mobile Responsive */
+        @media (max-width: 768px) {
+            .container {
+                flex-direction: column;
+            }
+            
+            .sidebar {
+                width: 100%;
+                height: auto;
+                position: relative;
+                padding: 20px;
+            }
+            
+            .content {
+                padding: 30px 20px;
+            }
+            
+            .navigation {
+                position: relative;
+                bottom: auto;
+                right: auto;
+                justify-content: center;
+                margin-top: 30px;
+            }
+            
+            .page-indicator {
+                position: relative;
+                top: auto;
+                right: auto;
+                margin-bottom: 20px;
+                display: inline-block;
+            }
+            
+            .back-to-top {
+                display: none;
+            }
+        }
+        
+        /* Print Styles */
+        @media print {
+            .sidebar, .navigation, .back-to-top, .page-indicator {
+                display: none;
+            }
+            
+            .page-section {
+                display: block !important;
+                page-break-after: always;
+            }
+            
+            .content {
+                width: 100%;
+                padding: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <nav class="sidebar">
+            <h2>📖 Table of Contents</h2>
+            <ul class="toc-list" id="tocList">
+                
+                <li class="toc-item">
+                    <a href="#" class="toc-link active" data-section="0">Complete Guide to Renewable Energy Modeling System</a>
+                </li><ul class="toc-subsections">
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="0" data-subsection="system-overview">System Overview</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="0" data-subsection="core-modules">Core Modules</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="0" data-subsection="system-requirements">System Requirements</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="0" data-subsection="access-levels">Access Levels</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="0" data-subsection="initial-setup">Initial Setup</a>
+                    </li></ul></li>
+                <li class="toc-item">
+                    <a href="#" class="toc-link " data-section="1">Main Interface</a>
+                </li><ul class="toc-subsections">
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="1" data-subsection="home-page-layout">Home Page Layout</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="1" data-subsection="current-session-settings">Current Session Settings</a>
+                    </li></ul></li>
+                <li class="toc-item">
+                    <a href="#" class="toc-link " data-section="2">System Navigation</a>
+                </li><ul class="toc-subsections">
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="2" data-subsection="interactive-system-diagram">Interactive System Diagram</a>
+                    </li></ul></li>
+                <li class="toc-item">
+                    <a href="#" class="toc-link " data-section="3">Powermap Module</a>
+                </li><ul class="toc-subsections">
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="3" data-subsection="overview">Overview</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="3" data-subsection="interface-components">Interface Components</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="3" data-subsection="map-navigation">Map Navigation</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="3" data-subsection="scenario-management">Scenario Management</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="3" data-subsection="viewing-facilities">Viewing Facilities</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="3" data-subsection="grid-line-management">Grid Line Management</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="3" data-subsection="adding-new-facilities">Adding New Facilities</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="3" data-subsection="adding-new-grid-lines">Adding New Grid Lines</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="3" data-subsection="advanced-powermap-features">Advanced Powermap Features</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="3" data-subsection="wind-turbine-management-overview">Wind Turbine Management Overview</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="3" data-subsection="wind-turbine-models">Wind Turbine Models</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="3" data-subsection="facility-wind-turbine-installations">Facility Wind Turbine Installations</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="3" data-subsection="navigation">Navigation</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="3" data-subsection="tips-and-best-practices">Tips and Best Practices</a>
+                    </li></ul></li>
+                <li class="toc-item">
+                    <a href="#" class="toc-link " data-section="4">Powermatch Module</a>
+                </li><ul class="toc-subsections">
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="4" data-subsection="overview">Overview</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="4" data-subsection="key-features">Key Features</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="4" data-subsection="navigation-overview">Navigation Overview</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="4" data-subsection="home-page--scenario-selection">Home Page - Scenario Selection</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="4" data-subsection="merit-order-configuration">Merit Order Configuration</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="4" data-subsection="baseline-scenario-management">Baseline Scenario Management</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="4" data-subsection="variations-and-analysis">Variations and Analysis</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="4" data-subsection="progress-tracking">Progress Tracking</a>
+                    </li></ul></li>
+                <li class="toc-item">
+                    <a href="#" class="toc-link " data-section="5">Powerplot Module</a>
+                </li><ul class="toc-subsections">
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="5" data-subsection="overview">Overview</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="5" data-subsection="main-features">Main Features</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="5" data-subsection="accessing-the-powerplot-interface">Accessing the PowerPlot Interface</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="5" data-subsection="understanding-the-data-table">Understanding the Data Table</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="5" data-subsection="creating-plots-and-charts">Creating Plots and Charts</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="5" data-subsection="data-export-functionality">Data Export Functionality</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="5" data-subsection="interactive-features">Interactive Features</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="5" data-subsection="visualization-types">Visualization Types</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="5" data-subsection="user-interface-features">User Interface Features</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="5" data-subsection="creating-custom-visualizations">Creating Custom Visualizations</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="5" data-subsection="integration-with-other-modules">Integration with Other Modules</a>
+                    </li></ul></li>
+                <li class="toc-item">
+                    <a href="#" class="toc-link " data-section="6">Technical Features</a>
+                </li><ul class="toc-subsections">
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="6" data-subsection="responsive-design">Responsive Design</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="6" data-subsection="dynamic-content-loading">Dynamic Content Loading</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="6" data-subsection="session-management">Session Management</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="6" data-subsection="integration-features">Integration Features</a>
+                    </li></ul></li>
+                <li class="toc-item">
+                    <a href="#" class="toc-link " data-section="7">Troubleshooting</a>
+                </li><ul class="toc-subsections">
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="7" data-subsection="common-issues">Common Issues</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="7" data-subsection="error-messages">Error Messages</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="7" data-subsection="browser-compatibility">Browser Compatibility</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="7" data-subsection="best-practices">Best Practices</a>
+                    </li></ul></li>
+                <li class="toc-item">
+                    <a href="#" class="toc-link " data-section="8">Support and Further Information</a>
+                </li><ul class="toc-subsections">
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="8" data-subsection="getting-help">Getting Help</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="8" data-subsection="documentation-updates">Documentation Updates</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="8" data-subsection="data-privacy-and-security">Data Privacy and Security</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="8" data-subsection="system-requirements-and-dependencies">System Requirements and Dependencies</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="8" data-subsection="performance-optimization">Performance Optimization</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="8" data-subsection="advanced-features-and-tips">Advanced Features and Tips</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="8" data-subsection="training-and-learning-resources">Training and Learning Resources</a>
+                    </li></ul></li>
+            </ul>
+            <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid rgba(255,255,255,0.2); font-size: 0.9em;">
+                <p><strong>Generated:</strong><br>September 16, 2025</p>
+                <p><strong>Sections:</strong> 9</p>
+            </div>
+        </nav>
+        
+        <main class="content">
+            <div class="page-indicator">
+                Page <span id="currentPage">1</span> of <span id="totalPages">9</span>
+            </div>
+            
+            
+            <div class="page-section active" data-section="0">
+                <h2 id="complete-guide-to-renewable-energy-modeling-system">Complete Guide to Renewable Energy Modeling System</h2>
+<h3 id="system-overview">System Overview</h3>
+<p>Siren Web is a web-based Django application modelled on Siren is an open-source Python application designed for modeling renewable energy systems within the South West Interconnected System (SWIS). The system provides comprehensive tools for energy planning through three main modules: Powermap, Powermatch, and Powerplot.</p>
 <h3 id="core-modules">Core Modules</h3>
 <ul>
 <li><strong>Powermap</strong>: Interactive mapping tool for modeling renewable energy generation and infrastructure</li>
@@ -24,7 +550,6 @@
 <li><strong>Powerplot</strong>: Visualization and plotting tools for modeling results</li>
 </ul>
 <hr />
-<h2 id="getting-started">Getting Started</h2>
 <h3 id="system-requirements">System Requirements</h3>
 <ul>
 <li>Web browser with JavaScript enabled</li>
@@ -47,7 +572,9 @@
 <li><strong>Navigate</strong> to desired module (Powermap, Powermatch, or Powerplot)</li>
 </ol>
 <hr />
-<h2 id="main-interface">Main Interface</h2>
+            </div>
+            <div class="page-section " data-section="1">
+                <h2 id="main-interface">Main Interface</h2>
 <h3 id="home-page-layout">Home Page Layout</h3>
 <p>The main interface displays:</p>
 <ol>
@@ -66,12 +593,16 @@
 </ol>
 <h3 id="current-session-settings">Current Session Settings</h3>
 <p>The settings panel at the top of the page displays your current modeling parameters:</p>
-<p><code>Demand Year: [Year]
-Scenario: [Scenario Name]
-Config: [Configuration File]</code></p>
+<div class="codehilite"><pre><span></span><code><span class="n">Demand</span><span class="w"> </span><span class="n">Year</span><span class="o">:</span><span class="w"> </span><span class="p">[</span><span class="n">Year</span><span class="p">]</span>
+<span class="nl">Scenario</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="n">Scenario</span><span class="w"> </span><span class="n">Name</span><span class="p">]</span>
+<span class="nl">Config</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="n">Configuration</span><span class="w"> </span><span class="n">File</span><span class="p">]</span>
+</code></pre></div>
+
 <p>These settings persist throughout your session and affect how the system processes your requests across all modules.</p>
 <hr />
-<h2 id="system-navigation">System Navigation</h2>
+            </div>
+            <div class="page-section " data-section="2">
+                <h2 id="system-navigation">System Navigation</h2>
 <h3 id="interactive-system-diagram">Interactive System Diagram</h3>
 <h4 id="overview">Overview</h4>
 <p>The main feature of Siren Web is an interactive diagram that illustrates the system architecture. This diagram contains clickable areas (hotspots) that provide detailed information about each component.</p>
@@ -118,9 +649,12 @@ Config: [Configuration File]</code></p>
 <li>Up to 5 example rows from the database</li>
 </ul>
 <hr />
-<h2 id="powermap-module">Powermap Module</h2>
-<h3 id="overview_1">Overview</h3>
+            </div>
+            <div class="page-section " data-section="3">
+                <h2 id="powermap-module">Powermap Module</h2>
+<h3 id="overview">Overview</h3>
 <p>Powermap is an interactive mapping tool for modeling renewable energy generation in the South West Interconnected System (SWIS). It integrates with the System Advisor Model (SAM) to provide comprehensive energy planning capabilities.</p>
+<hr />
 <h3 id="interface-components">Interface Components</h3>
 <p>The Powermap interface consists of:
 - <strong>Control Panel</strong>: Top section for scenario selection and facility management
@@ -369,8 +903,246 @@ Config: [Configuration File]</code></p>
 - Grid connection utilization rates
 - Environmental impact assessments</p>
 <hr />
-<h2 id="powermatch-module">Powermatch Module</h2>
-<h3 id="overview_2">Overview</h3>
+<h3 id="wind-turbine-management-overview">Wind Turbine Management Overview</h3>
+<p>The Wind Turbine Management System allows you to manage wind turbine models and their installations at facilities within your SIREN web application. The system consists of two main components:</p>
+<ol>
+<li><strong>Wind Turbine Models</strong> - Master database of turbine specifications</li>
+<li><strong>Facility Installations</strong> - Tracking of which turbines are installed where</li>
+</ol>
+<hr />
+<h3 id="wind-turbine-models">Wind Turbine Models</h3>
+<h4 id="viewing-turbine-models">Viewing Turbine Models</h4>
+<p><strong>Access:</strong> Navigate to <code>/wind-turbines/</code> or use the "Wind Turbines" menu option.</p>
+<p>The turbine models list displays all wind turbine types in your system with the following information:</p>
+<ul>
+<li><strong>Model</strong>: Turbine model designation</li>
+<li><strong>Manufacturer</strong>: Company that makes the turbine</li>
+<li><strong>Application</strong>: Deployment type (Onshore, Offshore, or Floating)</li>
+<li><strong>Rated Power</strong>: Maximum power output in kW</li>
+<li><strong>Hub Height</strong>: Height from ground to turbine hub in meters</li>
+<li><strong>Rotor Diameter</strong>: Total rotor diameter in meters</li>
+<li><strong>Cut-in/Cut-out Speed</strong>: Wind speeds for operation start/stop</li>
+<li><strong>Installations</strong>: Number of active installations using this model</li>
+</ul>
+<h4 id="search-and-filtering">Search and Filtering</h4>
+<p>Use the filters above the table to find specific turbines:</p>
+<ul>
+<li><strong>Search Box</strong>: Enter model name or manufacturer</li>
+<li><strong>Manufacturer Filter</strong>: Select specific manufacturer</li>
+<li><strong>Application Filter</strong>: Filter by Onshore, Offshore, or Floating</li>
+<li><strong>Clear Button</strong>: Reset all filters</li>
+</ul>
+<h4 id="pagination">Pagination</h4>
+<p>Large lists are paginated with 25 turbines per page. Use the pagination controls at the bottom to navigate between pages.</p>
+<h4 id="adding-new-turbine-models">Adding New Turbine Models</h4>
+<p><strong>Access:</strong> Click "Add New Wind Turbine" button on the turbine list page.</p>
+<h5 id="required-information">Required Information</h5>
+<ul>
+<li><strong>Turbine Model</strong> (Required): Unique identifier for the turbine</li>
+<li>Example: "V90-2.0 MW", "GE 2.5-120"</li>
+<li>Must be unique across all turbines in the system</li>
+</ul>
+<h5 id="optional-information">Optional Information</h5>
+<ul>
+<li><strong>Manufacturer</strong>: Company name (e.g., Vestas, GE, Siemens Gamesa)</li>
+<li><strong>Application</strong>: Select from:</li>
+<li>Onshore</li>
+<li>Offshore  </li>
+<li>Floating</li>
+<li><strong>Rated Power</strong>: Maximum power output in kW</li>
+<li><strong>Hub Height</strong>: Standard hub height in meters</li>
+<li><strong>Rotor Diameter</strong>: Total rotor diameter in meters</li>
+<li><strong>Cut-in Speed</strong>: Minimum wind speed to start generating (m/s)</li>
+<li><strong>Cut-out Speed</strong>: Maximum wind speed before shutdown (m/s)</li>
+</ul>
+<h5 id="guidelines">Guidelines</h5>
+<ul>
+<li>Use exact manufacturer designations for consistency</li>
+<li>Verify specifications with manufacturer datasheets</li>
+<li>Typical values:</li>
+<li>Rated Power: 500-15,000 kW</li>
+<li>Hub Height: 80-140m</li>
+<li>Cut-in Speed: 3-4 m/s</li>
+<li>Cut-out Speed: 20-25 m/s</li>
+</ul>
+<h4 id="editing-turbine-models">Editing Turbine Models</h4>
+<p><strong>Access:</strong> Click "Edit" button next to any turbine in the list, or "Edit" from the detail view.</p>
+<ul>
+<li>All fields can be modified except the database ID</li>
+<li>Changes won't affect existing installations but apply to new installations</li>
+<li>The system prevents duplicate model names</li>
+<li>If turbines are already installed, you'll see a warning about the impact</li>
+</ul>
+<h4 id="deleting-turbine-models">Deleting Turbine Models</h4>
+<p><strong>Access:</strong> Click "Delete Turbine" from the detail view or edit page.</p>
+<h5 id="important-notes">Important Notes</h5>
+<ul>
+<li><strong>Safety Check</strong>: Turbines currently installed at facilities cannot be deleted</li>
+<li>Remove all installations first before deleting the turbine model</li>
+<li>Deletion is permanent and cannot be undone</li>
+<li>The system will show which facilities are using the turbine if deletion is blocked</li>
+</ul>
+<hr />
+<h3 id="facility-wind-turbine-installations">Facility Wind Turbine Installations</h3>
+<h4 id="viewing-installations">Viewing Installations</h4>
+<p><strong>Access:</strong> Navigate to <code>/facility-wind-turbines/</code> or click "View Facility Installations" from the turbine list.</p>
+<p>The installations list shows:</p>
+<ul>
+<li><strong>Facility</strong>: Where the turbines are installed</li>
+<li><strong>Zone</strong>: Geographic zone of the facility</li>
+<li><strong>Turbine Model</strong>: Which turbine type is installed</li>
+<li><strong>Manufacturer</strong>: Turbine manufacturer</li>
+<li><strong>Units</strong>: Number of turbines installed</li>
+<li><strong>Total Capacity</strong>: Combined capacity of all units</li>
+<li><strong>Configuration</strong>: Tilt angle and direction</li>
+<li><strong>Installation Date</strong>: When installed</li>
+<li><strong>Status</strong>: Active or Inactive</li>
+</ul>
+<h5 id="filtering-options">Filtering Options</h5>
+<ul>
+<li><strong>Search</strong>: Find by facility or turbine name</li>
+<li><strong>Facility Filter</strong>: Specific facility name</li>
+<li><strong>Turbine Filter</strong>: Specific turbine model</li>
+<li><strong>Active Only</strong>: Show only active installations (checked by default)</li>
+</ul>
+<h4 id="adding-installations">Adding Installations</h4>
+<p><strong>Access:</strong> Click "Add Installation" button on the installations list.</p>
+<h5 id="required-information_1">Required Information</h5>
+<ul>
+<li><strong>Facility</strong>: Select from dropdown of available facilities</li>
+<li><strong>Wind Turbine Model</strong>: Select turbine type to install</li>
+<li><strong>Number of Turbines</strong>: How many units to install (minimum 1)</li>
+</ul>
+<h5 id="optional-configuration">Optional Configuration</h5>
+<ul>
+<li><strong>Tilt Angle</strong>: Turbine blade tilt in degrees (-90 to +90)</li>
+<li>Typically 0° for horizontal axis turbines</li>
+<li>Negative values = tilt backward, positive = tilt forward</li>
+<li><strong>Primary Direction</strong>: Wind direction or turbine orientation</li>
+<li>Examples: "North", "SW", "225°"</li>
+<li><strong>Installation Date</strong>: When turbines were/will be installed</li>
+<li><strong>Notes</strong>: Additional information about the installation</li>
+</ul>
+<h5 id="automatic-calculations">Automatic Calculations</h5>
+<p>The system automatically calculates:
+- <strong>Total Capacity</strong>: Number of turbines × rated power
+- Real-time capacity display updates as you change the quantity</p>
+<h5 id="validation-rules">Validation Rules</h5>
+<ul>
+<li>Cannot install the same turbine model twice at the same facility</li>
+<li>Must select both facility and turbine model</li>
+<li>Number of turbines must be at least 1</li>
+</ul>
+<h4 id="editing-installations">Editing Installations</h4>
+<p><strong>Access:</strong> Click "Edit" button next to any installation in the list.</p>
+<h5 id="editable-fields">Editable Fields</h5>
+<ul>
+<li>Number of turbines</li>
+<li>Tilt angle</li>
+<li>Primary direction</li>
+<li>Installation date</li>
+<li>Installation notes</li>
+<li>Active/Inactive status</li>
+</ul>
+<h5 id="read-only-information">Read-Only Information</h5>
+<ul>
+<li>Facility (cannot be changed after creation)</li>
+<li>Turbine model (cannot be changed after creation)</li>
+</ul>
+<h5 id="status-management">Status Management</h5>
+<ul>
+<li>Uncheck "Installation is Active" to deactivate without deleting</li>
+<li>Inactive installations are shown with gray background</li>
+<li>Inactive installations don't count toward capacity totals</li>
+</ul>
+<h4 id="removing-installations">Removing Installations</h4>
+<p><strong>Access:</strong> Click "Remove" button next to any installation.</p>
+<ul>
+<li>Removes the association between facility and turbine model</li>
+<li>Does not delete the facility or turbine model</li>
+<li>Requires confirmation before deletion</li>
+<li>Action is permanent and cannot be undone</li>
+</ul>
+<hr />
+<h3 id="navigation">Navigation</h3>
+<h4 id="quick-access-links">Quick Access Links</h4>
+<ul>
+<li><strong>Wind Turbines List</strong> → <strong>Facility Installations</strong>: "View Facility Installations" button</li>
+<li><strong>Facility Installations</strong> → <strong>Wind Turbines List</strong>: "View Wind Turbine Models" button  </li>
+<li><strong>Any List</strong> → <strong>Add New</strong>: Prominent "Add" buttons on each list page</li>
+<li><strong>Detail View</strong> → <strong>Edit</strong>: "Edit" button in header or quick actions sidebar</li>
+</ul>
+<h4 id="breadcrumb-navigation">Breadcrumb Navigation</h4>
+<ul>
+<li>Always use the "Back to List" buttons to return to list views</li>
+<li>Detail pages show the current item in the page header</li>
+<li>Edit pages show both item name and "Edit" indicator</li>
+</ul>
+<hr />
+<h3 id="tips-and-best-practices">Tips and Best Practices</h3>
+<h4 id="data-management">Data Management</h4>
+<ol>
+<li><strong>Consistent Naming</strong>: Use manufacturer's exact model designations</li>
+<li><strong>Complete Specifications</strong>: Fill in all available technical data for better analysis</li>
+<li><strong>Regular Updates</strong>: Keep installation dates and status current</li>
+<li><strong>Validation</strong>: Double-check specifications against manufacturer datasheets</li>
+</ol>
+<h4 id="performance">Performance</h4>
+<ol>
+<li><strong>Search Efficiently</strong>: Use specific terms rather than browsing long lists</li>
+<li><strong>Filter Combinations</strong>: Combine multiple filters to narrow results quickly</li>
+<li><strong>Pagination</strong>: Lists are capped at 25 items per page for optimal performance</li>
+</ol>
+<h4 id="workflow-recommendations">Workflow Recommendations</h4>
+<ol>
+<li><strong>Add Turbine Models First</strong>: Create turbine specifications before installing at facilities</li>
+<li><strong>Check for Duplicates</strong>: Search existing turbines before adding new ones</li>
+<li><strong>Document Installations</strong>: Use the notes field for important installation details</li>
+<li><strong>Regular Audits</strong>: Periodically review and update installation status</li>
+</ol>
+<h4 id="error-prevention">Error Prevention</h4>
+<ol>
+<li><strong>Unique Models</strong>: Each turbine model name must be unique</li>
+<li><strong>Installation Limits</strong>: One turbine model per facility (create separate entries for different configurations)</li>
+<li><strong>Delete Order</strong>: Remove installations before deleting turbine models</li>
+<li><strong>Backup Important Data</strong>: Export or document critical specifications before major changes</li>
+</ol>
+<h4 id="common-issues">Common Issues</h4>
+<table>
+<thead>
+<tr>
+<th>Issue</th>
+<th>Solution</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Cannot delete turbine</td>
+<td>Remove all installations first</td>
+</tr>
+<tr>
+<td>Duplicate model error</td>
+<td>Check existing turbines, use different model name</td>
+</tr>
+<tr>
+<td>Missing capacity calculation</td>
+<td>Ensure turbine has rated power specified</td>
+</tr>
+<tr>
+<td>Filter not working</td>
+<td>Clear all filters and try again</td>
+</tr>
+<tr>
+<td>Installation not showing</td>
+<td>Check "Active Only" filter setting</td>
+</tr>
+</tbody>
+</table>
+<hr />
+            </div>
+            <div class="page-section " data-section="4">
+                <h2 id="powermatch-module">Powermatch Module</h2>
+<h3 id="overview">Overview</h3>
 <p>PowerMatch is a web-based interface for matching and balancing Renewable Energy resources to the load on the South West Interconnected System (SWIS). The application quantifies and costs dispatchable energy generation, storage, and CO2-e emissions by taking input from Powermap load and generation data.</p>
 <h3 id="key-features">Key Features</h3>
 <ul>
@@ -404,7 +1176,7 @@ Config: [Configuration File]</code></p>
 <h3 id="merit-order-configuration">Merit Order Configuration</h3>
 <h4 id="purpose_1">Purpose</h4>
 <p>The merit order determines the dispatch priority of different energy technologies. Technologies higher in the list are dispatched first when demand needs to be met.</p>
-<h4 id="interface-components_1">Interface Components</h4>
+<h4 id="interface-components">Interface Components</h4>
 <p><strong>Merit Order Panel (Left Side)</strong>
 - <strong>Active Technologies</strong>: Technologies that will be used in the analysis
 - <strong>Drag and Drop</strong>: Reorder technologies by dragging items up or down
@@ -548,8 +1320,10 @@ For each technology, you can configure:
 <li><strong>Result Persistence</strong>: Results saved even if connection is lost</li>
 </ul>
 <hr />
-<h2 id="powerplot-module">Powerplot Module</h2>
-<h3 id="overview_3">Overview</h3>
+            </div>
+            <div class="page-section " data-section="5">
+                <h2 id="powerplot-module">Powerplot Module</h2>
+<h3 id="overview">Overview</h3>
 <p>PowerPlot UI is a Django-based data visualization module that enables users to generate various plots and charts to visualize analysis data. The system provides an interactive interface for selecting scenarios, variants, and data series to create customized visualizations and export data to Excel spreadsheets.</p>
 <h3 id="main-features">Main Features</h3>
 <ul>
@@ -733,7 +1507,9 @@ For each technology, you can configure:
 <li>Cross-module data consistency checks</li>
 </ul>
 <hr />
-<h2 id="technical-features">Technical Features</h2>
+            </div>
+            <div class="page-section " data-section="6">
+                <h2 id="technical-features">Technical Features</h2>
 <h3 id="responsive-design">Responsive Design</h3>
 <p>The interface automatically adjusts to different screen sizes:
 - <strong>Desktop</strong>: Full-featured interface with complete functionality
@@ -761,7 +1537,9 @@ For each technology, you can configure:
 <li>Unified results and reporting</li>
 </ul>
 <hr />
-<h2 id="troubleshooting">Troubleshooting</h2>
+            </div>
+            <div class="page-section " data-section="7">
+                <h2 id="troubleshooting">Troubleshooting</h2>
 <h3 id="common-issues">Common Issues</h3>
 <p><strong>Modules not loading properly:</strong>
 - Ensure JavaScript is enabled in your browser
@@ -860,7 +1638,7 @@ For each technology, you can configure:
 <li>Internet Explorer may have limited functionality</li>
 <li>Mobile browsers are supported with responsive design</li>
 </ul>
-<h3 id="best-practices_2">Best Practices</h3>
+<h3 id="best-practices">Best Practices</h3>
 <ul>
 <li><strong>Save work frequently</strong> by applying settings after major changes</li>
 <li><strong>Use descriptive names</strong> for facilities, grid lines, scenarios, and variations</li>
@@ -874,7 +1652,9 @@ For each technology, you can configure:
 <li><strong>Validate results</strong> by comparing with expected outcomes</li>
 </ul>
 <hr />
-<h2 id="support-and-further-information">Support and Further Information</h2>
+            </div>
+            <div class="page-section " data-section="8">
+                <h2 id="support-and-further-information">Support and Further Information</h2>
 <h3 id="getting-help">Getting Help</h3>
 <p>For additional assistance with:</p>
 <p><strong>Technical Issues</strong>
@@ -1000,3 +1780,154 @@ For each technology, you can configure:
 <hr />
 <p><em>This comprehensive manual covers the complete Siren Web system including all three integrated modules: Powermap for infrastructure modeling, Powermatch for supply-demand optimization, and Powerplot for results visualization. The system provides a complete workflow for renewable energy planning and analysis within the South West Interconnected System (SWIS).</em></p>
 <p><em>For specific technical questions, advanced feature requests, or system administration support, please contact your system administrator or refer to the online documentation portal.</em></p>
+            </div>
+        </main>
+    </div>
+    
+    <div class="navigation">
+        <button class="nav-btn" id="prevBtn" onclick="previousPage()">← Previous</button>
+        <button class="nav-btn" id="nextBtn" onclick="nextPage()">Next →</button>
+    </div>
+    
+    <button class="back-to-top" onclick="scrollToTop()" title="Back to top">↑</button>
+    
+    <script>
+        let currentSection = 0;
+        const totalSections = 9;
+        
+        function showSection(sectionIndex) {
+            // Hide all sections
+            document.querySelectorAll('.page-section').forEach(section => {
+                section.classList.remove('active');
+            });
+            
+            // Show selected section
+            const targetSection = document.querySelector(`.content .page-section[data-section="${sectionIndex}"]`);
+            if (targetSection) {
+                targetSection.classList.add('active');
+            }
+            
+            // Update TOC active state
+            document.querySelectorAll('.toc-link').forEach(link => {
+                link.classList.remove('active');
+            });
+            const activeLink = document.querySelector(`[data-section="${sectionIndex}"]`);
+            if (activeLink) {
+                activeLink.classList.add('active');
+            }
+            
+            // Update current section
+            currentSection = sectionIndex;
+            
+            // Update page indicator
+            document.getElementById('currentPage').textContent = sectionIndex + 1;
+            
+            // Update navigation buttons
+            updateNavigationButtons();
+            
+            // Scroll to top of content
+            document.querySelector('.content').scrollTop = 0;
+            window.scrollTo(0, 0);
+        }
+        
+        function updateNavigationButtons() {
+            const prevBtn = document.getElementById('prevBtn');
+            const nextBtn = document.getElementById('nextBtn');
+            
+            prevBtn.disabled = currentSection === 0;
+            nextBtn.disabled = currentSection === totalSections - 1;
+        }
+        
+        function nextPage() {
+            if (currentSection < totalSections - 1) {
+                showSection(currentSection + 1);
+            }
+        }
+        
+        function previousPage() {
+            if (currentSection > 0) {
+                showSection(currentSection - 1);
+            }
+        }
+        
+        function scrollToTop() {
+            showSection(0);
+        }
+        
+        // Keyboard navigation
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'ArrowRight' || e.key === 'PageDown') {
+                nextPage();
+                e.preventDefault();
+            } else if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
+                previousPage();
+                e.preventDefault();
+            }
+        });
+        
+        // TOC click handlers
+        document.addEventListener('DOMContentLoaded', function() {
+            document.querySelectorAll('.toc-link').forEach(link => {
+                link.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const sectionIndex = parseInt(this.dataset.section);
+                    showSection(sectionIndex);
+                });
+            });
+            
+            // Initialize
+            updateNavigationButtons();
+            document.getElementById('totalPages').textContent = totalSections;
+        });
+        
+        document.addEventListener('DOMContentLoaded', function() {
+            // Existing TOC main section handlers
+            document.querySelectorAll('.toc-link').forEach(link => {
+                link.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const sectionIndex = parseInt(this.dataset.section);
+                    showSection(sectionIndex);
+                });
+            });
+            
+            // NEW: Add subsection handlers
+            document.querySelectorAll('.toc-sublink').forEach(link => {
+                link.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const sectionIndex = parseInt(this.dataset.section);
+                    const subsectionId = this.dataset.subsection;
+                    
+                    // First, show the parent section
+                    showSection(sectionIndex);
+                    
+                    // Then scroll to the subsection within that section
+                    setTimeout(() => {
+                        const subsectionElement = document.querySelector(`#${subsectionId}`);
+                        if (subsectionElement) {
+                            // Scroll the content area to the subsection
+                            const contentArea = document.querySelector('.content');
+                            const elementTop = subsectionElement.offsetTop - contentArea.offsetTop;
+                            contentArea.scrollTo({
+                                top: elementTop - 20, // Add some padding
+                                behavior: 'smooth'
+                            });
+                            
+                            // Also highlight the subsection temporarily
+                            subsectionElement.style.backgroundColor = 'rgba(102, 126, 234, 0.1)';
+                            setTimeout(() => {
+                                subsectionElement.style.backgroundColor = '';
+                            }, 2000);
+                        }
+                    }, 100); // Small delay to ensure section is shown first
+                });
+            });
+            
+            // Initialize
+            updateNavigationButtons();
+            document.getElementById('totalPages').textContent = totalSections;
+        });
+        
+        
+    </script>
+</body>
+</html>
