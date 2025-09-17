@@ -100,7 +100,7 @@ def run_variations(request) -> HttpResponse:
             dimension = cleaned_data['dimension']
             step = cleaned_data['step']
             technology = technologies[tech_name]
-            variation_gen_name = f"{technology.tech_signature}{dimension[:3]}{str(step)}.{str(stages)}"
+            variation_gen_name = f"{technology.tech_signature}.{dimension[:3]}{str(step)}.{str(stages)}"
             variation_description = \
                 f"A variation for {technology.tech_name} with {dimension} changed by {str(step)} over {str(stages)} stages."
             scenario_obj = Scenarios.objects.get(title=scenario)
