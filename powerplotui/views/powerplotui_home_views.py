@@ -1,16 +1,17 @@
 import altair as alt
 import base64
+from django.contrib import messages
 from django.http import HttpResponse, JsonResponse
 from django.views.generic import TemplateView
 from django.shortcuts import render
-from django.contrib import messages
 from ..forms import PlotForm
 import io
 import logging
 import matplotlib
 matplotlib.use('Agg')  # Use the 'Agg' backend for non-interactive plotting
 import matplotlib.pyplot as plt
-from siren_web.models import Analysis, Scenarios, variations
+import re
+from siren_web.models import Analysis, Scenarios, variations, Technologies
 import openpyxl
 import pandas as pd
 
@@ -183,25 +184,10 @@ class PowerPlotHomeView(TemplateView):
         return render(request, 'powerplotui_home.html', context)
 
     def post(self, request):
+        form = PlotForm(request.POST or None, selected_scenario=request.POST.get('scenario'))
         plotform = PlotForm(request.POST)
         idscenarios = request.POST.get('scenario')
         idvariant = request.POST.get('variant')
-        
-        # Validate required fields first
-        if not idvariant or idvariant == '':
-            messages.error(request, 'Please select a variant first.')
-            return self.render_form_with_error(request, plotform)
-        
-        if not idscenarios or idscenarios == '':
-            messages.error(request, 'Please select a scenario first.')
-            return self.render_form_with_error(request, plotform)
-        
-        # Validate that variant exists
-        try:
-            variant = variations.objects.get(pk=idvariant)
-        except variations.DoesNotExist:
-            messages.error(request, 'Selected variant does not exist.')
-            return self.render_form_with_error(request, plotform)
         
         # Get form data
         series_1 = request.POST.get('series_1')
@@ -209,16 +195,19 @@ class PowerPlotHomeView(TemplateView):
         series_1_component = request.POST.get('series_1_component')
         series_2_component = request.POST.get('series_2_component')
         plot_type = request.POST.get('plot_type', '')
-        
-        # Handle different form actions
-        if plot_type:
-            return self.handle_plot_action(
-                request, plot_type, idscenarios, idvariant, 
-                series_1, series_2, series_1_component, series_2_component
-            )
-        
-        elif 'export' in request.POST:
-            return self.handle_export_action(request, idscenarios, idvariant)
+        if form.is_valid():
+            # Handle different form actions
+            if plot_type:
+                return self.handle_plot_action(
+                    request, plot_type, idscenarios, idvariant, 
+                    series_1, series_2, series_1_component, series_2_component
+                )
+            
+            elif 'export' in request.POST:
+                return self.handle_export_action(request, idscenarios, idvariant)
+        else:
+            context = {'plotform': form}
+            return render(request, 'powerplotui_home.html', context)
         
         # If no specific action, return to form
         return self.render_form_with_error(request, plotform)
@@ -282,24 +271,31 @@ class PowerPlotHomeView(TemplateView):
         except Exception as e:
             messages.error(request, f'Error exporting to Excel: {str(e)}')
             return self.render_form_with_error(request)
-    
+
     @staticmethod
     def get_valid_choices(request):
         scenario_id = request.GET.get('scenario')
         variant_id = request.GET.get('variant')
         series_1_heading = request.GET.get('series_1_heading')
         series_2_heading = request.GET.get('series_2_heading')
+        series_2_component = request.GET.get('series_2_component')
+        update_type = request.GET.get('update_type')
         
         response_data = {
             'variants': [],
-            'headings': [],
-            'components': [],
+            'series_1_headings': [],
             'series_1_components': [],
+            'series_2_headings': [],
             'series_2_components': []
         }
         
         try:
-            # Get variants for the selected scenario
+            # Handle specific update types for series 2 bidirectional dependencies
+            if update_type == 'series_2_headings_for_component':
+                return PowerPlotHomeView.handle_series_2_headings_for_component(request, scenario_id, variant_id, series_2_component)
+            elif update_type == 'series_2_components_for_heading':
+                return PowerPlotHomeView.handle_series_2_components_for_heading(request, scenario_id, variant_id, series_2_heading)
+            
             if scenario_id:
                 variants_queryset = variations.objects.filter(idscenarios=scenario_id)
                 variant_count = variants_queryset.count()
@@ -312,8 +308,9 @@ class PowerPlotHomeView(TemplateView):
                 elif variant_count == 1:
                     # Only one variant - auto-select it
                     variant = variants_queryset.first()
+                    variant_id = variant.idvariations # type: ignore
                     response_data['variants'] = [
-                        {'id': variant.idvariations, 'name': variant.variation_name, 'selected': True}
+                        {'id': variant.idvariations, 'name': variant.variation_name, 'selected': True} # type: ignore
                     ]
                 else:
                     # Multiple variants - show selection prompt
@@ -327,39 +324,236 @@ class PowerPlotHomeView(TemplateView):
                 # Filter Analysis based on scenario
                 analysis_filter = {'idscenarios': scenario_id}
                 
-                # If a specific variant is selected
+                # If a specific variant is selected, apply technology and dimension constraints
                 if variant_id:
                     try:
                         selected_variant = variations.objects.get(idvariations=variant_id)
-                        analysis_filter['variation'] = selected_variant.variation_name
+                        variation_name = selected_variant.variation_name
+                        analysis_filter['variation'] = variation_name
+                        
+                        # Parse variation_name to extract technology_signature and dimension
+                        technology_signature, dimension = PowerPlotHomeView.parse_variation_name(variation_name)
+                        
+                        if technology_signature and dimension:
+                            # Apply constraints based on parsed variation name
+                            response_data = PowerPlotHomeView.apply_variation_constraints(
+                                response_data, scenario_id, technology_signature, 
+                                dimension, series_1_heading, series_2_heading, analysis_filter, request
+                            )
+                        else:
+                            # Display error message if parsing fails
+                            messages.error(request, f"Invalid variation name format: '{variation_name}'. Expected format: technology_dimension[digits]")
+                            response_data['series_1_headings'] = []
+                            response_data['series_1_components'] = []
+                            response_data['series_2_headings'] = []
+                            response_data['series_2_components'] = []
+                            
                     except variations.DoesNotExist:
-                        pass
-                
-                # Get valid headings
-                valid_analysis = Analysis.objects.filter(**analysis_filter)
-                response_data['headings'] = list(valid_analysis.values_list('heading', flat=True).distinct().order_by('heading'))
-                
-                # For general components, we don't filter by heading since no heading is selected yet
-                # This will be empty initially and populated when headings are selected
-                response_data['components'] = []
-                
-                # Get components for specific headings
-                if series_1_heading:
-                    series_1_filter = analysis_filter.copy()
-                    series_1_filter['heading'] = series_1_heading
-                    response_data['series_1_components'] = list(
-                        Analysis.objects.filter(**series_1_filter).values_list('component', flat=True).distinct().order_by('component')
-                    )
-                
-                if series_2_heading:
-                    series_2_filter = analysis_filter.copy()
-                    series_2_filter['heading'] = series_2_heading
-                    response_data['series_2_components'] = list(
-                        Analysis.objects.filter(**series_2_filter).values_list('component', flat=True).distinct().order_by('component')
-                    )
+                        # Display error message if variant doesn't exist
+                        messages.error(request, f"Selected variant with ID '{variant_id}' does not exist")
+                        response_data['series_1_headings'] = []
+                        response_data['series_1_components'] = []
+                        response_data['series_2_headings'] = []
+                        response_data['series_2_components'] = []
+                else:
+                    messages.info(request, f"No variant selected. Please select a variant to see valid choices.")
+                    response_data['series_1_headings'] = []
+                    response_data['series_1_components'] = []
+                    response_data['series_2_headings'] = []
+                    response_data['series_2_components'] = []
         
         except Exception as e:
-            # Log the error in production
-            pass
+            # Log the error and display error message
+            error_msg = f"Error in get_valid_choices: {str(e)}"
+            messages.error(request, error_msg)
+            response_data['series_1_headings'] = []
+            response_data['series_1_components'] = []
+            response_data['series_2_headings'] = []
+            response_data['series_2_components'] = []
         
         return JsonResponse(response_data)
+
+    @staticmethod
+    def handle_series_2_headings_for_component(request, scenario_id, variant_id, series_2_component):
+        """
+        Handle updating series 2 headings when series 2 component changes.
+        If component is null, return all headings for the scenario/variant.
+        """
+        response_data = {
+            'series_2_headings': []
+        }
+        
+        try:
+            if not scenario_id or not variant_id:
+                return JsonResponse(response_data)
+            
+            # Get the selected variant to build analysis filter
+            try:
+                selected_variant = variations.objects.get(idvariations=variant_id)
+                variation_name = selected_variant.variation_name
+                
+                analysis_filter = {
+                    'idscenarios': scenario_id,
+                    'variation': variation_name
+                }
+                
+                # If component is specified, add it to the filter
+                if series_2_component:
+                    analysis_filter['component'] = series_2_component
+                
+                # Query available headings
+                headings = Analysis.objects.filter(**analysis_filter).values_list('heading', flat=True).distinct().order_by('heading')
+                response_data['series_2_headings'] = list(headings)
+                
+            except variations.DoesNotExist:
+                messages.error(request, f"Selected variant with ID '{variant_id}' does not exist")
+                
+        except Exception as e:
+            error_msg = f"Error getting series 2 headings for component: {str(e)}"
+            messages.error(request, error_msg)
+        
+        return JsonResponse(response_data)
+
+    @staticmethod
+    def handle_series_2_components_for_heading(request, scenario_id, variant_id, series_2_heading):
+        """
+        Handle updating series 2 components when series 2 heading changes.
+        If heading is null, return all components for the scenario/variant.
+        """
+        response_data = {
+            'series_2_components': []
+        }
+        
+        try:
+            if not scenario_id or not variant_id:
+                return JsonResponse(response_data)
+            
+            # Get the selected variant to build analysis filter
+            try:
+                selected_variant = variations.objects.get(idvariations=variant_id)
+                variation_name = selected_variant.variation_name
+                
+                analysis_filter = {
+                    'idscenarios': scenario_id,
+                    'variation': variation_name
+                }
+                
+                # If heading is specified, add it to the filter
+                if series_2_heading:
+                    analysis_filter['heading'] = series_2_heading
+                
+                # Query available components
+                components = Analysis.objects.filter(**analysis_filter).values_list('component', flat=True).distinct().order_by('component')
+                response_data['series_2_components'] = list(components)
+                
+            except variations.DoesNotExist:
+                messages.error(request, f"Selected variant with ID '{variant_id}' does not exist")
+                
+        except Exception as e:
+            error_msg = f"Error getting series 2 components for heading: {str(e)}"
+            messages.error(request, error_msg)
+        
+        return JsonResponse(response_data)
+
+    @staticmethod
+    def parse_variation_name(variation_name):
+        """
+        Parse variation_name to extract technology_signature and dimension.
+        
+        Format: technology_signature_dimension[numeric_digits]
+        Returns: (technology_signature, full_dimension_name)
+        """
+        # Mapping from abbreviated dimension to full dimension name
+        dimension_mapping = {
+            'mul': 'multiplier',
+            'cap': 'capex', 
+            'fom': 'fom',
+            'vom': 'vom',
+            'lif': 'lifetime'
+        }
+        
+        try:
+            # Split by .
+            parts = variation_name.split('.')
+            if len(parts) < 2:
+                return None, None
+                
+            technology_signature = parts[0]
+            
+            # The second part contains dimension followed by numeric digits representing stages and step
+            dimension_part = parts[1]
+            
+            # Extract dimension (characters before numeric digits)
+            match = re.match(r'^([a-zA-Z]+)', dimension_part)
+            if match:
+                dimension_abbrev = match.group(1).lower()
+                full_dimension = dimension_mapping.get(dimension_abbrev)
+                return technology_signature, full_dimension
+            
+            return technology_signature, None
+            
+        except Exception as e:
+            print(f"Error parsing variation name '{variation_name}': {str(e)}")
+            return None, None
+
+    @staticmethod
+    def apply_variation_constraints(response_data, scenario_id, technology_signature, 
+                                dimension, series_1_heading, series_2_heading, analysis_filter, request):
+        """
+        Apply constraints based on parsed variation name.
+        """
+        try:
+            # Get technology name from Technologies table
+            try:
+                technology = Technologies.objects.get(technology_signature=technology_signature)
+                technology_name = technology.technology_name
+            except Technologies.DoesNotExist:
+                # Return error if technology not found
+                messages.error(request, f"Technology with signature '{technology_signature}' not found in Technologies table")
+                response_data['series_1_headings'] = []
+                response_data['series_1_components'] = []
+                response_data['series_2_headings'] = []
+                response_data['series_2_components'] = []
+                return response_data
+            
+            # Series 1 component constraint: only the specific technology
+            response_data['series_1_components'] = [technology_name]
+            if dimension == 'multiplier':
+                # Any options can be chosen for series 1 heading when dimension is multiplier
+                valid_analysis = Analysis.objects.filter(**analysis_filter)
+                response_data['series_1_headings'] = list(
+                    valid_analysis.values_list('heading', flat=True).distinct().order_by('heading')
+                )
+                available_components = list(
+                    Analysis.objects.filter(**analysis_filter)
+                    .values_list('component', flat=True)
+                    .distinct()
+                    .order_by('component')
+                )
+                response_data['series_2_components'] = available_components
+                response_data['series_2_headings'] = response_data['series_1_headings']
+            else:
+                # For other dimensions (capex, fom, vom, lifetime), apply specific constraints
+                # Series 2 component constraints: System Total, System Economics, Load Analysis
+                allowed_series_2_components = ['System Economics']
+                response_data['series_2_components'] = allowed_series_2_components
+                if dimension == 'capex':
+                    allowed_series_1_headings = ['Capital Cost']
+                elif dimension in ['fom', 'vom']:
+                    allowed_series_1_headings = ['Annual Cost']
+                elif dimension == 'lifetime':
+                    allowed_series_1_headings = ['Lifetime', 'Lifetime Cost']
+                allowed_series_1_headings.extend(['Lifetime Cost', 'LCOG Cost', 'LCOE Cost', 'LCOE with CO2 Cost'])
+                response_data['series_1_headings'] = allowed_series_1_headings
+                response_data['series_2_headings'] = allowed_series_1_headings
+        
+        except Exception as e:
+            print(f"Error applying variation constraints: {str(e)}")
+            # Return error instead of falling back
+            messages.error(request, f"Error applying variation constraints: {str(e)}")
+            response_data['series_1_headings'] = []
+            response_data['series_1_components'] = []
+            response_data['series_2_headings'] = []
+            response_data['series_2_components'] = []
+        
+        return response_data

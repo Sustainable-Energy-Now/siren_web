@@ -9,8 +9,6 @@
 - Test Case: TC-MAP-006 Add Turbine" dropdown menu is missing([#2](https://github.com/Sustainable-Energy-Now/siren_web/issues/2))
 - Test Case: TC-PLOT-005 Excel Export fails([#5](https://github.com/Sustainable-Energy-Now/siren_web/issues/5))
 
-
-
 ### 🆕 New Features
 - Feature: Release Notes Display ([#6](https://github.com/Sustainable-Energy-Now/siren_web/issues/6))
 
@@ -18,6 +16,12 @@
 ### 🆕 New Features
 - Feature: Wind Turbines CRUD ([#7](https://github.com/Sustainable-Energy-Now/siren_web/issues/7))
 - Feature: Enhanced Help Display ([#8](https://github.com/Sustainable-Energy-Now/siren_web/issues/8))
+---
+
+## Version 3.1.1 - September 19, 2025
+
+### 🆕 New Features
+- - Feature: Restrict Plot Choices ([#9](https://github.com/Sustainable-Energy-Now/siren_web/issues/9))
 ---
 
 *For technical support or feature requests, please contact the Sustainable Energy Now Webmaster.*

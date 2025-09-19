@@ -356,7 +356,7 @@ The main interface provides access to three core modules:
         'backups_available': get_available_backups(markdown_file_path),
     }
     
-    return render(request, 'edit_markdown_template.html', context)
+    return render(request, 'edit_template.html', context)
 
 def validate_markdown_content(content):
     """Validate markdown content for common issues"""

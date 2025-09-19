@@ -1,6 +1,7 @@
 # run_powermatch.py
 from django.contrib.auth.decorators import login_required
 import numpy as np
+import re
 from siren_web.database_operations import get_scenario_by_title, delete_analysis_scenario, fetch_module_settings_data, \
     fetch_scenario_settings_data, fetch_technology_attributes, fetch_supplyfactors_data
 from siren_web.models import Analysis, ScenariosSettings
@@ -21,28 +22,90 @@ def save_analysis(i, dispatch_summary, metadata, scenario, variation, stage):
         stage: Stage number
     """
     
-    # Define the mapping from dispatch_summary fields to Analysis records
-    field_mappings = [
-        ('capacity_mw', 'Capacity', 'MW'),
-        ('generation_mwh', 'Generation', 'MWh'),
-        ('to_meet_load_mwh', 'To Meet Load', 'MWh'),
-        ('capacity_factor', 'CF', '%'),
-        ('annual_cost', 'Annual Cost', '$/yr'),
-        ('lcog_per_mwh', 'LCOG Cost', '$/MWh'),
-        ('lcoe_per_mwh', 'LCOE Cost', '$/MWh'),
-        ('emissions_tco2e', 'Emissions', 'tCO2e'),
-        ('emissions_cost', 'Emissions Cost', '$'),
-        ('lcoe_with_co2_per_mwh', 'LCOE with CO2 Cost', '$/MWh'),
-        ('max_generation_mw', 'Max Generation', 'MW'),
-        ('max_balance', 'Max Balance', 'MW'),
-        ('capital_cost', 'Capital Cost', '$'),
-        ('lifetime_cost', 'Lifetime Cost', '$'),
-        ('lifetime_emissions', 'Lifetime Emissions', 'tCO2e'),
-        ('lifetime_emissions_cost', 'Lifetime Emissions Cost', '$'),
-        ('area_km2', 'Area', 'km²'),
-        ('reference_lcoe', 'Reference LCOE', '$/MWh'),
-        ('reference_cf', 'Reference CF', '%'),
-    ]
+    def parse_variation_name(variation_name):
+        """
+        Parse variation_name to extract technology_signature and dimension.
+        
+        Format: technology_signature.dimension[numeric_digits]
+        Returns: (technology_signature, dimension_abbrev)
+        """
+        try:
+            # Split by period
+            parts = variation_name.split('.')
+            if len(parts) < 2:
+                return None, None
+                
+            technology_signature = parts[0]
+            
+            # The second part contains dimension followed by numeric digits
+            dimension_part = parts[1]
+            
+            # Extract dimension (characters before numeric digits)
+            match = re.match(r'^([a-zA-Z]+)', dimension_part)
+            if match:
+                dimension_abbrev = match.group(1).lower()
+                return technology_signature, dimension_abbrev
+            
+            return technology_signature, None
+            
+        except Exception as e:
+            print(f"Error parsing variation name '{variation_name}': {str(e)}")
+            return None, None
+    
+    # Parse the variation name to determine which statistics to create
+    technology_signature, dimension = parse_variation_name(variation)
+    
+    # Define field mappings based on dimension
+    if dimension == 'cap':
+        # Capital cost: capital_cost, lifetime_cost + cost metrics
+        field_mappings = [
+            ('capital_cost', 'Capital Cost', '$'),
+            ('lifetime_cost', 'Lifetime Cost', '$'),
+            ('lcog_per_mwh', 'LCOG Cost', '$/MWh'),
+            ('lcoe_per_mwh', 'LCOE Cost', '$/MWh'),
+            ('lcoe_with_co2_per_mwh', 'LCOE with CO2 Cost', '$/MWh'),
+        ]
+    elif dimension in ['fom', 'vom']:
+        # Fixed/Variable O&M: annual_cost, lifetime_cost + cost metrics
+        field_mappings = [
+            ('annual_cost', 'Annual Cost', '$/yr'),
+            ('lifetime_cost', 'Lifetime Cost', '$'),
+            ('lcog_per_mwh', 'LCOG Cost', '$/MWh'),
+            ('lcoe_per_mwh', 'LCOE Cost', '$/MWh'),
+            ('lcoe_with_co2_per_mwh', 'LCOE with CO2 Cost', '$/MWh'),
+        ]
+    elif dimension == 'lif':
+        # Lifetime: only lifetime + cost metrics
+        field_mappings = [
+            ('lifetime', 'Lifetime', 'years'),
+            ('lifetime_cost', 'Lifetime Cost', '$'),
+            ('lcog_per_mwh', 'LCOG Cost', '$/MWh'),
+            ('lcoe_per_mwh', 'LCOE Cost', '$/MWh'),
+            ('lcoe_with_co2_per_mwh', 'LCOE with CO2 Cost', '$/MWh'),
+        ]
+    else:
+        # For mul or unknown dimensions, include all statistics
+        field_mappings = [
+            ('capacity_mw', 'Capacity', 'MW'),
+            ('generation_mwh', 'Generation', 'MWh'),
+            ('to_meet_load_mwh', 'To Meet Load', 'MWh'),
+            ('capacity_factor', 'CF', '%'),
+            ('annual_cost', 'Annual Cost', '$/yr'),
+            ('lcog_per_mwh', 'LCOG Cost', '$/MWh'),
+            ('lcoe_per_mwh', 'LCOE Cost', '$/MWh'),
+            ('emissions_tco2e', 'Emissions', 'tCO2e'),
+            ('emissions_cost', 'Emissions Cost', '$'),
+            ('lcoe_with_co2_per_mwh', 'LCOE with CO2 Cost', '$/MWh'),
+            ('max_generation_mw', 'Max Generation', 'MW'),
+            ('max_balance', 'Max Balance', 'MW'),
+            ('capital_cost', 'Capital Cost', '$'),
+            ('lifetime_cost', 'Lifetime Cost', '$'),
+            ('lifetime_emissions', 'Lifetime Emissions', 'tCO2e'),
+            ('lifetime_emissions_cost', 'Lifetime Emissions Cost', '$'),
+            ('area_km2', 'Area', 'km²'),
+            ('reference_lcoe', 'Reference LCOE', '$/MWh'),
+            ('reference_cf', 'Reference CF', '%'),
+        ]
 
     # Insert technology-specific data
     analysis_records = []
@@ -52,23 +115,27 @@ def save_analysis(i, dispatch_summary, metadata, scenario, variation, stage):
         technology_name = row['technology']
         
         for field_name, heading, units in field_mappings:
-            quantity = float(row[field_name])
-            
-            # Convert percentage values (capacity factor and reference CF are stored as decimal)
-            if heading in ['CF', 'Reference CF']:
-                quantity = quantity * 100  # Convert to percentage
-            
-            analysis_records.append(Analysis(
-                idscenarios=scenario_obj,
-                heading=heading,
-                component=technology_name,
-                variation=variation,
-                stage=stage,
-                quantity=quantity,
-                units=units
-            ))
+            # Check if the field exists in the row before accessing it
+            if field_name in row.dtype.names:
+                quantity = float(row[field_name])
+                
+                # Convert percentage values (capacity factor and reference CF are stored as decimal)
+                if heading in ['CF', 'Reference CF']:
+                    quantity = quantity * 100  # Convert to percentage
+                
+                analysis_records.append(Analysis(
+                    idscenarios=scenario_obj,
+                    heading=heading,
+                    component=technology_name,
+                    variation=variation,
+                    stage=stage,
+                    quantity=quantity,
+                    units=units
+                ))
+            else:
+                print(f"Warning: Field '{field_name}' not found in dispatch_summary for technology '{technology_name}'")
     
-    # Insert system totals from metadata
+    # Insert system totals from metadata (always create these regardless of dimension)
     system_totals = metadata.get('system_totals', {})
     system_mappings = [
         ('total_capacity_mw', 'Capacity', 'System Total', 'MW'),
@@ -97,7 +164,7 @@ def save_analysis(i, dispatch_summary, metadata, scenario, variation, stage):
                 units=units
             ))
     
-    # Insert system-level statistics from metadata
+    # Insert system-level statistics from metadata (always create these regardless of dimension)
     system_stats = [
         ('total_load_mwh', 'Total Load', 'Load Analysis', 'MWh'),
         ('load_met_pct', '% Load Met', 'Load Analysis', '%'),

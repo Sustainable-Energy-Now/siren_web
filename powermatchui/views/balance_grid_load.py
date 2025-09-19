@@ -89,6 +89,7 @@ class TechnologyEconomics:
     lcoe_with_co2: float = 0.0
     
     # Lifetime metrics
+    lifetime: int = 0
     lifetime_cost: float = 0.0
     lifetime_emissions: float = 0.0
     lifetime_emissions_cost: float = 0.0
@@ -748,6 +749,7 @@ class PowerMatchProcessor:
             economics.lcoe_with_co2 = economics.lcoe
         
         # Lifetime calculations
+        economics.lifetime = details.lifetime
         economics.lifetime_cost = economics.annual_cost * config['max_lifetime']
         economics.lifetime_emissions = economics.emissions_tco2e * config['max_lifetime']
         economics.lifetime_emissions_cost = economics.emissions_cost * config['max_lifetime']
@@ -860,6 +862,7 @@ class PowerMatchProcessor:
             ('max_generation_mw', 'f8'),
             ('max_balance', 'f8'),  # For storage
             ('capital_cost', 'f8'),
+            ('lifetime', 'f8'),
             ('lifetime_cost', 'f8'),
             ('lifetime_emissions', 'f8'),
             ('lifetime_emissions_cost', 'f8'),
@@ -887,6 +890,7 @@ class PowerMatchProcessor:
             summary_array[i]['max_generation_mw'] = economics.max_generation
             summary_array[i]['max_balance'] = economics.max_balance
             summary_array[i]['capital_cost'] = economics.capital_cost
+            summary_array[i]['lifetime'] = economics.lifetime
             summary_array[i]['lifetime_cost'] = economics.lifetime_cost
             summary_array[i]['lifetime_emissions'] = economics.lifetime_emissions
             summary_array[i]['lifetime_emissions_cost'] = economics.lifetime_emissions_cost

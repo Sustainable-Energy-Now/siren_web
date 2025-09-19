@@ -53,7 +53,6 @@
         $(document).ready(function() {   
             // Function to update variant choices when scenario changes
             function updateVariants() {
-                debugger;
                 var scenarioId = $('#id_scenario').val();
                 
                 if (!scenarioId) {
@@ -116,8 +115,8 @@
                             }
                         }
                         
-                        // Update series choices with scenario-filtered options
-                        updateSeriesChoices(data.headings, data.components);
+                        // Clear series choices until variant is selected
+                        clearSeriesChoices();
                     },
                     error: function() {
                         console.log('Error loading variants');
@@ -135,7 +134,11 @@
                 var scenarioId = $('#id_scenario').val();
                 var variantId = $('#id_variant').val();
                 
-                if (!scenarioId) return;
+                if (!scenarioId || !variantId) {
+                    clearSeriesChoices();
+                    clearSeries2Choices(); // Add this line
+                    return;
+                }
                 
                 $.ajax({
                     url: GET_VALID_CHOICES_URL,
@@ -144,41 +147,86 @@
                         'variant': variantId
                     },
                     success: function(data) {
-                        updateSeriesChoices(data.headings, data.components);
+                        updateSeriesChoices(data);
                     },
                     error: function() {
                         console.log('Error loading series choices');
+                        clearSeriesChoices();
+                        clearSeries2Choices(); // Add this line
                     }
                 });
-            }
-            
-            // Function to update heading and component dropdowns (general)
-            function updateSeriesChoices(headings, components) {
-                // Update heading choices
-                $('#id_series_1, #id_series_2').empty();
-                $.each(headings, function(index, heading) {
-                    $('#id_series_1, #id_series_2').append($('<option></option>')
-                        .attr('value', heading)
-                        .text(heading));
-                });
+            }            
+
+            // Function to update heading and component dropdowns with separate series data
+            function updateSeriesChoices(data) {
+                // Update Series 1 heading choices
+                $('#id_series_1').empty();
+                if (data.series_1_headings && data.series_1_headings.length > 0) {
+                    $('#id_series_1').append('<option value="">Select statistic for series 1</option>');
+                    $.each(data.series_1_headings, function(index, heading) {
+                        $('#id_series_1').append($('<option></option>')
+                            .attr('value', heading)
+                            .text(heading));
+                    });
+                } else {
+                    $('#id_series_1').append('<option value="" disabled>No statistics available</option>');
+                }
                 
-                // Update component choices with all available components
-                // These will be filtered when specific headings are selected
-                $('#id_series_1_component, #id_series_2_component').empty();
-                $.each(components, function(index, component) {
-                    $('#id_series_1_component, #id_series_2_component').append($('<option></option>')
-                        .attr('value', component)
-                        .text(component));
-                });
+                // Update Series 2 heading choices
+                $('#id_series_2').empty();
+                if (data.series_2_headings && data.series_2_headings.length > 0) {
+                    $('#id_series_2').append('<option value="">Select statistic for series 2</option>');
+                    $.each(data.series_2_headings, function(index, heading) {
+                        $('#id_series_2').append($('<option></option>')
+                            .attr('value', heading)
+                            .text(heading));
+                    });
+                } else {
+                    $('#id_series_2').append('<option value="" disabled>No statistics available</option>');
+                }
+                
+                // Update Series 1 component choices
+                $('#id_series_1_component').empty();
+                if (data.series_1_components && data.series_1_components.length > 0) {
+                    if (data.series_1_components.length === 1) {
+                        // Auto-select if only one option
+                        $('#id_series_1_component').append($('<option></option>')
+                            .attr('value', data.series_1_components[0])
+                            .attr('selected', true)
+                            .text(data.series_1_components[0]));
+                    } else {
+                        $('#id_series_1_component').append('<option value="">Select component for series 1</option>');
+                        $.each(data.series_1_components, function(index, component) {
+                            $('#id_series_1_component').append($('<option></option>')
+                                .attr('value', component)
+                                .text(component));
+                        });
+                    }
+                } else {
+                    $('#id_series_1_component').append('<option value="" disabled>No components available</option>');
+                }
+                
+                // Update Series 2 component choices
+                $('#id_series_2_component').empty();
+                if (data.series_2_components && data.series_2_components.length > 0) {
+                    $('#id_series_2_component').append('<option value="">Select component for series 2</option>');
+                    $.each(data.series_2_components, function(index, component) {
+                        $('#id_series_2_component').append($('<option></option>')
+                            .attr('value', component)
+                            .text(component));
+                    });
+                } else {
+                    $('#id_series_2_component').append('<option value="" disabled>No components available</option>');
+                }
             }
             
-            // New function to update components for a specific series based on selected heading
+            // Function to update components for a specific series based on selected heading
             function updateSeriesComponents(seriesNumber) {
                 var scenarioId = $('#id_scenario').val();
                 var variantId = $('#id_variant').val();
                 var headingId = $('#id_series_' + seriesNumber).val();
                 
-                if (!scenarioId || !headingId) {
+                if (!scenarioId || !variantId || !headingId) {
                     return;
                 }
                 
@@ -196,35 +244,142 @@
                         $(componentField).empty();
                         
                         var componentsKey = 'series_' + seriesNumber + '_components';
-                        $.each(data[componentsKey], function(index, component) {
-                            $(componentField).append($('<option></option>')
-                                .attr('value', component)
-                                .text(component));
-                        });
+                        var components = data[componentsKey];
+                        
+                        if (components && components.length > 0) {
+                            if (components.length === 1) {
+                                // Auto-select if only one option
+                                $(componentField).append($('<option></option>')
+                                    .attr('value', components[0])
+                                    .attr('selected', true)
+                                    .text(components[0]));
+                            } else {
+                                $(componentField).append('<option value="">Select component for series ' + seriesNumber + '</option>');
+                                $.each(components, function(index, component) {
+                                    $(componentField).append($('<option></option>')
+                                        .attr('value', component)
+                                        .text(component));
+                                });
+                            }
+                        } else {
+                            $(componentField).append('<option value="" disabled>No components available</option>');
+                        }
                     },
                     error: function() {
                         console.log('Error loading components for series ' + seriesNumber);
                     }
                 });
             }
-            
+
+            // Combined function to update series 2 headings or components
+            function updateSeries2Dependencies(triggerField) {
+                debugger
+                var scenarioId = $('#id_scenario').val();
+                var variantId = $('#id_variant').val();
+                var componentId = $('#id_series_2_component').val();
+                var headingId = $('#id_series_2').val();
+                if (!scenarioId || !variantId) return;
+                // Determine what needs to be updated based on what's selected
+                var updateType, ajaxData;
+                var targetField, dataKey, placeholderText, noDataText;
+                
+                if (triggerField === 'component') {
+                    // Component changed - update headings for this component
+                    updateType = 'series_2_headings_for_component';
+                    targetField = '#id_series_2';
+                    dataKey = 'series_2_headings';
+                    placeholderText = 'Select statistic for series 2';
+                    noDataText = 'No statistics available';
+                    ajaxData = {
+                        'scenario': scenarioId,
+                        'variant': variantId,
+                        'update_type': updateType
+                    };
+                    if (componentId) {
+                        ajaxData['series_2_component'] = componentId;
+                    }
+                } else if (triggerField === 'heading' && !componentId) {
+                    // Heading changed - update components for this heading
+                    updateType = 'series_2_components_for_heading';
+                    targetField = '#id_series_2_component';
+                    dataKey = 'series_2_components';
+                    placeholderText = 'Select component for series 2';
+                    noDataText = 'No components available';
+                    ajaxData = {
+                        'scenario': scenarioId,
+                        'variant': variantId,
+                        'update_type': updateType
+                    };
+                    if (headingId) {
+                        ajaxData['series_2_heading'] = headingId;
+                    }
+                } else {
+                    // Both selected or neither selected - nothing to update
+                    return;
+                }
+                
+                $.ajax({
+                    url: GET_VALID_CHOICES_URL,
+                    data: ajaxData,
+                    success: function(data) {
+                        var targetElement = $(targetField);
+                        targetElement.empty();
+                        
+                        var items = data[dataKey];
+                        if (items && items.length > 0) {
+                            if (items.length === 1 && updateType === 'series_2_components_for_heading') {
+                                // Auto-select if only one component option
+                                targetElement.append($('<option></option>')
+                                    .attr('value', items[0])
+                                    .attr('selected', true)
+                                    .text(items[0]));
+                            } else {
+                                targetElement.append(`<option value="">${placeholderText}</option>`);
+                                $.each(items, function(index, item) {
+                                    targetElement.append($('<option></option>')
+                                        .attr('value', item)
+                                        .text(item));
+                                });
+                            }
+                        } else {
+                            targetElement.append(`<option value="" disabled>${noDataText}</option>`);
+                        }
+                    },
+                    error: function() {
+                        console.log(`Error loading ${dataKey.replace('_', ' ')}`);
+                        $(targetField).empty().append('<option value="" disabled>Error loading data</option>');
+                    }
+                });
+            }
+
             // Function to clear series choices
             function clearSeriesChoices() {
-                $('#id_series_1, #id_series_2').empty();
-                $('#id_series_1_component, #id_series_2_component').empty();
+                $('#id_series_1, #id_series_2').empty().append('<option value="" disabled>Select a variant first</option>');
+                $('#id_series_1_component, #id_series_2_component').empty().append('<option value="" disabled>Select a variant first</option>');
             }
-            
+
+            // Function to clear series 2 choices
+            function clearSeries2Choices() {
+                $('#id_series_2').empty().append('<option value="" disabled>Select a variant first</option>');
+                $('#id_series_2_component').empty().append('<option value="" disabled>Select a variant first</option>');
+            }
+
             // Event handlers
             $('#id_scenario').change(updateVariants);
             $('#id_variant').change(updateSeriesForVariant);
             
-            // New event handlers for series heading selections
+            // Event handlers for series heading selections
             $('#id_series_1').change(function() {
                 updateSeriesComponents(1);
             });
             
+            // Event handler for series 2 fields
+            $('#id_series_2_component').change(function() {
+                updateSeries2Dependencies('component');
+            });
+
             $('#id_series_2').change(function() {
-                updateSeriesComponents(2);
+                updateSeries2Dependencies('heading');
             });
             
             // Initialize on page load if a scenario is already selected
