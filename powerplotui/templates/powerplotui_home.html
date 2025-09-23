@@ -50,7 +50,7 @@
 
     <script>
         const GET_VALID_CHOICES_URL = '{% url "get_valid_choices" %}';
-        $(document).ready(function() {   
+        $(document).ready(function() {
             // Function to update variant choices when scenario changes
             function updateVariants() {
                 var scenarioId = $('#id_scenario').val();
@@ -60,14 +60,19 @@
                     clearSeriesChoices();
                     return;
                 }
-                
+                var ajaxData = {
+                    'scenario': scenarioId,
+                    'update_type': 'updateVariants'
+                };
                 $.ajax({
                     url: GET_VALID_CHOICES_URL,
-                    data: {'scenario': scenarioId},
+                    data: ajaxData,
                     success: function(data) {
+                        if (data.chartback) {
+                            return; // Skip updating variants if coming back from chart
+                        }
                         // Clear the variant dropdown
                         $('#id_variant').empty();
-                        
                         // Handle different variant scenarios
                         if (data.variants.length === 0) {
                             // No variants available
@@ -232,7 +237,8 @@
                 
                 var ajaxData = {
                     'scenario': scenarioId,
-                    'variant': variantId
+                    'variant': variantId,
+                    'update_type': 'series_' + seriesNumber + '_components_for_heading'
                 };
                 ajaxData['series_' + seriesNumber + '_heading'] = headingId;
                 
@@ -273,7 +279,6 @@
 
             // Combined function to update series 2 headings or components
             function updateSeries2Dependencies(triggerField) {
-                debugger
                 var scenarioId = $('#id_scenario').val();
                 var variantId = $('#id_variant').val();
                 var componentId = $('#id_series_2_component').val();

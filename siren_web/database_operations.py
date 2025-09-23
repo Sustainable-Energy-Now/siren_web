@@ -20,10 +20,11 @@ def delete_analysis_scenario(idscenario):
     ).delete()
     return None
 
-def fetch_analysis_scenario(idscenario):
+def fetch_analysis_scenario(scenario):
+    scenario_obj = get_scenario_by_title(scenario)
     analysis_list = Analysis.objects.filter(
-        idscenarios=idscenario
-    ).all()
+        idscenarios=scenario_obj
+    ).all()[:8]
     return analysis_list
 
 def check_analysis_baseline(scenario):

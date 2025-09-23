@@ -4,7 +4,7 @@ from django.forms import modelformset_factory
 from crispy_forms.helper import FormHelper
 from crispy_forms.layout import Layout, Submit, Row, Column, Submit, HTML
 from crispy_forms.bootstrap import FormActions
-from siren_web.models import Analysis, Scenarios, TradingPrice, variations
+from siren_web.models import Analysis, Scenarios, Technologies, TradingPrice, variations
 
 class TradingPriceForm(forms.ModelForm):
     class Meta:
@@ -57,7 +57,6 @@ class PlotForm(forms.Form):
     )
     chart_specialization = forms.ChoiceField(
         choices=[
-            ('', 'Select chart specialization'),
             ('Basic Line', 'Basic Line'),
             ('Stacked Line', 'Stacked Line'),
             ('Area Chart', 'Area Chart'),
@@ -73,49 +72,19 @@ class PlotForm(forms.Form):
 
     def __init__(self, *args, **kwargs):
         selected_scenario = kwargs.pop('selected_scenario', None)
+        form_data = kwargs.pop('form_data', None)
         super().__init__(*args, **kwargs)
 
-        # Determine which scenario's choices to load
-        scenario_to_use = None
-        if self.is_bound and self.data.get('scenario'):
-            # For bound forms (POST), use the submitted scenario to recreate AJAX choices
-            try:
-                scenario_to_use = int(self.data.get('scenario'))
-            except (ValueError, TypeError):
-                scenario_to_use = None
-        elif selected_scenario:
-            # For initial loads with a specific scenario
-            try:
-                scenario_to_use = int(selected_scenario)
-            except (ValueError, TypeError):
-                scenario_to_use = None
-        
-        # Fall back to 'Current' scenario if needed
-        if not scenario_to_use:
-            try:
-                current_scenario = Scenarios.objects.get(title='Current')
-                scenario_to_use = current_scenario.idscenarios
-            except Scenarios.DoesNotExist:
-                scenario_to_use = None
-    
-        # Populate choices based on the determined scenario
-        if scenario_to_use:
-            variant_queryset = variations.objects.filter(idscenarios=scenario_to_use)
-            self.fields['variant'].choices = [(variant.idvariations, variant.variation_name) for variant in variant_queryset]
-            self.fields['scenario'].initial = scenario_to_use
-            
-            analysis_queryset = Analysis.objects.filter(idscenarios=scenario_to_use)
-            heading_choices = [(heading, heading) for heading in analysis_queryset.values_list('heading', flat=True).distinct()]
-            component_choices = [(component, component) for component in analysis_queryset.values_list('component', flat=True).distinct()]
-            
-            self.fields['series_1'].choices = heading_choices
-            self.fields['series_2'].choices = heading_choices
-            self.fields['series_1_component'].choices = component_choices
-            self.fields['series_2_component'].choices = component_choices
+        # For unbound forms, just show basic choices from scenario
+        if selected_scenario:
+            self.set_basic_choices(selected_scenario, variation_name=None)
         else:
             # No scenario available
             self.fields['variant'].choices = []
-
+        # For bound forms (POST) with form_data returned from a charting module selected values
+        if form_data:
+            self.set_initial_values(form_data)
+            
         self.helper = FormHelper()
         self.helper.form_action = '/powerplotui/'
         self.helper.layout = Layout(
@@ -142,3 +111,31 @@ class PlotForm(forms.Form):
                 Submit('export', 'Export', formnovalidate='formnovalidate'),
             )
         )
+
+    def set_initial_values(self, form_data):
+        # Restore previously selected choices
+        self.fields['scenario'].initial = form_data['scenario']
+        self.fields['variant'].initial = form_data['variant']
+        self.fields['series_1_component'].initial = form_data['series_1_component']
+        self.fields['series_1'].initial = form_data['series_1']
+        self.fields['series_2_component'].initial = form_data['series_2_component']
+        self.fields['series_2'].initial = form_data['series_2']
+        self.fields['chart_type'].initial = form_data['chart_type']
+        self.fields['chart_specialization'].initial = form_data['chart_specialization']
+
+    def set_basic_choices(self, scenario_id, variation_name=None):
+        """Set basic choices when constraints don't apply"""
+        analysis_filter = {'idscenarios': scenario_id}
+        if variation_name:
+            analysis_filter['variation'] = variation_name
+            
+        analysis_queryset = Analysis.objects.filter(**analysis_filter)
+        variant_queryset = variations.objects.filter(idscenarios=scenario_id)
+        self.fields['variant'].choices = [(variant.idvariations, variant.variation_name) for variant in variant_queryset]
+        heading_choices = [(heading, heading) for heading in analysis_queryset.values_list('heading', flat=True).distinct()]
+        self.fields['series_1'].choices = heading_choices
+        self.fields['series_2'].choices = heading_choices
+        component_choices = [(component, component) for component in analysis_queryset.values_list('component', flat=True).distinct()]
+        self.fields['series_1_component'].choices = component_choices
+        self.fields['series_2_component'].choices = component_choices
+        

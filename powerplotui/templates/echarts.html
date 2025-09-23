@@ -5,11 +5,68 @@
   
 <!-- Load Echarts library -->
 <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.1/dist/echarts.min.js"></script>
+{% csrf_token %}
+<!-- Back button section -->
+<div class="mb-3">
+    <button type="button" class="btn btn-secondary" onclick="goBackToForm()">
+        <i class="fas fa-arrow-left"></i> Back to Form
+    </button>
+</div>
 
 <!-- Create a container for the plot -->
 <div id="analysis-plot" style="width: 800px; height: 600px;"></div>
 
 <script>
+    // Function to go back to the form with preserved parameters
+    function goBackToForm() {
+        // Create a form to submit the parameters back to powerplotui_home
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = '/powerplotui/'; // Adjust this URL to match your powerplotui home URL
+        
+        // Add CSRF token
+        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]');
+        if (csrfToken) {
+            const csrfInput = document.createElement('input');
+            csrfInput.type = 'hidden';
+            csrfInput.name = 'csrfmiddlewaretoken';
+            csrfInput.value = csrfToken.value;
+            form.appendChild(csrfInput);
+        }
+        
+        // Add all the parameters as hidden inputs
+        const params = {
+            'scenario': '{{ scenario }}',
+            'variant': '{{ variant }}',
+            'series_1': '{{ series_1 }}',
+            'series_2': '{{ series_2 }}',
+            'series_1_component': '{{ series_1_component }}',
+            'series_2_component': '{{ series_2_component }}',
+            'chart_type': '{{ chart_type }}',
+            'chart_specialization': '{{ chart_specialization }}'
+        };
+        
+        for (const [key, value] of Object.entries(params)) {
+            if (value && value !== 'None') {
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = key;
+                input.value = value;
+                form.appendChild(input);
+            }
+        }
+        
+        // Add a hidden input to indicate this is a back navigation
+        const backInput = document.createElement('input');
+        backInput.type = 'hidden';
+        backInput.name = 'back_from_chart';
+        backInput.value = 'true';
+        form.appendChild(backInput);
+        
+        document.body.appendChild(form);
+        form.submit();
+    }
+
     // Function to fetch data from the Django view
     function fetchAnalysisData() {
         const series_1 = '{{ series_1 }}';
@@ -124,9 +181,18 @@
     }
 
     // Call the fetchAnalysisData function
-    fetchAnalysisData()
-        .then(analysis_data => createAnalysisPlot(analysis_data))
-        .catch(error => console.error('Error creating plot:', error));
+    document.addEventListener('DOMContentLoaded', function() {
+        // Call the fetchAnalysisData function
+        fetchAnalysisData()
+            .then(analysis_data => {
+                if (analysis_data && analysis_data.length > 0) {
+                    createAnalysisPlot(analysis_data);
+                } else {
+                    console.error('No analysis data received');
+                }
+            })
+            .catch(error => console.error('Error creating plot:', error));
+    });
 </script>
 
 {% endblock %}

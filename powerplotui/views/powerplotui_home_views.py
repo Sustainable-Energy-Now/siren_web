@@ -12,6 +12,7 @@ matplotlib.use('Agg')  # Use the 'Agg' backend for non-interactive plotting
 import matplotlib.pyplot as plt
 import re
 from siren_web.models import Analysis, Scenarios, variations, Technologies
+from siren_web.database_operations import fetch_analysis_scenario
 import openpyxl
 import pandas as pd
 
@@ -19,7 +20,6 @@ class PowerPlotHomeView(TemplateView):
     template_name = 'powerplotui_home.html'
 
     # Function to fetch data from the database
-
     def get_analysis_data(self, analysis_queryset):
         analysis_data = []
         for obj in analysis_queryset:
@@ -173,7 +173,7 @@ class PowerPlotHomeView(TemplateView):
         return response
         
     def get(self, request):
-        analysis_queryset = Analysis.objects.all()[:8]
+        analysis_queryset = fetch_analysis_scenario('Current')
         analysis_data = self.get_analysis_data(analysis_queryset)
             
         plotform = PlotForm()
@@ -184,8 +184,11 @@ class PowerPlotHomeView(TemplateView):
         return render(request, 'powerplotui_home.html', context)
 
     def post(self, request):
-        form = PlotForm(request.POST or None, selected_scenario=request.POST.get('scenario'))
-        plotform = PlotForm(request.POST)
+        # Check if this is a back navigation from a chart
+        if request.POST.get('back_from_chart') == 'true':
+            return self.handle_back_navigation(request)
+        
+        plotform = PlotForm(request.POST or None, selected_scenario=request.POST.get('scenario'))
         idscenarios = request.POST.get('scenario')
         idvariant = request.POST.get('variant')
         
@@ -195,7 +198,7 @@ class PowerPlotHomeView(TemplateView):
         series_1_component = request.POST.get('series_1_component')
         series_2_component = request.POST.get('series_2_component')
         plot_type = request.POST.get('plot_type', '')
-        if form.is_valid():
+        if plotform.is_valid():
             # Handle different form actions
             if plot_type:
                 return self.handle_plot_action(
@@ -206,11 +209,50 @@ class PowerPlotHomeView(TemplateView):
             elif 'export' in request.POST:
                 return self.handle_export_action(request, idscenarios, idvariant)
         else:
-            context = {'plotform': form}
+            context = {'plotform': plotform}
             return render(request, 'powerplotui_home.html', context)
         
         # If no specific action, return to form
         return self.render_form_with_error(request, plotform)
+
+    def handle_back_navigation(self, request):
+        """Handle when user returns from chart page with preserved parameters"""
+        # Extract parameters from POST data
+        scenario = request.POST.get('scenario')
+        variant = request.POST.get('variant') 
+        series_1 = request.POST.get('series_1')
+        series_2 = request.POST.get('series_2')
+        series_1_component = request.POST.get('series_1_component')
+        series_2_component = request.POST.get('series_2_component')
+        chart_type = request.POST.get('chart_type')
+        chart_specialization = request.POST.get('chart_specialization')
+        
+        # Create form with preserved data
+        form_data = {
+            'scenario': scenario,
+            'variant': variant,
+            'series_1': series_1,
+            'series_2': series_2,
+            'series_1_component': series_1_component,
+            'series_2_component': series_2_component,
+            'chart_type': chart_type,
+            'chart_specialization': chart_specialization
+        }
+        
+        # Create form instance with the preserved data
+        plotform = PlotForm(form_data=form_data, selected_scenario=scenario)
+        
+        # Get analysis data for display
+        analysis_queryset = Analysis.objects.filter(
+        idscenarios=scenario).all()[:8]
+        analysis_data = self.get_analysis_data(analysis_queryset)
+        
+        context = {
+            'analysis_data': analysis_data,
+            'plotform': plotform,
+        }
+        request.session['chartback'] = variant  # Set session variable to indicate back navigation
+        return render(request, 'powerplotui_home.html', context)
 
     def render_form_with_error(self, request, plotform=None):
         """Render the form with any error messages"""
@@ -280,7 +322,14 @@ class PowerPlotHomeView(TemplateView):
         series_2_heading = request.GET.get('series_2_heading')
         series_2_component = request.GET.get('series_2_component')
         update_type = request.GET.get('update_type')
-        
+        # Handle back navigation reset without removing variants
+        if update_type == 'updateVariants':
+            chartback= request.session.get('chartback', '')
+            if chartback:
+                request.session['chartback'] = ''  # Reset after reading
+                response_data = {'chartback': 'true'}
+                return JsonResponse(response_data)
+        request.session['chartback'] = ''
         response_data = {
             'variants': [],
             'series_1_headings': [],
@@ -356,7 +405,8 @@ class PowerPlotHomeView(TemplateView):
                         response_data['series_2_headings'] = []
                         response_data['series_2_components'] = []
                 else:
-                    messages.info(request, f"No variant selected. Please select a variant to see valid choices.")
+                    if update_type != 'updateVariants':
+                        messages.info(request, f"No variant selected. Please select a variant to see valid choices.")
                     response_data['series_1_headings'] = []
                     response_data['series_1_components'] = []
                     response_data['series_2_headings'] = []
@@ -519,11 +569,7 @@ class PowerPlotHomeView(TemplateView):
             # Series 1 component constraint: only the specific technology
             response_data['series_1_components'] = [technology_name]
             if dimension == 'multiplier':
-                # Any options can be chosen for series 1 heading when dimension is multiplier
-                valid_analysis = Analysis.objects.filter(**analysis_filter)
-                response_data['series_1_headings'] = list(
-                    valid_analysis.values_list('heading', flat=True).distinct().order_by('heading')
-                )
+                # Get the valid series 2 combinations for the variant and any component
                 available_components = list(
                     Analysis.objects.filter(**analysis_filter)
                     .values_list('component', flat=True)
@@ -532,6 +578,13 @@ class PowerPlotHomeView(TemplateView):
                 )
                 response_data['series_2_components'] = available_components
                 response_data['series_2_headings'] = response_data['series_1_headings']
+                # Get the valid series 1 combinations for the variant and the specific technology
+                analysis_filter['component'] = technology_name
+                valid_analysis = Analysis.objects.filter(**analysis_filter)
+                response_data['series_1_headings'] = list(
+                    valid_analysis.values_list('heading', flat=True).distinct().order_by('heading')
+                )
+
             else:
                 # For other dimensions (capex, fom, vom, lifetime), apply specific constraints
                 # Series 2 component constraints: System Total, System Economics, Load Analysis
