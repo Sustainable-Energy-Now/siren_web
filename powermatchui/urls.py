@@ -17,7 +17,8 @@ urlpatterns = [
     path('cancel-analysis/<str:session_id>/', baseline_scenario_views.cancel_analysis, name='cancel_analysis'),
     path('merit_order/save_merit_order/', merit_order_views.set_merit_order, name='save_merit_order'),
     path('variation/', variations_views.setup_variation, name='setup_variation'),
-    path('variations/', variations_views.run_variations, name='run_variations'),
+    path('get_variation_data/', variations_views.get_variation_data, name='get_variation_data'), 
+
     # path('optimisation/', optimisation_views.optimisation, name='optimisation'),
     path('run_optimisation/', optimisation_views.run_optimisation, name='run_optimisation'),
     path('optimisation/', under_construction_views.under_construction, name='under_construction'),

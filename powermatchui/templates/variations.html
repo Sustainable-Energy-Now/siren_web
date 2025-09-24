@@ -3,37 +3,489 @@
 
 {% block powermatchui_content %}
 
-
-<p>Variants are created based on a scenario baseline.  To create a variant for the current scenario you need to
-    choose an existing variant or create new one.  The initial display shows the baseline and its associated parameters.  
-    If another variant is selected click the 'Refresh' button to display the settings for that variant.  You can update
+<p>Variants are created based on a scenario baseline. To create a variant for the current scenario you need to
+    choose an existing variant or create new one. The initial display shows the baseline and its associated parameters.
+    When another variant is selected, the settings for that variant will automatically be displayed. You can update
     the settings for a scenario and the results will overwrite the existing variant data.
-    To create a new variant, select 'Create a new variant' from the drop down list.  You can then enter the number of
+    To create a new variant, select 'Create a new variant' from the drop down list. You can then enter the number of
     stages and the step value and dimension for a technology. Click on a technology to display the input fields for that
     technology. Click the 'Submit' button to save the variant.
     The variant name and description are automatically generated and must be unique, so no two variants can be identical
     for the same scenario.
     The create variants function calls Powermatch iteratively while varying the selected dimension of one of the generation or storage technologies.</p>
-<h4>To run Powermatch in Create Variants mode:</h3>
+
+<h4>To run Powermatch in Create Variants mode:</h4>
 <ol>
-    <li>The current Scenario is displayed at the top of the page or a new scenarios can be added by updating the Scenarios table.</li>
-    <li>Select the variant and click the 'Refresh' button.</li>
+    <li>The current Scenario is displayed at the top of the page or a new scenarios can be created from the scenario option in the Powermap module.</li>
+    <li>Select the variant from the dropdown (form will auto-populate).</li>
     <li>Set the number of stages required.</li>
     <li>Set the step change value for a technology.</li>
     <li>Click the 'Submit' button.</li>
 </ol>
 <p>The values returned will be saved to the database Analysis table for use in the Plot function.</p>
-<h4>To set the step change value for a technology:</h3>
+
+<h4>To set the step change value for a technology:</h4>
 <ol>
     <li>Click the down arrow to expand a technology.</li>
     <li>Set the required step change value.</li>
 </ol>
-<!-- Form for running Powermatch -->
+
+<!-- Single combined form for variations -->
 {% csrf_token %}
-{% if variation_form %}
+{% if combined_form %}
     {% load crispy_forms_tags %}
-    {% crispy variation_form %}
-    {% crispy variations_form %}
+    {% crispy combined_form %}
 {% endif %}
+
+<!-- JavaScript for auto-population -->
+{{ variation_data|json_script:"variation-data" }}
+{{ technologies_json|json_script:"technologies-data" }}
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Store variation data passed from Django view
+    const variationData = JSON.parse(document.getElementById('variation-data').textContent);
+    const technologies = JSON.parse(document.getElementById('technologies-data').textContent);
+    
+    const variationSelect = document.querySelector('select[name="variation_name"]');
+    const descriptionField = document.querySelector('input[name="variation_description"]');
+    const originalVariationField = document.querySelector('input[name="original_variation_name"]');
+    
+    // On initial page load, if a variation is pre-selected (first in list), load its data
+    if (variationSelect && variationSelect.value && 
+        variationSelect.value !== 'new' && 
+        variationSelect.value !== 'Baseline' &&
+        variationSelect.value !== '') {
+        // Trigger the data loading for the initially selected variation
+        fetchVariationData(variationSelect.value);
+    }
+    
+    if (variationSelect) {
+        variationSelect.addEventListener('change', function() {
+            const selectedVariation = this.value;
+            
+            if (selectedVariation === 'new' || selectedVariation === 'Baseline') {
+                // Clear description for new variants or baseline
+                if (descriptionField) {
+                    descriptionField.value = '';
+                }
+                if (originalVariationField) {
+                    originalVariationField.value = '';
+                }
+                resetForm();
+            } else {
+                // Fetch variation data via AJAX
+                fetchVariationData(selectedVariation);
+            }
+        });
+    }
+    
+    function fetchVariationData(variationName) {
+        // Show loading state
+        if (descriptionField) {
+            descriptionField.value = 'Loading...';
+        }
+        
+        fetch('/get_variation_data/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            },
+            body: JSON.stringify({
+                'variation_name': variationName,
+                'scenario': '{{ scenario }}'
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                populateForm(data.variation);
+            } else {
+                console.error('Error fetching variation data:', data.error);
+                if (descriptionField) {
+                    descriptionField.value = 'Error loading variation';
+                }
+            }
+        })
+        .catch(error => {
+            console.error('Fetch error:', error);
+            if (descriptionField) {
+                descriptionField.value = 'Error loading variation';
+            }
+        });
+    }
+    
+    function populateForm(variation) {
+        // Populate description
+        if (descriptionField) {
+            descriptionField.value = variation.variation_description || '';
+        }
+        
+        // Set original variation name for tracking updates
+        if (originalVariationField) {
+            originalVariationField.value = variation.variation_name || '';
+        }
+        
+        // Populate stages
+        const stagesField = document.querySelector('input[name="stages"]');
+        if (stagesField) {
+            stagesField.value = variation.stages || '';
+        }
+        
+        // Handle accordion expansion for the technology and populate fields after expansion
+        if (variation.technology_details) {
+            expandTechnologyAccordion(variation.technology_details, () => {
+                // Callback function to populate dimension and step after accordion is expanded
+                populateTechnologyFields(variation);
+            });
+        } else {
+            // If no technology details, still try to populate the fields
+            populateTechnologyFields(variation);
+        }
+    }
+    
+    function populateTechnologyFields(variation) {
+        // Try multiple times with increasing delays to ensure fields are available
+        let attempts = 0;
+        const maxAttempts = 10;
+        const baseDelay = 100;
+        
+        function tryPopulate() {
+            // Look for dimension and step fields across all technologies
+            const dimensionSelects = document.querySelectorAll('select[name^="dimension_"]');
+            const stepFields = document.querySelectorAll('input[name^="step_"]');
+            
+            if ((dimensionSelects.length > 0 || stepFields.length > 0) || attempts >= maxAttempts) {
+                // Fields found or max attempts reached
+                
+                // Find the specific technology fields based on the variation data
+                if (variation.idtechnologies) {
+                    const techId = variation.idtechnologies;
+                    const dimensionSelect = document.querySelector(`select[name="dimension_${techId}"]`);
+                    const stepField = document.querySelector(`input[name="step_${techId}"]`);
+                    
+                    if (dimensionSelect && variation.dimension) {
+                        dimensionSelect.value = variation.dimension;
+                        console.log('Set dimension to:', variation.dimension);
+                    }
+                    
+                    if (stepField && variation.step) {
+                        stepField.value = variation.step;
+                        console.log('Set step to:', variation.step);
+                    }
+                    
+                    // Disable all other accordions except the one for this technology
+                    disableOtherAccordions(techId);
+                }
+                
+                if (dimensionSelects.length === 0 && stepFields.length === 0 && attempts >= maxAttempts) {
+                    console.warn('Could not find dimension/step fields after', maxAttempts, 'attempts');
+                }
+            } else {
+                // Fields not found, try again with longer delay
+                attempts++;
+                setTimeout(tryPopulate, baseDelay * attempts);
+            }
+        }
+        
+        tryPopulate();
+    }
+    
+    function expandTechnologyAccordion(technologyDetails, callback) {
+        // First, collapse all currently expanded accordions
+        const expandedAccordions = document.querySelectorAll('.accordion-collapse.show');
+        expandedAccordions.forEach(accordion => {
+            const bsCollapse = new bootstrap.Collapse(accordion, {
+                toggle: false
+            });
+            bsCollapse.hide();
+            
+            // Update the corresponding button's aria-expanded attribute
+            const buttonId = accordion.getAttribute('aria-labelledby');
+            if (buttonId) {
+                const button = document.getElementById(buttonId);
+                if (button) {
+                    button.setAttribute('aria-expanded', 'false');
+                    button.classList.add('collapsed');
+                }
+            }
+        });
+        
+        // Find the accordion button that matches the technology details
+        const accordionButtons = document.querySelectorAll('.accordion-button');
+        let targetButton = null;
+        
+        accordionButtons.forEach(button => {
+            const buttonText = button.textContent.trim();
+            if (buttonText === technologyDetails) {
+                targetButton = button;
+            }
+        });
+        
+        if (targetButton) {
+            // Get the target accordion collapse element
+            const targetId = targetButton.getAttribute('data-bs-target');
+            const targetAccordion = document.querySelector(targetId);
+            
+            if (targetAccordion) {
+                // Expand the target accordion
+                const bsCollapse = new bootstrap.Collapse(targetAccordion, {
+                    toggle: false
+                });
+                bsCollapse.show();
+                
+                // Update button attributes
+                targetButton.setAttribute('aria-expanded', 'true');
+                targetButton.classList.remove('collapsed');
+                
+                // Wait for the accordion to fully expand before executing callback
+                if (callback) {
+                    // Listen for the shown.bs.collapse event
+                    targetAccordion.addEventListener('shown.bs.collapse', function onShown() {
+                        targetAccordion.removeEventListener('shown.bs.collapse', onShown);
+                        callback();
+                    });
+                    
+                    // Fallback timeout in case the event doesn't fire
+                    setTimeout(callback, 500);
+                }
+                
+                // Scroll the accordion into view
+                setTimeout(() => {
+                    targetButton.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'nearest'
+                    });
+                }, 300);
+            }
+        } else {
+            console.warn(`Could not find accordion button for technology: ${technologyDetails}`);
+            // Still execute callback even if accordion not found
+            if (callback) {
+                setTimeout(callback, 100);
+            }
+        }
+    }
+    
+    function resetForm() {
+        // Reset all form fields to default values
+        const stagesField = document.querySelector('input[name="stages"]');
+        
+        // Reset all dimension selects and step fields
+        const dimensionSelects = document.querySelectorAll('select[name^="dimension_"]');
+        const stepFields = document.querySelectorAll('input[name^="step_"]');
+        
+        if (stagesField) stagesField.value = '';
+        
+        dimensionSelects.forEach(select => {
+            select.selectedIndex = 0;
+        });
+        
+        stepFields.forEach(field => {
+            field.value = '';
+        });
+        
+        // Re-enable all accordions for new variant creation
+        enableAllAccordions();
+    }
+    
+    function disableOtherAccordions(activeTechId) {
+        // Find all accordion buttons
+        const accordionButtons = document.querySelectorAll('.accordion-button');
+        
+        accordionButtons.forEach(button => {
+            const targetId = button.getAttribute('data-bs-target');
+            const targetAccordion = document.querySelector(targetId);
+            
+            if (targetAccordion) {
+                // Extract tech ID from accordion content or button text
+                // Look for dimension and step fields to identify the tech ID
+                const dimensionSelect = targetAccordion.querySelector('select[name^="dimension_"]');
+                if (dimensionSelect) {
+                    const fieldName = dimensionSelect.getAttribute('name');
+                    const techId = fieldName.split('_')[1];
+                    
+                    if (techId !== activeTechId) {
+                        // Disable this accordion
+                        button.disabled = true;
+                        button.classList.add('disabled');
+                        button.style.opacity = '0.6';
+                        button.style.cursor = 'not-allowed';
+                        
+                        // Collapse if expanded
+                        if (targetAccordion.classList.contains('show')) {
+                            const bsCollapse = new bootstrap.Collapse(targetAccordion, {
+                                toggle: false
+                            });
+                            bsCollapse.hide();
+                        }
+                        
+                        // Disable the accordion's step and dimension fields
+                        const stepField = targetAccordion.querySelector('input[name^="step_"]');
+                        const dimensionField = targetAccordion.querySelector('select[name^="dimension_"]');
+                        
+                        if (stepField) {
+                            stepField.disabled = true;
+                            stepField.value = '';
+                        }
+                        if (dimensionField) {
+                            dimensionField.disabled = true;
+                            dimensionField.selectedIndex = 0;
+                        }
+                    }
+                }
+            }
+        });
+    }
+    
+    function enableAllAccordions() {
+        // Find all accordion buttons and enable them
+        const accordionButtons = document.querySelectorAll('.accordion-button');
+        
+        accordionButtons.forEach(button => {
+            button.disabled = false;
+            button.classList.remove('disabled');
+            button.style.opacity = '';
+            button.style.cursor = '';
+            
+            const targetId = button.getAttribute('data-bs-target');
+            const targetAccordion = document.querySelector(targetId);
+            
+            if (targetAccordion) {
+                // Enable step and dimension fields
+                const stepField = targetAccordion.querySelector('input[name^="step_"]');
+                const dimensionField = targetAccordion.querySelector('select[name^="dimension_"]');
+                
+                if (stepField) {
+                    stepField.disabled = false;
+                }
+                if (dimensionField) {
+                    dimensionField.disabled = false;
+                }
+            }
+        });
+    }
+    
+    // Add event listeners for step and dimension changes to enforce single-selection rule
+    function setupSingleSelectionValidation() {
+        const dimensionSelects = document.querySelectorAll('select[name^="dimension_"]');
+        const stepFields = document.querySelectorAll('input[name^="step_"]');
+        
+        // Function to check if any other technology has values set
+        function validateSingleSelection(currentTechId) {
+            dimensionSelects.forEach(select => {
+                const fieldName = select.getAttribute('name');
+                const techId = fieldName.split('_')[1];
+                
+                if (techId !== currentTechId) {
+                    const otherStepField = document.querySelector(`input[name="step_${techId}"]`);
+                    const hasDimension = select.value && select.value !== '';
+                    const hasStep = otherStepField && otherStepField.value && otherStepField.value !== '';
+                    
+                    if (hasDimension || hasStep) {
+                        // Another technology already has values - disable current selection
+                        const currentDimension = document.querySelector(`select[name="dimension_${currentTechId}"]`);
+                        const currentStep = document.querySelector(`input[name="step_${currentTechId}"]`);
+                        
+                        if (currentDimension) currentDimension.disabled = true;
+                        if (currentStep) currentStep.disabled = true;
+                        
+                        return false;
+                    }
+                }
+            });
+            return true;
+        }
+        
+        // Add change listeners to dimension selects
+        dimensionSelects.forEach(select => {
+            select.addEventListener('change', function() {
+                const fieldName = this.getAttribute('name');
+                const techId = fieldName.split('_')[1];
+                const stepField = document.querySelector(`input[name="step_${techId}"]`);
+                
+                if (this.value && this.value !== '') {
+                    // Dimension selected - disable other technologies
+                    disableOtherTechnologiesForSelection(techId);
+                } else {
+                    // Dimension cleared - check if step is also cleared
+                    if (!stepField || !stepField.value) {
+                        enableAllTechnologiesForSelection();
+                    }
+                }
+            });
+        });
+        
+        // Add change listeners to step fields
+        stepFields.forEach(field => {
+            field.addEventListener('input', function() {
+                const fieldName = this.getAttribute('name');
+                const techId = fieldName.split('_')[1];
+                const dimensionSelect = document.querySelector(`select[name="dimension_${techId}"]`);
+                
+                if (this.value && this.value !== '') {
+                    // Step entered - disable other technologies
+                    disableOtherTechnologiesForSelection(techId);
+                } else {
+                    // Step cleared - check if dimension is also cleared
+                    if (!dimensionSelect || !dimensionSelect.value) {
+                        enableAllTechnologiesForSelection();
+                    }
+                }
+            });
+        });
+    }
+    
+    function disableOtherTechnologiesForSelection(activeTechId) {
+        const dimensionSelects = document.querySelectorAll('select[name^="dimension_"]');
+        const stepFields = document.querySelectorAll('input[name^="step_"]');
+        
+        dimensionSelects.forEach(select => {
+            const fieldName = select.getAttribute('name');
+            const techId = fieldName.split('_')[1];
+            
+            if (techId !== activeTechId) {
+                select.disabled = true;
+                select.style.opacity = '0.6';
+                
+                // Clear values
+                select.selectedIndex = 0;
+            }
+        });
+        
+        stepFields.forEach(field => {
+            const fieldName = field.getAttribute('name');
+            const techId = fieldName.split('_')[1];
+            
+            if (techId !== activeTechId) {
+                field.disabled = true;
+                field.style.opacity = '0.6';
+                
+                // Clear values
+                field.value = '';
+            }
+        });
+    }
+    
+    function enableAllTechnologiesForSelection() {
+        const dimensionSelects = document.querySelectorAll('select[name^="dimension_"]');
+        const stepFields = document.querySelectorAll('input[name^="step_"]');
+        
+        dimensionSelects.forEach(select => {
+            select.disabled = false;
+            select.style.opacity = '';
+        });
+        
+        stepFields.forEach(field => {
+            field.disabled = false;
+            field.style.opacity = '';
+        });
+    }
+    
+    // Initialize single selection validation when page loads
+    setTimeout(setupSingleSelectionValidation, 1000);
+});
+</script>
 
 {% endblock %}

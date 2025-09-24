@@ -260,7 +260,7 @@ class PowerPlotHomeView(TemplateView):
             plotform = PlotForm()
         
         # Get some default analysis data to display
-        analysis_queryset = Analysis.objects.all()[:8]
+        analysis_queryset = Analysis.objects.all()[:20]
         analysis_data = self.get_analysis_data(analysis_queryset)
         
         context = {

@@ -1,19 +1,10 @@
 # forms.py
-import configparser
-from decimal import Decimal
 from django import forms
-from django.conf import settings
 from siren_web.models import Scenarios, TechnologyYears, variations
-from django.template.loader import render_to_string
 from crispy_forms.helper import FormHelper
-from crispy_forms.layout import Layout, Div, Field, Fieldset, Submit, HTML, Button, Row, Column, ButtonHolder
+from crispy_forms.layout import Layout, Div, Field, Submit, HTML, Row, Column
 from crispy_bootstrap5.bootstrap5 import Accordion
 from crispy_forms.bootstrap import AccordionGroup, FormActions
-import json
-import os
-
-import os
-from django.conf import settings
 
 class DemandScenarioSettings(forms.Form):
     year_choices = [(year, year) for year in TechnologyYears.objects.values_list('year', flat=True).distinct()]
@@ -224,7 +215,7 @@ class RunPowermatchForm(forms.Form):
             )
         )
 
-class RunVariationForm(forms.Form):
+class CombinedVariationForm(forms.Form):
     def __init__(self, *args, **kwargs):
         DIMENSION_CHOICES = [
             ('multiplier', 'Multiplier'),
@@ -233,69 +224,144 @@ class RunVariationForm(forms.Form):
             ('vom', 'VOM'),
             ('lifetime', 'Lifetime'),
         ]
-        technologies = kwargs.pop('technologies')
+        
+        scenario = kwargs.pop('scenario', None)
+        technologies = kwargs.pop('technologies', {})
+        selected_variation = kwargs.pop('selected_variation', None)
         variation_data = kwargs.pop('variation_data', None)
         
-        super(RunVariationForm, self).__init__(*args, **kwargs)
+        super(CombinedVariationForm, self).__init__(*args, **kwargs)
+        
+        # Variation selection section
+        if scenario:
+            variations_queryset = variations.objects.filter(idscenarios=scenario)
+        else:
+            variations_queryset = variations.objects.none()
+            
+        variations_list = [variation.variation_name for variation in variations_queryset]
+        variation_description_dict = {variation.variation_name: variation.variation_description for variation in variations_queryset}
+
+        variations_choices = [(variation_name, variation_name) for variation_name in variations_list]
+        variations_choices.append(('new', 'Create a new variant'))
+
+        self.fields['variation_name'] = forms.ChoiceField(
+            choices=variations_choices, 
+            required=True,
+            label='Select Variation',
+            help_text='Choose an existing variation to edit or create a new one'
+        )
+
+        self.fields['variation_description'] = forms.CharField(
+            max_length=250,
+            required=False,
+            widget=forms.TextInput(attrs={'readonly': True, 'placeholder': 'Description will appear here...'}),
+            label='Variation Description'
+        )
+
+        # Set initial values for variation selection
+        if selected_variation:
+            self.fields['variation_name'].initial = selected_variation
+            if selected_variation != 'Baseline' and selected_variation != 'new':
+                self.fields['variation_description'].initial = variation_description_dict.get(selected_variation, '')
+        else:
+            # If no specific variation selected, use the first variation in the list as default
+            if variations_list:
+                first_variation = variations_list[0]
+                self.fields['variation_name'].initial = first_variation
+                self.fields['variation_description'].initial = variation_description_dict.get(first_variation, '')
+            else:
+                self.fields['variation_name'].initial = 'Baseline'
+
+        # Stages field - always present but may be populated from variation_data
         if variation_data:
             self.fields['stages'] = forms.IntegerField(required=True, initial=variation_data.get('stages'))
-            self.fields['variation_name'] = forms.CharField(
-                required=True,
+            # Hidden field to track the original variation name for updates
+            self.fields['original_variation_name'] = forms.CharField(
+                required=False,
                 widget=forms.HiddenInput(),
                 initial=variation_data.get('variation_name'),
             )
         else:
             self.fields['stages'] = forms.IntegerField(required=True)
-            self.fields['variation_name'] = forms.CharField(
-                required=True,
+            self.fields['original_variation_name'] = forms.CharField(
+                required=False,
                 widget=forms.HiddenInput(),
             )
 
+        # Technology accordion sections
         accordion_groups = []
         for key, value in technologies.items():
-            # Create a field for each technology
             tech_name = key
             if tech_name == 'Load':
                 continue
+                
             technology = value
             tech_key = f"{technology.tech_id}"
-            self.fields[f"mult_{tech_key}"] = forms.Field(initial=technology.multiplier, label=f"Multiplier")
-            self.fields[f"capex_{tech_key}"] = forms.FloatField(initial=technology.capex, label=f"Capex")
-            self.fields[f"fom_{tech_key}"] = forms.FloatField(initial=technology.fixed_om, label=f"FOM")
-            self.fields[f"vom_{tech_key}"] = forms.FloatField(initial=technology.variable_om, label=f"VOM")            
-            self.fields[f"lifetime_{tech_key}"] = forms.FloatField(initial=technology.lifetime, label=f"Lifetime")
+            
+            # Create read-only fields for technology parameters
+            self.fields[f"mult_{tech_key}"] = forms.FloatField(
+                initial=technology.multiplier, 
+                label="Multiplier",
+                widget=forms.NumberInput(attrs={'readonly': True})
+            )
+            self.fields[f"capex_{tech_key}"] = forms.FloatField(
+                initial=technology.capex, 
+                label="Capex",
+                widget=forms.NumberInput(attrs={'readonly': True})
+            )
+            self.fields[f"fom_{tech_key}"] = forms.FloatField(
+                initial=technology.fixed_om, 
+                label="FOM",
+                widget=forms.NumberInput(attrs={'readonly': True})
+            )
+            self.fields[f"vom_{tech_key}"] = forms.FloatField(
+                initial=technology.variable_om, 
+                label="VOM",
+                widget=forms.NumberInput(attrs={'readonly': True})
+            )
+            self.fields[f"lifetime_{tech_key}"] = forms.FloatField(
+                initial=technology.lifetime, 
+                label="Lifetime",
+                widget=forms.NumberInput(attrs={'readonly': True})
+            )
+            
+            # Step and dimension fields - populate from variation_data if available
             if variation_data and variation_data.get('variation_name') != 'new' and \
-                variation_data.get('idtechnologies').idtechnologies == int(tech_key):
+                variation_data.get('idtechnologies', {}).get('idtechnologies') == int(tech_key):
                 dimension_value = variation_data.get('dimension')
-                self.fields[f"dimension_{tech_key}"] = forms.ChoiceField(
-                    choices=DIMENSION_CHOICES,
-                    label=f"Dimension",
-                    required=False,
-                    initial=dimension_value if dimension_value else ''
-                )
-                self.fields[f"step_{tech_key}"] = forms.FloatField(initial=variation_data.get('step'), label=f"Step", required=False)
+                step_value = variation_data.get('step')
             else:
-                self.fields[f"dimension_{tech_key}"] = forms.ChoiceField(
-                    choices=DIMENSION_CHOICES,
-                    label=f"Dimension",
-                    required=False
-                )
-                self.fields[f"step_{tech_key}"] = forms.FloatField(label=f"Step", required=False)
+                dimension_value = ''
+                step_value = None
+                
+            self.fields[f"dimension_{tech_key}"] = forms.ChoiceField(
+                choices=[('', 'Select Dimension')] + DIMENSION_CHOICES,
+                label="Dimension",
+                required=False,
+                initial=dimension_value
+            )
+            self.fields[f"step_{tech_key}"] = forms.FloatField(
+                label="Step", 
+                required=False,
+                initial=step_value
+            )
 
+            # Create accordion group for this technology
             accordion_group_fields = [
-                # Div(f"{tech_name} details",
-                Div(Field(f"mult_{tech_key}", readonly=True, css_class='row col-md-4'),
-                    Field(f"capex_{tech_key}", readonly=True, css_class='row col-md-4'),
-                    Field(f"fom_{tech_key}", readonly=True, css_class='row col-md-4'),
-                    Field(f"vom_{tech_key}", readonly=True, css_class='row col-md-4'),
-                    Field(f"lifetime_{tech_key}", readonly=True, css_class='row col-md-4'),
+                Div(
+                    Field(f"mult_{tech_key}", css_class='col-md-4'),
+                    Field(f"capex_{tech_key}", css_class='col-md-4'),
+                    Field(f"fom_{tech_key}", css_class='col-md-4'),
+                    Field(f"vom_{tech_key}", css_class='col-md-4'),
+                    Field(f"lifetime_{tech_key}", css_class='col-md-4'),
                     HTML("<hr>"),
+                    css_class='row'
                 ),
                 Div(
                     HTML('<legend>Step and Dimension</legend>'),
                     Row(
-                        Field(f"step_{tech_key}", css_class='col-md-4'),
-                        Field(f"dimension_{tech_key}", css_class='col-md-4'),
+                        Field(f"step_{tech_key}", css_class='col-md-6'),
+                        Field(f"dimension_{tech_key}", css_class='col-md-6'),
                     ),
                     css_class='row',
                 ),
@@ -303,11 +369,26 @@ class RunVariationForm(forms.Form):
             ]
             accordion_groups.append(AccordionGroup(f"{tech_name} Details", *accordion_group_fields))
 
+        # Form layout
         self.helper = FormHelper()
-        self.helper.form_action = '/variations/'
+        self.helper.form_action = '/variation/'
         self.helper.layout = Layout(
-            Field('stages', css_class='row col-md-4'),
-            Field('variation_name', id='batch_variation_name_field'),
+            # Variation selection section
+            Div(
+                Field('variation_name', css_class='col-md-6'),
+                css_class='row', 
+                id='variation_name_field'
+            ),
+            Div(
+                Field('variation_description', css_class='col-md-8'),
+                css_class='row', 
+                id='variation_description_field'
+            ),
+            HTML("<hr>"),
+            # Configuration section
+            Field('stages', css_class='col-md-4'),
+            Field('original_variation_name'),
+            # Technology accordions
             Accordion(*accordion_groups),
             FormActions(
                 Submit('submit', 'Submit'),
@@ -316,26 +397,47 @@ class RunVariationForm(forms.Form):
         
     def clean(self):
         cleaned_data = super().clean()
-        updated_data= {}
-        updated_data['variation_name'] = self.cleaned_data.get('variation_name')
-        updated_data['stages'] = self.cleaned_data.get('stages')
-        technology_fields = [field for field in cleaned_data.keys() if field.startswith('step_') or field.startswith('dimension_')]
         
-        updated_technologies = {}
+        # Find which technology has step and dimension values set
+        selected_tech_key = None
+        step_value = None
+        dimension_value = None
         
-        for tech_field in technology_fields:
-            tech_key = tech_field.split('_')[1]
-            step_field = f"step_{tech_key}"
-            dimension_field = f"dimension_{tech_key}"
-            
-            step_value = cleaned_data.get(step_field)
-            dimension_value = cleaned_data.get(dimension_field)
-            
-            if step_value and dimension_value:
-                updated_data['step'] = step_value
-                updated_data['dimension'] = dimension_value
-                updated_data['idtechnologies'] = tech_key
-
+        for field_name in cleaned_data.keys():
+            if field_name.startswith('step_'):
+                tech_key = field_name.split('_')[1]
+                step_field = f"step_{tech_key}"
+                dimension_field = f"dimension_{tech_key}"
+                
+                step_val = cleaned_data.get(step_field)
+                dimension_val = cleaned_data.get(dimension_field)
+                
+                if step_val and dimension_val:
+                    selected_tech_key = tech_key
+                    step_value = step_val
+                    dimension_value = dimension_val
+                    break
+        
+        # Validate that we have the required fields for variation creation/update
+        variation_name = cleaned_data.get('variation_name')
+        stages = cleaned_data.get('stages')
+        
+        if variation_name != 'Baseline':
+            if not selected_tech_key:
+                raise forms.ValidationError("Please select a technology and set both step and dimension values.")
+            if not stages:
+                raise forms.ValidationError("Number of stages is required.")
+        
+        # Return processed data
+        updated_data = {
+            'variation_name': variation_name,
+            'original_variation_name': cleaned_data.get('original_variation_name'),
+            'stages': stages,
+            'step': step_value,
+            'dimension': dimension_value,
+            'idtechnologies': selected_tech_key
+        }
+        
         return updated_data
 
 class OptimisationForm(forms.Form):
@@ -527,365 +629,3 @@ class OptimisationForm(forms.Form):
             capacities_fn = f'capacity_{tech_key}'
             capacities = cleaned_data.get(capacities_fn)
         return cleaned_data
-    
-class SelectVariationForm(forms.Form):
-    def __init__(self, *args, **kwargs):
-        scenario = kwargs.pop('scenario', None)
-        selected_variation = kwargs.pop('selected_variation', None)
-        super(SelectVariationForm, self).__init__(*args, **kwargs)
-        if scenario:
-            variations_queryset = variations.objects.filter(idscenarios=scenario)
-        else:
-            variations_queryset = variations.objects.none()
-        variations_list = [variation.variation_name for variation in variations_queryset]
-        variation_description_dict = {variation.variation_name: variation.variation_description for variation in variations_queryset}
-
-        variations_choices = [(variation_name, variation_name) for variation_name in variations_list]
-        variations_choices.append(('new', 'Create a new variant'))
-
-        self.fields['variation_name'] = forms.ChoiceField(choices=variations_choices, required=True)
-
-        if selected_variation:  # if a variation is passed set it as selected
-            self.fields['variation_name'].initial = selected_variation
-            if selected_variation != 'Baseline' and selected_variation != 'new':
-                self.fields['variation_description'] = forms.CharField(
-                    max_length=250,
-                    required=False,
-                    widget=forms.TextInput(attrs={'readonly': True}),
-                    initial=variation_description_dict.get(selected_variation, '')
-                )
-        else:
-            self.fields['variation_name'].initial = 'Baseline'
-            self.fields['variation_description'] = forms.CharField(
-                max_length=250,
-                required=False,
-                widget=forms.TextInput(attrs={'readonly': True})
-            )
-        
-        self.helper = FormHelper()
-        self.helper.form_action = '/variation/'
-        self.helper.layout = Layout(
-            Div(
-                Field('variation_name', css_class='row col-md-4'),
-                css_class='row', id='variation_name_field'
-            ),
-        )
-        if selected_variation != 'Baseline' and selected_variation != 'new':
-            self.helper.layout.fields.append(Div(
-                    Field('variation_description', css_class='row col-md-4'),
-                    css_class='row',
-                )
-            )
-        self.helper.layout.append(FormActions(
-            Submit('refresh', 'Refresh', css_class='btn btn-primary')
-        ))
-
-class PowermatchForm(forms.Form):
-    def __init__(self, *args, server_files=None, **kwargs):
-        config_data = kwargs.pop('config_data', None)
-        super().__init__(*args, **kwargs)
-        
-        # Get list of available server files
-        self.server_files = server_files or []
-        file_choices = [(f, f) for f in self.server_files]
-        file_choices.insert(0, ('', '-- Select a file --'))
-        gen_sheet_choices = [(item.strip(), item.strip()) for item in config_data['Powermatch']['generator_sheets'].split(',')]
-        # File selection fields
-        self.fields['constraints_file'] = forms.ChoiceField(
-            label="Constraints File:",
-            choices=file_choices,
-            required=False,
-            widget=forms.Select(attrs={
-                'class': 'form-select server-file-select',
-                'data-file-type': 'constraints'
-            })
-        )
-        self.fields['constraints_sheet'] = forms.ChoiceField(
-            label="Constraints Sheet:",
-            choices=[("Constraints", "Constraints")],
-            required=False,
-            widget=forms.Select(attrs={'class': 'form-select'})
-        )
-        
-        self.fields['generators_file'] = forms.ChoiceField(
-            label="Generators File:",
-            choices=file_choices,
-            required=False,
-            widget=forms.Select(attrs={
-                'class': 'form-select server-file-select',
-                'data-file-type': 'generators'
-            })
-        )
-
-        self.fields['generators_sheet'] = forms.ChoiceField(
-            label="Generators Sheet:",
-            choices=gen_sheet_choices,
-            required=False,
-            widget=forms.Select(attrs={'class': 'form-select'})
-        )
-        
-        self.fields['optimisation_file'] = forms.ChoiceField(
-            label="Optimisation File:",
-            choices=file_choices,
-            required=False,
-            widget=forms.Select(attrs={
-                'class': 'form-select server-file-select',
-                'data-file-type': 'optimisation'
-            })
-        )
-        self.fields['optimisation_sheet'] = forms.ChoiceField(
-            label="Optimisation Sheet:",
-            choices=[("Optimisation_was", "Optimisation_was")],
-            required=False,
-            widget=forms.Select(attrs={'class': 'form-select'})
-        )
-        self.fields['data_file'] = forms.ChoiceField(
-            label="Data File:",
-            choices=file_choices,
-            required=False,
-            widget=forms.Select(attrs={
-                'class': 'form-select server-file-select',
-                'data-file-type': 'data'
-            })
-        )
-        # Get available years for load_year choices
-        years = self.get_available_years()
-        self.fields['load_year'] = forms.ChoiceField(
-            label="Load Year:",
-            choices=[("n/a", "n/a")] + [(year, year) for year in years],
-            required=False,
-            widget=forms.Select(attrs={'class': 'form-select'}),
-            help_text="(To use a different load year to the data file. Otherwise choose 'n/a')"
-        )
-
-        self.fields['results_prefix'] = forms.CharField(
-            label="Results Prefix:",
-            required=False,
-            widget=forms.TextInput(attrs={'class': 'form-control'})
-        )
-
-        self.fields['results_file'] = forms.ChoiceField(
-            label="Results File:",
-            choices=file_choices,
-            required=False,
-            widget=forms.Select(attrs={
-                'class': 'form-select server-file-select',
-                'data-file-type': 'results'
-            })        )
-        
-        self.fields['batch_file'] = forms.ChoiceField(
-            label="Batch File:",
-            choices=file_choices,
-            required=False,
-            widget=forms.Select(attrs={
-                'class': 'form-select server-file-select',
-                'data-file-type': 'batch'
-            })
-        )
-        
-        self.fields['replace_last'] = forms.BooleanField(
-            label="Replace Last",
-            required=False,
-            initial=False,
-            widget=forms.CheckboxInput(attrs={'class': 'form-check-input'}),
-            help_text="(check to replace last Results worksheet in Batch spreadsheet)"
-        )
-        
-        self.fields['prefix_facility'] = forms.BooleanField(
-            label="Prefix facility names in Batch report:",
-            required=False,
-            initial=False,
-            widget=forms.CheckboxInput(attrs={'class': 'form-check-input'})
-        )
-        
-        self.fields['discount_rate'] = forms.DecimalField(
-            label="Discount Rate:",
-            max_digits=4,
-            decimal_places=2,
-            initial=7.00,
-            widget=forms.NumberInput(attrs={
-                'class': 'form-control',
-                'step': '0.01'
-            }),
-            help_text="(%. Only required if using input costs rather than reference LCOE)"
-        )
-        
-        self.fields['carbon_price'] = forms.DecimalField(
-            label="Carbon Price:",
-            max_digits=5,
-            decimal_places=2,
-            initial=0.00,
-            widget=forms.NumberInput(attrs={
-                'class': 'form-control',
-                'step': '0.01'
-            }),
-            help_text="($/tCO2e. Use only if LCOE excludes carbon price)"
-        )
-        
-        self.fields['adjust_generators'] = forms.BooleanField(
-            label="Adjust Generators:",
-            required=False,
-            initial=False,
-            widget=forms.CheckboxInput(attrs={'class': 'form-check-input'}),
-            help_text="(check to adjust generators capacity data)"
-        )
-
-        self.fields['generator_columns'] = forms.CharField(
-            widget=forms.HiddenInput(),
-            required=False
-        )
-        # File upload field
-        self.fields['new_file'] = forms.FileField(
-            label="Upload New File",
-            required=False,
-            widget=forms.FileInput(attrs={
-                'class': 'form-control',
-                'data-url': '/upload-file/'  # URL for handling file uploads
-            }),
-            help_text="Upload a new file to the server"
-        )
-        # Set initial values from config if available
-        if config_data and config_data.has_section('Powermatch'):
-            try:
-                # Map config sections to form fields
-                config_mappings = {
-                    'Powermatch': {
-                        'constraints_file': 'constraints_file',
-                        'constraints_sheet': 'constraints_sheet',
-                        'generators_file': 'generators_file',
-                        'generators_sheet': 'generators_sheet',
-                        'optimisation_file': 'optimisation_file',
-                        'optimisation_sheet': 'optimisation_sheet',
-                        'data_file': 'data_file',
-                        'results_file': 'results_file',
-                        'batch_file': 'batch_file',
-                        'replace_last': 'replace_last',
-                        'prefix_facility': 'prefix_facility',
-                        'discount_rate': 'discount_rate',
-                        'carbon_price': 'carbon_price',
-                        'adjust_generators': 'adjust_generators',
-                        'generators_left_column': 'generator_columns',
-                        'generators_sheet': 'generators_sheet',
-                    }
-                }
-
-                # Update field values from config
-                for section, fields in config_mappings.items():
-                    if section in config_data:
-                        for config_key, form_field in fields.items():
-                            if config_key in config_data[section]:
-                                value = config_data[section][config_key]
-                                
-                                # Handle boolean fields
-                                if isinstance(self.fields[form_field], forms.BooleanField):
-                                    value = value.lower() in ('true', '1', 'yes', 'on')
-                                
-                                # Handle decimal fields
-                                elif isinstance(self.fields[form_field], forms.DecimalField):
-                                    try:
-                                        value = float(value)
-                                    except (ValueError, TypeError):
-                                        continue
-                                # Set initial value for the field
-                                if form_field == 'generator_columns':
-                                    left_generators = config_data['Powermatch'].get('generators_left_column', '')
-                                    initial_left_column = [item.strip() for item in left_generators.split(',')]
-                                    right_generators = config_data['Powermatch'].get('generators_right_column', '')
-                                    initial_right_column = [item.strip() for item in right_generators.split(',')]
-                                else:
-                                    self.fields[form_field].initial = value
-
-                # Store the initial values in the form
-                self.initial_generator_columns = {
-                    'leftColumn': initial_left_column,
-                    'rightColumn': initial_right_column
-}
-            except Exception as e:
-                # Log the error but don't prevent form from loading
-                print(f"Error initializing form from config: {str(e)}")
-    
-    def get_available_years(self):
-        """Extract years from CSV files in the load folder."""
-        folder_path = './siren_web/siren_files/SWIS/siren_data/'
-        years = set()
-        
-        try:
-            if os.path.exists(folder_path):
-                for filename in os.listdir(folder_path):
-                    if filename.lower().endswith('.csv'):
-                        # Extract year from filename (assuming format like swis_load_hourly_2024_for_sam.csv)
-                        parts = filename.split('_')
-                        for part in parts:
-                            if part.isdigit() and len(part) == 4:
-                                years.add(part)
-        except Exception as e:
-            print(f"Error reading load folder: {e}")
-        
-        return sorted(years)
-    
-    def save_to_config(self, config_file_path):
-        """
-        Save the form values to the config file.
-            Args:
-        config_file_path (str): Path to the config file
-        """
-        config = configparser.ConfigParser()
-        try:
-            config.read(config_file_path)
-        except Exception as e:
-            raise Exception(f"Error reading config file: {str(e)}")
-        
-        # Ensure the powermatch section exists
-        if 'Powermatch' not in config:
-            config['Powermatch'] = {}
-        
-        # Map form fields to config values
-        field_mappings = {
-            'constraints_file': str,
-            'constraints_sheet': str,
-            'generators_file': str,
-            'generators_sheet': str,
-            'optimisation_file': str,
-            'optimisation_sheet': str,
-            'data_file': str,
-            'results_file': str,
-            'batch_file': str,
-            'replace_last': str,
-            'prefix_facility': str,
-            'discount_rate': str,
-            'carbon_price': str,
-            'adjust_generators': str,
-            'generator_columns': str,
-        }
-        
-        # Update config with form values
-        for field_name, conversion_func in field_mappings.items():
-            if field_name in self.cleaned_data:
-                value = self.cleaned_data[field_name]
-                
-                # Convert boolean values to 'true'/'false'
-                if isinstance(value, bool):
-                    value = str(value).lower()
-                # Convert decimal/float values to string
-                elif isinstance(value, (float, Decimal)):
-                    value = str(value)
-                # Convert None to empty string
-                elif value is None:
-                    value = ''
-                if field_name == 'generator_columns':
-                    try:
-                        generator_data = json.loads(self.cleaned_data['generator_columns'])
-                        # Save both columns to config
-                        config['Powermatch']['generators_left_column'] = ','.join(generator_data['leftColumn'])
-                        config['Powermatch']['generators_right_column'] = ','.join(generator_data['rightColumn'])
-                    except (json.JSONDecodeError, KeyError) as e:
-                        print(f"Error saving generator columns: {str(e)}")
-                else:
-                    config['Powermatch'][field_name] = value
-        
-        # Save the config file
-        try:
-            with open(config_file_path, 'w') as configfile:
-                config.write(configfile)
-        except Exception as e:
-            raise Exception(f"Error saving config file: {str(e)}")

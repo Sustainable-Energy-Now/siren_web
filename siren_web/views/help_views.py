@@ -272,13 +272,17 @@ def regenerate_from_markdown(request):
     return JsonResponse({'success': False, 'error': 'Invalid request method'})
 
 @login_required  
-def edit_help_template(request):
+def edit_help_markdown(request):
     """Enhanced template editor that works with markdown files"""
     markdown_file_path = os.path.join(settings.MEDIA_ROOT, 'templates', 'help', 'siren_web_manual.md')
     
     if request.method == 'POST':
         try:
             content = request.POST.get('template_content', '')
+            
+            # Debug: Print the received content (remove this after testing)
+            print(f"Received content length: {len(content)}")
+            print(f"Content preview: {content[:100]}...")
             
             # Validate markdown content
             validation_errors = validate_markdown_content(content)
@@ -296,16 +300,19 @@ def edit_help_template(request):
             with open(markdown_file_path, 'w', encoding='utf-8') as f:
                 f.write(content)
             
-            messages.success(request, 'Markdown file saved successfully!')
+            messages.success(request, f'Markdown file saved successfully to {markdown_file_path}!')
             
             # If user clicked "Save & Generate", redirect to generation
-            if 'generate' in request.POST:
+            if 'generate' in request.POST or request.POST.get('action') == 'generate':
                 return redirect('generate_help_html')
             
-            return redirect('edit_help_template')
+            return redirect('edit_help_markdown')
             
         except Exception as e:
             messages.error(request, f'Error saving markdown file: {str(e)}')
+            # Add more detailed error information
+            import traceback
+            print(f"Full error traceback: {traceback.format_exc()}")
     
     # Load existing markdown file
     try:
@@ -313,6 +320,7 @@ def edit_help_template(request):
             with open(markdown_file_path, 'r', encoding='utf-8') as f:
                 template_content = f.read()
         else:
+            # Create default content if file doesn't exist
             template_content = """# Siren Web User Manual
 
 ## System Overview
@@ -335,8 +343,15 @@ The main interface provides access to three core modules:
 - Powerplot
 
 *Edit this markdown file to customize your help documentation.*"""
+            
+            # Create the file with default content
+            os.makedirs(os.path.dirname(markdown_file_path), exist_ok=True)
+            with open(markdown_file_path, 'w', encoding='utf-8') as f:
+                f.write(template_content)
+                
     except Exception as e:
         template_content = f"Error loading markdown file: {str(e)}"
+        messages.error(request, f'Error loading markdown file: {str(e)}')
     
     # Get file statistics
     file_stats = {}
@@ -350,14 +365,14 @@ The main interface provides access to three core modules:
     
     context = {
         'template_content': template_content,
+        'template_path': markdown_file_path,  # Match the template variable name
         'markdown_file_path': markdown_file_path,
         'file_exists': os.path.exists(markdown_file_path),
         'file_stats': file_stats,
         'backups_available': get_available_backups(markdown_file_path),
     }
     
-    return render(request, 'edit_template.html', context)
-
+    return render(request, 'edit_help.html', context)
 def validate_markdown_content(content):
     """Validate markdown content for common issues"""
     errors = []
@@ -471,7 +486,7 @@ def restore_markdown_backup(request, backup_filename):
         except Exception as e:
             messages.error(request, f'Error restoring backup: {str(e)}')
     
-    return redirect('edit_help_template')
+    return redirect('edit_help_markdown')
 
 def preview_markdown_section(request):
     """AJAX endpoint to preview markdown sections"""

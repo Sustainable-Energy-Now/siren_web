@@ -35,7 +35,7 @@ urlpatterns = [
     path('config_views/', config_views.edit_config, name='edit_config'),
     path('generate-help/', help_views.generate_help_html, name='generate_help_html'),
     path('help/', help_views.display_help_html, name='display_help_html'),
-    path('help/edit/', help_views.edit_help_template, name='edit_help_template'),
+    path('help/edit/', help_views.edit_help_markdown, name='edit_help_markdown'),
     path('download/', help_views.download_help_html, name='download_help_html'),
     path("admin/", admin.site.urls),
     path('accounts/', include('django.contrib.auth.urls')),

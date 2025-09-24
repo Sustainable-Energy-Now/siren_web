@@ -24,7 +24,7 @@ def fetch_analysis_scenario(scenario):
     scenario_obj = get_scenario_by_title(scenario)
     analysis_list = Analysis.objects.filter(
         idscenarios=scenario_obj
-    ).all()[:8]
+    ).all()[:20]
     return analysis_list
 
 def check_analysis_baseline(scenario):

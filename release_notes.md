@@ -19,15 +19,18 @@
 ---
 
 ## Version 3.1.1 - September 19, 2025
-
 ### 🆕 New Features
 - Feature: Restrict Plot Choices ([#9](https://github.com/Sustainable-Energy-Now/siren_web/issues/9))
 ---
 
 ## Version 3.2.1 - September 19, 2025
-
 ### 🆕 New Features
 - Feature: Echarts back button ([#10](https://github.com/Sustainable-Energy-Now/siren_web/issues/10))
+---
+
+## Version 3.3.1 - September 24, 2025
+### 🆕 New Features
+- Feature: Improve Create Variants Facility ([#13](https://github.com/Sustainable-Energy-Now/siren_web/issues/13))
 ---
 
 *For technical support or feature requests, please contact the Sustainable Energy Now Webmaster.*
