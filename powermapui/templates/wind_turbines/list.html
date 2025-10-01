@@ -145,7 +145,7 @@
             <td colspan="10" class="text-center text-muted py-4">
               No wind turbines found.
               {% if search_query or manufacturer_filter or application_filter %}
-                <a href="{% url 'wind_turbines_list' %}" class="btn btn-link">Clear filters</a>
+                <a href="{% url 'powermapui:wind_turbines_list' %}" class="btn btn-link">Clear filters</a>
               {% endif %}
             </td>
           </tr>

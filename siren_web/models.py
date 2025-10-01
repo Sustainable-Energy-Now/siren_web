@@ -187,6 +187,12 @@ class GridLines(models.Model):
     from_longitude = models.FloatField(help_text="Starting point longitude")
     to_latitude = models.FloatField(help_text="Ending point latitude")
     to_longitude = models.FloatField(help_text="Ending point longitude")
+    from_terminal = models.ForeignKey('Terminals', on_delete=models.SET_NULL, 
+                                null=True, blank=True, related_name='outgoing_lines',
+                                help_text="Terminal where this line originates")
+    to_terminal = models.ForeignKey('Terminals', on_delete=models.SET_NULL, 
+                              null=True, blank=True, related_name='incoming_lines',
+                              help_text="Terminal where this line terminates")
     
     # Additional attributes
     active = models.BooleanField(default=True)
@@ -207,6 +213,30 @@ class GridLines(models.Model):
     def __str__(self):
         return f"{self.line_name} ({self.voltage_level}kV)"
     
+    def get_from_point(self):
+        """Get starting point, preferring terminal location over lat/lng"""
+        if self.from_terminal:
+            return [self.from_terminal.latitude, self.from_terminal.longitude]
+        return [self.from_latitude, self.from_longitude]
+
+    def get_to_point(self):
+        """Get ending point, preferring terminal location over lat/lng"""
+        if self.to_terminal:
+            return [self.to_terminal.latitude, self.to_terminal.longitude]
+        return [self.to_latitude, self.to_longitude]
+
+    def get_enhanced_line_coordinates(self):
+        """Get line coordinates with terminal awareness"""
+        # If we have detailed KML coordinates, use those
+        kml_data = self.get_kml_geometry_data()
+        if kml_data and 'coordinates' in kml_data:
+            return [[coord[1], coord[0]] for coord in kml_data['coordinates']]
+        
+        # Otherwise, use terminal locations if available, fall back to lat/lng
+        from_point = self.get_from_point()
+        to_point = self.get_to_point()
+        return [from_point, to_point]
+
     def calculate_resistance(self):
         """Calculate total resistance of the line"""
         return self.resistance_per_km * self.length_km
@@ -557,6 +587,14 @@ class FacilityWindTurbines(models.Model):
 
     def __str__(self):
         return f"{self.facility.facility_name} - {self.wind_turbine.turbine_model} ({self.no_turbines} units)"
+    
+    @property
+    def wind_turbine(self):
+        return self.idwindturbines
+
+    @property
+    def facility(self):
+        return self.idfacilities
 
     @property
     def total_capacity(self):
@@ -894,6 +932,164 @@ class TechnologyYears(models.Model):
 
     class Meta:
         db_table = 'TechnologyYears'
+
+class Terminals(models.Model):
+    """Model to store terminal/substation data for grid infrastructure"""
+    TERMINAL_TYPES = [
+        ('substation', 'Substation'),
+        ('switching_station', 'Switching Station'),
+        ('distribution_substation', 'Distribution Substation'),
+        ('transmission_substation', 'Transmission Substation'),
+        ('converter_station', 'Converter Station'),
+        ('terminal_station', 'Terminal Station'),
+    ]
+    
+    VOLTAGE_CLASSES = [
+        ('low', 'Low Voltage (< 1kV)'),
+        ('medium', 'Medium Voltage (1-35kV)'),
+        ('high', 'High Voltage (35-138kV)'),
+        ('extra_high', 'Extra High Voltage (138-800kV)'),
+        ('ultra_high', 'Ultra High Voltage (> 800kV)'),
+    ]
+    
+    idterminals = models.AutoField(primary_key=True, db_column='idterminals')
+    terminal_name = models.CharField(max_length=100, unique=True, help_text="Unique name for the terminal")
+    terminal_code = models.CharField(max_length=30, unique=True, help_text="Short code for the terminal")
+    terminal_type = models.CharField(max_length=30, choices=TERMINAL_TYPES, default='substation')
+    
+    # Location
+    latitude = models.FloatField(help_text="Terminal latitude")
+    longitude = models.FloatField(help_text="Terminal longitude")
+    elevation = models.FloatField(null=True, blank=True, help_text="Elevation above sea level in meters")
+    
+    # Technical specifications
+    primary_voltage_kv = models.FloatField(help_text="Primary voltage level in kV")
+    secondary_voltage_kv = models.FloatField(null=True, blank=True, help_text="Secondary voltage level in kV")
+    voltage_class = models.CharField(max_length=20, choices=VOLTAGE_CLASSES, default='high')
+    
+    # Capacity and ratings
+    transformer_capacity_mva = models.FloatField(null=True, blank=True, help_text="Total transformer capacity in MVA")
+    short_circuit_capacity_mva = models.FloatField(null=True, blank=True, help_text="Short circuit capacity in MVA")
+    bay_count = models.IntegerField(null=True, blank=True, help_text="Number of bays/feeders")
+    
+    # Operational data
+    commissioned_date = models.DateField(null=True, blank=True)
+    decommissioned_date = models.DateField(null=True, blank=True)
+    active = models.BooleanField(default=True)
+    
+    # Ownership and maintenance
+    owner = models.CharField(max_length=100, blank=True, null=True)
+    operator = models.CharField(max_length=100, blank=True, null=True)
+    maintenance_zone = models.CharField(max_length=50, blank=True, null=True)
+    
+    # Additional attributes
+    description = models.TextField(blank=True, null=True)
+    control_center = models.CharField(max_length=100, blank=True, null=True)
+    scada_id = models.CharField(max_length=50, blank=True, null=True, help_text="SCADA system identifier")
+    
+    # Metadata
+    created_date = models.DateTimeField(auto_now_add=True)
+    modified_date = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        db_table = 'Terminals'
+        ordering = ['terminal_name']
+        verbose_name = 'Terminal'
+        verbose_name_plural = 'Terminals'
+    
+    def __str__(self):
+        return f"{self.terminal_name} ({self.primary_voltage_kv}kV)"
+    
+    def get_connected_grid_lines(self):
+        """Get all grid lines connected to this terminal"""
+        return GridLines.objects.filter(
+            models.Q(from_terminal=self) | models.Q(to_terminal=self),
+            active=True
+        )
+    
+    def get_outgoing_lines(self):
+        """Get grid lines originating from this terminal"""
+        return self.outgoing_lines.filter(active=True)
+    
+    def get_incoming_lines(self):
+        """Get grid lines terminating at this terminal"""
+        return self.incoming_lines.filter(active=True)
+    
+    def get_connected_facilities_count(self):
+        """Count facilities connected through grid lines from this terminal"""
+        connected_lines = self.get_connected_grid_lines()
+        facility_count = 0
+        for line in connected_lines:
+            facility_count += line.connected_facilities.count()
+        return facility_count
+    
+    def calculate_total_connected_capacity(self):
+        """Calculate total capacity of facilities connected through this terminal"""
+        connected_lines = self.get_connected_grid_lines()
+        total_capacity = 0
+        for line in connected_lines:
+            for facility in line.connected_facilities.all():
+                if facility.capacity:
+                    total_capacity += facility.capacity
+        return total_capacity
+    
+    def get_utilization_percent(self):
+        """Get utilization as percentage of transformer capacity"""
+        if not self.transformer_capacity_mva:
+            return 0
+        connected_capacity = self.calculate_total_connected_capacity()
+        # Convert MW to MVA (assuming power factor of 0.95)
+        connected_mva = connected_capacity / 0.95
+        return (connected_mva / self.transformer_capacity_mva) * 100 if self.transformer_capacity_mva > 0 else 0
+    
+    def get_terminal_icon_type(self):
+        """Get icon type based on terminal characteristics"""
+        if self.primary_voltage_kv >= 330:
+            return 'terminal_extra_high'
+        elif self.primary_voltage_kv >= 132:
+            return 'terminal_high'
+        elif self.primary_voltage_kv >= 66:
+            return 'terminal_medium'
+        else:
+            return 'terminal_low'
+    
+    def get_popup_content(self):
+        """Get HTML content for map popup"""
+        utilization = self.get_utilization_percent()
+        connected_lines = self.get_connected_grid_lines().count()
+        connected_facilities = self.get_connected_facilities_count()
+        
+        return f"""
+        <div class="terminal-popup">
+            <h4>{self.terminal_name}</h4>
+            <table style="font-size: 12px;">
+                <tr><td><strong>Code:</strong></td><td>{self.terminal_code}</td></tr>
+                <tr><td><strong>Type:</strong></td><td>{self.get_terminal_type_display()}</td></tr>
+                <tr><td><strong>Primary Voltage:</strong></td><td>{self.primary_voltage_kv} kV</td></tr>
+                {f'<tr><td><strong>Secondary Voltage:</strong></td><td>{self.secondary_voltage_kv} kV</td></tr>' if self.secondary_voltage_kv else ''}
+                {f'<tr><td><strong>Transformer Capacity:</strong></td><td>{self.transformer_capacity_mva} MVA</td></tr>' if self.transformer_capacity_mva else ''}
+                <tr><td><strong>Connected Lines:</strong></td><td>{connected_lines}</td></tr>
+                <tr><td><strong>Connected Facilities:</strong></td><td>{connected_facilities}</td></tr>
+                <tr><td><strong>Utilization:</strong></td><td>{utilization:.1f}%</td></tr>
+                <tr><td><strong>Status:</strong></td><td>{'Active' if self.active else 'Inactive'}</td></tr>
+                {f'<tr><td><strong>Owner:</strong></td><td>{self.owner}</td></tr>' if self.owner else ''}
+            </table>
+        </div>
+        """
+    
+    def validate_voltage_levels(self):
+        """Validate that voltage levels are consistent"""
+        if self.secondary_voltage_kv and self.secondary_voltage_kv >= self.primary_voltage_kv:
+            raise ValidationError("Secondary voltage must be less than primary voltage")
+    
+    def clean(self):
+        """Custom validation"""
+        super().clean()
+        self.validate_voltage_levels()
+        
+        if self.commissioned_date and self.decommissioned_date:
+            if self.decommissioned_date <= self.commissioned_date:
+                raise ValidationError("Decommission date must be after commission date")
 
 class TradingPrice(models.Model):
     id = models.AutoField(db_column='idTechnologies', primary_key=True)

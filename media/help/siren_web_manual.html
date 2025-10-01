@@ -408,6 +408,42 @@
                     </li>
                     <li class="toc-subitem">
                         <a href="#" class="toc-sublink" data-section="3" data-subsection="tips-and-best-practices">Tips and Best Practices</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="3" data-subsection="facilities-management-overview">Facilities Management Overview</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="3" data-subsection="viewing-facilities">Viewing Facilities</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="3" data-subsection="adding-new-facilities">Adding New Facilities</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="3" data-subsection="editing-facilities">Editing Facilities</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="3" data-subsection="facility-details">Facility Details</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="3" data-subsection="deleting-facilities">Deleting Facilities</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="3" data-subsection="integration-with-other-modules">Integration with Other Modules</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="3" data-subsection="data-management-best-practices">Data Management Best Practices</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="3" data-subsection="common-workflows">Common Workflows</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="3" data-subsection="troubleshooting">Troubleshooting</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="3" data-subsection="tips-for-effective-facility-management">Tips for Effective Facility Management</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="3" data-subsection="advanced-features">Advanced Features</a>
                     </li></ul></li>
                 <li class="toc-item">
                     <a href="#" class="toc-link " data-section="4">Powermatch Module</a>
@@ -528,7 +564,7 @@
                     </li></ul></li>
             </ul>
             <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid rgba(255,255,255,0.2); font-size: 0.9em;">
-                <p><strong>Generated:</strong><br>September 23, 2025</p>
+                <p><strong>Generated:</strong><br>September 30, 2025</p>
                 <p><strong>Sections:</strong> 9</p>
             </div>
         </nav>
@@ -629,7 +665,15 @@
 
 
 
+
+
+
+
 <span class="nl">Scenario</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="n">Scenario</span><span class="w"> </span><span class="n">Name</span><span class="p">]</span>
+
+
+
+
 
 
 
@@ -1772,6 +1816,1125 @@
 <p>| Filter not working | Clear all filters and try again |</p>
 <p>| Installation not showing | Check "Active Only" filter setting |</p>
 <hr />
+<h3 id="facilities-management-overview">Facilities Management Overview</h3>
+<p>The Facilities Management System provides comprehensive tools for managing power generation and storage facilities within your SIREN web application. Facilities represent the infrastructure that comprises the grid, including power plants, renewable energy installations, and storage systems.</p>
+<hr />
+<h3 id="viewing-facilities_1">Viewing Facilities</h3>
+<p><strong>Access:</strong> Navigate to <code>/facilities/</code> or use the "Facilities" menu option.</p>
+<p>The facilities list displays all infrastructure in your system with the following information:</p>
+<ul>
+<li>
+<p><strong>Facility Name</strong>: Unique identifier for the facility</p>
+</li>
+<li>
+<p><strong>Technology</strong>: Type of generation or storage technology</p>
+</li>
+<li>
+<p><strong>Zone</strong>: Geographic or administrative zone location</p>
+</li>
+<li>
+<p><strong>Capacity</strong>: Rated capacity of the facility</p>
+</li>
+<li>
+<p><strong>Capacity Factor</strong>: Ratio of actual to potential output</p>
+</li>
+<li>
+<p><strong>Generation</strong>: Expected or actual generation output</p>
+</li>
+<li>
+<p><strong>Transmitted</strong>: Energy transmitted from the facility</p>
+</li>
+<li>
+<p><strong>Latitude/Longitude</strong>: Geographic coordinates</p>
+</li>
+</ul>
+<h4 id="search-and-filtering_1">Search and Filtering</h4>
+<p>Use the comprehensive filter system above the table to find specific facilities:</p>
+<ul>
+<li>
+<p><strong>Search Box</strong>: Enter facility name, technology type, or zone name</p>
+</li>
+<li>
+<p><strong>Scenario Filter</strong>: Filter by specific scenario associations</p>
+</li>
+<li>
+<p><strong>Technology Filter</strong>: Select specific technology types</p>
+</li>
+<li>
+<p><strong>Zone Filter</strong>: Filter by geographic zones</p>
+</li>
+<li>
+<p><strong>Clear Button</strong>: Reset all filters to show all facilities</p>
+</li>
+</ul>
+<h4 id="pagination_1">Pagination</h4>
+<p>Large facility lists are paginated with 25 facilities per page. Use the pagination controls at the bottom to navigate between pages.</p>
+<hr />
+<h3 id="adding-new-facilities_1">Adding New Facilities</h3>
+<p><strong>Access:</strong> Click "Add New Facility" button on the facilities list page.</p>
+<h4 id="required-information_2">Required Information</h4>
+<ul>
+<li>
+<p><strong>Facility Name</strong> (Required): Unique identifier for the facility</p>
+</li>
+<li>
+<p>Use descriptive, clear names that identify the facility</p>
+</li>
+<li>
+<p>Must be unique across all facilities in the system</p>
+</li>
+<li>
+<p>Example: "Collie Solar Farm", "Kwinana Battery Storage"</p>
+</li>
+</ul>
+<h4 id="basic-configuration">Basic Configuration</h4>
+<p><strong>Technology Selection</strong></p>
+<ul>
+<li>
+<p>Choose from available technology types</p>
+</li>
+<li>
+<p>Technologies define the facility's generation or storage type</p>
+</li>
+<li>
+<p>Examples: Solar PV, Wind, Battery Storage, Gas Turbine, Coal</p>
+</li>
+<li>
+<p>For hybrid facilities, create separate facility records for each technology</p>
+</li>
+</ul>
+<p><strong>Zone Assignment</strong></p>
+<ul>
+<li>
+<p>Select the geographic or administrative zone</p>
+</li>
+<li>
+<p>Zones are used for regional analysis and planning</p>
+</li>
+<li>
+<p>Proper zone assignment is important for accurate modeling</p>
+</li>
+</ul>
+<h4 id="technical-specifications">Technical Specifications</h4>
+<p><strong>Capacity Settings</strong></p>
+<ul>
+<li>
+<p><strong>Capacity</strong>: Rated capacity of the facility</p>
+</li>
+<li>
+<p>Enter in megawatts (MW) for generation facilities</p>
+</li>
+<li>
+<p>Enter in megawatt-hours (MWh) for storage facilities</p>
+</li>
+<li>
+<p>Leave blank if not yet determined</p>
+</li>
+</ul>
+<p><strong>Capacity Factor</strong></p>
+<ul>
+<li>
+<p>Ratio of actual to potential output (value between 0 and 1)</p>
+</li>
+<li>
+<p>Typical values by technology:</p>
+</li>
+<li>
+<p>Solar PV: 0.15-0.25</p>
+</li>
+<li>
+<p>Wind: 0.25-0.45</p>
+</li>
+<li>
+<p>Baseload (Coal/Gas): 0.50-0.90</p>
+</li>
+<li>
+<p>Battery Storage: N/A (use for generation facilities only)</p>
+</li>
+</ul>
+<p><strong>Generation and Transmission</strong></p>
+<ul>
+<li>
+<p><strong>Generation</strong>: Expected or actual annual generation output</p>
+</li>
+<li>
+<p><strong>Transmitted</strong>: Energy transmitted from this facility</p>
+</li>
+<li>
+<p>Both values are optional but useful for analysis</p>
+</li>
+</ul>
+<h4 id="location-information">Location Information</h4>
+<p><strong>Geographic Coordinates</strong></p>
+<ul>
+<li>
+<p><strong>Latitude</strong>: Decimal degrees format (-90 to 90)</p>
+</li>
+<li>
+<p>Southern hemisphere latitudes are negative</p>
+</li>
+<li>
+<p>Example: -32.0569 for Perth area</p>
+</li>
+<li>
+<p><strong>Longitude</strong>: Decimal degrees format (-180 to 180)</p>
+</li>
+<li>
+<p>Eastern hemisphere longitudes are positive</p>
+</li>
+<li>
+<p>Example: 115.7439 for Perth area</p>
+</li>
+<li>
+<p>Accurate coordinates are essential for:</p>
+</li>
+<li>
+<p>Mapping and visualization</p>
+</li>
+<li>
+<p>Spatial analysis</p>
+</li>
+<li>
+<p>Transmission planning</p>
+</li>
+<li>
+<p>Resource assessment</p>
+</li>
+</ul>
+<h4 id="scenario-associations">Scenario Associations</h4>
+<p><strong>Multiple Scenario Selection</strong></p>
+<ul>
+<li>
+<p>Check boxes next to scenarios this facility should belong to</p>
+</li>
+<li>
+<p>Facilities can be associated with multiple scenarios</p>
+</li>
+<li>
+<p>Unassociated facilities won't appear in scenario-specific analyses</p>
+</li>
+<li>
+<p>You can modify scenario associations later</p>
+</li>
+</ul>
+<h4 id="guidelines-and-best-practices">Guidelines and Best Practices</h4>
+<p><strong>Naming Conventions</strong></p>
+<ul>
+<li>
+<p>Use consistent, descriptive names</p>
+</li>
+<li>
+<p>Include location and technology type when helpful</p>
+</li>
+<li>
+<p>Avoid special characters that may cause issues</p>
+</li>
+<li>
+<p>Examples:</p>
+</li>
+<li>
+<p>"Collie_Solar_100MW"</p>
+</li>
+<li>
+<p>"Kwinana Battery 50MWh"</p>
+</li>
+<li>
+<p>"Albany Wind Farm"</p>
+</li>
+</ul>
+<p><strong>Technology Selection</strong></p>
+<ul>
+<li>
+<p>Choose the primary technology for the facility</p>
+</li>
+<li>
+<p>For co-located technologies (hybrid sites), create separate facilities</p>
+</li>
+<li>
+<p>Ensure technology choice matches the actual installation</p>
+</li>
+</ul>
+<p><strong>Capacity and Performance</strong></p>
+<ul>
+<li>
+<p>Verify specifications with technical documentation</p>
+</li>
+<li>
+<p>Use manufacturer ratings for equipment capacity</p>
+</li>
+<li>
+<p>Base capacity factors on local resource availability</p>
+</li>
+<li>
+<p>Consider derating factors for aging equipment</p>
+</li>
+</ul>
+<hr />
+<h3 id="editing-facilities">Editing Facilities</h3>
+<p><strong>Access:</strong> Click "Edit" button next to any facility in the list, or "Edit" from the detail view.</p>
+<h4 id="editable-fields_1">Editable Fields</h4>
+<p>All facility parameters can be modified:</p>
+<ul>
+<li>
+<p>Facility name (must remain unique)</p>
+</li>
+<li>
+<p>Technology type</p>
+</li>
+<li>
+<p>Zone assignment</p>
+</li>
+<li>
+<p>Capacity and capacity factor</p>
+</li>
+<li>
+<p>Generation and transmission values</p>
+</li>
+<li>
+<p>Geographic coordinates</p>
+</li>
+<li>
+<p>Scenario associations</p>
+</li>
+</ul>
+<h4 id="important-notes_1">Important Notes</h4>
+<ul>
+<li>
+<p><strong>Name Changes</strong>: Can be updated but must remain unique</p>
+</li>
+<li>
+<p><strong>Technology Changes</strong>: Changes affect all associated scenarios</p>
+</li>
+<li>
+<p><strong>Impact Warning</strong>: Updates are reflected across all scenario analyses</p>
+</li>
+<li>
+<p><strong>Scenario Associations</strong>: Can add or remove scenarios freely</p>
+</li>
+<li>
+<p><strong>Validation</strong>: System prevents duplicate names and invalid values</p>
+</li>
+</ul>
+<h4 id="update-guidelines">Update Guidelines</h4>
+<p><strong>When to Edit vs. Create New</strong></p>
+<ul>
+<li>
+<p><strong>Edit</strong> when correcting data or updating specifications</p>
+</li>
+<li>
+<p><strong>Create New</strong> when:</p>
+</li>
+<li>
+<p>Changing technology type significantly (e.g., solar to wind)</p>
+</li>
+<li>
+<p>Modeling major equipment upgrades</p>
+</li>
+<li>
+<p>Creating alternative configurations for comparison</p>
+</li>
+</ul>
+<p><strong>Scenario Impact</strong></p>
+<ul>
+<li>
+<p>Changes immediately affect all associated scenarios</p>
+</li>
+<li>
+<p>Consider creating a new scenario if testing major modifications</p>
+</li>
+<li>
+<p>Export existing results before making significant changes</p>
+</li>
+</ul>
+<p><strong>Data Validation</strong></p>
+<ul>
+<li>
+<p>Double-check coordinates before saving</p>
+</li>
+<li>
+<p>Verify capacity factors are realistic for the technology</p>
+</li>
+<li>
+<p>Ensure zone assignment is correct for regional analysis</p>
+</li>
+</ul>
+<hr />
+<h3 id="facility-details">Facility Details</h3>
+<p><strong>Access:</strong> Click on any facility name in the list or the "View" button.</p>
+<p>The facility detail page provides comprehensive information organized into sections:</p>
+<h4 id="facility-information-panel">Facility Information Panel</h4>
+<p><strong>Basic Details</strong></p>
+<ul>
+<li>
+<p>Complete facility name and identification</p>
+</li>
+<li>
+<p>Technology type with visual badge</p>
+</li>
+<li>
+<p>Zone assignment</p>
+</li>
+<li>
+<p>Full technical specifications</p>
+</li>
+<li>
+<p>Location coordinates</p>
+</li>
+</ul>
+<p><strong>Performance Metrics</strong></p>
+<ul>
+<li>
+<p>Current capacity rating</p>
+</li>
+<li>
+<p>Capacity factor</p>
+</li>
+<li>
+<p>Generation values</p>
+</li>
+<li>
+<p>Transmission data</p>
+</li>
+</ul>
+<h4 id="associated-scenarios">Associated Scenarios</h4>
+<p>View all scenarios that include this facility:</p>
+<ul>
+<li>
+<p>Scenario names and descriptions</p>
+</li>
+<li>
+<p>Quick reference for scenario planning</p>
+</li>
+<li>
+<p>Shows which analyses will include this facility</p>
+</li>
+</ul>
+<h4 id="wind-turbine-installations-wind-facilities-only">Wind Turbine Installations (Wind Facilities Only)</h4>
+<p>For wind technology facilities, additional information displays:</p>
+<ul>
+<li>
+<p><strong>Turbine Models</strong>: Installed turbine types and specifications</p>
+</li>
+<li>
+<p><strong>Configuration</strong>: Number of units, tilt angles, directions</p>
+</li>
+<li>
+<p><strong>Installation Dates</strong>: When turbines were installed</p>
+</li>
+<li>
+<p><strong>Links</strong>: Direct access to wind turbine details</p>
+</li>
+<li>
+<p><strong>Capacity Breakdown</strong>: Detailed capacity calculations</p>
+</li>
+</ul>
+<h4 id="quick-actions-sidebar">Quick Actions Sidebar</h4>
+<p><strong>Available Actions</strong></p>
+<ul>
+<li>
+<p><strong>Edit Facility</strong>: Modify facility parameters</p>
+</li>
+<li>
+<p><strong>Add Wind Turbine</strong>: Add turbine installations (wind facilities only)</p>
+</li>
+<li>
+<p><strong>Delete Facility</strong>: Remove facility from system</p>
+</li>
+</ul>
+<p><strong>Location Information</strong></p>
+<ul>
+<li>
+<p>Visual display of coordinates</p>
+</li>
+<li>
+<p>Quick reference for mapping</p>
+</li>
+<li>
+<p>Verification of location accuracy</p>
+</li>
+</ul>
+<p><strong>Statistics Summary</strong></p>
+<ul>
+<li>
+<p>Number of associated scenarios</p>
+</li>
+<li>
+<p>Total capacity information</p>
+</li>
+<li>
+<p>Installation counts (for wind facilities)</p>
+</li>
+</ul>
+<hr />
+<h3 id="deleting-facilities">Deleting Facilities</h3>
+<p><strong>Access:</strong> Click "Delete Facility" button from the facility detail page.</p>
+<h4 id="delete-process">Delete Process</h4>
+<ol>
+<li>
+<p>Click the delete button to open confirmation modal</p>
+</li>
+<li>
+<p>Review the warning about permanent deletion</p>
+</li>
+<li>
+<p>Confirm deletion to proceed</p>
+</li>
+<li>
+<p>System removes facility and all associations</p>
+</li>
+</ol>
+<h4 id="important-warnings">Important Warnings</h4>
+<ul>
+<li>
+<p><strong>Permanent Action</strong>: Deletion cannot be undone</p>
+</li>
+<li>
+<p><strong>Scenario Impact</strong>: Facility is removed from all scenarios</p>
+</li>
+<li>
+<p><strong>Relationship Removal</strong>: All scenario associations are deleted</p>
+</li>
+<li>
+<p><strong>Data Loss</strong>: All facility-specific data is permanently removed</p>
+</li>
+</ul>
+<h4 id="before-deleting">Before Deleting</h4>
+<p><strong>Consider These Steps First</strong></p>
+<ul>
+<li>
+<p>Export facility data for records</p>
+</li>
+<li>
+<p>Document the reason for deletion</p>
+</li>
+<li>
+<p>Check if facility is referenced in reports or analyses</p>
+</li>
+<li>
+<p>Consider deactivating instead if temporarily out of service</p>
+</li>
+</ul>
+<p><strong>Alternative: Scenario Removal</strong></p>
+<ul>
+<li>
+<p>Instead of deleting, remove from specific scenarios</p>
+</li>
+<li>
+<p>Preserves facility data for other uses</p>
+</li>
+<li>
+<p>Allows reactivation in future scenarios</p>
+</li>
+</ul>
+<hr />
+<h3 id="integration-with-other-modules">Integration with Other Modules</h3>
+<h4 id="powermap-integration">Powermap Integration</h4>
+<p>Facilities created in the Facilities Management system appear automatically in Powermap:</p>
+<ul>
+<li>
+<p>Visual representation on interactive map</p>
+</li>
+<li>
+<p>Geographic distribution analysis</p>
+</li>
+<li>
+<p>Grid connection planning</p>
+</li>
+<li>
+<p>Transmission loss calculations</p>
+</li>
+</ul>
+<p><strong>Synchronization</strong></p>
+<ul>
+<li>
+<p>Changes in Facilities Management immediately reflect in Powermap</p>
+</li>
+<li>
+<p>Location updates automatically adjust map markers</p>
+</li>
+<li>
+<p>Capacity changes affect power flow calculations</p>
+</li>
+</ul>
+<h4 id="powermatch-integration">Powermatch Integration</h4>
+<p>Facility data flows into Powermatch for analysis:</p>
+<ul>
+<li>
+<p>Technology dispatch optimization</p>
+</li>
+<li>
+<p>Capacity factor utilization</p>
+</li>
+<li>
+<p>Generation profiles</p>
+</li>
+<li>
+<p>Economic analysis (LCOE calculations)</p>
+</li>
+</ul>
+<p><strong>Merit Order Considerations</strong></p>
+<ul>
+<li>
+<p>Facility technologies populate merit order lists</p>
+</li>
+<li>
+<p>Capacity settings affect dispatch decisions</p>
+</li>
+<li>
+<p>Performance data influences optimization</p>
+</li>
+</ul>
+<h4 id="powerplot-integration">Powerplot Integration</h4>
+<p>Facilities data provides the foundation for visualizations:</p>
+<ul>
+<li>
+<p>Technology-specific generation profiles</p>
+</li>
+<li>
+<p>Regional capacity distributions</p>
+</li>
+<li>
+<p>Performance comparisons</p>
+</li>
+<li>
+<p>Historical trend analysis</p>
+</li>
+</ul>
+<hr />
+<h3 id="data-management-best-practices">Data Management Best Practices</h3>
+<h4 id="consistent-data-entry">Consistent Data Entry</h4>
+<p><strong>Naming Standards</strong></p>
+<ul>
+<li>
+<p>Establish facility naming conventions</p>
+</li>
+<li>
+<p>Use consistent abbreviations</p>
+</li>
+<li>
+<p>Include relevant identifiers (location, capacity, technology)</p>
+</li>
+<li>
+<p>Document naming scheme for team reference</p>
+</li>
+</ul>
+<p><strong>Data Quality</strong></p>
+<ul>
+<li>
+<p>Validate coordinates using external mapping tools</p>
+</li>
+<li>
+<p>Cross-reference capacity ratings with technical specs</p>
+</li>
+<li>
+<p>Verify capacity factors against industry standards</p>
+</li>
+<li>
+<p>Keep generation data current</p>
+</li>
+</ul>
+<p><strong>Regular Maintenance</strong></p>
+<ul>
+<li>
+<p>Periodically review facility data for accuracy</p>
+</li>
+<li>
+<p>Update capacity factors based on actual performance</p>
+</li>
+<li>
+<p>Remove or deactivate decommissioned facilities</p>
+</li>
+<li>
+<p>Document all major changes</p>
+</li>
+</ul>
+<h4 id="scenario-planning">Scenario Planning</h4>
+<p><strong>Strategic Facility Assignment</strong></p>
+<ul>
+<li>
+<p>Assign facilities to appropriate scenarios</p>
+</li>
+<li>
+<p>Use multiple scenarios to model alternatives</p>
+</li>
+<li>
+<p>Keep "Current" scenario as baseline reference</p>
+</li>
+<li>
+<p>Create planning scenarios for future buildout</p>
+</li>
+</ul>
+<p><strong>Version Control</strong></p>
+<ul>
+<li>
+<p>Export facility lists regularly</p>
+</li>
+<li>
+<p>Document scenario-specific configurations</p>
+</li>
+<li>
+<p>Track changes over time</p>
+</li>
+<li>
+<p>Maintain backup of critical data</p>
+</li>
+</ul>
+<h4 id="workflow-recommendations_1">Workflow Recommendations</h4>
+<p><strong>New Facility Setup</strong></p>
+<ol>
+<li>
+<p>Gather complete technical specifications</p>
+</li>
+<li>
+<p>Verify location coordinates</p>
+</li>
+<li>
+<p>Determine appropriate scenarios</p>
+</li>
+<li>
+<p>Enter data with validation</p>
+</li>
+<li>
+<p>Review in Powermap for accuracy</p>
+</li>
+</ol>
+<p><strong>Bulk Updates</strong></p>
+<ol>
+<li>
+<p>Export current facility data</p>
+</li>
+<li>
+<p>Plan changes systematically</p>
+</li>
+<li>
+<p>Update facilities individually with care</p>
+</li>
+<li>
+<p>Verify changes across modules</p>
+</li>
+<li>
+<p>Export updated data for records</p>
+</li>
+</ol>
+<p><strong>Facility Lifecycle Management</strong></p>
+<ol>
+<li>
+<p>Commission: Add with complete specifications</p>
+</li>
+<li>
+<p>Operations: Update performance data regularly</p>
+</li>
+<li>
+<p>Modifications: Edit rather than recreate</p>
+</li>
+<li>
+<p>Decommission: Remove from future scenarios first</p>
+</li>
+<li>
+<p>Archive: Export data before deletion</p>
+</li>
+</ol>
+<hr />
+<h3 id="common-workflows">Common Workflows</h3>
+<h4 id="adding-a-new-solar-farm">Adding a New Solar Farm</h4>
+<ol>
+<li>
+<p>Click "Add New Facility"</p>
+</li>
+<li>
+<p>Enter facility name: "Example_Solar_100MW"</p>
+</li>
+<li>
+<p>Select Technology: "Solar PV"</p>
+</li>
+<li>
+<p>Select Zone: Appropriate region</p>
+</li>
+<li>
+<p>Set Capacity: 100 MW</p>
+</li>
+<li>
+<p>Set Capacity Factor: 0.22 (typical for location)</p>
+</li>
+<li>
+<p>Enter coordinates using decimal degrees</p>
+</li>
+<li>
+<p>Select relevant scenarios (e.g., "2030 High Renewables")</p>
+</li>
+<li>
+<p>Click "Create Facility"</p>
+</li>
+<li>
+<p>Verify appearance in Powermap</p>
+</li>
+</ol>
+<h4 id="adding-a-wind-farm-with-turbines">Adding a Wind Farm with Turbines</h4>
+<ol>
+<li>
+<p>Create facility as above with "Wind" technology</p>
+</li>
+<li>
+<p>Save facility</p>
+</li>
+<li>
+<p>From detail page, click "Add Wind Turbine"</p>
+</li>
+<li>
+<p>Select turbine model from database</p>
+</li>
+<li>
+<p>Enter number of turbines</p>
+</li>
+<li>
+<p>Configure tilt and direction</p>
+</li>
+<li>
+<p>Save installation</p>
+</li>
+<li>
+<p>Verify total capacity calculation</p>
+</li>
+</ol>
+<h4 id="creating-a-battery-storage-facility">Creating a Battery Storage Facility</h4>
+<ol>
+<li>
+<p>Click "Add New Facility"</p>
+</li>
+<li>
+<p>Enter descriptive name</p>
+</li>
+<li>
+<p>Select "Battery Storage" technology</p>
+</li>
+<li>
+<p>Enter capacity in MWh (storage capacity)</p>
+</li>
+<li>
+<p>Set location coordinates</p>
+</li>
+<li>
+<p>Associate with planning scenarios</p>
+</li>
+<li>
+<p>Note: Capacity factor not typically used for storage</p>
+</li>
+<li>
+<p>Save and verify in system</p>
+</li>
+</ol>
+<h4 id="updating-facility-specifications">Updating Facility Specifications</h4>
+<ol>
+<li>
+<p>Navigate to facility list</p>
+</li>
+<li>
+<p>Search or filter to find facility</p>
+</li>
+<li>
+<p>Click "Edit" button</p>
+</li>
+<li>
+<p>Update required fields</p>
+</li>
+<li>
+<p>Review impact on scenarios</p>
+</li>
+<li>
+<p>Save changes</p>
+</li>
+<li>
+<p>Verify updates in Powermap and Powermatch</p>
+</li>
+</ol>
+<hr />
+<h3 id="troubleshooting">Troubleshooting</h3>
+<h4 id="common-issues_1">Common Issues</h4>
+<p><strong>"A facility with this name already exists"</strong></p>
+<ul>
+<li>
+<p>Each facility must have a unique name</p>
+</li>
+<li>
+<p>Check existing facilities list</p>
+</li>
+<li>
+<p>Add distinguishing information to name</p>
+</li>
+<li>
+<p>Consider using location or capacity in name</p>
+</li>
+</ul>
+<p><strong>Facility Not Appearing in Powermap</strong></p>
+<ul>
+<li>
+<p>Verify coordinates are correct format</p>
+</li>
+<li>
+<p>Check scenario selection in Powermap</p>
+</li>
+<li>
+<p>Ensure facility is associated with the selected scenario</p>
+</li>
+<li>
+<p>Refresh the Powermap view</p>
+</li>
+</ul>
+<p><strong>Capacity Calculations Incorrect</strong></p>
+<ul>
+<li>
+<p>Verify capacity factor is between 0 and 1</p>
+</li>
+<li>
+<p>Check units (MW vs kW)</p>
+</li>
+<li>
+<p>Ensure numeric fields don't have text</p>
+</li>
+<li>
+<p>Review capacity vs generation relationship</p>
+</li>
+</ul>
+<p><strong>Cannot Delete Facility</strong></p>
+<ul>
+<li>
+<p>Check for dependencies in other modules</p>
+</li>
+<li>
+<p>Verify you have appropriate permissions</p>
+</li>
+<li>
+<p>Try removing from scenarios first</p>
+</li>
+<li>
+<p>Contact administrator if issue persists</p>
+</li>
+</ul>
+<p><strong>Coordinate Entry Problems</strong></p>
+<ul>
+<li>
+<p>Use decimal degrees format only</p>
+</li>
+<li>
+<p>Latitude: -90 to +90 (negative for south)</p>
+</li>
+<li>
+<p>Longitude: -180 to +180 (positive for east)</p>
+</li>
+<li>
+<p>Verify coordinates match intended location</p>
+</li>
+<li>
+<p>Use online tools to validate coordinates</p>
+</li>
+</ul>
+<h4 id="error-prevention_1">Error Prevention</h4>
+<p><strong>Before Creating Facilities</strong></p>
+<ul>
+<li>
+<p>Verify all required information is available</p>
+</li>
+<li>
+<p>Check for existing similar facilities</p>
+</li>
+<li>
+<p>Validate coordinates using mapping tools</p>
+</li>
+<li>
+<p>Confirm technology and zone selections</p>
+</li>
+</ul>
+<p><strong>During Data Entry</strong></p>
+<ul>
+<li>
+<p>Double-check numeric values</p>
+</li>
+<li>
+<p>Ensure proper decimal placement</p>
+</li>
+<li>
+<p>Verify scenario selections</p>
+</li>
+<li>
+<p>Review all fields before saving</p>
+</li>
+</ul>
+<p><strong>After Saving</strong></p>
+<ul>
+<li>
+<p>Check facility appears correctly in list</p>
+</li>
+<li>
+<p>Verify in Powermap visualization</p>
+</li>
+<li>
+<p>Confirm scenario associations</p>
+</li>
+<li>
+<p>Test in Powermatch if applicable</p>
+</li>
+</ul>
+<hr />
+<h3 id="tips-for-effective-facility-management">Tips for Effective Facility Management</h3>
+<h4 id="planning-and-organization">Planning and Organization</h4>
+<p><strong>Facility Hierarchy</strong></p>
+<ul>
+<li>
+<p>Group facilities by technology type</p>
+</li>
+<li>
+<p>Organize by geographic region</p>
+</li>
+<li>
+<p>Use consistent naming for related facilities</p>
+</li>
+<li>
+<p>Document facility relationships</p>
+</li>
+</ul>
+<p><strong>Data Standards</strong></p>
+<ul>
+<li>
+<p>Establish data entry guidelines</p>
+</li>
+<li>
+<p>Use standardized units consistently</p>
+</li>
+<li>
+<p>Create templates for common facility types</p>
+</li>
+<li>
+<p>Document assumptions and sources</p>
+</li>
+</ul>
+<h4 id="analysis-optimization">Analysis Optimization</h4>
+<p><strong>Scenario Strategy</strong></p>
+<ul>
+<li>
+<p>Use "Current" scenario as baseline</p>
+</li>
+<li>
+<p>Create planning scenarios for future years</p>
+</li>
+<li>
+<p>Group related facilities in scenarios</p>
+</li>
+<li>
+<p>Test alternatives with variations</p>
+</li>
+</ul>
+<p><strong>Performance Tracking</strong></p>
+<ul>
+<li>
+<p>Update capacity factors based on actual data</p>
+</li>
+<li>
+<p>Track generation vs. predictions</p>
+</li>
+<li>
+<p>Document performance issues</p>
+</li>
+<li>
+<p>Use for planning future installations</p>
+</li>
+</ul>
+<h4 id="collaboration">Collaboration</h4>
+<p><strong>Team Coordination</strong></p>
+<ul>
+<li>
+<p>Document facility changes</p>
+</li>
+<li>
+<p>Use clear naming conventions</p>
+</li>
+<li>
+<p>Communicate major updates</p>
+</li>
+<li>
+<p>Share scenario strategies</p>
+</li>
+</ul>
+<p><strong>Data Sharing</strong></p>
+<ul>
+<li>
+<p>Export facility lists for stakeholders</p>
+</li>
+<li>
+<p>Create standardized reports</p>
+</li>
+<li>
+<p>Document assumptions clearly</p>
+</li>
+<li>
+<p>Version control important changes</p>
+</li>
+</ul>
+<hr />
+<h3 id="advanced-features">Advanced Features</h3>
+<h4 id="bulk-operations">Bulk Operations</h4>
+<p><strong>Export for External Analysis</strong></p>
+<ul>
+<li>
+<p>Use search and filters to select facility subset</p>
+</li>
+<li>
+<p>Export filtered results</p>
+</li>
+<li>
+<p>Process in spreadsheet tools</p>
+</li>
+<li>
+<p>Import updated data (requires admin)</p>
+</li>
+</ul>
+<p><strong>Scenario Management</strong></p>
+<ul>
+<li>
+<p>Efficiently assign facilities to multiple scenarios</p>
+</li>
+<li>
+<p>Use checkboxes for batch associations</p>
+</li>
+<li>
+<p>Create scenario-specific facility sets</p>
+</li>
+<li>
+<p>Manage facility lifecycle across scenarios</p>
+</li>
+</ul>
+<h4 id="integration-with-external-systems">Integration with External Systems</h4>
+<p><strong>GIS Integration</strong></p>
+<ul>
+<li>
+<p>Coordinate data compatible with GIS systems</p>
+</li>
+<li>
+<p>Export for spatial analysis</p>
+</li>
+<li>
+<p>Import validated coordinate data</p>
+</li>
+<li>
+<p>Overlay with other geographic data</p>
+</li>
+</ul>
+<p><strong>Technical Documentation</strong></p>
+<ul>
+<li>
+<p>Link facilities to external documentation</p>
+</li>
+<li>
+<p>Reference manufacturer specifications</p>
+</li>
+<li>
+<p>Track equipment serial numbers (in notes)</p>
+</li>
+<li>
+<p>Maintain technical drawing references</p>
+</li>
+</ul>
+<hr />
+<p><em>This Facilities Management system provides the foundation for all energy system modeling in SIREN Web. Accurate facility data ensures reliable analysis results across all modules.</em></p>
             </div>
             <div class="page-section " data-section="4">
                 <h2 id="powermatch-module">Powermatch Module</h2>
@@ -3378,69 +4541,69 @@
             }
         });
         
-        // TOC click handlers
-        document.addEventListener('DOMContentLoaded', function() {
-            document.querySelectorAll('.toc-link').forEach(link => {
-                link.addEventListener('click', function(e) {
+                // TOC click handlers
+        document.addEventListener("DOMContentLoaded", function () {
+            const tocLinks = document.querySelectorAll(".toc-link");
+            const tocSubLinks = document.querySelectorAll(".toc-sublink");
+            const pageSections = document.querySelectorAll(".page-section");
+            const currentPage = document.getElementById("currentPage");
+
+            // Handle main section navigation
+            tocLinks.forEach(link => {
+                link.addEventListener("click", function (e) {
                     e.preventDefault();
-                    const sectionIndex = parseInt(this.dataset.section);
-                    showSection(sectionIndex);
+
+                    const sectionIndex = this.dataset.section;
+
+                    // Activate the correct section
+                    pageSections.forEach(sec => {
+                        sec.classList.toggle("active", sec.dataset.section === sectionIndex);
+                    });
+
+                    // Update TOC link active state
+                    tocLinks.forEach(l => l.classList.remove("active"));
+                    this.classList.add("active");
+
+                    // Update page number
+                    if (currentPage) currentPage.textContent = parseInt(sectionIndex) + 1;
+
+                    // Scroll to top smoothly
+                    window.scrollTo({ top: 0, behavior: "smooth" });
                 });
             });
-            
-            // Initialize
-            updateNavigationButtons();
-            document.getElementById('totalPages').textContent = totalSections;
-        });
-        
-        document.addEventListener('DOMContentLoaded', function() {
-            // Existing TOC main section handlers
-            document.querySelectorAll('.toc-link').forEach(link => {
-                link.addEventListener('click', function(e) {
+
+            // Handle subsection navigation
+            tocSubLinks.forEach(link => {
+                link.addEventListener("click", function (e) {
                     e.preventDefault();
-                    const sectionIndex = parseInt(this.dataset.section);
-                    showSection(sectionIndex);
-                });
-            });
-            
-            // NEW: Add subsection handlers
-            document.querySelectorAll('.toc-sublink').forEach(link => {
-                link.addEventListener('click', function(e) {
-                    e.preventDefault();
-                    const sectionIndex = parseInt(this.dataset.section);
+
+                    const sectionIndex = this.dataset.section;
                     const subsectionId = this.dataset.subsection;
-                    
-                    // First, show the parent section
-                    showSection(sectionIndex);
-                    
-                    // Then scroll to the subsection within that section
+
+                    // 1️⃣ Activate correct section first
+                    pageSections.forEach(sec => {
+                        sec.classList.toggle("active", sec.dataset.section === sectionIndex);
+                    });
+
+                    // 2️⃣ Delay scroll until browser has rendered section
                     setTimeout(() => {
-                        const subsectionElement = document.querySelector(`#${subsectionId}`);
-                        if (subsectionElement) {
-                            // Scroll the content area to the subsection
-                            const contentArea = document.querySelector('.content');
-                            const elementTop = subsectionElement.offsetTop - contentArea.offsetTop;
-                            contentArea.scrollTo({
-                                top: elementTop - 20, // Add some padding
-                                behavior: 'smooth'
-                            });
-                            
-                            // Also highlight the subsection temporarily
-                            subsectionElement.style.backgroundColor = 'rgba(102, 126, 234, 0.1)';
+                        const target = document.getElementById(subsectionId);
+                        if (target) {
+                            target.scrollIntoView({ behavior: "smooth", block: "center" });
+
+                            // 3️⃣ Temporary highlight
+                            target.style.transition = "background-color 0.5s ease";
+                            const originalBg = target.style.backgroundColor;
+                            target.style.backgroundColor = "#fffa9e"; // light yellow
                             setTimeout(() => {
-                                subsectionElement.style.backgroundColor = '';
-                            }, 2000);
+                                target.style.backgroundColor = originalBg;
+                            }, 1200);
                         }
-                    }, 100); // Small delay to ensure section is shown first
+                    }, 100); // wait a bit to ensure section is visible
                 });
             });
-            
-            // Initialize
-            updateNavigationButtons();
-            document.getElementById('totalPages').textContent = totalSections;
         });
-        
-        
+
     </script>
 </body>
 </html>

@@ -1,0 +1,299 @@
+<!-- facilities/detail.html -->
+{% extends 'powermapui_base.html' %}
+
+{% block powermapui_content %}
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h3>{{ facility.facility_name }}</h3>
+      <small class="text-muted">Facility Details</small>
+    </div>
+    <div>
+      <a href="{% url 'powermapui:facility_edit' facility.pk %}" class="btn btn-warning">Edit</a>
+      <a href="{% url 'powermapui:facilities_list' %}" class="btn btn-outline-secondary">Back to List</a>
+    </div>
+  </div>
+
+  <div class="row">
+    <!-- Basic Information -->
+    <div class="col-lg-8">
+      <div class="card mb-4">
+        <div class="card-header">
+          <h5 class="mb-0">Facility Information</h5>
+        </div>
+        <div class="card-body">
+          <div class="row">
+            <div class="col-md-6">
+              <table class="table table-sm">
+                <tr>
+                  <td><strong>Facility Name:</strong></td>
+                  <td>{{ facility.facility_name }}</td>
+                </tr>
+                <tr>
+                  <td><strong>Technology:</strong></td>
+                  <td>
+                    {% if facility.idtechnologies %}
+                      <span class="badge bg-secondary">{{ facility.idtechnologies.technology_name }}</span>
+                    {% else %}
+                      Not specified
+                    {% endif %}
+                  </td>
+                </tr>
+                <tr>
+                  <td><strong>Zone:</strong></td>
+                  <td>{{ facility.idzones.name|default:"Not specified" }}</td>
+                </tr>
+                <tr>
+                  <td><strong>Capacity:</strong></td>
+                  <td>
+                    {% if facility.capacity %}
+                      {{ facility.capacity|floatformat:2 }}
+                    {% else %}
+                      Not specified
+                    {% endif %}
+                  </td>
+                </tr>
+                <tr>
+                  <td><strong>Capacity Factor:</strong></td>
+                  <td>
+                    {% if facility.capacityfactor %}
+                      {{ facility.capacityfactor|floatformat:3 }}
+                    {% else %}
+                      Not specified
+                    {% endif %}
+                  </td>
+                </tr>
+              </table>
+            </div>
+            <div class="col-md-6">
+              <table class="table table-sm">
+                <tr>
+                  <td><strong>Generation:</strong></td>
+                  <td>
+                    {% if facility.generation %}
+                      {{ facility.generation|floatformat:2 }}
+                    {% else %}
+                      Not specified
+                    {% endif %}
+                  </td>
+                </tr>
+                <tr>
+                  <td><strong>Transmitted:</strong></td>
+                  <td>
+                    {% if facility.transmitted %}
+                      {{ facility.transmitted|floatformat:2 }}
+                    {% else %}
+                      Not specified
+                    {% endif %}
+                  </td>
+                </tr>
+                <tr>
+                  <td><strong>Latitude:</strong></td>
+                  <td>
+                    {% if facility.latitude %}
+                      {{ facility.latitude|floatformat:6 }}
+                    {% else %}
+                      Not specified
+                    {% endif %}
+                  </td>
+                </tr>
+                <tr>
+                  <td><strong>Longitude:</strong></td>
+                  <td>
+                    {% if facility.longitude %}
+                      {{ facility.longitude|floatformat:6 }}
+                    {% else %}
+                      Not specified
+                    {% endif %}
+                  </td>
+                </tr>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Scenarios -->
+      <div class="card mb-4">
+        <div class="card-header">
+          <h5 class="mb-0">Associated Scenarios</h5>
+        </div>
+        <div class="card-body">
+          {% if facility_scenarios %}
+            <div class="table-responsive">
+              <table class="table table-sm">
+                <thead>
+                  <tr>
+                    <th>Scenario</th>
+                    <th>Description</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for fs in facility_scenarios %}
+                    <tr>
+                      <td>{{ fs.idscenarios.title }}</td>
+                      <td>{{ fs.idscenarios.description|default:"-"|truncatechars:100 }}</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% else %}
+            <div class="text-center text-muted py-3">
+              <p>This facility is not associated with any scenarios.</p>
+            </div>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Wind Turbines (if applicable) -->
+      {% if wind_turbines %}
+        <div class="card mb-4">
+          <div class="card-header">
+            <h5 class="mb-0">Wind Turbine Installations</h5>
+          </div>
+          <div class="card-body">
+            <div class="table-responsive">
+              <table class="table table-sm">
+                <thead>
+                  <tr>
+                    <th>Turbine Model</th>
+                    <th>Manufacturer</th>
+                    <th>Number of Units</th>
+                    <th>Tilt</th>
+                    <th>Direction</th>
+                    <th>Installation Date</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for wt in wind_turbines %}
+                    <tr>
+                      <td>
+                        <a href="{% url 'powermapui:wind_turbine_detail' wt.idwindturbines.pk %}" class="text-decoration-none">
+                          {{ wt.idwindturbines.turbine_model }}
+                        </a>
+                      </td>
+                      <td>{{ wt.idwindturbines.manufacturer|default:"-" }}</td>
+                      <td>{{ wt.no_turbines }}</td>
+                      <td>
+                        {% if wt.tilt %}
+                          {{ wt.tilt }}°
+                        {% else %}
+                          -
+                        {% endif %}
+                      </td>
+                      <td>{{ wt.direction|default:"-" }}</td>
+                      <td>{{ wt.installation_date|default:"-" }}</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      {% endif %}
+    </div>
+
+    <!-- Quick Actions Sidebar -->
+    <div class="col-lg-4">
+      <div class="card mb-4">
+        <div class="card-header">
+          <h6 class="mb-0">Quick Actions</h6>
+        </div>
+        <div class="card-body">
+          <div class="d-grid gap-2">
+            <a href="{% url 'powermapui:facility_edit' facility.pk %}" class="btn btn-warning btn-sm">
+              Edit Facility
+            </a>
+            {% if facility.idtechnologies and 'wind' in facility.idtechnologies.technology_name|lower %}
+              <a href="{% url 'powermapui:facility_wind_turbine_create' %}" class="btn btn-primary btn-sm">
+                Add Wind Turbine
+              </a>
+            {% endif %}
+            <button class="btn btn-danger btn-sm" onclick="confirmDelete()">
+              Delete Facility
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Location Map Card -->
+      {% if facility.latitude and facility.longitude %}
+        <div class="card mb-4">
+          <div class="card-header">
+            <h6 class="mb-0">Location</h6>
+          </div>
+          <div class="card-body">
+            <div class="text-center">
+              <p class="mb-2"><strong>Coordinates:</strong></p>
+              <p class="mb-1">{{ facility.latitude|floatformat:6 }}, {{ facility.longitude|floatformat:6 }}</p>
+              <small class="text-muted">Lat, Lng</small>
+            </div>
+          </div>
+        </div>
+      {% endif %}
+
+      <!-- Statistics Card -->
+      <div class="card">
+        <div class="card-header">
+          <h6 class="mb-0">Statistics</h6>
+        </div>
+        <div class="card-body">
+          <div class="row text-center">
+            <div class="col-12 mb-3">
+              <h4 class="text-primary">{{ facility_scenarios.count }}</h4>
+              <small class="text-muted">Scenario{{ facility_scenarios.count|pluralize }}</small>
+            </div>
+          </div>
+          {% if facility.capacity %}
+            <hr>
+            <div class="text-center">
+              <h4 class="text-success">{{ facility.capacity|floatformat:2 }}</h4>
+              <small class="text-muted">Capacity</small>
+            </div>
+          {% endif %}
+          {% if wind_turbines %}
+            <hr>
+            <div class="text-center">
+              <h4 class="text-info">{{ wind_turbines.count }}</h4>
+              <small class="text-muted">Wind Turbine Installation{{ wind_turbines.count|pluralize }}</small>
+            </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Delete Confirmation Modal -->
+  <div class="modal fade" id="deleteModal" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Confirm Delete</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <p>Are you sure you want to delete the facility "{{ facility.facility_name }}"?</p>
+          <div class="alert alert-warning">
+            <strong>Warning:</strong> This action cannot be undone. All associated scenario relationships will be removed.
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <form method="post" action="{% url 'powermapui:facility_delete' facility.pk %}" style="display: inline;">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-danger">
+              Delete Facility
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function confirmDelete() {
+      var deleteModal = new bootstrap.Modal(document.getElementById('deleteModal'));
+      deleteModal.show();
+    }
+  </script>
+{% endblock %}

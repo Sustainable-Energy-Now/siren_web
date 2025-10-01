@@ -1,14 +1,11 @@
-# Enhanced powermapui_home_views.py with grid line support
-
-from decimal import Decimal
 from django.contrib.auth.decorators import login_required
 from django.db.models import Max, Q
-from django.http import HttpResponse, JsonResponse
+from django.http import JsonResponse
 from django.shortcuts import render
 from django.views.decorators.csrf import csrf_exempt
 from powermatchui.forms import DemandScenarioSettings
 from siren_web.database_operations import fetch_module_settings_data, fetch_scenario_settings_data
-from siren_web.models import facilities, Technologies, Scenarios, GridLines, FacilityGridConnections
+from siren_web.models import facilities, Technologies, Terminals, Scenarios, GridLines, FacilityGridConnections
 import json
 import math
 
@@ -167,7 +164,32 @@ def home(request):
         grid_lines_data.append(grid_line_data)
         
     grid_lines_json = json.dumps(grid_lines_data)
+    # Get terminals data
+    terminals_data = []
+    for terminal in Terminals.objects.filter(active=True).prefetch_related('outgoing_lines', 'incoming_lines'):
+        connected_lines = terminal.get_connected_grid_lines()
+        terminal_data = {
+            'idterminals': terminal.idterminals,
+            'terminal_name': terminal.terminal_name,
+            'terminal_code': terminal.terminal_code,
+            'terminal_type': terminal.terminal_type,
+            'primary_voltage_kv': terminal.primary_voltage_kv,
+            'secondary_voltage_kv': terminal.secondary_voltage_kv,
+            'transformer_capacity_mva': terminal.transformer_capacity_mva,
+            'latitude': terminal.latitude,
+            'longitude': terminal.longitude,
+            'active': terminal.active,
+            'owner': terminal.owner,
+            'connected_lines_count': connected_lines.count(),
+            'connected_facilities_count': terminal.get_connected_facilities_count(),
+            'total_connected_capacity': terminal.calculate_total_connected_capacity(),
+            'utilization_percent': terminal.get_utilization_percent(),
+            'popup_content': terminal.get_popup_content(),
+            'icon_type': terminal.get_terminal_icon_type()
+        }
+        terminals_data.append(terminal_data)
     
+    terminals_json = json.dumps(terminals_data)
     context = {
         'demand_weather_scenario': demand_weather_scenario,
         'demand_year': demand_year,
@@ -176,6 +198,7 @@ def home(request):
         'success_message': success_message, 
         'facilities_json': facilities_json,
         'grid_lines_json': grid_lines_json,
+        'terminals_json': terminals_json,
     }
     return render(request, 'powermapui_home.html', context)
 

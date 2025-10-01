@@ -1,13 +1,12 @@
 # signals.py
-from django.db.models.signals import post_save, m2m_changed
+from django.db.models.signals import post_save, post_delete, m2m_changed
 from django.dispatch import receiver
-from django.db import transaction
 from siren_web.models import (
     facilities, 
-    ScenariosFacilities, 
     ScenariosTechnologies, 
     Technologies, 
-    Scenarios
+    Scenarios,
+    FacilityWindTurbines
 )
 
 @receiver(post_save, sender='siren_web.ScenariosFacilities')
@@ -42,18 +41,37 @@ def add_technology_to_scenario_on_facility_add(sender, instance, created, **kwar
 def update_capacity_on_facility_change(sender, instance, **kwargs):
     """
     When a facility's capacity changes, update all related ScenariosTechnologies capacities.
+    Also handle wind farm capacity updates when wind turbines are associated.
     """
     facility = instance
     technology = facility.idtechnologies
     
+    # If this is a wind facility, calculate total capacity from wind turbines
+    if facility.is_wind_farm:
+        wind_capacity = facility.get_total_wind_capacity()
+        if wind_capacity and wind_capacity != facility.capacity:
+            # Update facility capacity to match wind turbine total
+            facility.capacity = wind_capacity
+            facility.save(update_fields=['capacity'])
+    
     # Update capacity for this technology in all scenarios where this facility exists
     for scenario in facility.scenarios.all():
-        scenario_tech = ScenariosTechnologies.objects.get(
-            idscenarios=scenario,
-            idtechnologies=technology
-        )
-        old_capacity = scenario_tech.capacity
-        new_capacity = scenario_tech.update_capacity()
+        try:
+            scenario_tech = ScenariosTechnologies.objects.get(
+                idscenarios=scenario,
+                idtechnologies=technology
+            )
+            scenario_tech.update_capacity()
+        except ScenariosTechnologies.DoesNotExist:
+            # If scenario technology doesn't exist, create it
+            merit_order = 0 if technology.technology_name == 'Load' else 999
+            scenario_tech = ScenariosTechnologies.objects.create(
+                idscenarios=scenario,
+                idtechnologies=technology,
+                merit_order=merit_order,
+                capacity=0.0
+            )
+            scenario_tech.update_capacity()
 
 # This is the key signal for M2M changes through the admin or ORM
 @receiver(m2m_changed, sender='siren_web.ScenariosFacilities')
@@ -112,6 +130,133 @@ def ensure_technology_scenario_consistency(sender, instance, created, **kwargs):
         # Update capacity
         scenario_tech.update_capacity()
 
+# === WIND TURBINE SIGNALS ===
+
+@receiver(post_save, sender='siren_web.FacilityWindTurbines')
+def update_facility_capacity_on_turbine_change(sender, instance, created, **kwargs):
+    """
+    When wind turbines are added/updated at a facility, recalculate the facility's total capacity.
+    This ensures the facility capacity reflects the sum of all wind turbine capacities.
+    """
+    facility = instance.idfacilities
+    
+    # Only update if this is a wind technology facility
+    if facility.idtechnologies.technology_name.lower() in ['onshore wind', 'offshore wind', 'offshore wind floating']:
+        # Calculate total wind capacity
+        total_wind_capacity = facility.get_total_wind_capacity()
+        
+        if total_wind_capacity != facility.capacity:
+            # Update facility capacity
+            old_capacity = facility.capacity
+            facility.capacity = total_wind_capacity
+            facility.save(update_fields=['capacity'])
+            
+            # Update all related scenario technologies
+            for scenario in facility.scenarios.all():
+                try:
+                    scenario_tech = ScenariosTechnologies.objects.get(
+                        idscenarios=scenario,
+                        idtechnologies=facility.idtechnologies
+                    )
+                    scenario_tech.update_capacity()
+                except ScenariosTechnologies.DoesNotExist:
+                    pass
+
+@receiver(post_delete, sender='siren_web.FacilityWindTurbines')
+def update_facility_capacity_on_turbine_removal(sender, instance, **kwargs):
+    """
+    When wind turbines are removed from a facility, recalculate the facility's total capacity.
+    """
+    facility = instance.idfacilities
+    
+    # Only update if this is a wind technology facility
+    if facility.idtechnologies.technology_name.lower() in ['wind', 'wind onshore', 'wind offshore']:
+        # Calculate remaining wind capacity
+        total_wind_capacity = facility.get_total_wind_capacity()
+        
+        # Update facility capacity
+        facility.capacity = total_wind_capacity
+        facility.save(update_fields=['capacity'])
+        
+        # Update all related scenario technologies
+        for scenario in facility.scenarios.all():
+            try:
+                scenario_tech = ScenariosTechnologies.objects.get(
+                    idscenarios=scenario,
+                    idtechnologies=facility.idtechnologies
+                )
+                scenario_tech.update_capacity()
+            except ScenariosTechnologies.DoesNotExist:
+                pass
+
+@receiver(post_save, sender='siren_web.WindTurbines')
+def update_facilities_on_turbine_model_change(sender, instance, **kwargs):
+    """
+    When a wind turbine model's specifications change (especially rated_power),
+    update all facilities using this turbine model.
+    """
+    wind_turbine = instance
+    
+    # Find all facility installations using this turbine model
+    installations = FacilityWindTurbines.objects.filter(
+        idwindturbines=wind_turbine,
+        is_active=True
+    ).select_related('idfacilities')
+    
+    # Update capacity for each affected facility
+    for installation in installations:
+        facility = installation.idfacilities
+        
+        # Only update if this is a wind technology facility
+        if facility.idtechnologies.technology_name.lower() in ['wind', 'wind onshore', 'wind offshore']:
+            # Recalculate total wind capacity
+            total_wind_capacity = facility.get_total_wind_capacity()
+            
+            if total_wind_capacity != facility.capacity:
+                facility.capacity = total_wind_capacity
+                facility.save(update_fields=['capacity'])
+                
+                # Update all related scenario technologies
+                for scenario in facility.scenarios.all():
+                    try:
+                        scenario_tech = ScenariosTechnologies.objects.get(
+                            idscenarios=scenario,
+                            idtechnologies=facility.idtechnologies
+                        )
+                        scenario_tech.update_capacity()
+                    except ScenariosTechnologies.DoesNotExist:
+                        pass
+
+@receiver(m2m_changed, sender=facilities.wind_turbines.through)
+def handle_facility_wind_turbine_m2m_changes(sender, instance, action, pk_set, **kwargs):
+    """
+    Handle changes to the many-to-many relationship between facilities and wind turbines.
+    This catches changes made through the admin interface or direct ORM manipulation.
+    """
+    if action not in ['post_add', 'post_remove', 'post_clear']:
+        return
+    
+    facility = instance
+    
+    # Only handle wind technology facilities
+    if facility.idtechnologies.technology_name.lower() in ['wind', 'wind onshore', 'wind offshore']:
+        # Recalculate total wind capacity
+        total_wind_capacity = facility.get_total_wind_capacity()
+        
+        if total_wind_capacity != facility.capacity:
+            facility.capacity = total_wind_capacity
+            facility.save(update_fields=['capacity'])
+            
+            # Update all related scenario technologies
+            for scenario in facility.scenarios.all():
+                try:
+                    scenario_tech = ScenariosTechnologies.objects.get(
+                        idscenarios=scenario,
+                        idtechnologies=facility.idtechnologies
+                    )
+                    scenario_tech.update_capacity()
+                except ScenariosTechnologies.DoesNotExist:
+                    pass
 
 # Utility function for bulk operations
 def sync_scenario_technologies_for_scenario(scenario):
@@ -152,3 +297,34 @@ def sync_scenario_technologies_for_scenario(scenario):
     # Update capacities for all technologies (no manual deletion needed)
     for scenario_tech in ScenariosTechnologies.objects.filter(idscenarios=scenario):
         scenario_tech.update_capacity()
+
+def sync_wind_facility_capacities():
+    """
+    Utility function to sync all wind facility capacities with their wind turbine totals.
+    Useful for data migrations or fixing inconsistencies.
+    """
+    wind_facilities = facilities.objects.filter(
+        idtechnologies__technology_name__icontains='wind'
+    ).prefetch_related('facilitywindturbines_set__idwindturbines')
+    
+    updated_count = 0
+    for facility in wind_facilities:
+        total_wind_capacity = facility.get_total_wind_capacity()
+        
+        if total_wind_capacity != facility.capacity:
+            facility.capacity = total_wind_capacity
+            facility.save(update_fields=['capacity'])
+            updated_count += 1
+            
+            # Update related scenario technologies
+            for scenario in facility.scenarios.all():
+                try:
+                    scenario_tech = ScenariosTechnologies.objects.get(
+                        idscenarios=scenario,
+                        idtechnologies=facility.idtechnologies
+                    )
+                    scenario_tech.update_capacity()
+                except ScenariosTechnologies.DoesNotExist:
+                    pass
+    
+    return updated_count

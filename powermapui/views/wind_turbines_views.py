@@ -1,12 +1,16 @@
-from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib import messages
 from django.core.paginator import Paginator
+from django.shortcuts import render, get_object_or_404, redirect
 from django.db.models import Q
+from django.http import JsonResponse
 from django.views.decorators.http import require_POST
 from siren_web.models import WindTurbines, FacilityWindTurbines, TurbinePowerCurves, facilities
 
 def wind_turbines_list(request):
     """List all wind turbines with search and pagination"""
+    demand_year = request.session.get('demand_year', '')  # Get demand_year and scenario from session or default to empty string
+    scenario= request.session.get('scenario', '')
+    config_file = request.session.get('config_file')
     search_query = request.GET.get('search', '')
     manufacturer_filter = request.GET.get('manufacturer', '')
     application_filter = request.GET.get('application', '')
@@ -39,6 +43,9 @@ def wind_turbines_list(request):
     page_obj = paginator.get_page(page_number)
     
     context = {
+        'demand_year': demand_year,
+        'scenario': scenario,
+        'config_file': config_file,
         'page_obj': page_obj,
         'search_query': search_query,
         'manufacturer_filter': manufacturer_filter,
@@ -52,6 +59,9 @@ def wind_turbines_list(request):
 
 def wind_turbine_detail(request, pk):
     """Detail view for a specific wind turbine"""
+    demand_year = request.session.get('demand_year', '')  # Get demand_year and scenario from session or default to empty string
+    scenario= request.session.get('scenario', '')
+    config_file = request.session.get('config_file')
     turbine = get_object_or_404(WindTurbines, pk=pk)
     
     # Get facilities using this turbine
@@ -70,6 +80,9 @@ def wind_turbine_detail(request, pk):
     total_capacity = sum(inst.total_capacity or 0 for inst in facility_installations)
     
     context = {
+        'demand_year': demand_year,
+        'scenario': scenario,
+        'config_file': config_file,
         'turbine': turbine,
         'facility_installations': facility_installations,
         'power_curves': power_curves,
@@ -122,7 +135,7 @@ def wind_turbine_create(request):
             )
             
             messages.success(request, f'Wind turbine "{turbine_model}" created successfully.')
-            return redirect('wind_turbine_detail', pk=turbine.pk)
+            return redirect('powermapui:wind_turbine_detail', pk=turbine.pk)
             
         except ValueError as e:
             messages.error(request, 'Invalid numeric value provided.')
@@ -187,7 +200,7 @@ def wind_turbine_edit(request, pk):
             turbine.save()
             
             messages.success(request, f'Wind turbine "{turbine_model}" updated successfully.')
-            return redirect('wind_turbine_detail', pk=turbine.pk)
+            return redirect('powermapui:wind_turbine_detail', pk=turbine.pk)
             
         except ValueError as e:
             messages.error(request, 'Invalid numeric value provided.')
@@ -223,7 +236,7 @@ def wind_turbine_delete(request, pk):
             facility_list += f' and {len(installations) - 3} others'
         
         messages.error(request, f'Cannot delete turbine "{turbine.turbine_model}" as it is currently installed at: {facility_list}')
-        return redirect('wind_turbine_detail', pk=pk)
+        return redirect('powermapui:wind_turbine_detail', pk=pk)
     
     turbine_name = turbine.turbine_model
     turbine.delete()
@@ -231,6 +244,9 @@ def wind_turbine_delete(request, pk):
     return redirect('wind_turbines_list')
 
 def facility_wind_turbines_list(request):
+    demand_year = request.session.get('demand_year', '')  # Get demand_year and scenario from session or default to empty string
+    scenario= request.session.get('scenario', '')
+    config_file = request.session.get('config_file')
     """List all facility wind turbine installations"""
     search_query = request.GET.get('search', '')
     facility_filter = request.GET.get('facility', '')
@@ -268,6 +284,9 @@ def facility_wind_turbines_list(request):
     page_obj = paginator.get_page(page_number)
     
     context = {
+        'demand_year': demand_year,
+        'scenario': scenario,
+        'config_file': config_file,
         'page_obj': page_obj,
         'search_query': search_query,
         'facility_filter': facility_filter,
@@ -327,7 +346,7 @@ def facility_wind_turbine_create(request):
             )
             
             messages.success(request, f'Wind turbine installation created successfully for {facility.facility_name}.')
-            return redirect('facility_wind_turbines_list')
+            return redirect('powermapui:facility_wind_turbines_list')
             
         except ValueError as e:
             messages.error(request, 'Invalid numeric value provided.')
@@ -372,7 +391,7 @@ def facility_wind_turbine_edit(request, pk):
             installation.save()
             
             messages.success(request, f'Wind turbine installation updated successfully.')
-            return redirect('facility_wind_turbines_list')
+            return redirect('powermapui:facility_wind_turbines_list')
             
         except ValueError as e:
             messages.error(request, 'Invalid numeric value provided.')
@@ -392,4 +411,39 @@ def facility_wind_turbine_delete(request, pk):
     
     installation.delete()
     messages.success(request, f'Removed {turbine_model} installation from {facility_name}.')
-    return redirect('facility_wind_turbines_list')
+    return redirect('powermapui:facility_wind_turbines_list')
+
+def get_turbines_json(request):
+    """Return wind turbines data as JSON for frontend consumption"""
+    turbines = WindTurbines.objects.all().values(
+        'idwindturbines',
+        'turbine_model',
+        'manufacturer',
+        'application',
+        'hub_height',
+        'rated_power',
+        'rotor_diameter'
+    )
+    
+    # Group turbines by application for easier frontend consumption
+    turbines_by_app = {
+        'onshore': [],
+        'offshore': [],
+        'floating': []
+    }
+    
+    for turbine in turbines:
+        if turbine['application'] in turbines_by_app:
+            turbines_by_app[turbine['application']].append({
+                'id': turbine['idwindturbines'],
+                'model': turbine['turbine_model'],
+                'manufacturer': turbine['manufacturer'],
+                'capacity': turbine['rated_power'],
+                'hub_height': turbine['hub_height'],
+                'rotor_diameter': turbine['rotor_diameter']
+            })
+    
+    return JsonResponse({
+        'turbines': list(turbines),
+        'turbines_by_application': turbines_by_app
+    })

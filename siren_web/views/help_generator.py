@@ -623,69 +623,69 @@ class SirenWebHelpGenerator:
             }}
         }});
         
-        // TOC click handlers
-        document.addEventListener('DOMContentLoaded', function() {{
-            document.querySelectorAll('.toc-link').forEach(link => {{
-                link.addEventListener('click', function(e) {{
+                // TOC click handlers
+        document.addEventListener("DOMContentLoaded", function () {{
+            const tocLinks = document.querySelectorAll(".toc-link");
+            const tocSubLinks = document.querySelectorAll(".toc-sublink");
+            const pageSections = document.querySelectorAll(".page-section");
+            const currentPage = document.getElementById("currentPage");
+
+            // Handle main section navigation
+            tocLinks.forEach(link => {{
+                link.addEventListener("click", function (e) {{
                     e.preventDefault();
-                    const sectionIndex = parseInt(this.dataset.section);
-                    showSection(sectionIndex);
+
+                    const sectionIndex = this.dataset.section;
+
+                    // Activate the correct section
+                    pageSections.forEach(sec => {{
+                        sec.classList.toggle("active", sec.dataset.section === sectionIndex);
+                    }});
+
+                    // Update TOC link active state
+                    tocLinks.forEach(l => l.classList.remove("active"));
+                    this.classList.add("active");
+
+                    // Update page number
+                    if (currentPage) currentPage.textContent = parseInt(sectionIndex) + 1;
+
+                    // Scroll to top smoothly
+                    window.scrollTo({{ top: 0, behavior: "smooth" }});
                 }});
             }});
-            
-            // Initialize
-            updateNavigationButtons();
-            document.getElementById('totalPages').textContent = totalSections;
-        }});
-        
-        document.addEventListener('DOMContentLoaded', function() {{
-            // Existing TOC main section handlers
-            document.querySelectorAll('.toc-link').forEach(link => {{
-                link.addEventListener('click', function(e) {{
+
+            // Handle subsection navigation
+            tocSubLinks.forEach(link => {{
+                link.addEventListener("click", function (e) {{
                     e.preventDefault();
-                    const sectionIndex = parseInt(this.dataset.section);
-                    showSection(sectionIndex);
-                }});
-            }});
-            
-            // NEW: Add subsection handlers
-            document.querySelectorAll('.toc-sublink').forEach(link => {{
-                link.addEventListener('click', function(e) {{
-                    e.preventDefault();
-                    const sectionIndex = parseInt(this.dataset.section);
+
+                    const sectionIndex = this.dataset.section;
                     const subsectionId = this.dataset.subsection;
-                    
-                    // First, show the parent section
-                    showSection(sectionIndex);
-                    
-                    // Then scroll to the subsection within that section
+
+                    // 1️⃣ Activate correct section first
+                    pageSections.forEach(sec => {{
+                        sec.classList.toggle("active", sec.dataset.section === sectionIndex);
+                    }});
+
+                    // 2️⃣ Delay scroll until browser has rendered section
                     setTimeout(() => {{
-                        const subsectionElement = document.querySelector(`#${{subsectionId}}`);
-                        if (subsectionElement) {{
-                            // Scroll the content area to the subsection
-                            const contentArea = document.querySelector('.content');
-                            const elementTop = subsectionElement.offsetTop - contentArea.offsetTop;
-                            contentArea.scrollTo({{
-                                top: elementTop - 20, // Add some padding
-                                behavior: 'smooth'
-                            }});
-                            
-                            // Also highlight the subsection temporarily
-                            subsectionElement.style.backgroundColor = 'rgba(102, 126, 234, 0.1)';
+                        const target = document.getElementById(subsectionId);
+                        if (target) {{
+                            target.scrollIntoView({{ behavior: "smooth", block: "center" }});
+
+                            // 3️⃣ Temporary highlight
+                            target.style.transition = "background-color 0.5s ease";
+                            const originalBg = target.style.backgroundColor;
+                            target.style.backgroundColor = "#fffa9e"; // light yellow
                             setTimeout(() => {{
-                                subsectionElement.style.backgroundColor = '';
-                            }}, 2000);
+                                target.style.backgroundColor = originalBg;
+                            }}, 1200);
                         }}
-                    }}, 100); // Small delay to ensure section is shown first
+                    }}, 100); // wait a bit to ensure section is visible
                 }});
             }});
-            
-            // Initialize
-            updateNavigationButtons();
-            document.getElementById('totalPages').textContent = totalSections;
         }});
-        
-        
+
     </script>
 </body>
 </html>'''

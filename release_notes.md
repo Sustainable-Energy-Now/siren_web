@@ -33,4 +33,19 @@
 - Feature: Improve Create Variants Facility ([#13](https://github.com/Sustainable-Energy-Now/siren_web/issues/13))
 ---
 
+## Version 3.4.1 - September 27, 2025
+### 🆕 New Features
+- Feature: Add Terminals to Maps ([#14](https://github.com/Sustainable-Energy-Now/siren_web/issues/14))
+---
+
+## Version 3.5.0 - September 29, 2025
+### 🆕 New Features
+- Feature: Wind Turbine Database Source ([#12](https://github.com/Sustainable-Energy-Now/siren_web/issues/12))
+- Feature: Facilities CRUD ([#15](https://github.com/Sustainable-Energy-Now/siren_web/issues/15))
+
+## Version 3.5.1 - October 1, 2025
+### 🐛 Bug Fixes
+- Help Sub-section Navigation ([#16](https://github.com/Sustainable-Energy-Now/siren_web/issues/16))
+
+---
 *For technical support or feature requests, please contact the Sustainable Energy Now Webmaster.*
