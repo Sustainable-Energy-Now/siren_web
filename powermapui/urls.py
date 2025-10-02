@@ -2,30 +2,31 @@
 from django.urls import path, include
 from django.contrib.auth import views as auth_views
 from powermapui.views import crud_scenario_views, facilities_views, powermapui_home_views,  \
-    power_views, table_update_views, technologies_views, terminals_views, wind_turbines_views
+    map_views, power_views, table_update_views, technologies_views, terminals_views, wind_turbines_views
 app_name = 'powermapui'
 
 urlpatterns = [
         # Powermap home
-    path('powermapui/', powermapui_home_views.home, name='powermapui_home'),
-    path('add_facility/', powermapui_home_views.add_facility, name='add_facility'),
-    path('get_facilities/', powermapui_home_views.get_facilities_for_scenario, name='get_facilities_for_scenario'),
-    path('get_technologies/', powermapui_home_views.get_technologies, name='get_technologies'),
+    path('powermapui/', powermapui_home_views.powermapui_home, name='powermapui_home'),
+    path('map/', map_views.home, name='map'),
+    path('add_facility/', map_views.add_facility, name='add_facility'),
+    path('get_facilities/', map_views.get_facilities_for_scenario, name='get_facilities_for_scenario'),
+    path('get_technologies/', map_views.get_technologies, name='get_technologies'),
 
         # Facility-Grid Connection Management URLs
-    path('facility/<int:facility_id>/manage_connections/', powermapui_home_views.manage_facility_grid_connections, name='manage_facility_grid_connections'),
-    path('facility/<int:facility_id>/connections/', powermapui_home_views.get_facility_grid_connections, name='get_facility_grid_connections'),
-    path('facility/<int:facility_id>/details/', powermapui_home_views.get_facility_details, name='get_facility_details'),
-    path('facility/<int:facility_id>/performance/', powermapui_home_views.calculate_facility_performance, name='calculate_facility_performance'),
+    path('facility/<int:facility_id>/manage_connections/', map_views.manage_facility_grid_connections, name='manage_facility_grid_connections'),
+    path('facility/<int:facility_id>/connections/', map_views.get_facility_grid_connections, name='get_facility_grid_connections'),
+    path('facility/<int:facility_id>/details/', map_views.get_facility_details, name='get_facility_details'),
+    path('facility/<int:facility_id>/performance/', map_views.calculate_facility_performance, name='calculate_facility_performance'),
     
     # Grid Line Management URLs
-    path('grid_line/<int:grid_line_id>/details/', powermapui_home_views.get_grid_line_details, name='get_grid_line_details'),
-    path('create_grid_line/', powermapui_home_views.create_grid_line, name='create_grid_line'),
-    path('get_grid_lines/', powermapui_home_views.get_grid_lines, name='get_grid_lines'),
-    path('find_nearest_grid_lines/', powermapui_home_views.find_nearest_grid_lines, name='find_nearest_grid_lines'),
+    path('grid_line/<int:grid_line_id>/details/', map_views.get_grid_line_details, name='get_grid_line_details'),
+    path('create_grid_line/', map_views.create_grid_line, name='create_grid_line'),
+    path('get_grid_lines/', map_views.get_grid_lines, name='get_grid_lines'),
+    path('find_nearest_grid_lines/', map_views.find_nearest_grid_lines, name='find_nearest_grid_lines'),
     
     # Loss Calculations
-    path('calculate_grid_losses/', powermapui_home_views.calculate_grid_losses, name='calculate_grid_losses'),
+    path('calculate_grid_losses/', map_views.calculate_grid_losses, name='calculate_grid_losses'),
     
     # Terminal Management URLs
     path('add_terminal/', terminals_views.add_terminal, name='add_terminal'),

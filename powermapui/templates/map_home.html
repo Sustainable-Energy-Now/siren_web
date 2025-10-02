@@ -1,0 +1,3237 @@
+<!-- powermapui/templates/map_home.html -->
+{% extends 'powermapui_base.html' %}
+{% load static %}
+{% block powermapui_content %}
+
+<p>Powermap is the Siren module that models the renewable energy generation in the South West Interconnected System (SWIS).  
+    Power Map takes as input weather and facilities data. Powermap uses the System Advisor Model (SAM) developed by the National Renewable Energy Laboratory (NREL).
+    To use Powermap, begin by selecting a Demand Year and Scenario.
+    Facilities are grid infrastructure that use a particular technology. 
+    A Scenario is a collection of Facilities of different technologies. Output from Powermap
+    is used as input to the Powermatch module.
+</p>
+
+<div class="map-controls" style="margin-bottom: 10px;">
+    <form method="post">
+        {% csrf_token %}
+        {{ demand_weather_scenario.demand_year.label_tag }}
+        {{ demand_weather_scenario.demand_year }}
+        {{ demand_weather_scenario.scenario.label_tag }}
+        {{ demand_weather_scenario.scenario }}
+        <button name="apply_settings" type="submit" class="btn-custom-swish2">Apply Settings</button>
+    </form>
+    
+    <!-- Add New Facility -->
+    {% if scenario != 'Current' and scenario %}
+        <button id="addFacilityBtn" class="btn btn-primary" type="button">
+            Add New Facility
+        </button>
+        <button id="addTerminalBtn" class="btn btn-warning" type="button">
+            Add New Terminal
+        </button>
+        <button id="addGridLineBtn" class="btn btn-success" type="button">
+            Add New Grid Line
+        </button>
+        <button id="manageConnectionsBtn" class="btn btn-info" type="button">
+            Manage Connections
+        </button>
+    {% else %}
+        {% if scenario == 'Current' %}
+            <button class="btn btn-secondary" type="button" disabled title="Cannot add facilities to the 'Current' scenario">
+                Add New Facility (Disabled)
+            </button>
+            <button class="btn btn-secondary" type="button" disabled title="Cannot add grid lines to the 'Current' scenario">
+                Add New Grid Line (Disabled)
+            </button>
+            <button id="manageConnectionsBtn" class="btn btn-info" type="button">
+                Manage Connections
+            </button>
+            <small class="text-muted d-block mt-1">
+                Select a different scenario to add new facilities and manage connections
+            </small>
+        {% else %}
+            <button class="btn btn-secondary" type="button" disabled title="Please select a scenario first">
+                Add New Facility (Disabled)
+            </button>
+            <button class="btn btn-secondary" type="button" disabled title="Please select a scenario first">
+                Add New Grid Line (Disabled)
+            </button>
+            <button class="btn btn-secondary" type="button" disabled title="Please select a scenario first">
+                Manage Connections (Disabled)
+            </button>
+            <small class="text-muted d-block mt-1">
+                Please select a scenario first
+            </small>
+        {% endif %}
+    {% endif %}
+    
+    <!-- Grid Line Controls -->
+    <div style="margin-top: 10px; text-align: center;">
+        <button onclick="toggleGridLineLabels()" class="btn btn-secondary btn-sm" style="margin: 2px;">
+            Toggle Grid Line Labels
+        </button>
+        <button onclick="showGridUtilization()" class="btn btn-secondary btn-sm" style="margin: 2px;">
+            Show Grid Utilization
+        </button>
+        <button onclick="showConnectionsOverview()" class="btn btn-secondary btn-sm" style="margin: 2px;">
+            Connections Overview
+        </button>
+    </div>
+</div>
+
+<br>
+{% if not scenario or not demand_year %}
+    <p>Demand Year and Scenario must be specified.</p>
+{% endif %}
+
+<!-- Connection Management Modal -->
+<div id="connectionManagementModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 10000;">
+    <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 20px; border-radius: 8px; max-width: 800px; max-height: 80vh; overflow-y: auto;">
+        <h3>Manage Grid Connections</h3>
+        <div id="connectionManagementContent">
+            <p>Select a facility from the map to manage its grid connections.</p>
+        </div>
+        <div style="margin-top: 20px; text-align: right;">
+            <button onclick="closeConnectionManagement()" class="btn btn-secondary">Close</button>
+        </div>
+    </div>
+</div>
+
+<!-- Grid Utilization Overview Modal -->
+<div id="gridUtilizationModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 10000;">
+    <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 20px; border-radius: 8px; max-width: 900px; max-height: 80vh; overflow-y: auto;">
+        <h3>Grid Utilization Overview</h3>
+        <div id="gridUtilizationContent">
+            <p>Loading grid utilization data...</p>
+        </div>
+        <div style="margin-top: 20px; text-align: right;">
+            <button onclick="closeGridUtilization()" class="btn btn-secondary">Close</button>
+        </div>
+    </div>
+</div>
+
+<!-- Add Terminal Form (initially hidden) - Add after your existing forms -->
+<div id="addTerminalForm" style="display: none; margin-bottom: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
+    <h4 style="padding: 15px; background-color: #fff3cd; margin: 0; border-top-left-radius: 8px; border-top-right-radius: 8px; border-bottom: 1px solid #dee2e6;">Add New Terminal</h4>
+    
+    <div style="padding: 15px; background-color: white;">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+            <div>
+                <label for="terminal_name">Terminal Name:</label>
+                <input type="text" id="terminal_name" class="form-control" required>
+            </div>
+            <div>
+                <label for="terminal_code">Terminal Code:</label>
+                <input type="text" id="terminal_code" class="form-control" required>
+            </div>
+            <div>
+                <label for="terminal_type">Terminal Type:</label>
+                <select id="terminal_type" class="form-control">
+                    <option value="substation">Substation</option>
+                    <option value="switching_station">Switching Station</option>
+                    <option value="distribution_substation">Distribution Substation</option>
+                    <option value="transmission_substation">Transmission Substation</option>
+                    <option value="converter_station">Converter Station</option>
+                    <option value="terminal_station">Terminal Station</option>
+                </select>
+            </div>
+            <div>
+                <label for="primary_voltage_kv">Primary Voltage (kV):</label>
+                <input type="number" id="primary_voltage_kv" class="form-control" step="0.1" min="0" required>
+            </div>
+            <div>
+                <label for="secondary_voltage_kv">Secondary Voltage (kV):</label>
+                <input type="number" id="secondary_voltage_kv" class="form-control" step="0.1" min="0">
+            </div>
+            <div>
+                <label for="transformer_capacity_mva">Transformer Capacity (MVA):</label>
+                <input type="number" id="transformer_capacity_mva" class="form-control" step="0.1" min="0">
+            </div>
+            <div>
+                <label for="bay_count">Number of Bays:</label>
+                <input type="number" id="bay_count" class="form-control" step="1" min="0">
+            </div>
+            <div>
+                <label for="terminal_owner">Owner:</label>
+                <input type="text" id="terminal_owner" class="form-control">
+            </div>
+        </div>
+        
+        <div style="margin-top: 15px;">
+            <label for="terminal_description">Description:</label>
+            <textarea id="terminal_description" class="form-control" rows="3"></textarea>
+        </div>
+        
+        <div style="margin-top: 15px;">
+            <div style="font-weight: 500; margin-bottom: 5px;">Location:</div>
+            <div id="terminal-location-display" style="padding: 10px; background-color: #f8f9fa; border-radius: 4px;">
+                <span id="terminal_selected_lat">Latitude: (Click on map)</span><br>
+                <span id="terminal_selected_lng">Longitude: (Click on map)</span>
+            </div>
+            <div class="technology-info">Click on the map to select terminal location</div>
+        </div>
+        
+        <div style="display: flex; justify-content: space-between; margin-top: 20px;">
+            <button id="cancelAddTerminal" class="btn btn-secondary">Cancel</button>
+            <button id="submitAddTerminal" class="btn-custom-swish2">Save Terminal</button>
+        </div>
+    </div>
+</div>
+
+<!-- Terminal Details Modal -->
+<div id="terminalDetailsModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 10000;">
+    <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 20px; border-radius: 8px; max-width: 800px; max-height: 80vh; overflow-y: auto;">
+        <h3 id="terminalDetailsTitle">Terminal Details</h3>
+        <div id="terminalDetailsContent">
+            <p>Loading terminal details...</p>
+        </div>
+        <div style="margin-top: 20px; text-align: right;">
+            <button onclick="closeTerminalDetails()" class="btn btn-secondary">Close</button>
+        </div>
+    </div>
+</div>
+
+<!-- Add Grid Line Form (initially hidden) -->
+<div id="addGridLineForm" style="display: none; margin-bottom: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
+    <h4 style="padding: 15px; background-color: #e8f5e8; margin: 0; border-top-left-radius: 8px; border-top-right-radius: 8px; border-bottom: 1px solid #dee2e6;">Add New Grid Line</h4>
+    
+    <div style="padding: 15px; background-color: white;">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+            <div>
+                <label for="grid_line_name">Line Name:</label>
+                <input type="text" id="grid_line_name" class="form-control" required>
+            </div>
+            <div>
+                <label for="grid_line_code">Line Code:</label>
+                <input type="text" id="grid_line_code" class="form-control" required>
+            </div>
+            <div>
+                <label for="grid_line_type">Line Type:</label>
+                <select id="grid_line_type" class="form-control">
+                    <option value="transmission">Transmission</option>
+                    <option value="subtransmission">Sub-transmission</option>
+                    <option value="distribution">Distribution</option>
+                </select>
+            </div>
+            <div>
+                <label for="grid_voltage_level">Voltage Level (kV):</label>
+                <input type="number" id="grid_voltage_level" class="form-control" step="0.1" min="0" value="132">
+            </div>
+            <div>
+                <label for="grid_thermal_capacity">Thermal Capacity (MW):</label>
+                <input type="number" id="grid_thermal_capacity" class="form-control" step="0.1" min="0" value="100">
+            </div>
+            <div>
+                <label for="grid_resistance">Resistance per km (Ω/km):</label>
+                <input type="number" id="grid_resistance" class="form-control" step="0.001" min="0" value="0.1">
+            </div>
+        </div>      
+        
+        <div style="margin-top: 15px;">
+            <label>Grid Line Connection:</label>
+            
+            <div style="margin-bottom: 10px;">
+                <label>
+                    <input type="radio" name="grid_line_connection_method" value="terminals" checked> 
+                    Connect between terminals
+                </label>
+                <div class="technology-info">Select existing terminals as endpoints</div>
+            </div>
+            
+            <div style="margin-bottom: 10px;">
+                <label>
+                    <input type="radio" name="grid_line_connection_method" value="coordinates"> 
+                    Use map coordinates
+                </label>
+                <div class="technology-info">Click two points on the map to define endpoints</div>
+            </div>
+            
+            <!-- Terminal Selection Section -->
+            <div id="terminal-selection" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px;">
+                <div>
+                    <label for="from_terminal_select">From Terminal:</label>
+                    <select id="from_terminal_select" class="form-control">
+                        <option value="">Select Terminal</option>
+                        <!-- Options will be loaded dynamically -->
+                    </select>
+                </div>
+                <div>
+                    <label for="to_terminal_select">To Terminal:</label>
+                    <select id="to_terminal_select" class="form-control">
+                        <option value="">Select Terminal</option>
+                        <!-- Options will be loaded dynamically -->
+                    </select>
+                </div>
+            </div>
+            
+            <!-- Coordinate Selection Section (initially hidden) -->
+            <div id="coordinate-selection" style="display: none; padding: 10px; background-color: #f8f9fa; border-radius: 4px; margin-top: 10px;">
+                <div>From: <span id="grid_from_coords">Click on map for start point</span></div>
+                <div>To: <span id="grid_to_coords">Click on map for end point</span></div>
+                <div>Length: <span id="grid_length_display">0 km</span></div>
+            </div>
+            
+            <div id="connection-info" style="margin-top: 10px; padding: 8px; background: #e3f2fd; border-radius: 4px; display: none;">
+                <strong>Connection Details:</strong>
+                <div id="connection-details"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Facility Form (initially hidden) -->
+<div id="addFacilityForm" style="display: none; margin-bottom: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
+    <h4 style="padding: 15px; background-color: #f8f9fa; margin: 0; border-top-left-radius: 8px; border-top-right-radius: 8px; border-bottom: 1px solid #dee2e6;">Add New Facility</h4>
+    
+    <div style="padding: 15px; background-color: white;">
+        <div style="margin-bottom: 15px;">
+            <label for="facility_name">Facility Name:</label>
+            <input type="text" id="facility_name" class="form-control" required>
+        </div>
+        
+        <div style="margin-bottom: 15px;">
+            <label for="technology_id">Technology:</label>
+            <select id="technology_id" class="form-control" required>
+                <option value="">Select Technology</option>
+                <!-- Options will be loaded dynamically -->
+            </select>
+            <div class="technology-info" id="technology-description"></div>
+        </div>
+        
+        <div style="margin-bottom: 15px;">
+            <label for="capacity">Capacity (MW):</label>
+            <input type="number" id="capacity" class="form-control" step="0.01" min="0">
+            <div class="technology-info">Total facility capacity in megawatts</div>
+        </div>
+        
+        <!-- Grid Connection Section -->
+        <div style="margin-bottom: 15px; border: 1px solid #ddd; padding: 15px; border-radius: 5px;">
+            <h5>Grid Connection Strategy</h5>
+            <div style="margin-bottom: 10px;">
+                <label>
+                    <input type="radio" name="grid_connection_option" value="auto" checked> 
+                    Auto-connect to optimal grid line
+                </label>
+                <div class="technology-info">Automatically selects the best available grid line based on distance, capacity, and utilization</div>
+            </div>
+            <div style="margin-bottom: 10px;">
+                <label>
+                    <input type="radio" name="grid_connection_option" value="select"> 
+                    Select specific grid line
+                </label>
+                <select id="existing_grid_lines" class="form-control" style="margin-top: 5px; display: none;">
+                    <option value="">Select Grid Line</option>
+                </select>
+                <div class="technology-info" style="display: none;" id="selected_line_info"></div>
+            </div>
+            <div style="margin-bottom: 10px;">
+                <label>
+                    <input type="radio" name="grid_connection_option" value="create"> 
+                    Create new dedicated grid line
+                </label>
+                <div class="technology-info">Creates a new grid line specifically for this facility</div>
+            </div>
+            
+            <!-- Connection Requirements -->
+            <div id="connection_requirements" style="margin-top: 15px; padding: 10px; background: #f8f9fa; border-radius: 4px; display: none;">
+                <h6>Connection Requirements</h6>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                    <div>
+                        <label for="min_voltage">Minimum Voltage (kV):</label>
+                        <input type="number" id="min_voltage" class="form-control" value="66" min="0">
+                    </div>
+                    <div>
+                        <label for="max_distance">Max Distance (km):</label>
+                        <input type="number" id="max_distance" class="form-control" value="50" min="0">
+                    </div>
+                </div>
+            </div>
+            
+            <div id="nearby_grid_lines" style="margin-top: 15px; display: none;">
+                <strong>Recommended Grid Lines:</strong>
+                <div id="nearby_lines_list"></div>
+            </div>
+        </div>
+        
+        <!-- Wind turbine specific fields (initially hidden) -->
+        <div id="windTurbineFields" style="display: none;">
+            <h5>Wind Turbine Details</h5>
+            <div style="margin-bottom: 10px;">
+                <label for="turbine">Turbine Model:</label>
+                <select id="turbine" class="form-control">
+                    <option value="">Select Turbine Model</option>
+                    <!-- Options will be populated dynamically -->
+                </select>
+            </div>
+            <div style="margin-bottom: 10px;">
+                <label for="hub_height">Hub Height (m):</label>
+                <input type="number" id="hub_height" class="form-control" step="0.1" min="0">
+                <div class="technology-info">Height from ground to hub in meters</div>
+            </div>
+            <div style="margin-bottom: 10px;">
+                <label for="no_turbines">Number of Turbines:</label>
+                <input type="number" id="no_turbines" class="form-control" step="1" min="1" value="1">
+            </div>
+            <div style="margin-bottom: 10px;">
+                <label for="tilt">Tilt (degrees):</label>
+                <input type="number" id="tilt" class="form-control" step="1" min="0" max="90" value="5">
+                <div class="technology-info">Tilt angle of the rotors (typically 5° for onshore, 0° for offshore)</div>
+            </div>
+        </div>
+        
+        <div style="margin-bottom: 15px;">
+            <label>Location:</label>
+            <div id="location-display" style="padding: 10px; background-color: #f8f9fa; border-radius: 4px;">
+                <span id="selected_lat">Latitude: (Click on map)</span><br>
+                <span id="selected_lng">Longitude: (Click on map)</span>
+            </div>
+            <div class="technology-info">Click on the map to select facility location</div>
+        </div>
+        
+        <div style="display: flex; justify-content: space-between; margin-top: 20px;">
+            <button id="cancelAddFacility" class="btn btn-secondary">Cancel</button>
+            <button id="submitAddFacility" class="btn-custom-swish2">Save Facility</button>
+        </div>
+    </div>
+</div>
+
+<!-- Leaflet.js Map -->
+<div id="map" style="height: 600px; width: 100%;"></div>
+
+<!-- Leaflet.js Library -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+     integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+     crossorigin=""/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+crossorigin=""></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet-omnivore/0.3.4/leaflet-omnivore.min.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/shramov/leaflet-plugins/layer/vector/KML.js"></script>
+
+<style>
+    .facility-details {
+        font-family: Arial, sans-serif;
+        max-width: 800px;
+    }
+    
+    .facility-details h3 {
+        color: #333;
+        border-bottom: 2px solid #007bff;
+        padding-bottom: 10px;
+        margin-bottom: 20px;
+    }
+    
+    .facility-details h4 {
+        color: #666;
+        margin-top: 20px;
+        margin-bottom: 10px;
+        font-size: 16px;
+        font-weight: 600;
+    }
+    
+    .facility-details .table {
+        margin-bottom: 0;
+        font-size: 13px;
+    }
+    
+    .facility-details .table td {
+        padding: 4px 8px;
+        border-top: 1px solid #dee2e6;
+        vertical-align: top;
+    }
+    
+    .facility-details .table td:first-child {
+        font-weight: 500;
+        background-color: #f8f9fa;
+        width: 40%;
+    }
+    
+    .grid-connection-item {
+        transition: all 0.2s ease;
+        cursor: pointer;
+        border: 1px solid #ddd;
+        margin: 5px 0;
+        padding: 10px;
+        border-radius: 4px;
+        position: relative;
+    }
+    
+    .grid-connection-item:hover {
+        background-color: #e3f2fd !important;
+        transform: translateY(-1px);
+        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+    
+    .grid-connection-item.primary {
+        background-color: #e8f5e8;
+        border-color: #28a745;
+    }
+    
+    .grid-connection-item .connection-actions {
+        position: absolute;
+        top: 5px;
+        right: 5px;
+        opacity: 0;
+        transition: opacity 0.2s;
+    }
+    
+    .grid-connection-item:hover .connection-actions {
+        opacity: 1;
+    }
+    
+    .utilization-bar {
+        width: 100%;
+        height: 20px;
+        background-color: #e9ecef;
+        border-radius: 10px;
+        overflow: hidden;
+        margin: 5px 0;
+    }
+    
+    .utilization-fill {
+        height: 100%;
+        transition: width 0.3s ease;
+        border-radius: 10px;
+    }
+    
+    .utilization-low { background-color: #28a745; }
+    .utilization-medium { background-color: #ffc107; }
+    .utilization-high { background-color: #fd7e14; }
+    .utilization-critical { background-color: #dc3545; }
+    
+    .technology-info {
+        font-size: 0.85em;
+        color: #666;
+        margin-top: 2px;
+    }
+    
+    .facility-tooltip {
+        background: rgba(0, 0, 0, 0.8);
+        color: white;
+        border: none;
+        border-radius: 4px;
+        font-size: 12px;
+        padding: 5px 8px;
+    }
+
+    .facility-popup h5 {
+        margin: 0 0 10px 0;
+        color: #333;
+    }
+
+    .facility-popup p {
+        margin: 5px 0;
+        font-size: 13px;
+    }
+
+    .highlighted-facility {
+        filter: drop-shadow(0 0 10px #ff6b6b);
+        animation: pulse 1s infinite;
+    }
+
+    @keyframes pulse {
+        0% { transform: scale(1); }
+        50% { transform: scale(1.1); }
+        100% { transform: scale(1); }
+    }
+
+    .terminal-marker {
+        border-radius: 50%;
+        border: 2px solid #333;
+        background-color: rgba(255, 255, 255, 0.9);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: bold;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+
+    .terminal-marker:hover {
+        transform: scale(1.1);
+        box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    }
+
+    .terminal-extra-high {
+        background-color: #8B0000;
+        color: white;
+        width: 40px;
+        height: 40px;
+        font-size: 12px;
+    }
+
+    .terminal-high {
+        background-color: #FF4500;
+        color: white;  
+        width: 35px;
+        height: 35px;
+        font-size: 11px;
+    }
+
+    .terminal-medium {
+        background-color: #FFA500;
+        color: black;
+        width: 30px;
+        height: 30px;
+        font-size: 10px;
+    }
+
+    .terminal-low {
+        background-color: #FFFF00;
+        color: black;
+        width: 25px;
+        height: 25px;
+        font-size: 9px;
+    }
+
+    .terminal-popup {
+        font-family: Arial, sans-serif;
+        max-width: 300px;
+    }
+
+    .terminal-popup h4 {
+        margin: 0 0 10px 0;
+        color: #333;
+    }
+
+    .terminal-popup table {
+        margin: 0;
+        font-size: 12px;
+        width: 100%;
+    }
+
+    .terminal-popup td {
+        padding: 2px 5px;
+        border: none;
+    }
+
+    .terminal-details {
+        font-family: Arial, sans-serif;
+        max-width: 800px;
+    }
+
+    .terminal-details h3 {
+        color: #333;
+        border-bottom: 2px solid #ffc107;
+        padding-bottom: 10px;
+        margin-bottom: 20px;
+    }
+
+    .terminal-details h4 {
+        color: #666;
+        margin-top: 20px;
+        margin-bottom: 10px;
+        font-size: 16px;
+        font-weight: 600;
+    }
+
+    .terminal-details .table {
+        margin-bottom: 15px;
+        font-size: 13px;
+    }
+
+    .terminal-details .table td {
+        padding: 4px 8px;
+        border-top: 1px solid #dee2e6;
+        vertical-align: top;
+    }
+
+    .terminal-details .table td:first-child {
+        font-weight: 500;
+        background-color: #f8f9fa;
+        width: 40%;
+    }
+
+    .connected-line-item {
+        background: #f8f9fa;
+        border: 1px solid #ddd;
+        margin: 5px 0;
+        padding: 8px;
+        border-radius: 4px;
+    }
+
+    .connected-facility-item {
+        background: #fff3cd;
+        border: 1px solid #ffeaa7;
+        margin: 3px 0;
+        padding: 6px;
+        border-radius: 3px;
+    }
+
+    .highlighted-terminal {
+        animation: terminalPulse 2s infinite;
+    }
+
+    @keyframes terminalPulse {
+        0% { transform: scale(1); }
+        50% { transform: scale(1.2); }
+        100% { transform: scale(1); }
+    }
+
+    .grid-line-popup table {
+        margin: 0;
+        font-size: 12px;
+    }
+    .grid-line-popup td {
+        padding: 2px 5px;
+        border: none;
+    }
+    .grid-line-details .table {
+        margin-bottom: 15px;
+    }
+    .grid-line-details .table td {
+        padding: 4px 8px;
+        border-top: 1px solid #dee2e6;
+    }
+    .facility-connection {
+        background: #f8f9fa;
+    }
+    .grid-line-label {
+        pointer-events: none;
+    }
+    .modal-overlay {
+        font-family: Arial, sans-serif;
+        animation: fadeIn 0.3s ease;
+    }
+    .modal-overlay h2 {
+        margin-top: 0;
+        color: #333;
+    }
+    .modal-overlay h4 {
+        color: #666;
+        margin-top: 20px;
+        margin-bottom: 10px;
+    }
+    
+    @keyframes fadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+    }
+    
+    .modal-overlay > div {
+        animation: slideUp 0.3s ease;
+    }
+    
+    @keyframes slideUp {
+        from { 
+            transform: translateY(50px); 
+            opacity: 0; 
+        }
+        to { 
+            transform: translateY(0); 
+            opacity: 1; 
+        }
+    }
+    
+    /* Responsive design for smaller screens */
+    @media (max-width: 768px) {
+        .facility-details {
+            max-width: 95vw;
+            max-height: 90vh;
+        }
+        
+        .facility-details > div[style*="grid"] {
+            grid-template-columns: 1fr !important;
+            gap: 10px !important;
+        }
+    }
+</style>
+
+<script>
+// ===== GLOBAL VARIABLES AND CONSTANTS =====
+// Initialize the map and set its view to South West of Western Australia
+var map = L.map('map').setView([-33.45, 121.25], 7);
+
+// Data passed from view
+var facilities = {{ facilities_json|safe }};
+var gridLines = JSON.parse('{{ grid_lines_json|escapejs }}');
+
+// Global variables for connection management
+var connectionManagementMode = false;
+var selectedFacilityForConnection = null;
+
+// Global variables for terminals
+var terminals = JSON.parse('{{ terminals_json|escapejs }}');
+var terminalsLayer = L.layerGroup();
+var showTerminals = true;
+var addTerminalMode = false;
+var terminalLocationMarker = null;
+var selectedTerminalLocation = null;
+
+// Variables for Add Facility and Grid Line functionality
+var addFacilityMode = false;
+var addGridLineMode = false;
+var selectedLocation = null;
+var locationMarker = null;
+var gridLinePoints = [];
+var gridLineMarkers = [];
+
+// Grid line label functionality
+var gridLineLabels = [];
+var showLabels = false;
+
+// Layer groups
+var facilityLayer = L.layerGroup();
+var gridLinesLayer = L.layerGroup();
+var connectionLinesLayer = L.layerGroup();
+var boundaryLayer = null;
+var zoneLayer = null;
+
+// Wind turbine technology constants - FIXED
+const ONSHORE_WIND = 16;
+const OFFSHORE_WIND = 15;
+const FLOATING_WIND = 147;
+const windTechnologyIds = [ONSHORE_WIND, OFFSHORE_WIND, FLOATING_WIND];
+
+// Turbine data - loaded on demand
+let turbineData = null;
+let turbinesByApplication = null;
+let turbinesLoaded = false;
+
+// Define custom icons for each technology type
+var bessIcon = L.icon({ iconUrl: "{% static 'icons/bess.png' %}", iconSize: [32, 32] });
+var biomassIcon = L.icon({ iconUrl: "{% static 'icons/biomass.png' %}", iconSize: [32, 32] });
+var CCGTIcon = L.icon({ iconUrl: "{% static 'icons/CCGT.png' %}", iconSize: [32, 32] });
+var CSTIcon = L.icon({ iconUrl: "{% static 'icons/CST.png' %}", iconSize: [32, 32] });
+var coalIcon = L.icon({ iconUrl: "{% static 'icons/coal.png' %}", iconSize: [32, 32] });
+var geothermalIcon = L.icon({ iconUrl: "{% static 'icons/geothermal.png' %}", iconSize: [32, 32] });
+var nuclearIcon = L.icon({ iconUrl: "{% static 'icons/nuclear.png' %}", iconSize: [32, 32] });
+var PHESIcon = L.icon({ iconUrl: "{% static 'icons/PHES.png' %}", iconSize: [32, 32] });
+var recipIcon = L.icon({ iconUrl: "{% static 'icons/recip.png' %}", iconSize: [32, 32] });
+var solarIcon = L.icon({ iconUrl: "{% static 'icons/solar.png' %}", iconSize: [32, 32] });
+var windIcon = L.icon({ iconUrl: "{% static 'icons/wind.png' %}", iconSize: [32, 32] });
+var defaultIcon = L.icon({ iconUrl: "{% static 'icons/power_technology.png' %}", iconSize: [32, 32] });
+
+// ===== FUNCTION DEFINITIONS =====
+
+// Function to load turbines from the backend (only when needed)
+function loadTurbinesFromBackend() {
+    return new Promise((resolve, reject) => {
+        // If already loaded, resolve immediately
+        if (turbinesLoaded) {
+            resolve();
+            return;
+        }
+        
+        fetch('/get_turbines_json/')
+            .then(response => response.json())
+            .then(data => {
+                // Convert to the format your existing code expects
+                turbineData = {};
+                data.turbines.forEach(turbine => {
+                    turbineData[turbine.turbine_model] = {
+                        capacity: turbine.rated_power / 1000, // Convert kW to MW
+                        technology: mapApplicationToTechnologyId(turbine.application),
+                        hub_height: turbine.hub_height,
+                        manufacturer: turbine.manufacturer
+                    };
+                });
+                
+                turbinesByApplication = data.turbines_by_application;
+                turbinesLoaded = true;
+                console.log('Turbines loaded from backend');
+                resolve();
+            })
+            .catch(error => {
+                console.error('Error loading turbines:', error);
+                reject(error);
+            });
+    });
+}
+
+// Helper function to map application types to technology IDs
+function mapApplicationToTechnologyId(application) {
+    const mapping = {
+        'onshore': ONSHORE_WIND,
+        'offshore': OFFSHORE_WIND,
+        'floating': FLOATING_WIND
+    };
+    return mapping[application] || ONSHORE_WIND;
+}
+
+// Function to get the correct icon based on technology type
+function getIconForTechnology(technologyId) {
+    switch (technologyId) {
+        case 1: return coalIcon;
+        case 2: case 3: case 4: case 5: case 143: case 144: return bessIcon;
+        case 6: return biomassIcon;
+        case 7: case 19: return CCGTIcon;
+        case 8: case 9: return PHESIcon;
+        case 11: case 13: case 14: return solarIcon;
+        case 15: case 16: case 147: return windIcon;
+        case 18: return CSTIcon;
+        case 20: return recipIcon;
+        case 145: case 146: return nuclearIcon;
+        default: return defaultIcon;
+    }
+}
+
+// Terminal icon creation function
+function createTerminalIcon(terminal) {
+    var iconClass = 'terminal-marker ' + terminal.icon_type;
+    var iconSize = terminal.primary_voltage_kv >= 330 ? 35 : 
+                   terminal.primary_voltage_kv >= 132 ? 30 :
+                   terminal.primary_voltage_kv >= 66 ? 25 : 20;
+    
+    return L.divIcon({
+        className: iconClass,
+        html: terminal.terminal_code,
+        iconSize: [iconSize, iconSize],
+        iconAnchor: [iconSize/2, iconSize/2]
+    });
+}
+
+function getTechnologyName(technologyId) {
+    const techMap = {
+        1: 'Coal',
+        2: 'Battery Storage (Li-ion)',
+        3: 'Battery Storage (Other)',
+        4: 'Battery Storage (Vanadium)',
+        5: 'Battery Storage (Zinc)',
+        6: 'Biomass',
+        7: 'Gas (CCGT)',
+        8: 'Pumped Hydro (Existing)',
+        9: 'Pumped Hydro (New)',
+        11: 'Solar PV (Fixed)',
+        13: 'Solar PV (Tracking)',
+        14: 'Solar PV (Rooftop)',
+        15: 'Wind (Offshore)',
+        16: 'Wind (Onshore)',
+        18: 'Concentrated Solar Thermal',
+        19: 'Gas (Peaking)',
+        20: 'Reciprocating Engine',
+        143: 'Battery Storage (Generic)',
+        144: 'Battery Storage (Utility)',
+        145: 'Nuclear (SMR)',
+        146: 'Nuclear (Large)',
+        147: 'Wind (Floating Offshore)'
+    };
+    
+    return techMap[technologyId] || `Technology ${technologyId}`;
+}
+
+// Load terminals on map
+function loadTerminalsOnMap(terminalsData) {
+    terminalsLayer.clearLayers();
+    
+    terminalsData.forEach(function(terminal) {
+        if (!terminal.latitude || !terminal.longitude) {
+            console.warn('Invalid coordinates for terminal:', terminal.terminal_name);
+            return;
+        }
+        
+        var icon = createTerminalIcon(terminal);
+        var marker = L.marker([terminal.latitude, terminal.longitude], { icon: icon });
+        
+        marker.terminalId = terminal.idterminals;
+        marker.terminalData = terminal;
+        
+        // Enhanced popup content
+        marker.bindPopup(terminal.popup_content);
+        
+        // Click handler
+        marker.on('click', function(e) {
+            L.DomEvent.stopPropagation(e);
+            
+            if (addTerminalMode) {
+                return; // Ignore clicks in add mode
+            } else {
+                this.openPopup();
+            }
+        });
+        
+        // Hover effects
+        marker.on('mouseover', function(e) {
+            var tooltipContent = `
+                <strong>${terminal.terminal_name}</strong><br>
+                Type: ${terminal.terminal_type}<br>
+                Voltage: ${terminal.primary_voltage_kv} kV<br>
+                Lines: ${terminal.connected_lines_count}<br>
+                Utilization: ${terminal.utilization_percent.toFixed(1)}%
+            `;
+            
+            this.bindTooltip(tooltipContent, {
+                permanent: false,
+                sticky: true,
+                className: 'terminal-tooltip'
+            }).openTooltip();
+        });
+        
+        marker.on('mouseout', function(e) {
+            this.closeTooltip();
+        });
+        
+        terminalsLayer.addLayer(marker);
+    });
+    
+    if (showTerminals) {
+        terminalsLayer.addTo(map);
+    }
+    map.invalidateSize();
+}
+
+// Enhanced function to load facilities with connection indicators
+function loadFacilitiesOnMap(facilitiesData) {
+    facilityLayer.clearLayers();
+    
+    if (map.hasLayer(facilityLayer)) {
+        map.removeLayer(facilityLayer);
+    }
+    
+    facilitiesData.forEach(function(facility, index) { 
+        if (!facility.latitude || !facility.longitude) {
+            console.warn('Invalid coordinates for facility:', facility.facility_name);
+            return;
+        }
+        
+        var icon = getIconForTechnology(facility.idtechnologies);
+        var marker = L.marker([facility.latitude, facility.longitude], { icon: icon });
+        
+        // Enhanced marker data
+        marker.facilityId = facility.idfacilities;
+        marker.facilityData = facility;
+        
+        // Enhanced popup content with connection info
+        var connectionStatus = facility.has_grid_connection ? 
+            `Connected (${facility.connection_count} connection${facility.connection_count !== 1 ? 's' : ''})` : 
+            'Not connected';
+        var connectionColor = facility.has_grid_connection ? '#28a745' : '#dc3545';
+        
+        var popupContent = `
+            <div class="facility-popup">
+                <h5>${facility.facility_name}</h5>
+                <p><strong>Technology:</strong> ${facility.technology_name}</p>
+                <p><strong>Capacity:</strong> ${facility.capacity || 'N/A'} MW</p>
+                <p><strong>Grid Connection:</strong> <span style="color: ${connectionColor};">${connectionStatus}</span></p>
+                ${facility.primary_grid_line_name ? `<p><strong>Primary Line:</strong> ${facility.primary_grid_line_name}</p>` : ''}
+                <div style="margin-top: 10px;">
+                    <button onclick="showFacilityDetails(${facility.idfacilities})" class="btn btn-sm btn-primary">Details</button>
+                    <button onclick="manageFacilityConnections(${facility.idfacilities})" class="btn btn-sm btn-info">Connections</button>
+                </div>
+            </div>
+        `;
+        
+        marker.bindPopup(popupContent);
+        
+        // Click handler for connection management mode
+        marker.on('click', function(e) {
+            L.DomEvent.stopPropagation(e);
+            
+            if (connectionManagementMode) {
+                manageFacilityConnections(this.facilityId);
+            } else {
+                this.openPopup();
+            }
+        });
+        
+        // Enhanced hover effects
+        marker.on('mouseover', function(e) {
+            var tooltipContent = `
+                <strong>${facility.facility_name}</strong><br>
+                Technology: ${facility.technology_name}<br>
+                Capacity: ${facility.capacity || 'N/A'} MW<br>
+                Connections: ${facility.connection_count}
+            `;
+            
+            this.bindTooltip(tooltipContent, {
+                permanent: false,
+                sticky: true,
+                className: 'facility-tooltip'
+            }).openTooltip();
+        });
+        
+        marker.on('mouseout', function(e) {
+            this.closeTooltip();
+        });
+        
+        facilityLayer.addLayer(marker);
+    });
+    
+    facilityLayer.addTo(map);
+    map.invalidateSize();
+}
+
+function getLineWeightFromVoltage(voltageLevel) {
+    if (voltageLevel >= 330) return 6; // Extra high voltage
+    if (voltageLevel >= 220) return 5;  // High voltage
+    if (voltageLevel >= 132) return 4;  // Medium voltage
+    if (voltageLevel >= 66) return 3;  // Low voltage
+    return 2;  // Distribution voltage
+}
+
+// Function to load grid lines on map
+function loadGridLinesOnMap(gridLinesData) {
+    // Clear existing grid lines completely
+    gridLinesLayer.clearLayers();
+    
+    // Remove layer from map temporarily to prevent rendering issues
+    if (map.hasLayer(gridLinesLayer)) {
+        map.removeLayer(gridLinesLayer);
+    }
+    
+    // Process each grid line
+    gridLinesData.forEach(function(gridLine, index) {
+        // Determine coordinates for the line
+        var lineCoords;
+        if (gridLine.coordinates && gridLine.coordinates.length > 0) {
+            lineCoords = gridLine.coordinates;
+        } else {
+            lineCoords = [
+                [gridLine.from_latitude, gridLine.from_longitude],
+                [gridLine.to_latitude, gridLine.to_longitude]
+            ];
+        }
+        
+        if (!lineCoords || lineCoords.length < 2) {
+            console.warn('Invalid coordinates for grid line:', gridLine.line_name);
+            return;
+        }
+        
+        // Calculate utilization
+        var utilization = gridLine.total_connected_capacity / gridLine.thermal_capacity_mw;
+        var baseWeight = getLineWeightFromVoltage(gridLine.voltage_level);
+        var lineStyle = gridLine.style || {
+            color: getVoltageColor(gridLine.voltage_level),
+            weight: baseWeight,
+            opacity: gridLine.active !== false ? 0.8 : 0.4,
+            dashArray: gridLine.active !== false ? null : '5, 5'
+        };
+        
+        // Modify style based on utilization (but keep weight reasonable)
+        if (utilization > 0.8) {
+            lineStyle.color = '#dc3545'; // Red for high utilization
+            lineStyle.weight = Math.min(baseWeight + 2, 8);  // Cap at 8
+        } else if (utilization > 0.6) {
+            lineStyle.color = '#fd7e14';  // Orange for medium utilization
+            lineStyle.weight = Math.min(baseWeight + 1, 7); // Cap at 7
+        } else if (utilization > 0.3) {
+            lineStyle.color = '#ffc107';  // Yellow for low utilization
+        }
+        
+        // Ensure weight is always reasonable
+        lineStyle.weight = Math.max(2, Math.min(8, lineStyle.weight));
+        
+        var polyline = L.polyline(lineCoords, lineStyle);
+        // IMMEDIATELY attach the click handler and grid line ID
+        polyline.gridLineId = gridLine.idgridlines;
+        polyline.gridLineData = gridLine;
+        
+        // Attach click handler directly to the polyline
+        polyline.on('click', function(e) {
+            // Stop event propagation to prevent map click
+            L.DomEvent.stopPropagation(e);
+            // Show grid line details
+            showGridLineDetails(this.gridLineId);
+        });
+        
+        // Optional: Add hover effects for better UX
+        polyline.on('mouseover', function(e) {
+            this.setStyle({
+                weight: this.options.weight + 2,
+                opacity: Math.min(1.0, this.options.opacity + 0.2)
+            });
+        });
+        
+        polyline.on('mouseout', function(e) {
+            this.setStyle({
+                weight: lineStyle.weight,
+                opacity: lineStyle.opacity
+            });
+        });
+        
+        // Add tooltip with basic info
+        var utilizationPercent = (utilization * 100).toFixed(1);
+        polyline.bindTooltip(
+            `<strong>${gridLine.line_name}</strong><br>` +
+            `${gridLine.voltage_level} kV | ${gridLine.thermal_capacity_mw} MW<br>` +
+            `Connected: ${gridLine.total_connected_capacity.toFixed(1)} MW (${utilizationPercent}%)<br>` +
+            `Facilities: ${gridLine.connected_facilities_count}`,
+            {
+                sticky: true,
+                className: 'grid-line-tooltip'
+            }
+        );
+        
+        // Add the polyline to the layer group
+        gridLinesLayer.addLayer(polyline);
+    });
+    
+    // Re-add the layer to the map
+    gridLinesLayer.addTo(map);
+        
+    // Ensure the layer is properly rendered
+    map.invalidateSize();
+}
+
+// Function to get voltage-based color (fallback)
+function getVoltageColor(voltageLevel) {
+    if (voltageLevel >= 330) return '#ff0000';
+    if (voltageLevel >= 220) return '#00ffee';
+    if (voltageLevel >= 132) return '#ffaa00';
+    if (voltageLevel >= 66) return '#ee1100';
+    return '#FFFF00';
+}
+
+// Calculate distance between two points
+function calculateDistance(lat1, lon1, lat2, lon2) {
+    const R = 6371;  // Earth's radius in km
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+              Math.sin(dLon/2) * Math.sin(dLon/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R * c;
+}
+
+// Helper function to get CSRF token
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
+function getCurrentScenario() {
+    return '{{ scenario|escapejs }}';
+}
+
+function resetFacilityForm() {
+    document.getElementById('facility_name').value = '';
+    document.getElementById('technology_id').value = '';
+    document.getElementById('capacity').value = '';
+    document.getElementById('selected_lat').textContent = 'Latitude: (Click on map)';
+    document.getElementById('selected_lng').textContent = 'Longitude: (Click on map)';
+    document.querySelectorAll('input[name="grid_connection_option"]')[0].checked = true;
+    document.getElementById('existing_grid_lines').style.display = 'none';
+    document.getElementById('nearby_grid_lines').style.display = 'none';
+    selectedLocation = null;
+}
+
+// Load technologies when the page loads
+function loadTechnologies() {
+    fetch('/get_technologies/')
+        .then(response => response.json())
+        .then(data => {
+            const select = document.getElementById('technology_id');
+            
+            while (select.options.length > 1) {
+                select.remove(1);
+            }
+            
+            data.forEach(tech => {
+                const option = document.createElement('option');
+                option.value = tech.idtechnologies;
+                option.textContent = tech.technology_name;
+                select.appendChild(option);
+            });
+        })
+        .catch(error => console.error('Error loading technologies:', error));
+}
+
+function loadGridLinesForSelection() {
+    fetch('/get_grid_lines/')
+        .then(response => response.json())
+        .then(data => {
+            const select = document.getElementById('existing_grid_lines');
+            
+            while (select.options.length > 1) {
+                select.remove(1);
+            }
+            
+            data.forEach(gridLine => {
+                const option = document.createElement('option');
+                option.value = gridLine.idgridlines;
+                option.textContent = `${gridLine.line_name} (${gridLine.voltage_level}kV)`;
+                select.appendChild(option);
+            });
+        })
+        .catch(error => console.error('Error loading grid lines:', error));
+}
+
+function findNearbyGridLines(lat, lng) {
+    fetch(`/find_nearest_grid_lines/?lat=${lat}&lon=${lng}&max_distance=50`)
+        .then(response => response.json())
+        .then(data => {
+            const nearbyLinesDiv = document.getElementById('nearby_lines_list');
+            const nearbyGridLinesDiv = document.getElementById('nearby_grid_lines');
+            
+            if (data.length > 0) {
+                nearbyGridLinesDiv.style.display = 'block';
+                nearbyLinesDiv.innerHTML = '';
+                
+                // Sort by suitability score
+                data.sort((a, b) => b.suitability_score - a.suitability_score);
+                
+                data.slice(0, 5).forEach(line => {
+                    var utilizationColor = line.utilization_percent > 80 ? '#dc3545' : 
+                                         line.utilization_percent > 60 ? '#fd7e14' : 
+                                         line.utilization_percent > 30 ? '#ffc107' : '#28a745';
+                    
+                    const lineDiv = document.createElement('div');
+                    lineDiv.style.cssText = 'padding: 8px; margin: 3px 0; background: #f8f9fa; border-radius: 4px; border-left: 4px solid ' + utilizationColor + ';';
+                    lineDiv.innerHTML = `
+                        <div style="display: flex; justify-content: space-between;">
+                            <div>
+                                <strong>${line.line_name}</strong> (${line.voltage_level}kV)
+                                <br><small>Distance: ${line.distance_km} km | Score: ${line.suitability_score.toFixed(0)}/100</small>
+                            </div>
+                            <div style="text-align: right; font-size: 11px;">
+                                <div>Capacity: ${line.thermal_capacity_mw} MW</div>
+                                <div style="color: ${utilizationColor};">Available: ${line.available_capacity_mw.toFixed(0)} MW</div>
+                            </div>
+                        </div>
+                    `;
+                    nearbyLinesDiv.appendChild(lineDiv);
+                });
+            } else {
+                nearbyGridLinesDiv.style.display = 'none';
+            }
+        })
+        .catch(error => {
+            console.error('Error finding nearby grid lines:', error);
+        });
+}
+
+// ===== MAIN INITIALIZATION =====
+document.addEventListener('DOMContentLoaded', function() {
+    // Add OpenStreetMap tiles to the map
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: 'Map data © <a href="https://openstreetmap.org">OpenStreetMap</a> contributors'
+    }).addTo(map);
+    
+    // Load initial data
+    loadFacilitiesOnMap(facilities);
+    // Load terminals on map
+    loadTerminalsOnMap(terminals);
+    loadTerminalsForSelection();
+    loadGridLinesOnMap(gridLines);
+    loadTechnologies();
+    loadGridLinesForSelection();
+    
+    // Add layers to map
+    facilityLayer.addTo(map);
+    terminalsLayer.addTo(map);
+    gridLinesLayer.addTo(map);
+    
+    const technologySelect = document.getElementById('technology_id');
+    if (technologySelect) {
+        technologySelect.addEventListener('change', async function() {
+            const selectedTechId = parseInt(this.value);
+            const windTurbineFields = document.getElementById('windTurbineFields');
+            const turbineSelect = document.getElementById('turbine');
+            
+            if (windTechnologyIds.includes(selectedTechId)) {
+                // Load turbines only when a wind technology is selected
+                if (!turbinesLoaded) {
+                    // Show loading indicator
+                    turbineSelect.disabled = true;
+                    
+                    // Clear existing options and add loading message
+                    while (turbineSelect.options.length > 1) {
+                        turbineSelect.remove(1);
+                    }
+                    
+                    const loadingOption = document.createElement('option');
+                    loadingOption.textContent = 'Loading turbines...';
+                    loadingOption.value = '';
+                    turbineSelect.appendChild(loadingOption);
+                    
+                    try {
+                        await loadTurbinesFromBackend();
+                    } catch (error) {
+                        alert('Failed to load turbine data. Please try again.');
+                        windTurbineFields.style.display = 'none';
+                        turbineSelect.disabled = false;
+                        return;
+                    }
+                    
+                    // Remove loading indicator
+                    turbineSelect.disabled = false;
+                    while (turbineSelect.options.length > 1) {
+                        turbineSelect.remove(1);
+                    }
+                }
+                
+                windTurbineFields.style.display = 'block';
+                windTurbineFields.classList.add('active');
+                
+                // Clear existing turbine options
+                while (turbineSelect.options.length > 1) {
+                    turbineSelect.remove(1);
+                }
+                
+                const techName = getTechnologyName(selectedTechId);
+                
+                // Map technology ID to application type
+                let applicationKey = '';
+                if (selectedTechId === ONSHORE_WIND) applicationKey = 'onshore';
+                else if (selectedTechId === OFFSHORE_WIND) applicationKey = 'offshore';
+                else if (selectedTechId === FLOATING_WIND) applicationKey = 'floating';
+                
+                // Populate turbine options
+                if (turbinesByApplication && turbinesByApplication[applicationKey]) {
+                    const optgroup = document.createElement('optgroup');
+                    optgroup.label = `${techName} Turbines`;
+                    
+                    turbinesByApplication[applicationKey].forEach(turbine => {
+                        const option = document.createElement('option');
+                        option.value = turbine.model;
+                        option.textContent = turbine.model;
+                        option.dataset.capacity = turbine.capacity / 1000; // Convert to MW
+                        option.dataset.hubHeight = turbine.hub_height || '';
+                        optgroup.appendChild(option);
+                    });
+                    
+                    if (optgroup.children.length > 0) {
+                        turbineSelect.appendChild(optgroup);
+                    } else {
+                        const noTurbinesOption = document.createElement('option');
+                        noTurbinesOption.textContent = 'No turbines available for this technology';
+                        noTurbinesOption.value = '';
+                        turbineSelect.appendChild(noTurbinesOption);
+                    }
+                } else {
+                    const noTurbinesOption = document.createElement('option');
+                    noTurbinesOption.textContent = 'No turbines available for this technology';
+                    noTurbinesOption.value = '';
+                    turbineSelect.appendChild(noTurbinesOption);
+                }
+            } else {
+                windTurbineFields.classList.remove('active');
+                windTurbineFields.style.display = 'none';
+                
+                // Clear wind-specific fields
+                if (turbineSelect) turbineSelect.value = '';
+                const hubHeight = document.getElementById('hub_height');
+                if (hubHeight) hubHeight.value = '';
+                const noTurbines = document.getElementById('no_turbines');
+                if (noTurbines) noTurbines.value = '';
+                const tilt = document.getElementById('tilt');
+                if (tilt) tilt.value = '';
+            }
+        });
+    } else {
+        console.error('Technology select element not found!');
+    }
+    
+    // Turbine selection change handler
+    const turbineSelect = document.getElementById('turbine');
+    if (turbineSelect) {
+        turbineSelect.addEventListener('change', function() {
+            const selectedTurbine = this.value;
+            const selectedOption = this.options[this.selectedIndex];
+            
+            if (selectedOption && selectedOption.dataset.hubHeight) {
+                document.getElementById('hub_height').value = selectedOption.dataset.hubHeight;
+            }
+            
+            // Set tilt based on technology
+            const selectedTechId = parseInt(document.getElementById('technology_id').value);
+            if (selectedTechId === ONSHORE_WIND) {
+                document.getElementById('tilt').value = 5;
+            } else {
+                document.getElementById('tilt').value = 0;
+            }
+            
+            if (!document.getElementById('no_turbines').value) {
+                document.getElementById('no_turbines').value = 1;
+            }
+            
+            if (selectedOption && selectedOption.dataset.capacity) {
+                const perTurbineCapacity = parseFloat(selectedOption.dataset.capacity);
+                const noTurbines = parseInt(document.getElementById('no_turbines').value) || 1;
+                const totalCapacity = perTurbineCapacity * noTurbines;
+                document.getElementById('capacity').value = totalCapacity.toFixed(2);
+            }
+        });
+    }
+    
+    // Number of turbines change handler
+    const noTurbinesInput = document.getElementById('no_turbines');
+    if (noTurbinesInput) {
+        noTurbinesInput.addEventListener('change', function() {
+            const selectedOption = document.getElementById('turbine').options[document.getElementById('turbine').selectedIndex];
+            if (selectedOption && selectedOption.dataset.capacity) {
+                const perTurbineCapacity = parseFloat(selectedOption.dataset.capacity);
+                const noTurbines = parseInt(this.value) || 1;
+                const totalCapacity = perTurbineCapacity * noTurbines;
+                document.getElementById('capacity').value = totalCapacity.toFixed(2);
+            }
+        });
+    }
+    
+    // Set up event listeners for connection management
+    const manageConnectionsBtn = document.getElementById('manageConnectionsBtn');
+    if (manageConnectionsBtn) {
+        manageConnectionsBtn.addEventListener('click', function() {
+            connectionManagementMode = !connectionManagementMode;
+            
+            if (connectionManagementMode) {
+                this.textContent = 'Exit Connection Mode';
+                this.classList.add('active');
+                alert('Click on any facility to manage its grid connections.');
+            } else {
+                this.textContent = 'Manage Connections';
+                this.classList.remove('active');
+                closeConnectionManagement();
+            }
+        });
+    }
+    
+    // Enhanced grid connection option handlers
+    document.querySelectorAll('input[name="grid_connection_option"]').forEach(radio => {
+        radio.addEventListener('change', function() {
+            const existingGridSelect = document.getElementById('existing_grid_lines');
+            const selectedLineInfo = document.getElementById('selected_line_info');
+            const connectionRequirements = document.getElementById('connection_requirements');
+            
+                    // Reset all displays
+            existingGridSelect.style.display = 'none';
+            selectedLineInfo.style.display = 'none';
+            connectionRequirements.style.display = 'none';
+            
+            if (this.value === 'select') {
+                existingGridSelect.style.display = 'block';
+                selectedLineInfo.style.display = 'block';
+            } else if (this.value === 'auto') {
+                connectionRequirements.style.display = 'block';
+            }
+        });
+    });
+    
+    // Grid line selection handler with detailed info
+    const existingGridLinesSelect = document.getElementById('existing_grid_lines');
+    if (existingGridLinesSelect) {
+        existingGridLinesSelect.addEventListener('change', function() {
+            const selectedLineInfo = document.getElementById('selected_line_info');
+            const selectedGridLineId = this.value;
+            
+            if (selectedGridLineId) {
+                const gridLine = gridLines.find(line => line.idgridlines == selectedGridLineId);
+                if (gridLine) {
+                    const utilization = (gridLine.total_connected_capacity / gridLine.thermal_capacity_mw) * 100;
+                    const available = gridLine.thermal_capacity_mw - gridLine.total_connected_capacity;
+                    
+                    selectedLineInfo.innerHTML = `
+                        <div style="font-size: 0.9em; margin-top: 5px; padding: 8px; background: #f8f9fa; border-radius: 4px;">
+                            <strong>${gridLine.line_name}</strong><br>
+                            Voltage: ${gridLine.voltage_level} kV<br>
+                            Capacity: ${gridLine.thermal_capacity_mw} MW<br>
+                            Available: ${available.toFixed(1)} MW<br>
+                            Utilization: ${utilization.toFixed(1)}%<br>
+                            Connected Facilities: ${gridLine.connected_facilities_count}
+                        </div>
+                    `;
+                }
+            } else {
+                selectedLineInfo.innerHTML = '';
+            }
+        });
+}
+    // Initialize technologies and grid lines          
+    loadTechnologies();
+    loadGridLinesForSelection();
+    
+    // Handle grid connection radio buttons
+    document.querySelectorAll('input[name="grid_connection_option"]').forEach(radio => {
+        radio.addEventListener('change', function() {
+            const existingGridSelect = document.getElementById('existing_grid_lines');
+            
+            if (this.value === 'select') {
+                existingGridSelect.style.display = 'block';
+            } else {
+                existingGridSelect.style.display = 'none';
+            }
+        });
+    });
+    
+    // Terminal button functionality
+    const addTerminalBtn = document.getElementById('addTerminalBtn');
+    if (addTerminalBtn) {
+        addTerminalBtn.addEventListener('click', function() {
+            addTerminalMode = !addTerminalMode;
+            
+            if (addTerminalMode) {
+                this.textContent = 'Cancel Add Terminal';
+                this.classList.add('active');
+                document.getElementById('addTerminalForm').style.display = 'block';
+                map.getContainer().style.cursor = 'crosshair';
+            } else {
+                this.textContent = 'Add New Terminal';
+                this.classList.remove('active');
+                document.getElementById('addTerminalForm').style.display = 'none';
+                map.getContainer().style.cursor = '';
+                
+                // Remove temporary marker if exists
+                if (terminalLocationMarker) {
+                    map.removeLayer(terminalLocationMarker);
+                    terminalLocationMarker = null;
+                }
+                
+                // Reset form
+                resetTerminalForm();
+            }
+        });
+    }
+
+        // Submit terminal button
+    const submitAddTerminal = document.getElementById('submitAddTerminal');
+    if (submitAddTerminal) {
+        submitAddTerminal.addEventListener('click', function() {
+            const terminalName = document.getElementById('terminal_name').value.trim();
+            const terminalCode = document.getElementById('terminal_code').value.trim();
+            const terminalType = document.getElementById('terminal_type').value;
+            const primaryVoltage = document.getElementById('primary_voltage_kv').value;
+            const secondaryVoltage = document.getElementById('secondary_voltage_kv').value;
+            const transformerCapacity = document.getElementById('transformer_capacity_mva').value;
+            const bayCount = document.getElementById('bay_count').value;
+            const owner = document.getElementById('terminal_owner').value.trim();
+            const description = document.getElementById('terminal_description').value.trim();
+            
+            if (!terminalName || !terminalCode || !primaryVoltage) {
+                alert('Please fill in all required fields.');
+                return;
+            }
+            
+            if (!selectedTerminalLocation) {
+                alert('Please click on the map to select a location.');
+                return;
+            }
+            
+            const data = {
+                terminal_name: terminalName,
+                terminal_code: terminalCode,
+                terminal_type: terminalType,
+                primary_voltage_kv: parseFloat(primaryVoltage),
+                secondary_voltage_kv: secondaryVoltage ? parseFloat(secondaryVoltage) : null,
+                transformer_capacity_mva: transformerCapacity ? parseFloat(transformerCapacity) : null,
+                bay_count: bayCount ? parseInt(bayCount) : null,
+                owner: owner,
+                description: description,
+                latitude: selectedTerminalLocation.lat,
+                longitude: selectedTerminalLocation.lng
+            };
+            
+            fetch('/add_terminal/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken')
+                },
+                body: JSON.stringify(data)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    alert('Terminal added successfully!');
+                    
+                    // Add the new terminal to the map
+                    const newTerminal = {
+                        idterminals: data.terminal_id,
+                        terminal_name: data.terminal_name,
+                        terminal_code: data.terminal_code,
+                        terminal_type: data.terminal_type,
+                        primary_voltage_kv: data.primary_voltage_kv,
+                        latitude: selectedTerminalLocation.lat,
+                        longitude: selectedTerminalLocation.lng,
+                        connected_lines_count: 0,
+                        utilization_percent: 0,
+                        icon_type: data.primary_voltage_kv >= 330 ? 'terminal_extra_high' :
+                                  data.primary_voltage_kv >= 132 ? 'terminal_high' :
+                                  data.primary_voltage_kv >= 66 ? 'terminal_medium' : 'terminal_low',
+                        popup_content: `<div class="terminal-popup"><h4>${data.terminal_name}</h4><p>Type: ${data.terminal_type}<br>Voltage: ${data.primary_voltage_kv} kV</p></div>`
+                    };
+                    
+                    terminals.push(newTerminal);
+                    loadTerminalsOnMap([newTerminal]);
+                    
+                    // Reset the add terminal mode
+                    const addTerminalBtn = document.getElementById('addTerminalBtn');
+                    if (addTerminalBtn) {
+                        addTerminalBtn.click();
+                    }
+                    
+                    // Refresh terminals dropdown
+                    loadTerminalsForSelection();
+                } else {
+                    alert('Error: ' + data.message);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Failed to add terminal. Please try again.');
+            });
+        });
+    }
+    
+    // Grid line connection method radio buttons
+    document.querySelectorAll('input[name="grid_line_connection_method"]').forEach(radio => {
+        radio.addEventListener('change', function() {
+            const terminalSelection = document.getElementById('terminal-selection');
+            const coordinateSelection = document.getElementById('coordinate-selection');
+            const connectionInfo = document.getElementById('connection-info');
+            
+            if (this.value === 'terminals') {
+                terminalSelection.style.display = 'grid';
+                coordinateSelection.style.display = 'none';
+                connectionInfo.style.display = 'block';
+                updateConnectionInfo();
+            } else {
+                terminalSelection.style.display = 'none';
+                coordinateSelection.style.display = 'block';
+                connectionInfo.style.display = 'none';
+            }
+        });
+    });
+    
+    // Terminal selection change handlers
+    const fromTerminalSelect = document.getElementById('from_terminal_select');
+    const toTerminalSelect = document.getElementById('to_terminal_select');
+    
+    if (fromTerminalSelect && toTerminalSelect) {
+        fromTerminalSelect.addEventListener('change', updateConnectionInfo);
+        toTerminalSelect.addEventListener('change', updateConnectionInfo);
+    }
+
+    // Cancel terminal button
+    const cancelAddTerminal = document.getElementById('cancelAddTerminal');
+    if (cancelAddTerminal) {
+        cancelAddTerminal.addEventListener('click', function() {
+            const addTerminalBtn = document.getElementById('addTerminalBtn');
+            if (addTerminalBtn && addTerminalMode) {
+                addTerminalBtn.click();
+            }
+        });
+    }
+
+
+    // Grid line button functionality
+    const addGridLineBtn = document.getElementById('addGridLineBtn');
+    if (addGridLineBtn) {
+        addGridLineBtn.addEventListener('click', function() {
+            addGridLineMode = !addGridLineMode;
+            
+            if (addGridLineMode) {
+                this.textContent = 'Cancel Add Grid Line';
+                this.classList.add('active');
+                document.getElementById('addGridLineForm').style.display = 'block';
+                map.getContainer().style.cursor = 'crosshair';
+                
+                    // Reset grid line creation
+                gridLinePoints = [];
+                gridLineMarkers.forEach(marker => map.removeLayer(marker));
+                gridLineMarkers = [];
+                
+                    // Reset form
+                document.getElementById('grid_from_coords').textContent = 'Click on map for start point';
+                document.getElementById('grid_to_coords').textContent = 'Click on map for end point';
+                document.getElementById('grid_length_display').textContent = '0 km';
+                
+                alert('Click two points on the map to define the grid line endpoints.');
+            } else {
+                this.textContent = 'Add New Grid Line';
+                this.classList.remove('active');
+                document.getElementById('addGridLineForm').style.display = 'none';
+                map.getContainer().style.cursor = '';
+                
+                    // Clean up markers
+                gridLineMarkers.forEach(marker => map.removeLayer(marker));
+                gridLineMarkers = [];
+                gridLinePoints = [];
+            }
+        });
+    }
+    
+        // Facility button functionality
+    const addFacilityBtn = document.getElementById('addFacilityBtn');
+    if (addFacilityBtn) {
+        addFacilityBtn.addEventListener('click', function() {
+            const currentScenario = '{{ scenario|escapejs }}';
+            
+            if (currentScenario === 'Current') {
+                alert('Cannot add facilities to the "Current" scenario. Please select a different scenario.');
+                return;
+            }
+            
+            if (!currentScenario) {
+                alert('Please select a scenario first.');
+                return;
+            }
+            
+            addFacilityMode = !addFacilityMode;
+            
+            if (addFacilityMode) {
+                this.textContent = 'Cancel Add Facility';
+                this.classList.add('active');
+                document.getElementById('addFacilityForm').style.display = 'block';
+                map.getContainer().style.cursor = 'crosshair';
+            } else {
+                this.textContent = 'Add New Facility';
+                this.classList.remove('active');
+                document.getElementById('addFacilityForm').style.display = 'none';
+                map.getContainer().style.cursor = '';
+                
+                    // Remove temporary marker if exists
+                if (locationMarker) {
+                    map.removeLayer(locationMarker);
+                    locationMarker = null;
+                }
+                
+                    // Reset form
+                resetFacilityForm();
+            }
+        });
+    }
+    
+    // Cancel button handlers
+    const cancelAddGridLine = document.getElementById('cancelAddGridLine');
+    if (cancelAddGridLine) {
+        cancelAddGridLine.addEventListener('click', function() {
+            const addGridLineBtn = document.getElementById('addGridLineBtn');
+            if (addGridLineBtn && addGridLineMode) {
+                addGridLineBtn.click();
+            }
+        });
+    }
+    
+    const cancelAddFacility = document.getElementById('cancelAddFacility');
+    if (cancelAddFacility) {
+        cancelAddFacility.addEventListener('click', function() {
+            const addFacilityBtn = document.getElementById('addFacilityBtn');
+            if (addFacilityBtn && addFacilityMode) {
+                addFacilityBtn.click();
+            }
+        });
+    }
+    
+    // Submit grid line button
+    const submitAddGridLine = document.getElementById('submitAddGridLine');
+    if (submitAddGridLine) {
+        submitAddGridLine.addEventListener('click', function() {
+            const lineName = document.getElementById('grid_line_name').value.trim();
+            const lineCode = document.getElementById('grid_line_code').value.trim();
+            const lineType = document.getElementById('grid_line_type').value;
+            const voltageLevel = document.getElementById('grid_voltage_level').value;
+            const thermalCapacity = document.getElementById('grid_thermal_capacity').value;
+            const resistance = document.getElementById('grid_resistance').value;
+            
+            if (!lineName || !lineCode || !voltageLevel || !thermalCapacity) {
+                alert('Please fill in all required fields.');
+                return;
+            }
+            
+            if (gridLinePoints.length !== 2) {
+                alert('Please click two points on the map to define the grid line.');
+                return;
+            }
+            
+            const data = {
+                line_name: lineName,
+                line_code: lineCode,
+                line_type: lineType,
+                voltage_level: parseFloat(voltageLevel),
+                thermal_capacity_mw: parseFloat(thermalCapacity),
+                resistance_per_km: parseFloat(resistance),
+                reactance_per_km: parseFloat(resistance) * 4, // Typical X/R ratio
+                from_latitude: gridLinePoints[0].lat,
+                from_longitude: gridLinePoints[0].lng,
+                to_latitude: gridLinePoints[1].lat,
+                to_longitude: gridLinePoints[1].lng
+            };
+            
+            fetch('/create_grid_line/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken')
+                },
+                body: JSON.stringify(data)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    alert('Grid line created successfully!');
+                    
+                    // Add the new grid line to the map
+                    const newGridLine = {
+                        idgridlines: data.grid_line.idgridlines,
+                        line_name: data.grid_line.line_name,
+                        line_code: data.grid_line.line_code,
+                        line_type: lineType,
+                        voltage_level: data.grid_line.voltage_level,
+                        thermal_capacity_mw: parseFloat(thermalCapacity),
+                        from_latitude: gridLinePoints[0].lat,
+                        from_longitude: gridLinePoints[0].lng,
+                        to_latitude: gridLinePoints[1].lat,
+                        to_longitude: gridLinePoints[1].lng
+                    };
+                    
+                    gridLines.push(newGridLine);
+                    loadGridLinesOnMap([newGridLine]);
+                    
+                    // Reset the add grid line mode
+                    const addGridLineBtn = document.getElementById('addGridLineBtn');
+                    if (addGridLineBtn) {
+                        addGridLineBtn.click();
+                    }
+                    
+                    // Refresh grid lines dropdown for facilities
+                    loadGridLinesForSelection();
+                } else {
+                    alert('Error: ' + data.message);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Failed to create grid line. Please try again.');
+            });
+        });
+    }
+    
+    // Submit facility button
+    const submitAddFacility = document.getElementById('submitAddFacility');
+    if (submitAddFacility) {
+        submitAddFacility.addEventListener('click', function() {
+            const facilityName = document.getElementById('facility_name').value.trim();
+            const technologyId = document.getElementById('technology_id').value;
+            const capacity = document.getElementById('capacity').value;
+            
+            if (!facilityName) {
+                alert('Please enter a facility name.');
+                return;
+            }
+            
+            if (!technologyId) {
+                alert('Please select a technology.');
+                return;
+            }
+            
+            if (!selectedLocation) {
+                alert('Please click on the map to select a location.');
+                return;
+            }
+            
+            // Prepare data for submission
+            const data = {
+                facility_name: facilityName,
+                technology_id: technologyId,
+                capacity: capacity || 0,
+                latitude: selectedLocation.lat,
+                longitude: selectedLocation.lng
+            };
+            
+            // Handle grid connection option
+            const gridConnectionOption = document.querySelector('input[name="grid_connection_option"]:checked').value;
+            
+            if (gridConnectionOption === 'select') {
+                const selectedGridLine = document.getElementById('existing_grid_lines').value;
+                if (selectedGridLine) {
+                    data.grid_line_id = selectedGridLine;
+                }
+            } else if (gridConnectionOption === 'create') {
+                // For simplicity, we'll auto-create a basic grid line
+                data.create_new_grid_line = true;
+                data.new_grid_line_data = {
+                    line_name: `${facilityName}_Connection`,
+                    line_code: `${facilityName.substring(0,3).toUpperCase()}_CON`,
+                    line_type: 'transmission',
+                    voltage_level: 132,
+                    length_km: 1,
+                    resistance_per_km: 0.1,
+                    reactance_per_km: 0.4,
+                    thermal_capacity_mw: parseFloat(capacity) || 100,
+                    from_latitude: selectedLocation.lat,
+                    from_longitude: selectedLocation.lng,
+                    to_latitude: selectedLocation.lat,
+                    to_longitude: selectedLocation.lng
+                };
+            }
+            
+            // Add wind turbine specific data if applicable
+            if (windTechnologyIds.includes(parseInt(technologyId))) {
+                const turbineSelect = document.getElementById('turbine');
+                data.turbine = turbineSelect.value;
+                data.hub_height = document.getElementById('hub_height').value || null;
+                data.no_turbines = document.getElementById('no_turbines').value || null;
+                data.tilt = document.getElementById('tilt').value || null;
+                
+                // Validate wind turbine fields
+                if (!data.turbine) {
+                    alert('Please select a turbine model.');
+                    return;
+                }
+                
+                if (!data.hub_height) {
+                    alert('Please enter hub height.');
+                    return;
+                }
+                
+                if (!data.no_turbines || parseInt(data.no_turbines) < 1) {
+                    alert('Please enter a valid number of turbines (at least 1).');
+                    return;
+                }
+            }
+            
+            // Submit data to server
+            fetch('/add_facility/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken')
+                },
+                body: JSON.stringify(data)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    let message = 'Facility added successfully!';
+                    if (data.grid_connection) {
+                        message += `\nConnected to: ${data.grid_connection.grid_line_name}`;
+                        message += `\nConnection distance: ${data.grid_connection.connection_distance_km} km`;
+                    }
+                    alert(message);
+                    
+                    // Add the new facility to the map
+                    const newIcon = getIconForTechnology(parseInt(technologyId));
+                    const newMarker = L.marker([selectedLocation.lat, selectedLocation.lng], { icon: newIcon })
+                        .bindPopup(facilityName);
+                    facilityLayer.addLayer(newMarker);
+                    
+                    // Reset the add facility mode
+                    const addFacilityBtn = document.getElementById('addFacilityBtn');
+                    if (addFacilityBtn) {
+                        addFacilityBtn.click();
+                    }
+                } else {
+                    alert('Error: ' + data.message);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Failed to add facility. Please try again.');
+            });
+        });
+    }
+    
+    // Handle map clicks for facilities, terminals and grid line creation
+    map.on('click', function(e) {
+        if (addTerminalMode) {
+            selectedTerminalLocation = e.latlng;
+            
+            document.getElementById('terminal_selected_lat').textContent = 'Latitude: ' + selectedTerminalLocation.lat.toFixed(6);
+            document.getElementById('terminal_selected_lng').textContent = 'Longitude: ' + selectedTerminalLocation.lng.toFixed(6);
+            
+            if (terminalLocationMarker) {
+                map.removeLayer(terminalLocationMarker);
+            }
+            
+            terminalLocationMarker = L.marker(selectedTerminalLocation).addTo(map);
+            terminalLocationMarker.bindPopup('New Terminal Location').openPopup();
+        }
+        if (addGridLineMode) {
+            if (gridLinePoints.length < 2) {
+                gridLinePoints.push(e.latlng);
+                
+                const marker = L.marker(e.latlng).addTo(map);
+                gridLineMarkers.push(marker);
+                
+                if (gridLinePoints.length === 1) {
+                    document.getElementById('grid_from_coords').textContent = 
+                        `${e.latlng.lat.toFixed(6)}, ${e.latlng.lng.toFixed(6)}`;
+                    marker.bindPopup('Grid Line Start Point').openPopup();
+                } else if (gridLinePoints.length === 2) {
+                    document.getElementById('grid_to_coords').textContent = 
+                        `${e.latlng.lat.toFixed(6)}, ${e.latlng.lng.toFixed(6)}`;
+                    marker.bindPopup('Grid Line End Point').openPopup();
+                    
+                    const distance = calculateDistance(
+                        gridLinePoints[0].lat, gridLinePoints[0].lng,
+                        gridLinePoints[1].lat, gridLinePoints[1].lng
+                    );
+                    document.getElementById('grid_length_display').textContent = 
+                        `${distance.toFixed(2)} km`;
+                    
+                    const line = L.polyline(gridLinePoints, {
+                        color: 'red',
+                        weight: 3,
+                        opacity: 0.7,
+                        dashArray: '10, 10'
+                    }).addTo(map);
+                    gridLineMarkers.push(line);
+                }
+            }
+        } else if (addFacilityMode) {
+            selectedLocation = e.latlng;
+            
+            document.getElementById('selected_lat').textContent = 'Latitude: ' + selectedLocation.lat.toFixed(6);
+            document.getElementById('selected_lng').textContent = 'Longitude: ' + selectedLocation.lng.toFixed(6);
+            
+            if (locationMarker) {
+                map.removeLayer(locationMarker);
+            }
+            
+            locationMarker = L.marker(selectedLocation).addTo(map);
+            locationMarker.bindPopup('New Facility Location').openPopup();
+            
+            findNearbyGridLines(selectedLocation.lat, selectedLocation.lng);
+        }
+    });
+    
+    // Monitor form submission to detect scenario changes
+    const scenarioForm = document.querySelector('form');
+    if (scenarioForm) {
+        scenarioForm.addEventListener('submit', function(e) {
+            const scenarioSelect = document.querySelector('select[name="scenario"]');
+            if (scenarioSelect) {
+                const selectedScenario = scenarioSelect.value;
+                
+                const button = this.querySelector('button[name="apply_settings"]');
+                const originalText = button.textContent;
+                button.textContent = 'Applying...';
+                button.disabled = true;
+                
+                setTimeout(() => {
+                    refreshFacilities(selectedScenario);
+                    
+                    setTimeout(() => {
+                        button.textContent = originalText;
+                        button.disabled = false;
+                    }, 1000);
+                }, 100);
+            }
+        });
+    }
+    
+    // Load KML layers
+    function initializeKMLLayers() {
+        boundaryLayer = new L.KML("{% static 'kml//SWIS_Boundary.kml' %}", { async: true });
+        boundaryLayer.on("loaded", function(e) {
+            map.fitBounds(e.target.getBounds());
+            e.target.eachLayer(function(layer) {
+                if (layer instanceof L.Polygon) {
+                    layer.setStyle({
+                        fillColor: '#ddffcc',
+                        fillOpacity: 0.4,
+                        color: '#ff7800',
+                        weight: 3,
+                        opacity: 0.8,
+                        dashArray: '5, 5',
+                        dashOffset: '0'
+                    });
+                }
+            });
+            
+            initializeLayerControl();
+        });
+        map.addLayer(boundaryLayer);
+
+        zoneLayer = new L.KML("{% static 'kml//SWIS_2023_Zones.kml' %}", { async: true });
+        zoneLayer.on("loaded", function(e) { 
+            map.fitBounds(e.target.getBounds()); 
+        });
+        map.addLayer(zoneLayer);
+    }
+
+    function initializeLayerControl() {
+        if (boundaryLayer && zoneLayer) {
+            var baseLayers = {};
+            var overlays = {
+                "SWIS Boundary": boundaryLayer,
+                "Zones": zoneLayer,
+                "Grid Facilities": facilityLayer,
+                "Terminals": terminalsLayer,
+                "Grid Lines": gridLinesLayer,
+            };
+            
+            var layerControl = L.control.layers(baseLayers, overlays).addTo(map);
+        }
+    }
+
+    initializeKMLLayers();
+});
+
+// ===== ADDITIONAL FUNCTION DEFINITIONS (outside DOMContentLoaded) =====
+
+function toggleGridLineLabels() {
+    showLabels = !showLabels;
+    
+    if (showLabels) {
+        gridLines.forEach(function(gridLine) {
+            if (gridLine.coordinates && gridLine.coordinates.length > 0) {
+                const midIndex = Math.floor(gridLine.coordinates.length / 2);
+                const midPoint = gridLine.coordinates[midIndex];
+                
+                const label = L.marker(midPoint, {
+                    icon: L.divIcon({
+                        className: 'grid-line-label',
+                        html: `<div style="background: rgba(255,255,255,0.8); padding: 2px 4px; border-radius: 3px; font-size: 10px; font-weight: bold;">${gridLine.line_name}</div>`,
+                        iconSize: [0, 0],
+                        iconAnchor: [0, 0]
+                    })
+                }).addTo(map);
+                
+                gridLineLabels.push(label);
+            }
+        });
+    } else {
+        gridLineLabels.forEach(function(label) {
+            map.removeLayer(label);
+        });
+        gridLineLabels = [];
+    }
+}
+
+// Show terminal details modal
+function showTerminalDetails(terminalId) {
+    fetch(`/terminal/${terminalId}/details/`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                alert('Error: ' + data.error);
+                return;
+            }
+            
+            var detailsHtml = createTerminalDetailsHtml(data);
+            document.getElementById('terminalDetailsContent').innerHTML = detailsHtml;
+            document.getElementById('terminalDetailsTitle').textContent = data.terminal_name + ' Details';
+            document.getElementById('terminalDetailsModal').style.display = 'block';
+        })
+        .catch(error => {
+            console.error('Error fetching terminal details:', error);
+            alert('Failed to load terminal details');
+        });
+}
+
+function showGridUtilization() {
+    var utilizationHtml = `
+        <div style="margin-bottom: 20px;">
+            <h4>Grid Line Utilization Summary</h4>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+    `;
+    
+    var totalLines = gridLines.length;
+    var highUtilization = 0;
+    var mediumUtilization = 0;
+    var lowUtilization = 0;
+    
+    gridLines.forEach(function(line) {
+        var utilization = (line.total_connected_capacity / line.thermal_capacity_mw) * 100;
+        if (utilization > 80) highUtilization++;
+        else if (utilization > 50) mediumUtilization++;
+        else lowUtilization++;
+    });
+    
+    utilizationHtml += `
+                <div style="text-align: center; padding: 15px; border: 1px solid #dc3545; border-radius: 5px;">
+                    <h5 style="color: #dc3545; margin: 0;">${highUtilization}</h5>
+                    <small>High Utilization (>80%)</small>
+                </div>
+                <div style="text-align: center; padding: 15px; border: 1px solid #ffc107; border-radius: 5px;">
+                    <h5 style="color: #ffc107; margin: 0;">${mediumUtilization}</h5>
+                    <small>Medium Utilization (50-80%)</small>
+                </div>
+                <div style="text-align: center; padding: 15px; border: 1px solid #28a745; border-radius: 5px;">
+                    <h5 style="color: #28a745; margin: 0;">${lowUtilization}</h5>
+                    <small>Low Utilization (<50%)</small>
+                </div>
+            </div>
+        </div>
+        
+        <h4>Individual Grid Lines</h4>
+        <div style="max-height: 400px; overflow-y: auto;">
+    `;
+    
+    var sortedLines = [...gridLines].sort((a, b) => {
+        var aUtil = (a.total_connected_capacity / a.thermal_capacity_mw) * 100;
+        var bUtil = (b.total_connected_capacity / b.thermal_capacity_mw) * 100;
+        return bUtil - aUtil;
+    });
+    
+    sortedLines.forEach(function(line) {
+        var utilization = (line.total_connected_capacity / line.thermal_capacity_mw) * 100;
+        var utilizationClass = utilization > 80 ? 'utilization-critical' : 
+                             utilization > 60 ? 'utilization-high' : 
+                             utilization > 30 ? 'utilization-medium' : 'utilization-low';
+        
+        utilizationHtml += `
+            <div class="grid-connection-item" onclick="highlightGridLine(${line.idgridlines})" style="cursor: pointer;">
+                <div style="display: flex; justify-content: space-between; align-items: start;">
+                    <div>
+                        <strong>${line.line_name}</strong> (${line.line_code})
+                        <br><small>${line.voltage_level} kV | ${line.line_type}</small>
+                        <br><small>Facilities: ${line.connected_facilities_count}</small>
+                    </div>
+                    <div style="text-align: right;">
+                        <div><strong>${line.thermal_capacity_mw} MW</strong></div>
+                        <div><small>Connected: ${line.total_connected_capacity.toFixed(1)} MW</small></div>
+                        <div><small>Available: ${(line.thermal_capacity_mw - line.total_connected_capacity).toFixed(1)} MW</small></div>
+                    </div>
+                </div>
+                <div class="utilization-bar" style="margin-top: 8px;">
+                    <div class="utilization-fill ${utilizationClass}" style="width: ${Math.min(100, utilization)}%;"></div>
+                </div>
+                <div style="text-align: center; margin-top: 5px;">
+                    <small>${utilization.toFixed(1)}% utilized</small>
+                </div>
+            </div>
+        `;
+    });
+    
+    utilizationHtml += '</div>';
+    
+    document.getElementById('gridUtilizationContent').innerHTML = utilizationHtml;
+    document.getElementById('gridUtilizationModal').style.display = 'block';
+}
+
+function closeGridUtilization() {
+    document.getElementById('gridUtilizationModal').style.display = 'none';
+}
+
+function showConnectionsOverview() {
+    alert('Connections overview functionality would be implemented here');
+}
+
+function refreshFacilities(scenarioTitle) {
+    if (!scenarioTitle) {
+        facilityLayer.clearLayers();
+        return;
+    }
+    
+    const loadingMessage = document.createElement('div');
+    loadingMessage.id = 'loading-facilities';
+    loadingMessage.style.cssText = 'position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0,0,0,0.8); color: white; padding: 20px; border-radius: 5px; z-index: 10000;';
+    loadingMessage.textContent = 'Loading facilities...';
+    document.body.appendChild(loadingMessage);
+    
+    const url = `/get_facilities/?scenario=${encodeURIComponent(scenarioTitle)}`;
+    
+    fetch(url)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (Array.isArray(data)) {
+                loadFacilitiesOnMap(data);
+            } else if (data.error) {
+                console.error('Error loading facilities:', data.error);
+                alert('Error loading facilities: ' + data.error);
+            } else {
+                console.error('Unexpected response format:', data);
+                alert('Unexpected response format from server');
+            }
+        })
+        .catch(error => {
+            console.error('Fetch error:', error);
+            
+            if (error.message.includes('404')) {
+                alert('URL not found. Please check if the get_facilities URL is configured correctly.');
+            } else if (error.message.includes('500')) {
+                alert('Server error occurred. Please check the server logs.');
+            } else {
+                alert('Failed to load facilities: ' + error.message);
+            }
+        })
+        .finally(() => {
+            const loading = document.getElementById('loading-facilities');
+            if (loading) {
+                loading.remove();
+            }
+        });
+}
+
+function refreshGridLines() {      
+    fetch('/get_grid_lines/')
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            gridLines = data;
+            loadGridLinesOnMap(data);
+            loadGridLinesForSelection();
+        })
+        .catch(error => {
+            console.error('Error refreshing grid lines:', error);
+            alert('Failed to refresh grid lines: ' + error.message);
+        });
+}
+
+function initializeGridLines() {
+    if (gridLinesLayer) {
+        map.removeLayer(gridLinesLayer);
+    }
+    gridLinesLayer = L.layerGroup();
+    
+    if (typeof gridLines !== 'undefined' && gridLines.length > 0) {
+        loadGridLinesOnMap(gridLines);
+    } else {
+        console.log('No initial grid lines data, fetching from server...');
+        refreshGridLines();
+    }
+}
+
+function reinitializeGridLines() {
+    if (gridLinesLayer) {
+        gridLinesLayer.eachLayer(function(layer) {
+            layer.off();
+        });
+        gridLinesLayer.clearLayers();
+        map.removeLayer(gridLinesLayer);
+    }
+    
+    initializeGridLines();
+}
+
+function showGridLineDetails(gridLineId) {
+    fetch(`/grid_line/${gridLineId}/details/`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                alert('Error: ' + data.error);
+                return;
+            }
+            
+            var detailsHtml = `
+                <div class="grid-line-details">
+                    <h3>${data.line_name} (${data.line_code})</h3>
+                    <table class="table table-sm">
+                        <tr><td><strong>Type:</strong></td><td>${data.line_type}</td></tr>
+                        <tr><td><strong>Voltage:</strong></td><td>${data.voltage_level} kV</td></tr>
+                        <tr><td><strong>Length:</strong></td><td>${data.length_km} km</td></tr>
+                        <tr><td><strong>Capacity:</strong></td><td>${data.thermal_capacity_mw} MW</td></tr>
+                        ${data.emergency_capacity_mw ? `<tr><td><strong>Emergency:</strong></td><td>${data.emergency_capacity_mw} MW</td></tr>` : ''}
+                        <tr><td><strong>Resistance:</strong></td><td>${data.resistance_total.toFixed(4)} Ω</td></tr>
+                        <tr><td><strong>Reactance:</strong></td><td>${data.reactance_total.toFixed(4)} Ω</td></tr>
+                        <tr><td><strong>Impedance:</strong></td><td>${data.impedance_total.toFixed(4)} Ω</td></tr>
+                        ${data.owner ? `<tr><td><strong>Owner:</strong></td><td>${data.owner}</td></tr>` : ''}
+                        ${data.commissioned_date ? `<tr><td><strong>Commissioned:</strong></td><td>${new Date(data.commissioned_date).toLocaleDateString()}</td></tr>` : ''}
+                        <tr><td><strong>Losses at Full Load:</strong></td><td>${data.losses_at_full_capacity.toFixed(2)} MW</td></tr>
+                    </table>
+                    
+                    ${data.connected_facilities.length > 0 ? `
+                    <h4>Connected Facilities (${data.connected_facilities.length})</h4>
+                    <div class="connected-facilities" style="max-height: 200px; overflow-y: auto;">
+                        ${data.connected_facilities.map(facility => `
+                            <div class="facility-connection" style="border: 1px solid #ddd; margin: 5px 0; padding: 8px; border-radius: 4px;">
+                                <strong>${facility.facility_name}</strong> (${facility.technology})<br>
+                                <small>Capacity: ${facility.capacity} MW | Distance: ${facility.connection_distance} km ${facility.is_primary ? '| Primary Connection' : ''}</small>
+                            </div>
+                        `).join('')}
+                    </div>
+                    ` : '<p>No facilities connected to this line.</p>'}
+                </div>
+            `;
+            
+            showModal('Grid Line Details', detailsHtml);
+        })
+        .catch(error => {
+            console.error('Error fetching grid line details:', error);
+            alert('Failed to load grid line details');
+        });
+}
+
+function showModal(title, content) {
+    var modal = document.createElement('div');
+    modal.style.cssText = `
+        position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+        background: rgba(0,0,0,0.5); z-index: 10000; display: flex; 
+        align-items: center; justify-content: center;
+    `;
+    
+    var modalContent = document.createElement('div');
+    modalContent.style.cssText = `
+        background: white; padding: 20px; border-radius: 8px; 
+        max-width: 600px; max-height: 80vh; overflow-y: auto;
+        position: relative;
+    `;
+    
+    modalContent.innerHTML = `
+        <button onclick="this.closest('.modal-overlay').remove()" 
+                style="position: absolute; top: 10px; right: 15px; 
+                       background: none; border: none; font-size: 24px; cursor: pointer;">
+            ×
+        </button>
+        <h2>${title}</h2>
+        ${content}
+    `;
+    
+    modal.className = 'modal-overlay';
+    modal.appendChild(modalContent);
+    document.body.appendChild(modal);
+    
+    modal.addEventListener('click', function(e) {
+        if (e.target === modal) {
+            modal.remove();
+        }
+    });
+}
+
+function showFacilityDetails(facilityId) {
+    fetch(`/facility/${facilityId}/details/`)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.error) {
+                throw new Error(data.error);
+            }
+            
+            var detailsHtml = createFacilityDetailsHtml(data);
+            showModal('Facility Details', detailsHtml);
+        })
+        .catch(error => {
+            console.error('Error fetching facility details:', error);
+            showModal('Error', `
+                <div style="color: red; text-align: center; padding: 20px;">
+                    <h4>Failed to load facility details</h4>
+                    <p>${error.message}</p>
+                </div>
+            `);
+        });
+}
+
+function createFacilityDetailsHtml(data) {
+    var html = `
+        <div class="facility-details">
+            <h3>${data.facility_name} (${data.facility_code || 'N/A'})</h3>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px;">
+                <div>
+                    <h4>Basic Information</h4>
+                    <table class="table table-sm">
+                        <tr><td><strong>Technology:</strong></td><td>${data.technology_name}</td></tr>
+                        <tr><td><strong>Capacity:</strong></td><td>${data.capacity || 'N/A'} MW</td></tr>
+                        <tr><td><strong>Status:</strong></td><td>${data.active ? 'Active' : 'Inactive'}</td></tr>
+                        <tr><td><strong>Existing:</strong></td><td>${data.existing ? 'Yes' : 'No'}</td></tr>
+                        ${data.commissioned_date ? `<tr><td><strong>Commissioned:</strong></td><td>${new Date(data.commissioned_date).toLocaleDateString()}</td></tr>` : ''}
+                        ${data.decommission_date ? `<tr><td><strong>Decommission:</strong></td><td>${new Date(data.decommission_date).toLocaleDateString()}</td></tr>` : ''}
+                    </table>
+                </div>
+                
+                <div>
+                    <h4>Location</h4>
+                    <table class="table table-sm">
+                        <tr><td><strong>Latitude:</strong></td><td>${data.latitude?.toFixed(6) || 'N/A'}</td></tr>
+                        <tr><td><strong>Longitude:</strong></td><td>${data.longitude?.toFixed(6) || 'N/A'}</td></tr>
+                        ${data.elevation ? `<tr><td><strong>Elevation:</strong></td><td>${data.elevation} m</td></tr>` : ''}
+                        ${data.land_use_area ? `<tr><td><strong>Land Use:</strong></td><td>${data.land_use_area} ha</td></tr>` : ''}
+                    </table>
+                </div>
+            </div>
+    `;
+    
+    if (data.turbine_details) {
+        html += `
+            <div style="margin-bottom: 20px;">
+                <h4>Wind Turbine Details</h4>
+                <table class="table table-sm">
+                    <tr><td><strong>Turbine Model:</strong></td><td>${data.turbine_details.turbine || 'N/A'}</td></tr>
+                    <tr><td><strong>Hub Height:</strong></td><td>${data.turbine_details.hub_height || 'N/A'} m</td></tr>
+                    <tr><td><strong>Number of Turbines:</strong></td><td>${data.turbine_details.no_turbines || 'N/A'}</td></tr>
+                    <tr><td><strong>Rotor Tilt:</strong></td><td>${data.turbine_details.tilt || 'N/A'}°</td></tr>
+                    ${data.turbine_details.rotor_diameter ? `<tr><td><strong>Rotor Diameter:</strong></td><td>${data.turbine_details.rotor_diameter} m</td></tr>` : ''}
+                    ${data.turbine_details.capacity_per_turbine ? `<tr><td><strong>Capacity per Turbine:</strong></td><td>${data.turbine_details.capacity_per_turbine} MW</td></tr>` : ''}
+                </table>
+            </div>
+        `;
+    }
+    
+    if (data.economic_data && Object.keys(data.economic_data).length > 0) {
+        html += `
+            <div style="margin-bottom: 20px;">
+                <h4>Economic Data</h4>
+                <table class="table table-sm">
+                    ${data.economic_data.capex ? `<tr><td><strong>CAPEX:</strong></td><td>${data.economic_data.capex.toLocaleString()}/MW</td></tr>` : ''}
+                    ${data.economic_data.opex ? `<tr><td><strong>OPEX:</strong></td><td>${data.economic_data.opex.toLocaleString()}/MW/year</td></tr>` : ''}
+                    ${data.economic_data.discount_rate ? `<tr><td><strong>Discount Rate:</strong></td><td>${(data.economic_data.discount_rate * 100).toFixed(1)}%</td></tr>` : ''}
+                    ${data.economic_data.lifetime ? `<tr><td><strong>Lifetime:</strong></td><td>${data.economic_data.lifetime} years</td></tr>` : ''}
+                </table>
+            </div>
+        `;
+    }
+    
+    if (data.grid_connections && data.grid_connections.length > 0) {
+        html += `
+            <div style="margin-bottom: 20px;">
+                <h4>Grid Connections (${data.grid_connections.length})</h4>
+                <div style="max-height: 300px; overflow-y: auto;">
+                    ${data.grid_connections.map(conn => `
+                        <div class="grid-connection-item" style="border: 1px solid #ddd; margin: 5px 0; padding: 10px; border-radius: 4px; ${conn.is_primary ? 'background-color: #e8f5e8;' : ''}">
+                            <div style="display: flex; justify-content: space-between; align-items: start;">
+                                <div>
+                                    <strong>${conn.grid_line_name}</strong> ${conn.is_primary ? '<span style="background: #28a745; color: white; padding: 2px 6px; border-radius: 3px; font-size: 10px;">PRIMARY</span>' : ''}
+                                    <br><small>${conn.voltage_level} kV | ${conn.connection_type} connection</small>
+                                </div>
+                                <div style="text-align: right;">
+                                    <div><strong>${conn.capacity_mw} MW</strong></div>
+                                    <div><small>${conn.distance_km} km</small></div>
+                                </div>
+                            </div>
+                            ${conn.losses_at_full_output ? `
+                                <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #eee;">
+                                    <small>Losses at full output: ${conn.losses_at_full_output.toFixed(2)} MW (${((conn.losses_at_full_output / data.capacity) * 100).toFixed(1)}%)</small>
+                                </div>
+                            ` : ''}
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+    }
+    
+    if (data.scenarios && data.scenarios.length > 0) {
+        html += `
+            <div style="margin-bottom: 20px;">
+                <h4>Associated Scenarios</h4>
+                <div>
+                    ${data.scenarios.map(scenario => `
+                        <span style="background: #007bff; color: white; padding: 4px 8px; border-radius: 12px; margin: 2px; display: inline-block; font-size: 12px;">
+                            ${scenario}
+                        </span>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+    }
+    
+    if (data.performance_metrics) {
+        html += `
+            <div style="margin-bottom: 20px;">
+                <h4>Performance Metrics</h4>
+                <table class="table table-sm">
+                    ${data.performance_metrics.capacity_factor ? `<tr><td><strong>Capacity Factor:</strong></td><td>${(data.performance_metrics.capacity_factor * 100).toFixed(1)}%</td></tr>` : ''}
+                    ${data.performance_metrics.annual_output ? `<tr><td><strong>Annual Output:</strong></td><td>${data.performance_metrics.annual_output.toLocaleString()} MWh</td></tr>` : ''}
+                    ${data.performance_metrics.availability ? `<tr><td><strong>Availability:</strong></td><td>${(data.performance_metrics.availability * 100).toFixed(1)}%</td></tr>` : ''}
+                </table>
+            </div>
+        `;
+    }
+    
+    html += `
+        <div style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #dee2e6;">
+            <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                <button onclick="showFacilityOnMap(${data.facility_id})" class="btn btn-sm btn-info">
+                    Show on Map
+                </button>
+                <button onclick="calculateGridLosses(${data.facility_id})" class="btn btn-sm btn-warning">
+                    Calculate Losses
+                </button>
+                ${data.can_edit ? `
+                    <button onclick="editFacility(${data.facility_id})" class="btn btn-sm btn-primary">
+                        Edit Facility
+                    </button>
+                ` : ''}
+            </div>
+        </div>
+    `;
+    
+    html += '</div>';
+    return html;
+}
+
+function showFacilityOnMap(facilityId) {
+    facilityLayer.eachLayer(function(marker) {
+        if (marker.facilityId === facilityId) {
+            map.setView(marker.getLatLng(), 12);
+            marker.openPopup();
+            
+            const originalIcon = marker.getIcon();
+            const highlightIcon = L.icon({
+                iconUrl: originalIcon.options.iconUrl,
+                iconSize: [48, 48],
+                className: 'highlighted-facility'
+            });
+            
+            marker.setIcon(highlightIcon);
+            
+            setTimeout(() => {
+                marker.setIcon(originalIcon);
+            }, 3000);
+        }
+    });
+    
+    const modal = document.querySelector('.modal-overlay');
+    if (modal) {
+        modal.remove();
+    }
+}
+
+function calculateGridLosses(facilityId) {
+    let facilityCapacity = 0;
+    facilityLayer.eachLayer(function(marker) {
+        if (marker.facilityId === facilityId && marker.facilityData.capacity) {
+            facilityCapacity = marker.facilityData.capacity;
+        }
+    });
+    
+    if (facilityCapacity === 0) {
+        alert('Cannot calculate losses: facility capacity not available');
+        return;
+    }
+    
+    showModal('Grid Losses Calculation', '<div style="text-align: center; padding: 20px;">Calculating grid losses...</div>');
+    
+    fetch(`/calculate_grid_losses/?facility_id=${facilityId}&power_output=${facilityCapacity}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                throw new Error(data.error);
+            }
+            
+            let lossesHtml = `
+                <div class="grid-losses-details">
+                    <h3>Grid Losses for ${data.facility_name}</h3>
+                    
+                    <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
+                        <h4>Summary</h4>
+                        <table class="table">
+                            <tr><td><strong>Total Power Output:</strong></td><td>${data.total_power_output_mw} MW</td></tr>
+                            <tr><td><strong>Total Losses:</strong></td><td>${data.total_losses_mw} MW</td></tr>
+                            <tr><td><strong>Loss Percentage:</strong></td><td>${data.total_loss_percentage}%</td></tr>
+                            <tr><td><strong>Net Output:</strong></td><td>${(data.total_power_output_mw - data.total_losses_mw).toFixed(2)} MW</td></tr>
+                        </table>
+                    </div>
+                    
+                    ${data.loss_breakdown.length > 0 ? `
+                        <h4>Detailed Breakdown</h4>
+                        <div style="max-height: 300px; overflow-y: auto;">
+                            ${data.loss_breakdown.map(breakdown => `
+                                <div style="border: 1px solid #ddd; margin: 5px 0; padding: 10px; border-radius: 4px;">
+                                    <strong>${breakdown.grid_line}</strong><br>
+                                    <small>Power Flow: ${breakdown.power_flow_mw} MW</small>
+                                    <table class="table table-sm" style="margin-top: 10px;">
+                                        <tr><td>Connection Losses:</td><td>${breakdown.connection_losses_mw} MW</td></tr>
+                                        <tr><td>Grid Line Losses:</td><td>${breakdown.grid_line_losses_mw} MW</td></tr>
+                                        <tr><td><strong>Total:</strong></td><td><strong>${breakdown.total_losses_mw} MW (${breakdown.loss_percentage}%)</strong></td></tr>
+                                    </table>
+                                </div>
+                            `).join('')}
+                        </div>
+                    ` : ''}
+                </div>
+            `;
+            
+            showModal('Grid Losses Calculation', lossesHtml);
+        })
+        .catch(error => {
+            console.error('Error calculating grid losses:', error);
+            showModal('Error', `
+                <div style="color: red; text-align: center; padding: 20px;">
+                    <h4>Failed to calculate grid losses</h4>
+                    <p>${error.message}</p>
+                </div>
+            `);
+        });
+}
+
+function editFacility(facilityId) {
+    alert(`Edit facility functionality would go here for facility ID: ${facilityId}`);
+}
+
+function manageFacilityConnections(facilityId) {
+    selectedFacilityForConnection = facilityId;
+    
+    fetch(`/facility/${facilityId}/connections/`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                alert('Error: ' + data.error);
+                return;
+            }
+            
+            showConnectionManagementModal(data);
+        })
+        .catch(error => {
+            console.error('Error fetching facility connections:', error);
+            alert('Failed to load facility connections');
+        });
+}
+
+function showConnectionManagementModal(facilityData) {
+    var connectionsHtml = `
+        <h4>${facilityData.facility_name} - Grid Connections</h4>
+        <p><strong>Total Connections:</strong> ${facilityData.total_connections}</p>
+        
+        <div style="margin-bottom: 20px;">
+            <button onclick="addNewConnection(${facilityData.facility_id})" class="btn btn-success btn-sm">
+                Add New Connection
+            </button>
+        </div>
+        
+        <div class="connections-list">
+    `;
+    
+    if (facilityData.connections.length === 0) {
+        connectionsHtml += '<p>No grid connections found for this facility.</p>';
+    } else {
+        facilityData.connections.forEach(function(conn) {
+            var isPrimary = conn.is_primary;
+            var utilizationClass = conn.loss_percentage > 10 ? 'utilization-critical' : 
+                                 conn.loss_percentage > 5 ? 'utilization-high' : 
+                                 conn.loss_percentage > 2 ? 'utilization-medium' : 'utilization-low';
+            
+            connectionsHtml += `
+                <div class="grid-connection-item ${isPrimary ? 'primary' : ''}" style="position: relative;">
+                    <div class="connection-actions">
+                        ${!isPrimary ? `<button onclick="setPrimaryConnection(${conn.connection_id})" class="btn btn-xs btn-outline-success" title="Set as Primary">★</button>` : '<span style="color: #28a745;" title="Primary Connection">★</span>'}
+                        <button onclick="removeConnection(${conn.connection_id})" class="btn btn-xs btn-outline-danger" title="Remove Connection">×</button>
+                    </div>
+                    
+                    <div style="display: flex; justify-content: space-between; align-items: start;">
+                        <div>
+                            <strong>${conn.grid_line_name}</strong> ${isPrimary ? '<span style="background: #28a745; color: white; padding: 2px 6px; border-radius: 3px; font-size: 10px;">PRIMARY</span>' : ''}
+                            <br><small>${conn.voltage_level} kV | ${conn.connection_type} connection</small>
+                            <br><small>Distance: ${conn.distance_km} km</small>
+                        </div>
+                        <div style="text-align: right;">
+                            <div><strong>${conn.capacity_mw} MW</strong></div>
+                            <div><small>Losses: ${conn.total_losses_mw} MW (${conn.loss_percentage}%)</small></div>
+                        </div>
+                    </div>
+                    
+                    <div class="utilization-bar" style="margin-top: 8px;">
+                        <div class="utilization-fill ${utilizationClass}" style="width: ${Math.min(100, conn.loss_percentage * 10)}%;"></div>
+                    </div>
+                </div>
+            `;
+        });
+    }
+    
+    connectionsHtml += '</div>';
+    
+    document.getElementById('connectionManagementContent').innerHTML = connectionsHtml;
+    document.getElementById('connectionManagementModal').style.display = 'block';
+}
+
+// Create terminal details HTML
+function createTerminalDetailsHtml(data) {
+    var html = `
+        <div class="terminal-details">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px;">
+                <div>
+                    <h4>Basic Information</h4>
+                    <table class="table table-sm">
+                        <tr><td><strong>Terminal Code:</strong></td><td>${data.terminal_code}</td></tr>
+                        <tr><td><strong>Type:</strong></td><td>${data.terminal_type_display}</td></tr>
+                        <tr><td><strong>Primary Voltage:</strong></td><td>${data.primary_voltage_kv} kV</td></tr>
+                        ${data.secondary_voltage_kv ? `<tr><td><strong>Secondary Voltage:</strong></td><td>${data.secondary_voltage_kv} kV</td></tr>` : ''}
+                        <tr><td><strong>Voltage Class:</strong></td><td>${data.voltage_class_display}</td></tr>
+                        <tr><td><strong>Status:</strong></td><td>${data.active ? 'Active' : 'Inactive'}</td></tr>
+                    </table>
+                </div>
+                
+                <div>
+                    <h4>Technical Specifications</h4>
+                    <table class="table table-sm">
+                        ${data.transformer_capacity_mva ? `<tr><td><strong>Transformer Capacity:</strong></td><td>${data.transformer_capacity_mva} MVA</td></tr>` : ''}
+                        ${data.short_circuit_capacity_mva ? `<tr><td><strong>Short Circuit Capacity:</strong></td><td>${data.short_circuit_capacity_mva} MVA</td></tr>` : ''}
+                        ${data.bay_count ? `<tr><td><strong>Number of Bays:</strong></td><td>${data.bay_count}</td></tr>` : ''}
+                        <tr><td><strong>Utilization:</strong></td><td>${data.utilization_percent.toFixed(1)}%</td></tr>
+                        <tr><td><strong>Connected Capacity:</strong></td><td>${data.total_connected_capacity.toFixed(1)} MW</td></tr>
+                    </table>
+                </div>
+            </div>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px;">
+                <div>
+                    <h4>Location</h4>
+                    <table class="table table-sm">
+                        <tr><td><strong>Latitude:</strong></td><td>${data.latitude.toFixed(6)}</td></tr>
+                        <tr><td><strong>Longitude:</strong></td><td>${data.longitude.toFixed(6)}</td></tr>
+                        ${data.elevation ? `<tr><td><strong>Elevation:</strong></td><td>${data.elevation} m</td></tr>` : ''}
+                        ${data.commissioned_date ? `<tr><td><strong>Commissioned:</strong></td><td>${new Date(data.commissioned_date).toLocaleDateString()}</td></tr>` : ''}
+                    </table>
+                </div>
+                
+                <div>
+                    <h4>Administrative</h4>
+                    <table class="table table-sm">
+                        ${data.owner ? `<tr><td><strong>Owner:</strong></td><td>${data.owner}</td></tr>` : ''}
+                        ${data.operator ? `<tr><td><strong>Operator:</strong></td><td>${data.operator}</td></tr>` : ''}
+                        ${data.maintenance_zone ? `<tr><td><strong>Maintenance Zone:</strong></td><td>${data.maintenance_zone}</td></tr>` : ''}
+                        ${data.control_center ? `<tr><td><strong>Control Center:</strong></td><td>${data.control_center}</td></tr>` : ''}
+                        ${data.scada_id ? `<tr><td><strong>SCADA ID:</strong></td><td>${data.scada_id}</td></tr>` : ''}
+                    </table>
+                </div>
+            </div>
+    `;
+    
+    if (data.connected_lines && data.connected_lines.length > 0) {
+        html += `
+            <div style="margin-bottom: 20px;">
+                <h4>Connected Grid Lines (${data.connected_lines.length})</h4>
+                <div style="max-height: 200px; overflow-y: auto;">
+                    ${data.connected_lines.map(line => `
+                        <div class="connected-line-item">
+                            <div style="display: flex; justify-content: space-between;">
+                                <div>
+                                    <strong>${line.line_name}</strong> (${line.line_code})
+                                    <br><small>${line.voltage_level} kV | ${line.thermal_capacity_mw} MW | ${line.length_km} km</small>
+                                    <br><small>Connection: ${line.connection_type} | To: ${line.other_terminal}</small>
+                                </div>
+                                <div style="text-align: right;">
+                                    <small>Facilities: ${line.connected_facilities_count}</small>
+                                </div>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+    }
+    
+    if (data.connected_facilities && data.connected_facilities.length > 0) {
+        html += `
+            <div style="margin-bottom: 20px;">
+                <h4>Indirectly Connected Facilities (${data.connected_facilities.length})</h4>
+                <div style="max-height: 200px; overflow-y: auto;">
+                    ${data.connected_facilities.map(facility => `
+                        <div class="connected-facility-item">
+                            <strong>${facility.facility_name}</strong> (${facility.technology})
+                            <br><small>Capacity: ${facility.capacity} MW | Via: ${facility.via_line} | Distance: ${facility.connection_distance} km</small>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+    }
+    
+    if (data.description) {
+        html += `
+            <div style="margin-bottom: 20px;">
+                <h4>Description</h4>
+                <p>${data.description}</p>
+            </div>
+        `;
+    }
+    
+    html += `
+            <div style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #dee2e6;">
+                <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                    <button onclick="showTerminalOnMap(${data.idterminals})" class="btn btn-sm btn-info">
+                        Show on Map
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    return html;
+}
+
+// Show terminal on map
+function showTerminalOnMap(terminalId) {
+    terminalsLayer.eachLayer(function(marker) {
+        if (marker.terminalId === terminalId) {
+            map.setView(marker.getLatLng(), 14);
+            marker.openPopup();
+            
+            // Add highlight effect
+            var element = marker.getElement();
+            if (element) {
+                element.classList.add('highlighted-terminal');
+                setTimeout(() => {
+                    element.classList.remove('highlighted-terminal');
+                }, 3000);
+            }
+        }
+    });
+    
+    closeTerminalDetails();
+}
+
+// Load terminals for dropdown selection
+function loadTerminalsForSelection() {
+    fetch('/get_terminals/')
+        .then(response => response.json())
+        .then(data => {
+            const fromSelect = document.getElementById('from_terminal_select');
+            const toSelect = document.getElementById('to_terminal_select');
+            
+            // Clear existing options (except first)
+            while (fromSelect.options.length > 1) {
+                fromSelect.remove(1);
+            }
+            while (toSelect.options.length > 1) {
+                toSelect.remove(1);
+            }
+            
+            data.forEach(terminal => {
+                const fromOption = document.createElement('option');
+                fromOption.value = terminal.idterminals;
+                fromOption.textContent = `${terminal.terminal_name} (${terminal.primary_voltage_kv}kV)`;
+                fromSelect.appendChild(fromOption);
+                
+                const toOption = document.createElement('option');
+                toOption.value = terminal.idterminals;
+                toOption.textContent = `${terminal.terminal_name} (${terminal.primary_voltage_kv}kV)`;
+                toSelect.appendChild(toOption);
+            });
+        })
+        .catch(error => console.error('Error loading terminals:', error));
+}
+
+// Close terminal details modal
+function closeTerminalDetails() {
+    document.getElementById('terminalDetailsModal').style.display = 'none';
+}
+
+function resetTerminalForm() {
+    document.getElementById('terminal_name').value = '';
+    document.getElementById('terminal_code').value = '';
+    document.getElementById('terminal_type').value = 'substation';
+    document.getElementById('primary_voltage_kv').value = '';
+    document.getElementById('secondary_voltage_kv').value = '';
+    document.getElementById('transformer_capacity_mva').value = '';
+    document.getElementById('bay_count').value = '';
+    document.getElementById('terminal_owner').value = '';
+    document.getElementById('terminal_description').value = '';
+    document.getElementById('terminal_selected_lat').textContent = 'Latitude: (Click on map)';
+    document.getElementById('terminal_selected_lng').textContent = 'Longitude: (Click on map)';
+    selectedTerminalLocation = null;
+}
+
+function updateConnectionInfo() {
+    const fromTerminalId = document.getElementById('from_terminal_select').value;
+    const toTerminalId = document.getElementById('to_terminal_select').value;
+    const connectionDetails = document.getElementById('connection-details');
+    
+    if (fromTerminalId && toTerminalId) {
+        const fromTerminal = terminals.find(t => t.idterminals == fromTerminalId);
+        const toTerminal = terminals.find(t => t.idterminals == toTerminalId);
+        
+        if (fromTerminal && toTerminal) {
+            const distance = calculateDistance(
+                fromTerminal.latitude, fromTerminal.longitude,
+                toTerminal.latitude, toTerminal.longitude
+            );
+            
+            connectionDetails.innerHTML = `
+                From: ${fromTerminal.terminal_name} (${fromTerminal.primary_voltage_kv} kV)<br>
+                To: ${toTerminal.terminal_name} (${toTerminal.primary_voltage_kv} kV)<br>
+                Distance: ${distance.toFixed(2)} km<br>
+                Voltage Match: ${fromTerminal.primary_voltage_kv === toTerminal.primary_voltage_kv ? '✓ Compatible' : '⚠ Different voltages'}
+            `;
+        }
+    } else {
+        connectionDetails.innerHTML = 'Select both terminals to see connection details';
+    }
+}
+
+function addNewConnection(facilityId) {
+    var facility = facilities.find(f => f.idfacilities === facilityId);
+    if (!facility) {
+        alert('Facility not found');
+        return;
+    }
+    
+    fetch(`/find_nearest_grid_lines/?lat=${facility.latitude}&lon=${facility.longitude}&max_distance=100`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.length === 0) {
+                alert('No nearby grid lines found within 100km');
+                return;
+            }
+            
+            showAddConnectionModal(facilityId, data);
+        })
+        .catch(error => {
+            console.error('Error finding nearby grid lines:', error);
+            alert('Failed to find nearby grid lines');
+        });
+}
+
+function showAddConnectionModal(facilityId, nearbyLines) {
+    var modalHtml = `
+        <div style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 10001;">
+            <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 20px; border-radius: 8px; max-width: 600px; max-height: 80vh; overflow-y: auto;">
+                <h4>Add New Grid Connection</h4>
+                <p>Select a grid line to connect to:</p>
+                
+                <div style="max-height: 400px; overflow-y: auto;">
+    `;
+    
+    nearbyLines.forEach(function(line) {
+        var utilizationColor = line.utilization_percent > 80 ? '#dc3545' : 
+                             line.utilization_percent > 60 ? '#fd7e14' : 
+                             line.utilization_percent > 30 ? '#ffc107' : '#28a745';
+        
+        modalHtml += `
+            <div class="grid-connection-item" onclick="confirmAddConnection(${facilityId}, ${line.idgridlines})" style="cursor: pointer;">
+                <div style="display: flex; justify-content: space-between; align-items: start;">
+                    <div>
+                        <strong>${line.line_name}</strong> (${line.line_code})
+                        <br><small>${line.voltage_level} kV | ${line.line_type}</small>
+                        <br><small>Distance: ${line.distance_km} km</small>
+                        <br><small>Suitability Score: ${line.suitability_score.toFixed(0)}/100</small>
+                    </div>
+                    <div style="text-align: right;">
+                        <div><strong>${line.thermal_capacity_mw} MW</strong></div>
+                        <div><small>Available: ${line.available_capacity_mw.toFixed(1)} MW</small></div>
+                        <div style="color: ${utilizationColor};"><small>Utilization: ${line.utilization_percent}%</small></div>
+                    </div>
+                </div>
+                <div class="utilization-bar" style="margin-top: 5px;">
+                    <div class="utilization-fill" style="width: ${line.utilization_percent}%; background-color: ${utilizationColor};"></div>
+                </div>
+            </div>
+        `;
+    });
+    
+    modalHtml += `
+                </div>
+                <div style="margin-top: 20px; text-align: right;">
+                    <button onclick="this.closest('div').remove()" class="btn btn-secondary">Cancel</button>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+}
+
+function confirmAddConnection(facilityId, gridLineId) {
+    var isPrimary = confirm('Set this as the primary connection for this facility?');
+    
+    fetch(`/facility/${facilityId}/manage_connections/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCookie('csrftoken')
+        },
+        body: JSON.stringify({
+            action: 'add',
+            grid_line_id: gridLineId,
+            is_primary: isPrimary
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            alert(data.message);
+            
+            document.querySelector('div[style*="z-index: 10001"]').remove();
+            manageFacilityConnections(facilityId);
+            refreshFacilities(getCurrentScenario());
+        } else {
+            alert('Error: ' + data.message);
+        }
+    })
+    .catch(error => {
+        console.error('Error adding connection:', error);
+        alert('Failed to add connection');
+    });
+}
+
+function setPrimaryConnection(connectionId) {
+    if (!selectedFacilityForConnection) return;
+    
+    fetch(`/facility/${selectedFacilityForConnection}/manage_connections/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCookie('csrftoken')
+        },
+        body: JSON.stringify({
+            action: 'set_primary',
+            connection_id: connectionId
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            alert(data.message);
+            manageFacilityConnections(selectedFacilityForConnection);
+            refreshFacilities(getCurrentScenario());
+        } else {
+            alert('Error: ' + data.message);
+        }
+    })
+    .catch(error => {
+        console.error('Error setting primary connection:', error);
+        alert('Failed to set primary connection');
+    });
+}
+
+function removeConnection(connectionId) {
+    if (!confirm('Are you sure you want to remove this grid connection?')) return;
+    if (!selectedFacilityForConnection) return;
+    
+    fetch(`/facility/${selectedFacilityForConnection}/manage_connections/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCookie('csrftoken')
+        },
+        body: JSON.stringify({
+            action: 'remove',
+            connection_id: connectionId
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            alert(data.message);
+            manageFacilityConnections(selectedFacilityForConnection);
+            refreshFacilities(getCurrentScenario());
+        } else {
+            alert('Error: ' + data.message);
+        }
+    })
+    .catch(error => {
+        console.error('Error removing connection:', error);
+        alert('Failed to remove connection');
+    });
+}
+
+function closeConnectionManagement() {
+    document.getElementById('connectionManagementModal').style.display = 'none';
+    connectionManagementMode = false;
+    selectedFacilityForConnection = null;
+}
+
+function highlightGridLine(gridLineId) {
+    gridLinesLayer.eachLayer(function(layer) {
+        if (layer.gridLineId === gridLineId) {
+            var originalStyle = {
+                color: layer.options.color,
+                weight: layer.options.weight,
+                opacity: layer.options.opacity
+            };
+            
+            layer.setStyle({
+                color: '#ff0000',
+                weight: originalStyle.weight + 3,
+                opacity: 1
+            });
+            
+            map.fitBounds(layer.getBounds());
+            
+            setTimeout(() => {
+                layer.setStyle(originalStyle);
+            }, 3000);
+        }
+    });
+    
+    closeGridUtilization();
+}
+</script>
+
+{% endblock %}

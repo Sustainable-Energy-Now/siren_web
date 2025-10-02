@@ -15,15 +15,5 @@
     levelised cost of energy (LCOE).
 </p>
 
-    <form method="post">
-        {% csrf_token %}
-        {{ demand_year_scenario.demand_year }}
-        {{ demand_year_scenario.scenario.label_tag }}  <!-- Display the label for the scenario dropdown -->
-        {{ demand_year_scenario.scenario }}
-        <button name="apply_settings" type="submit" class="btn-custom-swish2">Apply Settings</button>
-    </form>
-    <br>
-    {% if not scenario %}
-        <p>Demand Year and Scenario must be specified.</p>
-    {% endif %}
+    {% include 'common/settings_form_partial.html' %}
 {% endblock %}

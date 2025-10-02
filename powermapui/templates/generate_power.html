@@ -1,30 +1,63 @@
-<!-- generate_power.html - Confirmation template -->
+<!-- generate_power.html -->
+{% extends 'powermapui_base.html' %}
+
+{% block powermapui_content %}
 <!DOCTYPE html>
 <html>
 <head>
     <title>Generate Power - Configuration</title>
     <style>
-        .container { max-width: 800px; margin: 20px auto; padding: 20px; font-family: Arial, sans-serif; }
+        .container { max-width: 100%; margin: 20px; padding: 20px; font-family: Arial, sans-serif; }
         .config-info { background: #f5f5f5; padding: 15px; border-radius: 5px; margin-bottom: 20px; }
         .option-card { border: 1px solid #ddd; border-radius: 8px; padding: 20px; margin: 15px 0; }
         .option-card.recommended { border-color: #28a745; background: #f8fff9; }
         .option-card.warning { border-color: #ffc107; background: #fffdf5; }
+        .option-card.info { border-color: #17a2b8; background: #f5fcff; }
         .btn { padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold; margin-right: 10px; display: inline-block; border: none; cursor: pointer; }
         .btn-success { background: #28a745; color: white; }
         .btn-warning { background: #ffc107; color: #212529; }
+        .btn-info { background: #17a2b8; color: white; }
         .btn-secondary { background: #6c757d; color: white; }
         .icon { font-size: 1.2em; margin-right: 8px; }
+        .facility-selector { margin: 15px 0; }
+        .facility-selector select { width: 100%; padding: 10px; font-size: 1em; border-radius: 5px; border: 1px solid #ddd; }
+        .facility-selector label { display: block; margin-bottom: 8px; font-weight: bold; }
     </style>
 </head>
 <body>
     <div class="container">
         <h2>Generate Power - Choose Processing Mode</h2>
-        
-        <div class="config-info">
-            <h4>Current Configuration:</h4>
-            <p><strong>Demand Year:</strong> {{ demand_year }}</p>
-            <p><strong>Scenario:</strong> {{ scenario }}</p>
-            <p><strong>Config File:</strong> {{ config_file|default:"Default" }}</p>
+
+        <div class="option-card info">
+            <h3>Single Facility Process</h3>
+            <p><strong>What it does:</strong></p>
+            <ul>
+                <li>Process one specific renewable facility</li>
+                <li>Always refreshes data for the selected facility</li>
+                <li>Fast execution - ideal for testing or updating individual renewable facilities</li>
+            </ul>
+            <p><strong>Use this when:</strong> Testing configurations, troubleshooting a specific facility, or updating one facility</p>
+            
+            <form method="get" action="{% url 'powermapui:generate_power' %}">
+                <input type="hidden" name="confirm" value="true">
+                <input type="hidden" name="single_facility" value="true">
+                
+                <div class="facility-selector">
+                    <label for="facility_code">Select Facility:</label>
+                    <select name="facility_code" id="facility_code" required>
+                        <option value="">-- Choose a facility --</option>
+                        {% for facility in renewable_facilities %}
+                        <option value="{{ facility.facility_code }}">
+                            {{ facility.facility_name }} ({{ facility.technology }})
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <button type="submit" class="btn btn-info">
+                    Process Single Facility
+                </button>
+            </form>
         </div>
 
         <div class="option-card recommended">
@@ -70,3 +103,4 @@
     </div>
 </body>
 </html>
+{% endblock %}
