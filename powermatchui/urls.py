@@ -1,7 +1,6 @@
 # urls.py
 from django.urls import path, include
-from django.contrib.auth import views as auth_views
-from .views import exec_powermatch, variations_views, baseline_scenario_views, \
+from .views import variations_views, baseline_scenario_views, \
     merit_order_views, optimisation_views, \
     powermatchui_home_views, under_construction_views
 

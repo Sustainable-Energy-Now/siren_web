@@ -47,10 +47,14 @@
 ### 🐛 Bug Fixes
 - Help Sub-section Navigation ([#16](https://github.com/Sustainable-Energy-Now/siren_web/issues/16))
 
-## Version 3.5.0 - October 1, 2025
+## Version 3.6.0 - October 1, 2025
 ### 🆕 New Features
 - Feature: Run Power for a Single Facility ([#18](https://github.com/Sustainable-Energy-Now/siren_web/issues/18))
 - Feature: Refactor Demand_Year, Scenario Setting ([#19](https://github.com/Sustainable-Energy-Now/siren_web/issues/19))
+
+## Version 3.7.0 - October 3, 2025
+### 🆕 New Features
+- Feature: Facilities Supply Factors Plot ([#20](https://github.com/Sustainable-Energy-Now/siren_web/issues/20))
 
 ---
 *For technical support or feature requests, please contact the Sustainable Energy Now Webmaster.*

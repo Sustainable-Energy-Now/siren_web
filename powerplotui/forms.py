@@ -86,7 +86,7 @@ class PlotForm(forms.Form):
             self.set_initial_values(form_data)
             
         self.helper = FormHelper()
-        self.helper.form_action = '/powerplotui/'
+        self.helper.form_action = '/variants/'
         self.helper.layout = Layout(
             HTML("<hr>"),
             Row(

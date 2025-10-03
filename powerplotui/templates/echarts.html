@@ -22,7 +22,7 @@
         // Create a form to submit the parameters back to powerplotui_home
         const form = document.createElement('form');
         form.method = 'POST';
-        form.action = '/powerplotui/'; // Adjust this URL to match your powerplotui home URL
+        form.action = '/variants/'; // Adjust this URL to match your powerplotui home URL
         
         // Add CSRF token
         const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]');

@@ -1,0 +1,1591 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Supply Factor Plot{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <h2>Renewable Facility Supply Factor Visualization</h2>
+    
+    <!-- Mode selector -->
+    <div class="row mt-3">
+        <div class="col-md-12">
+            <div class="btn-group" role="group">
+                <input type="radio" class="btn-check" name="viewMode" id="singleMode" value="single" checked>
+                <label class="btn btn-outline-primary" for="singleMode">Single Facility</label>
+                
+                <input type="radio" class="btn-check" name="viewMode" id="compareMode" value="compare">
+                <label class="btn btn-outline-primary" for="compareMode">Compare Two Facilities</label>
+                
+                <input type="radio" class="btn-check" name="viewMode" id="technologyMode" value="technology">
+                <label class="btn btn-outline-primary" for="technologyMode">Technology Aggregated</label>
+                
+                <input type="radio" class="btn-check" name="viewMode" id="techCompareMode" value="techcompare">
+                <label class="btn btn-outline-primary" for="techCompareMode">Compare Technologies</label>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Single facility form -->
+    <div class="row mt-4" id="singleFacilityForm">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-body">
+                    <form id="supplyPlotForm" class="row g-3">
+                        <div class="col-md-4">
+                            <label for="facilitySelect" class="form-label">Select Renewable Facility:</label>
+                            <select class="form-select" id="facilitySelect" name="facility" required>
+                                <option value="">Choose a facility...</option>
+                                {% for facility in facilities %}
+                                <option value="{{ facility.idfacilities }}" 
+                                        data-technology="{{ facility.idtechnologies.technology_name }}">
+                                    {{ facility.facility_name }} 
+                                    {% if facility.facility_code %}({{ facility.facility_code }}){% endif %}
+                                    - {{ facility.idtechnologies.technology_name }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        
+                        <div class="col-md-2">
+                            <label for="yearSelect" class="form-label">Select Year:</label>
+                            <select class="form-select" id="yearSelect" name="year" required>
+                                <option value="">Choose a year...</option>
+                                {% for year in years %}
+                                <option value="{{ year }}">{{ year }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        
+                        <div class="col-md-2">
+                            <label for="aggregationSelect" class="form-label">Time Period:</label>
+                            <select class="form-select" id="aggregationSelect" name="aggregation">
+                                <option value="hour">Hourly</option>
+                                <option value="week">Weekly</option>
+                                <option value="month">Monthly</option>
+                            </select>
+                        </div>
+                        
+                        <div class="col-md-2">
+                            <label for="chartTypeSelect" class="form-label">Chart Type:</label>
+                            <select class="form-select" id="chartTypeSelect" name="chartType">
+                                <option value="line">Line Chart</option>
+                                <option value="scatter">Scatter Plot</option>
+                                <option value="bar">Bar Chart</option>
+                                <option value="area">Area Chart</option>
+                            </select>
+                        </div>
+                        
+                        <div class="col-md-2">
+                            <label class="form-label">&nbsp;</label>
+                            <button type="submit" class="btn btn-primary w-100">
+                                <i class="bi bi-graph-up"></i> Plot Supply
+                            </button>
+                        </div>
+                    </form>
+                    
+                    <!-- Date Range Selection -->
+                    <div class="row mt-3">
+                        <div class="col-md-12">
+                            <div class="accordion" id="dateRangeAccordion">
+                                <div class="accordion-item">
+                                    <h2 class="accordion-header">
+                                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#dateRangeCollapse">
+                                            Optional: Select Date Range
+                                        </button>
+                                    </h2>
+                                    <div id="dateRangeCollapse" class="accordion-collapse collapse">
+                                        <div class="accordion-body">
+                                            <div class="row g-3">
+                                                <div class="col-md-3">
+                                                    <label class="form-label">Quick Select:</label>
+                                                    <select class="form-select" id="quickSelectSingle">
+                                                        <option value="">Full Year</option>
+                                                        <option value="summer">Summer (Dec-Feb)</option>
+                                                        <option value="autumn">Autumn (Mar-May)</option>
+                                                        <option value="winter">Winter (Jun-Aug)</option>
+                                                        <option value="spring">Spring (Sep-Nov)</option>
+                                                        <option value="q1">Q1 (Jan-Mar)</option>
+                                                        <option value="q2">Q2 (Apr-Jun)</option>
+                                                        <option value="q3">Q3 (Jul-Sep)</option>
+                                                        <option value="q4">Q4 (Oct-Dec)</option>
+                                                    </select>
+                                                </div>
+                                                <div class="col-md-3">
+                                                    <label class="form-label">Start Month:</label>
+                                                    <select class="form-select" id="startMonthSingle">
+                                                        <option value="">Select...</option>
+                                                        <option value="1">January</option>
+                                                        <option value="2">February</option>
+                                                        <option value="3">March</option>
+                                                        <option value="4">April</option>
+                                                        <option value="5">May</option>
+                                                        <option value="6">June</option>
+                                                        <option value="7">July</option>
+                                                        <option value="8">August</option>
+                                                        <option value="9">September</option>
+                                                        <option value="10">October</option>
+                                                        <option value="11">November</option>
+                                                        <option value="12">December</option>
+                                                    </select>
+                                                </div>
+                                                <div class="col-md-3">
+                                                    <label class="form-label">End Month:</label>
+                                                    <select class="form-select" id="endMonthSingle">
+                                                        <option value="">Select...</option>
+                                                        <option value="1">January</option>
+                                                        <option value="2">February</option>
+                                                        <option value="3">March</option>
+                                                        <option value="4">April</option>
+                                                        <option value="5">May</option>
+                                                        <option value="6">June</option>
+                                                        <option value="7">July</option>
+                                                        <option value="8">August</option>
+                                                        <option value="9">September</option>
+                                                        <option value="10">October</option>
+                                                        <option value="11">November</option>
+                                                        <option value="12">December</option>
+                                                    </select>
+                                                </div>
+                                                <div class="col-md-3">
+                                                    <label class="form-label">&nbsp;</label>
+                                                    <button type="button" class="btn btn-secondary w-100" id="clearDateRangeSingle">
+                                                        Clear Range
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            <div class="row mt-2">
+                                                <div class="col-md-12">
+                                                    <small class="text-muted">
+                                                        <strong>Note:</strong> Months are for Southern Hemisphere seasons. Leave blank for full year.
+                                                    </small>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Comparison form -->
+    <div class="row mt-4" id="comparisonForm" style="display: none;">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-body">
+                    <form id="comparisonPlotForm" class="row g-3">
+                        <div class="col-md-3">
+                            <label for="facility1Select" class="form-label">Facility 1:</label>
+                            <select class="form-select" id="facility1Select" name="facility1" required>
+                                <option value="">Choose first facility...</option>
+                                {% for facility in facilities %}
+                                <option value="{{ facility.idfacilities }}" 
+                                        data-technology="{{ facility.idtechnologies.technology_name }}">
+                                    {{ facility.facility_name }} - {{ facility.idtechnologies.technology_name }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        
+                        <div class="col-md-3">
+                            <label for="facility2Select" class="form-label">Facility 2:</label>
+                            <select class="form-select" id="facility2Select" name="facility2" required>
+                                <option value="">Choose second facility...</option>
+                                {% for facility in facilities %}
+                                <option value="{{ facility.idfacilities }}" 
+                                        data-technology="{{ facility.idtechnologies.technology_name }}">
+                                    {{ facility.facility_name }} - {{ facility.idtechnologies.technology_name }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        
+                        <div class="col-md-2">
+                            <label for="yearSelectCompare" class="form-label">Year:</label>
+                            <select class="form-select" id="yearSelectCompare" name="year" required>
+                                <option value="">Choose a year...</option>
+                                {% for year in years %}
+                                <option value="{{ year }}">{{ year }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        
+                        <div class="col-md-2">
+                            <label for="aggregationSelectCompare" class="form-label">Time Period:</label>
+                            <select class="form-select" id="aggregationSelectCompare" name="aggregation">
+                                <option value="hour">Hourly</option>
+                                <option value="week">Weekly</option>
+                                <option value="month">Monthly</option>
+                            </select>
+                        </div>
+                        
+                        <div class="col-md-1">
+                            <label for="chartTypeSelectCompare" class="form-label">Chart:</label>
+                            <select class="form-select" id="chartTypeSelectCompare" name="chartType">
+                                <option value="line">Line</option>
+                                <option value="scatter">Scatter</option>
+                                <option value="bar">Bar</option>
+                                <option value="area">Area</option>
+                            </select>
+                        </div>
+                        
+                        <div class="col-md-1">
+                            <label class="form-label">&nbsp;</label>
+                            <button type="submit" class="btn btn-success w-100">
+                                <i class="bi bi-graph-up"></i> Compare
+                            </button>
+                        </div>
+                    </form>
+                    
+                    <!-- Date Range Selection for Comparison -->
+                    <div class="row mt-3">
+                        <div class="col-md-12">
+                            <div class="accordion">
+                                <div class="accordion-item">
+                                    <h2 class="accordion-header">
+                                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#dateRangeCollapseCompare">
+                                            Optional: Select Date Range
+                                        </button>
+                                    </h2>
+                                    <div id="dateRangeCollapseCompare" class="accordion-collapse collapse">
+                                        <div class="accordion-body">
+                                            <div class="row g-3">
+                                                <div class="col-md-3">
+                                                    <label class="form-label">Quick Select:</label>
+                                                    <select class="form-select" id="quickSelectCompare">
+                                                        <option value="">Full Year</option>
+                                                        <option value="summer">Summer (Dec-Feb)</option>
+                                                        <option value="autumn">Autumn (Mar-May)</option>
+                                                        <option value="winter">Winter (Jun-Aug)</option>
+                                                        <option value="spring">Spring (Sep-Nov)</option>
+                                                        <option value="q1">Q1 (Jan-Mar)</option>
+                                                        <option value="q2">Q2 (Apr-Jun)</option>
+                                                        <option value="q3">Q3 (Jul-Sep)</option>
+                                                        <option value="q4">Q4 (Oct-Dec)</option>
+                                                    </select>
+                                                </div>
+                                                <div class="col-md-3">
+                                                    <label class="form-label">Start Month:</label>
+                                                    <select class="form-select" id="startMonthCompare">
+                                                        <option value="">Select...</option>
+                                                        <option value="1">January</option>
+                                                        <option value="2">February</option>
+                                                        <option value="3">March</option>
+                                                        <option value="4">April</option>
+                                                        <option value="5">May</option>
+                                                        <option value="6">June</option>
+                                                        <option value="7">July</option>
+                                                        <option value="8">August</option>
+                                                        <option value="9">September</option>
+                                                        <option value="10">October</option>
+                                                        <option value="11">November</option>
+                                                        <option value="12">December</option>
+                                                    </select>
+                                                </div>
+                                                <div class="col-md-3">
+                                                    <label class="form-label">End Month:</label>
+                                                    <select class="form-select" id="endMonthCompare">
+                                                        <option value="">Select...</option>
+                                                        <option value="1">January</option>
+                                                        <option value="2">February</option>
+                                                        <option value="3">March</option>
+                                                        <option value="4">April</option>
+                                                        <option value="5">May</option>
+                                                        <option value="6">June</option>
+                                                        <option value="7">July</option>
+                                                        <option value="8">August</option>
+                                                        <option value="9">September</option>
+                                                        <option value="10">October</option>
+                                                        <option value="11">November</option>
+                                                        <option value="12">December</option>
+                                                    </select>
+                                                </div>
+                                                <div class="col-md-3">
+                                                    <label class="form-label">&nbsp;</label>
+                                                    <button type="button" class="btn btn-secondary w-100" id="clearDateRangeCompare">
+                                                        Clear Range
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            <div class="row mt-2">
+                                                <div class="col-md-12">
+                                                    <small class="text-muted">
+                                                        <strong>Note:</strong> Months are for Southern Hemisphere seasons. Leave blank for full year.
+                                                    </small>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Technology aggregated form -->
+    <div class="row mt-4" id="technologyForm" style="display: none;">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-body">
+                    <form id="technologyPlotForm" class="row g-3">
+                        <div class="col-md-4">
+                            <label for="technologySelect" class="form-label">Select Technology:</label>
+                            <select class="form-select" id="technologySelect" name="technology" required>
+                                <option value="">Choose a technology...</option>
+                                {% for technology in technologies %}
+                                <option value="{{ technology.idtechnologies }}">
+                                    {{ technology.technology_name }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        
+                        <div class="col-md-2">
+                            <label for="yearSelectTech" class="form-label">Year:</label>
+                            <select class="form-select" id="yearSelectTech" name="year" required>
+                                <option value="">Choose a year...</option>
+                                {% for year in years %}
+                                <option value="{{ year }}">{{ year }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        
+                        <div class="col-md-2">
+                            <label for="aggregationSelectTech" class="form-label">Time Period:</label>
+                            <select class="form-select" id="aggregationSelectTech" name="aggregation">
+                                <option value="hour">Hourly</option>
+                                <option value="week">Weekly</option>
+                                <option value="month">Monthly</option>
+                            </select>
+                        </div>
+                        
+                        <div class="col-md-2">
+                            <label for="chartTypeSelectTech" class="form-label">Chart Type:</label>
+                            <select class="form-select" id="chartTypeSelectTech" name="chartType">
+                                <option value="line">Line Chart</option>
+                                <option value="scatter">Scatter Plot</option>
+                                <option value="bar">Bar Chart</option>
+                                <option value="area">Area Chart</option>
+                            </select>
+                        </div>
+                        
+                        <div class="col-md-2">
+                            <label class="form-label">&nbsp;</label>
+                            <button type="submit" class="btn btn-primary w-100">
+                                <i class="bi bi-graph-up"></i> Plot Technology
+                            </button>
+                        </div>
+                    </form>
+                    
+                    <!-- Date Range Selection for Technology -->
+                    <div class="row mt-3">
+                        <div class="col-md-12">
+                            <div class="accordion">
+                                <div class="accordion-item">
+                                    <h2 class="accordion-header">
+                                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#dateRangeCollapseTech">
+                                            Optional: Select Date Range
+                                        </button>
+                                    </h2>
+                                    <div id="dateRangeCollapseTech" class="accordion-collapse collapse">
+                                        <div class="accordion-body">
+                                            <div class="row g-3">
+                                                <div class="col-md-3">
+                                                    <label class="form-label">Quick Select:</label>
+                                                    <select class="form-select" id="quickSelectTech">
+                                                        <option value="">Full Year</option>
+                                                        <option value="summer">Summer (Dec-Feb)</option>
+                                                        <option value="autumn">Autumn (Mar-May)</option>
+                                                        <option value="winter">Winter (Jun-Aug)</option>
+                                                        <option value="spring">Spring (Sep-Nov)</option>
+                                                        <option value="q1">Q1 (Jan-Mar)</option>
+                                                        <option value="q2">Q2 (Apr-Jun)</option>
+                                                        <option value="q3">Q3 (Jul-Sep)</option>
+                                                        <option value="q4">Q4 (Oct-Dec)</option>
+                                                    </select>
+                                                </div>
+                                                <div class="col-md-3">
+                                                    <label class="form-label">Start Month:</label>
+                                                    <select class="form-select" id="startMonthTech">
+                                                        <option value="">Select...</option>
+                                                        <option value="1">January</option>
+                                                        <option value="2">February</option>
+                                                        <option value="3">March</option>
+                                                        <option value="4">April</option>
+                                                        <option value="5">May</option>
+                                                        <option value="6">June</option>
+                                                        <option value="7">July</option>
+                                                        <option value="8">August</option>
+                                                        <option value="9">September</option>
+                                                        <option value="10">October</option>
+                                                        <option value="11">November</option>
+                                                        <option value="12">December</option>
+                                                    </select>
+                                                </div>
+                                                <div class="col-md-3">
+                                                    <label class="form-label">End Month:</label>
+                                                    <select class="form-select" id="endMonthTech">
+                                                        <option value="">Select...</option>
+                                                        <option value="1">January</option>
+                                                        <option value="2">February</option>
+                                                        <option value="3">March</option>
+                                                        <option value="4">April</option>
+                                                        <option value="5">May</option>
+                                                        <option value="6">June</option>
+                                                        <option value="7">July</option>
+                                                        <option value="8">August</option>
+                                                        <option value="9">September</option>
+                                                        <option value="10">October</option>
+                                                        <option value="11">November</option>
+                                                        <option value="12">December</option>
+                                                    </select>
+                                                </div>
+                                                <div class="col-md-3">
+                                                    <label class="form-label">&nbsp;</label>
+                                                    <button type="button" class="btn btn-secondary w-100" id="clearDateRangeTech">
+                                                        Clear Range
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            <div class="row mt-2">
+                                                <div class="col-md-12">
+                                                    <small class="text-muted">
+                                                        <strong>Note:</strong> Months are for Southern Hemisphere seasons. Leave blank for full year.
+                                                    </small>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Technology comparison form -->
+    <div class="row mt-4" id="techComparisonForm" style="display: none;">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-body">
+                    <form id="techComparisonPlotForm" class="row g-3">
+                        <div class="col-md-3">
+                            <label for="technology1Select" class="form-label">Technology 1:</label>
+                            <select class="form-select" id="technology1Select" name="technology1" required>
+                                <option value="">Choose first technology...</option>
+                                {% for technology in technologies %}
+                                <option value="{{ technology.idtechnologies }}">
+                                    {{ technology.technology_name }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        
+                        <div class="col-md-3">
+                            <label for="technology2Select" class="form-label">Technology 2:</label>
+                            <select class="form-select" id="technology2Select" name="technology2" required>
+                                <option value="">Choose second technology...</option>
+                                {% for technology in technologies %}
+                                <option value="{{ technology.idtechnologies }}">
+                                    {{ technology.technology_name }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        
+                        <div class="col-md-2">
+                            <label for="yearSelectTechComp" class="form-label">Year:</label>
+                            <select class="form-select" id="yearSelectTechComp" name="year" required>
+                                <option value="">Choose a year...</option>
+                                {% for year in years %}
+                                <option value="{{ year }}">{{ year }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        
+                        <div class="col-md-2">
+                            <label for="aggregationSelectTechComp" class="form-label">Time Period:</label>
+                            <select class="form-select" id="aggregationSelectTechComp" name="aggregation">
+                                <option value="hour">Hourly</option>
+                                <option value="week">Weekly</option>
+                                <option value="month">Monthly</option>
+                            </select>
+                        </div>
+                        
+                        <div class="col-md-1">
+                            <label for="chartTypeSelectTechComp" class="form-label">Chart:</label>
+                            <select class="form-select" id="chartTypeSelectTechComp" name="chartType">
+                                <option value="line">Line</option>
+                                <option value="scatter">Scatter</option>
+                                <option value="bar">Bar</option>
+                                <option value="area">Area</option>
+                            </select>
+                        </div>
+                        
+                        <div class="col-md-1">
+                            <label class="form-label">&nbsp;</label>
+                            <button type="submit" class="btn btn-success w-100">
+                                <i class="bi bi-graph-up"></i> Compare
+                            </button>
+                        </div>
+                    </form>
+                    
+                    <!-- Date Range Selection for Technology Comparison -->
+                    <div class="row mt-3">
+                        <div class="col-md-12">
+                            <div class="accordion">
+                                <div class="accordion-item">
+                                    <h2 class="accordion-header">
+                                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#dateRangeCollapseTechComp">
+                                            Optional: Select Date Range
+                                        </button>
+                                    </h2>
+                                    <div id="dateRangeCollapseTechComp" class="accordion-collapse collapse">
+                                        <div class="accordion-body">
+                                            <div class="row g-3">
+                                                <div class="col-md-3">
+                                                    <label class="form-label">Quick Select:</label>
+                                                    <select class="form-select" id="quickSelectTechComp">
+                                                        <option value="">Full Year</option>
+                                                        <option value="summer">Summer (Dec-Feb)</option>
+                                                        <option value="autumn">Autumn (Mar-May)</option>
+                                                        <option value="winter">Winter (Jun-Aug)</option>
+                                                        <option value="spring">Spring (Sep-Nov)</option>
+                                                        <option value="q1">Q1 (Jan-Mar)</option>
+                                                        <option value="q2">Q2 (Apr-Jun)</option>
+                                                        <option value="q3">Q3 (Jul-Sep)</option>
+                                                        <option value="q4">Q4 (Oct-Dec)</option>
+                                                    </select>
+                                                </div>
+                                                <div class="col-md-3">
+                                                    <label class="form-label">Start Month:</label>
+                                                    <select class="form-select" id="startMonthTechComp">
+                                                        <option value="">Select...</option>
+                                                        <option value="1">January</option>
+                                                        <option value="2">February</option>
+                                                        <option value="3">March</option>
+                                                        <option value="4">April</option>
+                                                        <option value="5">May</option>
+                                                        <option value="6">June</option>
+                                                        <option value="7">July</option>
+                                                        <option value="8">August</option>
+                                                        <option value="9">September</option>
+                                                        <option value="10">October</option>
+                                                        <option value="11">November</option>
+                                                        <option value="12">December</option>
+                                                    </select>
+                                                </div>
+                                                <div class="col-md-3">
+                                                    <label class="form-label">End Month:</label>
+                                                    <select class="form-select" id="endMonthTechComp">
+                                                        <option value="">Select...</option>
+                                                        <option value="1">January</option>
+                                                        <option value="2">February</option>
+                                                        <option value="3">March</option>
+                                                        <option value="4">April</option>
+                                                        <option value="5">May</option>
+                                                        <option value="6">June</option>
+                                                        <option value="7">July</option>
+                                                        <option value="8">August</option>
+                                                        <option value="9">September</option>
+                                                        <option value="10">October</option>
+                                                        <option value="11">November</option>
+                                                        <option value="12">December</option>
+                                                    </select>
+                                                </div>
+                                                <div class="col-md-3">
+                                                    <label class="form-label">&nbsp;</label>
+                                                    <button type="button" class="btn btn-secondary w-100" id="clearDateRangeTechComp">
+                                                        Clear Range
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            <div class="row mt-2">
+                                                <div class="col-md-12">
+                                                    <small class="text-muted">
+                                                        <strong>Note:</strong> Months are for Southern Hemisphere seasons. Leave blank for full year.
+                                                    </small>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div id="loadingSpinner" class="text-center mt-4" style="display: none;">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+        <p class="mt-2">Loading supply data...</p>
+    </div>
+    
+    <div id="errorMessage" class="alert alert-danger mt-4" style="display: none;"></div>
+    
+    <!-- Single facility info -->
+    <div id="plotInfo" class="mt-4" style="display: none;">
+        <div class="alert alert-info">
+            <strong>Facility:</strong> <span id="infoFacilityName"></span> |
+            <strong>Technology:</strong> <span id="infoTechnology"></span> |
+            <strong>Year:</strong> <span id="infoYear"></span> |
+            <strong>Aggregation:</strong> <span id="infoAggregation"></span> |
+            <strong>Data Points:</strong> <span id="infoTotalPeriods"></span>
+        </div>
+    </div>
+    
+    <!-- Comparison metrics -->
+    <div id="comparisonMetrics" class="mt-4" style="display: none;">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">Correlation & Complementarity Analysis</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6>Comparing:</h6>
+                        <p><strong>Facility 1:</strong> <span id="compFacility1"></span> (<span id="compTech1"></span>)</p>
+                        <p><strong>Facility 2:</strong> <span id="compFacility2"></span> (<span id="compTech2"></span>)</p>
+                        <p><strong>Year:</strong> <span id="compYear"></span> | <strong>Aggregation:</strong> <span id="compAggregation"></span></p>
+                    </div>
+                    <div class="col-md-6">
+                        <h6>Key Metrics:</h6>
+                        <table class="table table-sm">
+                            <tr>
+                                <td><strong>Correlation Coefficient:</strong></td>
+                                <td><span id="metricCorrelation" class="badge"></span></td>
+                            </tr>
+                            <tr>
+                                <td><strong>Complementarity Score:</strong></td>
+                                <td><span id="metricComplementarity" class="badge"></span></td>
+                            </tr>
+                            <tr>
+                                <td><strong>Variability Reduction:</strong></td>
+                                <td><span id="metricVariability"></span>%</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Complementary Periods:</strong></td>
+                                <td><span id="metricComplementaryPct"></span>%</td>
+                            </tr>
+                        </table>
+                    </div>
+                </div>
+                <div class="row mt-3">
+                    <div class="col-md-12">
+                        <div class="alert alert-secondary">
+                            <strong>Interpretation:</strong> <span id="metricInterpretation"></span>
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-12">
+                        <small class="text-muted">
+                            <strong>Note:</strong> 
+                            Correlation ranges from -1 (perfect negative) to +1 (perfect positive). 
+                            Complementarity score ranges from 0 (perfectly correlated) to 1 (perfectly uncorrelated/anti-correlated). 
+                            Higher complementarity indicates better portfolio diversification potential.
+                        </small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row mt-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-body">
+                    <div id="supplyChart" style="width: 100%; height: 600px;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.plot.ly/plotly-3.1.1.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Form elements
+    const singleForm = document.getElementById('supplyPlotForm');
+    const comparisonForm = document.getElementById('comparisonPlotForm');
+    const technologyForm = document.getElementById('technologyPlotForm');
+    const techComparisonForm = document.getElementById('techComparisonPlotForm');
+    const facilitySelect = document.getElementById('facilitySelect');
+    const yearSelect = document.getElementById('yearSelect');
+    const aggregationSelect = document.getElementById('aggregationSelect');
+    const chartTypeSelect = document.getElementById('chartTypeSelect');
+    const facility1Select = document.getElementById('facility1Select');
+    const facility2Select = document.getElementById('facility2Select');
+    const yearSelectCompare = document.getElementById('yearSelectCompare');
+    const aggregationSelectCompare = document.getElementById('aggregationSelectCompare');
+    const chartTypeSelectCompare = document.getElementById('chartTypeSelectCompare');
+    const technologySelect = document.getElementById('technologySelect');
+    const yearSelectTech = document.getElementById('yearSelectTech');
+    const aggregationSelectTech = document.getElementById('aggregationSelectTech');
+    const chartTypeSelectTech = document.getElementById('chartTypeSelectTech');
+    const technology1Select = document.getElementById('technology1Select');
+    const technology2Select = document.getElementById('technology2Select');
+    const yearSelectTechComp = document.getElementById('yearSelectTechComp');
+    const aggregationSelectTechComp = document.getElementById('aggregationSelectTechComp');
+    const chartTypeSelectTechComp = document.getElementById('chartTypeSelectTechComp');
+    
+    // UI elements
+    const loadingSpinner = document.getElementById('loadingSpinner');
+    const errorMessage = document.getElementById('errorMessage');
+    const plotInfo = document.getElementById('plotInfo');
+    const comparisonMetrics = document.getElementById('comparisonMetrics');
+    const chartDiv = document.getElementById('supplyChart');
+    const singleFacilityFormDiv = document.getElementById('singleFacilityForm');
+    const comparisonFormDiv = document.getElementById('comparisonForm');
+    const technologyFormDiv = document.getElementById('technologyForm');
+    const techComparisonFormDiv = document.getElementById('techComparisonForm');
+    
+    // Mode switching
+    document.querySelectorAll('input[name="viewMode"]').forEach(radio => {
+        radio.addEventListener('change', function() {
+            // Hide all forms
+            singleFacilityFormDiv.style.display = 'none';
+            comparisonFormDiv.style.display = 'none';
+            technologyFormDiv.style.display = 'none';
+            techComparisonFormDiv.style.display = 'none';
+            plotInfo.style.display = 'none';
+            comparisonMetrics.style.display = 'none';
+            
+            // Show selected form
+            if (this.value === 'single') {
+                singleFacilityFormDiv.style.display = 'block';
+            } else if (this.value === 'compare') {
+                comparisonFormDiv.style.display = 'block';
+            } else if (this.value === 'technology') {
+                technologyFormDiv.style.display = 'block';
+            } else if (this.value === 'techcompare') {
+                techComparisonFormDiv.style.display = 'block';
+            }
+            
+            Plotly.purge(chartDiv);
+            hideError();
+        });
+    });
+    
+    // Update years when facility changes
+    facilitySelect.addEventListener('change', function() {
+        if (this.value) {
+            updateAvailableYears(this.value, yearSelect);
+        }
+    });
+    
+    // Date range handlers for single facility
+    const quickSelectSingle = document.getElementById('quickSelectSingle');
+    const startMonthSingle = document.getElementById('startMonthSingle');
+    const endMonthSingle = document.getElementById('endMonthSingle');
+    const clearDateRangeSingle = document.getElementById('clearDateRangeSingle');
+    
+    quickSelectSingle.addEventListener('change', function() {
+        const seasonMap = {
+            'summer': {start: 12, end: 2},
+            'autumn': {start: 3, end: 5},
+            'winter': {start: 6, end: 8},
+            'spring': {start: 9, end: 11},
+            'q1': {start: 1, end: 3},
+            'q2': {start: 4, end: 6},
+            'q3': {start: 7, end: 9},
+            'q4': {start: 10, end: 12}
+        };
+        
+        if (this.value && seasonMap[this.value]) {
+            startMonthSingle.value = seasonMap[this.value].start;
+            endMonthSingle.value = seasonMap[this.value].end;
+        } else {
+            startMonthSingle.value = '';
+            endMonthSingle.value = '';
+        }
+    });
+    
+    clearDateRangeSingle.addEventListener('click', function() {
+        quickSelectSingle.value = '';
+        startMonthSingle.value = '';
+        endMonthSingle.value = '';
+    });
+    
+    // Date range handlers for facility comparison
+    const quickSelectCompare = document.getElementById('quickSelectCompare');
+    const startMonthCompare = document.getElementById('startMonthCompare');
+    const endMonthCompare = document.getElementById('endMonthCompare');
+    const clearDateRangeCompare = document.getElementById('clearDateRangeCompare');
+    
+    quickSelectCompare.addEventListener('change', function() {
+        const seasonMap = {
+            'summer': {start: 12, end: 2}, 'autumn': {start: 3, end: 5},
+            'winter': {start: 6, end: 8}, 'spring': {start: 9, end: 11},
+            'q1': {start: 1, end: 3}, 'q2': {start: 4, end: 6},
+            'q3': {start: 7, end: 9}, 'q4': {start: 10, end: 12}
+        };
+        
+        if (this.value && seasonMap[this.value]) {
+            startMonthCompare.value = seasonMap[this.value].start;
+            endMonthCompare.value = seasonMap[this.value].end;
+        } else {
+            startMonthCompare.value = '';
+            endMonthCompare.value = '';
+        }
+    });
+    
+    clearDateRangeCompare.addEventListener('click', function() {
+        quickSelectCompare.value = '';
+        startMonthCompare.value = '';
+        endMonthCompare.value = '';
+    });
+    
+    // Date range handlers for technology
+    const quickSelectTech = document.getElementById('quickSelectTech');
+    const startMonthTech = document.getElementById('startMonthTech');
+    const endMonthTech = document.getElementById('endMonthTech');
+    const clearDateRangeTech = document.getElementById('clearDateRangeTech');
+    
+    quickSelectTech.addEventListener('change', function() {
+        const seasonMap = {
+            'summer': {start: 12, end: 2}, 'autumn': {start: 3, end: 5},
+            'winter': {start: 6, end: 8}, 'spring': {start: 9, end: 11},
+            'q1': {start: 1, end: 3}, 'q2': {start: 4, end: 6},
+            'q3': {start: 7, end: 9}, 'q4': {start: 10, end: 12}
+        };
+        
+        if (this.value && seasonMap[this.value]) {
+            startMonthTech.value = seasonMap[this.value].start;
+            endMonthTech.value = seasonMap[this.value].end;
+        } else {
+            startMonthTech.value = '';
+            endMonthTech.value = '';
+        }
+    });
+    
+    clearDateRangeTech.addEventListener('click', function() {
+        quickSelectTech.value = '';
+        startMonthTech.value = '';
+        endMonthTech.value = '';
+    });
+    
+    // Date range handlers for technology comparison
+    const quickSelectTechComp = document.getElementById('quickSelectTechComp');
+    const startMonthTechComp = document.getElementById('startMonthTechComp');
+    const endMonthTechComp = document.getElementById('endMonthTechComp');
+    const clearDateRangeTechComp = document.getElementById('clearDateRangeTechComp');
+    
+    quickSelectTechComp.addEventListener('change', function() {
+        const seasonMap = {
+            'summer': {start: 12, end: 2}, 'autumn': {start: 3, end: 5},
+            'winter': {start: 6, end: 8}, 'spring': {start: 9, end: 11},
+            'q1': {start: 1, end: 3}, 'q2': {start: 4, end: 6},
+            'q3': {start: 7, end: 9}, 'q4': {start: 10, end: 12}
+        };
+        
+        if (this.value && seasonMap[this.value]) {
+            startMonthTechComp.value = seasonMap[this.value].start;
+            endMonthTechComp.value = seasonMap[this.value].end;
+        } else {
+            startMonthTechComp.value = '';
+            endMonthTechComp.value = '';
+        }
+    });
+    
+    clearDateRangeTechComp.addEventListener('click', function() {
+        quickSelectTechComp.value = '';
+        startMonthTechComp.value = '';
+        endMonthTechComp.value = '';
+    });
+    
+    // Single facility form submission
+    singleForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const facilityId = facilitySelect.value;
+        const year = yearSelect.value;
+        const aggregation = aggregationSelect.value;
+        const chartType = chartTypeSelect.value;
+        
+        if (!facilityId || !year) {
+            showError('Please select both facility and year');
+            return;
+        }
+        
+        comparisonMetrics.style.display = 'none';
+        fetchAndPlotData(facilityId, year, aggregation, chartType);
+    });
+    
+    // Comparison form submission
+    comparisonForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const facility1Id = facility1Select.value;
+        const facility2Id = facility2Select.value;
+        const year = yearSelectCompare.value;
+        const aggregation = aggregationSelectCompare.value;
+        const chartType = chartTypeSelectCompare.value;
+        
+        if (!facility1Id || !facility2Id || !year) {
+            showError('Please select both facilities and year');
+            return;
+        }
+        
+        if (facility1Id === facility2Id) {
+            showError('Please select two different facilities');
+            return;
+        }
+        
+        plotInfo.style.display = 'none';
+        fetchAndPlotComparison(facility1Id, facility2Id, year, aggregation, chartType);
+    });
+    
+    // Technology form submission
+    technologyForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const technologyId = technologySelect.value;
+        const year = yearSelectTech.value;
+        const aggregation = aggregationSelectTech.value;
+        const chartType = chartTypeSelectTech.value;
+        
+        if (!technologyId || !year) {
+            showError('Please select both technology and year');
+            return;
+        }
+        
+        comparisonMetrics.style.display = 'none';
+        fetchAndPlotTechnology(technologyId, year, aggregation, chartType);
+    });
+    
+    // Technology comparison form submission
+    techComparisonForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const technology1Id = technology1Select.value;
+        const technology2Id = technology2Select.value;
+        const year = yearSelectTechComp.value;
+        const aggregation = aggregationSelectTechComp.value;
+        const chartType = chartTypeSelectTechComp.value;
+        
+        if (!technology1Id || !technology2Id || !year) {
+            showError('Please select both technologies and year');
+            return;
+        }
+        
+        if (technology1Id === technology2Id) {
+            showError('Please select two different technologies');
+            return;
+        }
+        
+        plotInfo.style.display = 'none';
+        fetchAndPlotTechnologyComparison(technology1Id, technology2Id, year, aggregation, chartType);
+    });
+    
+    function updateAvailableYears(facilityId, targetSelect) {
+        fetch(`/get_facility_years/?facility_id=${facilityId}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    showError(data.error);
+                    return;
+                }
+                
+                targetSelect.innerHTML = '<option value="">Choose a year...</option>';
+                data.years.forEach(year => {
+                    const option = document.createElement('option');
+                    option.value = year;
+                    option.textContent = year;
+                    targetSelect.appendChild(option);
+                });
+                
+                hideError();
+            })
+            .catch(error => {
+                showError('Error fetching years: ' + error.message);
+            });
+    }
+    
+    function getHourRangeFromMonths(startMonth, endMonth) {
+        const daysPerMonth = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+        
+        // Calculate start hour
+        let startHour = 1;
+        for (let i = 0; i < startMonth - 1; i++) {
+            startHour += daysPerMonth[i] * 24;
+        }
+        
+        // Calculate end hour
+        let endHour = 0;
+        for (let i = 0; i < endMonth; i++) {
+            endHour += daysPerMonth[i] * 24;
+        }
+        
+        return { start: startHour, end: endHour };
+    }
+    
+    function fetchAndPlotData(facilityId, year, aggregation, chartType) {
+        loadingSpinner.style.display = 'block';
+        hideError();
+        plotInfo.style.display = 'none';
+        
+        // Get date range if specified
+        let url = `/get_supply_data/?facility_id=${facilityId}&year=${year}&aggregation=${aggregation}`;
+        const startMonth = startMonthSingle.value;
+        const endMonth = endMonthSingle.value;
+        
+        if (startMonth && endMonth) {
+            const hourRange = getHourRangeFromMonths(parseInt(startMonth), parseInt(endMonth));
+            url += `&start_hour=${hourRange.start}&end_hour=${hourRange.end}`;
+        }
+        
+        fetch(url)
+            .then(response => response.json())
+            .then(data => {
+                loadingSpinner.style.display = 'none';
+                
+                if (data.error) {
+                    showError(data.error);
+                    return;
+                }
+                
+                document.getElementById('infoFacilityName').textContent = data.facility_name;
+                document.getElementById('infoTechnology').textContent = data.technology;
+                document.getElementById('infoYear').textContent = data.year;
+                document.getElementById('infoAggregation').textContent = data.aggregation.charAt(0).toUpperCase() + data.aggregation.slice(1);
+                document.getElementById('infoTotalPeriods').textContent = data.total_periods;
+                plotInfo.style.display = 'block';
+                
+                plotSupplyData(data, chartType);
+            })
+            .catch(error => {
+                loadingSpinner.style.display = 'none';
+                showError('Error fetching data: ' + error.message);
+            });
+    }
+    
+    function fetchAndPlotComparison(facility1Id, facility2Id, year, aggregation, chartType) {
+        loadingSpinner.style.display = 'block';
+        hideError();
+        comparisonMetrics.style.display = 'none';
+        
+        // Get date range if specified
+        let url = `/get_comparison_data/?facility1_id=${facility1Id}&facility2_id=${facility2Id}&year=${year}&aggregation=${aggregation}`;
+        const startMonth = startMonthCompare.value;
+        const endMonth = endMonthCompare.value;
+        
+        if (startMonth && endMonth) {
+            const hourRange = getHourRangeFromMonths(parseInt(startMonth), parseInt(endMonth));
+            url += `&start_hour=${hourRange.start}&end_hour=${hourRange.end}`;
+        }
+        
+        fetch(url)
+            .then(response => response.json())
+            .then(data => {
+                loadingSpinner.style.display = 'none';
+                
+                if (data.error) {
+                    showError(data.error);
+                    return;
+                }
+                
+                displayComparisonMetrics(data);
+                plotComparisonData(data, chartType);
+            })
+            .catch(error => {
+                loadingSpinner.style.display = 'none';
+                showError('Error fetching comparison data: ' + error.message);
+            });
+    }
+    
+    function fetchAndPlotTechnology(technologyId, year, aggregation, chartType) {
+        loadingSpinner.style.display = 'block';
+        hideError();
+        plotInfo.style.display = 'none';
+        comparisonMetrics.style.display = 'none';
+        
+        // Get date range if specified
+        let url = `/get_technology_data/?technology_id=${technologyId}&year=${year}&aggregation=${aggregation}`;
+        const startMonth = startMonthTech.value;
+        const endMonth = endMonthTech.value;
+        
+        if (startMonth && endMonth) {
+            const hourRange = getHourRangeFromMonths(parseInt(startMonth), parseInt(endMonth));
+            url += `&start_hour=${hourRange.start}&end_hour=${hourRange.end}`;
+        }
+        
+        fetch(url)
+            .then(response => response.json())
+            .then(data => {
+                loadingSpinner.style.display = 'none';
+                
+                if (data.error) {
+                    showError(data.error);
+                    return;
+                }
+                
+                document.getElementById('infoFacilityName').textContent = `${data.technology_name} (${data.facility_count} facilities)`;
+                document.getElementById('infoTechnology').textContent = 'Aggregated Technology';
+                document.getElementById('infoYear').textContent = data.year;
+                document.getElementById('infoAggregation').textContent = data.aggregation.charAt(0).toUpperCase() + data.aggregation.slice(1);
+                document.getElementById('infoTotalPeriods').textContent = data.total_periods;
+                plotInfo.style.display = 'block';
+                
+                plotTechnologyData(data, chartType);
+            })
+            .catch(error => {
+                loadingSpinner.style.display = 'none';
+                showError('Error fetching technology data: ' + error.message);
+            });
+    }
+    
+    function fetchAndPlotTechnologyComparison(technology1Id, technology2Id, year, aggregation, chartType) {
+        loadingSpinner.style.display = 'block';
+        hideError();
+        comparisonMetrics.style.display = 'none';
+        plotInfo.style.display = 'none';
+        
+        // Get date range if specified
+        let url = `/get_technology_comparison_data/?technology1_id=${technology1Id}&technology2_id=${technology2Id}&year=${year}&aggregation=${aggregation}`;
+        const startMonth = startMonthTechComp.value;
+        const endMonth = endMonthTechComp.value;
+        
+        if (startMonth && endMonth) {
+            const hourRange = getHourRangeFromMonths(parseInt(startMonth), parseInt(endMonth));
+            url += `&start_hour=${hourRange.start}&end_hour=${hourRange.end}`;
+        }
+        
+        fetch(url)
+            .then(response => response.json())
+            .then(data => {
+                loadingSpinner.style.display = 'none';
+                
+                if (data.error) {
+                    showError(data.error);
+                    return;
+                }
+                
+                displayTechnologyComparisonMetrics(data);
+                plotTechnologyComparisonData(data, chartType);
+            })
+            .catch(error => {
+                loadingSpinner.style.display = 'none';
+                showError('Error fetching technology comparison data: ' + error.message);
+            });
+    }
+
+    function displayComparisonMetrics(data) {
+        const metrics = data.correlation_metrics;
+        
+        document.getElementById('compFacility1').textContent = data.facility1.name;
+        document.getElementById('compTech1').textContent = data.facility1.technology;
+        document.getElementById('compFacility2').textContent = data.facility2.name;
+        document.getElementById('compTech2').textContent = data.facility2.technology;
+        document.getElementById('compYear').textContent = data.year;
+        document.getElementById('compAggregation').textContent = data.aggregation.charAt(0).toUpperCase() + data.aggregation.slice(1);
+        
+        // Correlation badge with color
+        const corrBadge = document.getElementById('metricCorrelation');
+        corrBadge.textContent = metrics.correlation;
+        if (Math.abs(metrics.correlation) < 0.3) {
+            corrBadge.className = 'badge bg-success';
+        } else if (Math.abs(metrics.correlation) < 0.7) {
+            corrBadge.className = 'badge bg-warning';
+        } else {
+            corrBadge.className = 'badge bg-danger';
+        }
+        
+        // Complementarity badge with color
+        const compBadge = document.getElementById('metricComplementarity');
+        compBadge.textContent = metrics.complementarity_score;
+        if (metrics.complementarity_score > 0.7) {
+            compBadge.className = 'badge bg-success';
+        } else if (metrics.complementarity_score > 0.4) {
+            compBadge.className = 'badge bg-warning';
+        } else {
+            compBadge.className = 'badge bg-danger';
+        }
+        
+        document.getElementById('metricVariability').textContent = metrics.variability_reduction;
+        document.getElementById('metricComplementaryPct').textContent = metrics.complementary_periods_pct;
+        document.getElementById('metricInterpretation').textContent = metrics.interpretation;
+        
+        comparisonMetrics.style.display = 'block';
+    }
+    
+    function plotSupplyData(data, chartType) {
+        const traces = createTraces(
+            [data.periods, data.periods],
+            [data.quantum, data.supply],
+            ['Quantum', 'Supply'],
+            ['rgb(55, 128, 191)', 'rgb(255, 127, 14)'],
+            chartType
+        );
+        
+        const hasDifferentSupply = data.supply.some((val, idx) => val !== data.quantum[idx]);
+        const plotData = hasDifferentSupply ? traces : [traces[0]];
+        
+        const layout = {
+            title: `Supply Factors for ${data.facility_name} (${data.year}) - ${data.technology}`,
+            xaxis: { title: data.x_label, showgrid: true, zeroline: false },
+            yaxis: { title: 'Supply Value', showgrid: true, zeroline: false },
+            hovermode: 'closest',
+            showlegend: true,
+            legend: { x: 1, xanchor: 'right', y: 1 },
+            barmode: chartType === 'bar' ? 'group' : undefined
+        };
+        
+        Plotly.newPlot(chartDiv, plotData, layout, getPlotConfig());
+    }
+    
+    function plotComparisonData(data, chartType) {
+        const traces = createTraces(
+            [data.periods, data.periods, data.periods],
+            [data.facility1_quantum, data.facility2_quantum, data.facility1_quantum.map((v, i) => (v + data.facility2_quantum[i]) / 2)],
+            [`${data.facility1.name} (${data.facility1.technology})`, `${data.facility2.name} (${data.facility2.technology})`, 'Combined Total'],
+            ['rgb(55, 128, 191)', 'rgb(255, 127, 14)', 'rgb(44, 160, 44)'],
+            chartType,
+            [false, false, true]
+        );
+        
+        const layout = {
+            title: `Facility Comparison: ${data.facility1.name} vs ${data.facility2.name} (${data.year})`,
+            xaxis: { title: data.x_label, showgrid: true, zeroline: false },
+            yaxis: { title: 'Supply Value', showgrid: true, zeroline: false },
+            hovermode: 'x unified',
+            showlegend: true,
+            legend: { x: 0, xanchor: 'left', y: 1 },
+            barmode: chartType === 'bar' ? 'group' : undefined
+        };
+        
+        Plotly.newPlot(chartDiv, traces, layout, getPlotConfig());
+    }
+    
+    function plotTechnologyData(data, chartType) {
+        const traces = createTraces(
+            [data.periods, data.periods],
+            [data.quantum, data.supply],
+            ['Quantum (Sum)', 'Supply (Sum)'],
+            ['rgb(55, 128, 191)', 'rgb(255, 127, 14)'],
+            chartType
+        );
+        
+        const hasDifferentSupply = data.supply.some((val, idx) => val !== data.quantum[idx]);
+        const plotData = hasDifferentSupply ? traces : [traces[0]];
+        
+        const layout = {
+            title: `${data.technology_name} - Aggregated Supply from ${data.facility_count} Facilities (${data.year})`,
+            xaxis: { title: data.x_label, showgrid: true, zeroline: false },
+            yaxis: { title: 'Aggregated Supply Value', showgrid: true, zeroline: false },
+            hovermode: 'closest',
+            showlegend: true,
+            legend: { x: 1, xanchor: 'right', y: 1 },
+            barmode: chartType === 'bar' ? 'group' : undefined
+        };
+        
+        Plotly.newPlot(chartDiv, plotData, layout, getPlotConfig());
+    }
+    
+    function plotTechnologyComparisonData(data, chartType) {
+        const traces = createTraces(
+            [data.periods, data.periods, data.periods],
+            [data.technology1_quantum, data.technology2_quantum, data.technology1_quantum.map((v, i) => (v + data.technology2_quantum[i]) / 2)],
+            [`${data.technology1.name} (${data.technology1.facility_count} facilities)`, `${data.technology2.name} (${data.technology2.facility_count} facilities)`, 'Combined Total'],
+            ['rgb(55, 128, 191)', 'rgb(255, 127, 14)', 'rgb(44, 160, 44)'],
+            chartType,
+            [false, false, true]
+        );
+        
+        const layout = {
+            title: `Technology Comparison: ${data.technology1.name} vs ${data.technology2.name} (${data.year})`,
+            xaxis: { title: data.x_label, showgrid: true, zeroline: false },
+            yaxis: { title: 'Aggregated Supply Value', showgrid: true, zeroline: false },
+            hovermode: 'x unified',
+            showlegend: true,
+            legend: { x: 0, xanchor: 'left', y: 1 },
+            barmode: chartType === 'bar' ? 'group' : undefined
+        };
+        
+        Plotly.newPlot(chartDiv, traces, layout, getPlotConfig());
+    }
+    
+    function createTraces(xArrays, yArrays, names, colors, chartType, isDashed = []) {
+        let traceType = 'scatter';
+        let traceMode = 'lines';
+        let fillOption = null;
+        
+        switch(chartType) {
+            case 'line': traceType = 'scatter'; traceMode = 'lines'; break;
+            case 'scatter': traceType = 'scatter'; traceMode = 'markers'; break;
+            case 'bar': traceType = 'bar'; traceMode = null; break;
+            case 'area': traceType = 'scatter'; traceMode = 'lines'; fillOption = 'tozeroy'; break;
+        }
+        
+        return xArrays.map((x, idx) => {
+            const trace = { x: x, y: yArrays[idx], name: names[idx], type: traceType };
+            
+            if (traceMode) trace.mode = traceMode;
+            
+            if (chartType === 'line' || chartType === 'area') {
+                trace.line = { color: colors[idx], width: 2 };
+                if (isDashed[idx]) trace.line.dash = 'dash';
+            }
+            
+            if (chartType === 'scatter') {
+                trace.marker = { color: colors[idx], size: 6 };
+                if (isDashed[idx]) trace.marker.symbol = 'diamond';
+            }
+            
+            if (chartType === 'bar') {
+                trace.marker = { color: colors[idx] };
+            }
+            
+            if (fillOption) {
+                trace.fill = fillOption;
+                trace.fillcolor = colors[idx].replace('rgb', 'rgba').replace(')', ', 0.3)');
+            }
+            
+            return trace;
+        });
+    }
+    
+    function getPlotConfig() {
+        return {
+            responsive: true,
+            displayModeBar: true,
+            modeBarButtonsToRemove: ['lasso2d', 'select2d'],
+            displaylogo: false
+        };
+    }
+    
+    function plotComparisonData(data, chartType) {
+        let traceType = 'scatter';
+        let traceMode = 'lines';
+        let fillOption = null;
+        
+        switch(chartType) {
+            case 'line':
+                traceType = 'scatter';
+                traceMode = 'lines';
+                break;
+            case 'scatter':
+                traceType = 'scatter';
+                traceMode = 'markers';
+                break;
+            case 'bar':
+                traceType = 'bar';
+                traceMode = null;
+                break;
+            case 'area':
+                traceType = 'scatter';
+                traceMode = 'lines';
+                fillOption = 'tozeroy';
+                break;
+        }
+        
+        const trace1 = {
+            x: data.periods,
+            y: data.facility1_quantum,
+            name: `${data.facility1.name} (${data.facility1.technology})`,
+            type: traceType
+        };
+        
+        if (traceMode) {
+            trace1.mode = traceMode;
+        }
+        
+        if (chartType === 'line' || chartType === 'area') {
+            trace1.line = {
+                color: 'rgb(55, 128, 191)',
+                width: 2
+            };
+        }
+        
+        if (chartType === 'scatter') {
+            trace1.marker = {
+                color: 'rgb(55, 128, 191)',
+                size: 6
+            };
+        }
+        
+        if (chartType === 'bar') {
+            trace1.marker = {
+                color: 'rgb(55, 128, 191)'
+            };
+        }
+        
+        if (fillOption) {
+            trace1.fill = fillOption;
+            trace1.fillcolor = 'rgba(55, 128, 191, 0.3)';
+        }
+        
+        const trace2 = {
+            x: data.periods,
+            y: data.facility2_quantum,
+            name: `${data.facility2.name} (${data.facility2.technology})`,
+            type: traceType
+        };
+        
+        if (traceMode) {
+            trace2.mode = traceMode;
+        }
+        
+        if (chartType === 'line' || chartType === 'area') {
+            trace2.line = {
+                color: 'rgb(255, 127, 14)',
+                width: 2
+            };
+        }
+        
+        if (chartType === 'scatter') {
+            trace2.marker = {
+                color: 'rgb(255, 127, 14)',
+                size: 6
+            };
+        }
+        
+        if (chartType === 'bar') {
+            trace2.marker = {
+                color: 'rgb(255, 127, 14)'
+            };
+        }
+        
+        if (fillOption) {
+            trace2.fill = fillOption;
+            trace2.fillcolor = 'rgba(255, 127, 14, 0.3)';
+        }
+        
+        // Calculate combined output
+        const combinedOutput = data.facility1_quantum.map((val, idx) => 
+            (val + data.facility2_quantum[idx])
+        );
+        
+        const trace3 = {
+            x: data.periods,
+            y: combinedOutput,
+            name: 'Combined Total',
+            type: traceType
+        };
+        
+        if (traceMode) {
+            trace3.mode = traceMode;
+        }
+        
+        if (chartType === 'line' || chartType === 'area') {
+            trace3.line = {
+                color: 'rgb(44, 160, 44)',
+                width: 2,
+                dash: 'dash'
+            };
+        }
+        
+        if (chartType === 'scatter') {
+            trace3.marker = {
+                color: 'rgb(44, 160, 44)',
+                size: 6,
+                symbol: 'diamond'
+            };
+        }
+        
+        if (chartType === 'bar') {
+            trace3.marker = {
+                color: 'rgb(44, 160, 44)'
+            };
+        }
+        
+        if (fillOption) {
+            trace3.fill = fillOption;
+            trace3.fillcolor = 'rgba(44, 160, 44, 0.3)';
+        }
+        
+        const plotData = [trace1, trace2, trace3];
+        
+        const layout = {
+            title: `Facility Comparison: ${data.facility1.name} vs ${data.facility2.name} (${data.year})`,
+            xaxis: {
+                title: data.x_label,
+                showgrid: true,
+                zeroline: false
+            },
+            yaxis: {
+                title: 'Supply Value',
+                showgrid: true,
+                zeroline: false
+            },
+            hovermode: 'x unified',
+            showlegend: true,
+            legend: {
+                x: 0,
+                xanchor: 'left',
+                y: 1
+            },
+            barmode: chartType === 'bar' ? 'group' : undefined
+        };
+        
+        const config = {
+            responsive: true,
+            displayModeBar: true,
+            modeBarButtonsToRemove: ['lasso2d', 'select2d'],
+            displaylogo: false
+        };
+        
+        Plotly.newPlot(chartDiv, plotData, layout, config);
+    }
+    
+    function displayTechnologyComparisonMetrics(data) {
+        const metrics = data.correlation_metrics;
+        
+        document.getElementById('compFacility1').textContent = `${data.technology1.name} (${data.technology1.facility_count} facilities)`;
+        document.getElementById('compTech1').textContent = 'Aggregated Technology';
+        document.getElementById('compFacility2').textContent = `${data.technology2.name} (${data.technology2.facility_count} facilities)`;
+        document.getElementById('compTech2').textContent = 'Aggregated Technology';
+        document.getElementById('compYear').textContent = data.year;
+        document.getElementById('compAggregation').textContent = data.aggregation.charAt(0).toUpperCase() + data.aggregation.slice(1);
+        
+        const corrBadge = document.getElementById('metricCorrelation');
+        corrBadge.textContent = metrics.correlation;
+        if (Math.abs(metrics.correlation) < 0.3) {
+            corrBadge.className = 'badge bg-success';
+        } else if (Math.abs(metrics.correlation) < 0.7) {
+            corrBadge.className = 'badge bg-warning';
+        } else {
+            corrBadge.className = 'badge bg-danger';
+        }
+        
+        const compBadge = document.getElementById('metricComplementarity');
+        compBadge.textContent = metrics.complementarity_score;
+        if (metrics.complementarity_score > 0.7) {
+            compBadge.className = 'badge bg-success';
+        } else if (metrics.complementarity_score > 0.4) {
+            compBadge.className = 'badge bg-warning';
+        } else {
+            compBadge.className = 'badge bg-danger';
+        }
+        
+        document.getElementById('metricVariability').textContent = metrics.variability_reduction;
+        document.getElementById('metricComplementaryPct').textContent = metrics.complementary_periods_pct;
+        document.getElementById('metricInterpretation').textContent = metrics.interpretation;
+        
+        comparisonMetrics.style.display = 'block';
+    }
+
+    function showError(message) {
+        errorMessage.textContent = message;
+        errorMessage.style.display = 'block';
+    }
+    
+    function hideError() {
+        errorMessage.style.display = 'none';
+    }
+});
+</script>
+{% endblock %}
