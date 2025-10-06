@@ -14,7 +14,7 @@ class Command(BaseCommand):
             '--kml-file',
             type=str,
             help='Path to KML file (relative to static directory)',
-            default='kml/SWIS_Grid.kml'
+            default='kml/Electricity_Transmission_Lines.kml'
         )
         parser.add_argument(
             '--update-existing',
@@ -29,15 +29,32 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
-        kml_file_path = os.path.join(settings.STATIC_ROOT or 'static', options['kml_file'])
+        # Try multiple possible paths for the KML file
+        possible_paths = [
+            # App-specific static directory
+            os.path.join('siren_web', 'static', options['kml_file']),
+            # Project-level static directory (if STATIC_ROOT is set)
+            os.path.join(settings.STATIC_ROOT, options['kml_file']) if settings.STATIC_ROOT else None,
+            # Project-level static directory (default)
+            os.path.join('static', options['kml_file']),
+            # Direct path (in case user provides absolute path)
+            options['kml_file']
+        ]
         
-        if not os.path.exists(kml_file_path):
-            kml_file_path = os.path.join('static', options['kml_file'])
+        # Filter out None values and find first existing path
+        kml_file_path = None
+        for path in possible_paths:
+            if path and os.path.exists(path):
+                kml_file_path = path
+                break
         
-        if not os.path.exists(kml_file_path):
+        if not kml_file_path:
             self.stdout.write(
-                self.style.ERROR(f'KML file not found: {kml_file_path}')
+                self.style.ERROR(f'KML file not found. Tried the following paths:')
             )
+            for path in possible_paths:
+                if path:
+                    self.stdout.write(f'  - {path}')
             return
 
         self.stdout.write(f'Importing KML from: {kml_file_path}')
@@ -83,7 +100,7 @@ class Command(BaseCommand):
     def process_placemark(self, placemark, namespaces, options):
         """Process a single KML Placemark into a GridLine"""
         
-        # Extract name
+        # Extract name - this will be used for line_name
         name_elem = placemark.find('kml:name', namespaces)
         line_name = name_elem.text if name_elem is not None else 'Unknown Line'
         
@@ -91,9 +108,30 @@ class Command(BaseCommand):
         desc_elem = placemark.find('kml:description', namespaces)
         description = desc_elem.text if desc_elem is not None else ''
         
-        # Extract style URL to determine voltage level
-        style_elem = placemark.find('kml:styleUrl', namespaces)
-        style_url = style_elem.text if style_elem is not None else ''
+        # Extract ga_guid from ExtendedData
+        ga_guid = None
+        ga_guid_elem = placemark.find('.//kml:SimpleData[@name="ga_guid"]', namespaces)
+        if ga_guid_elem is not None:
+            ga_guid = ga_guid_elem.text
+        
+        # Extract class to determine is_aboveground
+        is_aboveground = False
+        class_elem = placemark.find('.//kml:SimpleData[@name="class"]', namespaces)
+        if class_elem is not None and class_elem.text:
+            is_aboveground = class_elem.text.strip().lower() == 'overhead'
+        
+        # Extract capacitykv for voltage level
+        capacitykv_elem = placemark.find('.//kml:SimpleData[@name="capacitykv"]', namespaces)
+        if capacitykv_elem is not None and capacitykv_elem.text:
+            try:
+                voltage_level = float(capacitykv_elem.text)
+            except ValueError:
+                voltage_level = options['default_voltage']
+        else:
+            # Extract style URL to determine voltage level (fallback)
+            style_elem = placemark.find('kml:styleUrl', namespaces)
+            style_url = style_elem.text if style_elem is not None else ''
+            voltage_level = self.extract_voltage_from_style_and_name(style_url, line_name, description, options['default_voltage'])
         
         # Extract LineString coordinates
         linestring = placemark.find('.//kml:LineString/kml:coordinates', namespaces)
@@ -112,10 +150,7 @@ class Command(BaseCommand):
         from_coord = coords[0]
         to_coord = coords[-1]
         
-        # Parse voltage from style URL, name or description
-        voltage_level = self.extract_voltage_from_style_and_name(style_url, line_name, description, options['default_voltage'])
-        
-        # Generate line code from name
+        # Generate line_code from line_name
         line_code = self.generate_line_code(line_name)
         
         # Calculate length
@@ -129,24 +164,29 @@ class Command(BaseCommand):
             'type': 'LineString',
             'coordinates': coords,
             'name': line_name,
-            'description': description,
-            'style_url': style_url
+            'description': description
         }
         
-        # Check if grid line already exists
+        # Check if grid line already exists by line_code or ga_guid
         existing_line = None
         try:
-            existing_line = GridLines.objects.get(line_name=line_name)
+            # First try to find by line_code
+            existing_line = GridLines.objects.get(line_code=line_code)
         except GridLines.DoesNotExist:
-            try:
-                existing_line = GridLines.objects.get(line_code=line_code)
-            except GridLines.DoesNotExist:
-                pass
+            # Then try by ga_guid if available
+            if ga_guid:
+                try:
+                    existing_line = GridLines.objects.get(ga_guid=ga_guid)
+                except GridLines.DoesNotExist:
+                    pass
         
         if existing_line:
             if options['update_existing']:
                 # Update existing line
+                existing_line.line_name = line_name
                 existing_line.line_code = line_code
+                existing_line.ga_guid = ga_guid
+                existing_line.is_aboveground = is_aboveground
                 existing_line.line_type = line_type
                 existing_line.voltage_level = voltage_level
                 existing_line.length_km = length_km
@@ -157,7 +197,7 @@ class Command(BaseCommand):
                 existing_line.set_kml_geometry_data(kml_geometry_data)
                 existing_line.save()
                 
-                self.stdout.write(f'Updated: {line_name} ({voltage_level}kV)')
+                self.stdout.write(f'Updated: {line_name} ({voltage_level}kV) - Code: {line_code}')
                 return 'updated'
             else:
                 self.stdout.write(f'Skipped existing: {line_name}')
@@ -167,6 +207,8 @@ class Command(BaseCommand):
             grid_line = GridLines.objects.create(
                 line_name=line_name,
                 line_code=line_code,
+                ga_guid=ga_guid,
+                is_aboveground=is_aboveground,
                 line_type=line_type,
                 voltage_level=voltage_level,
                 length_km=length_km,
@@ -185,7 +227,7 @@ class Command(BaseCommand):
             grid_line.set_kml_geometry_data(kml_geometry_data)
             grid_line.save()
             
-            self.stdout.write(f'Imported: {line_name} ({voltage_level}kV, {length_km}km)')
+            self.stdout.write(f'Imported: {line_name} ({voltage_level}kV, {length_km}km) - Code: {line_code}')
             return 'imported'
 
     def extract_voltage_from_style_and_name(self, style_url, name, description, default_voltage):

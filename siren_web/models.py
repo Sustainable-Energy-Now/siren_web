@@ -205,6 +205,9 @@ class GridLines(models.Model):
     
     created_date = models.DateTimeField(auto_now_add=True)
     modified_date = models.DateTimeField(auto_now=True)
+    ga_guid = models.CharField(max_length=40, unique=True, null=True, help_text="Unique identifier")
+    is_aboveground = models.BooleanField(default=True)
+    
     
     class Meta:
         db_table = 'GridLines'

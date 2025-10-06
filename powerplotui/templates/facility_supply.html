@@ -5,7 +5,7 @@
 
 {% block content %}
 <div class="container-fluid mt-4">
-    <h2>Renewable Facility Supply Factor Visualization</h2>
+    <h2>Renewable Facility Generation Visualization</h2>
     
     <!-- Mode selector -->
     <div class="row mt-3">
@@ -79,7 +79,7 @@
                         <div class="col-md-2">
                             <label class="form-label">&nbsp;</label>
                             <button type="submit" class="btn btn-primary w-100">
-                                <i class="bi bi-graph-up"></i> Plot Supply
+                                <i class="bi bi-graph-up"></i> Plot Generation
                             </button>
                         </div>
                     </form>
@@ -1226,7 +1226,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const traces = createTraces(
             [data.periods, data.periods],
             [data.quantum, data.supply],
-            ['Quantum', 'Supply'],
+            ['Generation', 'Time Scale'],
             ['rgb(55, 128, 191)', 'rgb(255, 127, 14)'],
             chartType
         );
@@ -1235,9 +1235,26 @@ document.addEventListener('DOMContentLoaded', function() {
         const plotData = hasDifferentSupply ? traces : [traces[0]];
         
         const layout = {
-            title: `Supply Factors for ${data.facility_name} (${data.year}) - ${data.technology}`,
-            xaxis: { title: data.x_label, showgrid: true, zeroline: false },
-            yaxis: { title: 'Supply Value', showgrid: true, zeroline: false },
+            title: {
+                text: `Generation for ${data.facility_name} (${data.year}) - ${data.technology}`,
+                font: { size: 16 }
+            },
+            xaxis: { 
+                title: {
+                    text: data.x_label || getTimeScaleLabel(data.aggregation),
+                    font: { size: 14 }
+                },
+                showgrid: true, 
+                zeroline: false 
+            },
+            yaxis: { 
+                title: {
+                    text: 'Generation (MWh)',
+                    font: { size: 14 }
+                },
+                showgrid: true, 
+                zeroline: false 
+            },
             hovermode: 'closest',
             showlegend: true,
             legend: { x: 1, xanchor: 'right', y: 1 },
@@ -1246,7 +1263,7 @@ document.addEventListener('DOMContentLoaded', function() {
         
         Plotly.newPlot(chartDiv, plotData, layout, getPlotConfig());
     }
-    
+
     function plotComparisonData(data, chartType) {
         const traces = createTraces(
             [data.periods, data.periods, data.periods],
@@ -1258,9 +1275,26 @@ document.addEventListener('DOMContentLoaded', function() {
         );
         
         const layout = {
-            title: `Facility Comparison: ${data.facility1.name} vs ${data.facility2.name} (${data.year})`,
-            xaxis: { title: data.x_label, showgrid: true, zeroline: false },
-            yaxis: { title: 'Supply Value', showgrid: true, zeroline: false },
+            title: {
+                text: `Facility Comparison: ${data.facility1.name} vs ${data.facility2.name} (${data.year})`,
+                font: { size: 16 }
+            },
+            xaxis: { 
+                title: {
+                    text: data.x_label || getTimeScaleLabel(data.aggregation),
+                    font: { size: 14 }
+                },
+                showgrid: true, 
+                zeroline: false 
+            },
+            yaxis: { 
+                title: {
+                    text: 'Generation (MWh)',
+                    font: { size: 14 }
+                },
+                showgrid: true, 
+                zeroline: false 
+            },
             hovermode: 'x unified',
             showlegend: true,
             legend: { x: 0, xanchor: 'left', y: 1 },
@@ -1269,12 +1303,12 @@ document.addEventListener('DOMContentLoaded', function() {
         
         Plotly.newPlot(chartDiv, traces, layout, getPlotConfig());
     }
-    
+
     function plotTechnologyData(data, chartType) {
         const traces = createTraces(
             [data.periods, data.periods],
             [data.quantum, data.supply],
-            ['Quantum (Sum)', 'Supply (Sum)'],
+            ['Generation (Sum)', 'Time Scale (Sum)'],
             ['rgb(55, 128, 191)', 'rgb(255, 127, 14)'],
             chartType
         );
@@ -1283,9 +1317,26 @@ document.addEventListener('DOMContentLoaded', function() {
         const plotData = hasDifferentSupply ? traces : [traces[0]];
         
         const layout = {
-            title: `${data.technology_name} - Aggregated Supply from ${data.facility_count} Facilities (${data.year})`,
-            xaxis: { title: data.x_label, showgrid: true, zeroline: false },
-            yaxis: { title: 'Aggregated Supply Value', showgrid: true, zeroline: false },
+            title: {
+                text: `${data.technology_name} - Aggregated Generation from ${data.facility_count} Facilities (${data.year})`,
+                font: { size: 16 }
+            },
+            xaxis: { 
+                title: {
+                    text: data.x_label || getTimeScaleLabel(data.aggregation),
+                    font: { size: 14 }
+                },
+                showgrid: true, 
+                zeroline: false 
+            },
+            yaxis: { 
+                title: {
+                    text: 'Aggregated Generation (MWh)',
+                    font: { size: 14 }
+                },
+                showgrid: true, 
+                zeroline: false 
+            },
             hovermode: 'closest',
             showlegend: true,
             legend: { x: 1, xanchor: 'right', y: 1 },
@@ -1294,7 +1345,7 @@ document.addEventListener('DOMContentLoaded', function() {
         
         Plotly.newPlot(chartDiv, plotData, layout, getPlotConfig());
     }
-    
+
     function plotTechnologyComparisonData(data, chartType) {
         const traces = createTraces(
             [data.periods, data.periods, data.periods],
@@ -1306,9 +1357,26 @@ document.addEventListener('DOMContentLoaded', function() {
         );
         
         const layout = {
-            title: `Technology Comparison: ${data.technology1.name} vs ${data.technology2.name} (${data.year})`,
-            xaxis: { title: data.x_label, showgrid: true, zeroline: false },
-            yaxis: { title: 'Aggregated Supply Value', showgrid: true, zeroline: false },
+            title: {
+                text: `Technology Comparison: ${data.technology1.name} vs ${data.technology2.name} (${data.year})`,
+                font: { size: 16 }
+            },
+            xaxis: { 
+                title: {
+                    text: data.x_label || getTimeScaleLabel(data.aggregation),
+                    font: { size: 14 }
+                },
+                showgrid: true, 
+                zeroline: false 
+            },
+            yaxis: { 
+                title: {
+                    text: 'Aggregated Generation (MWh)',
+                    font: { size: 14 }
+                },
+                showgrid: true, 
+                zeroline: false 
+            },
             hovermode: 'x unified',
             showlegend: true,
             legend: { x: 0, xanchor: 'left', y: 1 },
@@ -1317,7 +1385,17 @@ document.addEventListener('DOMContentLoaded', function() {
         
         Plotly.newPlot(chartDiv, traces, layout, getPlotConfig());
     }
-    
+
+    // Helper function to generate appropriate time scale labels
+    function getTimeScaleLabel(aggregation) {
+        const labels = {
+            'hour': 'Hour of Year',
+            'week': 'Week of Year',
+            'month': 'Month of Year'
+        };
+        return labels[aggregation] || 'Time Period';
+    }
+
     function createTraces(xArrays, yArrays, names, colors, chartType, isDashed = []) {
         let traceType = 'scatter';
         let traceMode = 'lines';
@@ -1517,7 +1595,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 zeroline: false
             },
             yaxis: {
-                title: 'Supply Value',
+                title: 'Generation',
                 showgrid: true,
                 zeroline: false
             },

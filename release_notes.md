@@ -56,5 +56,11 @@
 ### 🆕 New Features
 - Feature: Facilities Supply Factors Plot ([#20](https://github.com/Sustainable-Energy-Now/siren_web/issues/20))
 
+## Version 3.7.1 - October 6, 2025
+### 🐛 Bug Fixes
+- Fix Supply Factors Plot Labels ([#22](https://github.com/Sustainable-Energy-Now/siren_web/issues/22))
+### 🆕 New Features
+- Feature: Help in New Window ([#21](https://github.com/Sustainable-Energy-Now/siren_web/issues/21))
+
 ---
 *For technical support or feature requests, please contact the Sustainable Energy Now Webmaster.*
