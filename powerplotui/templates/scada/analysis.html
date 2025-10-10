@@ -1,0 +1,330 @@
+<!-- templates/scada/load_analysis.html -->
+{% extends 'scada/base.html' %}
+
+{% block title %}SWIS Load Analysis - {{ month_name }} {{ year }}{% endblock %}
+
+{% block content %}
+<header>
+    <h1>Average SWIS Load by Period</h1>
+    <p style="color: #7f8c8d; font-size: 1.1em;">
+        South West Interconnected System - {{ month_name }} {{ year }}
+    </p>
+</header>
+
+<!-- Month Selector -->
+<div class="month-selector">
+    <label for="month-select"><strong>Select Period:</strong></label>
+    <select id="month-select" name="month">
+        {% for m in available_months %}
+        <option value="{{ m.value }}" {% if m.value == month %}selected{% endif %}>
+            {{ m.label }}
+        </option>
+        {% endfor %}
+    </select>
+    <select id="year-select" name="year">
+        {% for y in available_years %}
+        <option value="{{ y }}" {% if y == year %}selected{% endif %}>{{ y }}</option>
+        {% endfor %}
+    </select>
+    <button onclick="loadPeriod()">View</button>
+    <button onclick="window.print()" style="background: #95a5a6;">Print Report</button>
+</div>
+
+<div class="info-box warning">
+    <h4>⚠ Important Note</h4>
+    <p><em>Effective 1 October 2023, the WEM moved to 5-minute trading intervals. Relationships between 
+    figures from October 1, 2023 onwards (post-reform) and prior to (pre-reform) are somewhat suspect.</em></p>
+</div>
+
+<!-- Key Metrics Overview -->
+<h2>{{ month_name }} {{ year }} - Key Metrics</h2>
+
+<div class="metric-grid">
+    <div class="metric-card neutral">
+        <div class="metric-label">Operational Demand</div>
+        <div class="metric-value">{{ summary.operational_demand|floatformat:1 }} GWh</div>
+        <div class="metric-change">
+            {% if changes.operational_demand %}
+                {% if changes.operational_demand > 0 %}↑{% else %}↓{% endif %}
+                {{ changes.operational_demand|floatformat:1 }}% vs {{ year|add:"-1" }}
+            {% endif %}
+        </div>
+    </div>
+    
+    <div class="metric-card positive">
+        <div class="metric-label">RE % of Operational Demand</div>
+        <div class="metric-value">{{ summary.re_percentage_operational|floatformat:1 }}%</div>
+        <div class="metric-change">
+            {% if prev_summary %}
+                {{ prev_summary.re_percentage_operational|floatformat:1 }}% in {{ year|add:"-1" }}
+            {% endif %}
+        </div>
+    </div>
+    
+    <div class="metric-card positive">
+        <div class="metric-label">RE % of Underlying Demand</div>
+        <div class="metric-value">{{ summary.re_percentage_underlying|floatformat:1 }}%</div>
+        <div class="metric-change">
+            {% if prev_summary %}
+                {{ prev_summary.re_percentage_underlying|floatformat:1 }}% in {{ year|add:"-1" }}
+            {% endif %}
+        </div>
+    </div>
+    
+    <div class="metric-card neutral">
+        <div class="metric-label">DPV Generation</div>
+        <div class="metric-value">{{ summary.dpv_generation|floatformat:1 }} GWh</div>
+        <div class="metric-change">
+            {{ summary.dpv_percentage_underlying|floatformat:1 }}% of underlying demand
+        </div>
+    </div>
+</div>
+
+<!-- Detailed Statistics -->
+<h2>Detailed Breakdown - {{ month_name }}</h2>
+
+<table class="stats-table">
+    <thead>
+        <tr>
+            <th>Metric</th>
+            <th class="value">{{ month_name }} {{ year }}</th>
+            <th class="value">{{ month_name }} {{ year|add:"-1" }}</th>
+            <th class="value">Change</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td><strong>Overall Operational Demand</strong></td>
+            <td class="value">{{ summary.operational_demand|floatformat:1 }} GWh</td>
+            <td class="value">
+                {% if prev_summary %}{{ prev_summary.operational_demand|floatformat:1 }} GWh{% else %}N/A{% endif %}
+            </td>
+            <td class="value {% if changes.operational_demand > 0 %}positive{% else %}negative{% endif %}">
+                {% if changes.operational_demand %}
+                    {{ changes.operational_demand|floatformat:1 }}%
+                {% else %}N/A{% endif %}
+            </td>
+        </tr>
+        <tr>
+            <td>Weekday Demand</td>
+            <td class="value">{{ weekday_demand|floatformat:1 }} GWh</td>
+            <td class="value">
+                {% if prev_weekday_demand %}{{ prev_weekday_demand|floatformat:1 }} GWh{% else %}N/A{% endif %}
+            </td>
+            <td class="value">
+                {% if weekday_change %}{{ weekday_change|floatformat:1 }}%{% else %}N/A{% endif %}
+            </td>
+        </tr>
+        <tr>
+            <td>Weekend Demand</td>
+            <td class="value">{{ weekend_demand|floatformat:1 }} GWh</td>
+            <td class="value">
+                {% if prev_weekend_demand %}{{ prev_weekend_demand|floatformat:1 }} GWh{% else %}N/A{% endif %}
+            </td>
+            <td class="value">
+                {% if weekend_change %}{{ weekend_change|floatformat:1 }}%{% else %}N/A{% endif %}
+            </td>
+        </tr>
+    </tbody>
+</table>
+
+<!-- RE Percentage Details -->
+<h3>Renewable Energy Performance</h3>
+
+<div class="info-box">
+    <h4>{{ month_name }} Highlights</h4>
+    <ul class="bullet-list">
+        <li>RE met <span class="highlight">{{ summary.re_percentage_operational|floatformat:1 }}%</span> 
+            of Operational demand, compared to 
+            <span class="highlight">{{ prev_summary.re_percentage_operational|floatformat:1 }}%</span> 
+            in {{ year|add:"-1" }}</li>
+        <li><strong>RE met <span class="highlight">{{ summary.re_percentage_underlying|floatformat:1 }}%</span> 
+            of underlying demand</strong>, 
+            <span class="highlight">{{ prev_summary.re_percentage_underlying|floatformat:1 }}%</span> 
+            in {{ year|add:"-1" }}</li>
+        <li>Operational demand increased by 
+            <span class="highlight">{{ changes.operational_demand|floatformat:1 }}%</span> 
+            over {{ month_name }} {{ year|add:"-1" }}</li>
+        <li>DPV met <span class="highlight">{{ summary.dpv_percentage_underlying|floatformat:1 }}%</span> 
+            of underlying demand</li>
+        <li>BESS represented <span class="highlight">{{ bess_percentage|floatformat:1 }}%</span> 
+            of Operational demand</li>
+    </ul>
+</div>
+
+<!-- YTD Summary -->
+<h2>Year to Date - {{ month_name }} {{ year }}</h2>
+
+<table class="stats-table">
+    <thead>
+        <tr>
+            <th>Metric</th>
+            <th class="value">YTD {{ year }}</th>
+            <th class="value">YTD {{ year|add:"-1" }}</th>
+            <th class="value">Change</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td><strong>Overall Operational Demand</strong></td>
+            <td class="value">{{ ytd_summary.operational_demand|floatformat:1 }} GWh</td>
+            <td class="value">{{ ytd_prev_summary.operational_demand|floatformat:1 }} GWh</td>
+            <td class="value positive">{{ ytd_changes.operational_demand|floatformat:1 }}%</td>
+        </tr>
+        <tr>
+            <td>RE % of Operational Demand</td>
+            <td class="value">{{ ytd_summary.re_percentage_operational|floatformat:1 }}%</td>
+            <td class="value">{{ ytd_prev_summary.re_percentage_operational|floatformat:1 }}%</td>
+            <td class="value">-</td>
+        </tr>
+        <tr>
+            <td><strong>RE % of Underlying Demand</strong></td>
+            <td class="value"><strong>{{ ytd_summary.re_percentage_underlying|floatformat:1 }}%</strong></td>
+            <td class="value">{{ ytd_prev_summary.re_percentage_underlying|floatformat:1 }}%</td>
+            <td class="value">-</td>
+        </tr>
+        <tr>
+            <td>DPV % of Underlying Demand</td>
+            <td class="value">{{ ytd_summary.dpv_percentage_underlying|floatformat:1 }}%</td>
+            <td class="value">{{ ytd_prev_summary.dpv_percentage_underlying|floatformat:1 }}%</td>
+            <td class="value">-</td>
+        </tr>
+        <tr>
+            <td>BESS % of Operational Demand</td>
+            <td class="value">{{ ytd_bess_percentage|floatformat:1 }}%</td>
+            <td class="value">{{ ytd_prev_bess_percentage|floatformat:1 }}%</td>
+            <td class="value">-</td>
+        </tr>
+    </tbody>
+</table>
+
+<!-- Generation Breakdown Charts -->
+<h2>Demand Breakdowns</h2>
+
+<div class="chart-container">
+    <div class="chart-title">How Operational and Underlying Demand Was Met</div>
+    <p style="text-align: center; color: #7f8c8d; margin-bottom: 20px;">
+        Four pie charts showing {{ month_name }} {{ year }} followed by YTD {{ year }}
+    </p>
+    {{ pie_chart|safe }}
+</div>
+
+<!-- Diurnal Profiles -->
+<h2>Average Diurnal Profiles</h2>
+
+<div class="info-box">
+    <h4>About Diurnal Profiles</h4>
+    <p>These charts show average underlying demand patterns throughout the day. 
+    The <span style="color: #49C2A9; font-weight: 600;">green line</span> shows average prices.</p>
+</div>
+
+<div class="chart-container">
+    <div class="chart-title">{{ month_name }} {{ year }} - Average Daily Pattern</div>
+    {{ diurnal_chart_month|safe }}
+</div>
+
+<div class="chart-container">
+    <div class="chart-title">YTD {{ year }} - Average Daily Pattern</div>
+    {{ diurnal_chart_ytd|safe }}
+</div>
+
+<!-- Daily RE Variation -->
+{% if daily_re_chart %}
+<h2>Daily Renewable Energy Variation</h2>
+
+<div class="chart-container">
+    <div class="chart-title">Daily Underlying RE Percentages - {{ month_name }} {{ year }}</div>
+    <p style="text-align: center; color: #7f8c8d; margin-bottom: 20px;">
+        Range: {{ re_range.min|floatformat:1 }}% ({{ re_range.min_date|date:"jS" }}) 
+        to {{ re_range.max|floatformat:1 }}% ({{ re_range.max_date|date:"jS" }})
+    </p>
+    {{ daily_re_chart|safe }}
+</div>
+{% endif %}
+
+<!-- BESS Note -->
+<h2>Notes on Battery Storage (BESS)</h2>
+
+<div class="info-box warning">
+    <h4>BESS and RE Percentage Calculation</h4>
+    <p>In calculating RE percentage, the assumption is made that BESS are only recharged by RE generation. 
+    This is not entirely correct and may inflate the RE percentage by approximately 2.1%. This means around 2.1% 
+    of BESS Import (charging) is greater than could be met by RE generation alone.</p>
+    
+    <p style="margin-top: 10px;">After adjusting for this factor, the effective BESS percentages are reduced 
+    by approximately 0.1%. Additionally, some BESS capacity is dedicated to system stability and providing 
+    essential services rather than energy arbitrage.</p>
+</div>
+
+<table class="stats-table" style="margin-top: 20px;">
+    <thead>
+        <tr>
+            <th>BESS Metrics</th>
+            <th class="value">{{ month_name }}</th>
+            <th class="value">YTD</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>Total Discharge</td>
+            <td class="value">{{ summary.battery_discharge|floatformat:1 }} GWh</td>
+            <td class="value">{{ ytd_summary.battery_discharge|floatformat:1 }} GWh</td>
+        </tr>
+        <tr>
+            <td>Total Charge</td>
+            <td class="value">{{ summary.battery_charge|floatformat:1 }} GWh</td>
+            <td class="value">{{ ytd_summary.battery_charge|floatformat:1 }} GWh</td>
+        </tr>
+        <tr>
+            <td>Net Contribution</td>
+            <td class="value">{{ summary.battery_discharge|add:summary.battery_charge|floatformat:1 }} GWh</td>
+            <td class="value">{{ ytd_summary.battery_discharge|add:ytd_summary.battery_charge|floatformat:1 }} GWh</td>
+        </tr>
+        <tr>
+            <td>Round-trip Efficiency</td>
+            <td class="value">{{ bess_efficiency|floatformat:1 }}%</td>
+            <td class="value">{{ ytd_bess_efficiency|floatformat:1 }}%</td>
+        </tr>
+    </tbody>
+</table>
+
+<script>
+function loadPeriod() {
+    const month = document.getElementById('month-select').value;
+    const year = document.getElementById('year-select').value;
+    window.location.href = `/powerplot/load-analysis/${year}/${month}/`;
+}
+</script>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Enable keyboard navigation
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'ArrowLeft') {
+        // Navigate to previous month
+        navigateMonth(-1);
+    } else if (e.key === 'ArrowRight') {
+        // Navigate to next month
+        navigateMonth(1);
+    }
+});
+
+function navigateMonth(direction) {
+    let month = parseInt(document.getElementById('month-select').value);
+    let year = parseInt(document.getElementById('year-select').value);
+    
+    month += direction;
+    if (month > 12) {
+        month = 1;
+        year++;
+    } else if (month < 1) {
+        month = 12;
+        year--;
+    }
+    
+    window.location.href = `/powerplot/load-analysis/${year}/${month}/`;
+}
+</script>
+{% endblock %}

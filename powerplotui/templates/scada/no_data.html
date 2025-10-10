@@ -1,0 +1,36 @@
+<!-- templates/scada/no_data.html -->
+{% extends 'scada/base.html' %}
+
+{% block title %}No Data Available{% endblock %}
+
+{% block content %}
+<header>
+    <h1>SWIS Load Analysis</h1>
+</header>
+
+<div class="info-box warning">
+    <h4>⚠ No Data Available</h4>
+    <p>No analysis data is available for {{ month_name }} {{ year }}.</p>
+    
+    {% if latest_available %}
+    <p style="margin-top: 15px;">
+        The latest available data is for 
+        <a href="{% url 'scada_analysis_detail' latest_available.period_date.year latest_available.period_date.month %}">
+            {{ latest_available.period_date|date:"F Y" }}
+        </a>
+    </p>
+    {% else %}
+    <p style="margin-top: 15px;">
+        No data has been loaded yet. Please run the data import task or check back later.
+    </p>
+    {% endif %}
+</div>
+
+<div style="text-align: center; margin-top: 40px;">
+    <a href="{% url 'scada_analysis' %}" 
+       style="background: #3498db; color: white; padding: 12px 30px; text-decoration: none; 
+              border-radius: 4px; display: inline-block;">
+        ← Back to Latest Report
+    </a>
+</div>
+{% endblock %}

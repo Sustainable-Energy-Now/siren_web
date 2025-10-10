@@ -606,6 +606,110 @@ class FacilityWindTurbines(models.Model):
             return self.wind_turbine.rated_power * self.no_turbines
         return None
 
+# powerplot/models.py (add to existing models)
+
+class DPVGeneration(models.Model):
+    """Store AEMO DPV generation estimates"""
+    trading_date = models.DateField(db_index=True)
+    interval_number = models.IntegerField()
+    trading_interval = models.DateTimeField(db_index=True)
+    estimated_generation = models.DecimalField(
+        max_digits=10, 
+        decimal_places=4,
+        help_text="Estimated DPV Generation in MW"
+    )
+    extracted_at = models.DateTimeField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        db_table = 'dpv_generation'
+        unique_together = ['trading_date', 'interval_number']
+        indexes = [
+            models.Index(fields=['trading_date', 'interval_number']),
+            models.Index(fields=['trading_interval']),
+        ]
+        ordering = ['-trading_date', 'interval_number']
+    
+    def __str__(self):
+        return f"DPV {self.trading_date} #{self.interval_number}: {self.estimated_generation}MW"
+
+class FacilityScada(models.Model):
+    """Store AEMO facility SCADA data with normalized facility reference"""
+    dispatch_interval = models.DateTimeField(db_index=True)
+    facility = models.ForeignKey(
+        'facilities',
+        on_delete=models.CASCADE,        db_column='idfacilities',
+        related_name='scada_records'
+    )
+    quantity = models.DecimalField(max_digits=12, decimal_places=6)  # MW
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        db_table = 'facility_scada'
+        unique_together = ['dispatch_interval', 'facility']
+        indexes = [
+            models.Index(fields=['dispatch_interval', 'facility']),
+            models.Index(fields=['dispatch_interval']),
+            models.Index(fields=['facility', 'dispatch_interval']),
+        ]
+        ordering = ['-dispatch_interval', 'facility']
+    
+    def __str__(self):
+        return f"{self.facility.facility_code} @ {self.dispatch_interval}: {self.quantity}MW"
+
+class FacilityMetadata(models.Model):
+    """Store facility metadata for categorization"""
+    code = models.CharField(max_length=50, unique=True, primary_key=True)
+    name = models.CharField(max_length=200)
+    fuel_type = models.CharField(max_length=50, choices=[
+        ('WIND', 'Wind'),
+        ('SOLAR', 'Solar'),
+        ('GAS', 'Gas'),
+        ('COAL', 'Coal'),
+        ('BATTERY', 'Battery Storage'),
+        ('HYDRO', 'Hydro'),
+        ('BIOMASS', 'Biomass'),
+        ('OTHER', 'Other'),
+    ])
+    capacity_mw = models.DecimalField(max_digits=10, decimal_places=2, null=True)
+    is_renewable = models.BooleanField(default=False)
+    
+    class Meta:
+        db_table = 'facility_metadata'
+        verbose_name_plural = 'Facility Metadata'
+
+class LoadAnalysisSummary(models.Model):
+    """Store pre-calculated monthly/daily summaries"""
+    period_date = models.DateField(unique=True, db_index=True)
+    period_type = models.CharField(max_length=20, choices=[
+        ('DAILY', 'Daily'),
+        ('MONTHLY', 'Monthly'),
+    ])
+    
+    # Demand metrics (GWh for monthly, MWh for daily)
+    operational_demand = models.DecimalField(max_digits=12, decimal_places=3)
+    underlying_demand = models.DecimalField(max_digits=12, decimal_places=3)
+    dpv_generation = models.DecimalField(max_digits=12, decimal_places=3)
+    
+    # Generation by type (GWh/MWh)
+    wind_generation = models.DecimalField(max_digits=12, decimal_places=3)
+    solar_generation = models.DecimalField(max_digits=12, decimal_places=3)
+    battery_discharge = models.DecimalField(max_digits=12, decimal_places=3)
+    battery_charge = models.DecimalField(max_digits=12, decimal_places=3)
+    fossil_generation = models.DecimalField(max_digits=12, decimal_places=3)
+    
+    # Percentages
+    re_percentage_operational = models.DecimalField(max_digits=5, decimal_places=2)
+    re_percentage_underlying = models.DecimalField(max_digits=5, decimal_places=2)
+    dpv_percentage_underlying = models.DecimalField(max_digits=5, decimal_places=2)
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        db_table = 'load_analysis_summary'
+        ordering = ['-period_date']
+
 class TurbinePowerCurves(models.Model):
     idturbinepowercurves = models.AutoField(db_column='idturbinepowercurves', primary_key=True)
     idwindturbines = models.ForeignKey(WindTurbines, on_delete=models.CASCADE, related_name='power_curves', db_column='idwindturbines')

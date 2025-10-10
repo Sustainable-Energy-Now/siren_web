@@ -149,6 +149,8 @@ def facility_create(request):
                 capacityfactor=float(capacity_factor) if capacity_factor else None,
                 generation=float(generation) if generation else None,
                 transmitted=float(transmitted) if transmitted else None,
+                active=1,
+                existing=1,
                 latitude=float(latitude) if latitude else None,
                 longitude=float(longitude) if longitude else None,
             )

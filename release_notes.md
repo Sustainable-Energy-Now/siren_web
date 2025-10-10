@@ -62,5 +62,8 @@
 ### 🆕 New Features
 - Feature: Help in New Window ([#21](https://github.com/Sustainable-Energy-Now/siren_web/issues/21))
 
+## Version 3.8.0 - October 10, 2025
+### 🆕 New Features
+- Feature: Facility Scada Upload and Analysis ([#23](https://github.com/Sustainable-Energy-Now/siren_web/issues/23))
 ---
 *For technical support or feature requests, please contact the Sustainable Energy Now Webmaster.*

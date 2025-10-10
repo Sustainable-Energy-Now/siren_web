@@ -1600,7 +1600,190 @@ A: Use modern browsers (Chrome, Firefox), close unnecessary tabs, and use lower 
    - Export chart data (future feature)
    - Use scatter plots to identify outliers
    - Apply multiple date ranges to understand time-varying patterns
+---
+# AEMO SCADA Data Fetcher - Documentation
 
+---
+
+## Overview
+
+The AEMO SCADA Data Fetcher is a Django application for downloading, storing, and analyzing facility SCADA (Supervisory Control and Data Acquisition) data from the Australian Energy Market Operator (AEMO) for the South West Interconnected System (SWIS) in Western Australia.
+
+### Features
+
+- **Automated daily data fetching** from current SCADA files
+- **Historical data import** from ZIP archives
+
+### Key Concepts
+
+#### Trading Intervals
+- **Pre-reform** (before Oct 1, 2023): 30-minute intervals, 48 intervals/day
+- **Post-reform** (from Oct 1, 2023): 5-minute intervals, 288 intervals/day
+
+#### Facility Quantities
+- **Positive values**: Generation (facility supplying power to grid)
+- **Negative values**: Consumption (facility drawing power from grid)
+  - Battery charging
+  - Pumped hydro pumping
+  - Auxiliary loads
+
+### Commands Reference
+# Fetch yesterday's data (default)
+* Syntax: *
+python manage.py fetch_scada [OPTIONS]
+Options:
+
+--date YYYY-MM-DD - Specific date to fetch (default: yesterday)
+--days-back N - Fetch last N days
+--start-date YYYY-MM-DD - Start of date range
+--end-date YYYY-MM-DD - End of date range
+--verify - Verify data after fetching
+--skip-existing - Skip dates with existing data
+
+* Examples: *
+# Fetch yesterday
+python manage.py fetch_scada
+
+# Fetch specific date with verification
+python manage.py fetch_scada --date 2025-10-05 --verify
+
+# Fetch last 7 days
+python manage.py fetch_scada --days-back 7
+
+# Fetch range, skipping existing
+python manage.py fetch_scada \
+    --start-date 2025-10-01 \
+    --end-date 2025-10-07 \
+    --skip-existing
+
+### Fetch Historical Data
+* Syntax: *
+python manage.py fetch_historical_scada [OPTIONS]
+* Options: *
+
+--date YYYY-MM-DD - Single date to fetch
+--month YYYY-MM - Entire month to fetch
+--year YYYY - Entire year to fetch
+--start-date YYYY-MM-DD - Start of date range
+--end-date YYYY-MM-DD - End of date range
+--output-summary FILE - Save summary to JSON file
+* Examples: *
+# Single day
+python manage.py fetch_historical_scada --date 2024-01-15
+
+# Entire month
+python manage.py fetch_historical_scada --month 2024-01
+
+# Multiple months (sequential commands)
+for month in {01..12}; do
+    python manage.py fetch_historical_scada --month 2024-$month
+done
+
+# Entire year with summary
+python manage.py fetch_historical_scada --year 2024 \
+    --output-summary scada_2024_summary.json
+
+# Date range
+python manage.py fetch_historical_scada \
+    --start-date 2024-01-01 \
+    --end-date 2024-03-31
+## Verify Data
+# Check for missing dates
+* Syntax: *
+python manage.py check_missing_scada_dates --start-date YYYY-MM-DD --end-date YYYY-MM-DD
+* Eample: *
+python manage.py check_missing_scada_dates \
+    --start-date 2024-01-01 \
+    --end-date 2024-12-31
+
+### Analyze Facility
+Analyze facility generation/consumption patterns.
+*Syntax: *
+python manage.py analyze_facility [OPTIONS]
+
+* Options: *
+
+--facility CODE - Specific facility to analyze
+--all-batteries - Analyze all battery facilities
+--start-date YYYY-MM-DD - Analysis start date
+--end-date YYYY-MM-DD - Analysis end date
+--output table|json - Output format
+
+* Examples: *
+# Analyze single facility
+python manage.py analyze_facility \
+    --facility KEMERTON_BESS \
+    --start-date 2025-10-01 \
+    --end-date 2025-10-31
+
+# Analyze all batteries
+python manage.py analyze_facility \
+    --all-batteries \
+    --start-date 2025-10-01 \
+    --end-date 2025-10-31 \
+    --output json > battery_analysis.json
+
+### Scheduled Daily Updates
+Set up cron job for daily updates:
+
+# crontab -e
+# Run daily at 12:30 PM AWST (after AEMO updates at 12:00 PM)
+30 12 * * * cd /path/to/project && /path/to/venv/bin/python manage.py fetch_scada --verify
+
+### Monthly Analysis Workflow
+
+#!/bin/bash
+# monthly_analysis.sh
+
+YEAR=2025
+MONTH=09
+
+# Ensure data is complete
+python manage.py fetch_historical_scada --month $YEAR-$MONTH
+
+# Verify completeness
+python manage.py check_missing_scada_dates \
+    --start-date $YEAR-$MONTH-01 \
+    --end-date $YEAR-$MONTH-30
+
+# Run analysis
+#!/bin/bash
+# monthly_analysis.sh
+
+YEAR=2025
+MONTH=09
+
+# Ensure data is complete
+python manage.py fetch_historical_scada --month $YEAR-$MONTH
+
+# Verify completeness
+python manage.py check_missing_scada_dates \
+    --start-date $YEAR-$MONTH-01 \
+    --end-date $YEAR-$MONTH-30
+
+# Run analysis
+#!/bin/bash
+# monthly_analysis.sh
+
+YEAR=2025
+MONTH=09
+
+# Ensure data is complete
+python manage.py fetch_historical_scada --month $YEAR-$MONTH
+
+# Verify completeness
+python manage.py check_missing_scada_dates \
+    --start-date $YEAR-$MONTH-01 \
+    --end-date $YEAR-$MONTH-30
+
+# Run analysis
+python manage.py shell <<EOF
+from powerplot.services.load_analyzer import LoadAnalyzer
+analyzer = LoadAnalyzer()
+summary = analyzer.calculate_monthly_summary($YEAR, $MONTH)
+print(f"Operational Demand: {summary.operational_demand} GWh")
+print(f"RE %: {summary.re_percentage_operational}%")
+EOF
 ---
 
 ### Overview Variants Statistics
