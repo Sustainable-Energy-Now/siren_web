@@ -5,6 +5,9 @@ from django.db.models import Q
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST
 from siren_web.models import WindTurbines, FacilityWindTurbines, TurbinePowerCurves, facilities
+import json
+import csv
+from io import StringIO
 
 def wind_turbines_list(request):
     """List all wind turbines with search and pagination"""
@@ -34,7 +37,7 @@ def wind_turbines_list(request):
     
     # Get unique manufacturers and applications for filter dropdowns
     manufacturers = WindTurbines.objects.values_list('manufacturer', flat=True).distinct().order_by('manufacturer')
-    manufacturers = [m for m in manufacturers if m]  # Remove None values
+    manufacturers = [m for m in manufacturers if m]
     applications = WindTurbines.APPLICATION_CHOICES
     
     # Pagination
@@ -243,9 +246,371 @@ def wind_turbine_delete(request, pk):
     messages.success(request, f'Wind turbine "{turbine_name}" deleted successfully.')
     return redirect('wind_turbines_list')
 
+# ========== POWER CURVE VIEWS ==========
+
+def parse_pow_file(file_content):
+    """Parse a .pow file and extract wind speed and power output data"""
+    try:
+        if isinstance(file_content, bytes):
+            file_content = file_content.decode('utf-8')
+        
+        lines = file_content.strip().split('\n')
+        wind_speeds = []
+        power_outputs = []
+        
+        for line in lines:
+            line = line.strip()
+            if not line or line.startswith('#') or line.startswith('Wind'):
+                continue
+            
+            parts = line.split()
+            if len(parts) >= 2:
+                try:
+                    wind_speed = float(parts[0])
+                    power = float(parts[1])
+                    wind_speeds.append(wind_speed)
+                    power_outputs.append(power)
+                except ValueError:
+                    continue
+        
+        if not wind_speeds or not power_outputs:
+            return None
+        
+        return {
+            'wind_speeds': wind_speeds,
+            'power_outputs': power_outputs,
+            'data_points': len(wind_speeds),
+            'iec_class': None,
+            'source': 'File Upload'
+        }
+    except Exception as e:
+        return None
+
+def parse_manual_data(wind_speeds_text, power_outputs_text):
+    """Parse manually entered wind speed and power output data"""
+    try:
+        # Parse wind speeds
+        wind_speeds = []
+        for value in wind_speeds_text.replace(',', ' ').split():
+            wind_speeds.append(float(value))
+        
+        # Parse power outputs
+        power_outputs = []
+        for value in power_outputs_text.replace(',', ' ').split():
+            power_outputs.append(float(value))
+        
+        if len(wind_speeds) != len(power_outputs):
+            return None, "Number of wind speeds must match number of power outputs"
+        
+        if len(wind_speeds) == 0:
+            return None, "At least one data point is required"
+        
+        return {
+            'wind_speeds': wind_speeds,
+            'power_outputs': power_outputs,
+            'data_points': len(wind_speeds)
+        }, None
+        
+    except ValueError as e:
+        return None, "Invalid numeric values in data"
+
+def power_curve_create(request, turbine_pk):
+    """Create a new power curve for a wind turbine"""
+    turbine = get_object_or_404(WindTurbines, pk=turbine_pk)
+    
+    if request.method == 'POST':
+        try:
+            entry_method = request.POST.get('entry_method', 'file')
+            power_file_name = request.POST.get('power_file_name', '').strip()
+            notes = request.POST.get('notes', '').strip()
+            is_active = request.POST.get('is_active') == 'on'
+            iec_class = request.POST.get('iec_class', '').strip()
+            source = request.POST.get('source', '').strip()
+            
+            parsed_data = None
+            error_message = None
+            
+            if entry_method == 'file':
+                # File upload method
+                power_file = request.FILES.get('power_file')
+                
+                if not power_file:
+                    messages.error(request, 'Power curve file is required when using file upload method.')
+                    return render(request, 'power_curves/create.html', {
+                        'turbine': turbine,
+                        'form_data': request.POST
+                    })
+                
+                if not power_file.name.endswith('.pow'):
+                    messages.error(request, 'Only .pow files are supported.')
+                    return render(request, 'power_curves/create.html', {
+                        'turbine': turbine,
+                        'form_data': request.POST
+                    })
+                
+                power_file_name = power_file.name
+                file_content = power_file.read()
+                parsed_data = parse_pow_file(file_content)
+                
+                if not parsed_data:
+                    messages.error(request, 'Could not parse power curve file. Please check the file format.')
+                    return render(request, 'power_curves/create.html', {
+                        'turbine': turbine,
+                        'form_data': request.POST
+                    })
+                
+                # Update source if provided
+                if source:
+                    parsed_data['source'] = source
+                    
+            else:
+                # Manual entry method
+                wind_speeds_text = request.POST.get('wind_speeds', '').strip()
+                power_outputs_text = request.POST.get('power_outputs', '').strip()
+                
+                if not power_file_name:
+                    messages.error(request, 'File name is required.')
+                    return render(request, 'power_curves/create.html', {
+                        'turbine': turbine,
+                        'form_data': request.POST
+                    })
+                
+                if not wind_speeds_text or not power_outputs_text:
+                    messages.error(request, 'Both wind speeds and power outputs are required.')
+                    return render(request, 'power_curves/create.html', {
+                        'turbine': turbine,
+                        'form_data': request.POST
+                    })
+                
+                parsed_data, error_message = parse_manual_data(wind_speeds_text, power_outputs_text)
+                
+                if error_message:
+                    messages.error(request, error_message)
+                    return render(request, 'power_curves/create.html', {
+                        'turbine': turbine,
+                        'form_data': request.POST
+                    })
+                
+                # Add metadata
+                parsed_data['iec_class'] = iec_class if iec_class else None
+                parsed_data['source'] = source if source else 'Manual Entry'
+            
+            # Check for duplicate file name
+            if TurbinePowerCurves.objects.filter(
+                idwindturbines=turbine, 
+                power_file_name=power_file_name
+            ).exists():
+                messages.error(request, f'A power curve with file name "{power_file_name}" already exists for this turbine.')
+                return render(request, 'power_curves/create.html', {
+                    'turbine': turbine,
+                    'form_data': request.POST
+                })
+            
+            # If setting as active, deactivate other curves
+            if is_active:
+                TurbinePowerCurves.objects.filter(
+                    idwindturbines=turbine, 
+                    is_active=True
+                ).update(is_active=False)
+            
+            # Update IEC class if provided
+            if iec_class:
+                parsed_data['iec_class'] = iec_class
+            
+            # Create the power curve
+            power_curve = TurbinePowerCurves.objects.create(
+                idwindturbines=turbine,
+                power_file_name=power_file_name,
+                power_curve_data=parsed_data,
+                is_active=is_active,
+                notes=notes if notes else None
+            )
+            
+            messages.success(request, f'Power curve "{power_file_name}" created successfully.')
+            return redirect('powermapui:wind_turbine_detail', pk=turbine.pk)
+            
+        except Exception as e:
+            messages.error(request, f'Error creating power curve: {str(e)}')
+            return render(request, 'power_curves/create.html', {
+                'turbine': turbine,
+                'form_data': request.POST
+            })
+    
+    context = {
+        'turbine': turbine
+    }
+    return render(request, 'power_curves/create.html', context)
+
+def power_curve_edit(request, pk):
+    """Edit an existing power curve"""
+    power_curve = get_object_or_404(TurbinePowerCurves, pk=pk)
+    turbine = power_curve.idwindturbines
+    
+    if request.method == 'POST':
+        try:
+            entry_method = request.POST.get('entry_method', 'metadata')
+            power_file_name = request.POST.get('power_file_name', '').strip()
+            notes = request.POST.get('notes', '').strip()
+            is_active = request.POST.get('is_active') == 'on'
+            iec_class = request.POST.get('iec_class', '').strip()
+            source = request.POST.get('source', '').strip()
+            
+            parsed_data = None
+            
+            if entry_method == 'file':
+                # File upload - replace entire data
+                power_file = request.FILES.get('power_file')
+                if power_file:
+                    if not power_file.name.endswith('.pow'):
+                        messages.error(request, 'Only .pow files are supported.')
+                        return render(request, 'power_curves/edit.html', {
+                            'power_curve': power_curve,
+                            'turbine': turbine
+                        })
+                    
+                    file_content = power_file.read()
+                    parsed_data = parse_pow_file(file_content)
+                    
+                    if not parsed_data:
+                        messages.error(request, 'Could not parse power curve file. Please check the file format.')
+                        return render(request, 'power_curves/edit.html', {
+                            'power_curve': power_curve,
+                            'turbine': turbine
+                        })
+                    
+                    power_curve.power_file_name = power_file.name if power_file else power_file_name
+                    
+            elif entry_method == 'manual':
+                # Manual data entry - replace data
+                wind_speeds_text = request.POST.get('wind_speeds', '').strip()
+                power_outputs_text = request.POST.get('power_outputs', '').strip()
+                
+                if not wind_speeds_text or not power_outputs_text:
+                    messages.error(request, 'Both wind speeds and power outputs are required.')
+                    return render(request, 'power_curves/edit.html', {
+                        'power_curve': power_curve,
+                        'turbine': turbine
+                    })
+                
+                parsed_data, error_message = parse_manual_data(wind_speeds_text, power_outputs_text)
+                
+                if error_message:
+                    messages.error(request, error_message)
+                    return render(request, 'power_curves/edit.html', {
+                        'power_curve': power_curve,
+                        'turbine': turbine
+                    })
+                
+                if power_file_name:
+                    power_curve.power_file_name = power_file_name
+            
+            # Update or preserve existing data
+            if parsed_data:
+                power_curve.power_curve_data = parsed_data
+            else:
+                # Just updating metadata
+                parsed_data = power_curve.power_curve_data
+            
+            # Update metadata fields
+            if iec_class or 'iec_class' in parsed_data:
+                parsed_data['iec_class'] = iec_class if iec_class else None
+            
+            if source or 'source' in parsed_data:
+                parsed_data['source'] = source if source else parsed_data.get('source', 'Manual Entry')
+            
+            power_curve.power_curve_data = parsed_data
+            
+            # If setting as active, deactivate other curves
+            if is_active and not power_curve.is_active:
+                TurbinePowerCurves.objects.filter(
+                    idwindturbines=turbine, 
+                    is_active=True
+                ).exclude(pk=pk).update(is_active=False)
+            
+            power_curve.notes = notes if notes else None
+            power_curve.is_active = is_active
+            power_curve.save()
+            
+            messages.success(request, 'Power curve updated successfully.')
+            return redirect('powermapui:wind_turbine_detail', pk=turbine.pk)
+            
+        except Exception as e:
+            messages.error(request, f'Error updating power curve: {str(e)}')
+            return render(request, 'power_curves/edit.html', {
+                'power_curve': power_curve,
+                'turbine': turbine
+            })
+    
+    # Prepare data for template
+    curve_data = power_curve.power_curve_data
+    wind_speeds_text = ' '.join(str(ws) for ws in curve_data.get('wind_speeds', []))
+    power_outputs_text = ' '.join(str(po) for po in curve_data.get('power_outputs', []))
+    
+    context = {
+        'power_curve': power_curve,
+        'turbine': turbine,
+        'wind_speeds_text': wind_speeds_text,
+        'power_outputs_text': power_outputs_text,
+        'iec_class': curve_data.get('iec_class', ''),
+        'source': curve_data.get('source', '')
+    }
+    return render(request, 'power_curves/edit.html', context)
+
+@require_POST
+def power_curve_delete(request, pk):
+    """Delete a power curve"""
+    power_curve = get_object_or_404(TurbinePowerCurves, pk=pk)
+    turbine_pk = power_curve.idwindturbines.pk
+    file_name = power_curve.power_file_name
+    
+    power_curve.delete()
+    messages.success(request, f'Power curve "{file_name}" deleted successfully.')
+    return redirect('powermapui:wind_turbine_detail', pk=turbine_pk)
+
+@require_POST
+def power_curve_toggle_active(request, pk):
+    """Toggle active status of a power curve"""
+    power_curve = get_object_or_404(TurbinePowerCurves, pk=pk)
+    turbine = power_curve.idwindturbines
+    
+    if not power_curve.is_active:
+        TurbinePowerCurves.objects.filter(
+            idwindturbines=turbine, 
+            is_active=True
+        ).update(is_active=False)
+        
+        power_curve.is_active = True
+        power_curve.save()
+        messages.success(request, f'Power curve "{power_curve.power_file_name}" set as active.')
+    else:
+        power_curve.is_active = False
+        power_curve.save()
+        messages.success(request, f'Power curve "{power_curve.power_file_name}" deactivated.')
+    
+    return redirect('powermapui:wind_turbine_detail', pk=turbine.pk)
+
+def power_curve_data_json(request, pk):
+    """Return power curve data as JSON for charting"""
+    power_curve = get_object_or_404(TurbinePowerCurves, pk=pk)
+    
+    curve_data = power_curve.power_curve_data
+    
+    return JsonResponse({
+        'file_name': power_curve.power_file_name,
+        'wind_speeds': curve_data.get('wind_speeds', []),
+        'power_outputs': curve_data.get('power_outputs', []),
+        'data_points': curve_data.get('data_points', 0),
+        'iec_class': curve_data.get('iec_class'),
+        'source': curve_data.get('source'),
+        'is_active': power_curve.is_active
+    })
+
+# ========== FACILITY WIND TURBINE VIEWS ==========
+
 def facility_wind_turbines_list(request):
-    demand_year = request.session.get('demand_year', '')  # Get demand_year and scenario from session or default to empty string
-    scenario= request.session.get('scenario', '')
+    """List all facility wind turbine installations"""
+    demand_year = request.session.get('demand_year', '')
+    scenario = request.session.get('scenario', '')
     config_file = request.session.get('config_file')
     """List all facility wind turbine installations"""
     search_query = request.GET.get('search', '')

@@ -445,44 +445,53 @@ def get_facility_years(request):
     })
 
 def get_technology_data(request):
-    """API endpoint to get aggregated supply data for all facilities of a technology type"""
-    technology_id = request.GET.get('technology_id')
+    """API endpoint to get aggregated supply data for one or more technology types"""
+    technology_ids = request.GET.getlist('technology_id[]')  # Get list of technology IDs
     year = request.GET.get('year')
     aggregation = request.GET.get('aggregation', 'hour')
     start_hour = request.GET.get('start_hour')
     end_hour = request.GET.get('end_hour')
     
-    if not technology_id or not year:
-        return JsonResponse({'error': 'technology_id and year are required'}, status=400)
+    # Validate inputs
+    if not technology_ids or len(technology_ids) == 0:
+        return JsonResponse({'error': 'At least one technology must be selected'}, status=400)
+    
+    if not year:
+        return JsonResponse({'error': 'Year is required'}, status=400)
     
     try:
-        technology = Technologies.objects.get(idtechnologies=technology_id)
-        year = int(year)
+        # Get all selected technologies
+        technologies = Technologies.objects.filter(idtechnologies__in=technology_ids)
         
-        # Verify technology is renewable
-        if not technology.renewable:
+        if not technologies.exists():
+            return JsonResponse({'error': 'No valid technologies found'}, status=404)
+        
+        # Verify all technologies are renewable
+        non_renewable = technologies.filter(renewable=0)
+        if non_renewable.exists():
+            non_renewable_names = ', '.join(non_renewable.values_list('technology_name', flat=True))
             return JsonResponse({
-                'error': f'{technology.technology_name} is not a renewable technology'
+                'error': f'The following technologies are not renewable: {non_renewable_names}'
             }, status=400)
+        
+        year = int(year)
             
-    except Technologies.DoesNotExist:
-        return JsonResponse({'error': 'Technology not found'}, status=404)
     except ValueError:
         return JsonResponse({'error': 'Invalid year format'}, status=400)
     
-    # Get all facilities with this technology
+    # Get all facilities with any of the selected technologies
     tech_facilities = facilities.objects.filter(
-        idtechnologies=technology
+        idtechnologies__in=technologies
     )
     
     if not tech_facilities.exists():
         return JsonResponse({
-            'error': f'No facilities found with {technology.technology_name} technology'
+            'error': f'No facilities found with the selected technologies'
         }, status=404)
     
-    # Get supply data for all facilities with this technology
+    # Get supply data for all facilities with the selected technologies
     supply_queryset = supplyfactors.objects.filter(
-        idfacilities__idtechnologies=technology,
+        idfacilities__idtechnologies__in=technologies,
         year=year
     )
     
@@ -499,7 +508,7 @@ def get_technology_data(request):
     
     if not supply_queryset.exists():
         return JsonResponse({
-            'error': f'No supply data found for {technology.technology_name} facilities in {year}'
+            'error': f'No supply data found for the selected technologies in {year}'
         }, status=404)
     
     # Aggregate by hour first, summing across all facilities
@@ -544,12 +553,23 @@ def get_technology_data(request):
     else:
         return JsonResponse({'error': 'Invalid aggregation type'}, status=400)
     
-    # Count facilities
+    # Count facilities and get technology names
     facility_count = tech_facilities.count()
     facility_names = list(tech_facilities.values_list('facility_name', flat=True))
+    technology_names = list(technologies.values_list('technology_name', flat=True))
+    
+    # Get facility count per technology
+    tech_breakdown = []
+    for tech in technologies:
+        count = tech_facilities.filter(idtechnologies=tech).count()
+        tech_breakdown.append({
+            'name': tech.technology_name,
+            'facility_count': count
+        })
     
     return JsonResponse({
-        'technology_name': technology.technology_name,
+        'technology_names': technology_names,  # List of technology names
+        'technology_breakdown': tech_breakdown,  # Breakdown by technology
         'year': year,
         'aggregation': aggregation,
         'x_label': x_label,
@@ -561,46 +581,68 @@ def get_technology_data(request):
         'facilities': facility_names[:10],  # Return first 10 facility names
         'total_facilities': facility_count
     })
-
+    
 def get_technology_comparison_data(request):
-    """API endpoint to compare supply data between two technology types"""
-    technology1_id = request.GET.get('technology1_id')
-    technology2_id = request.GET.get('technology2_id')
+    """API endpoint to compare supply data between two groups of technology types"""
+    technology1_ids = request.GET.getlist('technology1_id[]')
+    technology2_ids = request.GET.getlist('technology2_id[]')
     year = request.GET.get('year')
     aggregation = request.GET.get('aggregation', 'hour')
     start_hour = request.GET.get('start_hour')
     end_hour = request.GET.get('end_hour')
     
-    if not technology1_id or not technology2_id or not year:
-        return JsonResponse({'error': 'Both technology IDs and year are required'}, status=400)
+    # Validate inputs
+    if not technology1_ids or len(technology1_ids) == 0:
+        return JsonResponse({'error': 'At least one technology must be selected for Group 1'}, status=400)
+    
+    if not technology2_ids or len(technology2_ids) == 0:
+        return JsonResponse({'error': 'At least one technology must be selected for Group 2'}, status=400)
+    
+    if not year:
+        return JsonResponse({'error': 'Year is required'}, status=400)
     
     try:
-        technology1 = Technologies.objects.get(idtechnologies=technology1_id)
-        technology2 = Technologies.objects.get(idtechnologies=technology2_id)
+        technologies1 = Technologies.objects.filter(idtechnologies__in=technology1_ids)
+        technologies2 = Technologies.objects.filter(idtechnologies__in=technology2_ids)
+        
+        if not technologies1.exists():
+            return JsonResponse({'error': 'No valid technologies found for Group 1'}, status=404)
+        
+        if not technologies2.exists():
+            return JsonResponse({'error': 'No valid technologies found for Group 2'}, status=404)
+        
         year = int(year)
         
-        # Verify both technologies are renewable
-        if not technology1.renewable or not technology2.renewable:
-            return JsonResponse({'error': 'Both technologies must be renewable'}, status=400)
+        # Verify all technologies are renewable
+        non_renewable1 = technologies1.filter(renewable=0)
+        non_renewable2 = technologies2.filter(renewable=0)
+        
+        if non_renewable1.exists() or non_renewable2.exists():
+            non_renewable_names = []
+            if non_renewable1.exists():
+                non_renewable_names.extend(non_renewable1.values_list('technology_name', flat=True))
+            if non_renewable2.exists():
+                non_renewable_names.extend(non_renewable2.values_list('technology_name', flat=True))
+            return JsonResponse({
+                'error': f'The following technologies are not renewable: {", ".join(non_renewable_names)}'
+            }, status=400)
             
-    except Technologies.DoesNotExist:
-        return JsonResponse({'error': 'One or both technologies not found'}, status=404)
     except ValueError:
         return JsonResponse({'error': 'Invalid year format'}, status=400)
     
-    # Get aggregated data for both technologies
-    def get_tech_aggregated_data(technology, year, aggregation, start_hour, end_hour):
+    # Get aggregated data for both technology groups
+    def get_tech_group_aggregated_data(technologies, year, aggregation, start_hour, end_hour):
         supply_queryset = supplyfactors.objects.filter(
-            idfacilities__idtechnologies=technology,
+            idfacilities__idtechnologies__in=technologies,
             year=year
         )
         
         # Apply hour range filter if provided
         if start_hour and end_hour:
             try:
-                start_hour = int(start_hour)
-                end_hour = int(end_hour)
-                supply_queryset = supply_queryset.filter(hour__gte=start_hour, hour__lte=end_hour)
+                start_hour_int = int(start_hour)
+                end_hour_int = int(end_hour)
+                supply_queryset = supply_queryset.filter(hour__gte=start_hour_int, hour__lte=end_hour_int)
             except ValueError:
                 pass
         
@@ -641,25 +683,50 @@ def get_technology_comparison_data(request):
         
         return None
     
-    data1 = get_tech_aggregated_data(technology1, year, aggregation, start_hour, end_hour)
-    data2 = get_tech_aggregated_data(technology2, year, aggregation, start_hour, end_hour)
+    data1 = get_tech_group_aggregated_data(technologies1, year, aggregation, start_hour, end_hour)
+    data2 = get_tech_group_aggregated_data(technologies2, year, aggregation, start_hour, end_hour)
     
     if data1 is None:
+        tech1_names = ', '.join(technologies1.values_list('technology_name', flat=True))
         return JsonResponse({
-            'error': f'No supply data found for {technology1.technology_name} in {year}'
+            'error': f'No supply data found for {tech1_names} in {year}'
         }, status=404)
     
     if data2 is None:
+        tech2_names = ', '.join(technologies2.values_list('technology_name', flat=True))
         return JsonResponse({
-            'error': f'No supply data found for {technology2.technology_name} in {year}'
+            'error': f'No supply data found for {tech2_names} in {year}'
         }, status=404)
     
     # Calculate correlation metrics
     correlation_metrics = calculate_correlation_metrics(data1['quantum'], data2['quantum'])
     
-    # Get facility counts
-    facility1_count = facilities.objects.filter(idtechnologies=technology1).count()
-    facility2_count = facilities.objects.filter(idtechnologies=technology2).count()
+    # Get facility counts and names for each group
+    facilities1 = facilities.objects.filter(idtechnologies__in=technologies1)
+    facilities2 = facilities.objects.filter(idtechnologies__in=technologies2)
+    
+    facility1_count = facilities1.count()
+    facility2_count = facilities2.count()
+    
+    technology1_names = list(technologies1.values_list('technology_name', flat=True))
+    technology2_names = list(technologies2.values_list('technology_name', flat=True))
+    
+    # Get facility count per technology for both groups
+    tech1_breakdown = []
+    for tech in technologies1:
+        count = facilities1.filter(idtechnologies=tech).count()
+        tech1_breakdown.append({
+            'name': tech.technology_name,
+            'facility_count': count
+        })
+    
+    tech2_breakdown = []
+    for tech in technologies2:
+        count = facilities2.filter(idtechnologies=tech).count()
+        tech2_breakdown.append({
+            'name': tech.technology_name,
+            'facility_count': count
+        })
     
     # Determine x_label
     if aggregation == 'hour':
@@ -671,12 +738,14 @@ def get_technology_comparison_data(request):
     
     return JsonResponse({
         'technology1': {
-            'name': technology1.technology_name,
+            'names': technology1_names,
             'facility_count': facility1_count,
+            'breakdown': tech1_breakdown,
         },
         'technology2': {
-            'name': technology2.technology_name,
+            'names': technology2_names,
             'facility_count': facility2_count,
+            'breakdown': tech2_breakdown,
         },
         'year': year,
         'aggregation': aggregation,

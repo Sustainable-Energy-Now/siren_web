@@ -336,15 +336,19 @@
                 <div class="card-body">
                     <form id="technologyPlotForm" class="row g-3">
                         <div class="col-md-4">
-                            <label for="technologySelect" class="form-label">Select Technology:</label>
-                            <select class="form-select" id="technologySelect" name="technology" required>
-                                <option value="">Choose a technology...</option>
+                            <label for="technologySelect" class="form-label">
+                                Select Technologies (hold Ctrl/Cmd to select multiple):
+                            </label>
+                            <select class="form-select" id="technologySelect" name="technology" multiple size="6" required>
                                 {% for technology in technologies %}
                                 <option value="{{ technology.idtechnologies }}">
                                     {{ technology.technology_name }}
                                 </option>
                                 {% endfor %}
                             </select>
+                            <small class="text-muted">
+                                <i class="bi bi-info-circle"></i> Selected: <span id="selectedTechCount">0</span> technology(ies)
+                            </small>
                         </div>
                         
                         <div class="col-md-2">
@@ -380,6 +384,9 @@
                             <label class="form-label">&nbsp;</label>
                             <button type="submit" class="btn btn-primary w-100">
                                 <i class="bi bi-graph-up"></i> Plot Technology
+                            </button>
+                            <button type="button" class="btn btn-secondary w-100 mt-2" id="clearTechSelection">
+                                Clear Selection
                             </button>
                         </div>
                     </form>
@@ -471,7 +478,7 @@
             </div>
         </div>
     </div>
-    
+
     <!-- Technology comparison form -->
     <div class="row mt-4" id="techComparisonForm" style="display: none;">
         <div class="col-md-12">
@@ -479,27 +486,35 @@
                 <div class="card-body">
                     <form id="techComparisonPlotForm" class="row g-3">
                         <div class="col-md-3">
-                            <label for="technology1Select" class="form-label">Technology 1:</label>
-                            <select class="form-select" id="technology1Select" name="technology1" required>
-                                <option value="">Choose first technology...</option>
+                            <label for="technology1Select" class="form-label">
+                                Technology Group 1 (Ctrl/Cmd + click):
+                            </label>
+                            <select class="form-select" id="technology1Select" name="technology1" multiple size="6" required>
                                 {% for technology in technologies %}
                                 <option value="{{ technology.idtechnologies }}">
                                     {{ technology.technology_name }}
                                 </option>
                                 {% endfor %}
                             </select>
+                            <small class="text-muted">
+                                <i class="bi bi-info-circle"></i> Selected: <span id="selectedTech1Count">0</span> technology(ies)
+                            </small>
                         </div>
                         
                         <div class="col-md-3">
-                            <label for="technology2Select" class="form-label">Technology 2:</label>
-                            <select class="form-select" id="technology2Select" name="technology2" required>
-                                <option value="">Choose second technology...</option>
+                            <label for="technology2Select" class="form-label">
+                                Technology Group 2 (Ctrl/Cmd + click):
+                            </label>
+                            <select class="form-select" id="technology2Select" name="technology2" multiple size="6" required>
                                 {% for technology in technologies %}
                                 <option value="{{ technology.idtechnologies }}">
                                     {{ technology.technology_name }}
                                 </option>
                                 {% endfor %}
                             </select>
+                            <small class="text-muted">
+                                <i class="bi bi-info-circle"></i> Selected: <span id="selectedTech2Count">0</span> technology(ies)
+                            </small>
                         </div>
                         
                         <div class="col-md-2">
@@ -535,6 +550,9 @@
                             <label class="form-label">&nbsp;</label>
                             <button type="submit" class="btn btn-success w-100">
                                 <i class="bi bi-graph-up"></i> Compare
+                            </button>
+                            <button type="button" class="btn btn-secondary w-100 mt-2" id="clearTechCompSelection">
+                                Clear
                             </button>
                         </div>
                     </form>
@@ -626,7 +644,7 @@
             </div>
         </div>
     </div>
-    
+   
     <div id="loadingSpinner" class="text-center mt-4" style="display: none;">
         <div class="spinner-border text-primary" role="status">
             <span class="visually-hidden">Loading...</span>
@@ -732,15 +750,18 @@ document.addEventListener('DOMContentLoaded', function() {
     const yearSelectCompare = document.getElementById('yearSelectCompare');
     const aggregationSelectCompare = document.getElementById('aggregationSelectCompare');
     const chartTypeSelectCompare = document.getElementById('chartTypeSelectCompare');
-    const technologySelect = document.getElementById('technologySelect');
     const yearSelectTech = document.getElementById('yearSelectTech');
     const aggregationSelectTech = document.getElementById('aggregationSelectTech');
     const chartTypeSelectTech = document.getElementById('chartTypeSelectTech');
-    const technology1Select = document.getElementById('technology1Select');
-    const technology2Select = document.getElementById('technology2Select');
     const yearSelectTechComp = document.getElementById('yearSelectTechComp');
     const aggregationSelectTechComp = document.getElementById('aggregationSelectTechComp');
     const chartTypeSelectTechComp = document.getElementById('chartTypeSelectTechComp');
+    // Technology comparison selection count updates
+    const technology1Select = document.getElementById('technology1Select');
+    const technology2Select = document.getElementById('technology2Select');
+    const selectedTech1Count = document.getElementById('selectedTech1Count');
+    const selectedTech2Count = document.getElementById('selectedTech2Count');
+    const clearTechCompSelection = document.getElementById('clearTechCompSelection');
     
     // UI elements
     const loadingSpinner = document.getElementById('loadingSpinner');
@@ -752,7 +773,34 @@ document.addEventListener('DOMContentLoaded', function() {
     const comparisonFormDiv = document.getElementById('comparisonForm');
     const technologyFormDiv = document.getElementById('technologyForm');
     const techComparisonFormDiv = document.getElementById('techComparisonForm');
-    
+
+    // Technology selection count update
+    const technologySelect = document.getElementById('technologySelect');
+    const selectedTechCount = document.getElementById('selectedTechCount');
+    const clearTechSelection = document.getElementById('clearTechSelection');
+
+    technologySelect.addEventListener('change', function() {
+        const selectedCount = Array.from(this.selectedOptions).length;
+        selectedTechCount.textContent = selectedCount;
+    });
+
+    technology1Select.addEventListener('change', function() {
+        const selectedCount = Array.from(this.selectedOptions).length;
+        selectedTech1Count.textContent = selectedCount;
+    });
+
+    technology2Select.addEventListener('change', function() {
+        const selectedCount = Array.from(this.selectedOptions).length;
+        selectedTech2Count.textContent = selectedCount;
+    });
+    clearTechSelection.addEventListener('click', function() {
+        technologySelect.selectedIndex = -1;
+        selectedTechCount.textContent = '0';
+        technology1Select.selectedIndex = -1;
+        technology2Select.selectedIndex = -1;
+        selectedTech1Count.textContent = '0';
+        selectedTech2Count.textContent = '0';
+    });
     // Mode switching
     document.querySelectorAll('input[name="viewMode"]').forEach(radio => {
         radio.addEventListener('change', function() {
@@ -953,44 +1001,51 @@ document.addEventListener('DOMContentLoaded', function() {
     technologyForm.addEventListener('submit', function(e) {
         e.preventDefault();
         
-        const technologyId = technologySelect.value;
+        const selectedOptions = Array.from(technologySelect.selectedOptions);
+        const technologyIds = selectedOptions.map(opt => opt.value);
         const year = yearSelectTech.value;
         const aggregation = aggregationSelectTech.value;
         const chartType = chartTypeSelectTech.value;
         
-        if (!technologyId || !year) {
-            showError('Please select both technology and year');
+        if (technologyIds.length === 0 || !year) {
+            showError('Please select at least one technology and a year');
             return;
         }
         
         comparisonMetrics.style.display = 'none';
-        fetchAndPlotTechnology(technologyId, year, aggregation, chartType);
+        fetchAndPlotTechnology(technologyIds, year, aggregation, chartType);
     });
     
     // Technology comparison form submission
     techComparisonForm.addEventListener('submit', function(e) {
         e.preventDefault();
         
-        const technology1Id = technology1Select.value;
-        const technology2Id = technology2Select.value;
+        const technology1Ids = Array.from(technology1Select.selectedOptions).map(opt => opt.value);
+        const technology2Ids = Array.from(technology2Select.selectedOptions).map(opt => opt.value);
         const year = yearSelectTechComp.value;
         const aggregation = aggregationSelectTechComp.value;
         const chartType = chartTypeSelectTechComp.value;
         
-        if (!technology1Id || !technology2Id || !year) {
-            showError('Please select both technologies and year');
+        console.log('Selected technology1 IDs:', technology1Ids);
+        console.log('Selected technology2 IDs:', technology2Ids);
+        console.log('Selected year:', year);
+        
+        if (technology1Ids.length === 0 || technology2Ids.length === 0 || !year) {
+            showError('Please select at least one technology for each group and a year');
             return;
         }
         
-        if (technology1Id === technology2Id) {
-            showError('Please select two different technologies');
+        // Check if any technologies are duplicated between groups
+        const duplicates = technology1Ids.filter(id => technology2Ids.includes(id));
+        if (duplicates.length > 0) {
+            showError('Please ensure technologies are not selected in both groups');
             return;
         }
         
         plotInfo.style.display = 'none';
-        fetchAndPlotTechnologyComparison(technology1Id, technology2Id, year, aggregation, chartType);
+        fetchAndPlotTechnologyComparison(technology1Ids, technology2Ids, year, aggregation, chartType);
     });
-    
+
     function updateAvailableYears(facilityId, targetSelect) {
         fetch(`/get_facility_years/?facility_id=${facilityId}`)
             .then(response => response.json())
@@ -1107,14 +1162,19 @@ document.addEventListener('DOMContentLoaded', function() {
             });
     }
     
-    function fetchAndPlotTechnology(technologyId, year, aggregation, chartType) {
+    function fetchAndPlotTechnology(technologyIds, year, aggregation, chartType) {
         loadingSpinner.style.display = 'block';
         hideError();
         plotInfo.style.display = 'none';
         comparisonMetrics.style.display = 'none';
         
+        // Build URL with multiple technology IDs
+        let url = `/get_technology_data/?year=${year}&aggregation=${aggregation}`;
+        technologyIds.forEach(id => {
+            url += `&technology_id[]=${id}`;
+        });
+        
         // Get date range if specified
-        let url = `/get_technology_data/?technology_id=${technologyId}&year=${year}&aggregation=${aggregation}`;
         const startMonth = startMonthTech.value;
         const endMonth = endMonthTech.value;
         
@@ -1133,8 +1193,10 @@ document.addEventListener('DOMContentLoaded', function() {
                     return;
                 }
                 
-                document.getElementById('infoFacilityName').textContent = `${data.technology_name} (${data.facility_count} facilities)`;
-                document.getElementById('infoTechnology').textContent = 'Aggregated Technology';
+                // Display technology names
+                const techNamesDisplay = data.technology_names.join(', ');
+                document.getElementById('infoFacilityName').textContent = `${techNamesDisplay} (${data.facility_count} facilities)`;
+                document.getElementById('infoTechnology').textContent = 'Aggregated Technologies';
                 document.getElementById('infoYear').textContent = data.year;
                 document.getElementById('infoAggregation').textContent = data.aggregation.charAt(0).toUpperCase() + data.aggregation.slice(1);
                 document.getElementById('infoTotalPeriods').textContent = data.total_periods;
@@ -1147,15 +1209,25 @@ document.addEventListener('DOMContentLoaded', function() {
                 showError('Error fetching technology data: ' + error.message);
             });
     }
-    
-    function fetchAndPlotTechnologyComparison(technology1Id, technology2Id, year, aggregation, chartType) {
+
+    function fetchAndPlotTechnologyComparison(technology1Ids, technology2Ids, year, aggregation, chartType) {
         loadingSpinner.style.display = 'block';
         hideError();
         comparisonMetrics.style.display = 'none';
         plotInfo.style.display = 'none';
         
+        // Build URL with multiple technology IDs for both groups
+        let url = `/get_technology_comparison_data/?year=${year}&aggregation=${aggregation}`;
+        technology1Ids.forEach(id => {
+            url += `&technology1_id[]=${id}`;
+        });
+        technology2Ids.forEach(id => {
+            url += `&technology2_id[]=${id}`;
+        });
+        
+        console.log('Fetching URL:', url);
+        
         // Get date range if specified
-        let url = `/get_technology_comparison_data/?technology1_id=${technology1Id}&technology2_id=${technology2Id}&year=${year}&aggregation=${aggregation}`;
         const startMonth = startMonthTechComp.value;
         const endMonth = endMonthTechComp.value;
         
@@ -1164,10 +1236,14 @@ document.addEventListener('DOMContentLoaded', function() {
             url += `&start_hour=${hourRange.start}&end_hour=${hourRange.end}`;
         }
         
+        console.log('Final URL:', url);
+        
         fetch(url)
             .then(response => response.json())
             .then(data => {
                 loadingSpinner.style.display = 'none';
+                
+                console.log('Response data:', data);
                 
                 if (data.error) {
                     showError(data.error);
@@ -1180,6 +1256,7 @@ document.addEventListener('DOMContentLoaded', function() {
             .catch(error => {
                 loadingSpinner.style.display = 'none';
                 showError('Error fetching technology comparison data: ' + error.message);
+                console.error('Fetch error:', error);
             });
     }
 
@@ -1316,9 +1393,15 @@ document.addEventListener('DOMContentLoaded', function() {
         const hasDifferentSupply = data.supply.some((val, idx) => val !== data.quantum[idx]);
         const plotData = hasDifferentSupply ? traces : [traces[0]];
         
+        // Build title with technology names
+        const techNamesDisplay = data.technology_names.join(' + ');
+        const titleText = data.technology_names.length > 1 
+            ? `${techNamesDisplay} - Aggregated Generation from ${data.facility_count} Facilities (${data.year})`
+            : `${techNamesDisplay} - Aggregated Generation from ${data.facility_count} Facilities (${data.year})`;
+        
         const layout = {
             title: {
-                text: `${data.technology_name} - Aggregated Generation from ${data.facility_count} Facilities (${data.year})`,
+                text: titleText,
                 font: { size: 16 }
             },
             xaxis: { 
@@ -1343,14 +1426,42 @@ document.addEventListener('DOMContentLoaded', function() {
             barmode: chartType === 'bar' ? 'group' : undefined
         };
         
+        // Add annotation showing technology breakdown if multiple technologies
+        if (data.technology_breakdown && data.technology_breakdown.length > 1) {
+            const breakdownText = data.technology_breakdown
+                .map(tech => `${tech.name}: ${tech.facility_count} facilities`)
+                .join('<br>');
+            
+            layout.annotations = [{
+                text: breakdownText,
+                xref: 'paper',
+                yref: 'paper',
+                x: 0.02,
+                y: 0.98,
+                xanchor: 'left',
+                yanchor: 'top',
+                showarrow: false,
+                bgcolor: 'rgba(255, 255, 255, 0.8)',
+                bordercolor: 'rgba(0, 0, 0, 0.2)',
+                borderwidth: 1,
+                borderpad: 4,
+                font: { size: 10 }
+            }];
+        }
+        
         Plotly.newPlot(chartDiv, plotData, layout, getPlotConfig());
     }
 
     function plotTechnologyComparisonData(data, chartType) {
+        const tech1Names = data.technology1.names.join(' + ');
+        const tech2Names = data.technology2.names.join(' + ');
+        
         const traces = createTraces(
             [data.periods, data.periods, data.periods],
             [data.technology1_quantum, data.technology2_quantum, data.technology1_quantum.map((v, i) => (v + data.technology2_quantum[i]) / 2)],
-            [`${data.technology1.name} (${data.technology1.facility_count} facilities)`, `${data.technology2.name} (${data.technology2.facility_count} facilities)`, 'Combined Total'],
+            [`Group 1: ${tech1Names} (${data.technology1.facility_count} facilities)`, 
+            `Group 2: ${tech2Names} (${data.technology2.facility_count} facilities)`, 
+            'Combined Total'],
             ['rgb(55, 128, 191)', 'rgb(255, 127, 14)', 'rgb(44, 160, 44)'],
             chartType,
             [false, false, true]
@@ -1358,7 +1469,7 @@ document.addEventListener('DOMContentLoaded', function() {
         
         const layout = {
             title: {
-                text: `Technology Comparison: ${data.technology1.name} vs ${data.technology2.name} (${data.year})`,
+                text: `Technology Comparison: ${tech1Names} vs ${tech2Names} (${data.year})`,
                 font: { size: 16 }
             },
             xaxis: { 
@@ -1382,6 +1493,57 @@ document.addEventListener('DOMContentLoaded', function() {
             legend: { x: 0, xanchor: 'left', y: 1 },
             barmode: chartType === 'bar' ? 'group' : undefined
         };
+        
+        // Add annotations showing technology breakdowns if multiple technologies in either group
+        const annotations = [];
+        
+        if (data.technology1.breakdown && data.technology1.breakdown.length > 1) {
+            const breakdown1Text = 'Group 1:<br>' + data.technology1.breakdown
+                .map(tech => `${tech.name}: ${tech.facility_count}`)
+                .join('<br>');
+            
+            annotations.push({
+                text: breakdown1Text,
+                xref: 'paper',
+                yref: 'paper',
+                x: 0.02,
+                y: 0.02,
+                xanchor: 'left',
+                yanchor: 'bottom',
+                showarrow: false,
+                bgcolor: 'rgba(255, 255, 255, 0.9)',
+                bordercolor: 'rgb(55, 128, 191)',
+                borderwidth: 2,
+                borderpad: 6,
+                font: { size: 10, color: 'rgb(55, 128, 191)' }
+            });
+        }
+        
+        if (data.technology2.breakdown && data.technology2.breakdown.length > 1) {
+            const breakdown2Text = 'Group 2:<br>' + data.technology2.breakdown
+                .map(tech => `${tech.name}: ${tech.facility_count}`)
+                .join('<br>');
+            
+            annotations.push({
+                text: breakdown2Text,
+                xref: 'paper',
+                yref: 'paper',
+                x: 0.98,
+                y: 0.02,
+                xanchor: 'right',
+                yanchor: 'bottom',
+                showarrow: false,
+                bgcolor: 'rgba(255, 255, 255, 0.9)',
+                bordercolor: 'rgb(255, 127, 14)',
+                borderwidth: 2,
+                borderpad: 6,
+                font: { size: 10, color: 'rgb(255, 127, 14)' }
+            });
+        }
+        
+        if (annotations.length > 0) {
+            layout.annotations = annotations;
+        }
         
         Plotly.newPlot(chartDiv, traces, layout, getPlotConfig());
     }
@@ -1622,10 +1784,14 @@ document.addEventListener('DOMContentLoaded', function() {
     function displayTechnologyComparisonMetrics(data) {
         const metrics = data.correlation_metrics;
         
-        document.getElementById('compFacility1').textContent = `${data.technology1.name} (${data.technology1.facility_count} facilities)`;
-        document.getElementById('compTech1').textContent = 'Aggregated Technology';
-        document.getElementById('compFacility2').textContent = `${data.technology2.name} (${data.technology2.facility_count} facilities)`;
-        document.getElementById('compTech2').textContent = 'Aggregated Technology';
+        // Display technology group names
+        const tech1Names = data.technology1.names.join(' + ');
+        const tech2Names = data.technology2.names.join(' + ');
+        
+        document.getElementById('compFacility1').textContent = `${tech1Names} (${data.technology1.facility_count} facilities)`;
+        document.getElementById('compTech1').textContent = 'Aggregated Technologies';
+        document.getElementById('compFacility2').textContent = `${tech2Names} (${data.technology2.facility_count} facilities)`;
+        document.getElementById('compTech2').textContent = 'Aggregated Technologies';
         document.getElementById('compYear').textContent = data.year;
         document.getElementById('compAggregation').textContent = data.aggregation.charAt(0).toUpperCase() + data.aggregation.slice(1);
         

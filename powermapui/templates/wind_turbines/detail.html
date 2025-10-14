@@ -106,6 +106,102 @@
         </div>
       </div>
 
+      <!-- Power Curves Section - Enhanced -->
+      <div class="card mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <h5 class="mb-0">Power Curves</h5>
+          <a href="{% url 'powermapui:power_curve_create' turbine.pk %}" class="btn btn-primary btn-sm">
+            <i class="bi bi-upload"></i> Upload Power Curve
+          </a>
+        </div>
+        <div class="card-body">
+          {% if power_curves %}
+            <div class="table-responsive">
+              <table class="table table-sm table-hover">
+                <thead>
+                  <tr>
+                    <th>File Name</th>
+                    <th>Upload Date</th>
+                    <th>Status</th>
+                    <th>Data Points</th>
+                    <th>Notes</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for curve in power_curves %}
+                    <tr {% if curve.is_active %}class="table-success"{% endif %}>
+                      <td>
+                        <code>{{ curve.power_file_name }}</code>
+                        {% if curve.is_active %}
+                          <span class="badge bg-success ms-2">ACTIVE</span>
+                        {% endif %}
+                      </td>
+                      <td>{{ curve.file_upload_date|date:"Y-m-d H:i" }}</td>
+                      <td>
+                        {% if curve.is_active %}
+                          <span class="badge bg-success">Active</span>
+                        {% else %}
+                          <span class="badge bg-secondary">Inactive</span>
+                        {% endif %}
+                      </td>
+                      <td>
+                        {% if curve.wind_speeds %}
+                          {{ curve.wind_speeds|length }} points
+                          <small class="text-muted">({{ curve.wind_speeds|first|floatformat:1 }}-{{ curve.wind_speeds|last|floatformat:1 }} m/s)</small>
+                        {% else %}
+                          N/A
+                        {% endif %}
+                      </td>
+                      <td>{{ curve.notes|default:"-"|truncatechars:30 }}</td>
+                      <td>
+                        <div class="btn-group btn-group-sm" role="group">
+                          <button type="button" 
+                                  class="btn btn-outline-info" 
+                                  onclick="viewCurveData({{ curve.pk }})"
+                                  title="View Data">
+                            <i class="bi bi-graph-up"></i>
+                          </button>
+                          <a href="{% url 'powermapui:power_curve_edit' curve.pk %}" 
+                             class="btn btn-outline-warning"
+                             title="Edit">
+                            <i class="bi bi-pencil"></i>
+                          </a>
+                          <form method="post" 
+                                action="{% url 'powermapui:power_curve_toggle_active' curve.pk %}" 
+                                style="display: inline;">
+                            {% csrf_token %}
+                            <button type="submit" 
+                                    class="btn btn-outline-primary"
+                                    title="{% if curve.is_active %}Deactivate{% else %}Set as Active{% endif %}">
+                              <i class="bi bi-{% if curve.is_active %}pause-circle{% else %}play-circle{% endif %}"></i>
+                            </button>
+                          </form>
+                          <button type="button" 
+                                  class="btn btn-outline-danger" 
+                                  onclick="confirmDeleteCurve({{ curve.pk }}, '{{ curve.power_file_name }}')"
+                                  title="Delete">
+                            <i class="bi bi-trash"></i>
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% else %}
+            <div class="text-center text-muted py-4">
+              <i class="bi bi-graph-up" style="font-size: 3rem;"></i>
+              <p class="mt-2">No power curves uploaded for this turbine model.</p>
+              <a href="{% url 'powermapui:power_curve_create' turbine.pk %}" class="btn btn-outline-primary btn-sm">
+                <i class="bi bi-upload"></i> Upload First Power Curve
+              </a>
+            </div>
+          {% endif %}
+        </div>
+      </div>
+
       <!-- Installation Summary -->
       <div class="card mb-4">
         <div class="card-header d-flex justify-content-between align-items-center">
@@ -173,51 +269,6 @@
           {% endif %}
         </div>
       </div>
-
-      <!-- Power Curves -->
-      <div class="card mb-4">
-        <div class="card-header">
-          <h5 class="mb-0">Power Curves</h5>
-        </div>
-        <div class="card-body">
-          {% if power_curves %}
-            <div class="table-responsive">
-              <table class="table table-sm">
-                <thead>
-                  <tr>
-                    <th>File Name</th>
-                    <th>Upload Date</th>
-                    <th>Status</th>
-                    <th>Notes</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {% for curve in power_curves %}
-                    <tr>
-                      <td>
-                        <code>{{ curve.power_file_name }}</code>
-                      </td>
-                      <td>{{ curve.file_upload_date|date:"Y-m-d H:i" }}</td>
-                      <td>
-                        {% if curve.is_active %}
-                          <span class="badge bg-success">Active</span>
-                        {% else %}
-                          <span class="badge bg-secondary">Inactive</span>
-                        {% endif %}
-                      </td>
-                      <td>{{ curve.notes|default:"-"|truncatechars:50 }}</td>
-                    </tr>
-                  {% endfor %}
-                </tbody>
-              </table>
-            </div>
-          {% else %}
-            <div class="text-center text-muted py-3">
-              <p>No power curves uploaded for this turbine model.</p>
-            </div>
-          {% endif %}
-        </div>
-      </div>
     </div>
 
     <!-- Quick Actions Sidebar -->
@@ -229,13 +280,16 @@
         <div class="card-body">
           <div class="d-grid gap-2">
             <a href="{% url 'powermapui:wind_turbine_edit' turbine.pk %}" class="btn btn-warning btn-sm">
-              Edit Turbine
+              <i class="bi bi-pencil"></i> Edit Turbine
             </a>
-            <a href="{% url 'powermapui:facility_wind_turbine_create' %}" class="btn btn-primary btn-sm">
-              Add to Facility
+            <a href="{% url 'powermapui:power_curve_create' turbine.pk %}" class="btn btn-primary btn-sm">
+              <i class="bi bi-upload"></i> Upload Power Curve
+            </a>
+            <a href="{% url 'powermapui:facility_wind_turbine_create' %}" class="btn btn-success btn-sm">
+              <i class="bi bi-plus-circle"></i> Add to Facility
             </a>
             <button class="btn btn-danger btn-sm" onclick="confirmDelete()">
-              Delete Turbine
+              <i class="bi bi-trash"></i> Delete Turbine
             </button>
           </div>
         </div>
@@ -266,12 +320,17 @@
               <small class="text-muted">Total Capacity (kW)</small>
             </div>
           {% endif %}
+          <hr>
+          <div class="text-center">
+            <h4 class="text-warning">{{ power_curves.count }}</h4>
+            <small class="text-muted">Power Curves</small>
+          </div>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- Delete Confirmation Modal -->
+  <!-- Delete Turbine Confirmation Modal -->
   <div class="modal fade" id="deleteModal" tabindex="-1">
     <div class="modal-dialog">
       <div class="modal-content">
@@ -301,10 +360,92 @@
     </div>
   </div>
 
+  <!-- Delete Power Curve Confirmation Modal -->
+  <div class="modal fade" id="deleteCurveModal" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Confirm Delete Power Curve</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <p>Are you sure you want to delete the power curve "<span id="curveFileName"></span>"?</p>
+          <p class="text-muted small">This action cannot be undone.</p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <form method="post" id="deleteCurveForm" style="display: inline;">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-danger">Delete Power Curve</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- View Power Curve Data Modal -->
+  <div class="modal fade" id="viewCurveModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Power Curve Data</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div id="curveDataContent">
+            <div class="text-center">
+              <div class="spinner-border" role="status">
+                <span class="visually-hidden">Loading...</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script>
     function confirmDelete() {
       var deleteModal = new bootstrap.Modal(document.getElementById('deleteModal'));
       deleteModal.show();
+    }
+
+    function confirmDeleteCurve(curveId, fileName) {
+      document.getElementById('curveFileName').textContent = fileName;
+      document.getElementById('deleteCurveForm').action = 
+        "{% url 'powermapui:power_curve_delete' 0 %}".replace('0', curveId);
+      var modal = new bootstrap.Modal(document.getElementById('deleteCurveModal'));
+      modal.show();
+    }
+
+    function viewCurveData(curveId) {
+      var modal = new bootstrap.Modal(document.getElementById('viewCurveModal'));
+      modal.show();
+      
+      // Fetch curve data
+      fetch("{% url 'powermapui:power_curve_data_json' 0 %}".replace('0', curveId))
+        .then(response => response.json())
+        .then(data => {
+          let html = '<h6>' + data.file_name + '</h6>';
+          html += '<div class="table-responsive" style="max-height: 400px; overflow-y: auto;">';
+          html += '<table class="table table-sm table-striped">';
+          html += '<thead class="sticky-top bg-white"><tr><th>Wind Speed (m/s)</th><th>Power Output (kW)</th></tr></thead>';
+          html += '<tbody>';
+          
+          for (let i = 0; i < data.wind_speeds.length; i++) {
+            html += '<tr>';
+            html += '<td>' + data.wind_speeds[i].toFixed(2) + '</td>';
+            html += '<td>' + data.power_outputs[i].toFixed(2) + '</td>';
+            html += '</tr>';
+          }
+          
+          html += '</tbody></table></div>';
+          document.getElementById('curveDataContent').innerHTML = html;
+        })
+        .catch(error => {
+          document.getElementById('curveDataContent').innerHTML = 
+            '<div class="alert alert-danger">Error loading curve data</div>';
+        });
     }
   </script>
 {% endblock %}

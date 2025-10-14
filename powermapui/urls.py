@@ -58,13 +58,20 @@ urlpatterns = [
     path('tableupdate/process/', table_update_views.update_table, name='table_update_process'),
     path('power/', power_views.generate_power, name='generate_power'),
     
-        # Wind Turbines URLs
+    # Wind Turbines URLs
     path('wind_turbines/', wind_turbines_views.wind_turbines_list, name='wind_turbines_list'),
     path('wind_turbines/create/', wind_turbines_views.wind_turbine_create, name='wind_turbine_create'),
     path('wind_turbines/<int:pk>/', wind_turbines_views.wind_turbine_detail, name='wind_turbine_detail'),
     path('wind_turbines/<int:pk>/edit/', wind_turbines_views.wind_turbine_edit, name='wind_turbine_edit'),
     path('wind_turbines/<int:pk>/delete/', wind_turbines_views.wind_turbine_delete, name='wind_turbine_delete'),
     path('get_turbines_json/', wind_turbines_views.get_turbines_json, name='get_turbines_json'),
+    
+    # Power curve management URLs
+    path('wind-turbines/<int:turbine_pk>/power-curves/create/', wind_turbines_views.power_curve_create, name='power_curve_create'),
+    path('power-curves/<int:pk>/edit/', wind_turbines_views.power_curve_edit, name='power_curve_edit'),
+    path('power-curves/<int:pk>/delete/', wind_turbines_views.power_curve_delete, name='power_curve_delete'),
+    path('power-curves/<int:pk>/toggle-active/', wind_turbines_views.power_curve_toggle_active, name='power_curve_toggle_active'),
+    path('power-curves/<int:pk>/data-json/', wind_turbines_views.power_curve_data_json, name='power_curve_data_json'),
     
     # Facility Wind Turbine Installations URLs
     path('facility_wind_turbines/', wind_turbines_views.facility_wind_turbines_list, name='facility_wind_turbines_list'),
