@@ -1,0 +1,322 @@
+<!-- terminals/edit.html -->
+{% extends 'powermapui_base.html' %}
+
+{% block powermapui_content %}
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h3>Edit Terminal</h3>
+      <small class="text-muted">{{ terminal.terminal_name }}</small>
+    </div>
+    <div>
+      <a href="{% url 'powermapui:terminal_detail' terminal.pk %}" class="btn btn-outline-secondary">Back to Details</a>
+    </div>
+  </div>
+
+  <p>Update the details for this terminal. Changes will be reflected across all connected grid lines and facilities.</p>
+
+  <div class="row">
+    <div class="col-lg-8">
+      <div class="card">
+        <div class="card-body">
+          <form method="post" novalidate>
+            {% csrf_token %}
+            
+            <!-- Basic Information -->
+            <h5 class="mb-3">Basic Information</h5>
+            <div class="row mb-3">
+              <div class="col-md-6">
+                <label for="terminal_name" class="form-label">Terminal Name <span class="text-danger">*</span></label>
+                <input type="text" 
+                       class="form-control" 
+                       id="terminal_name" 
+                       name="terminal_name" 
+                       value="{{ form_data.terminal_name|default:terminal.terminal_name }}"
+                       required>
+                <div class="form-text">Unique identifier for this terminal</div>
+              </div>
+              <div class="col-md-6">
+                <label for="terminal_code" class="form-label">Terminal Code <span class="text-danger">*</span></label>
+                <input type="text" 
+                       class="form-control" 
+                       id="terminal_code" 
+                       name="terminal_code" 
+                       value="{{ form_data.terminal_code|default:terminal.terminal_code }}"
+                       required>
+                <div class="form-text">Short code for the terminal</div>
+              </div>
+            </div>
+
+            <div class="row mb-4">
+              <div class="col-md-6">
+                <label for="terminal_type" class="form-label">Terminal Type <span class="text-danger">*</span></label>
+                <select class="form-select" id="terminal_type" name="terminal_type" required>
+                  <option value="">Select type</option>
+                  {% for type_value, type_label in terminal_types %}
+                    <option value="{{ type_value }}" 
+                            {% if form_data.terminal_type|default:terminal.terminal_type == type_value %}selected{% endif %}>
+                      {{ type_label }}
+                    </option>
+                  {% endfor %}
+                </select>
+                <div class="form-text">Type of terminal/substation</div>
+              </div>
+              <div class="col-md-6">
+                <label for="active" class="form-label">Status</label>
+                <div class="form-check form-switch mt-2">
+                  <input class="form-check-input" type="checkbox" id="active" name="active" 
+                         {% if form_data.active or terminal.active and not form_data %}checked{% endif %}>
+                  <label class="form-check-label" for="active">Active</label>
+                </div>
+              </div>
+            </div>
+
+            <hr class="my-4">
+
+            <!-- Location -->
+            <h5 class="mb-3">Location</h5>
+            <div class="row mb-4">
+              <div class="col-md-4">
+                <label for="latitude" class="form-label">Latitude <span class="text-danger">*</span></label>
+                <input type="number" 
+                       class="form-control" 
+                       id="latitude" 
+                       name="latitude" 
+                       step="0.000001" 
+                       min="-90" 
+                       max="90"
+                       value="{{ form_data.latitude|default:terminal.latitude }}"
+                       required>
+                <div class="form-text">Decimal degrees (-90 to 90)</div>
+              </div>
+              <div class="col-md-4">
+                <label for="longitude" class="form-label">Longitude <span class="text-danger">*</span></label>
+                <input type="number" 
+                       class="form-control" 
+                       id="longitude" 
+                       name="longitude" 
+                       step="0.000001" 
+                       min="-180" 
+                       max="180"
+                       value="{{ form_data.longitude|default:terminal.longitude }}"
+                       required>
+                <div class="form-text">Decimal degrees (-180 to 180)</div>
+              </div>
+              <div class="col-md-4">
+                <label for="elevation" class="form-label">Elevation</label>
+                <input type="number" 
+                       class="form-control" 
+                       id="elevation" 
+                       name="elevation" 
+                       step="0.1"
+                       value="{{ form_data.elevation|default:terminal.elevation|default:'' }}">
+                <div class="form-text">Meters above sea level</div>
+              </div>
+            </div>
+
+            <hr class="my-4">
+
+            <!-- Technical Specifications -->
+            <h5 class="mb-3">Technical Specifications</h5>
+            <div class="row mb-3">
+              <div class="col-md-6">
+                <label for="primary_voltage_kv" class="form-label">Primary Voltage (kV) <span class="text-danger">*</span></label>
+                <input type="number" 
+                       class="form-control" 
+                       id="primary_voltage_kv" 
+                       name="primary_voltage_kv" 
+                       step="0.1" 
+                       min="0"
+                       value="{{ form_data.primary_voltage_kv|default:terminal.primary_voltage_kv }}"
+                       required>
+                <div class="form-text">Primary voltage level in kilovolts</div>
+              </div>
+              <div class="col-md-6">
+                <label for="secondary_voltage_kv" class="form-label">Secondary Voltage (kV)</label>
+                <input type="number" 
+                       class="form-control" 
+                       id="secondary_voltage_kv" 
+                       name="secondary_voltage_kv" 
+                       step="0.1" 
+                       min="0"
+                       value="{{ form_data.secondary_voltage_kv|default:terminal.secondary_voltage_kv|default:'' }}">
+                <div class="form-text">Secondary voltage level if applicable</div>
+              </div>
+            </div>
+
+            <div class="row mb-3">
+              <div class="col-md-6">
+                <label for="voltage_class" class="form-label">Voltage Class</label>
+                <select class="form-select" id="voltage_class" name="voltage_class">
+                  <option value="">Select class</option>
+                  {% for class_value, class_label in voltage_classes %}
+                    <option value="{{ class_value }}" 
+                            {% if form_data.voltage_class|default:terminal.voltage_class == class_value %}selected{% endif %}>
+                      {{ class_label }}
+                    </option>
+                  {% endfor %}
+                </select>
+                <div class="form-text">Voltage classification</div>
+              </div>
+              <div class="col-md-6">
+                <label for="bay_count" class="form-label">Bay Count</label>
+                <input type="number" 
+                       class="form-control" 
+                       id="bay_count" 
+                       name="bay_count" 
+                       min="0"
+                       value="{{ form_data.bay_count|default:terminal.bay_count|default:'' }}">
+                <div class="form-text">Number of bays/feeders</div>
+              </div>
+            </div>
+
+            <div class="row mb-4">
+              <div class="col-md-6">
+                <label for="transformer_capacity_mva" class="form-label">Transformer Capacity (MVA)</label>
+                <input type="number" 
+                       class="form-control" 
+                       id="transformer_capacity_mva" 
+                       name="transformer_capacity_mva" 
+                       step="0.1" 
+                       min="0"
+                       value="{{ form_data.transformer_capacity_mva|default:terminal.transformer_capacity_mva|default:'' }}">
+                <div class="form-text">Total transformer capacity in MVA</div>
+              </div>
+              <div class="col-md-6">
+                <label for="short_circuit_capacity_mva" class="form-label">Short Circuit Capacity (MVA)</label>
+                <input type="number" 
+                       class="form-control" 
+                       id="short_circuit_capacity_mva" 
+                       name="short_circuit_capacity_mva" 
+                       step="0.1" 
+                       min="0"
+                       value="{{ form_data.short_circuit_capacity_mva|default:terminal.short_circuit_capacity_mva|default:'' }}">
+                <div class="form-text">Short circuit capacity in MVA</div>
+              </div>
+            </div>
+
+            <hr class="my-4">
+
+            <!-- Ownership and Operations -->
+            <h5 class="mb-3">Ownership and Operations</h5>
+            <div class="row mb-3">
+              <div class="col-md-6">
+                <label for="owner" class="form-label">Owner</label>
+                <input type="text" 
+                       class="form-control" 
+                       id="owner" 
+                       name="owner" 
+                       value="{{ form_data.owner|default:terminal.owner|default:'' }}">
+                <div class="form-text">Terminal owner organization</div>
+              </div>
+              <div class="col-md-6">
+                <label for="operator" class="form-label">Operator</label>
+                <input type="text" 
+                       class="form-control" 
+                       id="operator" 
+                       name="operator" 
+                       value="{{ form_data.operator|default:terminal.operator|default:'' }}">
+                <div class="form-text">Terminal operator organization</div>
+              </div>
+            </div>
+
+            <div class="row mb-3">
+              <div class="col-md-6">
+                <label for="maintenance_zone" class="form-label">Maintenance Zone</label>
+                <input type="text" 
+                       class="form-control" 
+                       id="maintenance_zone" 
+                       name="maintenance_zone" 
+                       value="{{ form_data.maintenance_zone|default:terminal.maintenance_zone|default:'' }}">
+                <div class="form-text">Maintenance zone designation</div>
+              </div>
+              <div class="col-md-6">
+                <label for="control_center" class="form-label">Control Center</label>
+                <input type="text" 
+                       class="form-control" 
+                       id="control_center" 
+                       name="control_center" 
+                       value="{{ form_data.control_center|default:terminal.control_center|default:'' }}">
+                <div class="form-text">Associated control center</div>
+              </div>
+            </div>
+
+            <div class="mb-4">
+              <label for="scada_id" class="form-label">SCADA ID</label>
+              <input type="text" 
+                     class="form-control" 
+                     id="scada_id" 
+                     name="scada_id" 
+                     value="{{ form_data.scada_id|default:terminal.scada_id|default:'' }}">
+              <div class="form-text">SCADA system identifier</div>
+            </div>
+
+            <div class="mb-4">
+              <label for="description" class="form-label">Description</label>
+              <textarea class="form-control" 
+                        id="description" 
+                        name="description" 
+                        rows="3">{{ form_data.description|default:terminal.description|default:'' }}</textarea>
+              <div class="form-text">Additional notes about this terminal</div>
+            </div>
+
+            <div class="d-flex gap-2">
+              <button type="submit" class="btn btn-primary">Update Terminal</button>
+              <a href="{% url 'powermapui:terminal_detail' terminal.pk %}" class="btn btn-outline-secondary">Cancel</a>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-4">
+      <!-- Record Information -->
+      <div class="card mb-3">
+        <div class="card-header">
+          <h6 class="mb-0">Record Information</h6>
+        </div>
+        <div class="card-body">
+          <table class="table table-sm mb-0">
+            <tr>
+              <td><strong>Terminal ID:</strong></td>
+              <td>{{ terminal.idterminals }}</td>
+            </tr>
+            <tr>
+              <td><strong>Current Type:</strong></td>
+              <td>{{ terminal.get_terminal_type_display }}</td>
+            </tr>
+            <tr>
+              <td><strong>Current Voltage:</strong></td>
+              <td>{{ terminal.primary_voltage_kv }} kV</td>
+            </tr>
+            <tr>
+              <td><strong>Created:</strong></td>
+              <td>{{ terminal.created_date|date:"Y-m-d H:i" }}</td>
+            </tr>
+            <tr>
+              <td><strong>Last Modified:</strong></td>
+              <td>{{ terminal.modified_date|date:"Y-m-d H:i" }}</td>
+            </tr>
+          </table>
+        </div>
+      </div>
+
+      <!-- Help Card -->
+      <div class="card">
+        <div class="card-header">
+          <h6 class="mb-0">Update Guidelines</h6>
+        </div>
+        <div class="card-body">
+          <div class="small">
+            <p><strong>Impact of Changes:</strong> Updates to this terminal will affect all connected grid lines and facilities.</p>
+            
+            <p><strong>Voltage Changes:</strong> If changing voltage levels significantly, verify that connected grid lines have compatible voltages.</p>
+            
+            <p><strong>Status Changes:</strong> Setting a terminal to inactive may affect power flow calculations for connected facilities.</p>
+            
+            <p><strong>Capacity Updates:</strong> Ensure transformer capacity is appropriate for the connected load and generation.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}

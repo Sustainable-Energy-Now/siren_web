@@ -1,0 +1,310 @@
+<!-- terminals/gridlines.html -->
+{% extends 'powermapui_base.html' %}
+
+{% block powermapui_content %}
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h3>Connected Grid Lines</h3>
+      <small class="text-muted">{{ terminal.terminal_name }}</small>
+    </div>
+    <div>
+      <a href="{% url 'powermapui:terminal_connections' terminal.pk %}" class="btn btn-primary">Manage Connections</a>
+      <a href="{% url 'powermapui:terminal_detail' terminal.pk %}" class="btn btn-outline-secondary">Back to Terminal</a>
+    </div>
+  </div>
+
+  <!-- Summary Card -->
+  <div class="row mb-4">
+    <div class="col-md-12">
+      <div class="card">
+        <div class="card-body">
+          <div class="row text-center">
+            <div class="col-md-3">
+              <h4 class="text-primary">{{ total_lines }}</h4>
+              <small class="text-muted">Total Connected Lines</small>
+            </div>
+            <div class="col-md-3">
+              <h4 class="text-success">{{ outgoing_lines|length }}</h4>
+              <small class="text-muted">Outgoing Lines</small>
+            </div>
+            <div class="col-md-3">
+              <h4 class="text-info">{{ incoming_lines|length }}</h4>
+              <small class="text-muted">Incoming Lines</small>
+            </div>
+            <div class="col-md-3">
+              <h4 class="text-warning">{{ terminal.primary_voltage_kv }} kV</h4>
+              <small class="text-muted">Terminal Voltage</small>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Outgoing Grid Lines -->
+  <div class="card mb-4">
+    <div class="card-header bg-success text-white">
+      <h5 class="mb-0">
+        <i class="bi bi-arrow-right-circle"></i> Outgoing Lines ({{ outgoing_lines|length }})
+      </h5>
+    </div>
+    <div class="card-body">
+      {% if outgoing_lines %}
+        <div class="table-responsive">
+          <table class="table table-hover">
+            <thead class="table-light">
+              <tr>
+                <th>Line Name</th>
+                <th>Code</th>
+                <th>Type</th>
+                <th>Voltage (kV)</th>
+                <th>Length (km)</th>
+                <th>Capacity (MW)</th>
+                <th>To Terminal</th>
+                <th>Facilities</th>
+                <th>Total Capacity</th>
+                <th>Utilization</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for item in outgoing_lines %}
+                <tr>
+                  <td>
+                    <a href="{% url 'powermapui:gridline_detail' item.line.pk %}" class="text-decoration-none">
+                      {{ item.line.line_name }}
+                    </a>
+                  </td>
+                  <td>{{ item.line.line_code }}</td>
+                  <td>
+                    <span class="badge bg-secondary">{{ item.line.get_line_type_display }}</span>
+                  </td>
+                  <td>{{ item.line.voltage_level }}</td>
+                  <td>{{ item.line.length_km|floatformat:2 }}</td>
+                  <td>{{ item.line.thermal_capacity_mw|floatformat:1 }}</td>
+                  <td>
+                    {% if item.line.to_terminal %}
+                      <a href="{% url 'powermapui:terminal_detail' item.line.to_terminal.pk %}" class="text-decoration-none">
+                        {{ item.line.to_terminal.terminal_name }}
+                      </a>
+                    {% else %}
+                      <span class="text-muted">Not connected</span>
+                    {% endif %}
+                  </td>
+                  <td>
+                    <span class="badge bg-info">{{ item.facilities_count }}</span>
+                  </td>
+                  <td>
+                    {% if item.total_capacity %}
+                      {{ item.total_capacity|floatformat:1 }} MW
+                    {% else %}
+                      -
+                    {% endif %}
+                  </td>
+                  <td>
+                    {% if item.utilization %}
+                      <div class="progress" style="height: 20px;">
+                        <div class="progress-bar {% if item.utilization > 90 %}bg-danger{% elif item.utilization > 70 %}bg-warning{% else %}bg-success{% endif %}" 
+                             role="progressbar" 
+                             style="width: {{ item.utilization|floatformat:0 }}%"
+                             aria-valuenow="{{ item.utilization }}" 
+                             aria-valuemin="0" 
+                             aria-valuemax="100">
+                          {{ item.utilization|floatformat:0 }}%
+                        </div>
+                      </div>
+                    {% else %}
+                      -
+                    {% endif %}
+                  </td>
+                  <td>
+                    <a href="{% url 'powermapui:gridline_detail' item.line.pk %}" 
+                       class="btn btn-sm btn-outline-primary">
+                      View
+                    </a>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <div class="text-center text-muted py-4">
+          <p>No outgoing grid lines connected.</p>
+          <a href="{% url 'powermapui:terminal_connections' terminal.pk %}" class="btn btn-sm btn-primary">
+            Add Grid Line Connection
+          </a>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Incoming Grid Lines -->
+  <div class="card mb-4">
+    <div class="card-header bg-info text-white">
+      <h5 class="mb-0">
+        <i class="bi bi-arrow-left-circle"></i> Incoming Lines ({{ incoming_lines|length }})
+      </h5>
+    </div>
+    <div class="card-body">
+      {% if incoming_lines %}
+        <div class="table-responsive">
+          <table class="table table-hover">
+            <thead class="table-light">
+              <tr>
+                <th>Line Name</th>
+                <th>Code</th>
+                <th>Type</th>
+                <th>Voltage (kV)</th>
+                <th>Length (km)</th>
+                <th>Capacity (MW)</th>
+                <th>From Terminal</th>
+                <th>Facilities</th>
+                <th>Total Capacity</th>
+                <th>Utilization</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for item in incoming_lines %}
+                <tr>
+                  <td>
+                    <a href="{% url 'powermapui:gridline_detail' item.line.pk %}" class="text-decoration-none">
+                      {{ item.line.line_name }}
+                    </a>
+                  </td>
+                  <td>{{ item.line.line_code }}</td>
+                  <td>
+                    <span class="badge bg-secondary">{{ item.line.get_line_type_display }}</span>
+                  </td>
+                  <td>{{ item.line.voltage_level }}</td>
+                  <td>{{ item.line.length_km|floatformat:2 }}</td>
+                  <td>{{ item.line.thermal_capacity_mw|floatformat:1 }}</td>
+                  <td>
+                    {% if item.line.from_terminal %}
+                      <a href="{% url 'powermapui:terminal_detail' item.line.from_terminal.pk %}" class="text-decoration-none">
+                        {{ item.line.from_terminal.terminal_name }}
+                      </a>
+                    {% else %}
+                      <span class="text-muted">Not connected</span>
+                    {% endif %}
+                  </td>
+                  <td>
+                    <span class="badge bg-info">{{ item.facilities_count }}</span>
+                  </td>
+                  <td>
+                    {% if item.total_capacity %}
+                      {{ item.total_capacity|floatformat:1 }} MW
+                    {% else %}
+                      -
+                    {% endif %}
+                  </td>
+                  <td>
+                    {% if item.utilization %}
+                      <div class="progress" style="height: 20px;">
+                        <div class="progress-bar {% if item.utilization > 90 %}bg-danger{% elif item.utilization > 70 %}bg-warning{% else %}bg-success{% endif %}" 
+                             role="progressbar" 
+                             style="width: {{ item.utilization|floatformat:0 }}%"
+                             aria-valuenow="{{ item.utilization }}" 
+                             aria-valuemin="0" 
+                             aria-valuemax="100">
+                          {{ item.utilization|floatformat:0 }}%
+                        </div>
+                      </div>
+                    {% else %}
+                      -
+                    {% endif %}
+                  </td>
+                  <td>
+                    <a href="{% url 'powermapui:gridline_detail' item.line.pk %}" 
+                       class="btn btn-sm btn-outline-primary">
+                      View
+                    </a>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <div class="text-center text-muted py-4">
+          <p>No incoming grid lines connected.</p>
+          <a href="{% url 'powermapui:terminal_connections' terminal.pk %}" class="btn btn-sm btn-primary">
+            Add Grid Line Connection
+          </a>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Connection Statistics -->
+  {% if total_lines > 0 %}
+    <div class="row">
+      <div class="col-md-6">
+        <div class="card">
+          <div class="card-header">
+            <h6 class="mb-0">Line Statistics</h6>
+          </div>
+          <div class="card-body">
+            {% with total_capacity=0 total_length=0 %}
+              {% for item in outgoing_lines %}
+                {% with total_capacity=total_capacity|add:item.line.thermal_capacity_mw total_length=total_length|add:item.line.length_km %}{% endwith %}
+              {% endfor %}
+              {% for item in incoming_lines %}
+                {% with total_capacity=total_capacity|add:item.line.thermal_capacity_mw total_length=total_length|add:item.line.length_km %}{% endwith %}
+              {% endfor %}
+              <div class="row text-center">
+                <div class="col-6">
+                  <h5>{{ total_capacity|floatformat:0 }} MW</h5>
+                  <small class="text-muted">Total Line Capacity</small>
+                </div>
+                <div class="col-6">
+                  <h5>{{ total_length|floatformat:1 }} km</h5>
+                  <small class="text-muted">Total Line Length</small>
+                </div>
+              </div>
+            {% endwith %}
+          </div>
+        </div>
+      </div>
+      
+      <div class="col-md-6">
+        <div class="card">
+          <div class="card-header">
+            <h6 class="mb-0">Voltage Distribution</h6>
+          </div>
+          <div class="card-body">
+            {% with high_voltage=0 medium_voltage=0 %}
+              {% for item in outgoing_lines %}
+                {% if item.line.voltage_level >= 132 %}
+                  {% with high_voltage=high_voltage|add:1 %}{% endwith %}
+                {% else %}
+                  {% with medium_voltage=medium_voltage|add:1 %}{% endwith %}
+                {% endif %}
+              {% endfor %}
+              {% for item in incoming_lines %}
+                {% if item.line.voltage_level >= 132 %}
+                  {% with high_voltage=high_voltage|add:1 %}{% endwith %}
+                {% else %}
+                  {% with medium_voltage=medium_voltage|add:1 %}{% endwith %}
+                {% endif %}
+              {% endfor %}
+              <div class="mb-2">
+                <div class="d-flex justify-content-between">
+                  <span>High Voltage (≥132 kV)</span>
+                  <span class="fw-bold">{{ high_voltage }}</span>
+                </div>
+              </div>
+              <div class="mb-2">
+                <div class="d-flex justify-content-between">
+                  <span>Medium Voltage (&lt;132 kV)</span>
+                  <span class="fw-bold">{{ medium_voltage }}</span>
+                </div>
+              </div>
+            {% endwith %}
+          </div>
+        </div>
+      </div>
+    </div>
+  {% endif %}
+{% endblock %}

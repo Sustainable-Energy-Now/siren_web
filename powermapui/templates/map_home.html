@@ -829,7 +829,6 @@ function loadTurbinesFromBackend() {
                 
                 turbinesByApplication = data.turbines_by_application;
                 turbinesLoaded = true;
-                console.log('Turbines loaded from backend');
                 resolve();
             })
             .catch(error => {
@@ -2379,7 +2378,6 @@ function initializeGridLines() {
     if (typeof gridLines !== 'undefined' && gridLines.length > 0) {
         loadGridLinesOnMap(gridLines);
     } else {
-        console.log('No initial grid lines data, fetching from server...');
         refreshGridLines();
     }
 }

@@ -27,6 +27,26 @@
         <li class="nav-item">
           <a href="/facilities/">Facilities</a>
         </li>
+        <li class="nav-item dropdown">
+          <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+            Terminals
+          </a>
+          <ul class="dropdown-menu">
+            <li><a class="dropdown-item" href="{% url 'powermapui:terminals_list' %}">All Terminals</a></li>
+            <li><a class="dropdown-item" href="{% url 'powermapui:terminal_create' %}">Add Terminal</a></li>
+
+            <li><hr class="dropdown-divider"></li>
+
+            <li><h6 class="dropdown-header">Grid Lines</h6></li>
+            <li><a class="dropdown-item" href="{% url 'powermapui:gridlines_list' %}">All Grid Lines</a></li>
+            <li><a class="dropdown-item" href="{% url 'powermapui:gridline_create' %}">Add Grid Line</a></li>
+            
+            <li><hr class="dropdown-divider"></li>
+
+            <li><a class="dropdown-item" href="{% url 'powermapui:terminals_dashboard' %}">Dashboard</a></li>
+            <li><a class="dropdown-item" href="{% url 'powermapui:terminal_health_check' %}">Health Check</a></li>
+          </ul>
+        </li>
         <li class="nav-item">
           <a href="/scenarios/">Scenarios</a>
         </li>

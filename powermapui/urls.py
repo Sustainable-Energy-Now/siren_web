@@ -1,8 +1,9 @@
 # urls.py
 from django.urls import path, include
 from django.contrib.auth import views as auth_views
-from powermapui.views import crud_scenario_views, facilities_views, powermapui_home_views,  \
-    map_views, power_views, table_update_views, technologies_views, terminals_views, wind_turbines_views
+from powermapui.views import crud_scenario_views, facilities_views, crud_terminals_views, gridlines_views, \
+    powermapui_home_views, map_views, power_views, table_update_views, technologies_views, \
+    terminals_connections_views, terminals_dashboard, terminals_views, wind_turbines_views
 app_name = 'powermapui'
 
 urlpatterns = [
@@ -43,6 +44,42 @@ urlpatterns = [
     path('facilities/<int:pk>/', facilities_views.facility_detail, name='facility_detail'),
     path('facilities/<int:pk>/edit/', facilities_views.facility_edit, name='facility_edit'),
     path('facilities/<int:pk>/delete/', facilities_views.facility_delete, name='facility_delete'),
+    
+    # Basic Terminal CRUD
+    path('terminals/', crud_terminals_views.terminals_list, name='terminals_list'),
+    path('terminals/create/', crud_terminals_views.terminal_create, name='terminal_create'),
+    path('terminals/<int:pk>/', crud_terminals_views.terminal_detail, name='terminal_detail'),
+    path('terminals/<int:pk>/edit/', crud_terminals_views.terminal_edit, name='terminal_edit'),
+    path('terminals/<int:pk>/delete/', crud_terminals_views.terminal_delete, name='terminal_delete'),
+    
+    # Terminal Connection Management
+    path('terminals/<int:pk>/connections/', terminals_connections_views.terminal_connections, name='terminal_connections'),
+    path('terminals/<int:pk>/add-gridline/', terminals_connections_views.terminal_add_gridline, name='terminal_add_gridline'),
+    path('terminals/<int:pk>/remove-gridline/<int:gridline_id>/', terminals_connections_views.terminal_remove_gridline, name='terminal_remove_gridline'),
+    path('gridlines/<int:pk>/', gridlines_views.gridline_detail, name='gridline_detail'),
+
+    # ========== TERMINAL DASHBOARD ==========
+    path('terminals/dashboard/', terminals_dashboard.terminals_dashboard, name='terminals_dashboard'),
+    path('terminals/health-check/', terminals_dashboard.terminal_health_check, name='terminal_health_check'),
+
+# ========== GRID LINES CRUD (NEW) ==========
+    path('gridlines/', gridlines_views.gridlines_list, name='gridlines_list'),
+    path('gridlines/create/', gridlines_views.gridline_create, name='gridline_create'),
+    path('gridlines/<int:pk>/', gridlines_views.gridline_detail, name='gridline_detail'),
+    path('gridlines/<int:pk>/edit/', gridlines_views.gridline_edit, name='gridline_edit'),
+    path('gridlines/<int:pk>/delete/', gridlines_views.gridline_delete, name='gridline_delete'),
+    
+        # Terminal Views
+    path('terminals/<int:pk>/facilities/', terminals_connections_views.terminal_facilities_view, name='terminal_facilities'),
+    path('terminals/<int:pk>/gridlines/', terminals_connections_views.terminal_gridlines_view, name='terminal_gridlines'),
+    path('terminals/<int:pk>/network/', terminals_connections_views.terminal_node_diagram, name='terminal_node_diagram'),
+    
+    # Facility Connection
+    path('terminals/<int:terminal_pk>/connect-facility/<int:facility_pk>/', 
+         terminals_connections_views.connect_facility_to_terminal, 
+         name='connect_facility_to_terminal'),
+    path('terminals/<int:pk>/remove-facility/<int:gridline_id>/', terminals_connections_views.terminal_remove_facility, name='terminal_remove_facility'),
+
     
     # Scenarios
     path('scenarios/', crud_scenario_views.display_scenario, name='display_scenarios'),

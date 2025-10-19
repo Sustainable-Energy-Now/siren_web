@@ -1,0 +1,376 @@
+<!-- power_curves/edit.html -->
+{% extends 'powermapui_base.html' %}
+
+{% block powermapui_content %}
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h3>Edit Power Curve</h3>
+      <small class="text-muted">{{ power_curve.power_file_name }}</small>
+    </div>
+    <a href="{% url 'powermapui:wind_turbine_detail' turbine.pk %}" class="btn btn-outline-secondary">Back to Turbine</a>
+  </div>
+
+  <p>Update the power curve data, metadata, or settings. You can update just the metadata, replace the entire dataset, or upload a new file.</p>
+
+  <div class="row">
+    <div class="col-lg-8">
+      <div class="card">
+        <div class="card-body">
+          <form method="post" enctype="multipart/form-data" novalidate>
+            {% csrf_token %}
+            
+            <!-- Entry Method Selection -->
+            <div class="mb-4">
+              <label class="form-label fw-bold">Update Method</label>
+              <div class="btn-group w-100" role="group">
+                <input type="radio" class="btn-check" name="entry_method" id="method_metadata" value="metadata" checked>
+                <label class="btn btn-outline-primary" for="method_metadata">
+                  <i class="bi bi-pencil"></i> Metadata Only
+                </label>
+                
+                <input type="radio" class="btn-check" name="entry_method" id="method_manual" value="manual">
+                <label class="btn btn-outline-primary" for="method_manual">
+                  <i class="bi bi-keyboard"></i> Edit Data Manually
+                </label>
+                
+                <input type="radio" class="btn-check" name="entry_method" id="method_file" value="file">
+                <label class="btn btn-outline-primary" for="method_file">
+                  <i class="bi bi-file-earmark-arrow-up"></i> Replace with File
+                </label>
+              </div>
+            </div>
+
+            <!-- File Upload Section -->
+            <div id="file_section" class="entry-section" style="display: none;">
+              <div class="alert alert-warning">
+                <strong>Warning:</strong> Uploading a new file will completely replace the existing power curve data.
+              </div>
+              
+              <div class="mb-3">
+                <label class="form-label">Current File</label>
+                <div class="input-group">
+                  <span class="input-group-text"><i class="bi bi-file-earmark"></i></span>
+                  <input type="text" class="form-control" value="{{ power_curve.power_file_name }}" disabled>
+                </div>
+              </div>
+
+              <div class="mb-3">
+                <label for="power_file" class="form-label">New Power Curve File (.pow)</label>
+                <input type="file" 
+                       class="form-control" 
+                       id="power_file" 
+                       name="power_file" 
+                       accept=".pow">
+                <div class="form-text">Upload a new .pow file to replace the existing data</div>
+              </div>
+            </div>
+
+            <!-- Manual Entry Section -->
+            <div id="manual_section" class="entry-section" style="display: none;">
+              <div class="alert alert-info">
+                <strong>Tip:</strong> The current data is pre-filled below. You can modify the values directly.
+              </div>
+
+              <div class="mb-3">
+                <label for="power_file_name" class="form-label">File Name</label>
+                <input type="text" 
+                       class="form-control" 
+                       id="power_file_name" 
+                       name="power_file_name" 
+                       value="{{ power_curve.power_file_name }}">
+                <div class="form-text">Update the identifier for this power curve</div>
+              </div>
+
+              <div class="mb-3">
+                <label for="wind_speeds" class="form-label">Wind Speeds (m/s) <span class="text-danger">*</span></label>
+                <textarea class="form-control font-monospace" 
+                          id="wind_speeds" 
+                          name="wind_speeds" 
+                          rows="5">{{ wind_speeds_text }}</textarea>
+                <div class="form-text">Space or comma-separated values</div>
+              </div>
+
+              <div class="mb-3">
+                <label for="power_outputs" class="form-label">Power Outputs (kW) <span class="text-danger">*</span></label>
+                <textarea class="form-control font-monospace" 
+                          id="power_outputs" 
+                          name="power_outputs" 
+                          rows="5">{{ power_outputs_text }}</textarea>
+                <div class="form-text">Must have same number of values as wind speeds</div>
+              </div>
+            </div>
+
+            <!-- Metadata Fields (always visible) -->
+            <hr class="my-4">
+            <h6 class="mb-3">Metadata</h6>
+
+            <div class="row">
+              <div class="col-md-6 mb-3">
+                <label for="iec_class" class="form-label">IEC Class</label>
+                <select class="form-select" id="iec_class" name="iec_class">
+                  <option value="">Not specified</option>
+                  <option value="I" {% if iec_class == 'I' %}selected{% endif %}>Class I</option>
+                  <option value="II" {% if iec_class == 'II' %}selected{% endif %}>Class II</option>
+                  <option value="III" {% if iec_class == 'III' %}selected{% endif %}>Class III</option>
+                  <option value="IV" {% if iec_class == 'IV' %}selected{% endif %}>Class IV</option>
+                  <option value="S" {% if iec_class == 'S' %}selected{% endif %}>Class S</option>
+                </select>
+                <div class="form-text">Wind turbine class per IEC 61400-1</div>
+              </div>
+
+              <div class="col-md-6 mb-3">
+                <label for="source" class="form-label">Source</label>
+                <input type="text" 
+                       class="form-control" 
+                       id="source" 
+                       name="source" 
+                       value="{{ source }}"
+                       placeholder="e.g., Manufacturer Datasheet">
+                <div class="form-text">Origin of this data</div>
+              </div>
+            </div>
+
+            <div class="mb-3">
+              <label for="notes" class="form-label">Notes</label>
+              <textarea class="form-control" 
+                        id="notes" 
+                        name="notes" 
+                        rows="3">{{ power_curve.notes|default:'' }}</textarea>
+              <div class="form-text">Additional information about this power curve</div>
+            </div>
+
+            <div class="mb-4">
+              <div class="form-check">
+                <input class="form-check-input" 
+                       type="checkbox" 
+                       id="is_active" 
+                       name="is_active"
+                       {% if power_curve.is_active %}checked{% endif %}>
+                <label class="form-check-label" for="is_active">
+                  <strong>Active Power Curve</strong>
+                </label>
+                <div class="form-text">Set as the active power curve for this turbine model</div>
+              </div>
+            </div>
+
+            <div class="d-flex gap-2">
+              <button type="submit" class="btn btn-primary">
+                <i class="bi bi-save"></i> Update Power Curve
+              </button>
+              <a href="{% url 'powermapui:wind_turbine_detail' turbine.pk %}" class="btn btn-outline-secondary">Cancel</a>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-4">
+      <!-- Current Data Summary -->
+      <div class="card mb-3">
+        <div class="card-header">
+          <h6 class="mb-0"><i class="bi bi-info-circle"></i> Current Data Summary</h6>
+        </div>
+        <div class="card-body">
+          <table class="table table-sm mb-0">
+            <tr>
+              <td><strong>File Name:</strong></td>
+              <td><code>{{ power_curve.power_file_name }}</code></td>
+            </tr>
+            <tr>
+              <td><strong>Upload Date:</strong></td>
+              <td>{{ power_curve.file_upload_date|date:"Y-m-d H:i" }}</td>
+            </tr>
+            <tr>
+              <td><strong>Status:</strong></td>
+              <td>
+                {% if power_curve.is_active %}
+                  <span class="badge bg-success">Active</span>
+                {% else %}
+                  <span class="badge bg-secondary">Inactive</span>
+                {% endif %}
+              </td>
+            </tr>
+            <tr>
+              <td><strong>Data Points:</strong></td>
+              <td>{{ power_curve.power_curve_data.data_points|default:power_curve.wind_speeds|length }}</td>
+            </tr>
+            <tr>
+              <td><strong>Wind Speed Range:</strong></td>
+              <td>
+                {% if power_curve.wind_speeds %}
+                  {{ power_curve.wind_speeds|first|floatformat:1 }} - {{ power_curve.wind_speeds|last|floatformat:1 }} m/s
+                {% else %}
+                  N/A
+                {% endif %}
+              </td>
+            </tr>
+            <tr>
+              <td><strong>IEC Class:</strong></td>
+              <td>{{ iec_class|default:"Not specified" }}</td>
+            </tr>
+            <tr>
+              <td><strong>Source:</strong></td>
+              <td>{{ source|default:"Not specified" }}</td>
+            </tr>
+          </table>
+        </div>
+      </div>
+
+      <!-- Quick Actions -->
+      <div class="card mb-3">
+        <div class="card-header">
+          <h6 class="mb-0"><i class="bi bi-lightning"></i> Quick Actions</h6>
+        </div>
+        <div class="card-body">
+          <div class="d-grid gap-2">
+            <form method="post" action="{% url 'powermapui:power_curve_toggle_active' power_curve.pk %}">
+              {% csrf_token %}
+              <button type="submit" class="btn btn-sm btn-outline-primary w-100">
+                <i class="bi bi-{% if power_curve.is_active %}pause-circle{% else %}play-circle{% endif %}"></i>
+                {% if power_curve.is_active %}
+                  Deactivate Curve
+                {% else %}
+                  Set as Active
+                {% endif %}
+              </button>
+            </form>
+            
+            <button type="button" class="btn btn-sm btn-outline-info" onclick="viewDataPreview()">
+              <i class="bi bi-table"></i> View Data Table
+            </button>
+            
+            <button type="button" class="btn btn-sm btn-outline-danger" onclick="confirmDelete()">
+              <i class="bi bi-trash"></i> Delete Power Curve
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Update Tips -->
+      <div class="card">
+        <div class="card-header">
+          <h6 class="mb-0"><i class="bi bi-lightbulb"></i> Update Tips</h6>
+        </div>
+        <div class="card-body">
+          <div class="small">
+            <p><strong>Metadata Only:</strong> Update IEC class, source, notes, or active status without changing data.</p>
+            <p><strong>Edit Data Manually:</strong> Modify individual wind speed or power output values.</p>
+            <p><strong>Replace with File:</strong> Upload a new .pow file to completely replace the current dataset.</p>
+            <p class="mb-0"><strong>Tip:</strong> When manually editing large datasets, consider using a spreadsheet and pasting the values.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Delete Confirmation Modal -->
+  <div class="modal fade" id="deleteModal" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Confirm Delete</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <p>Are you sure you want to delete the power curve "{{ power_curve.power_file_name }}"?</p>
+          {% if power_curve.is_active %}
+            <div class="alert alert-warning">
+              <strong>Warning:</strong> This is currently the active power curve for this turbine model.
+            </div>
+          {% endif %}
+          <p class="text-muted small mb-0">This action cannot be undone.</p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <form method="post" action="{% url 'powermapui:power_curve_delete' power_curve.pk %}" style="display: inline;">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-danger">Delete Power Curve</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Data Preview Modal -->
+  <div class="modal fade" id="dataPreviewModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Power Curve Data Preview</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="table-responsive" style="max-height: 500px;">
+            <table class="table table-sm table-striped">
+              <thead class="sticky-top bg-white">
+                <tr>
+                  <th>#</th>
+                  <th>Wind Speed (m/s)</th>
+                  <th>Power Output (kW)</th>
+                </tr>
+              </thead>
+              <tbody id="dataTableBody">
+                <!-- Data will be loaded via JavaScript -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Toggle between sections based on entry method
+    const methodMetadata = document.getElementById('method_metadata');
+    const methodManual = document.getElementById('method_manual');
+    const methodFile = document.getElementById('method_file');
+    const fileSection = document.getElementById('file_section');
+    const manualSection = document.getElementById('manual_section');
+
+    function updateSections() {
+      fileSection.style.display = methodFile.checked ? 'block' : 'none';
+      manualSection.style.display = methodManual.checked ? 'block' : 'none';
+    }
+
+    methodMetadata.addEventListener('change', updateSections);
+    methodManual.addEventListener('change', updateSections);
+    methodFile.addEventListener('change', updateSections);
+    
+    // Initialize on page load
+    updateSections();
+
+    function confirmDelete() {
+      var deleteModal = new bootstrap.Modal(document.getElementById('deleteModal'));
+      deleteModal.show();
+    }
+
+    function viewDataPreview() {
+      var modal = new bootstrap.Modal(document.getElementById('dataPreviewModal'));
+      modal.show();
+      
+      // Load data via AJAX
+      const tbody = document.getElementById('dataTableBody');
+      tbody.innerHTML = '<tr><td colspan="3" class="text-center"><div class="spinner-border spinner-border-sm" role="status"></div> Loading...</td></tr>';
+      
+      fetch("{% url 'powermapui:power_curve_data_json' power_curve.pk %}")
+        .then(response => response.json())
+        .then(data => {
+          let html = '';
+          for (let i = 0; i < data.wind_speeds.length; i++) {
+            html += '<tr>';
+            html += '<td>' + (i + 1) + '</td>';
+            html += '<td>' + data.wind_speeds[i].toFixed(3) + '</td>';
+            html += '<td>' + data.power_outputs[i].toFixed(3) + '</td>';
+            html += '</tr>';
+          }
+          tbody.innerHTML = html;
+        })
+        .catch(error => {
+          tbody.innerHTML = '<tr><td colspan="3" class="text-center text-danger">Error loading data</td></tr>';
+        });
+    }
+  </script>
+{% endblock %}

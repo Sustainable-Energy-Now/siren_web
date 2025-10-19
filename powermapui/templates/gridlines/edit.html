@@ -1,0 +1,356 @@
+<!-- gridlines/edit.html -->
+{% extends 'powermapui_base.html' %}
+
+{% block powermapui_content %}
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h3>Edit Grid Line</h3>
+      <small class="text-muted">{{ gridline.line_name }}</small>
+    </div>
+    <div>
+      <a href="{% url 'powermapui:gridline_detail' gridline.pk %}" class="btn btn-outline-secondary">Back to Details</a>
+    </div>
+  </div>
+
+  <p>Update the details for this grid line. Changes will be reflected across all connected terminals and facilities.</p>
+
+  <div class="row">
+    <div class="col-lg-8">
+      <div class="card">
+        <div class="card-body">
+          <form method="post" novalidate>
+            {% csrf_token %}
+            
+            <!-- Basic Information -->
+            <h5 class="mb-3">Basic Information</h5>
+            <div class="row mb-3">
+              <div class="col-md-6">
+                <label for="line_name" class="form-label">Line Name <span class="text-danger">*</span></label>
+                <input type="text" 
+                       class="form-control" 
+                       id="line_name" 
+                       name="line_name" 
+                       value="{{ form_data.line_name|default:gridline.line_name }}"
+                       required>
+                <div class="form-text">Unique identifier for this grid line</div>
+              </div>
+              <div class="col-md-6">
+                <label for="line_code" class="form-label">Line Code <span class="text-danger">*</span></label>
+                <input type="text" 
+                       class="form-control" 
+                       id="line_code" 
+                       name="line_code" 
+                       value="{{ form_data.line_code|default:gridline.line_code }}"
+                       required>
+                <div class="form-text">Short code for the line</div>
+              </div>
+            </div>
+
+            <div class="row mb-4">
+              <div class="col-md-4">
+                <label for="line_type" class="form-label">Line Type <span class="text-danger">*</span></label>
+                <select class="form-select" id="line_type" name="line_type" required>
+                  <option value="">Select type</option>
+                  {% for type_value, type_label in line_types %}
+                    <option value="{{ type_value }}" 
+                            {% if form_data.line_type|default:gridline.line_type == type_value %}selected{% endif %}>
+                      {{ type_label }}
+                    </option>
+                  {% endfor %}
+                </select>
+                <div class="form-text">Type of transmission line</div>
+              </div>
+              <div class="col-md-4">
+                <label for="voltage_level" class="form-label">Voltage Level (kV) <span class="text-danger">*</span></label>
+                <input type="number" 
+                       class="form-control" 
+                       id="voltage_level" 
+                       name="voltage_level" 
+                       step="0.1" 
+                       min="0"
+                       value="{{ form_data.voltage_level|default:gridline.voltage_level }}"
+                       required>
+                <div class="form-text">Voltage level in kilovolts</div>
+              </div>
+              <div class="col-md-4">
+                <label for="active" class="form-label">Status</label>
+                <div class="form-check form-switch mt-2">
+                  <input class="form-check-input" type="checkbox" id="active" name="active" 
+                         {% if form_data.active or gridline.active and not form_data %}checked{% endif %}>
+                  <label class="form-check-label" for="active">Active</label>
+                </div>
+              </div>
+            </div>
+
+            <hr class="my-4">
+
+            <!-- Physical Characteristics -->
+            <h5 class="mb-3">Physical Characteristics</h5>
+            <div class="row mb-3">
+              <div class="col-md-4">
+                <label for="length_km" class="form-label">Length (km)</label>
+                <input type="number" 
+                       class="form-control" 
+                       id="length_km" 
+                       name="length_km" 
+                       step="0.01" 
+                       min="0"
+                       value="{{ form_data.length_km|default:gridline.length_km }}">
+                <div class="form-text">Line length in kilometers</div>
+              </div>
+              <div class="col-md-4">
+                <label for="resistance_per_km" class="form-label">Resistance (Ω/km)</label>
+                <input type="number" 
+                       class="form-control" 
+                       id="resistance_per_km" 
+                       name="resistance_per_km" 
+                       step="0.0001" 
+                       min="0"
+                       value="{{ form_data.resistance_per_km|default:gridline.resistance_per_km }}">
+                <div class="form-text">Resistance per kilometer</div>
+              </div>
+              <div class="col-md-4">
+                <label for="reactance_per_km" class="form-label">Reactance (Ω/km)</label>
+                <input type="number" 
+                       class="form-control" 
+                       id="reactance_per_km" 
+                       name="reactance_per_km" 
+                       step="0.0001" 
+                       min="0"
+                       value="{{ form_data.reactance_per_km|default:gridline.reactance_per_km }}">
+                <div class="form-text">Reactance per kilometer</div>
+              </div>
+            </div>
+
+            <div class="row mb-4">
+              <div class="col-md-6">
+                <label for="conductance_per_km" class="form-label">Conductance (S/km)</label>
+                <input type="number" 
+                       class="form-control" 
+                       id="conductance_per_km" 
+                       name="conductance_per_km" 
+                       step="0.000001" 
+                       min="0"
+                       value="{{ form_data.conductance_per_km|default:gridline.conductance_per_km|default:'0' }}">
+                <div class="form-text">Conductance per kilometer (optional)</div>
+              </div>
+              <div class="col-md-6">
+                <label for="susceptance_per_km" class="form-label">Susceptance (S/km)</label>
+                <input type="number" 
+                       class="form-control" 
+                       id="susceptance_per_km" 
+                       name="susceptance_per_km" 
+                       step="0.000001" 
+                       min="0"
+                       value="{{ form_data.susceptance_per_km|default:gridline.susceptance_per_km|default:'0' }}">
+                <div class="form-text">Susceptance per kilometer (optional)</div>
+              </div>
+            </div>
+
+            <hr class="my-4">
+
+            <!-- Capacity -->
+            <h5 class="mb-3">Capacity</h5>
+            <div class="row mb-4">
+              <div class="col-md-6">
+                <label for="thermal_capacity_mw" class="form-label">Thermal Capacity (MW)</label>
+                <input type="number" 
+                       class="form-control" 
+                       id="thermal_capacity_mw" 
+                       name="thermal_capacity_mw" 
+                       step="0.1" 
+                       min="0"
+                       value="{{ form_data.thermal_capacity_mw|default:gridline.thermal_capacity_mw|default:'' }}">
+                <div class="form-text">Normal operating capacity</div>
+              </div>
+              <div class="col-md-6">
+                <label for="emergency_capacity_mw" class="form-label">Emergency Capacity (MW)</label>
+                <input type="number" 
+                       class="form-control" 
+                       id="emergency_capacity_mw" 
+                       name="emergency_capacity_mw" 
+                       step="0.1" 
+                       min="0"
+                       value="{{ form_data.emergency_capacity_mw|default:gridline.emergency_capacity_mw|default:'' }}">
+                <div class="form-text">Emergency operating capacity</div>
+              </div>
+            </div>
+
+            <hr class="my-4">
+
+            <!-- Terminal Connections -->
+            <h5 class="mb-3">Terminal Connections</h5>
+            <div class="row mb-4">
+              <div class="col-md-6">
+                <label for="from_terminal" class="form-label">From Terminal</label>
+                <select class="form-select" id="from_terminal" name="from_terminal">
+                  <option value="">None</option>
+                  {% for terminal in terminals %}
+                    <option value="{{ terminal.pk }}" 
+                            {% if form_data.from_terminal|default:gridline.from_terminal.pk == terminal.pk %}selected{% endif %}>
+                      {{ terminal.terminal_name }} ({{ terminal.primary_voltage_kv }} kV)
+                    </option>
+                  {% endfor %}
+                </select>
+                <div class="form-text">Line originates from this terminal</div>
+              </div>
+              <div class="col-md-6">
+                <label for="to_terminal" class="form-label">To Terminal</label>
+                <select class="form-select" id="to_terminal" name="to_terminal">
+                  <option value="">None</option>
+                  {% for terminal in terminals %}
+                    <option value="{{ terminal.pk }}" 
+                            {% if form_data.to_terminal|default:gridline.to_terminal.pk == terminal.pk %}selected{% endif %}>
+                      {{ terminal.terminal_name }} ({{ terminal.primary_voltage_kv }} kV)
+                    </option>
+                  {% endfor %}
+                </select>
+                <div class="form-text">Line terminates at this terminal</div>
+              </div>
+            </div>
+
+            <hr class="my-4">
+
+            <!-- Geographic Coordinates -->
+            <h5 class="mb-3">Geographic Coordinates</h5>
+            <div class="row mb-3">
+              <div class="col-md-6">
+                <label for="from_latitude" class="form-label">From Latitude</label>
+                <input type="number" 
+                       class="form-control" 
+                       id="from_latitude" 
+                       name="from_latitude" 
+                       step="0.000001" 
+                       min="-90" 
+                       max="90"
+                       value="{{ form_data.from_latitude|default:gridline.from_latitude|default:'' }}">
+                <div class="form-text">Starting point latitude</div>
+              </div>
+              <div class="col-md-6">
+                <label for="from_longitude" class="form-label">From Longitude</label>
+                <input type="number" 
+                       class="form-control" 
+                       id="from_longitude" 
+                       name="from_longitude" 
+                       step="0.000001" 
+                       min="-180" 
+                       max="180"
+                       value="{{ form_data.from_longitude|default:gridline.from_longitude|default:'' }}">
+                <div class="form-text">Starting point longitude</div>
+              </div>
+            </div>
+
+            <div class="row mb-4">
+              <div class="col-md-6">
+                <label for="to_latitude" class="form-label">To Latitude</label>
+                <input type="number" 
+                       class="form-control" 
+                       id="to_latitude" 
+                       name="to_latitude" 
+                       step="0.000001" 
+                       min="-90" 
+                       max="90"
+                       value="{{ form_data.to_latitude|default:gridline.to_latitude|default:'' }}">
+                <div class="form-text">Ending point latitude</div>
+              </div>
+              <div class="col-md-6">
+                <label for="to_longitude" class="form-label">To Longitude</label>
+                <input type="number" 
+                       class="form-control" 
+                       id="to_longitude" 
+                       name="to_longitude" 
+                       step="0.000001" 
+                       min="-180" 
+                       max="180"
+                       value="{{ form_data.to_longitude|default:gridline.to_longitude|default:'' }}">
+                <div class="form-text">Ending point longitude</div>
+              </div>
+            </div>
+
+            <hr class="my-4">
+
+            <!-- Additional Information -->
+            <h5 class="mb-3">Additional Information</h5>
+            <div class="mb-4">
+              <label for="owner" class="form-label">Owner</label>
+              <input type="text" 
+                     class="form-control" 
+                     id="owner" 
+                     name="owner" 
+                     value="{{ form_data.owner|default:gridline.owner|default:'' }}">
+              <div class="form-text">Line owner organization</div>
+            </div>
+
+            <div class="d-flex gap-2">
+              <button type="submit" class="btn btn-primary">Update Grid Line</button>
+              <a href="{% url 'powermapui:gridline_detail' gridline.pk %}" class="btn btn-outline-secondary">Cancel</a>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-4">
+      <!-- Record Information -->
+      <div class="card mb-3">
+        <div class="card-header">
+          <h6 class="mb-0">Record Information</h6>
+        </div>
+        <div class="card-body">
+          <table class="table table-sm mb-0">
+            <tr>
+              <td><strong>Line ID:</strong></td>
+              <td>{{ gridline.idgridlines }}</td>
+            </tr>
+            <tr>
+              <td><strong>Current Type:</strong></td>
+              <td>{{ gridline.get_line_type_display }}</td>
+            </tr>
+            <tr>
+              <td><strong>Current Voltage:</strong></td>
+              <td>{{ gridline.voltage_level }} kV</td>
+            </tr>
+            <tr>
+              <td><strong>Created:</strong></td>
+              <td>{{ gridline.created_date|date:"Y-m-d H:i" }}</td>
+            </tr>
+            <tr>
+              <td><strong>Last Modified:</strong></td>
+              <td>{{ gridline.modified_date|date:"Y-m-d H:i" }}</td>
+            </tr>
+          </table>
+        </div>
+      </div>
+
+      <!-- Connected Facilities Warning -->
+      {% if gridline.connected_facilities.count > 0 %}
+        <div class="alert alert-info">
+          <h6 class="alert-heading"><i class="bi bi-info-circle"></i> Connected Facilities</h6>
+          <p class="mb-0 small">
+            This grid line has <strong>{{ gridline.connected_facilities.count }}</strong> connected 
+            facilit{{ gridline.connected_facilities.count|pluralize:"y,ies" }}. 
+            Changes to voltage or capacity may affect these connections.
+          </p>
+        </div>
+      {% endif %}
+
+      <!-- Help Card -->
+      <div class="card">
+        <div class="card-header">
+          <h6 class="mb-0">Update Guidelines</h6>
+        </div>
+        <div class="card-body">
+          <div class="small">
+            <p><strong>Impact of Changes:</strong> Updates to this grid line will affect all connected terminals and facilities.</p>
+            
+            <p><strong>Voltage Changes:</strong> Ensure voltage compatibility with connected terminals (±20% tolerance recommended).</p>
+            
+            <p><strong>Capacity Updates:</strong> Verify that thermal capacity is appropriate for connected load.</p>
+            
+            <p><strong>Terminal Changes:</strong> Disconnecting terminals will not affect facility connections, but may impact network topology.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}

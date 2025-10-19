@@ -1,0 +1,235 @@
+<!-- terminals/health_check.html -->
+{% extends 'powermapui_base.html' %}
+
+{% block powermapui_content %}
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h3>Terminal Network Health Check</h3>
+    <div>
+      <a href="{% url 'powermapui:terminals_dashboard' %}" class="btn btn-outline-secondary">Back to Dashboard</a>
+      <a href="{% url 'powermapui:terminals_list' %}" class="btn btn-primary">View All Terminals</a>
+    </div>
+  </div>
+
+  <!-- Summary Cards -->
+  <div class="row mb-4">
+    <div class="col-md-4">
+      <div class="card text-center border-danger">
+        <div class="card-body">
+          <h2 class="text-danger">{{ total_critical }}</h2>
+          <p class="text-muted mb-0">Critical Issues</p>
+          <small>Requires immediate attention</small>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="card text-center border-warning">
+        <div class="card-body">
+          <h2 class="text-warning">{{ total_warning }}</h2>
+          <p class="text-muted mb-0">Warnings</p>
+          <small>Should be addressed soon</small>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="card text-center border-info">
+        <div class="card-body">
+          <h2 class="text-info">{{ total_info }}</h2>
+          <p class="text-muted mb-0">Information</p>
+          <small>For your awareness</small>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Critical Issues -->
+  {% if critical_issues %}
+    <div class="card mb-4 border-danger">
+      <div class="card-header bg-danger text-white">
+        <h5 class="mb-0"><i class="bi bi-exclamation-octagon"></i> Critical Issues ({{ critical_issues|length }})</h5>
+      </div>
+      <div class="card-body">
+        <div class="table-responsive">
+          <table class="table table-hover">
+            <thead>
+              <tr>
+                <th>Terminal</th>
+                <th>Voltage</th>
+                <th>Issue Type</th>
+                <th>Details</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for issue in critical_issues %}
+                <tr>
+                  <td>
+                    <a href="{% url 'powermapui:terminal_detail' issue.terminal.pk %}" class="text-decoration-none">
+                      {{ issue.terminal.terminal_name }}
+                    </a>
+                  </td>
+                  <td>{{ issue.terminal.primary_voltage_kv }} kV</td>
+                  <td>
+                    <span class="badge bg-danger">{{ issue.issue }}</span>
+                  </td>
+                  <td>{{ issue.details }}</td>
+                  <td>
+                    <div class="btn-group btn-group-sm">
+                      <a href="{% url 'powermapui:terminal_detail' issue.terminal.pk %}" 
+                         class="btn btn-outline-primary">View</a>
+                      {% if issue.issue == "No connections" %}
+                        <a href="{% url 'powermapui:terminal_connections' issue.terminal.pk %}" 
+                           class="btn btn-outline-success">Connect</a>
+                      {% elif issue.issue == "Over-capacity" %}
+                        <a href="{% url 'powermapui:terminal_edit' issue.terminal.pk %}" 
+                           class="btn btn-outline-warning">Edit</a>
+                      {% endif %}
+                    </div>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  {% else %}
+    <div class="alert alert-success mb-4">
+      <h5 class="alert-heading"><i class="bi bi-check-circle"></i> No Critical Issues</h5>
+      <p class="mb-0">All terminals are operating within acceptable parameters.</p>
+    </div>
+  {% endif %}
+
+  <!-- Warnings -->
+  {% if warning_issues %}
+    <div class="card mb-4 border-warning">
+      <div class="card-header bg-warning">
+        <h5 class="mb-0"><i class="bi bi-exclamation-triangle"></i> Warnings ({{ warning_issues|length }})</h5>
+      </div>
+      <div class="card-body">
+        <div class="table-responsive">
+          <table class="table table-hover">
+            <thead>
+              <tr>
+                <th>Terminal</th>
+                <th>Voltage</th>
+                <th>Issue Type</th>
+                <th>Details</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for issue in warning_issues %}
+                <tr>
+                  <td>
+                    <a href="{% url 'powermapui:terminal_detail' issue.terminal.pk %}" class="text-decoration-none">
+                      {{ issue.terminal.terminal_name }}
+                    </a>
+                  </td>
+                  <td>{{ issue.terminal.primary_voltage_kv }} kV</td>
+                  <td>
+                    <span class="badge bg-warning">{{ issue.issue }}</span>
+                  </td>
+                  <td>{{ issue.details }}</td>
+                  <td>
+                    <div class="btn-group btn-group-sm">
+                      <a href="{% url 'powermapui:terminal_detail' issue.terminal.pk %}" 
+                         class="btn btn-outline-primary">View</a>
+                      {% if "No outgoing" in issue.issue or "No incoming" in issue.issue %}
+                        <a href="{% url 'powermapui:terminal_connections' issue.terminal.pk %}" 
+                           class="btn btn-outline-success">Add Lines</a>
+                      {% endif %}
+                    </div>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  {% endif %}
+
+  <!-- Information Items -->
+  {% if info_items %}
+    <div class="card border-info">
+      <div class="card-header bg-info text-white">
+        <h5 class="mb-0"><i class="bi bi-info-circle"></i> Information ({{ info_items|length }})</h5>
+      </div>
+      <div class="card-body">
+        <div class="table-responsive">
+          <table class="table table-hover table-sm">
+            <thead>
+              <tr>
+                <th>Terminal</th>
+                <th>Voltage</th>
+                <th>Information</th>
+                <th>Details</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for item in info_items %}
+                <tr>
+                  <td>
+                    <a href="{% url 'powermapui:terminal_detail' item.terminal.pk %}" class="text-decoration-none">
+                      {{ item.terminal.terminal_name }}
+                    </a>
+                  </td>
+                  <td>{{ item.terminal.primary_voltage_kv }} kV</td>
+                  <td>
+                    <span class="badge bg-info">{{ item.issue }}</span>
+                  </td>
+                  <td>{{ item.details }}</td>
+                  <td>
+                    <a href="{% url 'powermapui:terminal_facilities' item.terminal.pk %}" 
+                       class="btn btn-sm btn-outline-primary">View Facilities</a>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  {% endif %}
+
+  {% if not critical_issues and not warning_issues and not info_items %}
+    <div class="alert alert-success text-center py-5">
+      <i class="bi bi-check-circle" style="font-size: 4rem;"></i>
+      <h4 class="mt-3">All Systems Healthy</h4>
+      <p class="mb-0">All terminals are operating normally with no issues detected.</p>
+    </div>
+  {% endif %}
+
+  <!-- Health Check Summary -->
+  <div class="card mt-4">
+    <div class="card-header">
+      <h6 class="mb-0">Health Check Criteria</h6>
+    </div>
+    <div class="card-body">
+      <div class="row">
+        <div class="col-md-4">
+          <h6 class="text-danger">Critical Issues:</h6>
+          <ul class="small">
+            <li>Utilization &gt; 95%</li>
+            <li>No grid line connections</li>
+          </ul>
+        </div>
+        <div class="col-md-4">
+          <h6 class="text-warning">Warnings:</h6>
+          <ul class="small">
+            <li>Utilization 80-95%</li>
+            <li>Only outgoing or incoming lines</li>
+          </ul>
+        </div>
+        <div class="col-md-4">
+          <h6 class="text-info">Information:</h6>
+          <ul class="small">
+            <li>Many facilities (&gt;20)</li>
+            <li>Notable configurations</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}

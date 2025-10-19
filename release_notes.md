@@ -1,6 +1,17 @@
 # Release Notes (Latest first)
+## Version 3.10.1 - October 19, 2025
+### 🆕 New Features
+- Feature: Altair and Matplotlib Removal ([#11](https://github.com/Sustainable-Energy-Now/siren_web/issues/30))
+- Feature: Improve Terminal Connections ([#28](https://github.com/Sustainable-Energy-Now/siren_web/issues/30))
+
+## Version 3.10.0 - October 17, 2025
+### 🆕 New Features
+- Feature: Terminal CRUD ([#28](https://github.com/Sustainable-Energy-Now/siren_web/issues/28))
+- Feature: Gridline CRUD ([#29](https://github.com/Sustainable-Energy-Now/siren_web/issues/29))
 
 ## Version 3.9.1 - October 14, 2025
+### 🐛 Bug Fixes
+- Test Case: WT-011 Wind Turbine Negative Values ([#26](https://github.com/Sustainable-Energy-Now/siren_web/issues/26))
 ### 🆕 New Features
 - Feature: Technology Multi-Select ([#25](https://github.com/Sustainable-Energy-Now/siren_web/issues/25))
 

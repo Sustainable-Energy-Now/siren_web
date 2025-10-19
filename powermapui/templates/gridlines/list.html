@@ -1,0 +1,236 @@
+<!-- gridlines/list.html -->
+{% extends 'powermapui_base.html' %}
+
+{% block powermapui_content %}
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h3>Grid Lines</h3>
+    <a href="{% url 'powermapui:gridline_create' %}" class="btn btn-primary">Add New Grid Line</a>
+  </div>
+
+  <p>
+    This displays all grid lines in the system. Grid lines represent transmission and distribution infrastructure 
+    connecting terminals and facilities. Use the search and filters below to find specific grid lines.
+  </p>
+
+  <!-- Search and Filter Form -->
+  <div class="card mb-4">
+    <div class="card-body">
+      <form method="get" class="row g-3">
+        <div class="col-md-3">
+          <label for="search" class="form-label">Search:</label>
+          <input type="text" name="search" id="search" class="form-control" 
+                 value="{{ search_query }}" placeholder="Search by name, code, owner">
+        </div>
+        
+        <div class="col-md-2">
+          <label for="line_type" class="form-label">Line Type:</label>
+          <select name="line_type" id="line_type" class="form-select">
+            <option value="">All Types</option>
+            {% for type_value, type_label in line_types %}
+              <option value="{{ type_value }}" 
+                      {% if line_type_filter == type_value %}selected{% endif %}>
+                {{ type_label }}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+        
+        <div class="col-md-2">
+          <label for="voltage_min" class="form-label">Min Voltage (kV):</label>
+          <input type="number" name="voltage_min" id="voltage_min" class="form-control" 
+                 value="{{ voltage_min }}" placeholder="e.g., 132" step="1">
+        </div>
+        
+        <div class="col-md-2">
+          <label for="voltage_max" class="form-label">Max Voltage (kV):</label>
+          <input type="number" name="voltage_max" id="voltage_max" class="form-control" 
+                 value="{{ voltage_max }}" placeholder="e.g., 330" step="1">
+        </div>
+        
+        <div class="col-md-1">
+          <label for="active" class="form-label">Status:</label>
+          <select name="active" id="active" class="form-select">
+            <option value="">All</option>
+            <option value="true" {% if active_filter == 'true' %}selected{% endif %}>Active</option>
+            <option value="false" {% if active_filter == 'false' %}selected{% endif %}>Inactive</option>
+          </select>
+        </div>
+        
+        <div class="col-md-1">
+          <label for="connected" class="form-label">Connected:</label>
+          <select name="connected" id="connected" class="form-select">
+            <option value="">All</option>
+            <option value="true" {% if connected_filter == 'true' %}selected{% endif %}>Yes</option>
+            <option value="false" {% if connected_filter == 'false' %}selected{% endif %}>No</option>
+          </select>
+        </div>
+        
+        <div class="col-md-1 d-flex align-items-end">
+          <div class="d-grid gap-1 w-100">
+            <button type="submit" class="btn btn-primary btn-sm">Filter</button>
+            <a href="{% url 'powermapui:gridlines_list' %}" class="btn btn-outline-secondary btn-sm">Clear</a>
+          </div>
+        </div>
+      </form>
+      
+      <div class="mt-2 text-end">
+        <small class="text-muted">{{ total_count }} grid line{{ total_count|pluralize }}</small>
+      </div>
+    </div>
+  </div>
+
+  <!-- Results Table -->
+  <div class="table-responsive">
+    <table class="table table-striped table-hover">
+      <thead class="table-dark">
+        <tr>
+          <th>Line Name</th>
+          <th>Code</th>
+          <th>Type</th>
+          <th>Voltage (kV)</th>
+          <th>Length (km)</th>
+          <th>Capacity (MW)</th>
+          <th>From Terminal</th>
+          <th>To Terminal</th>
+          <th>Status</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for gridline in page_obj %}
+          <tr>
+            <td>
+              <a href="{% url 'powermapui:gridline_detail' gridline.pk %}" class="text-decoration-none">
+                {{ gridline.line_name }}
+              </a>
+            </td>
+            <td>{{ gridline.line_code }}</td>
+            <td>
+              <span class="badge bg-secondary">{{ gridline.get_line_type_display }}</span>
+            </td>
+            <td>{{ gridline.voltage_level }}</td>
+            <td>{{ gridline.length_km|floatformat:2 }}</td>
+            <td>
+              {% if gridline.thermal_capacity_mw %}
+                {{ gridline.thermal_capacity_mw|floatformat:0 }}
+              {% else %}
+                -
+              {% endif %}
+            </td>
+            <td>
+              {% if gridline.from_terminal %}
+                <a href="{% url 'powermapui:terminal_detail' gridline.from_terminal.pk %}" class="text-decoration-none">
+                  {{ gridline.from_terminal.terminal_name|truncatechars:20 }}
+                </a>
+              {% else %}
+                <span class="text-muted">-</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if gridline.to_terminal %}
+                <a href="{% url 'powermapui:terminal_detail' gridline.to_terminal.pk %}" class="text-decoration-none">
+                  {{ gridline.to_terminal.terminal_name|truncatechars:20 }}
+                </a>
+              {% else %}
+                <span class="text-muted">-</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if gridline.active %}
+                <span class="badge bg-success">Active</span>
+              {% else %}
+                <span class="badge bg-secondary">Inactive</span>
+              {% endif %}
+            </td>
+            <td>
+              <div class="btn-group btn-group-sm" role="group">
+                <a href="{% url 'powermapui:gridline_detail' gridline.pk %}" 
+                   class="btn btn-outline-primary" title="View Details">
+                  View
+                </a>
+                <a href="{% url 'powermapui:gridline_edit' gridline.pk %}" 
+                   class="btn btn-outline-warning" title="Edit">
+                  Edit
+                </a>
+              </div>
+            </td>
+          </tr>
+        {% empty %}
+          <tr>
+            <td colspan="10" class="text-center text-muted py-4">
+              No grid lines found.
+              {% if search_query or line_type_filter or voltage_min or voltage_max or active_filter or connected_filter %}
+                <a href="{% url 'powermapui:gridlines_list' %}" class="btn btn-link">Clear filters</a>
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Pagination -->
+  {% if page_obj.has_other_pages %}
+    <nav aria-label="Grid lines pagination">
+      <ul class="pagination justify-content-center">
+        {% if page_obj.has_previous %}
+          <li class="page-item">
+            <a class="page-link" href="?page=1{% if search_query %}&search={{ search_query }}{% endif %}{% if line_type_filter %}&line_type={{ line_type_filter }}{% endif %}{% if voltage_min %}&voltage_min={{ voltage_min }}{% endif %}{% if voltage_max %}&voltage_max={{ voltage_max }}{% endif %}{% if active_filter %}&active={{ active_filter }}{% endif %}{% if connected_filter %}&connected={{ connected_filter }}{% endif %}">
+              &laquo; First
+            </a>
+          </li>
+          <li class="page-item">
+            <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}{% if line_type_filter %}&line_type={{ line_type_filter }}{% endif %}{% if voltage_min %}&voltage_min={{ voltage_min }}{% endif %}{% if voltage_max %}&voltage_max={{ voltage_max }}{% endif %}{% if active_filter %}&active={{ active_filter }}{% endif %}{% if connected_filter %}&connected={{ connected_filter }}{% endif %}">
+              Previous
+            </a>
+          </li>
+        {% endif %}
+
+        <li class="page-item active">
+          <span class="page-link">
+            Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+          </span>
+        </li>
+
+        {% if page_obj.has_next %}
+          <li class="page-item">
+            <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}{% if line_type_filter %}&line_type={{ line_type_filter }}{% endif %}{% if voltage_min %}&voltage_min={{ voltage_min }}{% endif %}{% if voltage_max %}&voltage_max={{ voltage_max }}{% endif %}{% if active_filter %}&active={{ active_filter }}{% endif %}{% if connected_filter %}&connected={{ connected_filter }}{% endif %}">
+              Next
+            </a>
+          </li>
+          <li class="page-item">
+            <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{% if search_query %}&search={{ search_query }}{% endif %}{% if line_type_filter %}&line_type={{ line_type_filter }}{% endif %}{% if voltage_min %}&voltage_min={{ voltage_min }}{% endif %}{% if voltage_max %}&voltage_max={{ voltage_max }}{% endif %}{% if active_filter %}&active={{ active_filter }}{% endif %}{% if connected_filter %}&connected={{ connected_filter }}{% endif %}">
+              Last &raquo;
+            </a>
+          </li>
+        {% endif %}
+      </ul>
+    </nav>
+  {% endif %}
+
+  <!-- Summary Statistics -->
+  {% if page_obj %}
+    <div class="card mt-4">
+      <div class="card-body">
+        <div class="row text-center">
+          <div class="col-md-3">
+            <h5>{{ total_count }}</h5>
+            <small class="text-muted">Total Grid Lines</small>
+          </div>
+          <div class="col-md-3">
+            <h5>{{ connected_count }}</h5>
+            <small class="text-muted">Connected Lines</small>
+          </div>
+          <div class="col-md-3">
+            <h5>{{ total_length|floatformat:0 }} km</h5>
+            <small class="text-muted">Total Length (page)</small>
+          </div>
+          <div class="col-md-3">
+            <h5>{{ total_capacity|floatformat:0 }} MW</h5>
+            <small class="text-muted">Total Capacity (page)</small>
+          </div>
+        </div>
+      </div>
+    </div>
+  {% endif %}
+{% endblock %}

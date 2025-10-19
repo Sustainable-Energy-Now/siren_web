@@ -1,4 +1,3 @@
-import altair as alt
 import base64
 from django.contrib import messages
 from django.http import HttpResponse, JsonResponse
@@ -7,8 +6,6 @@ from django.shortcuts import render
 from ..forms import PlotForm
 import io
 import logging
-import matplotlib
-matplotlib.use('Agg')  # Use the 'Agg' backend for non-interactive plotting
 import matplotlib.pyplot as plt
 import re
 from siren_web.models import Analysis, Scenarios, variations, Technologies
@@ -35,93 +32,6 @@ class VariantsView(TemplateView):
             analysis_data.append(obj_data)
         return analysis_data
     
-    def create_chart(self, request, plot_type):
-        series_1 = request.POST.get('series_1')
-        series_2 = request.POST.get('series_2')
-        series_1_component = request.POST.get('series_1_component')
-        series_2_component = request.POST.get('series_2_component')
-        scenario = request.POST.get('scenario')
-        variant = request.POST.get('variant')
-        chart_type = request.POST.get('chart_type', 'line')
-        chart_specialization = request.POST.get('chart_specialization', '')
-        variation = variations.objects.get(pk=variant)
-
-        analysis_queryset_1 = Analysis.objects.filter(
-            idscenarios=scenario,
-            variation__in=[variation.variation_name, 'Baseline'],
-            heading=series_1,
-            component=series_1_component,
-        ).order_by('stage')
-
-        analysis_queryset_2 = Analysis.objects.filter(
-            idscenarios=scenario,
-            variation__in=[variation.variation_name, 'Baseline'],
-            heading=series_2,
-            component=series_2_component,
-        ).order_by('stage')
-        
-        analysis_data = []
-        
-        # Create a dictionary from analysis_queryset_2 with stage as the key
-        stage_dict = {obj.stage: obj for obj in analysis_queryset_2}
-
-        for analysis_obj_1 in analysis_queryset_1:
-            # Check if the stage exists in the dictionary
-            if analysis_obj_1.stage in stage_dict:
-                analysis_obj_2 = stage_dict[analysis_obj_1.stage]
-                analysis_data.append({
-                    'stage': analysis_obj_1.stage,
-                    'series_1_name': series_1,
-                    'series_1_value': analysis_obj_1.quantity,
-                    'series_2_name': series_2,
-                    'series_2_value': analysis_obj_2.quantity,
-                    'chart_type': chart_type,
-                    'chart_specialization': chart_specialization
-                })
-        if (plot_type == 'Altair'):
-            # Create an Altair chart
-            df = pd.DataFrame([{'stage': item['stage'], 'series_1_name': item['series_1_name'], 'series_1_value': item['series_1_value']} for item in analysis_data])
-            series_1_name = analysis_data[0]['series_1_name']
-
-            chart = alt.Chart(df).mark_line().encode(
-                x='stage',
-                y=alt.Y('series_1_value', title=df['series_1_name'].iloc[0]),
-                color='series_1_name'
-            )
-
-            # Save the chart as an HTML string
-            html = chart.to_html()
-
-            context = {
-                'chart_html': html,
-            }
-            return render(request, 'altair.html', context)
-        else:
-            # Set the logging level to WARNING to suppress DEBUG and INFO messages
-            logging.getLogger('matplotlib').setLevel(logging.WARNING)
-            # Create a Matplotlib figure and plot the data
-            fig, ax = plt.subplots()
-            ax.plot([item['stage']for item in analysis_data], [item['series_1_value'] for item in analysis_data])
-            ax.plot([item['stage']for item in analysis_data], [item['series_2_value'] for item in analysis_data])
-            ax.set_xlabel(analysis_data[0]['series_1_name'])
-            ax.set_ylabel(analysis_data[0]['series_2_name'])
-            ax.set_title('Analysis Plot')
-
-            # Save the figure to a BytesIO object
-            buf = io.BytesIO()
-            fig.savefig(buf, format='png')
-            buf.seek(0)
-
-            # Encode the image data as a base64 string
-            image_data = base64.b64encode(buf.getvalue()).decode('utf-8')
-
-            context = {
-                'image_data': image_data,
-                # ... (other context variables)
-            }
-
-            return render(request, 'matplotlib.html', context)
-        
     def export_to_excel(self, request):
         # Get the selected parameters from the request.POST
         idscenarios = request.POST.get('scenario')
@@ -271,10 +181,8 @@ class VariantsView(TemplateView):
 
     def handle_plot_action(self, request, plot_type, idscenarios, idvariant, series_1, series_2, series_1_component, series_2_component):
         """Handle plot generation actions"""
-        if plot_type in ['Altair', 'Matplotlib']:
-            return self.create_chart(request, plot_type)
         
-        elif plot_type == 'Echart':
+        if plot_type == 'Echart':
             chart_type = request.POST.get('chart_type')
             chart_specialization = request.POST.get('chart_specialization')
             

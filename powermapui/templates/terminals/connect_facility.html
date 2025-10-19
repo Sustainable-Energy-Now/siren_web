@@ -1,0 +1,172 @@
+<!-- terminals/connect_facility.html -->
+{% extends 'powermapui_base.html' %}
+
+{% block powermapui_content %}
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h3>Connect Facility to Terminal</h3>
+      <small class="text-muted">{{ terminal.terminal_name }}</small>
+    </div>
+    <div>
+      <a href="{% url 'powermapui:terminal_connections' terminal.pk %}" class="btn btn-outline-secondary">Cancel</a>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="col-lg-8">
+      <div class="card">
+        <div class="card-header">
+          <h5 class="mb-0">Connection Details</h5>
+        </div>
+        <div class="card-body">
+          <div class="alert alert-info">
+            <strong>Facility:</strong> {{ facility.facility_name }}<br>
+            <strong>Technology:</strong> {{ facility.idtechnologies.technology_name|default:"Not specified" }}<br>
+            <strong>Capacity:</strong> {{ facility.capacity|floatformat:1|default:"Not specified" }} MW
+          </div>
+
+          <form method="post">
+            {% csrf_token %}
+            
+            <div class="mb-3">
+              <label for="gridline_id" class="form-label">Select Grid Line <span class="text-danger">*</span></label>
+              <select name="gridline_id" id="gridline_id" class="form-select" required>
+                <option value="">Choose a grid line connected to this terminal...</option>
+                {% for line in available_gridlines %}
+                  <option value="{{ line.pk }}">
+                    {{ line.line_name }} - {{ line.voltage_level }} kV ({{ line.thermal_capacity_mw }} MW capacity)
+                  </option>
+                {% endfor %}
+              </select>
+              <div class="form-text">Select which grid line this facility connects through</div>
+            </div>
+
+            <div class="row mb-3">
+              <div class="col-md-6">
+                <label for="connection_type" class="form-label">Connection Type</label>
+                <select name="connection_type" id="connection_type" class="form-select">
+                  <option value="direct">Direct Connection</option>
+                  <option value="substation">Via Substation</option>
+                  <option value="transformer">Via Transformer</option>
+                </select>
+              </div>
+              <div class="col-md-6">
+                <label for="is_primary" class="form-label">Primary Connection</label>
+                <div class="form-check form-switch mt-2">
+                  <input class="form-check-input" type="checkbox" id="is_primary" name="is_primary" checked>
+                  <label class="form-check-label" for="is_primary">This is the primary connection</label>
+                </div>
+              </div>
+            </div>
+
+            <div class="row mb-3">
+              <div class="col-md-4">
+                <label for="connection_capacity" class="form-label">Connection Capacity (MW)</label>
+                <input type="number" 
+                       class="form-control" 
+                       id="connection_capacity" 
+                       name="connection_capacity" 
+                       step="0.1" 
+                       min="0"
+                       value="{{ facility.capacity|default:'' }}"
+                       placeholder="Auto-fill from facility">
+                <div class="form-text">Maximum power through this connection</div>
+              </div>
+              <div class="col-md-4">
+                <label for="connection_voltage" class="form-label">Connection Voltage (kV)</label>
+                <input type="number" 
+                       class="form-control" 
+                       id="connection_voltage" 
+                       name="connection_voltage" 
+                       step="0.1" 
+                       min="0"
+                       placeholder="Auto-fill from grid line">
+                <div class="form-text">Voltage at connection point</div>
+              </div>
+              <div class="col-md-4">
+                <label for="connection_distance" class="form-label">Distance (km)</label>
+                <input type="number" 
+                       class="form-control" 
+                       id="connection_distance" 
+                       name="connection_distance" 
+                       step="0.01" 
+                       min="0"
+                       placeholder="0.0">
+                <div class="form-text">Distance from facility to grid line</div>
+              </div>
+            </div>
+
+            <div class="alert alert-warning">
+              <strong>Note:</strong> This will create a connection between the facility and the selected grid line. 
+              The facility will be accessible through this terminal via the grid line.
+            </div>
+
+            <div class="d-flex gap-2">
+              <button type="submit" class="btn btn-primary">Create Connection</button>
+              <a href="{% url 'powermapui:terminal_connections' terminal.pk %}" class="btn btn-outline-secondary">Cancel</a>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-4">
+      <!-- Terminal Information -->
+      <div class="card mb-3">
+        <div class="card-header">
+          <h6 class="mb-0">Terminal Information</h6>
+        </div>
+        <div class="card-body">
+          <table class="table table-sm mb-0">
+            <tr>
+              <td><strong>Terminal:</strong></td>
+              <td>{{ terminal.terminal_name }}</td>
+            </tr>
+            <tr>
+              <td><strong>Voltage:</strong></td>
+              <td>{{ terminal.primary_voltage_kv }} kV</td>
+            </tr>
+            <tr>
+              <td><strong>Type:</strong></td>
+              <td>{{ terminal.get_terminal_type_display }}</td>
+            </tr>
+            <tr>
+              <td><strong>Available Lines:</strong></td>
+              <td>{{ available_gridlines|length }}</td>
+            </tr>
+          </table>
+        </div>
+      </div>
+
+      <!-- Available Grid Lines -->
+      <div class="card">
+        <div class="card-header">
+          <h6 class="mb-0">Available Grid Lines</h6>
+        </div>
+        <div class="card-body">
+          {% if available_gridlines %}
+            <div class="list-group list-group-flush">
+              {% for line in available_gridlines %}
+                <div class="list-group-item px-0">
+                  <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                      <strong>{{ line.line_name }}</strong><br>
+                      <small class="text-muted">
+                        {{ line.voltage_level }} kV | {{ line.thermal_capacity_mw }} MW
+                      </small>
+                    </div>
+                  </div>
+                </div>
+              {% endfor %}
+            </div>
+          {% else %}
+            <div class="text-center text-muted">
+              <p>No grid lines available.</p>
+              <small>Connect grid lines to this terminal first.</small>
+            </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}

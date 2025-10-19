@@ -1,0 +1,371 @@
+<!-- terminals/detail.html -->
+{% extends 'powermapui_base.html' %}
+
+{% block powermapui_content %}
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h3>{{ terminal.terminal_name }}</h3>
+      <small class="text-muted">Terminal Details</small>
+    </div>
+    <div>
+      <a href="{% url 'powermapui:terminal_edit' terminal.pk %}" class="btn btn-warning">Edit</a>
+      <a href="{% url 'powermapui:terminals_list' %}" class="btn btn-outline-secondary">Back to List</a>
+    </div>
+  </div>
+
+  <div class="row">
+    <!-- Basic Information -->
+    <div class="col-lg-8">
+      <div class="card mb-4">
+        <div class="card-header">
+          <h5 class="mb-0">Terminal Information</h5>
+        </div>
+        <div class="card-body">
+          <div class="row">
+            <div class="col-md-6">
+              <table class="table table-sm">
+                <tr>
+                  <td><strong>Terminal Name:</strong></td>
+                  <td>{{ terminal.terminal_name }}</td>
+                </tr>
+                <tr>
+                  <td><strong>Terminal Code:</strong></td>
+                  <td>{{ terminal.terminal_code }}</td>
+                </tr>
+                <tr>
+                  <td><strong>Type:</strong></td>
+                  <td>
+                    <span class="badge bg-info">{{ terminal.get_terminal_type_display }}</span>
+                  </td>
+                </tr>
+                <tr>
+                  <td><strong>Status:</strong></td>
+                  <td>
+                    {% if terminal.active %}
+                      <span class="badge bg-success">Active</span>
+                    {% else %}
+                      <span class="badge bg-secondary">Inactive</span>
+                    {% endif %}
+                  </td>
+                </tr>
+                <tr>
+                  <td><strong>Voltage Class:</strong></td>
+                  <td>{{ terminal.get_voltage_class_display|default:"Not specified" }}</td>
+                </tr>
+              </table>
+            </div>
+            <div class="col-md-6">
+              <table class="table table-sm">
+                <tr>
+                  <td><strong>Primary Voltage:</strong></td>
+                  <td>{{ terminal.primary_voltage_kv }} kV</td>
+                </tr>
+                <tr>
+                  <td><strong>Secondary Voltage:</strong></td>
+                  <td>
+                    {% if terminal.secondary_voltage_kv %}
+                      {{ terminal.secondary_voltage_kv }} kV
+                    {% else %}
+                      Not specified
+                    {% endif %}
+                  </td>
+                </tr>
+                <tr>
+                  <td><strong>Transformer Capacity:</strong></td>
+                  <td>
+                    {% if terminal.transformer_capacity_mva %}
+                      {{ terminal.transformer_capacity_mva|floatformat:1 }} MVA
+                    {% else %}
+                      Not specified
+                    {% endif %}
+                  </td>
+                </tr>
+                <tr>
+                  <td><strong>Bay Count:</strong></td>
+                  <td>{{ terminal.bay_count|default:"Not specified" }}</td>
+                </tr>
+                <tr>
+                  <td><strong>SCADA ID:</strong></td>
+                  <td>{{ terminal.scada_id|default:"Not specified" }}</td>
+                </tr>
+              </table>
+            </div>
+          </div>
+
+          {% if terminal.description %}
+            <hr>
+            <div class="mt-3">
+              <strong>Description:</strong>
+              <p class="mt-2">{{ terminal.description }}</p>
+            </div>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Location -->
+      <div class="card mb-4">
+        <div class="card-header">
+          <h5 class="mb-0">Location</h5>
+        </div>
+        <div class="card-body">
+          <div class="row">
+            <div class="col-md-4">
+              <strong>Latitude:</strong><br>
+              {{ terminal.latitude|floatformat:6 }}
+            </div>
+            <div class="col-md-4">
+              <strong>Longitude:</strong><br>
+              {{ terminal.longitude|floatformat:6 }}
+            </div>
+            <div class="col-md-4">
+              <strong>Elevation:</strong><br>
+              {% if terminal.elevation %}
+                {{ terminal.elevation|floatformat:1 }} m
+              {% else %}
+                Not specified
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Ownership and Operations -->
+      <div class="card mb-4">
+        <div class="card-header">
+          <h5 class="mb-0">Ownership and Operations</h5>
+        </div>
+        <div class="card-body">
+          <div class="row">
+            <div class="col-md-6">
+              <table class="table table-sm">
+                <tr>
+                  <td><strong>Owner:</strong></td>
+                  <td>{{ terminal.owner|default:"Not specified" }}</td>
+                </tr>
+                <tr>
+                  <td><strong>Operator:</strong></td>
+                  <td>{{ terminal.operator|default:"Not specified" }}</td>
+                </tr>
+              </table>
+            </div>
+            <div class="col-md-6">
+              <table class="table table-sm">
+                <tr>
+                  <td><strong>Maintenance Zone:</strong></td>
+                  <td>{{ terminal.maintenance_zone|default:"Not specified" }}</td>
+                </tr>
+                <tr>
+                  <td><strong>Control Center:</strong></td>
+                  <td>{{ terminal.control_center|default:"Not specified" }}</td>
+                </tr>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Connected Grid Lines -->
+      <div class="card mb-4">
+        <div class="card-header">
+          <h5 class="mb-0">Connected Grid Lines</h5>
+        </div>
+        <div class="card-body">
+          {% if connected_lines %}
+            <div class="row mb-3">
+              <div class="col-md-6">
+                <h6>Outgoing Lines ({{ outgoing_lines.count }})</h6>
+                {% if outgoing_lines %}
+                  <ul class="list-unstyled">
+                    {% for line in outgoing_lines %}
+                      <li class="mb-2">
+                        <a href="{% url 'powermapui:gridline_detail' line.pk %}" class="text-decoration-none">
+                          {{ line.line_name }}
+                        </a>
+                        <br>
+                        <small class="text-muted">{{ line.voltage_level }} kV, {{ line.length_km }} km</small>
+                      </li>
+                    {% endfor %}
+                  </ul>
+                {% else %}
+                  <p class="text-muted">No outgoing lines</p>
+                {% endif %}
+              </div>
+              <div class="col-md-6">
+                <h6>Incoming Lines ({{ incoming_lines.count }})</h6>
+                {% if incoming_lines %}
+                  <ul class="list-unstyled">
+                    {% for line in incoming_lines %}
+                      <li class="mb-2">
+                        <a href="{% url 'powermapui:gridline_detail' line.pk %}" class="text-decoration-none">
+                          {{ line.line_name }}
+                        </a>
+                        <br>
+                        <small class="text-muted">{{ line.voltage_level }} kV, {{ line.length_km }} km</small>
+                      </li>
+                    {% endfor %}
+                  </ul>
+                {% else %}
+                  <p class="text-muted">No incoming lines</p>
+                {% endif %}
+              </div>
+            </div>
+          {% else %}
+            <div class="text-center text-muted py-3">
+              <p>No grid lines connected to this terminal.</p>
+            </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Quick Actions Sidebar -->
+    <div class="col-lg-4">
+      <div class="card mb-4">
+        <div class="card-header">
+          <h6 class="mb-0">Quick Actions</h6>
+        </div>
+        <div class="card-body">
+          <div class="d-grid gap-2">
+            <a href="{% url 'powermapui:terminal_edit' terminal.pk %}" class="btn btn-warning btn-sm">
+              Edit Terminal
+            </a>
+            <a href="{% url 'powermapui:terminal_connections' terminal.pk %}" class="btn btn-primary btn-sm">
+              Manage Connections
+            </a>
+            <a href="{% url 'powermapui:terminal_facilities' terminal.pk %}" class="btn btn-info btn-sm">
+              View Connected Facilities
+            </a>
+            <a href="{% url 'powermapui:terminal_gridlines' terminal.pk %}" class="btn btn-success btn-sm">
+              View Grid Lines
+            </a>
+            <a href="{% url 'powermapui:terminal_node_diagram' terminal.pk %}" class="btn btn-secondary btn-sm">
+              Node Diagram
+            </a>
+            <button class="btn btn-danger btn-sm" onclick="confirmDelete()">
+              Delete Terminal
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Statistics Card -->
+      <div class="card mb-4">
+        <div class="card-header">
+          <h6 class="mb-0">Statistics</h6>
+        </div>
+        <div class="card-body">
+          <div class="row text-center mb-3">
+            <div class="col-6">
+              <h4 class="text-primary">{{ connected_lines.count }}</h4>
+              <small class="text-muted">Connected Line{{ connected_lines.count|pluralize }}</small>
+            </div>
+            <div class="col-6">
+              <h4 class="text-success">{{ connected_facilities_count }}</h4>
+              <small class="text-muted">Connected Facilit{{ connected_facilities_count|pluralize:"y,ies" }}</small>
+            </div>
+          </div>
+          {% if total_capacity %}
+            <hr>
+            <div class="text-center mb-3">
+              <h4 class="text-info">{{ total_capacity|floatformat:1 }} MW</h4>
+              <small class="text-muted">Total Connected Capacity</small>
+            </div>
+          {% endif %}
+          {% if terminal.transformer_capacity_mva and utilization %}
+            <hr>
+            <div class="text-center">
+              <h4 class="{% if utilization > 90 %}text-danger{% elif utilization > 70 %}text-warning{% else %}text-success{% endif %}">
+                {{ utilization|floatformat:1 }}%
+              </h4>
+              <small class="text-muted">Utilization</small>
+            </div>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Technical Details Card -->
+      <div class="card">
+        <div class="card-header">
+          <h6 class="mb-0">Technical Details</h6>
+        </div>
+        <div class="card-body">
+          <table class="table table-sm mb-0">
+            <tr>
+              <td><strong>Terminal ID:</strong></td>
+              <td>{{ terminal.idterminals }}</td>
+            </tr>
+            {% if terminal.short_circuit_capacity_mva %}
+              <tr>
+                <td><strong>Short Circuit:</strong></td>
+                <td>{{ terminal.short_circuit_capacity_mva|floatformat:1 }} MVA</td>
+              </tr>
+            {% endif %}
+            {% if terminal.commissioned_date %}
+              <tr>
+                <td><strong>Commissioned:</strong></td>
+                <td>{{ terminal.commissioned_date }}</td>
+              </tr>
+            {% endif %}
+            {% if terminal.decommissioned_date %}
+              <tr>
+                <td><strong>Decommissioned:</strong></td>
+                <td>{{ terminal.decommissioned_date }}</td>
+              </tr>
+            {% endif %}
+            <tr>
+              <td><strong>Created:</strong></td>
+              <td>{{ terminal.created_date|date:"Y-m-d" }}</td>
+            </tr>
+            <tr>
+              <td><strong>Modified:</strong></td>
+              <td>{{ terminal.modified_date|date:"Y-m-d" }}</td>
+            </tr>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Delete Confirmation Modal -->
+  <div class="modal fade" id="deleteModal" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Confirm Delete</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <p>Are you sure you want to delete the terminal "{{ terminal.terminal_name }}"?</p>
+          {% if connected_lines %}
+            <div class="alert alert-danger">
+              <strong>Warning:</strong> This terminal has {{ connected_lines.count }} connected grid line{{ connected_lines.count|pluralize }}. 
+              You must remove these connections before deleting the terminal.
+            </div>
+          {% else %}
+            <div class="alert alert-warning">
+              <strong>Warning:</strong> This action cannot be undone.
+            </div>
+          {% endif %}
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          {% if not connected_lines %}
+            <form method="post" action="{% url 'powermapui:terminal_delete' terminal.pk %}" style="display: inline;">
+              {% csrf_token %}
+              <button type="submit" class="btn btn-danger">
+                Delete Terminal
+              </button>
+            </form>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function confirmDelete() {
+      var deleteModal = new bootstrap.Modal(document.getElementById('deleteModal'));
+      deleteModal.show();
+    }
+  </script>
+{% endblock %}

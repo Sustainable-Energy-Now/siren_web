@@ -1,0 +1,380 @@
+<!-- gridlines/detail.html -->
+{% extends 'powermapui_base.html' %}
+
+{% block powermapui_content %}
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h3>{{ gridline.line_name }}</h3>
+      <small class="text-muted">Grid Line Details</small>
+    </div>
+    <div>
+      <a href="{% url 'powermapui:gridline_edit' gridline.pk %}" class="btn btn-warning">Edit</a>
+      <a href="{% url 'powermapui:gridlines_list' %}" class="btn btn-outline-secondary">Back to List</a>
+    </div>
+  </div>
+
+  <div class="row">
+    <!-- Basic Information -->
+    <div class="col-lg-8">
+      <div class="card mb-4">
+        <div class="card-header">
+          <h5 class="mb-0">Line Information</h5>
+        </div>
+        <div class="card-body">
+          <div class="row">
+            <div class="col-md-6">
+              <table class="table table-sm">
+                <tr>
+                  <td><strong>Line Name:</strong></td>
+                  <td>{{ gridline.line_name }}</td>
+                </tr>
+                <tr>
+                  <td><strong>Line Code:</strong></td>
+                  <td>{{ gridline.line_code }}</td>
+                </tr>
+                <tr>
+                  <td><strong>Type:</strong></td>
+                  <td>
+                    <span class="badge bg-secondary">{{ gridline.get_line_type_display }}</span>
+                  </td>
+                </tr>
+                <tr>
+                  <td><strong>Voltage Level:</strong></td>
+                  <td>{{ gridline.voltage_level }} kV</td>
+                </tr>
+                <tr>
+                  <td><strong>Length:</strong></td>
+                  <td>{{ gridline.length_km|floatformat:2 }} km</td>
+                </tr>
+                <tr>
+                  <td><strong>Status:</strong></td>
+                  <td>
+                    {% if gridline.active %}
+                      <span class="badge bg-success">Active</span>
+                    {% else %}
+                      <span class="badge bg-secondary">Inactive</span>
+                    {% endif %}
+                  </td>
+                </tr>
+              </table>
+            </div>
+            <div class="col-md-6">
+              <table class="table table-sm">
+                <tr>
+                  <td><strong>Thermal Capacity:</strong></td>
+                  <td>
+                    {% if gridline.thermal_capacity_mw %}
+                      {{ gridline.thermal_capacity_mw|floatformat:1 }} MW
+                    {% else %}
+                      Not specified
+                    {% endif %}
+                  </td>
+                </tr>
+                <tr>
+                  <td><strong>Emergency Capacity:</strong></td>
+                  <td>
+                    {% if gridline.emergency_capacity_mw %}
+                      {{ gridline.emergency_capacity_mw|floatformat:1 }} MW
+                    {% else %}
+                      Not specified
+                    {% endif %}
+                  </td>
+                </tr>
+                <tr>
+                  <td><strong>Utilization:</strong></td>
+                  <td>
+                    <div class="progress" style="height: 20px;">
+                      <div class="progress-bar {% if utilization > 90 %}bg-danger{% elif utilization > 70 %}bg-warning{% else %}bg-success{% endif %}" 
+                           style="width: {{ utilization|floatformat:0 }}%">
+                        {{ utilization|floatformat:1 }}%
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+                <tr>
+                  <td><strong>Owner:</strong></td>
+                  <td>{{ gridline.owner|default:"Not specified" }}</td>
+                </tr>
+                <tr>
+                  <td><strong>Commissioned:</strong></td>
+                  <td>{{ gridline.commissioned_date|default:"Not specified" }}</td>
+                </tr>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Terminal Connections -->
+      <div class="card mb-4">
+        <div class="card-header">
+          <h5 class="mb-0">Terminal Connections</h5>
+        </div>
+        <div class="card-body">
+          <div class="row">
+            <div class="col-md-6">
+              <h6>From Terminal</h6>
+              {% if gridline.from_terminal %}
+                <a href="{% url 'powermapui:terminal_detail' gridline.from_terminal.pk %}" class="text-decoration-none">
+                  {{ gridline.from_terminal.terminal_name }}
+                </a>
+                <br>
+                <small class="text-muted">{{ gridline.from_terminal.primary_voltage_kv }} kV</small>
+              {% else %}
+                <span class="text-muted">Not connected</span>
+              {% endif %}
+            </div>
+            <div class="col-md-6">
+              <h6>To Terminal</h6>
+              {% if gridline.to_terminal %}
+                <a href="{% url 'powermapui:terminal_detail' gridline.to_terminal.pk %}" class="text-decoration-none">
+                  {{ gridline.to_terminal.terminal_name }}
+                </a>
+                <br>
+                <small class="text-muted">{{ gridline.to_terminal.primary_voltage_kv }} kV</small>
+              {% else %}
+                <span class="text-muted">Not connected</span>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Technical Characteristics -->
+      <div class="card mb-4">
+        <div class="card-header">
+          <h5 class="mb-0">Technical Characteristics</h5>
+        </div>
+        <div class="card-body">
+          <div class="row">
+            <div class="col-md-6">
+              <table class="table table-sm">
+                <tr>
+                  <td><strong>Resistance per km:</strong></td>
+                  <td>{{ gridline.resistance_per_km|floatformat:4 }} Ω/km</td>
+                </tr>
+                <tr>
+                  <td><strong>Reactance per km:</strong></td>
+                  <td>{{ gridline.reactance_per_km|floatformat:4 }} Ω/km</td>
+                </tr>
+                <tr>
+                  <td><strong>Total Resistance:</strong></td>
+                  <td>{{ resistance|floatformat:4 }} Ω</td>
+                </tr>
+                <tr>
+                  <td><strong>Total Reactance:</strong></td>
+                  <td>{{ reactance|floatformat:4 }} Ω</td>
+                </tr>
+              </table>
+            </div>
+            <div class="col-md-6">
+              <table class="table table-sm">
+                <tr>
+                  <td><strong>Impedance:</strong></td>
+                  <td>{{ impedance|floatformat:4 }} Ω</td>
+                </tr>
+                <tr>
+                  <td><strong>Conductance per km:</strong></td>
+                  <td>{{ gridline.conductance_per_km|floatformat:6 }} S/km</td>
+                </tr>
+                <tr>
+                  <td><strong>Susceptance per km:</strong></td>
+                  <td>{{ gridline.susceptance_per_km|floatformat:6 }} S/km</td>
+                </tr>
+                <tr>
+                  <td><strong>Estimated Losses:</strong></td>
+                  <td>
+                    {% if losses %}
+                      {{ losses|floatformat:2 }} MW
+                      <br>
+                      <small class="text-muted">At {{ total_connected_capacity|floatformat:1 }} MW load</small>
+                    {% else %}
+                      -
+                    {% endif %}
+                  </td>
+                </tr>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Connected Facilities -->
+      <div class="card mb-4">
+        <div class="card-header">
+          <h5 class="mb-0">Connected Facilities ({{ facility_connections|length }})</h5>
+        </div>
+        <div class="card-body">
+          {% if facility_connections %}
+            <div class="table-responsive">
+              <table class="table table-sm table-hover">
+                <thead>
+                  <tr>
+                    <th>Facility Name</th>
+                    <th>Technology</th>
+                    <th>Capacity (MW)</th>
+                    <th>Connection Type</th>
+                    <th>Distance (km)</th>
+                    <th>Primary</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for conn in facility_connections %}
+                    <tr>
+                      <td>
+                        <a href="{% url 'powermapui:facility_detail' conn.idfacilities.pk %}" class="text-decoration-none">
+                          {{ conn.idfacilities.facility_name }}
+                        </a>
+                      </td>
+                      <td>
+                        {% if conn.idfacilities.idtechnologies %}
+                          <span class="badge bg-secondary">{{ conn.idfacilities.idtechnologies.technology_name }}</span>
+                        {% else %}
+                          -
+                        {% endif %}
+                      </td>
+                      <td>{{ conn.idfacilities.capacity|floatformat:1|default:"-" }}</td>
+                      <td>{{ conn.get_connection_type_display }}</td>
+                      <td>{{ conn.connection_distance_km|floatformat:2|default:"-" }}</td>
+                      <td>
+                        {% if conn.is_primary %}
+                          <span class="badge bg-success">Yes</span>
+                        {% else %}
+                          <span class="badge bg-secondary">No</span>
+                        {% endif %}
+                      </td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% else %}
+            <div class="text-center text-muted py-3">
+              <p>No facilities connected to this grid line.</p>
+            </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Quick Actions Sidebar -->
+    <div class="col-lg-4">
+      <div class="card mb-4">
+        <div class="card-header">
+          <h6 class="mb-0">Quick Actions</h6>
+        </div>
+        <div class="card-body">
+          <div class="d-grid gap-2">
+            <a href="{% url 'powermapui:gridline_edit' gridline.pk %}" class="btn btn-warning btn-sm">
+              Edit Grid Line
+            </a>
+            {% if gridline.from_terminal %}
+              <a href="{% url 'powermapui:terminal_detail' gridline.from_terminal.pk %}" class="btn btn-info btn-sm">
+                View From Terminal
+              </a>
+            {% endif %}
+            {% if gridline.to_terminal %}
+              <a href="{% url 'powermapui:terminal_detail' gridline.to_terminal.pk %}" class="btn btn-info btn-sm">
+                View To Terminal
+              </a>
+            {% endif %}
+            <button class="btn btn-danger btn-sm" onclick="confirmDelete()">
+              Delete Grid Line
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Statistics Card -->
+      <div class="card mb-4">
+        <div class="card-header">
+          <h6 class="mb-0">Statistics</h6>
+        </div>
+        <div class="card-body">
+          <div class="text-center mb-3">
+            <h4 class="text-primary">{{ facility_connections|length }}</h4>
+            <small class="text-muted">Connected Facilit{{ facility_connections|length|pluralize:"y,ies" }}</small>
+          </div>
+          {% if total_connected_capacity %}
+            <hr>
+            <div class="text-center mb-3">
+              <h4 class="text-success">{{ total_connected_capacity|floatformat:1 }} MW</h4>
+              <small class="text-muted">Total Capacity</small>
+            </div>
+          {% endif %}
+          {% if utilization %}
+            <hr>
+            <div class="text-center">
+              <h4 class="{% if utilization > 90 %}text-danger{% elif utilization > 70 %}text-warning{% else %}text-success{% endif %}">
+                {{ utilization|floatformat:1 }}%
+              </h4>
+              <small class="text-muted">Utilization</small>
+            </div>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Location Card -->
+      {% if gridline.from_latitude and gridline.from_longitude and gridline.to_latitude and gridline.to_longitude %}
+        <div class="card">
+          <div class="card-header">
+            <h6 class="mb-0">Geographic Coordinates</h6>
+          </div>
+          <div class="card-body small">
+            <p class="mb-2">
+              <strong>From:</strong><br>
+              {{ gridline.from_latitude|floatformat:6 }}, {{ gridline.from_longitude|floatformat:6 }}
+            </p>
+            <p class="mb-0">
+              <strong>To:</strong><br>
+              {{ gridline.to_latitude|floatformat:6 }}, {{ gridline.to_longitude|floatformat:6 }}
+            </p>
+          </div>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Delete Confirmation Modal -->
+  <div class="modal fade" id="deleteModal" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Confirm Delete</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <p>Are you sure you want to delete the grid line "{{ gridline.line_name }}"?</p>
+          {% if facility_connections %}
+            <div class="alert alert-danger">
+              <strong>Warning:</strong> This grid line has {{ facility_connections|length }} connected facilit{{ facility_connections|length|pluralize:"y,ies" }}. 
+              You must remove these connections before deleting the grid line.
+            </div>
+          {% else %}
+            <div class="alert alert-warning">
+              <strong>Warning:</strong> This action cannot be undone.
+            </div>
+          {% endif %}
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          {% if not facility_connections %}
+            <form method="post" action="{% url 'powermapui:gridline_delete' gridline.pk %}" style="display: inline;">
+              {% csrf_token %}
+              <button type="submit" class="btn btn-danger">
+                Delete Grid Line
+              </button>
+            </form>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function confirmDelete() {
+      var deleteModal = new bootstrap.Modal(document.getElementById('deleteModal'));
+      deleteModal.show();
+    }
+  </script>
+{% endblock %}

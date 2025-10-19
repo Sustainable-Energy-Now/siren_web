@@ -1,0 +1,228 @@
+<!-- power_curves/create.html -->
+{% extends 'powermapui_base.html' %}
+
+{% block powermapui_content %}
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h3>Create Power Curve</h3>
+      <small class="text-muted">{{ turbine.manufacturer }} {{ turbine.turbine_model }}</small>
+    </div>
+    <a href="{% url 'powermapui:wind_turbine_detail' turbine.pk %}" class="btn btn-outline-secondary">Back to Turbine</a>
+  </div>
+
+  <p>Create a new power curve by uploading a .pow file or by entering data manually.</p>
+
+  <div class="row">
+    <div class="col-lg-8">
+      <div class="card">
+        <div class="card-body">
+          <form method="post" enctype="multipart/form-data" novalidate>
+            {% csrf_token %}
+            
+            <!-- Entry Method Selection -->
+            <div class="mb-4">
+              <label class="form-label fw-bold">Entry Method</label>
+              <div class="btn-group w-100" role="group">
+                <input type="radio" class="btn-check" name="entry_method" id="method_file" value="file" 
+                       {% if not form_data.entry_method or form_data.entry_method == 'file' %}checked{% endif %}>
+                <label class="btn btn-outline-primary" for="method_file">
+                  <i class="bi bi-file-earmark-arrow-up"></i> Upload .pow File
+                </label>
+                
+                <input type="radio" class="btn-check" name="entry_method" id="method_manual" value="manual"
+                       {% if form_data.entry_method == 'manual' %}checked{% endif %}>
+                <label class="btn btn-outline-primary" for="method_manual">
+                  <i class="bi bi-keyboard"></i> Manual Entry
+                </label>
+              </div>
+            </div>
+
+            <!-- File Upload Section -->
+            <div id="file_section" class="entry-section">
+              <div class="mb-3">
+                <label for="power_file" class="form-label">Power Curve File (.pow) <span class="text-danger">*</span></label>
+                <input type="file" 
+                       class="form-control" 
+                       id="power_file" 
+                       name="power_file" 
+                       accept=".pow">
+                <div class="form-text">Select a .pow file containing wind speed and power output data</div>
+              </div>
+            </div>
+
+            <!-- Manual Entry Section -->
+            <div id="manual_section" class="entry-section" style="display: none;">
+              <div class="mb-3">
+                <label for="power_file_name" class="form-label">File Name <span class="text-danger">*</span></label>
+                <input type="text" 
+                       class="form-control" 
+                       id="power_file_name" 
+                       name="power_file_name" 
+                       value="{{ form_data.power_file_name|default:'' }}"
+                       placeholder="e.g., V90-2.0-HH80.pow">
+                <div class="form-text">A unique identifier for this power curve</div>
+              </div>
+
+              <div class="mb-3">
+                <label for="wind_speeds" class="form-label">Wind Speeds (m/s) <span class="text-danger">*</span></label>
+                <textarea class="form-control font-monospace" 
+                          id="wind_speeds" 
+                          name="wind_speeds" 
+                          rows="4"
+                          placeholder="1.0 2.0 3.0 4.0 5.0 6.0 7.0 8.0 9.0 10.0 11.0 12.0 13.0 14.0 15.0">{{ form_data.wind_speeds|default:'' }}</textarea>
+                <div class="form-text">Space or comma-separated values</div>
+              </div>
+
+              <div class="mb-3">
+                <label for="power_outputs" class="form-label">Power Outputs (kW) <span class="text-danger">*</span></label>
+                <textarea class="form-control font-monospace" 
+                          id="power_outputs" 
+                          name="power_outputs" 
+                          rows="4"
+                          placeholder="0.0 0.0 0.004 0.035 0.072 0.113 0.151 0.184 0.21 0.23 0.244 0.246 0.246 0.251 0.256">{{ form_data.power_outputs|default:'' }}</textarea>
+                <div class="form-text">Must have same number of values as wind speeds</div>
+              </div>
+            </div>
+
+            <!-- Metadata Fields (shown for both methods) -->
+            <hr class="my-4">
+            <h6 class="mb-3">Additional Information</h6>
+
+            <div class="row">
+              <div class="col-md-6 mb-3">
+                <label for="iec_class" class="form-label">IEC Class</label>
+                <select class="form-select" id="iec_class" name="iec_class">
+                  <option value="">Not specified</option>
+                  <option value="I" {% if form_data.iec_class == 'I' %}selected{% endif %}>Class I</option>
+                  <option value="II" {% if form_data.iec_class == 'II' %}selected{% endif %}>Class II</option>
+                  <option value="III" {% if form_data.iec_class == 'III' %}selected{% endif %}>Class III</option>
+                  <option value="IV" {% if form_data.iec_class == 'IV' %}selected{% endif %}>Class IV</option>
+                  <option value="S" {% if form_data.iec_class == 'S' %}selected{% endif %}>Class S</option>
+                </select>
+                <div class="form-text">Wind turbine class per IEC 61400-1</div>
+              </div>
+
+              <div class="col-md-6 mb-3">
+                <label for="source" class="form-label">Source</label>
+                <input type="text" 
+                       class="form-control" 
+                       id="source" 
+                       name="source" 
+                       value="{{ form_data.source|default:'' }}"
+                       placeholder="e.g., Manufacturer Datasheet, Wind_Turbines_CSV">
+                <div class="form-text">Origin of this data</div>
+              </div>
+            </div>
+
+            <div class="mb-3">
+              <label for="notes" class="form-label">Notes</label>
+              <textarea class="form-control" 
+                        id="notes" 
+                        name="notes" 
+                        rows="3">{{ form_data.notes|default:'' }}</textarea>
+              <div class="form-text">Additional information (hub height, warranty curve, testing conditions, etc.)</div>
+            </div>
+
+            <div class="mb-4">
+              <div class="form-check">
+                <input class="form-check-input" 
+                       type="checkbox" 
+                       id="is_active" 
+                       name="is_active"
+                       {% if form_data.is_active == 'on' %}checked{% endif %}>
+                <label class="form-check-label" for="is_active">
+                  <strong>Set as Active Power Curve</strong>
+                </label>
+                <div class="form-text">The active curve is used for energy calculations (will deactivate any other active curve)</div>
+              </div>
+            </div>
+
+            <div class="d-flex gap-2">
+              <button type="submit" class="btn btn-primary">
+                <i class="bi bi-save"></i> Create Power Curve
+              </button>
+              <a href="{% url 'powermapui:wind_turbine_detail' turbine.pk %}" class="btn btn-outline-secondary">Cancel</a>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-4">
+      <!-- File Format Help -->
+      <div class="card mb-3">
+        <div class="card-header">
+          <h6 class="mb-0"><i class="bi bi-file-earmark-text"></i> .pow File Format</h6>
+        </div>
+        <div class="card-body">
+          <div class="small">
+            <p><strong>Expected format:</strong></p>
+            <pre class="bg-light p-2 rounded small">Wind Speed (m/s)  Power (kW)
+3.0   50.0
+4.0   150.0
+5.0   280.0
+...   ...</pre>
+            <p class="mb-0">Lines starting with # are treated as comments and ignored.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Manual Entry Help -->
+      <div class="card mb-3">
+        <div class="card-header">
+          <h6 class="mb-0"><i class="bi bi-keyboard"></i> Manual Entry Format</h6>
+        </div>
+        <div class="card-body">
+          <div class="small">
+            <p><strong>Enter values separated by spaces or commas:</strong></p>
+            <p class="mb-2"><strong>Wind Speeds:</strong></p>
+            <code class="d-block bg-light p-2 rounded small mb-2">1.0 2.0 3.0 4.0 5.0</code>
+            <p class="mb-2"><strong>Power Outputs:</strong></p>
+            <code class="d-block bg-light p-2 rounded small mb-2">0.0 0.0 0.004 0.035 0.072</code>
+            <p class="mb-0">Both lists must have the same number of values.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- IEC Class Info -->
+      <div class="card">
+        <div class="card-header">
+          <h6 class="mb-0"><i class="bi bi-info-circle"></i> IEC Wind Classes</h6>
+        </div>
+        <div class="card-body">
+          <div class="small">
+            <p><strong>Class I:</strong> High wind sites (10 m/s avg)</p>
+            <p><strong>Class II:</strong> Medium wind sites (8.5 m/s avg)</p>
+            <p><strong>Class III:</strong> Low wind sites (7.5 m/s avg)</p>
+            <p><strong>Class IV:</strong> Very low wind sites (6 m/s avg)</p>
+            <p class="mb-0"><strong>Class S:</strong> Special conditions</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Toggle between file and manual entry sections
+    const methodFile = document.getElementById('method_file');
+    const methodManual = document.getElementById('method_manual');
+    const fileSection = document.getElementById('file_section');
+    const manualSection = document.getElementById('manual_section');
+
+    function updateSections() {
+      if (methodFile.checked) {
+        fileSection.style.display = 'block';
+        manualSection.style.display = 'none';
+      } else {
+        fileSection.style.display = 'none';
+        manualSection.style.display = 'block';
+      }
+    }
+
+    methodFile.addEventListener('change', updateSections);
+    methodManual.addEventListener('change', updateSections);
+    
+    // Initialize on page load
+    updateSections();
+  </script>
+{% endblock %}

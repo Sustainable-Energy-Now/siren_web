@@ -458,7 +458,6 @@ function connectToProgressStream(sseUrl) {
   eventSource = new EventSource(sseUrl);
   
   eventSource.onopen = function(event) {
-    console.log('SSE connection opened');
     updateConnectionStatus('connected', 'Connected - receiving real-time updates');
   };
   
@@ -476,7 +475,6 @@ function connectToProgressStream(sseUrl) {
     console.error('SSE connection error:', event);
     
     if (eventSource.readyState === EventSource.CLOSED) {
-      console.log('SSE connection closed');
       updateConnectionStatus('disconnected', 'Connection closed');
       if (analysisRunning) {
         showToast('Connection lost. Analysis may still be running.', 'warning');
@@ -490,7 +488,6 @@ function connectToProgressStream(sseUrl) {
 function handleProgressUpdate(data) {
   switch (data.type) {
     case 'connected':
-      console.log('Connected to progress stream');
       updateConnectionStatus('connected', 'Connected - receiving updates');
       break;
       
@@ -781,9 +778,7 @@ window.addEventListener('beforeunload', function() {
 // Handle visibility changes (user switches tabs)
 document.addEventListener('visibilitychange', function() {
   if (document.hidden && eventSource) {
-    console.log('Page hidden but SSE connection maintained');
   } else if (!document.hidden && sessionId && !eventSource) {
-    console.log('Page visible again - SSE should be reconnected by browser');
   }
 });
 </script>

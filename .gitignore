@@ -158,3 +158,4 @@ data
 siren_web/static_collected/
 static_collected/
 siren_web/siren_files/
+media/templates/help/backups/

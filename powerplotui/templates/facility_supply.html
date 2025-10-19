@@ -1026,10 +1026,6 @@ document.addEventListener('DOMContentLoaded', function() {
         const aggregation = aggregationSelectTechComp.value;
         const chartType = chartTypeSelectTechComp.value;
         
-        console.log('Selected technology1 IDs:', technology1Ids);
-        console.log('Selected technology2 IDs:', technology2Ids);
-        console.log('Selected year:', year);
-        
         if (technology1Ids.length === 0 || technology2Ids.length === 0 || !year) {
             showError('Please select at least one technology for each group and a year');
             return;
@@ -1225,8 +1221,6 @@ document.addEventListener('DOMContentLoaded', function() {
             url += `&technology2_id[]=${id}`;
         });
         
-        console.log('Fetching URL:', url);
-        
         // Get date range if specified
         const startMonth = startMonthTechComp.value;
         const endMonth = endMonthTechComp.value;
@@ -1236,14 +1230,10 @@ document.addEventListener('DOMContentLoaded', function() {
             url += `&start_hour=${hourRange.start}&end_hour=${hourRange.end}`;
         }
         
-        console.log('Final URL:', url);
-        
         fetch(url)
             .then(response => response.json())
             .then(data => {
                 loadingSpinner.style.display = 'none';
-                
-                console.log('Response data:', data);
                 
                 if (data.error) {
                     showError(data.error);
@@ -1344,7 +1334,7 @@ document.addEventListener('DOMContentLoaded', function() {
     function plotComparisonData(data, chartType) {
         const traces = createTraces(
             [data.periods, data.periods, data.periods],
-            [data.facility1_quantum, data.facility2_quantum, data.facility1_quantum.map((v, i) => (v + data.facility2_quantum[i]) / 2)],
+            [data.facility1_quantum, data.facility2_quantum, data.facility1_quantum.map((v, i) => v + data.facility2_quantum[i])],
             [`${data.facility1.name} (${data.facility1.technology})`, `${data.facility2.name} (${data.facility2.technology})`, 'Combined Total'],
             ['rgb(55, 128, 191)', 'rgb(255, 127, 14)', 'rgb(44, 160, 44)'],
             chartType,
@@ -1458,7 +1448,7 @@ document.addEventListener('DOMContentLoaded', function() {
         
         const traces = createTraces(
             [data.periods, data.periods, data.periods],
-            [data.technology1_quantum, data.technology2_quantum, data.technology1_quantum.map((v, i) => (v + data.technology2_quantum[i]) / 2)],
+            [data.technology1_quantum, data.technology2_quantum, data.technology1_quantum.map((v, i) => v + data.technology2_quantum[i])],
             [`Group 1: ${tech1Names} (${data.technology1.facility_count} facilities)`, 
             `Group 2: ${tech2Names} (${data.technology2.facility_count} facilities)`, 
             'Combined Total'],
@@ -1605,180 +1595,6 @@ document.addEventListener('DOMContentLoaded', function() {
             modeBarButtonsToRemove: ['lasso2d', 'select2d'],
             displaylogo: false
         };
-    }
-    
-    function plotComparisonData(data, chartType) {
-        let traceType = 'scatter';
-        let traceMode = 'lines';
-        let fillOption = null;
-        
-        switch(chartType) {
-            case 'line':
-                traceType = 'scatter';
-                traceMode = 'lines';
-                break;
-            case 'scatter':
-                traceType = 'scatter';
-                traceMode = 'markers';
-                break;
-            case 'bar':
-                traceType = 'bar';
-                traceMode = null;
-                break;
-            case 'area':
-                traceType = 'scatter';
-                traceMode = 'lines';
-                fillOption = 'tozeroy';
-                break;
-        }
-        
-        const trace1 = {
-            x: data.periods,
-            y: data.facility1_quantum,
-            name: `${data.facility1.name} (${data.facility1.technology})`,
-            type: traceType
-        };
-        
-        if (traceMode) {
-            trace1.mode = traceMode;
-        }
-        
-        if (chartType === 'line' || chartType === 'area') {
-            trace1.line = {
-                color: 'rgb(55, 128, 191)',
-                width: 2
-            };
-        }
-        
-        if (chartType === 'scatter') {
-            trace1.marker = {
-                color: 'rgb(55, 128, 191)',
-                size: 6
-            };
-        }
-        
-        if (chartType === 'bar') {
-            trace1.marker = {
-                color: 'rgb(55, 128, 191)'
-            };
-        }
-        
-        if (fillOption) {
-            trace1.fill = fillOption;
-            trace1.fillcolor = 'rgba(55, 128, 191, 0.3)';
-        }
-        
-        const trace2 = {
-            x: data.periods,
-            y: data.facility2_quantum,
-            name: `${data.facility2.name} (${data.facility2.technology})`,
-            type: traceType
-        };
-        
-        if (traceMode) {
-            trace2.mode = traceMode;
-        }
-        
-        if (chartType === 'line' || chartType === 'area') {
-            trace2.line = {
-                color: 'rgb(255, 127, 14)',
-                width: 2
-            };
-        }
-        
-        if (chartType === 'scatter') {
-            trace2.marker = {
-                color: 'rgb(255, 127, 14)',
-                size: 6
-            };
-        }
-        
-        if (chartType === 'bar') {
-            trace2.marker = {
-                color: 'rgb(255, 127, 14)'
-            };
-        }
-        
-        if (fillOption) {
-            trace2.fill = fillOption;
-            trace2.fillcolor = 'rgba(255, 127, 14, 0.3)';
-        }
-        
-        // Calculate combined output
-        const combinedOutput = data.facility1_quantum.map((val, idx) => 
-            (val + data.facility2_quantum[idx])
-        );
-        
-        const trace3 = {
-            x: data.periods,
-            y: combinedOutput,
-            name: 'Combined Total',
-            type: traceType
-        };
-        
-        if (traceMode) {
-            trace3.mode = traceMode;
-        }
-        
-        if (chartType === 'line' || chartType === 'area') {
-            trace3.line = {
-                color: 'rgb(44, 160, 44)',
-                width: 2,
-                dash: 'dash'
-            };
-        }
-        
-        if (chartType === 'scatter') {
-            trace3.marker = {
-                color: 'rgb(44, 160, 44)',
-                size: 6,
-                symbol: 'diamond'
-            };
-        }
-        
-        if (chartType === 'bar') {
-            trace3.marker = {
-                color: 'rgb(44, 160, 44)'
-            };
-        }
-        
-        if (fillOption) {
-            trace3.fill = fillOption;
-            trace3.fillcolor = 'rgba(44, 160, 44, 0.3)';
-        }
-        
-        const plotData = [trace1, trace2, trace3];
-        
-        const layout = {
-            title: `Facility Comparison: ${data.facility1.name} vs ${data.facility2.name} (${data.year})`,
-            xaxis: {
-                title: data.x_label,
-                showgrid: true,
-                zeroline: false
-            },
-            yaxis: {
-                title: 'Generation',
-                showgrid: true,
-                zeroline: false
-            },
-            hovermode: 'x unified',
-            showlegend: true,
-            legend: {
-                x: 0,
-                xanchor: 'left',
-                y: 1
-            },
-            barmode: chartType === 'bar' ? 'group' : undefined
-        };
-        
-        const config = {
-            responsive: true,
-            displayModeBar: true,
-            modeBarButtonsToRemove: ['lasso2d', 'select2d'],
-            displaylogo: false
-        };
-        
-        Plotly.newPlot(chartDiv, plotData, layout, config);
     }
     
     function displayTechnologyComparisonMetrics(data) {

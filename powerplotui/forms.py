@@ -106,8 +106,6 @@ class PlotForm(forms.Form):
             HTML("<hr>"),
             FormActions(
                 Submit('plot_type', 'Echart', formnovalidate='formnovalidate'),
-                Submit('plot_type', 'Altair', formnovalidate='formnovalidate'),
-                Submit('plot_type', 'Matplotlib', formnovalidate='formnovalidate'),
                 Submit('export', 'Export', formnovalidate='formnovalidate'),
             )
         )

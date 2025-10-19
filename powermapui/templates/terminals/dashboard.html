@@ -1,0 +1,321 @@
+<!-- terminals/dashboard.html -->
+{% extends 'powermapui_base.html' %}
+
+{% block powermapui_content %}
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h3>Terminals Network Dashboard</h3>
+    <div>
+      <a href="{% url 'powermapui:terminal_health_check' %}" class="btn btn-warning">Health Check</a>
+      <a href="{% url 'powermapui:terminals_list' %}" class="btn btn-primary">View All Terminals</a>
+    </div>
+  </div>
+
+  <!-- System Overview Cards -->
+  <div class="row mb-4">
+    <div class="col-md-3">
+      <div class="card text-center border-primary">
+        <div class="card-body">
+          <h2 class="text-primary">{{ system_stats.total_terminals }}</h2>
+          <p class="text-muted mb-0">Total Terminals</p>
+          <small class="text-success">{{ system_stats.terminals_with_connections }} connected</small>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card text-center border-success">
+        <div class="card-body">
+          <h2 class="text-success">{{ system_stats.total_transformer_capacity_mva|floatformat:0 }}</h2>
+          <p class="text-muted mb-0">Total Capacity (MVA)</p>
+          <small>Avg: {{ system_stats.average_voltage_kv|floatformat:0 }} kV</small>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card text-center border-info">
+        <div class="card-body">
+          <h2 class="text-info">{{ connected_grid_lines }}</h2>
+          <p class="text-muted mb-0">Connected Grid Lines</p>
+          <small>{{ total_grid_lines }} total</small>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card text-center border-warning">
+        <div class="card-body">
+          <h2 class="text-warning">{{ high_utilization_terminals|length }}</h2>
+          <p class="text-muted mb-0">High Utilization</p>
+          <small>&gt;80% capacity</small>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Alerts -->
+  {% if unconnected_terminals or high_utilization_terminals %}
+    <div class="row mb-4">
+      {% if high_utilization_terminals %}
+        <div class="col-md-6">
+          <div class="alert alert-warning">
+            <h5 class="alert-heading"><i class="bi bi-exclamation-triangle"></i> High Utilization Alert</h5>
+            <p>{{ high_utilization_terminals|length }} terminal{{ high_utilization_terminals|length|pluralize }} operating above 80% capacity.</p>
+            <hr>
+            <ul class="mb-0">
+              {% for item in high_utilization_terminals|slice:":3" %}
+                <li>
+                  <a href="{% url 'powermapui:terminal_detail' item.terminal.pk %}" class="text-decoration-none">
+                    {{ item.terminal.terminal_name }}
+                  </a> - {{ item.utilization|floatformat:1 }}%
+                </li>
+              {% endfor %}
+            </ul>
+            {% if high_utilization_terminals|length > 3 %}
+              <a href="{% url 'powermapui:terminal_health_check' %}" class="btn btn-sm btn-warning mt-2">View All</a>
+            {% endif %}
+          </div>
+        </div>
+      {% endif %}
+      
+      {% if unconnected_terminals %}
+        <div class="col-md-6">
+          <div class="alert alert-info">
+            <h5 class="alert-heading"><i class="bi bi-info-circle"></i> Unconnected Terminals</h5>
+            <p>{{ unconnected_terminals|length }} terminal{{ unconnected_terminals|length|pluralize }} without grid line connections.</p>
+            <hr>
+            <ul class="mb-0">
+              {% for item in unconnected_terminals|slice:":3" %}
+                <li>
+                  <a href="{% url 'powermapui:terminal_connections' item.terminal.pk %}" class="text-decoration-none">
+                    {{ item.terminal.terminal_name }}
+                  </a>
+                </li>
+              {% endfor %}
+            </ul>
+            {% if unconnected_terminals|length > 3 %}
+              <a href="{% url 'powermapui:terminals_list' %}" class="btn btn-sm btn-info mt-2">View All</a>
+            {% endif %}
+          </div>
+        </div>
+      {% endif %}
+    </div>
+  {% endif %}
+
+  <div class="row mb-4">
+    <!-- Voltage Distribution -->
+    <div class="col-md-6">
+      <div class="card">
+        <div class="card-header">
+          <h5 class="mb-0">Voltage Distribution</h5>
+        </div>
+        <div class="card-body">
+          <canvas id="voltageChart" height="200"></canvas>
+          <div class="mt-3">
+            {% for voltage_class, count in system_stats.voltage_distribution.items %}
+              <div class="d-flex justify-content-between mb-2">
+                <span>{{ voltage_class }}</span>
+                <span class="badge bg-primary">{{ count }}</span>
+              </div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Terminal Type Distribution -->
+    <div class="col-md-6">
+      <div class="card">
+        <div class="card-header">
+          <h5 class="mb-0">Terminal Type Distribution</h5>
+        </div>
+        <div class="card-body">
+          <canvas id="typeChart" height="200"></canvas>
+          <div class="mt-3">
+            {% for terminal_type, count in system_stats.terminal_type_distribution.items %}
+              <div class="d-flex justify-content-between mb-2">
+                <span>{{ terminal_type }}</span>
+                <span class="badge bg-secondary">{{ count }}</span>
+              </div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Top Terminals -->
+  <div class="row mb-4">
+    <div class="col-md-6">
+      <div class="card">
+        <div class="card-header">
+          <h5 class="mb-0">Top Terminals by Connected Capacity</h5>
+        </div>
+        <div class="card-body">
+          <div class="table-responsive">
+            <table class="table table-sm table-hover">
+              <thead>
+                <tr>
+                  <th>Terminal</th>
+                  <th>Voltage</th>
+                  <th>Capacity (MW)</th>
+                  <th>Facilities</th>
+                  <th>Lines</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for item in top_terminals_by_capacity %}
+                  <tr>
+                    <td>
+                      <a href="{% url 'powermapui:terminal_detail' item.terminal.pk %}" class="text-decoration-none">
+                        {{ item.terminal.terminal_name }}
+                      </a>
+                    </td>
+                    <td>{{ item.terminal.primary_voltage_kv }} kV</td>
+                    <td><strong>{{ item.capacity|floatformat:1 }}</strong></td>
+                    <td><span class="badge bg-info">{{ item.facilities_count }}</span></td>
+                    <td><span class="badge bg-success">{{ item.lines_count }}</span></td>
+                  </tr>
+                {% empty %}
+                  <tr>
+                    <td colspan="5" class="text-center text-muted">No data available</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-md-6">
+      <div class="card">
+        <div class="card-header">
+          <h5 class="mb-0">Top Terminals by Utilization</h5>
+        </div>
+        <div class="card-body">
+          <div class="table-responsive">
+            <table class="table table-sm table-hover">
+              <thead>
+                <tr>
+                  <th>Terminal</th>
+                  <th>Voltage</th>
+                  <th>Utilization</th>
+                  <th>Capacity (MW)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for item in top_terminals_by_utilization %}
+                  <tr>
+                    <td>
+                      <a href="{% url 'powermapui:terminal_detail' item.terminal.pk %}" class="text-decoration-none">
+                        {{ item.terminal.terminal_name }}
+                      </a>
+                    </td>
+                    <td>{{ item.terminal.primary_voltage_kv }} kV</td>
+                    <td>
+                      <div class="progress" style="height: 20px;">
+                        <div class="progress-bar {% if item.utilization > 90 %}bg-danger{% elif item.utilization > 70 %}bg-warning{% else %}bg-success{% endif %}" 
+                             style="width: {{ item.utilization|floatformat:0 }}%">
+                          {{ item.utilization|floatformat:0 }}%
+                        </div>
+                      </div>
+                    </td>
+                    <td>{{ item.capacity|floatformat:1 }}</td>
+                  </tr>
+                {% empty %}
+                  <tr>
+                    <td colspan="4" class="text-center text-muted">No data available</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Technology Breakdown -->
+  {% if tech_breakdown %}
+    <div class="row">
+      <div class="col-md-12">
+        <div class="card">
+          <div class="card-header">
+            <h5 class="mb-0">Connected Facilities by Technology</h5>
+          </div>
+          <div class="card-body">
+            <div class="row">
+              {% for tech_name, data in tech_breakdown.items %}
+                <div class="col-md-3 mb-3">
+                  <div class="card border-secondary">
+                    <div class="card-body text-center">
+                      <h6>{{ tech_name }}</h6>
+                      <h4 class="text-primary">{{ data.capacity|floatformat:1 }} MW</h4>
+                      <small class="text-muted">{{ data.count }} facilit{{ data.count|pluralize:"y,ies" }}</small>
+                    </div>
+                  </div>
+                </div>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  {% endif %}
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script>
+    // Voltage Distribution Chart
+    const voltageCtx = document.getElementById('voltageChart').getContext('2d');
+    new Chart(voltageCtx, {
+      type: 'doughnut',
+      data: {
+        labels: [{% for voltage_class in system_stats.voltage_distribution.keys %}'{{ voltage_class }}',{% endfor %}],
+        datasets: [{
+          data: [{% for count in system_stats.voltage_distribution.values %}{{ count }},{% endfor %}],
+          backgroundColor: [
+            '#0d6efd', '#6610f2', '#6f42c1', '#d63384', '#dc3545'
+          ]
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            display: false
+          }
+        }
+      }
+    });
+
+    // Terminal Type Chart
+    const typeCtx = document.getElementById('typeChart').getContext('2d');
+    new Chart(typeCtx, {
+      type: 'bar',
+      data: {
+        labels: [{% for terminal_type in system_stats.terminal_type_distribution.keys %}'{{ terminal_type }}',{% endfor %}],
+        datasets: [{
+          label: 'Count',
+          data: [{% for count in system_stats.terminal_type_distribution.values %}{{ count }},{% endfor %}],
+          backgroundColor: '#198754'
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          y: {
+            beginAtZero: true,
+            ticks: {
+              stepSize: 1
+            }
+          }
+        },
+        plugins: {
+          legend: {
+            display: false
+          }
+        }
+      }
+    });
+  </script>
+{% endblock %}

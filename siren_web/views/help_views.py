@@ -280,10 +280,6 @@ def edit_help_markdown(request):
         try:
             content = request.POST.get('template_content', '')
             
-            # Debug: Print the received content (remove this after testing)
-            print(f"Received content length: {len(content)}")
-            print(f"Content preview: {content[:100]}...")
-            
             # Validate markdown content
             validation_errors = validate_markdown_content(content)
             if validation_errors:

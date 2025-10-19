@@ -1,0 +1,529 @@
+<!-- terminals/connections.html -->
+{% extends 'powermapui_base.html' %}
+
+{% block powermapui_content %}
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h3>Terminal Connections Hub</h3>
+      <small class="text-muted">{{ terminal.terminal_name }}</small>
+    </div>
+    <div>
+      <a href="{% url 'powermapui:terminal_facilities' terminal.pk %}" class="btn btn-info">View Facilities</a>
+      <a href="{% url 'powermapui:terminal_gridlines' terminal.pk %}" class="btn btn-primary">View Grid Lines</a>
+      <a href="{% url 'powermapui:terminal_detail' terminal.pk %}" class="btn btn-outline-secondary">Back to Details</a>
+    </div>
+  </div>
+
+  <!-- Terminal Info Summary -->
+  <div class="card mb-4">
+    <div class="card-body">
+      <div class="row">
+        <div class="col-md-3">
+          <strong>Voltage:</strong> {{ terminal.primary_voltage_kv }} kV
+        </div>
+        <div class="col-md-3">
+          <strong>Type:</strong> {{ terminal.get_terminal_type_display }}
+        </div>
+        <div class="col-md-3">
+          <strong>Connections:</strong> {{ outgoing_lines.count }} out | {{ incoming_lines.count }} in
+        </div>
+        <div class="col-md-3">
+          <strong>Facilities:</strong> {{ connected_facilities|length }}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tabbed Interface -->
+  <ul class="nav nav-tabs mb-3" id="connectionTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+      <button class="nav-link active" id="current-tab" data-bs-toggle="tab" data-bs-target="#current" type="button">
+        <i class="bi bi-diagram-3"></i> Current Connections
+      </button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="suggestions-tab" data-bs-toggle="tab" data-bs-target="#suggestions" type="button">
+        <i class="bi bi-lightbulb"></i> Smart Suggestions
+        {% if excellent_matches > 0 %}
+          <span class="badge bg-success">{{ excellent_matches }}</span>
+        {% endif %}
+      </button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="facilities-tab" data-bs-toggle="tab" data-bs-target="#facilities" type="button">
+        <i class="bi bi-building"></i> Connected Facilities ({{ connected_facilities|length }})
+      </button>
+    </li>
+  </ul>
+
+  <div class="tab-content" id="connectionTabsContent">
+    
+    <!-- CURRENT CONNECTIONS TAB -->
+    <div class="tab-pane fade show active" id="current" role="tabpanel">
+      
+      <!-- Add New Grid Line Connection -->
+      <div class="card mb-4">
+        <div class="card-header bg-primary text-white">
+          <h5 class="mb-0">Add Grid Line Connection</h5>
+        </div>
+        <div class="card-body">
+          <form method="post" action="{% url 'powermapui:terminal_add_gridline' terminal.pk %}">
+            {% csrf_token %}
+            <div class="row align-items-end">
+              <div class="col-md-6">
+                <label for="gridline_id" class="form-label">Select Grid Line:</label>
+                <select name="gridline_id" id="gridline_id" class="form-select" required>
+                  <option value="">Choose a grid line...</option>
+                  {% for line in available_gridlines %}
+                    <option value="{{ line.pk }}">
+                      {{ line.line_name }} ({{ line.voltage_level }} kV, {{ line.length_km }} km)
+                    </option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">Connection Type:</label>
+                <div class="btn-group w-100" role="group">
+                  <input type="radio" class="btn-check" name="connection_type" id="type_from" value="from" checked>
+                  <label class="btn btn-outline-primary" for="type_from">Outgoing (From)</label>
+                  
+                  <input type="radio" class="btn-check" name="connection_type" id="type_to" value="to">
+                  <label class="btn btn-outline-primary" for="type_to">Incoming (To)</label>
+                </div>
+              </div>
+              <div class="col-md-2">
+                <button type="submit" class="btn btn-success w-100">Add Connection</button>
+              </div>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- Add New Facility Connection -->
+      <div class="card mb-4">
+        <div class="card-header bg-success text-white">
+          <h5 class="mb-0">Add Facility Connection</h5>
+        </div>
+        <div class="card-body">
+          {% if available_facilities %}
+            <form method="get" action="">
+              <div class="row align-items-end">
+                <div class="col-md-10">
+                  <label for="facility_select" class="form-label">Select Facility to Connect:</label>
+                  <select name="facility_id" id="facility_select" class="form-select" required>
+                    <option value="">Choose a facility...</option>
+                    {% for fac in available_facilities %}
+                      <option value="{{ fac.pk }}">
+                        {{ fac.facility_name }} 
+                        {% if fac.idtechnologies %}({{ fac.idtechnologies.technology_name }}){% endif %}
+                        {% if fac.capacity %}- {{ fac.capacity|floatformat:1 }} MW{% endif %}
+                      </option>
+                    {% endfor %}
+                  </select>
+                  <div class="form-text">Select a facility to connect to this terminal via grid line</div>
+                </div>
+                <div class="col-md-2">
+                  <button type="button" class="btn btn-success w-100" onclick="connectFacility()">Connect Facility</button>
+                </div>
+              </div>
+            </form>
+          {% else %}
+            <div class="alert alert-info mb-0">
+              <i class="bi bi-info-circle"></i> All available facilities are already connected to this terminal.
+            </div>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Outgoing and Incoming Lines -->
+      <div class="row">
+        <div class="col-lg-6">
+          <div class="card mb-4">
+            <div class="card-header bg-success text-white">
+              <h5 class="mb-0">
+                <i class="bi bi-arrow-right-circle"></i> Outgoing Lines ({{ outgoing_lines.count }})
+              </h5>
+            </div>
+            <div class="card-body">
+              {% if outgoing_lines %}
+                <div class="list-group">
+                  {% for line in outgoing_lines %}
+                    <div class="list-group-item">
+                      <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                          <h6 class="mb-1">
+                            <a href="{% url 'powermapui:gridline_detail' line.pk %}" class="text-decoration-none">
+                              {{ line.line_name }}
+                            </a>
+                          </h6>
+                          <small class="text-muted">
+                            {{ line.voltage_level }} kV | {{ line.length_km }} km | {{ line.thermal_capacity_mw }} MW
+                          </small>
+                          {% if line.to_terminal %}
+                            <br>
+                            <small class="text-info">→ To: {{ line.to_terminal.terminal_name }}</small>
+                          {% endif %}
+                        </div>
+                        <div>
+                          <form method="post" action="{% url 'powermapui:terminal_remove_gridline' terminal.pk line.pk %}" 
+                                onsubmit="return confirm('Remove this grid line connection?');" style="display: inline;">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-sm btn-outline-danger">Remove</button>
+                          </form>
+                        </div>
+                      </div>
+                    </div>
+                  {% endfor %}
+                </div>
+              {% else %}
+                <div class="text-center text-muted py-4">
+                  <p>No outgoing lines connected.</p>
+                  <small>Check the "Smart Suggestions" tab for recommended connections.</small>
+                </div>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+
+        <div class="col-lg-6">
+          <div class="card mb-4">
+            <div class="card-header bg-info text-white">
+              <h5 class="mb-0">
+                <i class="bi bi-arrow-left-circle"></i> Incoming Lines ({{ incoming_lines.count }})
+              </h5>
+            </div>
+            <div class="card-body">
+              {% if incoming_lines %}
+                <div class="list-group">
+                  {% for line in incoming_lines %}
+                    <div class="list-group-item">
+                      <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                          <h6 class="mb-1">
+                            <a href="{% url 'powermapui:gridline_detail' line.pk %}" class="text-decoration-none">
+                              {{ line.line_name }}
+                            </a>
+                          </h6>
+                          <small class="text-muted">
+                            {{ line.voltage_level }} kV | {{ line.length_km }} km | {{ line.thermal_capacity_mw }} MW
+                          </small>
+                          {% if line.from_terminal %}
+                            <br>
+                            <small class="text-info">← From: {{ line.from_terminal.terminal_name }}</small>
+                          {% endif %}
+                        </div>
+                        <div>
+                          <form method="post" action="{% url 'powermapui:terminal_remove_gridline' terminal.pk line.pk %}" 
+                                onsubmit="return confirm('Remove this grid line connection?');" style="display: inline;">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-sm btn-outline-danger">Remove</button>
+                          </form>
+                        </div>
+                      </div>
+                    </div>
+                  {% endfor %}
+                </div>
+              {% else %}
+                <div class="text-center text-muted py-4">
+                  <p>No incoming lines connected.</p>
+                  <small>Check the "Smart Suggestions" tab for recommended connections.</small>
+                </div>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SUGGESTIONS TAB -->
+    <div class="tab-pane fade" id="suggestions" role="tabpanel">
+      
+      <!-- Search Controls -->
+      <div class="card mb-4">
+        <div class="card-body">
+          <form method="get" class="row align-items-end">
+            <div class="col-md-3">
+              <label for="max_distance" class="form-label">Search Radius (km)</label>
+              <input type="number" 
+                     class="form-control" 
+                     id="max_distance" 
+                     name="max_distance" 
+                     value="{{ max_distance }}"
+                     min="1" 
+                     max="500" 
+                     step="5">
+            </div>
+            <div class="col-md-3">
+              <button type="submit" class="btn btn-primary">Update Suggestions</button>
+            </div>
+            <div class="col-md-6 text-end">
+              {% if suggestions %}
+                <span class="badge bg-success me-2">{{ excellent_matches }} Excellent</span>
+                <span class="badge bg-warning text-dark me-2">{{ good_matches }} Good</span>
+                <span class="badge bg-secondary">{{ suggestions|length }} Total</span>
+              {% endif %}
+            </div>
+          </form>
+        </div>
+      </div>
+
+      {% if suggestions %}
+        <!-- Suggestions Table -->
+        <div class="card mb-4">
+          <div class="card-header">
+            <h5 class="mb-0">
+              Suggested Grid Line Connections ({{ suggestions|length }})
+            </h5>
+            <small class="text-muted">Based on proximity, voltage compatibility, and capacity</small>
+          </div>
+          <div class="card-body">
+            <div class="table-responsive">
+              <table class="table table-hover">
+                <thead class="table-light">
+                  <tr>
+                    <th>Grid Line</th>
+                    <th>Connection Point</th>
+                    <th>Distance</th>
+                    <th>Voltage</th>
+                    <th>Capacity</th>
+                    <th>Score</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for suggestion in suggestions %}
+                    <tr class="{% if suggestion.overall_score >= 70 %}table-success{% elif suggestion.overall_score >= 50 %}table-warning{% endif %}">
+                      <td>
+                        <a href="{% url 'powermapui:gridline_detail' suggestion.grid_line.pk %}" 
+                           class="text-decoration-none">
+                          <strong>{{ suggestion.grid_line.line_name }}</strong>
+                        </a>
+                        <br>
+                        <small class="text-muted">{{ suggestion.grid_line.line_code }}</small>
+                      </td>
+                      <td>
+                        <span class="badge {% if suggestion.connection_type == 'from' %}bg-success{% else %}bg-info{% endif %}">
+                          {{ suggestion.connection_type|title }}
+                        </span>
+                      </td>
+                      <td>
+                        <strong>{{ suggestion.distance_km }}</strong> km
+                      </td>
+                      <td>
+                        {{ suggestion.grid_line.voltage_level }} kV
+                        <br>
+                        <small class="text-muted">Match: {{ suggestion.voltage_compatibility|floatformat:0 }}%</small>
+                      </td>
+                      <td>{{ suggestion.grid_line.thermal_capacity_mw|floatformat:0 }} MW</td>
+                      <td>
+                        <div class="progress" style="height: 25px;">
+                          <div class="progress-bar {% if suggestion.overall_score >= 70 %}bg-success{% elif suggestion.overall_score >= 50 %}bg-warning{% else %}bg-secondary{% endif %}" 
+                               style="width: {{ suggestion.overall_score }}%">
+                            <strong>{{ suggestion.overall_score|floatformat:0 }}</strong>
+                          </div>
+                        </div>
+                      </td>
+                      <td>
+                        <form method="post" action="{% url 'powermapui:terminal_add_gridline' terminal.pk %}" style="display: inline;">
+                          {% csrf_token %}
+                          <input type="hidden" name="gridline_id" value="{{ suggestion.grid_line.pk }}">
+                          <input type="hidden" name="connection_type" value="{{ suggestion.connection_type }}">
+                          <input type="hidden" name="return_tab" value="suggestions">
+                          <button type="submit" class="btn btn-sm btn-success" 
+                                  onclick="return confirm('Connect {{ suggestion.grid_line.line_name }} to {{ terminal.terminal_name }}?');">
+                            <i class="bi bi-plus-circle"></i> Connect
+                          </button>
+                        </form>
+                      </td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- Scoring Methodology -->
+        <div class="card">
+          <div class="card-header">
+            <h6 class="mb-0">How Suggestions Are Scored</h6>
+          </div>
+          <div class="card-body">
+            <div class="row">
+              <div class="col-md-4">
+                <h6 class="text-primary">Voltage Compatibility (50%)</h6>
+                <p class="small text-muted mb-0">
+                  Based on voltage difference between terminal and grid line.
+                </p>
+              </div>
+              <div class="col-md-4">
+                <h6 class="text-success">Distance Score (30%)</h6>
+                <p class="small text-muted mb-0">
+                  Closer connections score higher within {{ max_distance }} km radius.
+                </p>
+              </div>
+              <div class="col-md-4">
+                <h6 class="text-info">Capacity Score (20%)</h6>
+                <p class="small text-muted mb-0">
+                  Grid lines with higher thermal capacity score better.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      {% else %}
+        <div class="card">
+          <div class="card-body text-center py-5">
+            <i class="bi bi-search" style="font-size: 3rem; color: #6c757d;"></i>
+            <h5 class="mt-3">No Suggestions Found</h5>
+            <p class="text-muted">
+              No compatible grid lines found within {{ max_distance }} km.
+            </p>
+            <form method="get" class="d-inline">
+              <input type="hidden" name="max_distance" value="{{ max_distance|add:50 }}">
+              <button type="submit" class="btn btn-primary">
+                Increase Search Radius to {{ max_distance|add:50 }} km
+              </button>
+            </form>
+          </div>
+        </div>
+      {% endif %}
+    </div>
+
+    <!-- FACILITIES TAB -->
+    <div class="tab-pane fade" id="facilities" role="tabpanel">
+      <div class="card">
+        <div class="card-header">
+          <div class="d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">Connected Facilities ({{ connected_facilities|length }})</h5>
+            <a href="{% url 'powermapui:terminal_facilities' terminal.pk %}" class="btn btn-sm btn-primary">
+              View All Details
+            </a>
+          </div>
+        </div>
+        <div class="card-body">
+          {% if connected_facilities %}
+            <div class="table-responsive">
+              <table class="table table-sm table-hover">
+                <thead class="table-light">
+                  <tr>
+                    <th>Facility</th>
+                    <th>Technology</th>
+                    <th>Capacity</th>
+                    <th>Via Grid Line</th>
+                    <th>Connection Type</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for item in connected_facilities %}
+                    <tr>
+                      <td>
+                        <a href="{% url 'powermapui:facility_detail' item.facility.pk %}" class="text-decoration-none">
+                          {{ item.facility.facility_name }}
+                        </a>
+                      </td>
+                      <td>
+                        {% if item.facility.idtechnologies %}
+                          <span class="badge bg-secondary">{{ item.facility.idtechnologies.technology_name }}</span>
+                        {% else %}
+                          -
+                        {% endif %}
+                      </td>
+                      <td>
+                        {% if item.facility.capacity %}
+                          {{ item.facility.capacity|floatformat:1 }} MW
+                        {% else %}
+                          -
+                        {% endif %}
+                      </td>
+                      <td>
+                        <a href="{% url 'powermapui:gridline_detail' item.grid_line.pk %}" class="text-decoration-none">
+                          {{ item.grid_line.line_name }}
+                        </a>
+                      </td>
+                      <td>{{ item.connection.get_connection_type_display }}</td>
+                      <td>
+                        {% if item.is_primary %}
+                          <span class="badge bg-success">Primary</span>
+                        {% else %}
+                          <span class="badge bg-secondary">Secondary</span>
+                        {% endif %}
+                      </td>
+                      <td>
+                        <form method="post" action="{% url 'powermapui:terminal_remove_facility' terminal.pk item.connection.pk %}" 
+                              onsubmit="return confirm('Remove this facility connection?');" style="display: inline;">
+                          {% csrf_token %}
+                          <button type="submit" class="btn btn-sm btn-outline-danger">Remove</button>
+                        </form>
+                      </td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% else %}
+            <div class="text-center text-muted py-4">
+              <i class="bi bi-building" style="font-size: 3rem;"></i>
+              <p class="mt-3">No facilities connected through this terminal's grid lines.</p>
+              <small>Connect grid lines first, then facilities can be connected to those grid lines.</small>
+            </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <style>
+    .list-group-item {
+      transition: background-color 0.2s;
+    }
+    .list-group-item:hover {
+      background-color: #f8f9fa;
+    }
+    .nav-tabs .nav-link {
+      color: #495057;
+    }
+    .nav-tabs .nav-link.active {
+      font-weight: 600;
+    }
+  </style>
+
+  <script>
+    function connectFacility() {
+      const facilitySelect = document.getElementById('facility_select');
+      const facilityId = facilitySelect.value;
+      
+      if (!facilityId) {
+        alert('Please select a facility to connect.');
+        return;
+      }
+      
+      window.location.href = "{% url 'powermapui:connect_facility_to_terminal' terminal.pk 0 %}".replace('/0/', '/' + facilityId + '/');
+    }
+
+    // Activate tab based on URL hash
+    document.addEventListener('DOMContentLoaded', function() {
+      const hash = window.location.hash;
+      if (hash) {
+        const tabTrigger = document.querySelector(`button[data-bs-target="${hash}"]`);
+        if (tabTrigger) {
+          const tab = new bootstrap.Tab(tabTrigger);
+          tab.show();
+        }
+      }
+      
+      // Update URL hash when tabs are clicked
+      const tabButtons = document.querySelectorAll('button[data-bs-toggle="tab"]');
+      tabButtons.forEach(button => {
+        button.addEventListener('shown.bs.tab', function(e) {
+          const target = e.target.getAttribute('data-bs-target');
+          if (target) {
+            history.replaceState(null, null, target);
+          }
+        });
+      });
+    });
+  </script>
+{% endblock %}
