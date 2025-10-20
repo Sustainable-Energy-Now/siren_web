@@ -5,33 +5,85 @@ import pandas as pd
 
 class ChartGenerator:
     
-    def create_demand_breakdown_pie(self, summary):
+    def create_demand_breakdown_pie(self, summary, ytd_summary):
         """Create pie charts showing demand breakdown"""
+        # Get month and year from summary for titles
+        month_name = summary.period_date.strftime('%B')
+        year = summary.period_date.year
+        
         fig = make_subplots(
             rows=2, cols=2,
             subplot_titles=(
-                'Operational Demand - September 2025',
-                'Underlying Demand - September 2025',
-                'Operational Demand - YTD 2025',
-                'Underlying Demand - YTD 2025'
+                f'Operational Demand - {month_name} {year}',
+                f'Underlying Demand - {month_name} {year}',
+                f'Operational Demand - YTD {year}',
+                f'Underlying Demand - YTD {year}'
             ),
             specs=[[{'type': 'pie'}, {'type': 'pie'}],
                    [{'type': 'pie'}, {'type': 'pie'}]]
         )
         
-        # Example for first pie chart (you'll calculate actual values)
+        # Monthly Operational Demand (row 1, col 1)
         fig.add_trace(
             go.Pie(
-                labels=['RE', 'Fossil', 'Battery Net'],
-                values=[summary.wind_generation + summary.solar_generation,
-                       summary.fossil_generation,
-                       summary.battery_discharge - summary.battery_charge],
-                name="Operational"
+                labels=['Wind', 'Solar', 'Fossil', 'Battery Net'],
+                values=[
+                    summary.wind_generation,
+                    summary.solar_generation,
+                    summary.fossil_generation,
+                    summary.battery_discharge - summary.battery_charge
+                ],
+                name="Monthly Operational"
             ),
             row=1, col=1
         )
         
-        # Add other pies similarly...
+        # Monthly Underlying Demand (row 1, col 2)
+        fig.add_trace(
+            go.Pie(
+                labels=['Wind', 'Solar', 'DPV', 'Fossil', 'Battery Net'],
+                values=[
+                    summary.wind_generation,
+                    summary.solar_generation,
+                    summary.dpv_generation,
+                    summary.fossil_generation,
+                    summary.battery_discharge - summary.battery_charge
+                ],
+                name="Monthly Underlying"
+            ),
+            row=1, col=2
+        )
+        
+        # YTD Operational Demand (row 2, col 1)
+        fig.add_trace(
+            go.Pie(
+                labels=['Wind', 'Solar', 'Fossil', 'Battery Net'],
+                values=[
+                    ytd_summary['wind_generation'],
+                    ytd_summary['solar_generation'],
+                    ytd_summary.get('fossil_generation', 0),
+                    ytd_summary['battery_discharge'] - ytd_summary.get('battery_charge', 0)
+                ],
+                name="YTD Operational"
+            ),
+            row=2, col=1
+        )
+        
+        # YTD Underlying Demand (row 2, col 2)
+        fig.add_trace(
+            go.Pie(
+                labels=['Wind', 'Solar', 'DPV', 'Fossil', 'Battery Net'],
+                values=[
+                    ytd_summary['wind_generation'],
+                    ytd_summary['solar_generation'],
+                    ytd_summary['dpv_generation'],
+                    ytd_summary.get('fossil_generation', 0),
+                    ytd_summary['battery_discharge'] - ytd_summary.get('battery_charge', 0)
+                ],
+                name="YTD Underlying"
+            ),
+            row=2, col=2
+        )
         
         fig.update_layout(height=800, showlegend=True)
         return fig.to_html(include_plotlyjs='cdn')
@@ -40,14 +92,35 @@ class ChartGenerator:
         """Create average diurnal profile chart"""
         df = pd.DataFrame(diurnal_data)
         
+        if df.empty:
+            return "<p>No diurnal profile data available</p>"
+        
         fig = go.Figure()
         
+        # Plot underlying demand (includes DPV)
         fig.add_trace(go.Scatter(
             x=df['time_of_day'],
-            y=df['quantity'],
-            name='Average Demand',
+            y=df['underlying_demand'],
+            name='Underlying Demand',
             line=dict(color='blue', width=2)
         ))
+        
+        # Plot operational demand
+        fig.add_trace(go.Scatter(
+            x=df['time_of_day'],
+            y=df['operational_demand'],
+            name='Operational Demand',
+            line=dict(color='red', width=2, dash='dash')
+        ))
+        
+        # Plot DPV generation if available
+        if 'dpv_generation' in df.columns and df['dpv_generation'].sum() > 0:
+            fig.add_trace(go.Scatter(
+                x=df['time_of_day'],
+                y=df['dpv_generation'],
+                name='DPV Generation',
+                line=dict(color='orange', width=2, dash='dot')
+            ))
         
         if prices is not None:
             fig.add_trace(go.Scatter(
@@ -66,9 +139,16 @@ class ChartGenerator:
                 title='Price ($/MWh)',
                 overlaying='y',
                 side='right'
-            ),
+            ) if prices is not None else None,
             height=480,
-            width=640
+            hovermode='x unified',
+            legend=dict(
+                orientation="h",
+                yanchor="bottom",
+                y=1.02,
+                xanchor="right",
+                x=1
+            )
         )
         
         return fig.to_html(include_plotlyjs='cdn')

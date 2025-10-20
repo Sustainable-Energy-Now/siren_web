@@ -1,4 +1,4 @@
-<!-- templates/scada/load_analysis.html -->
+<!-- templates/scada/analysis.html -->
 {% extends 'scada/base.html' %}
 
 {% block title %}SWIS Load Analysis - {{ month_name }} {{ year }}{% endblock %}
@@ -292,7 +292,7 @@
 function loadPeriod() {
     const month = document.getElementById('month-select').value;
     const year = document.getElementById('year-select').value;
-    window.location.href = `/powerplot/load-analysis/${year}/${month}/`;
+    window.location.href = `/scada_analysis/${year}/${month}/`;
 }
 </script>
 
@@ -324,7 +324,7 @@ function navigateMonth(direction) {
         year--;
     }
     
-    window.location.href = `/powerplot/load-analysis/${year}/${month}/`;
+    window.location.href = `/scada_analysis/${year}/${month}/`;
 }
 </script>
 {% endblock %}

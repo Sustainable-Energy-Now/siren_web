@@ -1,8 +1,9 @@
-# powerplot/services/load_analyzer.py (updated)
+# powerplot/services/load_analyzer.py
 from django.db.models import Sum, Avg, F, Q
 from datetime import datetime, timedelta
 from decimal import Decimal
-from siren_web.models import FacilityScada, FacilityMetadata, LoadAnalysisSummary, DPVGeneration
+from siren_web.models import FacilityScada, LoadAnalysisSummary, DPVGeneration
+from siren_web.models import facilities
 import pandas as pd
 import logging
 
@@ -17,30 +18,12 @@ class LoadAnalyzer:
             end_date = datetime(year + 1, 1, 1)
         else:
             end_date = datetime(year, month + 1, 1)
-
-        # Get SCADA data with facility information
+        
+        # Get all SCADA data for the month with facility information
         scada_data = FacilityScada.objects.filter(
             dispatch_interval__gte=start_date,
             dispatch_interval__lt=end_date
         ).select_related('facility', 'facility__idtechnologies')
-        
-        if not scada_data.exists():
-            logger.warning(f"No SCADA data found for {year}-{month:02d}")
-            return None
-        
-        # Convert to DataFrame
-        scada_df = pd.DataFrame(scada_data.values(
-            'dispatch_interval',
-            'facility__facility_code',
-            'facility__idtechnologies__technology',
-            'quantity'
-        ))
-        
-        # Rename columns for easier access
-        scada_df.rename(columns={
-            'facility__facility_code': 'facility_code',
-            'facility__idtechnologies__technology': 'fuel_type'
-        }, inplace=True)
         
         # Get DPV data for the month
         dpv_data = DPVGeneration.objects.filter(
@@ -52,26 +35,27 @@ class LoadAnalyzer:
             logger.warning(f"No SCADA data found for {year}-{month:02d}")
             return None
         
-        # Convert to DataFrames
+        # Convert to DataFrame with corrected field names
         scada_df = pd.DataFrame(scada_data.values(
-            'dispatch_interval', 'facility_code', 'quantity'
+            'dispatch_interval',
+            'facility__facility_code',
+            'facility__idtechnologies__technology_name',  # Corrected field name
+            'quantity'
         ))
+        
+        # Rename columns for easier access
+        scada_df.rename(columns={
+            'facility__facility_code': 'facility_code',
+            'facility__idtechnologies__technology_name': 'technology_name'  # Corrected
+        }, inplace=True)
         
         dpv_df = pd.DataFrame(dpv_data.values(
             'trading_interval', 'estimated_generation'
         )) if dpv_data.exists() else pd.DataFrame()
         
-        # Get facility metadata
-        facilities = FacilityMetadata.objects.all()
-        facility_map = {f.code: f for f in facilities}
-        
-        # Categorize generation
-        scada_df['fuel_type'] = scada_df['facility_code'].map(
-            lambda x: facility_map[x].fuel_type if x in facility_map else 'OTHER'
-        )
-        scada_df['is_renewable'] = scada_df['facility_code'].map(
-            lambda x: facility_map[x].is_renewable if x in facility_map else False
-        )
+        # Categorize generation by fuel type
+        scada_df['fuel_type'] = scada_df['technology_name'].apply(self._categorize_technology)
+        scada_df['is_renewable'] = scada_df['fuel_type'].isin(['WIND', 'SOLAR', 'HYDRO', 'BIOMASS'])
         scada_df['is_battery'] = scada_df['fuel_type'] == 'BATTERY'
         
         # Convert 5-min intervals to energy (MWh)
@@ -80,7 +64,6 @@ class LoadAnalyzer:
         
         # Process DPV data
         if not dpv_df.empty:
-            # Determine interval duration based on data
             dpv_df['trading_interval'] = pd.to_datetime(dpv_df['trading_interval'])
             
             # Check if post-reform (5-min) or pre-reform (30-min)
@@ -100,7 +83,7 @@ class LoadAnalyzer:
         total_re_generation = float(scada_df[scada_df['is_renewable']]['energy_mwh'].sum())
         total_wind = float(scada_df[scada_df['fuel_type'] == 'WIND']['energy_mwh'].sum())
         total_solar = float(scada_df[scada_df['fuel_type'] == 'SOLAR']['energy_mwh'].sum())
-        # Positive = Discharge (generation), Negative = Charge (consumption)
+        
         total_battery_discharge = float(scada_df[
             (scada_df['is_battery']) & (scada_df['quantity'] > 0)
         ]['energy_mwh'].sum())
@@ -167,8 +150,61 @@ class LoadAnalyzer:
         
         action = "Created" if created else "Updated"
         logger.info(f"{action} monthly summary for {year}-{month:02d}")
+        logger.info(
+            f"Summary: Operational {operational_demand_gwh:.1f} GWh, "
+            f"RE {re_pct_operational:.1f}%, DPV {dpv_pct_underlying:.1f}%"
+        )
         
         return summary
+    
+    def _categorize_technology(self, tech_name):
+        """
+        Categorize technology name into fuel type
+        
+        Args:
+            tech_name: technology_name from Technologies model
+        
+        Returns:
+            str: fuel type category
+        """
+        if not tech_name:
+            return 'OTHER'
+        
+        tech_lower = str(tech_name).lower()
+        
+        # Wind
+        if 'wind' in tech_lower:
+            return 'WIND'
+        
+        # Solar
+        if 'solar' in tech_lower or 'pv' in tech_lower or 'photovoltaic' in tech_lower:
+            return 'SOLAR'
+        
+        # Battery
+        if 'battery' in tech_lower or 'bess' in tech_lower or 'storage' in tech_lower:
+            return 'BATTERY'
+        
+        # Gas
+        if any(term in tech_lower for term in ['gas', 'ccgt', 'ocgt', 'cogen', 'lng']):
+            return 'GAS'
+        
+        # Coal
+        if 'coal' in tech_lower:
+            return 'COAL'
+        
+        # Hydro
+        if 'hydro' in tech_lower:
+            return 'HYDRO'
+        
+        # Biomass
+        if 'biomass' in tech_lower or 'biogas' in tech_lower or 'landfill' in tech_lower:
+            return 'BIOMASS'
+        
+        # Diesel
+        if 'diesel' in tech_lower:
+            return 'DIESEL'
+        
+        return 'OTHER'
     
     def get_diurnal_profile(self, year, month):
         """Calculate average diurnal profile including DPV"""
@@ -218,8 +254,67 @@ class LoadAnalyzer:
             underlying_profile = operational_profile.add(dpv_profile, fill_value=0)
         else:
             underlying_profile = operational_profile
+            dpv_profile = pd.Series()
         
         # Convert to list of dicts
+        result = []
+        for time_of_day in sorted(underlying_profile.index):
+            result.append({
+                'time_of_day': float(time_of_day),
+                'operational_demand': float(operational_profile.get(time_of_day, 0)),
+                'underlying_demand': float(underlying_profile.get(time_of_day, 0)),
+                'dpv_generation': float(dpv_profile.get(time_of_day, 0)) if not dpv_df.empty else 0
+            })
+        
+        return result
+    
+    def get_diurnal_profile_ytd(self, year, month):
+        """Calculate YTD average diurnal profile"""
+        start_date = datetime(year, 1, 1)
+        if month == 12:
+            end_date = datetime(year + 1, 1, 1)
+        else:
+            end_date = datetime(year, month + 1, 1)
+        
+        return self._calculate_diurnal_for_range(start_date, end_date)
+    
+    def _calculate_diurnal_for_range(self, start_date, end_date):
+        """Helper method to calculate diurnal profile for any date range"""
+        scada_data = FacilityScada.objects.filter(
+            dispatch_interval__gte=start_date,
+            dispatch_interval__lt=end_date
+        )
+        
+        dpv_data = DPVGeneration.objects.filter(
+            trading_date__gte=start_date.date(),
+            trading_date__lt=end_date.date()
+        )
+        
+        scada_df = pd.DataFrame(scada_data.values())
+        dpv_df = pd.DataFrame(dpv_data.values()) if dpv_data.exists() else pd.DataFrame()
+        
+        if scada_df.empty:
+            return []
+        
+        scada_df['datetime'] = pd.to_datetime(scada_df['dispatch_interval'])
+        scada_df['hour'] = scada_df['datetime'].dt.hour
+        scada_df['minute'] = scada_df['datetime'].dt.minute
+        scada_df['time_of_day'] = scada_df['hour'] + scada_df['minute'] / 60
+        
+        operational_profile = scada_df.groupby('time_of_day')['quantity'].mean()
+        
+        if not dpv_df.empty:
+            dpv_df['datetime'] = pd.to_datetime(dpv_df['trading_interval'])
+            dpv_df['hour'] = dpv_df['datetime'].dt.hour
+            dpv_df['minute'] = dpv_df['datetime'].dt.minute
+            dpv_df['time_of_day'] = dpv_df['hour'] + dpv_df['minute'] / 60
+            
+            dpv_profile = dpv_df.groupby('time_of_day')['estimated_generation'].mean()
+            underlying_profile = operational_profile.add(dpv_profile, fill_value=0)
+        else:
+            underlying_profile = operational_profile
+            dpv_profile = pd.Series()
+        
         result = []
         for time_of_day in sorted(underlying_profile.index):
             result.append({

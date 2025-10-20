@@ -5,6 +5,28 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "Python Debugger: Analyze Load",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}\\manage.py",
+            "args": [
+                "analyze_load", "--year", "2024", "--month", "1"
+            ],
+            "django": true,
+            "autoStartBrowser": false
+        },
+        {
+            "name": "Python Debugger: DPV",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}\\manage.py",
+            "args": [
+                "fetch_dpv", "--year", "2024"
+            ],
+            "django": true,
+            "autoStartBrowser": false
+        },
+        {
             "name": "Python Debugger: wind turbines",
             "type": "debugpy",
             "request": "launch",

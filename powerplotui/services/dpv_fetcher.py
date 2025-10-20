@@ -4,7 +4,7 @@ import csv
 import io
 from datetime import datetime, timedelta
 from decimal import Decimal
-from django.db import transaction
+from django.db import transaction, connection
 from django.utils import timezone
 import pytz
 from siren_web.models import DPVGeneration
@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 class DPVDataFetcher:
     """Fetch and store DPV generation estimates from AEMO"""
     
-    BASE_URL = "https://aemo.com.au/aemo/data/wa/infographic/generation-mix/"
+    BASE_URL = "https://data.wa.aemo.com.au/datafiles/distributed-pv/"
     AWST = pytz.timezone('Australia/Perth')
     
     def __init__(self):
@@ -40,8 +40,8 @@ class DPVDataFetcher:
             year = year or now.year
             month = month or now.month
         
-        # Construct filename - AEMO typically uses format like: dpv-estimates-YYYYMM.csv
-        filename = f"estimated-dpv-{year}{month:02d}.csv"
+        # Construct filename - AEMO uses format: distributed-pv-YYYY.csv
+        filename = f"distributed-pv-{year}.csv"
         url = f"{self.BASE_URL}{filename}"
         
         try:
@@ -49,7 +49,7 @@ class DPVDataFetcher:
             response = self.session.get(url, timeout=60)
             response.raise_for_status()
             
-            records = self._parse_csv(response.text)
+            records = self._parse_csv(response.text, year, month)
             saved_count = self._save_data(records)
             
             logger.info(f"Successfully saved {saved_count} DPV records for {year}-{month:02d}")
@@ -57,37 +57,12 @@ class DPVDataFetcher:
             
         except requests.RequestException as e:
             logger.error(f"Error fetching DPV data from {url}: {e}")
-            # Try alternative URL pattern
-            return self._try_alternative_url(year, month)
+            raise
         except Exception as e:
             logger.error(f"Error processing DPV data: {e}")
             raise
     
-    def _try_alternative_url(self, year, month):
-        """Try alternative URL patterns for DPV data"""
-        alternative_patterns = [
-            f"https://data.wa.aemo.com.au/public/public-data/datafiles/facility-scada/estimated-dpv/estimated-dpv-{year}{month:02d}.csv",
-            f"https://aemo.com.au/-/media/files/electricity/wem/data/estimated-dpv-{year}-{month:02d}.csv",
-        ]
-        
-        for url in alternative_patterns:
-            try:
-                logger.info(f"Trying alternative URL: {url}")
-                response = self.session.get(url, timeout=60)
-                response.raise_for_status()
-                
-                records = self._parse_csv(response.text)
-                saved_count = self._save_data(records)
-                
-                logger.info(f"Successfully fetched from alternative URL: {saved_count} records")
-                return saved_count
-            except Exception as e:
-                logger.warning(f"Alternative URL failed: {url} - {e}")
-                continue
-        
-        raise Exception(f"Could not fetch DPV data for {year}-{month:02d} from any URL")
-    
-    def _parse_csv(self, csv_content):
+    def _parse_csv(self, csv_content, year=None, month=None):
         """Parse CSV content into list of records"""
         records = []
         csv_file = io.StringIO(csv_content)
@@ -96,21 +71,28 @@ class DPVDataFetcher:
         # Handle different possible header formats
         headers = reader.fieldnames
         
-        # Map possible column names
+        # Map possible column names (case-insensitive)
         date_col = next((h for h in headers if 'trading date' in h.lower()), None)
         interval_num_col = next((h for h in headers if 'interval number' in h.lower()), None)
         interval_col = next((h for h in headers if 'trading interval' in h.lower()), None)
-        generation_col = next((h for h in headers if 'dpv generation' in h.lower()), None)
+        generation_col = next((h for h in headers if 'dpv generation' in h.lower() or 'estimated dpv' in h.lower()), None)
         extracted_col = next((h for h in headers if 'extracted' in h.lower()), None)
         
         if not all([date_col, interval_num_col, generation_col]):
             raise ValueError(f"Required columns not found. Headers: {headers}")
         
+        logger.info(f"CSV columns mapped - Date: {date_col}, Interval: {interval_num_col}, Generation: {generation_col}")
+        
+        row_count = 0
         for row in reader:
             try:
                 # Parse trading date
                 trading_date_str = row[date_col].strip()
                 trading_date = self._parse_date(trading_date_str)
+                
+                # Filter by month if specified (since file contains whole year)
+                if month and trading_date.month != month:
+                    continue
                 
                 # Parse interval number
                 interval_number = int(row[interval_num_col].strip())
@@ -136,6 +118,9 @@ class DPVDataFetcher:
                 
                 # Parse generation value
                 generation_str = row[generation_col].strip()
+                if not generation_str or generation_str == '':
+                    continue
+                    
                 estimated_generation = Decimal(generation_str)
                 
                 # Parse extracted_at
@@ -152,10 +137,15 @@ class DPVDataFetcher:
                     'extracted_at': extracted_at
                 })
                 
+                row_count += 1
+                if row_count % 10000 == 0:
+                    logger.info(f"Parsed {row_count} rows...")
+                
             except (ValueError, KeyError) as e:
                 logger.warning(f"Error parsing row: {row}. Error: {e}")
                 continue
         
+        logger.info(f"Parsed {len(records)} valid DPV records")
         return records
     
     def _parse_date(self, date_str):
@@ -194,54 +184,65 @@ class DPVDataFetcher:
     
     @transaction.atomic
     def _save_data(self, records):
-        """Bulk insert/update DPV records"""
+        """
+        Bulk upsert for MariaDB using raw SQL
+        Uses INSERT ... ON DUPLICATE KEY UPDATE for maximum performance
+        """
         if not records:
+            logger.warning("No records to save")
             return 0
         
-        objects_to_create = []
+        # Use raw SQL for MariaDB's efficient bulk upsert
+        sql = """
+            INSERT INTO dpv_generation 
+                (trading_date, interval_number, trading_interval, estimated_generation, extracted_at, created_at)
+            VALUES 
+                (%s, %s, %s, %s, %s, NOW())
+            ON DUPLICATE KEY UPDATE
+                estimated_generation = VALUES(estimated_generation),
+                extracted_at = VALUES(extracted_at)
+        """
         
-        for record in records:
-            objects_to_create.append(
-                DPVGeneration(
-                    trading_date=record['trading_date'],
-                    interval_number=record['interval_number'],
-                    trading_interval=record['trading_interval'],
-                    estimated_generation=record['estimated_generation'],
-                    extracted_at=record['extracted_at']
-                )
+        values = [
+            (
+                r['trading_date'],
+                r['interval_number'],
+                r['trading_interval'],
+                r['estimated_generation'],
+                r['extracted_at']
             )
+            for r in records
+        ]
         
-        # Use bulk_create with update on conflict (PostgreSQL)
-        try:
-            DPVGeneration.objects.bulk_create(
-                objects_to_create,
-                update_conflicts=True,
-                update_fields=['estimated_generation', 'extracted_at'],
-                unique_fields=['trading_date', 'interval_number']
-            )
-        except Exception as e:
-            # Fallback for databases that don't support bulk_create with conflicts
-            logger.warning(f"Bulk create with conflicts failed, using update_or_create: {e}")
-            for obj in objects_to_create:
-                DPVGeneration.objects.update_or_create(
-                    trading_date=obj.trading_date,
-                    interval_number=obj.interval_number,
-                    defaults={
-                        'trading_interval': obj.trading_interval,
-                        'estimated_generation': obj.estimated_generation,
-                        'extracted_at': obj.extracted_at
-                    }
-                )
+        batch_size = 1000
+        total_saved = 0
         
-        return len(objects_to_create)
+        with connection.cursor() as cursor:
+            for i in range(0, len(values), batch_size):
+                batch = values[i:i + batch_size]
+                
+                try:
+                    cursor.executemany(sql, batch)
+                    total_saved += len(batch)
+                    
+                    if i % 5000 == 0 and i > 0:
+                        logger.info(f"Progress: {i}/{len(values)} records saved")
+                    
+                except Exception as e:
+                    logger.error(f"Error executing batch at position {i}: {e}")
+                    # Continue with next batch instead of failing completely
+                    continue
+        
+        logger.info(f"MariaDB bulk upsert completed: {total_saved} records processed")
+        return total_saved
     
     def fetch_date_range(self, start_date, end_date):
         """Fetch DPV data for a range of months"""
         current_date = start_date.replace(day=1)
-        end_date = end_date.replace(day=1)
+        end_date_normalized = end_date.replace(day=1)
         total_saved = 0
         
-        while current_date <= end_date:
+        while current_date <= end_date_normalized:
             try:
                 count = self.fetch_dpv_data(current_date.year, current_date.month)
                 total_saved += count
@@ -256,3 +257,41 @@ class DPVDataFetcher:
                 current_date = current_date.replace(month=current_date.month + 1)
         
         return total_saved
+    
+    def fetch_year(self, year):
+        """
+        Fetch DPV data for an entire year
+        Since the file contains all months, this is efficient
+        
+        Args:
+            year: int, year to fetch
+        
+        Returns:
+            int: number of records saved
+        """
+        filename = f"distributed-pv-{year}.csv"
+        url = f"{self.BASE_URL}{filename}"
+        
+        try:
+            logger.info(f"Fetching DPV data for entire year {year} from {url}")
+            response = self.session.get(url, timeout=120)
+            response.raise_for_status()
+            
+            # Parse entire year (no month filter)
+            records = self._parse_csv(response.text, year=year, month=None)
+            saved_count = self._save_data(records)
+            
+            logger.info(f"Successfully saved {saved_count} DPV records for year {year}")
+            return saved_count
+            
+        except requests.RequestException as e:
+            logger.error(f"Error fetching DPV data from {url}: {e}")
+            raise
+        except Exception as e:
+            logger.error(f"Error processing DPV data: {e}")
+            raise
+    
+    def verify_data_exists(self, trading_date):
+        """Check if DPV data exists for a given trading date"""
+        count = DPVGeneration.objects.filter(trading_date=trading_date).count()
+        return count > 0, count

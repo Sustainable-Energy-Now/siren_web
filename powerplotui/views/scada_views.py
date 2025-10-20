@@ -131,14 +131,21 @@ def aggregate_summaries(summaries):
             'operational_demand': 0,
             'underlying_demand': 0,
             'battery_discharge': 0,
+            'battery_charge': 0,
+            'fossil_generation': 0,
             're_percentage_operational': 0,
             're_percentage_underlying': 0,
+            'dpv_generation': 0,
+            'wind_generation': 0,
+            'solar_generation': 0,
         }
     
     total = {
         'operational_demand': sum(s.operational_demand for s in summaries),
         'underlying_demand': sum(s.underlying_demand for s in summaries),
         'battery_discharge': sum(s.battery_discharge for s in summaries),
+        'battery_charge': sum(s.battery_charge for s in summaries),
+        'fossil_generation': sum(s.fossil_generation for s in summaries),
         'dpv_generation': sum(s.dpv_generation for s in summaries),
         'wind_generation': sum(s.wind_generation for s in summaries),
         'solar_generation': sum(s.solar_generation for s in summaries),
