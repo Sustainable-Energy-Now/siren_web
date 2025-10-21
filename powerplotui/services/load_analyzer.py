@@ -206,70 +206,30 @@ class LoadAnalyzer:
         
         return 'OTHER'
     
+    # powerplotui/services/load_analyzer.py (updated methods)
+
+from django.db.models import Avg, Sum, Count
+from django.db.models.functions import ExtractHour, ExtractMinute
+import logging
+
+logger = logging.getLogger(__name__)
+
+class LoadAnalyzer:
+    
+    # ... (keep existing calculate_monthly_summary and other methods) ...
+    
     def get_diurnal_profile(self, year, month):
-        """Calculate average diurnal profile including DPV"""
+        """Calculate average diurnal profile including DPV - memory efficient"""
         start_date = datetime(year, month, 1)
         if month == 12:
             end_date = datetime(year + 1, 1, 1)
         else:
             end_date = datetime(year, month + 1, 1)
         
-        # Get SCADA data
-        scada_data = FacilityScada.objects.filter(
-            dispatch_interval__gte=start_date,
-            dispatch_interval__lt=end_date
-        )
-        
-        # Get DPV data
-        dpv_data = DPVGeneration.objects.filter(
-            trading_date__gte=start_date.date(),
-            trading_date__lt=end_date.date()
-        )
-        
-        scada_df = pd.DataFrame(scada_data.values())
-        dpv_df = pd.DataFrame(dpv_data.values()) if dpv_data.exists() else pd.DataFrame()
-        
-        if scada_df.empty:
-            return []
-        
-        # Process SCADA
-        scada_df['datetime'] = pd.to_datetime(scada_df['dispatch_interval'])
-        scada_df['hour'] = scada_df['datetime'].dt.hour
-        scada_df['minute'] = scada_df['datetime'].dt.minute
-        scada_df['time_of_day'] = scada_df['hour'] + scada_df['minute'] / 60
-        
-        # Aggregate by time of day
-        operational_profile = scada_df.groupby('time_of_day')['quantity'].mean()
-        
-        # Process DPV if available
-        if not dpv_df.empty:
-            dpv_df['datetime'] = pd.to_datetime(dpv_df['trading_interval'])
-            dpv_df['hour'] = dpv_df['datetime'].dt.hour
-            dpv_df['minute'] = dpv_df['datetime'].dt.minute
-            dpv_df['time_of_day'] = dpv_df['hour'] + dpv_df['minute'] / 60
-            
-            dpv_profile = dpv_df.groupby('time_of_day')['estimated_generation'].mean()
-            
-            # Combine for underlying demand
-            underlying_profile = operational_profile.add(dpv_profile, fill_value=0)
-        else:
-            underlying_profile = operational_profile
-            dpv_profile = pd.Series()
-        
-        # Convert to list of dicts
-        result = []
-        for time_of_day in sorted(underlying_profile.index):
-            result.append({
-                'time_of_day': float(time_of_day),
-                'operational_demand': float(operational_profile.get(time_of_day, 0)),
-                'underlying_demand': float(underlying_profile.get(time_of_day, 0)),
-                'dpv_generation': float(dpv_profile.get(time_of_day, 0)) if not dpv_df.empty else 0
-            })
-        
-        return result
+        return self._calculate_diurnal_for_range(start_date, end_date)
     
     def get_diurnal_profile_ytd(self, year, month):
-        """Calculate YTD average diurnal profile"""
+        """Calculate YTD average diurnal profile - memory efficient"""
         start_date = datetime(year, 1, 1)
         if month == 12:
             end_date = datetime(year + 1, 1, 1)
@@ -279,49 +239,70 @@ class LoadAnalyzer:
         return self._calculate_diurnal_for_range(start_date, end_date)
     
     def _calculate_diurnal_for_range(self, start_date, end_date):
-        """Helper method to calculate diurnal profile for any date range"""
-        scada_data = FacilityScada.objects.filter(
+        """
+        Helper method to calculate diurnal profile for any date range
+        Uses database-level aggregation to avoid memory issues
+        """
+        logger.info(f"Calculating diurnal profile from {start_date} to {end_date}")
+        
+        # Use database aggregation instead of loading all data into pandas
+        # This groups by hour and minute, then averages across all days
+        from django.db.models import F, FloatField
+        from django.db.models.functions import Cast
+        
+        # Aggregate SCADA data by time of day
+        scada_aggregated = FacilityScada.objects.filter(
             dispatch_interval__gte=start_date,
             dispatch_interval__lt=end_date
-        )
+        ).annotate(
+            hour=ExtractHour('dispatch_interval'),
+            minute=ExtractMinute('dispatch_interval')
+        ).values('hour', 'minute').annotate(
+            avg_quantity=Avg('quantity')
+        ).order_by('hour', 'minute')
         
-        dpv_data = DPVGeneration.objects.filter(
+        # Convert to dict keyed by time_of_day
+        operational_profile = {}
+        for item in scada_aggregated:
+            time_of_day = item['hour'] + item['minute'] / 60.0
+            operational_profile[time_of_day] = float(item['avg_quantity'] or 0)
+        
+        logger.info(f"Aggregated {len(operational_profile)} SCADA time points")
+        
+        # Aggregate DPV data by time of day
+        dpv_aggregated = DPVGeneration.objects.filter(
             trading_date__gte=start_date.date(),
             trading_date__lt=end_date.date()
-        )
+        ).annotate(
+            hour=ExtractHour('trading_interval'),
+            minute=ExtractMinute('trading_interval')
+        ).values('hour', 'minute').annotate(
+            avg_generation=Avg('estimated_generation')
+        ).order_by('hour', 'minute')
         
-        scada_df = pd.DataFrame(scada_data.values())
-        dpv_df = pd.DataFrame(dpv_data.values()) if dpv_data.exists() else pd.DataFrame()
+        # Convert to dict keyed by time_of_day
+        dpv_profile = {}
+        for item in dpv_aggregated:
+            time_of_day = item['hour'] + item['minute'] / 60.0
+            dpv_profile[time_of_day] = float(item['avg_generation'] or 0)
         
-        if scada_df.empty:
-            return []
+        logger.info(f"Aggregated {len(dpv_profile)} DPV time points")
         
-        scada_df['datetime'] = pd.to_datetime(scada_df['dispatch_interval'])
-        scada_df['hour'] = scada_df['datetime'].dt.hour
-        scada_df['minute'] = scada_df['datetime'].dt.minute
-        scada_df['time_of_day'] = scada_df['hour'] + scada_df['minute'] / 60
-        
-        operational_profile = scada_df.groupby('time_of_day')['quantity'].mean()
-        
-        if not dpv_df.empty:
-            dpv_df['datetime'] = pd.to_datetime(dpv_df['trading_interval'])
-            dpv_df['hour'] = dpv_df['datetime'].dt.hour
-            dpv_df['minute'] = dpv_df['datetime'].dt.minute
-            dpv_df['time_of_day'] = dpv_df['hour'] + dpv_df['minute'] / 60
-            
-            dpv_profile = dpv_df.groupby('time_of_day')['estimated_generation'].mean()
-            underlying_profile = operational_profile.add(dpv_profile, fill_value=0)
-        else:
-            underlying_profile = operational_profile
-            dpv_profile = pd.Series()
+        # Combine profiles
+        all_times = sorted(set(operational_profile.keys()) | set(dpv_profile.keys()))
         
         result = []
-        for time_of_day in sorted(underlying_profile.index):
+        for time_of_day in all_times:
+            operational = operational_profile.get(time_of_day, 0)
+            dpv = dpv_profile.get(time_of_day, 0)
+            underlying = operational + dpv
+            
             result.append({
                 'time_of_day': float(time_of_day),
-                'operational_demand': float(operational_profile.get(time_of_day, 0)),
-                'underlying_demand': float(underlying_profile.get(time_of_day, 0)),
-                'dpv_generation': float(dpv_profile.get(time_of_day, 0)) if not dpv_df.empty else 0
+                'operational_demand': float(operational),
+                'dpv_generation': float(dpv),
+                'underlying_demand': float(underlying)
             })
         
+        logger.info(f"Generated diurnal profile with {len(result)} time points")
         return result

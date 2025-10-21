@@ -259,48 +259,9 @@ def get_system_wide_terminal_statistics():
         'average_voltage_kv': terminals.aggregate(
             Avg('primary_voltage_kv')
         )['primary_voltage_kv__avg'] or 0,
-        'voltage_distribution': {},
-        'terminal_type_distribution': {},
         'terminals_with_connections': 0,
         'terminals_without_connections': 0,
     }
-    
-    # Voltage distribution
-    for terminal in terminals:
-        voltage = terminal.primary_voltage_kv
-        voltage_class = None
-        
-        if voltage >= 330:
-            voltage_class = '330+ kV'
-        elif voltage >= 220:
-            voltage_class = '220-330 kV'
-        elif voltage >= 132:
-            voltage_class = '132-220 kV'
-        elif voltage >= 66:
-            voltage_class = '66-132 kV'
-        else:
-            voltage_class = '< 66 kV'
-        
-        if voltage_class not in stats['voltage_distribution']:
-            stats['voltage_distribution'][voltage_class] = 0
-        stats['voltage_distribution'][voltage_class] += 1
-    
-    # Terminal type distribution
-    for terminal in terminals:
-        terminal_type = terminal.get_terminal_type_display()
-        if terminal_type not in stats['terminal_type_distribution']:
-            stats['terminal_type_distribution'][terminal_type] = 0
-        stats['terminal_type_distribution'][terminal_type] += 1
-    
-    # Connection statistics
-    for terminal in terminals:
-        if terminal.get_connected_grid_lines().exists():
-            stats['terminals_with_connections'] += 1
-        else:
-            stats['terminals_without_connections'] += 1
-    
-    return stats
-
 
 def suggest_terminal_connections(terminal, max_distance_km=50):
     """
