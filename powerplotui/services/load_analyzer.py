@@ -149,12 +149,6 @@ class LoadAnalyzer:
         )
         
         action = "Created" if created else "Updated"
-        logger.info(f"{action} monthly summary for {year}-{month:02d}")
-        logger.info(
-            f"Summary: Operational {operational_demand_gwh:.1f} GWh, "
-            f"RE {re_pct_operational:.1f}%, DPV {dpv_pct_underlying:.1f}%"
-        )
-        
         return summary
     
     def _categorize_technology(self, tech_name):
@@ -231,8 +225,6 @@ class LoadAnalyzer:
         Helper method to calculate diurnal profile for any date range
         Uses database-level aggregation to avoid memory issues
         """
-        logger.info(f"Calculating diurnal profile from {start_date} to {end_date}")
-        
         # Use database aggregation instead of loading all data into pandas
         # This groups by hour and minute, then averages across all days
         from django.db.models import F, FloatField
@@ -254,9 +246,7 @@ class LoadAnalyzer:
         for item in scada_aggregated:
             time_of_day = item['hour'] + item['minute'] / 60.0
             operational_profile[time_of_day] = float(item['avg_quantity'] or 0)
-        
-        logger.info(f"Aggregated {len(operational_profile)} SCADA time points")
-        
+
         # Aggregate DPV data by time of day
         dpv_aggregated = DPVGeneration.objects.filter(
             trading_date__gte=start_date.date(),
@@ -274,8 +264,6 @@ class LoadAnalyzer:
             time_of_day = item['hour'] + item['minute'] / 60.0
             dpv_profile[time_of_day] = float(item['avg_generation'] or 0)
         
-        logger.info(f"Aggregated {len(dpv_profile)} DPV time points")
-        
         # Combine profiles
         all_times = sorted(set(operational_profile.keys()) | set(dpv_profile.keys()))
         
@@ -292,5 +280,4 @@ class LoadAnalyzer:
                 'underlying_demand': float(underlying)
             })
         
-        logger.info(f"Generated diurnal profile with {len(result)} time points")
         return result

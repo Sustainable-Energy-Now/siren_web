@@ -35,6 +35,8 @@ urlpatterns = [
     # Scada-related URLs
     path('scada_analysis/', scada_views.scada_analysis_report, name='scada_analysis'),
     path('scada_analysis/<int:year>/<int:month>/', scada_views.scada_analysis_report, name='scada_analysis_detail'),
+    # Export historical data endpoint
+    path('scada_analysis/export/', scada_views.export_historical_data, name='export_historical_data'),
     
     # Miscellaneous URLs
     path('trading_prices/', tradingprice_views.trading_price_list, name='trading_price_list'),

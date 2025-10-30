@@ -39,12 +39,6 @@
         <button onclick="window.print()" style="background: #95a5a6;">Print Report</button>
     </div>
 
-    <div class="info-box warning">
-        <h4>⚠ Important Note</h4>
-        <p><em>Effective 1 October 2023, the WEM moved to 5-minute trading intervals. Relationships between 
-        figures from October 1, 2023 onwards (post-reform) and prior to (pre-reform) are somewhat suspect.</em></p>
-    </div>
-
     <!-- Key Metrics Overview -->
     <h2>{{ month_name }} {{ year }} - Key Metrics</h2>
 
@@ -236,212 +230,283 @@
                 <td class="value positive">{{ ytd_changes.operational_demand|floatformat:1 }}%</td>
             </tr>
             <tr>
-                <td>RE % of Operational Demand</td>
+                <td>Underlying Demand</td>
+                <td class="value">{{ ytd_summary.underlying_demand|floatformat:1 }} GWh</td>
+                <td class="value">{{ ytd_prev_summary.underlying_demand|floatformat:1 }} GWh</td>
+                <td class="value">N/A</td>
+            </tr>
+            <tr>
+                <td>DPV Generation</td>
+                <td class="value">{{ ytd_summary.dpv_generation|floatformat:1 }} GWh</td>
+                <td class="value">{{ ytd_prev_summary.dpv_generation|floatformat:1 }} GWh</td>
+                <td class="value">N/A</td>
+            </tr>
+            <tr>
+                <td>Wind Generation</td>
+                <td class="value">{{ ytd_summary.wind_generation|floatformat:1 }} GWh</td>
+                <td class="value">{{ ytd_prev_summary.wind_generation|floatformat:1 }} GWh</td>
+                <td class="value">N/A</td>
+            </tr>
+            <tr>
+                <td>Solar Generation</td>
+                <td class="value">{{ ytd_summary.solar_generation|floatformat:1 }} GWh</td>
+                <td class="value">{{ ytd_prev_summary.solar_generation|floatformat:1 }} GWh</td>
+                <td class="value">N/A</td>
+            </tr>
+            <tr>
+                <td>Battery Discharge</td>
+                <td class="value">{{ ytd_summary.battery_discharge|floatformat:1 }} GWh</td>
+                <td class="value">{{ ytd_prev_summary.battery_discharge|floatformat:1 }} GWh</td>
+                <td class="value">N/A</td>
+            </tr>
+            <tr>
+                <td>Fossil Generation</td>
+                <td class="value">{{ ytd_summary.fossil_generation|floatformat:1 }} GWh</td>
+                <td class="value">{{ ytd_prev_summary.fossil_generation|floatformat:1 }} GWh</td>
+                <td class="value">N/A</td>
+            </tr>
+            <tr class="total-row">
+                <td><strong>RE % of Operational</strong></td>
                 <td class="value">{{ ytd_summary.re_percentage_operational|floatformat:1 }}%</td>
                 <td class="value">{{ ytd_prev_summary.re_percentage_operational|floatformat:1 }}%</td>
-                <td class="value">-</td>
+                <td class="value">
+                    {% if ytd_summary.re_percentage_operational > ytd_prev_summary.re_percentage_operational %}
+                        +{{ ytd_summary.re_percentage_operational|floatformat:1|add:"-"|add:ytd_prev_summary.re_percentage_operational|floatformat:1 }}pp
+                    {% else %}
+                        {{ ytd_summary.re_percentage_operational|floatformat:1|add:"-"|add:ytd_prev_summary.re_percentage_operational|floatformat:1 }}pp
+                    {% endif %}
+                </td>
             </tr>
-            <tr>
-                <td><strong>RE % of Underlying Demand</strong></td>
-                <td class="value"><strong>{{ ytd_summary.re_percentage_underlying|floatformat:1 }}%</strong></td>
+            <tr class="total-row">
+                <td><strong>RE % of Underlying</strong></td>
+                <td class="value">{{ ytd_summary.re_percentage_underlying|floatformat:1 }}%</td>
                 <td class="value">{{ ytd_prev_summary.re_percentage_underlying|floatformat:1 }}%</td>
-                <td class="value">-</td>
-            </tr>
-            <tr>
-                <td>DPV % of Underlying Demand</td>
-                <td class="value">{{ ytd_summary.dpv_percentage_underlying|floatformat:1 }}%</td>
-                <td class="value">{{ ytd_prev_summary.dpv_percentage_underlying|floatformat:1 }}%</td>
-                <td class="value">-</td>
-            </tr>
-            <tr>
-                <td>BESS % of Operational Demand</td>
-                <td class="value">{{ ytd_bess_percentage|floatformat:1 }}%</td>
-                <td class="value">{{ ytd_prev_bess_percentage|floatformat:1 }}%</td>
-                <td class="value">-</td>
+                <td class="value">N/A</td>
             </tr>
         </tbody>
     </table>
 
-    <!-- BESS Note -->
-    <h2>Notes on Battery Storage (BESS)</h2>
-
-    <div class="info-box warning">
-        <h4>BESS and RE Percentage Calculation</h4>
-        <p>In calculating RE percentage, the assumption is made that BESS are only recharged by RE generation. 
-        This is not entirely correct and may inflate the RE percentage by approximately 2.1%.</p>
+    <div class="info-box" style="margin-top: 30px;">
+        <h4>YTD {{ year }} BESS Metrics</h4>
+        <ul class="bullet-list">
+            <li>BESS represented <span class="highlight">{{ ytd_bess_percentage|floatformat:1 }}%</span> 
+                of Operational demand (vs <span class="highlight">{{ ytd_prev_bess_percentage|floatformat:1 }}%</span> in {{ year|add:"-1" }})</li>
+            <li>Round-trip efficiency: <span class="highlight">{{ ytd_bess_efficiency|floatformat:1 }}%</span></li>
+        </ul>
     </div>
-
-    <table class="stats-table" style="margin-top: 20px;">
-        <thead>
-            <tr>
-                <th>BESS Metrics</th>
-                <th class="value">{{ month_name }}</th>
-                <th class="value">YTD</th>
-            </tr>
-        </thead>
-        <tbody>
-            <tr>
-                <td>Total Discharge</td>
-                <td class="value">{{ summary.battery_discharge|floatformat:1 }} GWh</td>
-                <td class="value">{{ ytd_summary.battery_discharge|floatformat:1 }} GWh</td>
-            </tr>
-            <tr>
-                <td>Total Charge</td>
-                <td class="value">{{ summary.battery_charge|floatformat:1 }} GWh</td>
-                <td class="value">{{ ytd_summary.battery_charge|floatformat:1 }} GWh</td>
-            </tr>
-            <tr>
-                <td>Round-trip Efficiency</td>
-                <td class="value">{{ bess_efficiency|floatformat:1 }}%</td>
-                <td class="value">{{ ytd_bess_efficiency|floatformat:1 }}%</td>
-            </tr>
-        </tbody>
-    </table>
 </div>
 
 <!-- Tab: Historical Data -->
 <div id="historical-data" class="tab-content">
-    <h2>Historical Trends</h2>
-    <p style="color: #7f8c8d;">View long-term trends in demand and renewable energy penetration.</p>
+    <h2>Historical Trends & Analysis</h2>
+    <p style="color: #7f8c8d; margin-bottom: 30px;">
+        View long-term trends in demand, renewable energy penetration, and generation mix.
+    </p>
+
+    <!-- Time Range Selector -->
+    <div class="historical-controls">
+        <label for="hist-view-select"><strong>View:</strong></label>
+        <select id="hist-view-select" onchange="updateHistoricalView()">
+            <option value="monthly">Monthly Data</option>
+            <option value="yearly">Annual Comparison</option>
+        </select>
+        
+        <label for="hist-year-start"><strong>From:</strong></label>
+        <select id="hist-year-start">
+            {% for y in available_years %}
+            <option value="{{ y }}" {% if y == year|add:"-2" %}selected{% endif %}>{{ y }}</option>
+            {% endfor %}
+        </select>
+        
+        <label for="hist-year-end"><strong>To:</strong></label>
+        <select id="hist-year-end">
+            {% for y in available_years %}
+            <option value="{{ y }}" {% if y == year %}selected{% endif %}>{{ y }}</option>
+            {% endfor %}
+        </select>
+        
+        <button onclick="loadHistoricalData()">Update View</button>
+        <button onclick="exportHistoricalData()" style="background: #27ae60;">Export CSV</button>
+    </div>
+
+    <!-- Trend Charts -->
+    <h3>Demand Trends</h3>
+    <div class="chart-container">
+        <div class="chart-title">Operational and Underlying Demand Over Time</div>
+        {{ historical_demand_chart|safe }}
+    </div>
+
+    <h3>Renewable Energy Penetration</h3>
+    <div class="chart-container">
+        <div class="chart-title">RE Percentage of Operational and Underlying Demand</div>
+        <p style="text-align: center; color: #7f8c8d; margin-bottom: 20px;">
+            Track renewable energy penetration progress over time
+        </p>
+        {{ historical_re_chart|safe }}
+    </div>
+
+    <h3>Generation Mix Evolution</h3>
+    <div class="chart-container">
+        <div class="chart-title">Energy Sources Over Time</div>
+        {{ historical_mix_chart|safe }}
+    </div>
+
+    <!-- Comparison Table -->
+    <h3>Period Comparison Table</h3>
+    
     <div class="info-box">
-        <p>This feature will display historical data trends across multiple years. Coming soon.</p>
+        <p><strong>Tip:</strong> Click on column headers to sort. All values are in GWh unless otherwise specified.</p>
+    </div>
+
+    <div class="table-wrapper">
+        <table class="stats-table historical-table" id="historical-table">
+            <thead>
+                <tr>
+                    <th onclick="sortTable(0)">Period <span class="sort-icon">⇅</span></th>
+                    <th onclick="sortTable(1)" class="value">Operational<br>Demand (GWh) <span class="sort-icon">⇅</span></th>
+                    <th onclick="sortTable(2)" class="value">Underlying<br>Demand (GWh) <span class="sort-icon">⇅</span></th>
+                    <th onclick="sortTable(3)" class="value">Wind<br>(GWh) <span class="sort-icon">⇅</span></th>
+                    <th onclick="sortTable(4)" class="value">Solar<br>(GWh) <span class="sort-icon">⇅</span></th>
+                    <th onclick="sortTable(5)" class="value">DPV<br>(GWh) <span class="sort-icon">⇅</span></th>
+                    <th onclick="sortTable(6)" class="value">Fossil<br>(GWh) <span class="sort-icon">⇅</span></th>
+                    <th onclick="sortTable(7)" class="value">RE %<br>Operational <span class="sort-icon">⇅</span></th>
+                    <th onclick="sortTable(8)" class="value">RE %<br>Underlying <span class="sort-icon">⇅</span></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for record in historical_data %}
+                <tr class="{% cycle 'odd' 'even' %}">
+                    <td><strong>{{ record.period_label }}</strong></td>
+                    <td class="value">{{ record.operational_demand|floatformat:1 }}</td>
+                    <td class="value">{{ record.underlying_demand|floatformat:1 }}</td>
+                    <td class="value">{{ record.wind_generation|floatformat:1 }}</td>
+                    <td class="value">{{ record.solar_generation|floatformat:1 }}</td>
+                    <td class="value">{{ record.dpv_generation|floatformat:1 }}</td>
+                    <td class="value">{{ record.fossil_generation|floatformat:1 }}</td>
+                    <td class="value re-percent">{{ record.re_percentage_operational|floatformat:1 }}%</td>
+                    <td class="value re-percent">{{ record.re_percentage_underlying|floatformat:1 }}%</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Key Statistics Summary -->
+    <h3>Historical Summary Statistics</h3>
+    
+    <div class="metric-grid">
+        <div class="metric-card neutral">
+            <div class="metric-label">Average Monthly Demand</div>
+            <div class="metric-value">{{ historical_stats.avg_operational_demand|floatformat:1 }} GWh</div>
+            <div class="metric-change">Range: {{ historical_stats.min_operational_demand|floatformat:1 }} - {{ historical_stats.max_operational_demand|floatformat:1 }} GWh</div>
+        </div>
+        
+        <div class="metric-card positive">
+            <div class="metric-label">RE Penetration Growth</div>
+            <div class="metric-value">{{ historical_stats.re_growth|floatformat:1 }}pp</div>
+            <div class="metric-change">From {{ historical_stats.first_re_percent|floatformat:1 }}% to {{ historical_stats.last_re_percent|floatformat:1 }}%</div>
+        </div>
+        
+        <div class="metric-card positive">
+            <div class="metric-label">Total Renewable Energy</div>
+            <div class="metric-value">{{ historical_stats.total_re_generation|floatformat:0 }} GWh</div>
+            <div class="metric-change">Across all periods displayed</div>
+        </div>
+        
+        <div class="metric-card neutral">
+            <div class="metric-label">Peak RE Month</div>
+            <div class="metric-value">{{ historical_stats.peak_re_month }}</div>
+            <div class="metric-change">{{ historical_stats.peak_re_value|floatformat:1 }}% of operational demand</div>
+        </div>
+    </div>
+
+    <!-- Year-over-Year Comparison -->
+    {% if yearly_comparison %}
+    <h3>Annual Performance Comparison</h3>
+    
+    <table class="stats-table">
+        <thead>
+            <tr>
+                <th>Year</th>
+                <th class="value">Total Operational<br>Demand (GWh)</th>
+                <th class="value">Average RE %<br>Operational</th>
+                <th class="value">Total Wind<br>(GWh)</th>
+                <th class="value">Total Solar<br>(GWh)</th>
+                <th class="value">YoY Demand<br>Change</th>
+                <th class="value">YoY RE<br>Change (pp)</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for year_data in yearly_comparison %}
+            <tr>
+                <td><strong>{{ year_data.year }}</strong></td>
+                <td class="value">{{ year_data.total_operational_demand|floatformat:0 }}</td>
+                <td class="value re-percent">{{ year_data.avg_re_percentage|floatformat:1 }}%</td>
+                <td class="value">{{ year_data.total_wind|floatformat:0 }}</td>
+                <td class="value">{{ year_data.total_solar|floatformat:0 }}</td>
+                <td class="value {% if year_data.yoy_demand_change > 0 %}positive{% elif year_data.yoy_demand_change < 0 %}negative{% endif %}">
+                    {% if year_data.yoy_demand_change %}
+                        {{ year_data.yoy_demand_change|floatformat:1 }}%
+                    {% else %}
+                        N/A
+                    {% endif %}
+                </td>
+                <td class="value {% if year_data.yoy_re_change > 0 %}positive{% elif year_data.yoy_re_change < 0 %}negative{% endif %}">
+                    {% if year_data.yoy_re_change %}
+                        {{ year_data.yoy_re_change|floatformat:1 }}pp
+                    {% else %}
+                        N/A
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
+
+    <!-- Insights Box -->
+    <div class="info-box" style="margin-top: 30px;">
+        <h4>📊 Key Insights from Historical Data</h4>
+        <ul class="bullet-list">
+            <li>Renewable energy penetration has grown by <span class="highlight">{{ historical_stats.re_growth|floatformat:1 }} percentage points</span> over the displayed period</li>
+            <li>The highest RE percentage was <span class="highlight">{{ historical_stats.peak_re_value|floatformat:1 }}%</span> in {{ historical_stats.peak_re_month }}</li>
+            <li>Average operational demand: <span class="highlight">{{ historical_stats.avg_operational_demand|floatformat:1 }} GWh/month</span></li>
+            <li>Total renewable generation across all periods: <span class="highlight">{{ historical_stats.total_re_generation|floatformat:0 }} GWh</span></li>
+        </ul>
     </div>
 </div>
 
 <!-- Tab: Facility Overview -->
 <div id="facility-overview" class="tab-content">
-    <h2>Generation Facility Overview</h2>
-    <p style="color: #7f8c8d;">Detailed information about generation facilities in the South West Interconnected System</p>
-    
-    <!-- Summary Statistics -->
+    <h2>Facility Overview</h2>
+    <p style="color: #7f8c8d; margin-bottom: 30px;">
+        Comprehensive view of all generation facilities in the SWIS network.
+    </p>
+
+    <!-- Facility Statistics -->
     <div class="facility-stats-grid">
         <div class="facility-stat-card">
             <div class="stat-icon">⚡</div>
-            <div class="stat-value">{{ facility_stats.total_capacity|floatformat:0 }} MW</div>
-            <div class="stat-label">Total Installed Capacity</div>
+            <div class="stat-value">{{ facility_stats.total_capacity|floatformat:0 }}</div>
+            <div class="stat-label">Total Capacity (MW)</div>
         </div>
-        <div class="facility-stat-card">
+        <div class="facility-stat-card" style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);">
+            <div class="stat-icon">🌱</div>
+            <div class="stat-value">{{ facility_stats.renewable_capacity|floatformat:0 }}</div>
+            <div class="stat-label">Renewable Capacity (MW)</div>
+        </div>
+        <div class="facility-stat-card" style="background: linear-gradient(135deg, #eb3349 0%, #f45c43 100%);">
             <div class="stat-icon">🏭</div>
             <div class="stat-value">{{ facility_stats.total_facilities }}</div>
-            <div class="stat-label">Active Facilities</div>
+            <div class="stat-label">Total Facilities</div>
         </div>
-        <div class="facility-stat-card">
-            <div class="stat-icon">🌱</div>
-            <div class="stat-value">{{ facility_stats.renewable_capacity|floatformat:0 }} MW</div>
-            <div class="stat-label">Renewable Capacity</div>
-        </div>
-        <div class="facility-stat-card">
+        <div class="facility-stat-card" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
             <div class="stat-icon">📊</div>
             <div class="stat-value">{{ facility_stats.renewable_percentage|floatformat:1 }}%</div>
-            <div class="stat-label">Renewable Share</div>
+            <div class="stat-label">RE Capacity Share</div>
         </div>
     </div>
 
-    <!-- Filters -->
-    <div class="facility-filters">
-        <h3>Filter Facilities</h3>
-        <div class="filter-row">
-            <div class="filter-group">
-                <label for="fuel-type-filter">Fuel Type:</label>
-                <select id="fuel-type-filter" onchange="filterFacilities()">
-                    <option value="all">All Types</option>
-                    <option value="wind">Wind</option>
-                    <option value="solar">Solar</option>
-                    <option value="battery">Battery Storage</option>
-                    <option value="gas">Gas</option>
-                    <option value="coal">Coal</option>
-                    <option value="other">Other</option>
-                </select>
-            </div>
-            <div class="filter-group">
-                <label for="status-filter">Status:</label>
-                <select id="status-filter" onchange="filterFacilities()">
-                    <option value="all">All Status</option>
-                    <option value="operational">Operational</option>
-                    <option value="maintenance">Maintenance</option>
-                    <option value="offline">Offline</option>
-                </select>
-            </div>
-            <div class="filter-group">
-                <label for="capacity-filter">Min Capacity (MW):</label>
-                <input type="number" id="capacity-filter" placeholder="0" min="0" onchange="filterFacilities()">
-            </div>
-            <div class="filter-group">
-                <label for="search-filter">Search:</label>
-                <input type="text" id="search-filter" placeholder="Facility name..." onkeyup="filterFacilities()">
-            </div>
-        </div>
-    </div>
-
-    <!-- Facilities Grid -->
-    <div class="facilities-container">
-        {% for facility in facilities %}
-        <div class="facility-card" 
-             data-fuel-type="{{ facility.fuel_type }}" 
-             data-status="{{ facility.status }}"
-             data-capacity="{{ facility.capacity }}"
-             data-name="{{ facility.name|lower }}">
-            
-            <div class="facility-header" style="border-left: 4px solid {{ facility.color }};">
-                <div class="facility-title-row">
-                    <h4 class="facility-name">{{ facility.name }}</h4>
-                    <span class="facility-badge {{ facility.fuel_type }}">{{ facility.fuel_type|upper }}</span>
-                </div>
-                <div class="facility-code">{{ facility.facility_code }}</div>
-            </div>
-            
-            <div class="facility-body">
-                <div class="facility-metric-row">
-                    <div class="facility-metric">
-                        <span class="metric-label">Capacity</span>
-                        <span class="metric-value">{{ facility.capacity|floatformat:1 }} MW</span>
-                    </div>
-                    <div class="facility-metric">
-                        <span class="metric-label">Status</span>
-                        <span class="status-indicator {{ facility.status }}">{{ facility.status|title }}</span>
-                    </div>
-                </div>
-                
-                {% if facility.monthly_generation %}
-                <div class="facility-metric-row">
-                    <div class="facility-metric">
-                        <span class="metric-label">{{ month_name }} Generation</span>
-                        <span class="metric-value">{{ facility.monthly_generation|floatformat:1 }} GWh</span>
-                    </div>
-                    <div class="facility-metric">
-                        <span class="metric-label">Capacity Factor</span>
-                        <span class="metric-value">{{ facility.capacity_factor|floatformat:1 }}%</span>
-                    </div>
-                </div>
-                {% endif %}
-                
-                <div class="facility-info">
-                    <div class="info-item">
-                        <strong>Owner:</strong> {{ facility.owner|default:"N/A" }}
-                    </div>
-                    <div class="info-item">
-                        <strong>Location:</strong> {{ facility.location|default:"N/A" }}
-                    </div>
-                    {% if facility.commissioned_date %}
-                    <div class="info-item">
-                        <strong>Commissioned:</strong> {{ facility.commissioned_date|date:"Y" }}
-                    </div>
-                    {% endif %}
-                </div>
-            </div>
-        </div>
-        {% empty %}
-        <div class="info-box">
-            <p>No facility data available. Please ensure facility data has been imported.</p>
-        </div>
-        {% endfor %}
-    </div>
-    
-    <div id="no-results" class="info-box" style="display: none; margin-top: 20px;">
-        <p>No facilities match your filter criteria. Try adjusting your filters.</p>
-    </div>
-
-    <!-- Capacity by Fuel Type Chart -->
     {% if capacity_chart %}
     <h3 style="margin-top: 40px;">Installed Capacity by Fuel Type</h3>
     <div class="chart-container">
@@ -468,7 +533,7 @@
                 <td class="value">{{ forloop.counter }}</td>
                 <td>{{ performer.name }}</td>
                 <td><span class="facility-badge {{ performer.fuel_type }}">{{ performer.fuel_type|upper }}</span></td>
-                <td class="value">{{ performer.generation|floatformat:1 }}</td>
+                <td class="value">{{ performer.monthly_generation|floatformat:1 }}</td>
                 <td class="value">{{ performer.capacity_factor|floatformat:1 }}</td>
             </tr>
             {% endfor %}
@@ -537,6 +602,85 @@
     to { opacity: 1; }
 }
 
+/* Historical Data Styles */
+.historical-controls {
+    background: #f8f9fa;
+    padding: 20px;
+    border-radius: 8px;
+    margin-bottom: 30px;
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    flex-wrap: wrap;
+}
+
+.historical-controls label {
+    color: #2c3e50;
+    font-weight: 500;
+}
+
+.historical-controls select {
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 0.95em;
+}
+
+.historical-controls button {
+    padding: 8px 16px;
+    background: #3498db;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: 500;
+    transition: background 0.3s ease;
+}
+
+.historical-controls button:hover {
+    background: #2980b9;
+}
+
+.table-wrapper {
+    overflow-x: auto;
+    margin: 20px 0;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.historical-table {
+    min-width: 1000px;
+}
+
+.historical-table th {
+    cursor: pointer;
+    user-select: none;
+    position: relative;
+}
+
+.sort-icon {
+    font-size: 0.8em;
+    color: #95a5a6;
+    margin-left: 5px;
+}
+
+.historical-table tr.odd {
+    background-color: #f9f9f9;
+}
+
+.historical-table tr.even {
+    background-color: #ffffff;
+}
+
+.historical-table tr:hover {
+    background-color: #e8f4f8;
+}
+
+.re-percent {
+    color: #27ae60;
+    font-weight: 600;
+}
+
 /* Facility Overview Styles */
 .facility-stats-grid {
     display: grid;
@@ -570,90 +714,6 @@
     opacity: 0.9;
 }
 
-.facility-filters {
-    background: #f8f9fa;
-    padding: 20px;
-    border-radius: 8px;
-    margin: 20px 0;
-}
-
-.facility-filters h3 {
-    margin-top: 0;
-    margin-bottom: 15px;
-    color: #2c3e50;
-}
-
-.filter-row {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 15px;
-}
-
-.filter-group {
-    display: flex;
-    flex-direction: column;
-}
-
-.filter-group label {
-    font-weight: 600;
-    margin-bottom: 5px;
-    color: #555;
-    font-size: 0.9em;
-}
-
-.filter-group select,
-.filter-group input {
-    padding: 8px 12px;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    font-size: 0.95em;
-}
-
-.facilities-container {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-    gap: 20px;
-    margin: 30px 0;
-}
-
-.facility-card {
-    background: white;
-    border: 1px solid #e0e0e0;
-    border-radius: 8px;
-    overflow: hidden;
-    transition: all 0.3s ease;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-}
-
-.facility-card:hover {
-    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-    transform: translateY(-2px);
-}
-
-.facility-header {
-    background: #f8f9fa;
-    padding: 15px;
-}
-
-.facility-title-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 5px;
-}
-
-.facility-name {
-    margin: 0;
-    color: #2c3e50;
-    font-size: 1.1em;
-}
-
-.facility-code {
-    color: #7f8c8d;
-    font-size: 0.85em;
-    font-family: monospace;
-}
-
 .facility-badge {
     padding: 4px 10px;
     border-radius: 12px;
@@ -663,156 +723,21 @@
     letter-spacing: 0.5px;
 }
 
-.facility-badge.wind {
-    background: #e3f2fd;
-    color: #1976d2;
-}
-
-.facility-badge.solar {
-    background: #fff3e0;
-    color: #f57c00;
-}
-
-.facility-badge.battery {
-    background: #e8eaf6;
-    color: #3f51b5;
-}
-
-.facility-badge.gas {
-    background: #fce4ec;
-    color: #c2185b;
-}
-
-.facility-badge.coal {
-    background: #efebe9;
-    color: #5d4037;
-}
-
-.facility-badge.other {
-    background: #f5f5f5;
-    color: #616161;
-}
-
-.facility-body {
-    padding: 15px;
-}
-
-.facility-metric-row {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 15px;
-    margin-bottom: 15px;
-}
-
-.facility-metric {
-    display: flex;
-    flex-direction: column;
-}
-
-.facility-metric .metric-label {
-    font-size: 0.8em;
-    color: #7f8c8d;
-    margin-bottom: 3px;
-}
-
-.facility-metric .metric-value {
-    font-size: 1.1em;
-    font-weight: 600;
-    color: #2c3e50;
-}
-
-.status-indicator {
-    padding: 3px 8px;
-    border-radius: 4px;
-    font-size: 0.85em;
-    font-weight: 600;
-}
-
-.status-indicator.operational {
-    background: #d4edda;
-    color: #155724;
-}
-
-.status-indicator.maintenance {
-    background: #fff3cd;
-    color: #856404;
-}
-
-.status-indicator.offline {
-    background: #f8d7da;
-    color: #721c24;
-}
-
-.facility-info {
-    border-top: 1px solid #e0e0e0;
-    padding-top: 10px;
-    margin-top: 10px;
-}
-
-.info-item {
-    font-size: 0.85em;
-    color: #555;
-    margin: 5px 0;
-}
-
-.facility-footer {
-    padding: 12px 15px;
-    background: #f8f9fa;
-    border-top: 1px solid #e0e0e0;
-}
-
-.btn-detail {
-    width: 100%;
-    padding: 8px;
-    background: #3498db;
-    color: white;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    font-weight: 600;
-    transition: background 0.3s ease;
-}
-
-.btn-detail:hover {
-    background: #2980b9;
-}
-
-/* Modal Styles */
-.modal {
-    display: none;
-    position: fixed;
-    z-index: 1000;
-    left: 0;
-    top: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0,0,0,0.6);
-    overflow: auto;
-}
-
-.modal-content {
-    background: white;
-    margin: 5% auto;
-    padding: 30px;
-    border-radius: 8px;
-    width: 90%;
-    max-width: 800px;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
-    position: relative;
-}
-
-.modal-close {
-    position: absolute;
-    right: 20px;
-    top: 15px;
-    font-size: 28px;
-    font-weight: bold;
-    color: #aaa;
-    cursor: pointer;
-}
-
-.modal-close:hover {
-    color: #000;
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .historical-controls {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .historical-controls select,
+    .historical-controls button {
+        width: 100%;
+    }
+    
+    .metric-grid {
+        grid-template-columns: 1fr;
+    }
 }
 </style>
 
@@ -841,10 +766,83 @@ function switchTab(tabId) {
     event.target.classList.add('active');
 }
 
+// Historical Data Functions
+function loadHistoricalData() {
+    const viewType = document.getElementById('hist-view-select').value;
+    const yearStart = document.getElementById('hist-year-start').value;
+    const yearEnd = document.getElementById('hist-year-end').value;
+    
+    window.location.href = `/scada_analysis/historical/?view=${viewType}&start=${yearStart}&end=${yearEnd}`;
+}
+
+function updateHistoricalView() {
+    // This could be enhanced to update the view without full page reload
+    loadHistoricalData();
+}
+
+function exportHistoricalData() {
+    const yearStart = document.getElementById('hist-year-start').value;
+    const yearEnd = document.getElementById('hist-year-end').value;
+    
+    window.location.href = `/scada_analysis/export/?start=${yearStart}&end=${yearEnd}&format=csv`;
+}
+
+// Table sorting function
+let sortDirections = {};
+
+function sortTable(columnIndex) {
+    const table = document.getElementById('historical-table');
+    const tbody = table.querySelector('tbody');
+    const rows = Array.from(tbody.querySelectorAll('tr'));
+    
+    // Toggle sort direction
+    if (!sortDirections[columnIndex]) {
+        sortDirections[columnIndex] = 'asc';
+    } else {
+        sortDirections[columnIndex] = sortDirections[columnIndex] === 'asc' ? 'desc' : 'asc';
+    }
+    
+    const direction = sortDirections[columnIndex];
+    
+    rows.sort((a, b) => {
+        let aValue = a.cells[columnIndex].textContent.trim();
+        let bValue = b.cells[columnIndex].textContent.trim();
+        
+        // Remove % and GWh for numeric comparisons
+        aValue = parseFloat(aValue.replace(/[^\d.-]/g, '')) || aValue;
+        bValue = parseFloat(bValue.replace(/[^\d.-]/g, '')) || bValue;
+        
+        if (typeof aValue === 'number' && typeof bValue === 'number') {
+            return direction === 'asc' ? aValue - bValue : bValue - aValue;
+        }
+        
+        return direction === 'asc' 
+            ? aValue.toString().localeCompare(bValue.toString())
+            : bValue.toString().localeCompare(aValue.toString());
+    });
+    
+    // Reappend rows in sorted order
+    rows.forEach(row => tbody.appendChild(row));
+    
+    // Update sort icons
+    const headers = table.querySelectorAll('th');
+    headers.forEach((header, index) => {
+        const icon = header.querySelector('.sort-icon');
+        if (icon) {
+            if (index === columnIndex) {
+                icon.textContent = direction === 'asc' ? '↑' : '↓';
+                icon.style.color = '#3498db';
+            } else {
+                icon.textContent = '⇅';
+                icon.style.color = '#95a5a6';
+            }
+        }
+    });
+}
+
 // Facility Overview Functions
 function filterFacilities() {
     const fuelType = document.getElementById('fuel-type-filter').value;
-    const status = document.getElementById('status-filter').value;
     const minCapacity = parseFloat(document.getElementById('capacity-filter').value) || 0;
     const searchTerm = document.getElementById('search-filter').value.toLowerCase();
     
@@ -853,16 +851,14 @@ function filterFacilities() {
     
     facilities.forEach(facility => {
         const facilityFuelType = facility.dataset.fuelType;
-        const facilityStatus = facility.dataset.status;
         const facilityCapacity = parseFloat(facility.dataset.capacity);
         const facilityName = facility.dataset.name;
         
         const matchesFuelType = fuelType === 'all' || facilityFuelType === fuelType;
-        const matchesStatus = status === 'all' || facilityStatus === status;
         const matchesCapacity = facilityCapacity >= minCapacity;
         const matchesSearch = searchTerm === '' || facilityName.includes(searchTerm);
         
-        if (matchesFuelType && matchesStatus && matchesCapacity && matchesSearch) {
+        if (matchesFuelType && matchesCapacity && matchesSearch) {
             facility.style.display = 'block';
             visibleCount++;
         } else {
@@ -879,13 +875,6 @@ function filterFacilities() {
     }
 }
 
-// Close modal when clicking outside
-window.onclick = function(event) {
-    const modal = document.getElementById('facility-modal');
-    if (event.target === modal) {
-        modal.style.display = 'none';
-    }
-}
 </script>
 
 {% endblock %}
