@@ -2,7 +2,8 @@
 from django.urls import path
 from .views.variants_views import VariantsView
 from .views.echart_views import eChartView
-from .views import tradingprice_views, plot3D_views, powerplotui_home_views, supplyfactors_views, scada_views
+from .views import facility_scada_views, tradingprice_views, plot3D_views, powerplotui_home_views, supplyfactors_views, \
+    scada_views
 
 urlpatterns = [
     path('powerplotui/', powerplotui_home_views.powerplotui_home, name='powerplotui_home'),
@@ -21,6 +22,15 @@ urlpatterns = [
     path('get_valid_choices/', VariantsView.get_valid_choices, name='get_valid_choices'),
     path('powerplotui/echart', eChartView.as_view(), name='echarts'),
     path('get_analysis_data/', eChartView.as_view(), name='get_analysis_data'),
+
+    # Main SCADA plot view
+    path('scada-plot/', facility_scada_views.scada_plot_view, name='scada_plot'),
+    
+    # API endpoints for SCADA data
+    path('get_scada_data/', facility_scada_views.get_scada_data, name='get_scada_data'),
+    path('get_scada_comparison/', facility_scada_views.get_scada_comparison_data, name='get_scada_comparison'),
+    path('get_scada_technology/', facility_scada_views.get_scada_technology_data, name='get_scada_technology'),
+    path('get_scada_technology_comparison/', facility_scada_views.get_scada_technology_comparison_data, name='get_scada_technology_comparison'),
     
     # Scada-related URLs
     path('scada_analysis/', scada_views.scada_analysis_report, name='scada_analysis'),

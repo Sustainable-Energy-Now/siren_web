@@ -415,47 +415,80 @@ def terminal_node_diagram(request, pk):
     # Prepare data for visualization
     nodes = []
     links = []
+    added_terminals = set()
+    added_facilities = set()
     
-    # Add terminal node
+    # Add main terminal node
+    terminal_id = f'terminal_{terminal.pk}'
     nodes.append({
-        'id': f'terminal_{terminal.pk}',
+        'id': terminal_id,
         'label': terminal.terminal_name,
         'type': 'terminal',
         'voltage': float(terminal.primary_voltage_kv) if terminal.primary_voltage_kv else 0,
+        'is_main': True,
     })
+    added_terminals.add(terminal.pk)
     
-    # Add grid line nodes and links
+    # Process each grid line connected to this terminal
     for line in terminal.get_connected_grid_lines():
-        nodes.append({
-            'id': f'gridline_{line.pk}',
-            'label': line.line_name,
-            'type': 'gridline',
-            'voltage': float(line.voltage_level) if line.voltage_level else 0,
-            'capacity': float(line.thermal_capacity_mw) if line.thermal_capacity_mw else 0,
-        })
+        # Determine the other terminal (if exists)
+        other_terminal = None
+        direction = 'unknown'
         
-        # Determine link direction
-        if line.from_terminal == terminal:
+        if line.from_terminal == terminal and line.to_terminal:
+            other_terminal = line.to_terminal
+            direction = 'outgoing'
+        elif line.to_terminal == terminal and line.from_terminal:
+            other_terminal = line.from_terminal
+            direction = 'incoming'
+        elif line.from_terminal == terminal:
             direction = 'outgoing'
         elif line.to_terminal == terminal:
             direction = 'incoming'
+        
+        # If there's no other terminal, create a virtual endpoint node
+        other_terminal_id = None
+        if other_terminal and other_terminal.pk not in added_terminals:
+            other_terminal_id = f'terminal_{other_terminal.pk}'
+            nodes.append({
+                'id': other_terminal_id,
+                'label': other_terminal.terminal_name,
+                'type': 'terminal',
+                'voltage': float(other_terminal.primary_voltage_kv) if other_terminal.primary_voltage_kv else 0,
+                'is_main': False,
+            })
+            added_terminals.add(other_terminal.pk)
+        elif other_terminal:
+            other_terminal_id = f'terminal_{other_terminal.pk}'
         else:
-            direction = 'unknown'
+            # Create a virtual endpoint for incomplete grid line
+            endpoint_id = f'endpoint_{line.pk}'
+            endpoint_label = line.line_name.replace('to Mungarra Terminal', '').replace('from Mungarra Terminal', '').replace('Mungarra Terminal to', '').replace('Mungarra Power Station to', '').strip()
+            if not endpoint_label:
+                endpoint_label = f"Endpoint ({line.line_name})"
+            
+            nodes.append({
+                'id': endpoint_id,
+                'label': endpoint_label,
+                'type': 'endpoint',
+                'voltage': float(line.voltage_level) if line.voltage_level else 0,
+                'is_main': False,
+            })
+            other_terminal_id = endpoint_id
         
-        links.append({
-            'source': f'terminal_{terminal.pk}',
-            'target': f'gridline_{line.pk}',
-            'direction': direction,
-            'capacity': float(line.thermal_capacity_mw) if line.thermal_capacity_mw else 0,
-        })
+        # Get facilities connected to this grid line
+        facility_connections = FacilityGridConnections.objects.filter(
+            idgridlines=line, 
+            active=True
+        ).select_related('idfacilities', 'idfacilities__idtechnologies')
         
-        # Add facility nodes connected to this grid line
-        for conn in FacilityGridConnections.objects.filter(idgridlines=line, active=True):
+        # Process each facility connection
+        for conn in facility_connections:
             facility = conn.idfacilities
             facility_id = f'facility_{facility.pk}'
             
             # Add facility node if not already added
-            if not any(n['id'] == facility_id for n in nodes):
+            if facility.pk not in added_facilities:
                 nodes.append({
                     'id': facility_id,
                     'label': facility.facility_name,
@@ -463,21 +496,63 @@ def terminal_node_diagram(request, pk):
                     'capacity': float(facility.capacity) if facility.capacity else 0,
                     'technology': facility.idtechnologies.technology_name if facility.idtechnologies else 'Unknown',
                 })
+                added_facilities.add(facility.pk)
             
-            # Add link from grid line to facility
-            links.append({
-                'source': f'gridline_{line.pk}',
+            # Determine which terminal the facility should connect to
+            # Facilities connect to the terminal on their "side" of the grid line
+            if direction == 'outgoing':
+                # Line goes from main terminal outward
+                # If there's another terminal, facility connects to it
+                # Otherwise, connects to main terminal
+                source_id = other_terminal_id if other_terminal_id else terminal_id
+            elif direction == 'incoming':
+                # Line comes into main terminal
+                # Facility connects from the other terminal to main
+                source_id = other_terminal_id if other_terminal_id else terminal_id
+            else:
+                source_id = terminal_id
+            
+            # Add link from appropriate terminal to facility
+            link_data = {
+                'source': source_id,
                 'target': facility_id,
+                'type': 'facility_connection',
                 'is_primary': bool(conn.is_primary),
                 'capacity': float(conn.connection_capacity_mw) if conn.connection_capacity_mw else 0,
-            })
+                'voltage': float(conn.connection_voltage_kv) if conn.connection_voltage_kv else float(line.voltage_level) if line.voltage_level else 0,
+                'gridline_name': line.line_name,
+            }
+            links.append(link_data)
+        
+        # Add link between terminals/endpoints - ALWAYS create this link
+        if other_terminal_id:
+            # Determine source and target based on direction
+            if direction == 'outgoing':
+                source_id = terminal_id
+                target_id = other_terminal_id
+            else:  # incoming
+                source_id = other_terminal_id
+                target_id = terminal_id
+            
+            link_data = {
+                'source': source_id,
+                'target': target_id,
+                'type': 'gridline',
+                'direction': direction,
+                'voltage': float(line.voltage_level) if line.voltage_level else 0,
+                'capacity': float(line.thermal_capacity_mw) if line.thermal_capacity_mw else 0,
+                'gridline_name': line.line_name,
+                'gridline_id': line.pk,
+            }
+            links.append(link_data)
     
     # Calculate node type counts for the legend
     terminal_count = sum(1 for node in nodes if node.get('type') == 'terminal')
-    gridline_count = sum(1 for node in nodes if node.get('type') == 'gridline')
     facility_count = sum(1 for node in nodes if node.get('type') == 'facility')
+    endpoint_count = sum(1 for node in nodes if node.get('type') == 'endpoint')
+    gridline_count = len([link for link in links if link.get('type') == 'gridline'])
     
-    # Create the complete network data structure as a dictionary
+    # Create the complete network data structure
     network_data = {
         'nodes': nodes,
         'links': links
@@ -489,6 +564,8 @@ def terminal_node_diagram(request, pk):
     context = {
         'terminal': terminal,
         'network_data_json': network_data_json,
+        'nodes': nodes,
+        'links': links,
         'terminal_count': terminal_count,
         'gridline_count': gridline_count,
         'facility_count': facility_count,

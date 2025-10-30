@@ -1,8 +1,12 @@
 # Release Notes (Latest first)
+## Version 3.10.2 - October 24, 2025
+### 🆕 New Features
+- Feature: Scada Analysis from Database ([#33](https://github.com/Sustainable-Energy-Now/siren_web/issues/33))
+
 ## Version 3.10.1 - October 19, 2025
 ### 🆕 New Features
-- Feature: Altair and Matplotlib Removal ([#11](https://github.com/Sustainable-Energy-Now/siren_web/issues/30))
-- Feature: Improve Terminal Connections ([#28](https://github.com/Sustainable-Energy-Now/siren_web/issues/30))
+- Feature: Altair and Matplotlib Removal ([#11](https://github.com/Sustainable-Energy-Now/siren_web/issues/11))
+- Feature: Improve Terminal Connections ([#30](https://github.com/Sustainable-Energy-Now/siren_web/issues/30))
 
 ## Version 3.10.0 - October 17, 2025
 ### 🆕 New Features
@@ -50,31 +54,25 @@
 ## Version 3.4.1 - September 27, 2025
 ### 🆕 New Features
 - Feature: Add Terminals to Maps ([#14](https://github.com/Sustainable-Energy-Now/siren_web/issues/14))
----
 
 ## Version 3.3.1 - September 24, 2025
 ### 🆕 New Features
 - Feature: Improve Create Variants Facility ([#13](https://github.com/Sustainable-Energy-Now/siren_web/issues/13))
----
 
 ## Version 3.2.1 - September 19, 2025
 ### 🆕 New Features
 - Feature: Echarts back button ([#10](https://github.com/Sustainable-Energy-Now/siren_web/issues/10))
----
 
 ## Version 3.1.1 - September 19, 2025
 ### 🆕 New Features
 - Feature: Restrict Plot Choices ([#9](https://github.com/Sustainable-Energy-Now/siren_web/issues/9))
----
 
 ## Version 3.1.0 - September 14, 2025
 ### 🆕 New Features
 - Feature: Wind Turbines CRUD ([#7](https://github.com/Sustainable-Energy-Now/siren_web/issues/7))
 - Feature: Enhanced Help Display ([#8](https://github.com/Sustainable-Energy-Now/siren_web/issues/8))
----
 
 ## Version 3.0.2 - September 13, 2025
-
 ### 🐛 Bug Fixes
 - Test Case: TC-MAIN-003 Config error ([#1](https://github.com/Sustainable-Energy-Now/siren_web/issues/1))
 - Test Case: TC-MATCH-007 Variant Refresh([#3](https://github.com/Sustainable-Energy-Now/siren_web/issues/3))

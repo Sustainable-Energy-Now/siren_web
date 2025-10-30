@@ -19,17 +19,7 @@ class Analysis(models.Model):
 
     class Meta:
         db_table = 'Analysis'
-        
-class capacities(models.Model):
-    idcapacities = models.AutoField(db_column='idcapacities', primary_key=True)  
-    idfacilities = models.ForeignKey('facilities', models.RESTRICT, db_column='idfacilities', blank=True, null=True)  
-    year = models.PositiveIntegerField()
-    hour = models.IntegerField(blank=True, null=True)
-    quantum = models.FloatField(null=True) 
 
-    class Meta:
-        db_table = 'capacities'
-        
 class Scenarios(models.Model):
     idscenarios = models.AutoField(db_column='idScenarios', primary_key=True)  
     title = models.CharField(db_column='Title', unique=True, max_length=45, blank=True, null=True)  
@@ -606,8 +596,6 @@ class FacilityWindTurbines(models.Model):
             return self.wind_turbine.rated_power * self.no_turbines
         return None
 
-# powerplot/models.py (add to existing models)
-
 class DPVGeneration(models.Model):
     """Store AEMO DPV generation estimates"""
     trading_date = models.DateField(db_index=True)
@@ -1024,6 +1012,15 @@ class Technologies(models.Model):
     description = models.CharField(max_length=1000, db_collation='utf8mb4_0900_ai_ci', blank=True, null=True)
     area = models.FloatField(blank=True, null=True)
     water_usage = models.FloatField(blank=True, null=True)
+    fuel_type = models.CharField(blank=True, null=True, max_length=30, choices=[
+        ('WIND', 'Wind'),
+        ('SOLAR', 'Solar'),
+        ('GAS', 'Gas'),
+        ('COAL', 'Coal'),
+        ('HYDRO', 'Hydro'),
+        ('BIOMASS', 'Biomass'),
+        ('OTHER', 'Other'),
+    ])
 
     class Meta:
         db_table = 'Technologies'
@@ -1197,6 +1194,27 @@ class Terminals(models.Model):
         if self.commissioned_date and self.decommissioned_date:
             if self.decommissioned_date <= self.commissioned_date:
                 raise ValidationError("Decommission date must be after commission date")
+
+class WholesalePrice(models.Model):
+    """Store AEMO Interval wholesale prices """
+    trading_date = models.DateField(db_index=True)
+    interval_number = models.IntegerField()
+    trading_interval = models.DateTimeField(db_index=True)
+    wholesale_price = models.FloatField()
+    extracted_at = models.DateTimeField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        db_table = 'WholesalePrice'
+        unique_together = ['trading_date', 'interval_number']
+        indexes = [
+            models.Index(fields=['trading_date', 'interval_number']),
+            models.Index(fields=['trading_interval']),
+        ]
+        ordering = ['-trading_date', 'interval_number']
+    
+    def __str__(self):
+        return f"Wolesale Price {self.trading_date} #{self.interval_number}: {self.wholesale_price}$/MW"
 
 class TradingPrice(models.Model):
     id = models.AutoField(db_column='idTechnologies', primary_key=True)

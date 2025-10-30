@@ -18,13 +18,8 @@
   <div class="row">
     <div class="col-lg-9">
       <div class="card">
-        <div class="card-header d-flex justify-content-between align-items-center">
+        <div class="card-header">
           <h5 class="mb-0">Network Visualization</h5>
-          <div>
-            <button class="btn btn-sm btn-outline-primary" onclick="networkDiagram.simulation.alpha(0.3).restart()">
-              <i class="bi bi-arrow-clockwise"></i> Restart Animation
-            </button>
-          </div>
         </div>
         <div class="card-body p-0">
           <!-- Main visualization container -->
@@ -49,44 +44,102 @@
         <div class="card-body">
           <div class="row">
             <div class="col-md-4">
-            <h6 class="small fw-bold">Node Types</h6>
-            <div class="d-flex align-items-center mb-2">
-                <div style="width: 30px; height: 30px; background-color: #0d6efd; border-radius: 50%; border: 2px solid white; margin-right: 10px;"></div>
-                <span class="small">Terminal ({{ terminal_count }})</span>
-            </div>
-            <div class="d-flex align-items-center mb-2">
-                <div style="width: 25px; height: 25px; background-color: #198754; border-radius: 50%; border: 2px solid white; margin-right: 10px;"></div>
-                <span class="small">Grid Line ({{ gridline_count }})</span>
-            </div>
-            <div class="d-flex align-items-center mb-2">
-                <div style="width: 20px; height: 20px; background-color: #ffc107; border-radius: 50%; border: 2px solid white; margin-right: 10px;"></div>
-                <span class="small">Facility ({{ facility_count }})</span>
-            </div>
+              <h6 class="small fw-bold">Node Types</h6>
+              <div class="d-flex align-items-center mb-2">
+                <div style="width: 35px; height: 35px; background-color: #0d6efd; border-radius: 50%; border: 3px solid white; margin-right: 10px;"></div>
+                <span class="small">Main Terminal</span>
+              </div>
+              <div class="d-flex align-items-center mb-2">
+                <div style="width: 30px; height: 30px; background-color: #6c757d; border-radius: 50%; border: 2px solid white; margin-right: 10px;"></div>
+                <span class="small">Connected Terminal</span>
+              </div>
+              <div class="d-flex align-items-center mb-2">
+                <div style="width: 20px; height: 20px; background-color: #e9ecef; border-radius: 50%; border: 2px dashed #6c757d; margin-right: 10px;"></div>
+                <span class="small">Incomplete Endpoint</span>
+              </div>
+              <div class="d-flex align-items-center mb-2">
+                <div style="width: 20px; height: 20px; background-color: #FDB462; border-radius: 50%; border: 2px solid white; margin-right: 10px;"></div>
+                <span class="small">Facility (color by tech)</span>
+              </div>
+              <div class="mt-2">
+                <small class="text-muted"><i class="bi bi-info-circle"></i> Facility size = capacity</small>
+              </div>
             </div>
             
             <div class="col-md-4">
               <h6 class="small fw-bold">Connection Types</h6>
               <div class="d-flex align-items-center mb-2">
-                <div style="width: 40px; height: 3px; background-color: #198754; margin-right: 10px;"></div>
-                <span class="small">Outgoing Connection</span>
+                <svg width="50" height="20">
+                  <line x1="0" y1="10" x2="40" y2="10" stroke="#198754" stroke-width="4" marker-end="url(#legend-arrow-green)"/>
+                  <defs>
+                    <marker id="legend-arrow-green" viewBox="0 -5 10 10" refX="10" refY="0" markerWidth="4" markerHeight="4" orient="auto">
+                      <path d="M0,-5L10,0L0,5" fill="#198754"/>
+                    </marker>
+                  </defs>
+                </svg>
+                <span class="small ms-2">Outgoing Grid Line</span>
               </div>
               <div class="d-flex align-items-center mb-2">
-                <div style="width: 40px; height: 3px; background-color: #0dcaf0; margin-right: 10px;"></div>
-                <span class="small">Incoming Connection</span>
+                <svg width="50" height="20">
+                  <line x1="0" y1="10" x2="40" y2="10" stroke="#0dcaf0" stroke-width="4" marker-end="url(#legend-arrow-blue)"/>
+                  <defs>
+                    <marker id="legend-arrow-blue" viewBox="0 -5 10 10" refX="10" refY="0" markerWidth="4" markerHeight="4" orient="auto">
+                      <path d="M0,-5L10,0L0,5" fill="#0dcaf0"/>
+                    </marker>
+                  </defs>
+                </svg>
+                <span class="small ms-2">Incoming Grid Line</span>
               </div>
               <div class="d-flex align-items-center mb-2">
-                <div style="width: 40px; height: 3px; background-color: #999; border-top: 2px dashed #999; margin-right: 10px;"></div>
-                <span class="small">Secondary Connection</span>
+                <svg width="50" height="20">
+                  <line x1="0" y1="10" x2="40" y2="10" stroke="#198754" stroke-width="2"/>
+                </svg>
+                <span class="small ms-2">Primary Connection</span>
+              </div>
+              <div class="d-flex align-items-center mb-2">
+                <svg width="50" height="20">
+                  <line x1="0" y1="10" x2="40" y2="10" stroke="#999" stroke-width="1" stroke-dasharray="5,5"/>
+                </svg>
+                <span class="small ms-2">Secondary Connection</span>
+              </div>
+              <div class="mt-2">
+                <small class="text-muted"><i class="bi bi-lightning-charge"></i> Animated flow shows power direction</small><br>
+                <small class="text-muted"><i class="bi bi-arrows-angle-expand"></i> Grid line width = voltage</small>
               </div>
             </div>
             
             <div class="col-md-4">
+              <h6 class="small fw-bold">Facility Technologies</h6>
+              <div class="d-flex align-items-center mb-1">
+                <div style="width: 15px; height: 15px; background-color: #FDB462; border-radius: 50%; margin-right: 8px;"></div>
+                <span class="small">Solar</span>
+              </div>
+              <div class="d-flex align-items-center mb-1">
+                <div style="width: 15px; height: 15px; background-color: #80B1D3; border-radius: 50%; margin-right: 8px;"></div>
+                <span class="small">Wind</span>
+              </div>
+              <div class="d-flex align-items-center mb-1">
+                <div style="width: 15px; height: 15px; background-color: #FB8072; border-radius: 50%; margin-right: 8px;"></div>
+                <span class="small">Battery</span>
+              </div>
+              <div class="d-flex align-items-center mb-1">
+                <div style="width: 15px; height: 15px; background-color: #BEBADA; border-radius: 50%; margin-right: 8px;"></div>
+                <span class="small">Gas</span>
+              </div>
+              <div class="d-flex align-items-center mb-1">
+                <div style="width: 15px; height: 15px; background-color: #8DD3C7; border-radius: 50%; margin-right: 8px;"></div>
+                <span class="small">Coal</span>
+              </div>
+              <div class="d-flex align-items-center mb-1">
+                <div style="width: 15px; height: 15px; background-color: #FFFFB3; border-radius: 50%; margin-right: 8px;"></div>
+                <span class="small">Hydro</span>
+              </div>
+              <hr class="my-2">
               <h6 class="small fw-bold">Interactions</h6>
-              <ul class="small list-unstyled">
-                <li><i class="bi bi-cursor"></i> <strong>Click & Drag:</strong> Move nodes</li>
-                <li><i class="bi bi-mouse"></i> <strong>Scroll:</strong> Zoom in/out</li>
-                <li><i class="bi bi-hand-index"></i> <strong>Hover:</strong> View details</li>
-                <li><i class="bi bi-arrows-move"></i> <strong>Drag Canvas:</strong> Pan view</li>
+              <ul class="small list-unstyled mb-0" style="line-height: 1.6;">
+                <li><i class="bi bi-cursor"></i> Drag nodes</li>
+                <li><i class="bi bi-mouse"></i> Scroll to zoom</li>
+                <li><i class="bi bi-hand-index"></i> Hover for info</li>
               </ul>
             </div>
           </div>
@@ -106,18 +159,18 @@
             <small class="text-muted">Total Nodes</small>
           </div>
           <div class="mb-3 text-center">
-            <h4 class="text-success">{{ links|length }}</h4>
-            <small class="text-muted">Total Connections</small>
+            <h4 class="text-success">{{ gridline_count }}</h4>
+            <small class="text-muted">Grid Lines</small>
           </div>
           <hr>
-            <div class="small">
-            <strong>Node Breakdown:</strong>
+          <div class="small">
+            <strong>Network Breakdown:</strong>
             <ul class="list-unstyled mt-2 mb-0">
-                <li>Terminals: <span class="badge bg-primary">{{ terminal_count }}</span></li>
-                <li>Grid Lines: <span class="badge bg-success">{{ gridline_count }}</span></li>
-                <li>Facilities: <span class="badge bg-warning">{{ facility_count }}</span></li>
+              <li>Terminals: <span class="badge bg-primary">{{ terminal_count }}</span></li>
+              <li>Grid Lines: <span class="badge bg-success">{{ gridline_count }}</span></li>
+              <li>Facilities: <span class="badge bg-warning">{{ facility_count }}</span></li>
             </ul>
-            </div>
+          </div>
         </div>
       </div>
 
@@ -167,33 +220,57 @@
     let networkDiagram;
 
     document.addEventListener('DOMContentLoaded', function() {
-      // Parse network data
-      const networkData = JSON.parse(document.getElementById('network-data').textContent);
       
-      // Hide loading indicator
-      const loadingIndicator = document.getElementById('loading-indicator');
-      if (loadingIndicator) {
-        loadingIndicator.style.display = 'none';
+      // Parse network data
+      let networkData;
+      try {
+        const dataElement = document.getElementById('network-data');
+        if (!dataElement) {
+          throw new Error('Network data element not found');
+        }
+        networkData = JSON.parse(dataElement.textContent);
+      } catch (error) {
+        hideLoadingIndicator();
+        document.getElementById('network-diagram').innerHTML = 
+          '<div class="alert alert-danger m-3">Error parsing network data: ' + error.message + '</div>';
+        return;
       }
       
       // Initialize the network diagram
       try {
         networkDiagram = new TerminalNetworkDiagram('network-diagram', networkData);
         
+        // Hide loading indicator after successful creation
+        hideLoadingIndicator();
+        
         // Add click event to show node details
         addNodeClickHandler();
         
       } catch (error) {
         console.error('Error initializing network diagram:', error);
+        console.error('Error stack:', error.stack);
+        hideLoadingIndicator();
         document.getElementById('network-diagram').innerHTML = 
-          '<div class="alert alert-danger m-3">Error loading network diagram: ' + error.message + '</div>';
+          '<div class="alert alert-danger m-3">Error loading network diagram: ' + error.message + '<br><small>' + error.stack + '</small></div>';
       }
     });
+    
+    function hideLoadingIndicator() {
+      const loadingIndicator = document.getElementById('loading-indicator');
+      if (loadingIndicator) {
+        loadingIndicator.style.display = 'none';
+        loadingIndicator.remove(); // Also remove it from DOM
+      }
+    }
 
     // Add click handler to show node details in sidebar
     function addNodeClickHandler() {
-      if (!networkDiagram) return;
+      if (!networkDiagram) {
+        console.error('networkDiagram not initialized');
+        return;
+      }
       
+      // Select all circles within the nodesGroup
       networkDiagram.nodesGroup.selectAll('circle').on('click', function(event, d) {
         event.stopPropagation();
         
@@ -206,7 +283,7 @@
       
       // Reset on canvas click
       networkDiagram.svg.on('click', function(event) {
-        if (event.target === this) {
+        if (event.target === event.currentTarget) {
           networkDiagram.resetHighlight();
           resetNodeDetails();
         }
@@ -224,13 +301,19 @@
       if (node.type === 'terminal') {
         html += `<ul class="small list-unstyled mb-0">`;
         html += `<li><strong>Voltage:</strong> ${node.voltage} kV</li>`;
+        if (node.is_main) {
+          html += `<li><strong>Status:</strong> <span class="badge bg-primary">Main Terminal</span></li>`;
+        }
         html += `</ul>`;
-        html += `<hr><a href="/terminals/${node.id.split('_')[1]}/" class="btn btn-sm btn-primary w-100">View Terminal</a>`;
-      } else if (node.type === 'gridline') {
+        if (!node.is_main) {
+          html += `<hr><a href="/terminals/${node.id.split('_')[1]}/" class="btn btn-sm btn-primary w-100">View Terminal</a>`;
+        }
+      } else if (node.type === 'endpoint') {
         html += `<ul class="small list-unstyled mb-0">`;
         html += `<li><strong>Voltage:</strong> ${node.voltage} kV</li>`;
-        html += `<li><strong>Capacity:</strong> ${node.capacity} MW</li>`;
+        html += `<li class="text-warning"><i class="bi bi-exclamation-triangle"></i> Incomplete Connection</li>`;
         html += `</ul>`;
+        html += `<hr><small class="text-muted">This grid line is not fully connected to another terminal yet.</small>`;
       } else if (node.type === 'facility') {
         html += `<ul class="small list-unstyled mb-0">`;
         html += `<li><strong>Technology:</strong> ${node.technology}</li>`;
@@ -278,11 +361,6 @@
     document.addEventListener('keydown', function(event) {
       if (!networkDiagram) return;
       
-      // R key - restart animation
-      if (event.key === 'r' || event.key === 'R') {
-        networkDiagram.simulation.alpha(0.3).restart();
-      }
-      
       // Escape key - reset highlight
       if (event.key === 'Escape') {
         networkDiagram.resetHighlight();
@@ -290,6 +368,7 @@
       }
     });
   </script>
+  
   <style>
     /* Network diagram specific styles */
     #network-diagram {
@@ -305,17 +384,21 @@
     /* Node hover effect */
     #network-diagram circle {
       cursor: pointer;
-      transition: opacity 0.3s;
+      transition: opacity 0.3s, stroke-width 0.2s;
     }
 
     #network-diagram circle:hover {
       opacity: 0.8;
-      stroke-width: 3px !important;
+      stroke-width: 4px !important;
     }
 
     /* Link styles */
     #network-diagram line {
-      transition: stroke-opacity 0.3s;
+      transition: stroke-opacity 0.3s, stroke-width 0.2s;
+    }
+
+    #network-diagram line:hover {
+      stroke-opacity: 1 !important;
     }
 
     /* Node details panel */
@@ -338,9 +421,14 @@
       z-index: 10;
     }
 
-    /* Legend items */
-    .legend {
-      pointer-events: none;
+    /* Node labels */
+    .node-label {
+      user-select: none;
+      text-shadow: 
+        -1px -1px 0 white,  
+        1px -1px 0 white,
+        -1px 1px 0 white,
+        1px 1px 0 white;
     }
   </style>
 {% endblock %}

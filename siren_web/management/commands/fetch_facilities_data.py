@@ -15,7 +15,8 @@ class Command(BaseCommand):
         # 'https://data.wa.aemo.com.au/public/public-data/datafiles/load-summary/'
         # 'https://data.wa.aemo.com.au/public/public-data/datafiles/ncs-dispatch-information/'
         # 'https://data.wa.aemo.com.au/public/public-data/datafiles/operational-demand/'
-        url = 'https://data.wa.aemo.com.au/public/public-data/datafiles/facilities/'
+        # 'https://data.wa.aemo.com.au/public/public-data/datafiles/facilities/'
+        url = 'https://data.wa.aemo.com.au/datafiles/post-facilities/facilities.csv'
         response = requests.get(url)
         if response.status_code == 200:
             data = response.json()

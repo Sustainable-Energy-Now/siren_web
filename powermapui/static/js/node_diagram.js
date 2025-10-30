@@ -1,199 +1,397 @@
 /**
- * Node Diagram Visualization using D3.js
- * For displaying terminal, grid line, and facility connections
- * 
- * Place this file in: your_app/static/js/node_diagram.js
+ * Terminal Network Diagram using D3.js v7
+ * Visualizes terminals, grid lines, and facilities
  */
-
 class TerminalNetworkDiagram {
     constructor(containerId, data) {
-        this.container = d3.select(`#${containerId}`);
+        this.containerId = containerId;
         this.data = data;
-        this.width = this.container.node().getBoundingClientRect().width;
+        this.width = 800;
         this.height = 600;
         
-        // Color scheme
-        this.colors = {
-            terminal: '#0d6efd',     // Blue
-            gridline: '#198754',     // Green
-            facility: '#ffc107',     // Yellow/Gold
-            outgoing: '#198754',     // Green
-            incoming: '#0dcaf0',     // Cyan
+        // Validate data structure
+        if (!data.nodes || !Array.isArray(data.nodes)) {
+            throw new Error('Invalid data: nodes array is required');
+        }
+        if (!data.links || !Array.isArray(data.links)) {
+            throw new Error('Invalid data: links array is required');
+        }
+        
+        console.log(`Data validated: ${data.nodes.length} nodes, ${data.links.length} links`);
+        
+        // Scales for sizing
+        const maxVoltage = d3.max(data.links, d => d.voltage) || 500;
+        const maxCapacity = d3.max(data.nodes.filter(n => n.type === 'facility'), d => d.capacity) || 100;
+        
+        console.log(`Max voltage: ${maxVoltage}, Max capacity: ${maxCapacity}`);
+        
+        this.voltageScale = d3.scaleLinear()
+            .domain([0, maxVoltage])
+            .range([1, 8]);
+        
+        this.capacityScale = d3.scaleSqrt()
+            .domain([0, maxCapacity])
+            .range([8, 30]);
+        
+        // Technology color scale
+        this.technologyColors = {
+            'Solar': '#FDB462',
+            'Wind': '#80B1D3',
+            'Battery': '#FB8072',
+            'Gas': '#BEBADA',
+            'Coal': '#8DD3C7',
+            'Hydro': '#FFFFB3',
+            'Biomass': '#B3DE69',
+            'Diesel': '#FCCDE5',
+            'Other': '#ffc107',
+            'Unknown': '#ffc107'
         };
         
         this.init();
     }
     
     init() {
-        // Clear any existing content
-        this.container.selectAll('*').remove();
+        console.log('Initializing diagram...');
+        const container = document.getElementById(this.containerId);
+        if (!container) {
+            throw new Error(`Container element '${this.containerId}' not found`);
+        }
+        
+        this.width = container.clientWidth || 800;
+        this.height = container.clientHeight || 600;
+        console.log(`Container dimensions: ${this.width}x${this.height}`);
         
         // Create SVG
-        this.svg = this.container.append('svg')
+        this.svg = d3.select(`#${this.containerId}`)
+            .append('svg')
             .attr('width', this.width)
-            .attr('height', this.height)
-            .style('background-color', '#f8f9fa');
+            .attr('height', this.height);
         
-        // Create groups for different layers (order matters for z-index)
-        this.linksGroup = this.svg.append('g').attr('class', 'links');
-        this.nodesGroup = this.svg.append('g').attr('class', 'nodes');
-        this.labelsGroup = this.svg.append('g').attr('class', 'labels');
+        console.log('SVG created');
         
-        // Create zoom behavior
+        // Add zoom behavior
         const zoom = d3.zoom()
-            .scaleExtent([0.3, 4])
+            .scaleExtent([0.1, 4])
             .on('zoom', (event) => {
-                this.linksGroup.attr('transform', event.transform);
-                this.nodesGroup.attr('transform', event.transform);
-                this.labelsGroup.attr('transform', event.transform);
+                this.g.attr('transform', event.transform);
             });
         
         this.svg.call(zoom);
         
-        // Add zoom controls hint
-        this.svg.append('text')
-            .attr('x', 10)
-            .attr('y', this.height - 10)
-            .attr('class', 'zoom-hint')
-            .style('font-size', '11px')
-            .style('fill', '#6c757d')
-            .text('Scroll to zoom • Drag to pan • Click & drag nodes');
+        // Main group for zooming/panning
+        this.g = this.svg.append('g');
         
-        // Process data and create visualization
-        this.processData();
-        this.createForceSimulation();
-        this.render();
-        this.createLegend();
-    }
-    
-    processData() {
-        // Convert data to D3 format
-        this.nodes = this.data.nodes.map(node => ({
-            id: node.id,
-            label: node.label,
-            type: node.type,
-            ...node
-        }));
+        console.log('Creating arrow markers...');
+        // Create arrow markers for directed edges
+        this.createArrowMarkers();
         
-        this.links = this.data.links.map(link => ({
-            source: link.source,
-            target: link.target,
-            ...link
-        }));
-    }
-    
-    createForceSimulation() {
+        console.log('Creating force simulation...');
         // Create force simulation
-        this.simulation = d3.forceSimulation(this.nodes)
-            .force('link', d3.forceLink(this.links)
+        this.simulation = d3.forceSimulation(this.data.nodes)
+            .force('link', d3.forceLink(this.data.links)
                 .id(d => d.id)
                 .distance(d => {
-                    // Adjust distance based on node types
-                    const source = this.nodes.find(n => n.id === d.source.id);
-                    const target = this.nodes.find(n => n.id === d.target.id);
-                    
-                    if (source.type === 'terminal' || target.type === 'terminal') {
-                        return 150;
-                    } else if (source.type === 'gridline' || target.type === 'gridline') {
-                        return 100;
-                    }
-                    return 80;
-                })
-            )
+                    if (d.type === 'gridline') return 200;
+                    return 150;
+                }))
             .force('charge', d3.forceManyBody()
                 .strength(d => {
-                    // Terminals repel more strongly
-                    if (d.type === 'terminal') return -400;
-                    if (d.type === 'gridline') return -250;
-                    return -180;
-                })
-            )
+                    if (d.type === 'terminal') return -1000;
+                    if (d.type === 'endpoint') return -600;
+                    if (d.type === 'facility') return -300;
+                    return -500;
+                }))
             .force('center', d3.forceCenter(this.width / 2, this.height / 2))
-            .force('collision', d3.forceCollide().radius(d => {
-                if (d.type === 'terminal') return 45;
-                if (d.type === 'gridline') return 35;
-                return 28;
-            }));
+            .force('collision', d3.forceCollide()
+                .radius(d => {
+                    if (d.type === 'terminal') return 40;
+                    if (d.type === 'endpoint') return 25;
+                    if (d.type === 'facility') return this.capacityScale(d.capacity || 0) + 5;
+                    return 30;
+                }));
+        
+        console.log('Drawing links...');
+        // Draw links (grid lines and connections)
+        this.linksGroup = this.g.append('g').attr('class', 'links');
+        this.drawLinks();
+        
+        console.log('Drawing nodes...');
+        // Draw nodes (terminals and facilities)
+        this.nodesGroup = this.g.append('g').attr('class', 'nodes');
+        this.drawNodes();
+        
+        console.log('Drawing labels...');
+        // Add labels
+        this.labelsGroup = this.g.append('g').attr('class', 'labels');
+        this.drawLabels();
+        
+        console.log('Setting up tick handler...');
+        // Update positions on each tick
+        this.simulation.on('tick', () => this.tick());
+        
+        console.log('Diagram initialization complete');
     }
     
-    render() {
-        // Render links
-        const link = this.linksGroup.selectAll('line')
-            .data(this.links)
-            .enter().append('line')
-            .attr('stroke', d => {
-                if (d.direction === 'outgoing') return this.colors.outgoing;
-                if (d.direction === 'incoming') return this.colors.incoming;
-                return '#999';
-            })
-            .attr('stroke-width', d => d.is_primary ? 3 : 2)
-            .attr('stroke-opacity', 0.6)
-            .attr('stroke-dasharray', d => d.is_primary ? '0' : '5,5')
-            .attr('marker-end', d => {
-                // Optional: Add arrow markers
-                return '';
+    createArrowMarkers() {
+        const defs = this.svg.append('defs');
+        
+        // Arrow for outgoing gridlines
+        defs.append('marker')
+            .attr('id', 'arrow-outgoing')
+            .attr('viewBox', '0 -5 10 10')
+            .attr('refX', 40)  // Position arrow outside the target node
+            .attr('refY', 0)
+            .attr('markerWidth', 5)
+            .attr('markerHeight', 5)
+            .attr('orient', 'auto')
+            .append('path')
+            .attr('d', 'M0,-5L10,0L0,5')
+            .attr('fill', '#198754');
+        
+        // Arrow for incoming gridlines
+        defs.append('marker')
+            .attr('id', 'arrow-incoming')
+            .attr('viewBox', '0 -5 10 10')
+            .attr('refX', 40)  // Position arrow outside the target node
+            .attr('refY', 0)
+            .attr('markerWidth', 5)
+            .attr('markerHeight', 5)
+            .attr('orient', 'auto')
+            .append('path')
+            .attr('d', 'M0,-5L10,0L0,5')
+            .attr('fill', '#0dcaf0');
+        
+        // Create gradient for power flow animation
+        const gradient = defs.append('linearGradient')
+            .attr('id', 'power-flow-gradient')
+            .attr('gradientUnits', 'userSpaceOnUse');
+        
+        gradient.append('stop')
+            .attr('offset', '0%')
+            .attr('stop-color', '#fff')
+            .attr('stop-opacity', '0');
+        
+        gradient.append('stop')
+            .attr('offset', '50%')
+            .attr('stop-color', '#fff')
+            .attr('stop-opacity', '0.8');
+        
+        gradient.append('stop')
+            .attr('offset', '100%')
+            .attr('stop-color', '#fff')
+            .attr('stop-opacity', '0');
+    }
+    
+    drawLinks() {
+        console.log('Drawing links, total:', this.data.links.length);
+        this.data.links.forEach((link, i) => {
+            console.log(`Link ${i}:`, {
+                source: link.source,
+                target: link.target,
+                type: link.type,
+                direction: link.direction,
+                voltage: link.voltage
             });
+        });
         
-        // Render nodes
-        const node = this.nodesGroup.selectAll('circle')
-            .data(this.nodes)
-            .enter().append('circle')
-            .attr('r', d => {
-                if (d.type === 'terminal') return 20;
-                if (d.type === 'gridline') return 15;
-                return 12;
+        // Draw base links
+        this.links = this.linksGroup.selectAll('line.base-link')
+            .data(this.data.links)
+            .join('line')
+            .attr('class', d => `base-link link ${d.type}`)
+            .attr('stroke', d => {
+                if (d.type === 'gridline') {
+                    const color = d.direction === 'outgoing' ? '#198754' : '#0dcaf0';
+                    console.log(`Link ${d.gridline_name}: color=${color}, direction=${d.direction}`);
+                    return color;
+                }
+                return d.is_primary ? '#198754' : '#999';
             })
-            .attr('fill', d => this.colors[d.type] || '#999')
-            .attr('stroke', '#fff')
-            .attr('stroke-width', 2)
-            .style('cursor', 'pointer')
-            .call(this.createDragBehavior());
+            .attr('stroke-width', d => {
+                if (d.type === 'gridline') {
+                    const width = this.voltageScale(d.voltage || 0);
+                    console.log(`Link ${d.gridline_name}: width=${width}, voltage=${d.voltage}`);
+                    return width;
+                }
+                return d.is_primary ? 2 : 1;
+            })
+            .attr('stroke-dasharray', d => {
+                if (d.type === 'gridline') return 'none';
+                return d.is_primary ? 'none' : '5,5';
+            })
+            .attr('marker-end', d => {
+                if (d.type === 'gridline') {
+                    const marker = d.direction === 'outgoing' ? 'url(#arrow-outgoing)' : 'url(#arrow-incoming)';
+                    console.log(`Link ${d.gridline_name}: marker=${marker}, direction=${d.direction}`);
+                    return marker;
+                }
+                return 'none';
+            })
+            .attr('opacity', 0.7);
         
-        // Add node labels
-        const label = this.labelsGroup.selectAll('text')
-            .data(this.nodes)
-            .enter().append('text')
-            .text(d => d.label)
-            .attr('font-size', d => d.type === 'terminal' ? 12 : 10)
-            .attr('font-weight', d => d.type === 'terminal' ? 'bold' : 'normal')
-            .attr('text-anchor', 'middle')
-            .attr('dy', d => {
-                if (d.type === 'terminal') return 35;
-                if (d.type === 'gridline') return 25;
+        // Add animated power flow overlay for gridlines
+        this.flowLines = this.linksGroup.selectAll('line.flow-line')
+            .data(this.data.links.filter(d => d.type === 'gridline'))
+            .join('line')
+            .attr('class', 'flow-line')
+            .attr('stroke', 'rgba(255, 255, 255, 0.6)')
+            .attr('stroke-width', d => this.voltageScale(d.voltage || 0) * 0.3)
+            .attr('stroke-dasharray', '10,10')
+            .attr('opacity', 0.8)
+            .attr('pointer-events', 'none');
+        
+        // Animate the flow
+        this.animatePowerFlow();
+        
+        console.log('Links created:', this.links.size());
+        console.log('Flow lines created:', this.flowLines.size());
+        
+        // Add tooltips to links
+        this.links.append('title')
+            .text(d => {
+                if (d.type === 'gridline') {
+                    return `${d.gridline_name}\n${d.voltage} kV\n${d.capacity} MW capacity\nDirection: ${d.direction}`;
+                }
+                return `${d.gridline_name}\nConnection: ${d.capacity} MW\n${d.is_primary ? 'Primary' : 'Secondary'}`;
+            });
+    }
+    
+    animatePowerFlow() {
+        if (!this.flowLines) return;
+        
+        const animate = () => {
+            this.flowLines
+                .attr('stroke-dashoffset', 0)
+                .transition()
+                .duration(2000)
+                .ease(d3.easeLinear)
+                .attr('stroke-dashoffset', -20)
+                .on('end', animate);
+        };
+        
+        animate();
+    }
+    
+    drawNodes() {
+        this.nodes = this.nodesGroup.selectAll('circle')
+            .data(this.data.nodes)
+            .join('circle')
+            .attr('class', d => `node ${d.type}`)
+            .attr('r', d => {
+                if (d.type === 'terminal') {
+                    return d.is_main ? 35 : 30;
+                }
+                if (d.type === 'endpoint') {
+                    return 20;
+                }
+                if (d.type === 'facility') {
+                    return this.capacityScale(d.capacity || 0);
+                }
                 return 20;
             })
-            .attr('fill', '#212529')
+            .attr('fill', d => {
+                if (d.type === 'terminal') return d.is_main ? '#0d6efd' : '#6c757d';
+                if (d.type === 'endpoint') return '#e9ecef';
+                if (d.type === 'facility') {
+                    // Get technology and return corresponding color
+                    const tech = d.technology || 'Unknown';
+                    // Try to match technology name (case insensitive, partial match)
+                    for (const [key, color] of Object.entries(this.technologyColors)) {
+                        if (tech.toLowerCase().includes(key.toLowerCase())) {
+                            return color;
+                        }
+                    }
+                    return this.technologyColors['Unknown'];
+                }
+                return '#6c757d';
+            })
+            .attr('stroke', d => {
+                if (d.type === 'endpoint') return '#6c757d';
+                return '#fff';
+            })
+            .attr('stroke-width', d => {
+                if (d.type === 'endpoint') return 2;
+                return d.is_main ? 4 : 2;
+            })
+            .attr('stroke-dasharray', d => {
+                if (d.type === 'endpoint') return '3,3';
+                return 'none';
+            })
+            .call(this.drag());
+        
+        // Add tooltips to nodes
+        this.nodes.append('title')
+            .text(d => {
+                if (d.type === 'terminal') {
+                    return `${d.label}\n${d.voltage} kV${d.is_main ? ' (Main)' : ''}`;
+                }
+                if (d.type === 'endpoint') {
+                    return `${d.label}\n${d.voltage} kV\n(Incomplete connection)`;
+                }
+                if (d.type === 'facility') {
+                    return `${d.label}\n${d.technology}\n${d.capacity} MW`;
+                }
+                return d.label;
+            });
+    }
+    
+    drawLabels() {
+        this.labels = this.labelsGroup.selectAll('text')
+            .data(this.data.nodes)
+            .join('text')
+            .attr('class', 'node-label')
+            .attr('text-anchor', 'middle')
+            .attr('dy', d => {
+                if (d.type === 'terminal') return d.is_main ? 50 : 45;
+                if (d.type === 'endpoint') return 35;
+                if (d.type === 'facility') return this.capacityScale(d.capacity || 0) + 15;
+                return 35;
+            })
+            .style('font-size', d => {
+                if (d.type === 'terminal') return d.is_main ? '14px' : '12px';
+                if (d.type === 'endpoint') return '11px';
+                return '11px';
+            })
+            .style('font-weight', d => d.is_main ? 'bold' : 'normal')
+            .style('font-style', d => d.type === 'endpoint' ? 'italic' : 'normal')
+            .style('fill', d => d.type === 'endpoint' ? '#6c757d' : '#333')
             .style('pointer-events', 'none')
-            .style('user-select', 'none');
+            .text(d => {
+                // Truncate long labels
+                if (d.label.length > 20) {
+                    return d.label.substring(0, 20) + '...';
+                }
+                return d.label;
+            });
+    }
+    
+    tick() {
+        // Update base links
+        this.links
+            .attr('x1', d => d.source.x)
+            .attr('y1', d => d.source.y)
+            .attr('x2', d => d.target.x)
+            .attr('y2', d => d.target.y);
         
-        // Add tooltips
-        node.append('title')
-            .text(d => this.getTooltipText(d));
-        
-        // Store references for event handlers
-        this.nodeElements = node;
-        this.linkElements = link;
-        this.labelElements = label;
-        
-        // Update positions on each tick
-        this.simulation.on('tick', () => {
-            link
+        // Update flow lines
+        if (this.flowLines) {
+            this.flowLines
                 .attr('x1', d => d.source.x)
                 .attr('y1', d => d.source.y)
                 .attr('x2', d => d.target.x)
                 .attr('y2', d => d.target.y);
-            
-            node
-                .attr('cx', d => d.x)
-                .attr('cy', d => d.y);
-            
-            label
-                .attr('x', d => d.x)
-                .attr('y', d => d.y);
-        });
+        }
+        
+        this.nodes
+            .attr('cx', d => d.x)
+            .attr('cy', d => d.y);
+        
+        this.labels
+            .attr('x', d => d.x)
+            .attr('y', d => d.y);
     }
     
-    createDragBehavior() {
+    drag() {
         return d3.drag()
             .on('start', (event, d) => {
                 if (!event.active) this.simulation.alphaTarget(0.3).restart();
@@ -211,128 +409,31 @@ class TerminalNetworkDiagram {
             });
     }
     
-    getTooltipText(node) {
-        let text = `${node.label}\nType: ${node.type}`;
-        
-        if (node.voltage) {
-            text += `\nVoltage: ${node.voltage} kV`;
-        }
-        if (node.capacity) {
-            text += `\nCapacity: ${node.capacity} MW`;
-        }
-        if (node.technology) {
-            text += `\nTechnology: ${node.technology}`;
-        }
-        
-        return text;
-    }
-    
-    createLegend() {
-        const legend = this.svg.append('g')
-            .attr('class', 'legend')
-            .attr('transform', `translate(20, 20)`);
-        
-        const legendData = [
-            { label: 'Terminal', color: this.colors.terminal, type: 'node', radius: 20 },
-            { label: 'Grid Line', color: this.colors.gridline, type: 'node', radius: 15 },
-            { label: 'Facility', color: this.colors.facility, type: 'node', radius: 12 },
-            { label: 'Outgoing', color: this.colors.outgoing, type: 'line' },
-            { label: 'Incoming', color: this.colors.incoming, type: 'line' },
-        ];
-        
-        const legendItem = legend.selectAll('.legend-item')
-            .data(legendData)
-            .enter().append('g')
-            .attr('class', 'legend-item')
-            .attr('transform', (d, i) => `translate(0, ${i * 28})`);
-        
-        // Add shapes
-        legendItem.each(function(d) {
-            if (d.type === 'node') {
-                d3.select(this).append('circle')
-                    .attr('r', d.radius / 2.5)
-                    .attr('cx', 10)
-                    .attr('cy', 0)
-                    .attr('fill', d.color)
-                    .attr('stroke', '#fff')
-                    .attr('stroke-width', 2);
-            } else {
-                d3.select(this).append('line')
-                    .attr('x1', 0)
-                    .attr('y1', 0)
-                    .attr('x2', 20)
-                    .attr('y2', 0)
-                    .attr('stroke', d.color)
-                    .attr('stroke-width', 3);
-            }
-        });
-        
-        // Add labels
-        legendItem.append('text')
-            .attr('x', 25)
-            .attr('y', 5)
-            .text(d => d.label)
-            .attr('font-size', 12)
-            .attr('fill', '#212529');
-        
-        // Add background
-        const bbox = legend.node().getBBox();
-        legend.insert('rect', ':first-child')
-            .attr('x', bbox.x - 10)
-            .attr('y', bbox.y - 10)
-            .attr('width', bbox.width + 20)
-            .attr('height', bbox.height + 20)
-            .attr('fill', 'white')
-            .attr('opacity', 0.95)
-            .attr('rx', 5)
-            .attr('stroke', '#dee2e6')
-            .attr('stroke-width', 1);
-    }
-    
-    // Public methods
-    
     highlightNode(nodeId) {
-        // Dim all nodes and links
-        this.nodeElements.style('opacity', d => d.id === nodeId ? 1 : 0.2);
-        this.labelElements.style('opacity', d => d.id === nodeId ? 1 : 0.2);
+        // Reset all
+        this.resetHighlight();
         
-        // Highlight connected links
-        this.linkElements.style('opacity', d => {
-            if (d.source.id === nodeId || d.target.id === nodeId) {
-                // Also highlight connected nodes
-                this.nodeElements.style('opacity', function(n) {
-                    if (n.id === d.source.id || n.id === d.target.id) {
-                        return 1;
-                    }
-                    return d3.select(this).style('opacity');
-                });
-                return 0.8;
+        // Find connected nodes and links
+        const connectedNodeIds = new Set([nodeId]);
+        const connectedLinkIndices = new Set();
+        
+        this.data.links.forEach((link, index) => {
+            if (link.source.id === nodeId || link.target.id === nodeId) {
+                connectedNodeIds.add(link.source.id);
+                connectedNodeIds.add(link.target.id);
+                connectedLinkIndices.add(index);
             }
-            return 0.1;
         });
+        
+        // Dim non-connected elements
+        this.nodes.style('opacity', d => connectedNodeIds.has(d.id) ? 1 : 0.2);
+        this.links.style('opacity', (d, i) => connectedLinkIndices.has(i) ? 0.9 : 0.1);
+        this.labels.style('opacity', d => connectedNodeIds.has(d.id) ? 1 : 0.2);
     }
     
     resetHighlight() {
-        this.nodeElements.style('opacity', 1);
-        this.linkElements.style('opacity', 0.6);
-        this.labelElements.style('opacity', 1);
+        this.nodes.style('opacity', 1);
+        this.links.style('opacity', 0.7);
+        this.labels.style('opacity', 1);
     }
-    
-    destroy() {
-        this.simulation.stop();
-        this.container.selectAll('*').remove();
-    }
-    
-    // Export as image
-    exportAsSVG() {
-        const svgElement = this.svg.node();
-        const serializer = new XMLSerializer();
-        const svgString = serializer.serializeToString(svgElement);
-        return svgString;
-    }
-}
-
-// Make it available globally
-if (typeof window !== 'undefined') {
-    window.TerminalNetworkDiagram = TerminalNetworkDiagram;
 }

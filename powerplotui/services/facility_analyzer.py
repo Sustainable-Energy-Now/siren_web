@@ -1,6 +1,6 @@
 # powerplot/services/facility_analyzer.py
 from django.db.models import Sum, Avg, Count, Q
-from siren_web.models import FacilityScada, FacilityMetadata
+from siren_web.models import FacilityScada, Technologies, facilities
 from datetime import datetime, timedelta
 import pandas as pd
 import logging
@@ -81,10 +81,25 @@ class FacilityAnalyzer:
         return analysis
     
     def get_battery_facilities(self):
-        """Get list of all battery facilities"""
-        return FacilityMetadata.objects.filter(
-            fuel_type='BATTERY'
-        ).values_list('code', flat=True)
+        """
+        Get list of all battery facilities
+        
+        Returns facility codes for all battery energy storage systems (BESS).
+        Uses Technologies model to identify battery facilities.
+        """
+        # Get battery technology IDs - looking for fuel_type containing battery-related terms
+        # or technology names that indicate battery storage
+        battery_tech_ids = Technologies.objects.filter(
+            Q(fuel_type__icontains='battery') | 
+            Q(fuel_type__icontains='bess') |
+            Q(technology_name__icontains='battery') |
+            Q(technology_name__icontains='bess')
+        ).values_list('idtechnologies', flat=True)
+        
+        # Get facility codes for facilities with battery technologies
+        return facilities.objects.filter(
+            idtechnologies__in=battery_tech_ids
+        ).values_list('facility_code', flat=True)
     
     def analyze_all_batteries(self, start_date, end_date):
         """Analyze all battery facilities"""

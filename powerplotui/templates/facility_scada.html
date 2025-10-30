@@ -1,11 +1,11 @@
 {% extends 'powerplotui_base.html' %}
 {% load static %}
 
-{% block title %}Supply Factor Plot{% endblock %}
+{% block title %}SCADA Data Plot{% endblock %}
 
 {% block content %}
 <div class="container-fluid mt-4">
-    <h2>Renewable Facility Generation Visualization</h2>
+    <h2>Facility SCADA Data Visualization</h2>
     
     <!-- Mode selector -->
     <div class="row mt-3">
@@ -31,11 +31,11 @@
         <div class="col-md-12">
             <div class="card">
                 <div class="card-body">
-                    <form id="supplyPlotForm" class="row g-3">
+                    <form id="scadaPlotForm" class="row g-3">
                         <div class="col-md-4">
-                            <label for="facilitySelect" class="form-label">Select Renewable Facility:</label>
-                            <select class="form-select" id="facilitySelect" name="facility" required>
-                                <option value="">Choose a facility...</option>
+                            <label for="facilitySelect" class="form-label">Select Facility(ies):</label>
+                            <select class="form-select" id="facilitySelect" name="facility" multiple size="8" required>
+                                <option value="" disabled>Hold Ctrl/Cmd to select multiple...</option>
                                 {% for facility in facilities %}
                                 <option value="{{ facility.idfacilities }}" 
                                         data-technology="{{ facility.idtechnologies.technology_name }}">
@@ -45,6 +45,9 @@
                                 </option>
                                 {% endfor %}
                             </select>
+                            <small class="multi-select-hint">
+                                <i class="bi bi-info-circle"></i> Hold Ctrl (Windows/Linux) or Cmd (Mac) to select multiple
+                            </small>
                         </div>
                         
                         <div class="col-md-2">
@@ -79,7 +82,7 @@
                         <div class="col-md-2">
                             <label class="form-label">&nbsp;</label>
                             <button type="submit" class="btn btn-primary w-100">
-                                <i class="bi bi-graph-up"></i> Plot Generation
+                                <i class="bi bi-graph-up"></i> Plot Facilities
                             </button>
                         </div>
                     </form>
@@ -177,11 +180,11 @@
         <div class="col-md-12">
             <div class="card">
                 <div class="card-body">
-                    <form id="comparisonPlotForm" class="row g-3">
+                    <form id="scadaComparisonPlotForm" class="row g-3">
                         <div class="col-md-3">
-                            <label for="facility1Select" class="form-label">Facility 1:</label>
-                            <select class="form-select" id="facility1Select" name="facility1" required>
-                                <option value="">Choose first facility...</option>
+                            <label for="facility1Select" class="form-label">Facility Group 1:</label>
+                            <select class="form-select" id="facility1Select" name="facility1" multiple size="8" required>
+                                <option value="" disabled>Hold Ctrl/Cmd to select multiple...</option>
                                 {% for facility in facilities %}
                                 <option value="{{ facility.idfacilities }}" 
                                         data-technology="{{ facility.idtechnologies.technology_name }}">
@@ -192,9 +195,9 @@
                         </div>
                         
                         <div class="col-md-3">
-                            <label for="facility2Select" class="form-label">Facility 2:</label>
-                            <select class="form-select" id="facility2Select" name="facility2" required>
-                                <option value="">Choose second facility...</option>
+                            <label for="facility2Select" class="form-label">Facility Group 2:</label>
+                            <select class="form-select" id="facility2Select" name="facility2" multiple size="8" required>
+                                <option value="" disabled>Hold Ctrl/Cmd to select multiple...</option>
                                 {% for facility in facilities %}
                                 <option value="{{ facility.idfacilities }}" 
                                         data-technology="{{ facility.idtechnologies.technology_name }}">
@@ -334,7 +337,7 @@
         <div class="col-md-12">
             <div class="card">
                 <div class="card-body">
-                    <form id="technologyPlotForm" class="row g-3">
+                    <form id="scadaTechnologyPlotForm" class="row g-3">
                         <div class="col-md-4">
                             <label for="technologySelect" class="form-label">
                                 Select Technologies (hold Ctrl/Cmd to select multiple):
@@ -484,7 +487,7 @@
         <div class="col-md-12">
             <div class="card">
                 <div class="card-body">
-                    <form id="techComparisonPlotForm" class="row g-3">
+                    <form id="scadaTechComparisonPlotForm" class="row g-3">
                         <div class="col-md-3">
                             <label for="technology1Select" class="form-label">
                                 Technology Group 1 (Ctrl/Cmd + click):
@@ -649,7 +652,7 @@
         <div class="spinner-border text-primary" role="status">
             <span class="visually-hidden">Loading...</span>
         </div>
-        <p class="mt-2">Loading supply data...</p>
+        <p class="mt-2">Loading quantity data...</p>
     </div>
     
     <div id="errorMessage" class="alert alert-danger mt-4" style="display: none;"></div>
@@ -726,7 +729,7 @@
         <div class="col-md-12">
             <div class="card">
                 <div class="card-body">
-                    <div id="supplyChart" style="width: 100%; height: 600px;"></div>
+                    <div id="quantityChart" style="width: 100%; height: 600px;"></div>
                 </div>
             </div>
         </div>
@@ -737,10 +740,10 @@
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     // Form elements
-    const singleForm = document.getElementById('supplyPlotForm');
-    const comparisonForm = document.getElementById('comparisonPlotForm');
-    const technologyForm = document.getElementById('technologyPlotForm');
-    const techComparisonForm = document.getElementById('techComparisonPlotForm');
+    const singleForm = document.getElementById('scadaPlotForm');
+    const comparisonForm = document.getElementById('scadaComparisonPlotForm');
+    const technologyForm = document.getElementById('scadaTechnologyPlotForm');
+    const techComparisonForm = document.getElementById('scadaTechComparisonPlotForm');
     const facilitySelect = document.getElementById('facilitySelect');
     const yearSelect = document.getElementById('yearSelect');
     const aggregationSelect = document.getElementById('aggregationSelect');
@@ -768,7 +771,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const errorMessage = document.getElementById('errorMessage');
     const plotInfo = document.getElementById('plotInfo');
     const comparisonMetrics = document.getElementById('comparisonMetrics');
-    const chartDiv = document.getElementById('supplyChart');
+    const chartDiv = document.getElementById('quantityChart');
     const singleFacilityFormDiv = document.getElementById('singleFacilityForm');
     const comparisonFormDiv = document.getElementById('comparisonForm');
     const technologyFormDiv = document.getElementById('technologyForm');
@@ -830,8 +833,10 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Update years when facility changes
     facilitySelect.addEventListener('change', function() {
-        if (this.value) {
-            updateAvailableYears(this.value, yearSelect);
+        const selectedOptions = Array.from(this.selectedOptions);
+        if (selectedOptions.length > 0) {
+            // Use first selected facility for year lookup
+            updateAvailableYears(selectedOptions[0].value, yearSelect);
         }
     });
     
@@ -959,42 +964,58 @@ document.addEventListener('DOMContentLoaded', function() {
     singleForm.addEventListener('submit', function(e) {
         e.preventDefault();
         
-        const facilityId = facilitySelect.value;
+        const selectedOptions = Array.from(facilitySelect.selectedOptions);
+        const facilityIds = selectedOptions.map(opt => opt.value);
+        
+        if (facilityIds.length === 0) {
+            showError('Please select at least one facility');
+            return;
+        }
+        
         const year = yearSelect.value;
         const aggregation = aggregationSelect.value;
         const chartType = chartTypeSelect.value;
         
-        if (!facilityId || !year) {
-            showError('Please select both facility and year');
+        if (!year) {
+            showError('Please select a year');
             return;
         }
         
         comparisonMetrics.style.display = 'none';
-        fetchAndPlotData(facilityId, year, aggregation, chartType);
+        fetchAndPlotData(facilityIds, year, aggregation, chartType);
     });
     
     // Comparison form submission
     comparisonForm.addEventListener('submit', function(e) {
         e.preventDefault();
         
-        const facility1Id = facility1Select.value;
-        const facility2Id = facility2Select.value;
+        const selectedOptions1 = Array.from(facility1Select.selectedOptions);
+        const facility1Ids = selectedOptions1.map(opt => opt.value);
+        
+        const selectedOptions2 = Array.from(facility2Select.selectedOptions);
+        const facility2Ids = selectedOptions2.map(opt => opt.value);
+        
+        if (facility1Ids.length === 0) {
+            showError('Please select at least one facility for Group 1');
+            return;
+        }
+        
+        if (facility2Ids.length === 0) {
+            showError('Please select at least one facility for Group 2');
+            return;
+        }
+        
         const year = yearSelectCompare.value;
         const aggregation = aggregationSelectCompare.value;
         const chartType = chartTypeSelectCompare.value;
         
-        if (!facility1Id || !facility2Id || !year) {
-            showError('Please select both facilities and year');
-            return;
-        }
-        
-        if (facility1Id === facility2Id) {
-            showError('Please select two different facilities');
+        if (!year) {
+            showError('Please select a year');
             return;
         }
         
         plotInfo.style.display = 'none';
-        fetchAndPlotComparison(facility1Id, facility2Id, year, aggregation, chartType);
+        fetchAndPlotComparison(facility1Ids, facility2Ids, year, aggregation, chartType);
     });
     
     // Technology form submission
@@ -1084,13 +1105,18 @@ document.addEventListener('DOMContentLoaded', function() {
         return { start: startHour, end: endHour };
     }
     
-    function fetchAndPlotData(facilityId, year, aggregation, chartType) {
+    function fetchAndPlotData(facilityIds, year, aggregation, chartType) {
         loadingSpinner.style.display = 'block';
         hideError();
         plotInfo.style.display = 'none';
         
         // Get date range if specified
-        let url = `/get_supply_data/?facility_id=${facilityId}&year=${year}&aggregation=${aggregation}`;
+        let url = `/get_scada_data/?year=${year}&aggregation=${aggregation}`;
+        
+        // Add facility IDs as array parameters
+        facilityIds.forEach(id => {
+            url += `&facility_id[]=${id}`;
+        });
         const startMonth = startMonthSingle.value;
         const endMonth = endMonthSingle.value;
         
@@ -1109,8 +1135,16 @@ document.addEventListener('DOMContentLoaded', function() {
                     return;
                 }
                 
-                document.getElementById('infoFacilityName').textContent = data.facility_name;
-                document.getElementById('infoTechnology').textContent = data.technology;
+                // Display info based on facility count
+                if (data.facility_count === 1) {
+                    const facility = data.facilities[0];
+                    document.getElementById('infoFacilityName').textContent = facility.facility_name;
+                    document.getElementById('infoTechnology').textContent = facility.technology;
+                } else {
+                    document.getElementById('infoFacilityName').textContent = `${data.facility_count} facilities`;
+                    const technologies = [...new Set(data.facilities.map(f => f.technology))].join(', ');
+                    document.getElementById('infoTechnology').textContent = technologies;
+                }
                 document.getElementById('infoYear').textContent = data.year;
                 document.getElementById('infoAggregation').textContent = data.aggregation.charAt(0).toUpperCase() + data.aggregation.slice(1);
                 document.getElementById('infoTotalPeriods').textContent = data.total_periods;
@@ -1124,13 +1158,22 @@ document.addEventListener('DOMContentLoaded', function() {
             });
     }
     
-    function fetchAndPlotComparison(facility1Id, facility2Id, year, aggregation, chartType) {
+    function fetchAndPlotComparison(facility1Ids, facility2Ids, year, aggregation, chartType) {
         loadingSpinner.style.display = 'block';
         hideError();
         comparisonMetrics.style.display = 'none';
         
-        // Get date range if specified
-        let url = `/get_comparison_data/?facility1_id=${facility1Id}&facility2_id=${facility2Id}&year=${year}&aggregation=${aggregation}`;
+        // Build URL with array parameters
+        let url = `/get_scada_comparison/?year=${year}&aggregation=${aggregation}`;
+        
+        // Add facility IDs as array parameters
+        facility1Ids.forEach(id => {
+            url += `&facility1_id[]=${id}`;
+        });
+        facility2Ids.forEach(id => {
+            url += `&facility2_id[]=${id}`;
+        });
+        
         const startMonth = startMonthCompare.value;
         const endMonth = endMonthCompare.value;
         
@@ -1165,7 +1208,7 @@ document.addEventListener('DOMContentLoaded', function() {
         comparisonMetrics.style.display = 'none';
         
         // Build URL with multiple technology IDs
-        let url = `/get_technology_data/?year=${year}&aggregation=${aggregation}`;
+        let url = `/get_scada_technology/?year=${year}&aggregation=${aggregation}`;
         technologyIds.forEach(id => {
             url += `&technology_id[]=${id}`;
         });
@@ -1213,7 +1256,7 @@ document.addEventListener('DOMContentLoaded', function() {
         plotInfo.style.display = 'none';
         
         // Build URL with multiple technology IDs for both groups
-        let url = `/get_technology_comparison_data/?year=${year}&aggregation=${aggregation}`;
+        let url = `/get_scada_technology_comparison/?year=${year}&aggregation=${aggregation}`;
         technology1Ids.forEach(id => {
             url += `&technology1_id[]=${id}`;
         });
@@ -1253,10 +1296,20 @@ document.addEventListener('DOMContentLoaded', function() {
     function displayComparisonMetrics(data) {
         const metrics = data.correlation_metrics;
         
-        document.getElementById('compFacility1').textContent = data.facility1.name;
-        document.getElementById('compTech1').textContent = data.facility1.technology;
-        document.getElementById('compFacility2').textContent = data.facility2.name;
-        document.getElementById('compTech2').textContent = data.facility2.technology;
+        const group1Display = data.facility_group1.facility_count > 1 
+            ? `${data.facility_group1.names.slice(0, 3).join(', ')}${data.facility_group1.names.length > 3 ? '...' : ''} (${data.facility_group1.facility_count} facilities)` 
+            : data.facility_group1.names[0];
+        const group2Display = data.facility_group2.facility_count > 1 
+            ? `${data.facility_group2.names.slice(0, 3).join(', ')}${data.facility_group2.names.length > 3 ? '...' : ''} (${data.facility_group2.facility_count} facilities)` 
+            : data.facility_group2.names[0];
+        
+        const tech1Display = data.facility_group1.breakdown.map(b => b.name).join(', ');
+        const tech2Display = data.facility_group2.breakdown.map(b => b.name).join(', ');
+        
+        document.getElementById('compFacility1').textContent = group1Display;
+        document.getElementById('compTech1').textContent = tech1Display;
+        document.getElementById('compFacility2').textContent = group2Display;
+        document.getElementById('compTech2').textContent = tech2Display;
         document.getElementById('compYear').textContent = data.year;
         document.getElementById('compAggregation').textContent = data.aggregation.charAt(0).toUpperCase() + data.aggregation.slice(1);
         
@@ -1290,20 +1343,46 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     function plotSupplyData(data, chartType) {
-        const traces = createTraces(
-            [data.periods, data.periods],
-            [data.quantum, data.supply],
-            ['Generation', 'Time Scale'],
-            ['rgb(55, 128, 191)', 'rgb(255, 127, 14)'],
-            chartType
-        );
+        const chartDiv = document.getElementById('quantityChart');
         
-        const hasDifferentSupply = data.supply.some((val, idx) => val !== data.quantum[idx]);
-        const plotData = hasDifferentSupply ? traces : [traces[0]];
+        // Create traces for each facility
+        const colors = [
+            'rgb(31, 119, 180)', 'rgb(255, 127, 14)', 'rgb(44, 160, 44)',
+            'rgb(214, 39, 40)', 'rgb(148, 103, 189)', 'rgb(140, 86, 75)',
+            'rgb(227, 119, 194)', 'rgb(127, 127, 127)', 'rgb(188, 189, 34)',
+            'rgb(23, 190, 207)'
+        ];
+        
+        const traces = data.facilities.map((facility, idx) => {
+            const color = colors[idx % colors.length];
+            const trace = {
+                x: facility.periods,
+                y: facility.quantity,
+                name: `${facility.facility_name} (${facility.technology})`,
+                type: chartType === 'bar' ? 'bar' : 'scatter'
+            };
+            
+            if (chartType === 'line' || chartType === 'area') {
+                trace.mode = 'lines';
+                trace.line = { width: 2, color: color };
+            } else if (chartType === 'scatter') {
+                trace.mode = 'markers';
+                trace.marker = { size: 6, color: color };
+            } else if (chartType === 'bar') {
+                trace.marker = { color: color };
+            }
+            
+            if (chartType === 'area') {
+                trace.fill = 'tozeroy';
+                trace.fillcolor = color.replace('rgb', 'rgba').replace(')', ', 0.3)');
+            }
+            
+            return trace;
+        });
         
         const layout = {
             title: {
-                text: `Generation for ${data.facility_name} (${data.year}) - ${data.technology}`,
+                text: `SCADA Data (${data.year}) - ${data.facility_count} Facilit${data.facility_count > 1 ? 'ies' : 'y'}`,
                 font: { size: 16 }
             },
             xaxis: { 
@@ -1316,7 +1395,7 @@ document.addEventListener('DOMContentLoaded', function() {
             },
             yaxis: { 
                 title: {
-                    text: 'Generation (MWh)',
+                    text: 'Generation (MW)',
                     font: { size: 14 }
                 },
                 showgrid: true, 
@@ -1328,22 +1407,31 @@ document.addEventListener('DOMContentLoaded', function() {
             barmode: chartType === 'bar' ? 'group' : undefined
         };
         
-        Plotly.newPlot(chartDiv, plotData, layout, getPlotConfig());
+        Plotly.newPlot(chartDiv, traces, layout, getPlotConfig());
     }
 
     function plotComparisonData(data, chartType) {
+        const chartDiv = document.getElementById('quantityChart');
+        
+        const group1Name = data.facility_group1.facility_count > 1 
+            ? `Group 1 (${data.facility_group1.facility_count} facilities)` 
+            : data.facility_group1.names[0];
+        const group2Name = data.facility_group2.facility_count > 1 
+            ? `Group 2 (${data.facility_group2.facility_count} facilities)` 
+            : data.facility_group2.names[0];
+        
         const traces = createTraces(
             [data.periods, data.periods, data.periods],
-            [data.facility1_quantum, data.facility2_quantum, data.facility1_quantum.map((v, i) => v + data.facility2_quantum[i])],
-            [`${data.facility1.name} (${data.facility1.technology})`, `${data.facility2.name} (${data.facility2.technology})`, 'Combined Total'],
-            ['rgb(55, 128, 191)', 'rgb(255, 127, 14)', 'rgb(44, 160, 44)'],
+            [data.group1_quantity, data.group2_quantity, data.group1_quantity.map((v, i) => v + data.group2_quantity[i])],
+            [group1Name, group2Name, 'Combined Total'],
+            ['rgb(31, 119, 180)', 'rgb(255, 127, 14)', 'rgb(44, 160, 44)'],
             chartType,
             [false, false, true]
         );
         
         const layout = {
             title: {
-                text: `Facility Comparison: ${data.facility1.name} vs ${data.facility2.name} (${data.year})`,
+                text: `Facility Comparison (${data.year})`,
                 font: { size: 16 }
             },
             xaxis: { 
@@ -1356,7 +1444,7 @@ document.addEventListener('DOMContentLoaded', function() {
             },
             yaxis: { 
                 title: {
-                    text: 'Generation (MWh)',
+                    text: 'Generation (MW)',
                     font: { size: 14 }
                 },
                 showgrid: true, 
@@ -1368,26 +1456,88 @@ document.addEventListener('DOMContentLoaded', function() {
             barmode: chartType === 'bar' ? 'group' : undefined
         };
         
+        // Add breakdown annotations if multiple facilities in a group
+        const annotations = [];
+        
+        if (data.facility_group1.breakdown && data.facility_group1.breakdown.length > 1) {
+            const breakdown1Text = 'Group 1:<br>' + data.facility_group1.breakdown
+                .map(tech => `${tech.name}: ${tech.facility_count}`)
+                .join('<br>');
+            
+            annotations.push({
+                text: breakdown1Text,
+                xref: 'paper',
+                yref: 'paper',
+                x: 0.02,
+                y: 0.98,
+                xanchor: 'left',
+                yanchor: 'top',
+                showarrow: false,
+                bgcolor: 'rgba(255, 255, 255, 0.9)',
+                bordercolor: 'rgb(31, 119, 180)',
+                borderwidth: 2,
+                borderpad: 6,
+                font: { size: 10, color: 'rgb(31, 119, 180)' }
+            });
+        }
+        
+        if (data.facility_group2.breakdown && data.facility_group2.breakdown.length > 1) {
+            const breakdown2Text = 'Group 2:<br>' + data.facility_group2.breakdown
+                .map(tech => `${tech.name}: ${tech.facility_count}`)
+                .join('<br>');
+            
+            annotations.push({
+                text: breakdown2Text,
+                xref: 'paper',
+                yref: 'paper',
+                x: 0.98,
+                y: 0.98,
+                xanchor: 'right',
+                yanchor: 'top',
+                showarrow: false,
+                bgcolor: 'rgba(255, 255, 255, 0.9)',
+                bordercolor: 'rgb(255, 127, 14)',
+                borderwidth: 2,
+                borderpad: 6,
+                font: { size: 10, color: 'rgb(255, 127, 14)' }
+            });
+        }
+        
+        if (annotations.length > 0) {
+            layout.annotations = annotations;
+        }
+        
         Plotly.newPlot(chartDiv, traces, layout, getPlotConfig());
     }
 
     function plotTechnologyData(data, chartType) {
-        const traces = createTraces(
-            [data.periods, data.periods],
-            [data.quantum, data.supply],
-            ['Generation (Sum)', 'Time Scale (Sum)'],
-            ['rgb(55, 128, 191)', 'rgb(255, 127, 14)'],
-            chartType
-        );
+        const chartDiv = document.getElementById('quantityChart');
         
-        const hasDifferentSupply = data.supply.some((val, idx) => val !== data.quantum[idx]);
-        const plotData = hasDifferentSupply ? traces : [traces[0]];
+        const trace = {
+            x: data.periods,
+            y: data.quantity,
+            name: 'Aggregated Generation',
+            type: chartType === 'bar' ? 'bar' : 'scatter'
+        };
+        
+        if (chartType === 'line' || chartType === 'area') {
+            trace.mode = 'lines';
+            trace.line = { width: 2, color: 'rgb(31, 119, 180)' };
+        } else if (chartType === 'scatter') {
+            trace.mode = 'markers';
+            trace.marker = { size: 6, color: 'rgb(31, 119, 180)' };
+        } else if (chartType === 'bar') {
+            trace.marker = { color: 'rgb(31, 119, 180)' };
+        }
+        
+        if (chartType === 'area') {
+            trace.fill = 'tozeroy';
+            trace.fillcolor = 'rgba(31, 119, 180, 0.3)';
+        }
         
         // Build title with technology names
         const techNamesDisplay = data.technology_names.join(' + ');
-        const titleText = data.technology_names.length > 1 
-            ? `${techNamesDisplay} - Aggregated Generation from ${data.facility_count} Facilities (${data.year})`
-            : `${techNamesDisplay} - Aggregated Generation from ${data.facility_count} Facilities (${data.year})`;
+        const titleText = `${techNamesDisplay} - Aggregated Generation from ${data.facility_count} Facilities (${data.year})`;
         
         const layout = {
             title: {
@@ -1404,7 +1554,7 @@ document.addEventListener('DOMContentLoaded', function() {
             },
             yaxis: { 
                 title: {
-                    text: 'Aggregated Generation (MWh)',
+                    text: 'Aggregated Generation (MW)',
                     font: { size: 14 }
                 },
                 showgrid: true, 
@@ -1439,7 +1589,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }];
         }
         
-        Plotly.newPlot(chartDiv, plotData, layout, getPlotConfig());
+        Plotly.newPlot(chartDiv, [trace], layout, getPlotConfig());
     }
 
     function plotTechnologyComparisonData(data, chartType) {
@@ -1448,7 +1598,7 @@ document.addEventListener('DOMContentLoaded', function() {
         
         const traces = createTraces(
             [data.periods, data.periods, data.periods],
-            [data.technology1_quantum, data.technology2_quantum, data.technology1_quantum.map((v, i) => v + data.technology2_quantum[i])],
+            [data.technology1_quantity, data.technology2_quantity, data.technology1_quantity.map((v, i) => v + data.technology2_quantity[i])],
             [`Group 1: ${tech1Names} (${data.technology1.facility_count} facilities)`, 
             `Group 2: ${tech2Names} (${data.technology2.facility_count} facilities)`, 
             'Combined Total'],

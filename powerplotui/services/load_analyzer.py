@@ -1,9 +1,9 @@
 # powerplot/services/load_analyzer.py
-from django.db.models import Sum, Avg, F, Q
-from datetime import datetime, timedelta
+from django.db.models import Avg, F, Q
+from datetime import datetime
 from decimal import Decimal
 from siren_web.models import FacilityScada, LoadAnalysisSummary, DPVGeneration
-from siren_web.models import facilities
+from django.db.models.functions import ExtractHour, ExtractMinute
 import pandas as pd
 import logging
 
@@ -205,18 +205,6 @@ class LoadAnalyzer:
             return 'DIESEL'
         
         return 'OTHER'
-    
-    # powerplotui/services/load_analyzer.py (updated methods)
-
-from django.db.models import Avg, Sum, Count
-from django.db.models.functions import ExtractHour, ExtractMinute
-import logging
-
-logger = logging.getLogger(__name__)
-
-class LoadAnalyzer:
-    
-    # ... (keep existing calculate_monthly_summary and other methods) ...
     
     def get_diurnal_profile(self, year, month):
         """Calculate average diurnal profile including DPV - memory efficient"""

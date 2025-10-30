@@ -8,6 +8,7 @@ class Command(BaseCommand):
 
     def handle(self, *args, **kwargs):
         url = 'https://data.wa.aemo.com.au/public/market-data/wemde/referenceTradingPrice/current'
+        url = 'https://data.wa.aemo.com.au/public/market-data/wemde/referenceTradingPrice/previous'
         response = requests.get(url)
         if response.status_code == 200:
             data = response.json()
