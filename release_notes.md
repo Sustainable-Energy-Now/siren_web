@@ -1,4 +1,11 @@
 # Release Notes (Latest first)
+## Version 3.10.3 - October 30, 2025
+### 🐛 Bug Fixes
+- Test Case: WT-011 Wind Turbine No. of Turbines Allows 0 ([#34](https://github.com/Sustainable-Energy-Now/siren_web/issues/34))
+- Test Case: WT-011 Remove Installation 404 ([#36](https://github.com/Sustainable-Energy-Now/siren_web/issues/36))
+### 🆕 New Features
+- Feature: Edit Wind Turbine Installation ([#35](https://github.com/Sustainable-Energy-Now/siren_web/issues/35))
+
 ## Version 3.10.2 - October 24, 2025
 ### 🆕 New Features
 - Feature: Scada Analysis from Database ([#33](https://github.com/Sustainable-Energy-Now/siren_web/issues/33))

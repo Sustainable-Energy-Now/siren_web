@@ -179,15 +179,27 @@
   <!-- Additional Actions -->
   <div class="mt-4">
     <a href="{% url 'powermapui:wind_turbines_list' %}" class="btn btn-outline-secondary">
-      View Wind Turbine Models
+      View Wind Turbines
     </a>
   </div>
 
   <!-- Placeholder for edit/delete modals -->
   <script>
     function editInstallation(installationId) {
-      // Placeholder for edit functionality
-      alert('Edit functionality would be implemented here for installation ID: ' + installationId);
+        // Create a form and submit it
+        var form = document.createElement('form');
+        form.method = 'POST';
+        form.action = '/facility_wind_turbines/' + installationId + '/edit/';
+        
+        var csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+        var csrfInput = document.createElement('input');
+        csrfInput.type = 'hidden';
+        csrfInput.name = 'csrfmiddlewaretoken';
+        csrfInput.value = csrfToken;
+        form.appendChild(csrfInput);
+        
+        document.body.appendChild(form);
+        form.submit();
     }
 
     function confirmDelete(installationId, facilityName, turbineModel) {
@@ -195,7 +207,7 @@
         // Create a form and submit it
         var form = document.createElement('form');
         form.method = 'POST';
-        form.action = '/facility-wind-turbines/' + installationId + '/delete/';
+        form.action = '/facility_wind_turbines/' + installationId + '/delete/';
         
         var csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
         var csrfInput = document.createElement('input');

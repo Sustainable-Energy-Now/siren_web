@@ -50,8 +50,14 @@
         <li class="nav-item">
           <a href="/scenarios/">Scenarios</a>
         </li>
-        <li class="nav-item">
-          <a href="/wind_turbines/">Wind Turbines</a>
+        <li class="nav-item dropdown">
+          <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+            Wind Turbines
+          </a>
+          <ul class="dropdown-menu">
+            <li><a class="dropdown-item" href="{% url 'powermapui:wind_turbines_list' %}">All Wind Turbines</a></li>
+            <li><a class="dropdown-item" href="{% url 'powermapui:facility_wind_turbines_list' %}">Facility Wind Turbines</a></li>
+          </ul>
         </li>
         <li class="nav-item">
           <a href="/tableupdate/">Table Update</a>

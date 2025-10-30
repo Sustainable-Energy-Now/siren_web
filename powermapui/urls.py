@@ -62,7 +62,7 @@ urlpatterns = [
     path('terminals/dashboard/', terminals_dashboard.terminals_dashboard, name='terminals_dashboard'),
     path('terminals/health-check/', terminals_dashboard.terminal_health_check, name='terminal_health_check'),
 
-# ========== GRID LINES CRUD (NEW) ==========
+    # ========== GRID LINES CRUD (NEW) ==========
     path('gridlines/', gridlines_views.gridlines_list, name='gridlines_list'),
     path('gridlines/create/', gridlines_views.gridline_create, name='gridline_create'),
     path('gridlines/<int:pk>/', gridlines_views.gridline_detail, name='gridline_detail'),
