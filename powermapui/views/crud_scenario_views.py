@@ -5,7 +5,7 @@ from django.http import HttpResponseRedirect, JsonResponse
 from django.urls import reverse
 from django.views.decorators.http import require_http_methods
 from django.views.decorators.csrf import csrf_exempt
-from ..forms import ScenarioForm
+from siren_web.forms import ScenarioForm
 from siren_web.models import Scenarios, facilities, ScenariosFacilities
 import json
 

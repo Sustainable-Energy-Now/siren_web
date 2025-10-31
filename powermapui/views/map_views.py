@@ -4,7 +4,7 @@ from django.db.models import Max, Q
 from django.http import JsonResponse
 from django.shortcuts import render
 from django.views.decorators.csrf import csrf_exempt
-from powermatchui.forms import DemandScenarioSettings
+from siren_web.forms import DemandScenarioSettings
 from siren_web.database_operations import fetch_module_settings_data, fetch_scenario_settings_data
 from siren_web.models import facilities, Technologies, Terminals, Scenarios, GridLines, FacilityGridConnections
 import json

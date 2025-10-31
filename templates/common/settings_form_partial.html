@@ -1,5 +1,7 @@
 <form method="post">
     {% csrf_token %}
+        {{ demand_year_scenario.weather_year.label_tag }}
+        {{ demand_year_scenario.weather_year }}
         {{ demand_year_scenario.demand_year.label_tag }}
         {{ demand_year_scenario.demand_year }}
         {{ demand_year_scenario.scenario.label_tag }}

@@ -1,6 +1,6 @@
 from django.contrib.auth.decorators import login_required
 from common.mixins import DemandScenarioSettingsMixin
-from powermatchui.forms import DemandScenarioSettings
+from siren_web.forms import DemandScenarioSettings
 
 class PowerplotUIHomeView(DemandScenarioSettingsMixin):
     form_class = DemandScenarioSettings
@@ -8,5 +8,4 @@ class PowerplotUIHomeView(DemandScenarioSettingsMixin):
 
 @login_required
 def powerplotui_home(request):
-    view = PowerplotUIHomeView()
-    return view.dispatch_view(request)
+    return PowerplotUIHomeView().dispatch_view(request)

@@ -1,5 +1,5 @@
 # technologies/views.py
-from ..forms import DemandYearForm
+from siren_web.forms import DemandYearForm
 from sqlalchemy.sql import text
 from siren_web.database_operations import fetch_full_generator_storage_data
 from django.db.models import Prefetch

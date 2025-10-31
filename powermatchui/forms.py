@@ -6,29 +6,6 @@ from crispy_forms.layout import Layout, Div, Field, Submit, HTML, Row, Column
 from crispy_bootstrap5.bootstrap5 import Accordion
 from crispy_forms.bootstrap import AccordionGroup, FormActions
 
-class DemandScenarioSettings(forms.Form):    
-    demand_year = forms.ChoiceField(
-        label='Select a Demand Year',
-        initial='2023',
-        required=True,
-        widget=forms.Select(attrs={'class': 'form_input'})
-    )
-    
-    scenario = forms.ModelChoiceField(
-        queryset=Scenarios.objects.all().values_list('title', flat=True), # type: ignore
-        empty_label=None,
-        label='Select a Scenario',
-        initial='Current',
-        to_field_name='title',
-        widget=forms.Select(attrs={'class': 'form_input'})
-    )
-    
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        
-        year_choices = [(year, year) for year in TechnologyYears.objects.values_list('year', flat=True).distinct()]
-        self.fields['demand_year'].choices = year_choices
-        
 class BaselineScenarioForm(forms.Form):
     carbon_price = forms.DecimalField(label='Carbon Price', required=False)
     discount_rate = forms.DecimalField(label='Discount Rate', required=False)

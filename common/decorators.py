@@ -10,7 +10,7 @@ def settings_required(redirect_view='home'):
     Decorator to ensure demand_year and scenario are set before accessing a view.
     Prevents running processes without proper configuration.
     
-    Usage:
+    Usage example:
         @login_required
         @settings_required(redirect_view='powermatchui_home')
         def my_processing_view(request):
