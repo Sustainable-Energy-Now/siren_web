@@ -1,4 +1,9 @@
 # Release Notes (Latest first)
+## Version 3.11.0 - November 2, 2025
+### 🆕 New Features
+- Feature: Implement FacilityStorage ([#40](https://github.com/Sustainable-Energy-Now/siren_web/issues/40))
+- Feature: Storage CRUD ([#41](https://github.com/Sustainable-Energy-Now/siren_web/issues/41))
+
 ## Version 3.10.3 - October 30, 2025
 ### 🐛 Bug Fixes
 - Test Case: FWI-010 Wind Turbine No. of Turbines Allows 0 ([#34](https://github.com/Sustainable-Energy-Now/siren_web/issues/34))
@@ -6,6 +11,7 @@
 ### 🆕 New Features
 - Feature: Edit Wind Turbine Installation ([#35](https://github.com/Sustainable-Energy-Now/siren_web/issues/35))
 - Feature: Implement Historical Load Statistics ([#37](https://github.com/Sustainable-Energy-Now/siren_web/issues/37))
+- Feature: Introduce Weather Year ([#38](https://github.com/Sustainable-Energy-Now/siren_web/issues/38))
 
 ## Version 3.10.2 - October 24, 2025
 ### 🆕 New Features

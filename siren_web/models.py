@@ -550,6 +550,176 @@ class WindTurbines(models.Model):
         """Get the currently active power curve for this turbine"""
         return self.power_curves.filter(is_active=True).first()
 
+class FacilityStorage(models.Model):
+    """
+    Through model for many-to-many relationship between facilities and Storage Technologies
+    Contains installation-specific data for storage systems at each facility
+    """
+    idfacilitystorage = models.AutoField(db_column='idfacilitystorage', primary_key=True)
+    idfacilities = models.ForeignKey(
+        'facilities', 
+        on_delete=models.CASCADE, 
+        db_column='idfacilities',
+        related_name='storage_installations'
+    )
+    idtechnologies = models.ForeignKey(
+        'Technologies', 
+        on_delete=models.CASCADE, 
+        db_column='idtechnologies',
+        related_name='facility_installations',
+        limit_choices_to={'category': 'Storage'}
+    )
+    
+    # INSTALLATION-SPECIFIC CAPACITY (moved from StorageAttributes)
+    power_capacity = models.FloatField(
+        null=True, 
+        blank=True,
+        help_text='MW - max charge/discharge rate at this facility'
+    )
+    energy_capacity = models.FloatField(
+        null=True, 
+        blank=True,
+        help_text='MWh - total storage capacity at this facility'
+    )
+    duration = models.FloatField(
+        null=True, 
+        blank=True,
+        help_text='Hours at rated power for this installation'
+    )
+    
+    # INSTALLATION METADATA
+    installation_name = models.CharField(
+        max_length=100, 
+        blank=True, 
+        null=True,
+        help_text='Name for this storage installation (e.g., "Main Battery Bank")'
+    )
+    installation_date = models.DateField(
+        blank=True, 
+        null=True,
+        help_text='Date when this storage system was installed'
+    )
+    commissioning_date = models.DateField(
+        blank=True, 
+        null=True,
+        help_text='Date when storage system began operations'
+    )
+    is_active = models.BooleanField(
+        default=True,
+        help_text='Whether this storage installation is currently active'
+    )
+    
+    # OPERATIONAL SETTINGS (can override technology defaults)
+    initial_state_of_charge = models.FloatField(
+        blank=True, 
+        null=True,
+        help_text='Initial SOC for this installation (0.0 to 1.0), overrides technology default if set'
+    )
+    
+    # NOTES AND TRACKING
+    notes = models.TextField(
+        blank=True, 
+        null=True,
+        help_text='Additional notes about this storage installation'
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'FacilityStorage'
+        verbose_name = 'Facility Storage Installation'
+        verbose_name_plural = 'Facility Storage Installations'
+        unique_together = [['idfacilities', 'idtechnologies', 'installation_name']]
+        ordering = ['idfacilities', 'idtechnologies']
+
+    def __str__(self):
+        name = self.installation_name or "Storage"
+        return f"{self.facility.facility_name} - {self.technology.technology_name} ({name})"
+    
+    @property
+    def technology(self):
+        """Get the storage technology for this installation"""
+        return self.idtechnologies
+
+    @property
+    def facility(self):
+        """Get the facility for this installation"""
+        return self.idfacilities
+    
+    @property
+    def storage_attrs(self):
+        """Get the technology-level storage attributes"""
+        return self.technology.storageattributes_set.first()
+    
+    def get_calculated_duration(self):
+        """Calculate duration from energy and power capacity"""
+        if self.energy_capacity and self.power_capacity and self.power_capacity > 0:
+            return self.energy_capacity / self.power_capacity
+        return self.duration
+    
+    def get_usable_capacity(self):
+        """Calculate usable energy capacity based on technology SOC constraints"""
+        storage_attrs = self.storage_attrs
+        if self.energy_capacity and storage_attrs:
+            min_soc = storage_attrs.min_state_of_charge or 0.0
+            max_soc = storage_attrs.max_state_of_charge or 1.0
+            return self.energy_capacity * (max_soc - min_soc)
+        return None
+    
+    def get_round_trip_efficiency(self):
+        """Get round-trip efficiency from technology attributes"""
+        storage_attrs = self.storage_attrs
+        if storage_attrs:
+            return storage_attrs.round_trip_efficiency
+        return None
+    
+    def get_cycle_life(self):
+        """Get cycle life from technology attributes"""
+        storage_attrs = self.storage_attrs
+        if storage_attrs:
+            return storage_attrs.cycle_life
+        return None
+    
+    @property
+    def capacity_summary(self):
+        """Return a formatted string summarizing the capacity"""
+        if self.power_capacity and self.energy_capacity:
+            duration = self.get_calculated_duration()
+            return f"{self.power_capacity:.1f} MW / {self.energy_capacity:.1f} MWh ({duration:.1f}h)"
+        elif self.power_capacity:
+            return f"{self.power_capacity:.1f} MW"
+        elif self.energy_capacity:
+            return f"{self.energy_capacity:.1f} MWh"
+        return "Not specified"
+    
+    def validate_capacity(self):
+        """Validate that capacity values are logical"""
+        if self.power_capacity and self.power_capacity <= 0:
+            raise ValueError("Power capacity must be positive")
+        if self.energy_capacity and self.energy_capacity <= 0:
+            raise ValueError("Energy capacity must be positive")
+        if self.duration and self.duration <= 0:
+            raise ValueError("Duration must be positive")
+        
+        # Check consistency
+        if self.power_capacity and self.energy_capacity and self.duration:
+            calculated_duration = self.energy_capacity / self.power_capacity
+            if abs(calculated_duration - self.duration) > 0.1:
+                raise ValueError(
+                    f"Duration ({self.duration}h) doesn't match calculated "
+                    f"duration ({calculated_duration:.2f}h) from energy/power"
+                )
+        
+        return True
+    
+    def save(self, *args, **kwargs):
+        """Override save to validate before saving"""
+        # Auto-calculate duration if not provided but power and energy are
+        if not self.duration and self.power_capacity and self.energy_capacity:
+            self.duration = self.energy_capacity / self.power_capacity
+        
+        super().save(*args, **kwargs)
+
 class FacilityWindTurbines(models.Model):
     """
     Through model for many-to-many relationship between facilities and WindTurbines
@@ -644,27 +814,6 @@ class FacilityScada(models.Model):
     
     def __str__(self):
         return f"{self.facility.facility_code} @ {self.dispatch_interval}: {self.quantity}MW"
-
-class FacilityMetadata(models.Model):
-    """Store facility metadata for categorization"""
-    code = models.CharField(max_length=50, unique=True, primary_key=True)
-    name = models.CharField(max_length=200)
-    fuel_type = models.CharField(max_length=50, choices=[
-        ('WIND', 'Wind'),
-        ('SOLAR', 'Solar'),
-        ('GAS', 'Gas'),
-        ('COAL', 'Coal'),
-        ('BATTERY', 'Battery Storage'),
-        ('HYDRO', 'Hydro'),
-        ('BIOMASS', 'Biomass'),
-        ('OTHER', 'Other'),
-    ])
-    capacity_mw = models.DecimalField(max_digits=10, decimal_places=2, null=True)
-    is_renewable = models.BooleanField(default=False)
-    
-    class Meta:
-        db_table = 'facility_metadata'
-        verbose_name_plural = 'Facility Metadata'
 
 class LoadAnalysisSummary(models.Model):
     """Store pre-calculated monthly/daily summaries"""
@@ -894,9 +1043,90 @@ class Storageattributes(models.Model):
     parasitic_loss = models.IntegerField(blank=True, null=True)
     recharge_loss = models.IntegerField(blank=True, null=True)
     recharge_max = models.FloatField(null=True)
+
+    # Efficiency
+    round_trip_efficiency = models.FloatField(null=True, help_text="Decimal, e.g., 0.85")
+    charge_efficiency = models.FloatField(null=True, help_text="Decimal, e.g., 0.92")
+    discharge_efficiency = models.FloatField(null=True, help_text="Decimal, e.g., 0.92")
+    
+    # Operating Constraints
+    min_state_of_charge = models.FloatField(default=0.0, help_text="Minimum SOC (0-1)")
+    max_state_of_charge = models.FloatField(default=1.0, help_text="Maximum SOC (0-1)")
+    initial_state_of_charge = models.FloatField(default=0.5, help_text="Starting SOC")
+    
+    # Degradation
+    cycle_life = models.IntegerField(null=True, help_text="Full cycle equivalents")
+    degradation_rate = models.FloatField(null=True, help_text="% per year")
+    
+    # Losses
+    self_discharge_rate = models.FloatField(null=True, help_text="% per hour")
+    auxiliary_load = models.FloatField(null=True, help_text="MW - parasitic load")
+    
     class Meta:
         db_table = 'StorageAttributes'
-               
+        verbose_name = 'Storage Attribute'
+        verbose_name_plural = 'Storage Attributes'
+
+    def __str__(self):
+        return f"Storage Attributes for {self.idtechnologies.technology_name}"
+    
+    def validate_soc_constraints(self):
+        """Validate that SOC constraints are logical"""
+        if self.min_state_of_charge is not None and self.max_state_of_charge is not None:
+            if self.min_state_of_charge >= self.max_state_of_charge:
+                raise ValueError("Minimum SOC must be less than Maximum SOC")
+            if self.min_state_of_charge < 0 or self.max_state_of_charge > 1:
+                raise ValueError("SOC values must be between 0.0 and 1.0")
+        return True
+    
+    def get_typical_values_by_type(self, storage_type):
+        """Return typical values for different storage types"""
+        typical_values = {
+            'Battery (1hr)': {
+                'duration': 1.0,
+                'round_trip_efficiency': 0.85,
+                'cycle_life': 5000,
+                'self_discharge_rate': 0.01,
+            },
+            'Battery (2hr)': {
+                'duration': 2.0,
+                'round_trip_efficiency': 0.85,
+                'cycle_life': 5000,
+                'self_discharge_rate': 0.01,
+            },
+            'Battery (4hr)': {
+                'duration': 4.0,
+                'round_trip_efficiency': 0.85,
+                'cycle_life': 5000,
+                'self_discharge_rate': 0.01,
+            },
+            'Battery (8hr)': {
+                'duration': 8.0,
+                'round_trip_efficiency': 0.85,
+                'cycle_life': 5000,
+                'self_discharge_rate': 0.01,
+            },
+            'PHES (24hr)': {
+                'duration': 24.0,
+                'round_trip_efficiency': 0.75,
+                'cycle_life': 20000,
+                'self_discharge_rate': 0.0,
+            },
+            'PHES (48hr)': {
+                'duration': 48.0,
+                'round_trip_efficiency': 0.75,
+                'cycle_life': 20000,
+                'self_discharge_rate': 0.0,
+            },
+            'Flow Battery': {
+                'duration': 6.0,
+                'round_trip_efficiency': 0.70,
+                'cycle_life': 10000,
+                'self_discharge_rate': 0.001,
+            },
+        }
+        return typical_values.get(storage_type, {})
+
 class supplyfactors(models.Model):
     idsupplyfactors = models.AutoField(db_column='idsupplyfactors', primary_key=True)  
     idfacilities = models.ForeignKey('facilities', on_delete=models.CASCADE, db_column='idfacilities', blank=True, null=True)
@@ -1024,7 +1254,19 @@ class Technologies(models.Model):
 
     class Meta:
         db_table = 'Technologies'
-
+    @property
+    
+    def storage_attrs(self):
+        """
+        Helper property to easily access storage attributes.
+        Returns the first (and typically only) storage attribute record.
+        Usage: technology.storage_attrs.discharge_max
+        """
+        try:
+            return self.storage_attributes.first()
+        except:
+            return None
+        
 class TechnologyYears(models.Model):
     idtechnologyyears = models.AutoField(primary_key=True)
     idtechnologies = models.ForeignKey('Technologies', on_delete=models.RESTRICT)

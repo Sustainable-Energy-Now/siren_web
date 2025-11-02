@@ -1,9 +1,10 @@
 # urls.py
 from django.urls import path, include
 from django.contrib.auth import views as auth_views
-from powermapui.views import crud_scenario_views, facilities_views, crud_terminals_views, gridlines_views, \
-    powermapui_home_views, map_views, power_views, table_update_views, technologies_views, \
-    terminals_connections_views, terminals_dashboard, terminals_views, wind_turbines_views
+from powermapui.views import crud_scenario_views, facilities_views, facility_storage_views, \
+    crud_terminals_views, gridlines_views, powermapui_home_views, map_views, power_views, storage_views, \
+    table_update_views, technologies_views, terminals_connections_views, terminals_dashboard, terminals_views, \
+    wind_turbines_views
 app_name = 'powermapui'
 
 urlpatterns = [
@@ -115,4 +116,19 @@ urlpatterns = [
     path('facility_wind_turbines/create/', wind_turbines_views.facility_wind_turbine_create, name='facility_wind_turbine_create'),
     path('facility_wind_turbines/<int:pk>/edit/', wind_turbines_views.facility_wind_turbine_edit, name='facility_wind_turbine_edit'),
     path('facility_wind_turbines/<int:pk>/delete/', wind_turbines_views.facility_wind_turbine_delete, name='facility_wind_turbine_delete'),
+    
+        # Storage Technologies (new)
+    path('storage/', storage_views.storage_list, name='storage_list'),
+    path('storage/create/', storage_views.storage_create, name='storage_create'),
+    path('storage/<int:pk>/', storage_views.storage_detail, name='storage_detail'),
+    path('storage/<int:pk>/edit/', storage_views.storage_edit, name='storage_edit'),
+    path('api/storage/', storage_views.get_storage_json, name='get_storage_json'),
+    
+        # Facility Storage Installations (installation-specific capacity)
+    path('facility-storage/', facility_storage_views.facility_storage_list, name='facility_storage_list'),
+    path('facility-storage/create/', facility_storage_views.facility_storage_create, name='facility_storage_create'),
+    path('facility-storage/<int:pk>/', facility_storage_views.facility_storage_detail, name='facility_storage_detail'),
+    path('facility-storage/<int:pk>/edit/', facility_storage_views.facility_storage_edit, name='facility_storage_edit'),
+    path('facility-storage/<int:pk>/delete/', facility_storage_views.facility_storage_delete, name='facility_storage_delete'),
+    path('api/facility-storage/', facility_storage_views.get_facility_storage_json, name='get_facility_storage_json'),
 ]

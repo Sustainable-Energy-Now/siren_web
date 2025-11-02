@@ -56,7 +56,20 @@
           </a>
           <ul class="dropdown-menu">
             <li><a class="dropdown-item" href="{% url 'powermapui:wind_turbines_list' %}">All Wind Turbines</a></li>
-            <li><a class="dropdown-item" href="{% url 'powermapui:facility_wind_turbines_list' %}">Facility Wind Turbines</a></li>
+            <li><a class="dropdown-item" href="{% url 'powermapui:facility_wind_turbines_list' %}">Wind Facilities</a></li>
+            <li><a class="dropdown-item" href="{% url 'powermapui:wind_turbine_create' %}">Add Wind Turbine</a></li>
+            <li><a class="dropdown-item" href="{% url 'powermapui:facility_wind_turbine_create' %}">Add Wind Turbine Facility</a></li>
+          </ul>
+        </li>
+        <li class="nav-item dropdown">
+          <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+            Storage
+          </a>
+          <ul class="dropdown-menu">
+            <li><a class="dropdown-item" href="{% url 'powermapui:storage_list' %}">All Storage</a></li>
+            <li><a class="dropdown-item" href="{% url 'powermapui:facility_storage_list' %}">Storage Facilities</a></li>
+            <li><a class="dropdown-item" href="{% url 'powermapui:storage_create' %}">Add Storage</a></li>
+            <li><a class="dropdown-item" href="{% url 'powermapui:facility_storage_create' %}">Add Storage Facility</a></li>
           </ul>
         </li>
         <li class="nav-item">
