@@ -1,0 +1,287 @@
+<!-- facility_storage/edit.html -->
+{% extends 'powermapui_base.html' %}
+
+{% block powermapui_content %}
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h3>Edit Storage Installation</h3>
+      <small class="text-muted">
+        {{ installation.facility.facility_name }} - {{ installation.technology.technology_name }}
+      </small>
+    </div>
+    <div>
+      <a href="{% url 'powermapui:facility_storage_detail' installation.pk %}" class="btn btn-outline-secondary">Back to Details</a>
+    </div>
+  </div>
+
+  <p>Update the capacity and settings for this storage installation. Changes affect only this specific installation.</p>
+
+  <div class="row">
+    <div class="col-lg-8">
+      <div class="card">
+        <div class="card-body">
+          <form method="post" novalidate id="storageForm">
+            {% csrf_token %}
+            
+            <!-- Facility and Technology (Read-only) -->
+            <div class="row mb-3">
+              <div class="col-md-6">
+                <label class="form-label">Facility</label>
+                <input type="text" class="form-control" value="{{ installation.facility.facility_name }}" readonly>
+                <div class="form-text">Cannot be changed after creation</div>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Storage Technology</label>
+                <input type="text" class="form-control" value="{{ installation.technology.technology_name }}" readonly>
+                <div class="form-text">Cannot be changed after creation</div>
+              </div>
+            </div>
+
+            <div class="mb-3">
+              <label for="installation_name" class="form-label">Installation Name</label>
+              <input type="text" 
+                     class="form-control" 
+                     id="installation_name" 
+                     name="installation_name" 
+                     value="{{ form_data.installation_name|default:installation.installation_name|default:'' }}"
+                     placeholder="e.g., Main Battery Bank">
+              <div class="form-text">Optional name to identify this installation</div>
+            </div>
+
+            <hr class="my-4">
+
+            <!-- Capacity Specifications -->
+            <h5 class="mb-3">Capacity Specifications</h5>
+            <p class="text-muted small">Provide at least one capacity value. Duration will be calculated if power and energy are provided.</p>
+
+            <div class="row mb-3">
+              <div class="col-md-4">
+                <label for="power_capacity" class="form-label">Power Capacity (MW)</label>
+                <input type="number" 
+                       class="form-control non-negative" 
+                       id="power_capacity" 
+                       name="power_capacity" 
+                       step="0.01" 
+                       min="0"
+                       value="{{ form_data.power_capacity|default:installation.power_capacity|default:'' }}">
+                <div class="form-text">Max charge/discharge rate</div>
+              </div>
+              <div class="col-md-4">
+                <label for="energy_capacity" class="form-label">Energy Capacity (MWh)</label>
+                <input type="number" 
+                       class="form-control non-negative" 
+                       id="energy_capacity" 
+                       name="energy_capacity" 
+                       step="0.01" 
+                       min="0"
+                       value="{{ form_data.energy_capacity|default:installation.energy_capacity|default:'' }}">
+                <div class="form-text">Total energy storage</div>
+              </div>
+              <div class="col-md-4">
+                <label for="duration" class="form-label">Duration (hours)</label>
+                <input type="number" 
+                       class="form-control non-negative" 
+                       id="duration" 
+                       name="duration" 
+                       step="0.1" 
+                       min="0"
+                       value="{{ form_data.duration|default:installation.duration|default:'' }}">
+                <div class="form-text" id="duration-hint">Discharge duration</div>
+              </div>
+            </div>
+
+            <hr class="my-4">
+
+            <!-- Installation Details -->
+            <h5 class="mb-3">Installation Details</h5>
+
+            <div class="row mb-3">
+              <div class="col-md-6">
+                <label for="installation_date" class="form-label">Installation Date</label>
+                <input type="date" 
+                       class="form-control" 
+                       id="installation_date" 
+                       name="installation_date" 
+                       value="{{ form_data.installation_date|default:installation.installation_date|date:'Y-m-d'|default:'' }}">
+                <div class="form-text">When system was installed</div>
+              </div>
+              <div class="col-md-6">
+                <label for="commissioning_date" class="form-label">Commissioning Date</label>
+                <input type="date" 
+                       class="form-control" 
+                       id="commissioning_date" 
+                       name="commissioning_date" 
+                       value="{{ form_data.commissioning_date|default:installation.commissioning_date|date:'Y-m-d'|default:'' }}">
+                <div class="form-text">When system began operations</div>
+              </div>
+            </div>
+
+            <div class="row mb-3">
+              <div class="col-md-6">
+                <label for="initial_state_of_charge" class="form-label">Initial State of Charge</label>
+                <input type="number" 
+                       class="form-control" 
+                       id="initial_state_of_charge" 
+                       name="initial_state_of_charge" 
+                       step="0.01" 
+                       min="0" 
+                       max="1"
+                       value="{{ form_data.initial_state_of_charge|default:installation.initial_state_of_charge|default:'' }}"
+                       placeholder="0.5">
+                <div class="form-text">Starting SOC for simulations (0.0 to 1.0)</div>
+              </div>
+              <div class="col-md-6">
+                <div class="form-check mt-4">
+                  <input class="form-check-input" 
+                         type="checkbox" 
+                         id="is_active" 
+                         name="is_active"
+                         {% if form_data.is_active|default:installation.is_active %}checked{% endif %}>
+                  <label class="form-check-label" for="is_active">
+                    <strong>Installation is Active</strong>
+                  </label>
+                  <div class="form-text">Uncheck to deactivate this installation</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="mb-4">
+              <label for="notes" class="form-label">Notes</label>
+              <textarea class="form-control" 
+                        id="notes" 
+                        name="notes" 
+                        rows="3">{{ form_data.notes|default:installation.notes|default:'' }}</textarea>
+              <div class="form-text">Additional information about this installation</div>
+            </div>
+
+            <div class="d-flex gap-2">
+              <button type="submit" class="btn btn-primary">Update Installation</button>
+              <a href="{% url 'powermapui:facility_storage_detail' installation.pk %}" class="btn btn-outline-secondary">Cancel</a>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-4">
+      <!-- Technology Reference -->
+      <div class="card mb-3">
+        <div class="card-header">
+          <h6 class="mb-0">Technology Information</h6>
+        </div>
+        <div class="card-body">
+          <p><strong>Technology:</strong><br>{{ installation.technology.technology_name }}</p>
+          
+          {% if storage_attrs %}
+            <p><strong>Round-Trip Efficiency:</strong><br>
+              {{ storage_attrs.round_trip_efficiency|floatformat:1 }}%</p>
+            
+            {% if storage_attrs.cycle_life %}
+              <p><strong>Cycle Life:</strong><br>
+                {{ storage_attrs.cycle_life|floatformat:0 }} cycles</p>
+            {% endif %}
+            
+            <p class="mb-0">
+              <a href="{% url 'powermapui:storage_detail' installation.technology.pk %}" class="btn btn-sm btn-outline-primary">
+                View Technology Details
+              </a>
+            </p>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Current Values -->
+      <div class="card mb-3">
+        <div class="card-header">
+          <h6 class="mb-0">Current Values</h6>
+        </div>
+        <div class="card-body">
+          <table class="table table-sm mb-0">
+            <tr>
+              <td><strong>Power:</strong></td>
+              <td>{{ installation.power_capacity|default:"-" }} MW</td>
+            </tr>
+            <tr>
+              <td><strong>Energy:</strong></td>
+              <td>{{ installation.energy_capacity|default:"-" }} MWh</td>
+            </tr>
+            <tr>
+              <td><strong>Duration:</strong></td>
+              <td>
+                {% if installation.duration %}
+                  {{ installation.duration|floatformat:1 }} hours
+                {% elif installation.get_calculated_duration %}
+                  {{ installation.get_calculated_duration|floatformat:1 }} hours
+                {% else %}
+                  -
+                {% endif %}
+              </td>
+            </tr>
+            <tr>
+              <td><strong>Status:</strong></td>
+              <td>
+                {% if installation.is_active %}
+                  <span class="badge bg-success">Active</span>
+                {% else %}
+                  <span class="badge bg-secondary">Inactive</span>
+                {% endif %}
+              </td>
+            </tr>
+          </table>
+        </div>
+      </div>
+
+      <!-- Help Card -->
+      <div class="card">
+        <div class="card-header">
+          <h6 class="mb-0">Editing Guidelines</h6>
+        </div>
+        <div class="card-body">
+          <div class="small">
+            <p><strong>Capacity Changes:</strong> Update power/energy/duration as needed. These values are specific to this installation only.</p>
+            
+            <p><strong>Technology Characteristics:</strong> Efficiency and degradation are inherited from the technology and cannot be changed here.</p>
+            
+            <p class="mb-0"><strong>Deactivating:</strong> Uncheck "Active" to remove this installation from simulations without deleting the record.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Auto-calculate duration when power and energy are provided
+    const powerInput = document.getElementById('power_capacity');
+    const energyInput = document.getElementById('energy_capacity');
+    const durationInput = document.getElementById('duration');
+    const durationHint = document.getElementById('duration-hint');
+
+    function calculateDuration() {
+      const power = parseFloat(powerInput.value);
+      const energy = parseFloat(energyInput.value);
+      
+      if (power > 0 && energy > 0) {
+        const calculated = energy / power;
+        if (!durationInput.value) {
+          durationHint.textContent = `Calculated: ${calculated.toFixed(1)} hours`;
+          durationHint.classList.add('text-primary');
+        }
+      } else {
+        durationHint.textContent = 'Discharge duration';
+        durationHint.classList.remove('text-primary');
+      }
+    }
+
+    powerInput.addEventListener('input', calculateDuration);
+    energyInput.addEventListener('input', calculateDuration);
+
+    // Prevent negative values
+    document.querySelectorAll('.non-negative').forEach(input => {
+      input.addEventListener('input', function() {
+        if (this.value < 0) {
+          this.value = 0;
+        }
+      });
+    });
+  </script>
+{% endblock %}

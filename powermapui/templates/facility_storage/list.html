@@ -1,0 +1,236 @@
+<!-- facility_storage/list.html -->
+{% extends 'powermapui_base.html' %}
+
+{% block powermapui_content %}
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h3>Facility Storage Installations</h3>
+    <a href="{% url 'powermapui:facility_storage_create' %}" class="btn btn-primary">Add Storage Installation</a>
+  </div>
+
+  <p>
+    This displays all storage system installations across facilities. Each installation represents a specific deployment 
+    of a storage technology with defined capacity at a particular facility.
+  </p>
+
+  <!-- Summary Cards -->
+  <div class="row mb-4">
+    <div class="col-md-4">
+      <div class="card bg-primary text-white">
+        <div class="card-body">
+          <h6 class="card-title">Total Installations</h6>
+          <h3 class="mb-0">{{ total_count }}</h3>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="card bg-success text-white">
+        <div class="card-body">
+          <h6 class="card-title">Total Power Capacity</h6>
+          <h3 class="mb-0">{{ total_power|floatformat:1 }} MW</h3>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="card bg-info text-white">
+        <div class="card-body">
+          <h6 class="card-title">Total Energy Capacity</h6>
+          <h3 class="mb-0">{{ total_energy|floatformat:1 }} MWh</h3>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Search and Filter Form -->
+  <div class="card mb-4">
+    <div class="card-body">
+      <form method="get" class="row g-3">
+        <div class="col-md-3">
+          <label for="search" class="form-label">Search:</label>
+          <input type="text" name="search" id="search" class="form-control" 
+                 value="{{ search_query }}" placeholder="Search installations">
+        </div>
+        <div class="col-md-3">
+          <label for="facility" class="form-label">Facility:</label>
+          <select name="facility" id="facility" class="form-select">
+            <option value="">All Facilities</option>
+            {% for fac in facilities_list %}
+              <option value="{{ fac }}" 
+                      {% if facility_filter == fac %}selected{% endif %}>
+                {{ fac }}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-3">
+          <label for="technology" class="form-label">Technology:</label>
+          <select name="technology" id="technology" class="form-select">
+            <option value="">All Technologies</option>
+            {% for tech in technologies_list %}
+              <option value="{{ tech }}" 
+                      {% if technology_filter == tech %}selected{% endif %}>
+                {{ tech }}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-3 d-flex align-items-end">
+          <div class="form-check mb-2">
+            <input class="form-check-input" type="checkbox" name="active_only" id="active_only"
+                   {% if active_only %}checked{% endif %}>
+            <label class="form-check-label" for="active_only">
+              Active only
+            </label>
+          </div>
+        </div>
+        <div class="col-12">
+          <button type="submit" class="btn btn-primary me-2">Filter</button>
+          <a href="{% url 'powermapui:facility_storage_list' %}" class="btn btn-outline-secondary">Clear</a>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Results Table -->
+  <div class="table-responsive">
+    <table class="table table-striped table-hover">
+      <thead class="table-dark">
+        <tr>
+          <th>Facility</th>
+          <th>Storage Technology</th>
+          <th>Installation Name</th>
+          <th>Power (MW)</th>
+          <th>Energy (MWh)</th>
+          <th>Duration (h)</th>
+          <th>Status</th>
+          <th>Commissioned</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for install in page_obj %}
+          <tr class="{% if not install.is_active %}table-secondary{% endif %}">
+            <td>
+              <a href="#" class="text-decoration-none">
+                {{ install.facility.facility_name }}
+              </a>
+            </td>
+            <td>
+              <a href="{% url 'powermapui:storage_detail' install.technology.pk %}" class="text-decoration-none">
+                {{ install.technology.technology_name }}
+              </a>
+            </td>
+            <td>
+              <a href="{% url 'powermapui:facility_storage_detail' install.pk %}" class="text-decoration-none">
+                {{ install.installation_name|default:"<em>Unnamed</em>" }}
+              </a>
+            </td>
+            <td>
+              {% if install.power_capacity %}
+                {{ install.power_capacity|floatformat:1 }}
+              {% else %}
+                -
+              {% endif %}
+            </td>
+            <td>
+              {% if install.energy_capacity %}
+                {{ install.energy_capacity|floatformat:1 }}
+              {% else %}
+                -
+              {% endif %}
+            </td>
+            <td>
+              {% if install.duration %}
+                {{ install.duration|floatformat:1 }}
+              {% elif install.get_calculated_duration %}
+                <span class="text-muted">{{ install.get_calculated_duration|floatformat:1 }}</span>
+              {% else %}
+                -
+              {% endif %}
+            </td>
+            <td>
+              {% if install.is_active %}
+                <span class="badge bg-success">Active</span>
+              {% else %}
+                <span class="badge bg-secondary">Inactive</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if install.commissioning_date %}
+                {{ install.commissioning_date|date:"Y-m-d" }}
+              {% else %}
+                -
+              {% endif %}
+            </td>
+            <td>
+              <div class="btn-group btn-group-sm" role="group">
+                <a href="{% url 'powermapui:facility_storage_detail' install.pk %}" 
+                   class="btn btn-outline-primary" title="View Details">
+                  View
+                </a>
+                <a href="{% url 'powermapui:facility_storage_edit' install.pk %}" 
+                   class="btn btn-outline-warning" title="Edit">
+                  Edit
+                </a>
+              </div>
+            </td>
+          </tr>
+        {% empty %}
+          <tr>
+            <td colspan="9" class="text-center text-muted py-4">
+              No storage installations found.
+              {% if search_query or facility_filter or technology_filter %}
+                <a href="{% url 'powermapui:facility_storage_list' %}" class="btn btn-link">Clear filters</a>
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Pagination -->
+  {% if page_obj.has_other_pages %}
+    <nav aria-label="Storage installations pagination">
+      <ul class="pagination justify-content-center">
+        {% if page_obj.has_previous %}
+          <li class="page-item">
+            <a class="page-link" href="?page=1{% if search_query %}&search={{ search_query }}{% endif %}{% if facility_filter %}&facility={{ facility_filter }}{% endif %}{% if technology_filter %}&technology={{ technology_filter }}{% endif %}{% if active_only %}&active_only=on{% endif %}">
+              &laquo; First
+            </a>
+          </li>
+          <li class="page-item">
+            <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}{% if facility_filter %}&facility={{ facility_filter }}{% endif %}{% if technology_filter %}&technology={{ technology_filter }}{% endif %}{% if active_only %}&active_only=on{% endif %}">
+              Previous
+            </a>
+          </li>
+        {% endif %}
+
+        <li class="page-item active">
+          <span class="page-link">
+            Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+          </span>
+        </li>
+
+        {% if page_obj.has_next %}
+          <li class="page-item">
+            <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}{% if facility_filter %}&facility={{ facility_filter }}{% endif %}{% if technology_filter %}&technology={{ technology_filter }}{% endif %}{% if active_only %}&active_only=on{% endif %}">
+              Next
+            </a>
+          </li>
+          <li class="page-item">
+            <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{% if search_query %}&search={{ search_query }}{% endif %}{% if facility_filter %}&facility={{ facility_filter }}{% endif %}{% if technology_filter %}&technology={{ technology_filter }}{% endif %}{% if active_only %}&active_only=on{% endif %}">
+              Last &raquo;
+            </a>
+          </li>
+        {% endif %}
+      </ul>
+    </nav>
+  {% endif %}
+
+  <!-- Additional Actions -->
+  <div class="mt-4">
+    <a href="{% url 'powermapui:storage_list' %}" class="btn btn-outline-secondary">
+      View Storage Technologies
+    </a>
+  </div>
+{% endblock %}

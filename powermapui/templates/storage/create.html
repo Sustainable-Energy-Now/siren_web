@@ -1,0 +1,340 @@
+<!-- storage/create.html -->
+{% extends 'powermapui_base.html' %}
+
+{% block powermapui_content %}
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h3>Add New Storage Technology</h3>
+    <a href="{% url 'powermapui:storage_list' %}" class="btn btn-outline-secondary">Back to List</a>
+  </div>
+
+  <p>Enter the specifications for a new storage technology. Technology name and signature are required. 
+  <strong>Note:</strong> Installation-specific capacities (MW/MWh) are defined when you create facility installations, 
+  not here. This form captures the technology characteristics that apply regardless of installation size.</p>
+
+  <div class="row">
+    <div class="col-lg-8">
+      <form method="post" novalidate>
+        {% csrf_token %}
+        
+        <!-- General Information -->
+        <div class="card mb-3">
+          <div class="card-header">
+            <h5 class="mb-0">General Information</h5>
+          </div>
+          <div class="card-body">
+            <div class="row mb-3">
+              <div class="col-md-6">
+                <label for="technology_name" class="form-label">Technology Name <span class="text-danger">*</span></label>
+                <input type="text" 
+                       class="form-control" 
+                       id="technology_name" 
+                       name="technology_name" 
+                       value="{{ form_data.technology_name|default:'' }}"
+                       required>
+                <div class="form-text">Full name of the storage technology</div>
+              </div>
+              <div class="col-md-6">
+                <label for="technology_signature" class="form-label">Technology Signature <span class="text-danger">*</span></label>
+                <input type="text" 
+                       class="form-control" 
+                       id="technology_signature" 
+                       name="technology_signature" 
+                       value="{{ form_data.technology_signature|default:'' }}"
+                       required>
+                <div class="form-text">Unique short code (e.g., BESS4, PHES, FLOW)</div>
+              </div>
+            </div>
+
+            <div class="row mb-3">
+              <div class="col-md-6">
+                <label for="lifetime" class="form-label">Lifetime (years)</label>
+                <input type="number" 
+                       class="form-control non-negative" 
+                       id="lifetime" 
+                       name="lifetime" 
+                       step="0.1" 
+                       min="0"
+                       value="{{ form_data.lifetime|default:'' }}">
+                <div class="form-text">Expected operational lifetime</div>
+              </div>
+              <div class="col-md-6">
+                <label for="discount_rate" class="form-label">Discount Rate</label>
+                <input type="number" 
+                       class="form-control non-negative" 
+                       id="discount_rate" 
+                       name="discount_rate" 
+                       step="0.0001" 
+                       min="0"
+                       value="{{ form_data.discount_rate|default:'' }}">
+                <div class="form-text">Financial discount rate (e.g., 0.05 for 5%)</div>
+              </div>
+            </div>
+
+            <div class="row mb-3">
+              <div class="col-md-6">
+                <label for="emissions" class="form-label">Emissions (kg CO₂/MWh)</label>
+                <input type="number" 
+                       class="form-control non-negative" 
+                       id="emissions" 
+                       name="emissions" 
+                       step="0.01" 
+                       min="0"
+                       value="{{ form_data.emissions|default:'' }}">
+                <div class="form-text">Carbon emissions per MWh</div>
+              </div>
+            </div>
+
+            <div class="mb-3">
+              <label for="description" class="form-label">Description</label>
+              <textarea class="form-control" 
+                        id="description" 
+                        name="description" 
+                        rows="3">{{ form_data.description|default:'' }}</textarea>
+              <div class="form-text">Optional description of this storage technology</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Efficiency & Losses -->
+        <div class="card mb-3">
+          <div class="card-header">
+            <h5 class="mb-0">Efficiency & Losses</h5>
+          </div>
+          <div class="card-body">
+            <div class="row mb-3">
+              <div class="col-md-4">
+                <label for="round_trip_efficiency" class="form-label">Round-Trip Efficiency (%)</label>
+                <input type="number" 
+                       class="form-control" 
+                       id="round_trip_efficiency" 
+                       name="round_trip_efficiency" 
+                       step="0.1" 
+                       min="0" 
+                       max="100"
+                       value="{{ form_data.round_trip_efficiency|default:'' }}">
+                <div class="form-text">Overall AC-AC efficiency</div>
+              </div>
+              <div class="col-md-4">
+                <label for="charge_efficiency" class="form-label">Charge Efficiency (%)</label>
+                <input type="number" 
+                       class="form-control" 
+                       id="charge_efficiency" 
+                       name="charge_efficiency" 
+                       step="0.1" 
+                       min="0" 
+                       max="100"
+                       value="{{ form_data.charge_efficiency|default:'' }}">
+                <div class="form-text">Charging efficiency</div>
+              </div>
+              <div class="col-md-4">
+                <label for="discharge_efficiency" class="form-label">Discharge Efficiency (%)</label>
+                <input type="number" 
+                       class="form-control" 
+                       id="discharge_efficiency" 
+                       name="discharge_efficiency" 
+                       step="0.1" 
+                       min="0" 
+                       max="100"
+                       value="{{ form_data.discharge_efficiency|default:'' }}">
+                <div class="form-text">Discharging efficiency</div>
+              </div>
+            </div>
+
+            <div class="row mb-3">
+              <div class="col-md-6">
+                <label for="self_discharge_rate" class="form-label">Self-Discharge Rate (% per hour)</label>
+                <input type="number" 
+                       class="form-control non-negative" 
+                       id="self_discharge_rate" 
+                       name="self_discharge_rate" 
+                       step="0.0001" 
+                       min="0"
+                       value="{{ form_data.self_discharge_rate|default:'' }}">
+                <div class="form-text">Energy loss when idle (typically 0.01-0.1%)</div>
+              </div>
+              <div class="col-md-6">
+                <label for="auxiliary_load" class="form-label">Auxiliary Load (MW)</label>
+                <input type="number" 
+                       class="form-control non-negative" 
+                       id="auxiliary_load" 
+                       name="auxiliary_load" 
+                       step="0.001" 
+                       min="0"
+                       value="{{ form_data.auxiliary_load|default:'' }}">
+                <div class="form-text">Parasitic power consumption</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- State of Charge Constraints -->
+        <div class="card mb-3">
+          <div class="card-header">
+            <h5 class="mb-0">State of Charge (SOC) Constraints</h5>
+          </div>
+          <div class="card-body">
+            <div class="row mb-3">
+              <div class="col-md-4">
+                <label for="min_state_of_charge" class="form-label">Minimum SOC</label>
+                <input type="number" 
+                       class="form-control" 
+                       id="min_state_of_charge" 
+                       name="min_state_of_charge" 
+                       step="0.01" 
+                       min="0" 
+                       max="1"
+                       value="{{ form_data.min_state_of_charge|default:'0.0' }}">
+                <div class="form-text">0.0 to 1.0 (0-100%)</div>
+              </div>
+              <div class="col-md-4">
+                <label for="max_state_of_charge" class="form-label">Maximum SOC</label>
+                <input type="number" 
+                       class="form-control" 
+                       id="max_state_of_charge" 
+                       name="max_state_of_charge" 
+                       step="0.01" 
+                       min="0" 
+                       max="1"
+                       value="{{ form_data.max_state_of_charge|default:'1.0' }}">
+                <div class="form-text">0.0 to 1.0 (0-100%)</div>
+              </div>
+              <div class="col-md-4">
+                <label for="initial_state_of_charge" class="form-label">Initial SOC</label>
+                <input type="number" 
+                       class="form-control" 
+                       id="initial_state_of_charge" 
+                       name="initial_state_of_charge" 
+                       step="0.01" 
+                       min="0" 
+                       max="1"
+                       value="{{ form_data.initial_state_of_charge|default:'0.5' }}">
+                <div class="form-text">Starting SOC for simulations</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Degradation & Lifecycle -->
+        <div class="card mb-4">
+          <div class="card-header">
+            <h5 class="mb-0">Degradation & Lifecycle</h5>
+          </div>
+          <div class="card-body">
+            <div class="row mb-3">
+              <div class="col-md-4">
+                <label for="cycle_life" class="form-label">Cycle Life</label>
+                <input type="number" 
+                       class="form-control non-negative" 
+                       id="cycle_life" 
+                       name="cycle_life" 
+                       step="1" 
+                       min="0"
+                       value="{{ form_data.cycle_life|default:'' }}">
+                <div class="form-text">Full cycle equivalents</div>
+              </div>
+              <div class="col-md-4">
+                <label for="calendar_life" class="form-label">Calendar Life (years)</label>
+                <input type="number" 
+                       class="form-control non-negative" 
+                       id="calendar_life" 
+                       name="calendar_life" 
+                       step="0.1" 
+                       min="0"
+                       value="{{ form_data.calendar_life|default:'' }}">
+                <div class="form-text">Years until capacity degradation</div>
+              </div>
+              <div class="col-md-4">
+                <label for="degradation_rate" class="form-label">Degradation Rate (% per year)</label>
+                <input type="number" 
+                       class="form-control non-negative" 
+                       id="degradation_rate" 
+                       name="degradation_rate" 
+                       step="0.01" 
+                       min="0"
+                       value="{{ form_data.degradation_rate|default:'' }}">
+                <div class="form-text">Annual capacity loss</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="d-flex gap-2">
+          <button type="submit" class="btn btn-primary">Create Storage Technology</button>
+          <a href="{% url 'powermapui:storage_list' %}" class="btn btn-outline-secondary">Cancel</a>
+        </div>
+      </form>
+    </div>
+
+    <div class="col-lg-4">
+      <!-- Help Card -->
+      <div class="card">
+        <div class="card-header">
+          <h6 class="mb-0">Field Guidelines</h6>
+        </div>
+        <div class="card-body">
+          <div class="small">
+            <p><strong>Duration:</strong> A "4-hour battery" means it can discharge at rated power for 4 hours. Energy Capacity = Power Capacity × Duration.</p>
+            
+            <p><strong>Round-Trip Efficiency:</strong> Typically 85-90% for lithium-ion, 70-80% for pumped hydro, 65-75% for flow batteries.</p>
+            
+            <p><strong>SOC Constraints:</strong> Many batteries reserve 10-20% capacity as unusable (min SOC = 0.1, max SOC = 0.9).</p>
+            
+            <p><strong>Cycle Life:</strong> Li-ion: ~5,000 cycles, Flow: 10,000+ cycles, Pumped hydro: 20,000+ cycles.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Typical Values Reference -->
+      <div class="card mt-3">
+        <div class="card-header">
+          <h6 class="mb-0">Typical Values</h6>
+        </div>
+        <div class="card-body">
+          <div class="small">
+            <table class="table table-sm">
+              <thead>
+                <tr>
+                  <th>Type</th>
+                  <th>RTE</th>
+                  <th>Cycles</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>BESS 1-4hr</td>
+                  <td>85-90%</td>
+                  <td>5,000</td>
+                </tr>
+                <tr>
+                  <td>BESS 8hr</td>
+                  <td>85%</td>
+                  <td>5,000</td>
+                </tr>
+                <tr>
+                  <td>Pumped Hydro</td>
+                  <td>70-80%</td>
+                  <td>20,000+</td>
+                </tr>
+                <tr>
+                  <td>Flow Battery</td>
+                  <td>65-75%</td>
+                  <td>10,000+</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    document.querySelectorAll('.non-negative').forEach(input => {
+      input.addEventListener('input', function() {
+        if (this.value < 0) {
+          this.value = 0;
+        }
+      });
+    });
+  </script>
+{% endblock %}

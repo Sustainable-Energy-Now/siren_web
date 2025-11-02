@@ -1,0 +1,375 @@
+<!-- facility_storage/detail.html -->
+{% extends 'powermapui_base.html' %}
+
+{% block powermapui_content %}
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h3>Storage Installation Details</h3>
+      <small class="text-muted">
+        {{ installation.facility.facility_name }} - {{ installation.technology.technology_name }}
+        {% if installation.installation_name %}
+          ({{ installation.installation_name }})
+        {% endif %}
+      </small>
+    </div>
+    <div>
+      <a href="{% url 'powermapui:facility_storage_edit' installation.pk %}" class="btn btn-warning">Edit Installation</a>
+      <a href="{% url 'powermapui:facility_storage_list' %}" class="btn btn-outline-secondary">Back to List</a>
+    </div>
+  </div>
+
+  <!-- Status Alert -->
+  {% if not installation.is_active %}
+    <div class="alert alert-warning">
+      <strong>Inactive Installation:</strong> This storage installation is currently deactivated and will not be included in simulations.
+    </div>
+  {% endif %}
+
+  <div class="row">
+    <!-- Installation Information -->
+    <div class="col-lg-6 mb-4">
+      <div class="card h-100">
+        <div class="card-header">
+          <h5 class="mb-0">Installation Information</h5>
+        </div>
+        <div class="card-body">
+          <table class="table table-sm">
+            <tr>
+              <th width="40%">Facility:</th>
+              <td>
+                <a href="#">{{ installation.facility.facility_name }}</a>
+              </td>
+            </tr>
+            <tr>
+              <th>Storage Technology:</th>
+              <td>
+                <a href="{% url 'powermapui:storage_detail' installation.technology.pk %}">
+                  {{ installation.technology.technology_name }}
+                </a>
+              </td>
+            </tr>
+            <tr>
+              <th>Installation Name:</th>
+              <td>
+                {% if installation.installation_name %}
+                  {{ installation.installation_name }}
+                {% else %}
+                  <em class="text-muted">Not specified</em>
+                {% endif %}
+              </td>
+            </tr>
+            <tr>
+              <th>Status:</th>
+              <td>
+                {% if installation.is_active %}
+                  <span class="badge bg-success">Active</span>
+                {% else %}
+                  <span class="badge bg-secondary">Inactive</span>
+                {% endif %}
+              </td>
+            </tr>
+            <tr>
+              <th>Installation Date:</th>
+              <td>
+                {% if installation.installation_date %}
+                  {{ installation.installation_date|date:"F j, Y" }}
+                {% else %}
+                  <span class="text-muted">Not specified</span>
+                {% endif %}
+              </td>
+            </tr>
+            <tr>
+              <th>Commissioning Date:</th>
+              <td>
+                {% if installation.commissioning_date %}
+                  {{ installation.commissioning_date|date:"F j, Y" }}
+                {% else %}
+                  <span class="text-muted">Not specified</span>
+                {% endif %}
+              </td>
+            </tr>
+            <tr>
+              <th>Created:</th>
+              <td>{{ installation.created_at|date:"Y-m-d H:i" }}</td>
+            </tr>
+            <tr>
+              <th>Last Updated:</th>
+              <td>{{ installation.updated_at|date:"Y-m-d H:i" }}</td>
+            </tr>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Capacity Specifications -->
+    <div class="col-lg-6 mb-4">
+      <div class="card h-100">
+        <div class="card-header bg-primary text-white">
+          <h5 class="mb-0">Capacity Specifications</h5>
+        </div>
+        <div class="card-body">
+          <table class="table table-sm">
+            <tr>
+              <th width="40%">Power Capacity:</th>
+              <td>
+                {% if installation.power_capacity %}
+                  <strong>{{ installation.power_capacity|floatformat:2 }} MW</strong>
+                {% else %}
+                  <span class="text-muted">Not specified</span>
+                {% endif %}
+              </td>
+            </tr>
+            <tr>
+              <th>Energy Capacity:</th>
+              <td>
+                {% if installation.energy_capacity %}
+                  <strong>{{ installation.energy_capacity|floatformat:2 }} MWh</strong>
+                {% else %}
+                  <span class="text-muted">Not specified</span>
+                {% endif %}
+              </td>
+            </tr>
+            <tr>
+              <th>Duration:</th>
+              <td>
+                {% if installation.duration %}
+                  <strong>{{ installation.duration|floatformat:1 }} hours</strong>
+                {% elif derived_values.calculated_duration %}
+                  <span class="text-info">{{ derived_values.calculated_duration|floatformat:1 }} hours</span>
+                  <small class="text-muted">(calculated)</small>
+                {% else %}
+                  <span class="text-muted">Not specified</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% if derived_values.usable_capacity %}
+              <tr class="table-info">
+                <th>Usable Capacity:</th>
+                <td>
+                  <strong>{{ derived_values.usable_capacity|floatformat:2 }} MWh</strong>
+                  <small class="text-muted">(based on technology SOC limits)</small>
+                </td>
+              </tr>
+            {% endif %}
+            <tr>
+              <th>Initial SOC:</th>
+              <td>
+                {% if installation.initial_state_of_charge is not None %}
+                  {{ installation.initial_state_of_charge|floatformat:2 }}
+                  <small class="text-muted">({{ installation.initial_state_of_charge|floatformat:0 }}%)</small>
+                {% elif storage_attrs.initial_state_of_charge is not None %}
+                  {{ storage_attrs.initial_state_of_charge|floatformat:2 }}
+                  <small class="text-muted">({{ storage_attrs.initial_state_of_charge|floatformat:0 }}%, from technology)</small>
+                {% else %}
+                  <span class="text-muted">Using technology default</span>
+                {% endif %}
+              </td>
+            </tr>
+          </table>
+
+          <div class="alert alert-info mb-0">
+            <small>
+              <strong>Capacity Summary:</strong> {{ installation.capacity_summary }}
+            </small>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Technology Characteristics -->
+    <div class="col-lg-6 mb-4">
+      <div class="card h-100">
+        <div class="card-header">
+          <h5 class="mb-0">Technology Characteristics</h5>
+        </div>
+        <div class="card-body">
+          {% if storage_attrs %}
+            <h6>Efficiency</h6>
+            <table class="table table-sm">
+              <tr>
+                <th width="50%">Round-Trip Efficiency:</th>
+                <td>
+                  {% if derived_values.round_trip_efficiency %}
+                    {{ derived_values.round_trip_efficiency|floatformat:1 }}%
+                  {% else %}
+                    <span class="text-muted">Not specified</span>
+                  {% endif %}
+                </td>
+              </tr>
+              <tr>
+                <th>Charge Efficiency:</th>
+                <td>
+                  {% if storage_attrs.charge_efficiency %}
+                    {{ storage_attrs.charge_efficiency|floatformat:1 }}%
+                  {% else %}
+                    <span class="text-muted">Not specified</span>
+                  {% endif %}
+                </td>
+              </tr>
+              <tr>
+                <th>Discharge Efficiency:</th>
+                <td>
+                  {% if storage_attrs.discharge_efficiency %}
+                    {{ storage_attrs.discharge_efficiency|floatformat:1 }}%
+                  {% else %}
+                    <span class="text-muted">Not specified</span>
+                  {% endif %}
+                </td>
+              </tr>
+            </table>
+
+            <h6 class="mt-3">Operational Limits</h6>
+            <table class="table table-sm">
+              <tr>
+                <th width="50%">Minimum SOC:</th>
+                <td>
+                  {% if storage_attrs.min_state_of_charge is not None %}
+                    {{ storage_attrs.min_state_of_charge|floatformat:2 }}
+                    <small class="text-muted">({{ storage_attrs.min_state_of_charge|floatformat:0 }}%)</small>
+                  {% else %}
+                    <span class="text-muted">0.0</span>
+                  {% endif %}
+                </td>
+              </tr>
+              <tr>
+                <th>Maximum SOC:</th>
+                <td>
+                  {% if storage_attrs.max_state_of_charge is not None %}
+                    {{ storage_attrs.max_state_of_charge|floatformat:2 }}
+                    <small class="text-muted">({{ storage_attrs.max_state_of_charge|floatformat:0 }}%)</small>
+                  {% else %}
+                    <span class="text-muted">1.0</span>
+                  {% endif %}
+                </td>
+              </tr>
+            </table>
+
+            <h6 class="mt-3">Degradation</h6>
+            <table class="table table-sm mb-0">
+              <tr>
+                <th width="50%">Cycle Life:</th>
+                <td>
+                  {% if derived_values.cycle_life %}
+                    {{ derived_values.cycle_life|floatformat:0 }} cycles
+                  {% else %}
+                    <span class="text-muted">Not specified</span>
+                  {% endif %}
+                </td>
+              </tr>
+              <tr>
+                <th>Calendar Life:</th>
+                <td>
+                  {% if storage_attrs.calendar_life %}
+                    {{ storage_attrs.calendar_life|floatformat:1 }} years
+                  {% else %}
+                    <span class="text-muted">Not specified</span>
+                  {% endif %}
+                </td>
+              </tr>
+              <tr>
+                <th>Self-Discharge Rate:</th>
+                <td>
+                  {% if storage_attrs.self_discharge_rate %}
+                    {{ storage_attrs.self_discharge_rate|floatformat:4 }}% per hour
+                  {% else %}
+                    <span class="text-muted">Not specified</span>
+                  {% endif %}
+                </td>
+              </tr>
+            </table>
+          {% else %}
+            <p class="text-muted">No technology characteristics defined.</p>
+          {% endif %}
+
+          <div class="mt-3">
+            <a href="{% url 'powermapui:storage_detail' installation.technology.pk %}" class="btn btn-sm btn-outline-primary">
+              View Full Technology Details
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Performance Metrics -->
+    <div class="col-lg-6 mb-4">
+      <div class="card h-100">
+        <div class="card-header">
+          <h5 class="mb-0">Performance Metrics</h5>
+        </div>
+        <div class="card-body">
+          {% if installation.energy_capacity and derived_values.round_trip_efficiency %}
+            <h6>Energy Metrics</h6>
+            <ul>
+              <li><strong>Usable Energy:</strong> 
+                {{ derived_values.usable_capacity|floatformat:1|default:"N/A" }} MWh
+                {% if derived_values.usable_capacity and installation.energy_capacity %}
+                  <small class="text-muted">(based on SOC limits)</small>
+                {% endif %}
+              </li>
+              <li><strong>Effective Delivered Energy per Cycle:</strong> 
+                {% if installation.energy_capacity and derived_values.round_trip_efficiency %}
+                  ~{{ installation.energy_capacity|floatformat:0 }} MWh × {{ derived_values.round_trip_efficiency|floatformat:0 }}% RTE
+                {% else %}
+                  N/A
+                {% endif %}
+              </li>
+              {% if derived_values.cycle_life and installation.energy_capacity %}
+                <li><strong>Lifetime Energy Throughput:</strong> 
+                  ~{{ installation.energy_capacity|floatformat:0 }} MWh × {{ derived_values.cycle_life|floatformat:0 }} cycles
+                </li>
+              {% endif %}
+            </ul>
+
+            {% if derived_values.cycle_life %}
+              <h6 class="mt-3">Cycling Capability</h6>
+              <ul>
+                <li><strong>Total Cycle Life:</strong> {{ derived_values.cycle_life|floatformat:0 }} full cycles</li>
+                {% if derived_values.cycle_life >= 5000 %}
+                  <li class="text-success"><strong>Suitable for:</strong> Daily cycling applications (13+ years at 1 cycle/day)</li>
+                {% elif derived_values.cycle_life >= 2000 %}
+                  <li class="text-info"><strong>Suitable for:</strong> Regular cycling (5+ years at 1 cycle/day)</li>
+                {% else %}
+                  <li class="text-warning"><strong>Note:</strong> Limited cycling capability</li>
+                {% endif %}
+              </ul>
+            {% endif %}
+          {% else %}
+            <p class="text-muted">Performance metrics require capacity and efficiency data.</p>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Notes Section -->
+  {% if installation.notes %}
+    <div class="row">
+      <div class="col-12 mb-4">
+        <div class="card">
+          <div class="card-header">
+            <h5 class="mb-0">Notes</h5>
+          </div>
+          <div class="card-body">
+            <p class="mb-0">{{ installation.notes }}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  {% endif %}
+
+  <!-- Action Buttons -->
+  <div class="d-flex gap-2 mt-4">
+    <a href="{% url 'powermapui:facility_storage_edit' installation.pk %}" class="btn btn-warning">
+      Edit Installation
+    </a>
+    <a href="{% url 'powermapui:facility_storage_list' %}" class="btn btn-outline-secondary">
+      Back to List
+    </a>
+    <form method="post" action="{% url 'powermapui:facility_storage_delete' installation.pk %}" 
+          style="display: inline;" 
+          onsubmit="return confirm('Are you sure you want to delete this storage installation?');">
+      {% csrf_token %}
+      <button type="submit" class="btn btn-danger">Delete Installation</button>
+    </form>
+  </div>
+{% endblock %}
