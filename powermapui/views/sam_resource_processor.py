@@ -36,7 +36,7 @@ class WeatherFileFinder:
         self._file_cache = {}  # Cache for parsed file coordinates
         
     def get_weather_file_path(self, latitude: float, longitude: float, 
-                            technology: str, demand_year: str) -> Optional[Path]:
+                            technology: str, weather_year: str) -> Optional[Path]:
         """
         Find the nearest weather file for given coordinates, technology and year
         
@@ -44,7 +44,7 @@ class WeatherFileFinder:
             latitude: Facility latitude
             longitude: Facility longitude  
             technology: 'wind' or 'solar'
-            demand_year: Year string (e.g. '2024')
+            weather_year: Year string (e.g. '2024')
             
         Returns:
             Path to nearest weather file or None if not found
@@ -63,7 +63,7 @@ class WeatherFileFinder:
             return None
         
         # Build path to weather files
-        weather_dir = self.weather_data_dir / weather_subdir / demand_year
+        weather_dir = self.weather_data_dir / weather_subdir / weather_year
         
         if not weather_dir.exists():
             logger.warning(f"Weather directory does not exist: {weather_dir}")
@@ -71,19 +71,19 @@ class WeatherFileFinder:
         
         # Find nearest weather file
         nearest_file = self._find_nearest_weather_file(
-            weather_dir, latitude, longitude, file_prefix, file_extension, demand_year
+            weather_dir, latitude, longitude, file_prefix, file_extension, weather_year
         )
         
         if nearest_file:
             logger.info(f"Found weather file for {technology} at ({latitude}, {longitude}): {nearest_file}")
             return nearest_file
         else:
-            logger.warning(f"No weather file found for {technology} at ({latitude}, {longitude}) for year {demand_year}")
+            logger.warning(f"No weather file found for {technology} at ({latitude}, {longitude}) for year {weather_year}")
             return None
 
     def _find_nearest_weather_file(self, weather_dir: Path, target_lat: float, 
                                  target_lon: float, file_prefix: str, 
-                                 file_extension: str, demand_year: str) -> Optional[Path]:
+                                 file_extension: str, weather_year: str) -> Optional[Path]:
         """
         Find the weather file with coordinates nearest to target coordinates
         
@@ -93,18 +93,18 @@ class WeatherFileFinder:
             target_lon: Target longitude
             file_prefix: File prefix ('wind_weather' or 'solar_weather')
             file_extension: File extension ('.srz' or '.smz')
-            demand_year: Year string
+            weather_year: Year string
             
         Returns:
             Path to nearest file or None
         """
         # Cache key for this directory
-        cache_key = f"{weather_dir}_{file_prefix}_{file_extension}_{demand_year}"
+        cache_key = f"{weather_dir}_{file_prefix}_{file_extension}_{weather_year}"
         
         if cache_key not in self._file_cache:
             # Parse all weather files in directory
             self._file_cache[cache_key] = self._parse_weather_files(
-                weather_dir, file_prefix, file_extension, demand_year
+                weather_dir, file_prefix, file_extension, weather_year
             )
         
         weather_files = self._file_cache[cache_key]
@@ -127,7 +127,7 @@ class WeatherFileFinder:
         return nearest_file
 
     def _parse_weather_files(self, weather_dir: Path, file_prefix: str, 
-                           file_extension: str, demand_year: str) -> Dict[Path, Tuple[float, float]]:
+                           file_extension: str, weather_year: str) -> Dict[Path, Tuple[float, float]]:
         """
         Parse all weather files in directory and extract coordinates
         
@@ -137,7 +137,7 @@ class WeatherFileFinder:
         weather_files = {}
         
         # Pattern to match weather files: solar_weather_-27.7500_114.0000_2024.smz
-        pattern = rf"{re.escape(file_prefix)}_(-?\d+\.?\d*)_(-?\d+\.?\d*)_{re.escape(demand_year)}{re.escape(file_extension)}"
+        pattern = rf"{re.escape(file_prefix)}_(-?\d+\.?\d*)_(-?\d+\.?\d*)_{re.escape(weather_year)}{re.escape(file_extension)}"
         
         try:
             for file_path in weather_dir.iterdir():
@@ -264,7 +264,7 @@ class SAMResourceProcessor:
                 logger.info(f"  Version: {version}")
                 logger.info("")
 
-    def debug_solar_weather_loading(self, facility_obj, tech_name, demand_year):
+    def debug_solar_weather_loading(self, facility_obj, tech_name, weather_year):
         """
         Debug method to see what's happening with solar weather data loading
         """
@@ -275,7 +275,7 @@ class SAMResourceProcessor:
             facility_obj.latitude, 
             facility_obj.longitude, 
             tech_name, 
-            demand_year
+            weather_year
         )
         
         if weather_file_path:
@@ -313,7 +313,7 @@ class SAMResourceProcessor:
             
             # Let's see what files are actually in the directory
             weather_subdir = 'solar_weather'
-            weather_dir = self.weather_data_dir / weather_subdir / demand_year
+            weather_dir = self.weather_data_dir / weather_subdir / weather_year
             logger.info(f"Looking in directory: {weather_dir}")
             logger.info(f"Directory exists: {weather_dir.exists()}")
             
@@ -325,7 +325,7 @@ class SAMResourceProcessor:
             return None
         
     def get_weather_file_path(self, latitude: float, longitude: float, 
-                            technology: str, demand_year: str) -> Optional[Path]:
+                            technology: str, weather_year: str) -> Optional[Path]:
         """
         Find the nearest weather file for given coordinates, technology and year
         
@@ -333,13 +333,13 @@ class SAMResourceProcessor:
             latitude: Facility latitude
             longitude: Facility longitude
             technology: Technology type ('wind' or 'solar') 
-            demand_year: Year string (e.g. '2024')
+            weather_year: Year string (e.g. '2024')
             
         Returns:
             Path to nearest weather file or None if not found
         """
         return self.weather_finder.get_weather_file_path(
-            latitude, longitude, technology, demand_year
+            latitude, longitude, technology, weather_year
         )
         
     def get_power_curve_file_path(self, turbine_model: str) -> Path:
@@ -417,7 +417,7 @@ class SAMResourceProcessor:
             
         return power_curve
     
-    def process_wind_facility(self, facility, demand_year: str,
+    def process_wind_facility(self, facility, weather_year: str,
                             power_curve: Dict[float, float] = None) -> SimulationResults:
         """
         Process wind facility using SAM wind power module with file-based approach
@@ -430,7 +430,7 @@ class SAMResourceProcessor:
             weather_file_path = self.get_weather_file_path(
                 facility.latitude, facility.longitude,
                 facility.idtechnologies.technology_name,
-                demand_year
+                weather_year
             )
             
             if not weather_file_path or not weather_file_path.exists():
@@ -443,7 +443,7 @@ class SAMResourceProcessor:
                 raise SAMError(f"No wind data found for {facility.facility_name}")
             
             # Create temporary SAM-compatible weather file
-            temp_weather_file = self._create_sam_weather_file(weather_data, facility, demand_year)
+            temp_weather_file = self._create_sam_weather_file(weather_data, facility, weather_year)
             
             # Create SAM data container
             data = Data()
@@ -581,7 +581,7 @@ class SAMResourceProcessor:
                 except:
                     pass
 
-    def _create_sam_weather_file(self, weather_data: WeatherData, facility, demand_year: str):
+    def _create_sam_weather_file(self, weather_data: WeatherData, facility, weather_year: str):
         """
         Create a temporary weather file in SAM's expected format
         """
@@ -596,7 +596,7 @@ class SAMResourceProcessor:
         try:
             with open(temp_path, 'w', newline='') as f:
                 # Write header information (based on SAM wind file format)
-                f.write(f"Source,Location,{facility.latitude},{facility.longitude},100,10,1,{demand_year},8760\n")
+                f.write(f"Source,Location,{facility.latitude},{facility.longitude},100,10,1,{weather_year},8760\n")
                 f.write(f"Generated from SIREN weather data\n")
                 f.write("Temperature,Pressure,Speed,Direction\n")
                 f.write("C,atm,m/s,degrees\n")
@@ -617,7 +617,7 @@ class SAMResourceProcessor:
         except Exception as e:
             raise WeatherFileError(f"Error creating temporary weather file: {e}")
 
-    def _create_wind_resource_table(self, weather_data: WeatherData, facility, demand_year: str):
+    def _create_wind_resource_table(self, weather_data: WeatherData, facility, weather_year: str):
         """
         Create wind resource table in the format SAM expects
         
@@ -633,7 +633,7 @@ class SAMResourceProcessor:
         wind_resource_table.set_number(b'lat', float(facility.latitude))
         wind_resource_table.set_number(b'lon', float(facility.longitude))
         wind_resource_table.set_number(b'elev', 0.0)  # Elevation - use 0 if unknown
-        wind_resource_table.set_number(b'year', int(demand_year))
+        wind_resource_table.set_number(b'year', int(weather_year))
         
         # Set measurement heights - we have data at 10m and 100m based on your file format
         heights = [10.0, 100.0]  # Measurement heights in meters

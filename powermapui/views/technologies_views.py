@@ -9,6 +9,7 @@ from siren_web.models import Technologies, Storageattributes, Generatorattribute
 
 def technologies(request):
     # Default demand year
+    weather_year = request.session.get('weather_year', 2024)
     demand_year = request.session.get('demand_year', 2024)
     scenario = request.session.get('scenario')
     config_file = request.session.get('config_file')
@@ -68,8 +69,10 @@ def technologies(request):
         'demand_year_form': demand_year_form,
         'technology_queryset': technology_queryset,
         'attribute_explain': attribute_explain,
+        'weather_year': weather_year,
         'demand_year': demand_year, 
         'scenario': scenario, 
+        'config_file': config_file,
         'success_message': success_message
     }
     

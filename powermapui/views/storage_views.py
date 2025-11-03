@@ -7,6 +7,7 @@ from siren_web.models import Technologies, Storageattributes
 
 def storage_list(request):
     """List all storage technologies with search and pagination"""
+    weather_year = request.session.get('weather_year', '')
     demand_year = request.session.get('demand_year', '')
     scenario = request.session.get('scenario', '')
     config_file = request.session.get('config_file')
@@ -42,6 +43,7 @@ def storage_list(request):
     page_obj = paginator.get_page(page_number)
     
     context = {
+        'weather_year': weather_year,
         'demand_year': demand_year,
         'scenario': scenario,
         'config_file': config_file,
@@ -56,6 +58,7 @@ def storage_list(request):
 
 def storage_detail(request, pk):
     """Detail view for a specific storage technology"""
+    weather_year = request.session.get('weather_year', '')
     demand_year = request.session.get('demand_year', '')
     scenario = request.session.get('scenario', '')
     config_file = request.session.get('config_file')
@@ -102,6 +105,7 @@ def storage_detail(request, pk):
         derived_values['reserved_soc_pct'] = (1.0 - max_soc) * 100
     
     context = {
+        'weather_year': weather_year,
         'demand_year': demand_year,
         'scenario': scenario,
         'config_file': config_file,

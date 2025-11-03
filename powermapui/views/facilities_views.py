@@ -53,6 +53,7 @@ def facilities_list(request):
     page_obj = paginator.get_page(page_number)
     
     # Session variables for other pages
+    weather_year = request.session.get('weather_year', '')
     demand_year = request.session.get('demand_year', '')
     scenario = request.session.get('scenario', '')
     config_file = request.session.get('config_file', '')
@@ -67,6 +68,7 @@ def facilities_list(request):
         'technologies': technologies,
         'zones': zones,
         'total_count': facs.count(),
+        'weather_year': weather_year,
         'demand_year': demand_year,
         'scenario': scenario,
         'config_file': config_file,

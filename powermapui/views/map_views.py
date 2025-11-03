@@ -75,7 +75,8 @@ def find_nearest_grid_line(facility_lat, facility_lon, max_distance_km=50):
 @login_required
 @settings_required(redirect_view='powermapui:powermapui_home')
 def home(request):
-    # Get demand_year and scenario from session or default to empty string
+    # Get weather_year and scenario from session or default to empty string
+    weather_year = request.session.get('weather_year', '')
     demand_year = request.session.get('demand_year', '')
     scenario = request.session.get('scenario', '')
     config_file = request.session.get('config_file')
@@ -99,12 +100,9 @@ def home(request):
     })
     
     scenario_settings = {}
-    if not demand_year:
-        success_message = "Set a demand year, scenario and config first."
-    else:
-        scenario_settings = fetch_module_settings_data('Power')
-        if not scenario_settings:
-            scenario_settings = fetch_scenario_settings_data(scenario)
+    scenario_settings = fetch_module_settings_data('Power')
+    if not scenario_settings:
+        scenario_settings = fetch_scenario_settings_data(scenario)
     
     # Query facilities for the selected scenario with latitude and longitude available
     if scenario:
@@ -192,6 +190,7 @@ def home(request):
     terminals_json = json.dumps(terminals_data)
     context = {
         'demand_weather_scenario': demand_weather_scenario,
+        'weather_year': weather_year,
         'demand_year': demand_year,
         'scenario': scenario,
         'config_file': config_file,
@@ -997,7 +996,7 @@ def calculate_facility_performance(request, facility_id):
         facility = facilities.objects.get(pk=facility_id)
         
         # Get parameters from request
-        weather_year = request.GET.get('weather_year', '2019')
+        weather_year = request.GET.get('weather_year', '2024')
         scenario = request.GET.get('scenario', request.session.get('scenario', ''))
         
         performance_data = {

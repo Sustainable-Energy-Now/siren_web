@@ -2,8 +2,8 @@
 Dashboard view for terminal network overview
 """
 from django.shortcuts import render
-from django.db.models import Sum, Count, Q
-from siren_web.models import Terminals, GridLines, facilities, FacilityGridConnections
+from django.db.models import Q
+from siren_web.models import Terminals, GridLines, FacilityGridConnections
 from .terminal_utilities import (
     get_system_wide_terminal_statistics,
     get_terminal_statistics,

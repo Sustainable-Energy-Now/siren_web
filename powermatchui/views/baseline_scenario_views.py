@@ -4,21 +4,20 @@ from decimal import Decimal
 from django.http import JsonResponse, StreamingHttpResponse, HttpResponse
 from django.shortcuts import render, redirect
 from django.contrib import messages
+from common.decorators import settings_required
 import logging
 import numpy as np
 import json
 import time
 import threading
-from queue import Queue, Empty
+from queue import Empty
 from siren_web.database_operations import (
     fetch_analysis_scenario,
     fetch_technologies_with_multipliers, fetch_module_settings_data, 
     fetch_scenario_settings_data, update_scenario_settings_data
 )
 from siren_web.models import Scenarios, ScenariosTechnologies
-from typing import Dict, Any
 from ..forms import BaselineScenarioForm, RunPowermatchForm
-from .balance_grid_load import DispatchResults
 from powermatchui.views.exec_powermatch import submit_powermatch_with_progress
 from .progress_handler import (
     ProgressHandler, ProgressChannel, ProgressUpdate
@@ -30,6 +29,7 @@ progress_storage = {}
 logger = logging.getLogger(__name__)
 
 @login_required
+@settings_required(redirect_view='powermatchui_home')
 def baseline_scenario(request):
     if request.user.groups.filter(name='modellers').exists():
         pass
@@ -46,19 +46,15 @@ def baseline_scenario(request):
     success_message = ""
     technologies = {}
     scenario_settings = {}
-    
-    if not demand_year:
-        success_message = "Set a demand year and scenario first."
-    else:
-        technologies = fetch_technologies_with_multipliers(scenario)
-        scenario_settings = fetch_module_settings_data('Powermatch')
-        if not scenario_settings:
-            scenario_settings = fetch_scenario_settings_data(scenario)
+    technologies = fetch_technologies_with_multipliers(scenario)
+    scenario_settings = fetch_module_settings_data('Powermatch')
+    if not scenario_settings:
+        scenario_settings = fetch_scenario_settings_data(scenario)
     
     baseline_form = BaselineScenarioForm(technologies=technologies)
     runpowermatch_form = RunPowermatchForm()
 
-    if request.method == 'POST' and demand_year:
+    if request.method == 'POST':
         baseline_form = BaselineScenarioForm(request.POST, technologies=technologies)
         if baseline_form.is_valid():
             cleaned_data = baseline_form.cleaned_data
@@ -144,37 +140,31 @@ def baseline_scenario(request):
             }
             return render(request, 'baseline_scenario.html', context)
     else:
-        if demand_year:
-            scenario_obj = Scenarios.objects.get(title=scenario)
-            analysis_list = fetch_analysis_scenario(scenario_obj)
-            if analysis_list:
-                if 'proceed' in request.GET:
-                    if request.GET['proceed'] == 'Yes':
-                        # Proceed with the rest of the GET function
-                        pass
-                    else:
-                        # User chose not to proceed
-                        messages.warning(request, "Operation canceled.")
-                        return redirect('powermatchui_home')
+        scenario_obj = Scenarios.objects.get(title=scenario)
+        analysis_list = fetch_analysis_scenario(scenario_obj)
+        if analysis_list:
+            if 'proceed' in request.GET:
+                if request.GET['proceed'] == 'Yes':
+                    # Proceed with the rest of the GET function
+                    pass
                 else:
-                    # Render a template with the warning message
-                    context = {
-                        'demand_year': demand_year, 
-                        'scenario': scenario,
-                        'config_file': config_file,
-                        'success_message': success_message
-                    }
-                    return render(request, 'confirm_overwrite.html', context)
+                    # User chose not to proceed
+                    messages.warning(request, "Operation canceled.")
+                    return redirect('powermatchui_home')
+            else:
+                # Render a template with the warning message
+                context = {
+                    'demand_year': demand_year, 
+                    'scenario': scenario,
+                    'config_file': config_file,
+                    'success_message': success_message
+                }
+                return render(request, 'confirm_overwrite.html', context)
             
     # Prepare form data for display
-    if demand_year:
-        technologies = fetch_technologies_with_multipliers(scenario)
-        carbon_price = scenario_settings.get('carbon_price', None)
-        discount_rate = scenario_settings.get('discount_rate', None)
-    else:
-        technologies = {}
-        carbon_price = None
-        discount_rate = None
+    technologies = fetch_technologies_with_multipliers(scenario)
+    carbon_price = scenario_settings.get('carbon_price', None)
+    discount_rate = scenario_settings.get('discount_rate', None)
         
     baseline_form = BaselineScenarioForm(
         technologies=technologies, 
@@ -194,22 +184,16 @@ def baseline_scenario(request):
     }
     return render(request, 'baseline_scenario.html', context)
 
+@login_required
+@settings_required(redirect_view='powermatchui_home')
 def run_baseline_progress(request):
     """Start analysis with SSE progress tracking"""
-    logger.info(f"run_baseline_progress called with method: {request.method}")
     demand_year = request.session.get('demand_year')
     scenario = request.session.get('scenario')
-    logger.info(f"Session data - demand_year: {demand_year}, scenario: {scenario}")
     
     if request.method == 'POST':
         runpowermatch_form = RunPowermatchForm(request.POST)
-        
-        if not demand_year:
-            return JsonResponse({
-                'error': "Set the demand year and scenario first."
-            }, status=400)
-            
-        elif runpowermatch_form.is_valid():
+        if runpowermatch_form.is_valid():
             level_of_detail = runpowermatch_form.cleaned_data['level_of_detail']
             save_baseline = runpowermatch_form.cleaned_data['save_baseline']
             option = level_of_detail[0]
@@ -302,7 +286,6 @@ def run_baseline_progress(request):
                     channel.close()
         
             # Start background thread
-            logger.info("Starting background thread")
             thread = threading.Thread(target=run_powermatch_async)
             thread.daemon = True
             thread.start()
@@ -313,8 +296,6 @@ def run_baseline_progress(request):
                 'message': 'PowerMatch analysis started',
                 'sse_url': f'/progress-stream/{session_id}/'
             }
-            logger.info(f"Returning response: {response_data}")
-
             return JsonResponse(response_data)
         else:
             logger.error(f"Form validation failed: {runpowermatch_form.errors}")
@@ -398,7 +379,6 @@ def progress_stream(request, session_id):
 
 def get_results_page(request, session_id):
     """Render the results page after completion"""
-    logger.info(f"get_results_page called for session {session_id}")
     if session_id in progress_storage:
         progress_data = progress_storage[session_id]
         logger.info(f"Found progress data with status: {progress_data['status']}")
@@ -408,14 +388,12 @@ def get_results_page(request, session_id):
             
             # Clean up progress storage
             del progress_storage[session_id]
-            logger.info(f"Cleaned up progress storage for session {session_id}")
             
             # Render the display table template
             return render(request, 'display_table.html', template_data)
             
         elif progress_data['status'] == 'completed_download':
             # Handle Excel download
-            logger.info(f"Handling download for session {session_id}")
             dispatch_results = progress_data['results']
             filename = progress_data['download_filename']
             
@@ -447,7 +425,6 @@ def get_results_page(request, session_id):
 
 def cancel_analysis(request, session_id):
     """Cancel a running analysis"""
-    logger.info(f"cancel_analysis called for session {session_id}")
     if session_id in progress_channels:
         channel = progress_channels[session_id]
         channel.send_update({
@@ -476,9 +453,7 @@ def run_baseline(request):
         runpowermatch_form = RunPowermatchForm(request.POST)
         scenario_obj = Scenarios.objects.get(title=scenario)
 
-        if not demand_year:
-            success_message = "Set the demand year and scenario first."
-        elif runpowermatch_form.is_valid():
+        if runpowermatch_form.is_valid():
             level_of_detail = runpowermatch_form.cleaned_data['level_of_detail']
             save_baseline = runpowermatch_form.cleaned_data['save_baseline']
             option = level_of_detail[0]

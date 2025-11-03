@@ -29,7 +29,7 @@ class DemandScenarioSettings(forms.Form):
     )
     demand_year = forms.ChoiceField(
         label='Select a Demand Year',
-        initial='2023',
+        initial='2024',
         required=True,
         widget=forms.Select(attrs={'class': 'form_input'})
     )
@@ -47,7 +47,7 @@ class DemandScenarioSettings(forms.Form):
         super().__init__(*args, **kwargs)
         
         year_choices = [(year, year) for year in TechnologyYears.objects.values_list('year', flat=True).distinct()]
-        self.fields['weather_year'].choices = [(year, '20' + str(year)) for year in range(24, 25)] 
+        self.fields['weather_year'].choices = [('2024', '2024')]
         self.fields['demand_year'].choices = year_choices
 
 class DemandYearForm(forms.Form):

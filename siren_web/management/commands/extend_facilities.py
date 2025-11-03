@@ -84,10 +84,7 @@ class Command(BaseCommand):
                 # Mapping column indexes to technology objects
                 tech_mapping = {
                     'Black coal': Technologies.objects.get(idtechnologies=1),
-                    'Battery (1hr)': Technologies.objects.get(idtechnologies=2),
                     'Battery (2hr)': Technologies.objects.get(idtechnologies=3),
-                    'Battery (4hr)': Technologies.objects.get(idtechnologies=4),
-                    'Battery (8hr)': Technologies.objects.get(idtechnologies=5),
                     'Biomass': Technologies.objects.get(idtechnologies=6),
                     'Gas OCGT': Technologies.objects.get(idtechnologies=7),
                     'PHES (24hr)': Technologies.objects.get(idtechnologies=8),
@@ -102,8 +99,6 @@ class Command(BaseCommand):
                     'Concentrated Solar Thermal': Technologies.objects.get(idtechnologies=18),
                     'Gas CCGT': Technologies.objects.get(idtechnologies=19),
                     'Gas Recip': Technologies.objects.get(idtechnologies=20),
-                    'Battery (12hr)': Technologies.objects.get(idtechnologies=143),
-                    'Battery (24hr)': Technologies.objects.get(idtechnologies=144),
                     'Nuclear (SMR)': Technologies.objects.get(idtechnologies=145),
                     'Nuclear large-scale': Technologies.objects.get(idtechnologies=146),
                     'Offshore Wind Floating': Technologies.objects.get(idtechnologies=147), 
@@ -129,10 +124,7 @@ class Command(BaseCommand):
             # Mapping column indexes to technology objects
             tech_mapping = {
                 'Black coal': Technologies.objects.get(idtechnologies=1),
-                'Battery (1hr)': Technologies.objects.get(idtechnologies=2),
                 'Battery (2hr)': Technologies.objects.get(idtechnologies=3),
-                'Battery (4hr)': Technologies.objects.get(idtechnologies=4),
-                'Battery (8hr)': Technologies.objects.get(idtechnologies=5),
                 'Biomass': Technologies.objects.get(idtechnologies=6),
                 'Gas OCGT': Technologies.objects.get(idtechnologies=7),
                 'PHES (24hr)': Technologies.objects.get(idtechnologies=8),
@@ -147,8 +139,6 @@ class Command(BaseCommand):
                 'Concentrated Solar Thermal': Technologies.objects.get(idtechnologies=18),
                 'Gas CCGT': Technologies.objects.get(idtechnologies=19),
                 'Gas Recip': Technologies.objects.get(idtechnologies=20),
-                'Battery (12hr)': Technologies.objects.get(idtechnologies=143),
-                'Battery (24hr)': Technologies.objects.get(idtechnologies=144),
                 'Nuclear (SMR)': Technologies.objects.get(idtechnologies=145),
                 'Nuclear large-scale': Technologies.objects.get(idtechnologies=146),
                 'Offshore Wind Floating': Technologies.objects.get(idtechnologies=147), 

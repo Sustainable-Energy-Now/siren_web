@@ -6,7 +6,8 @@ from siren_web.database_operations import get_scenario_by_title, delete_analysis
     fetch_scenario_settings_data, fetch_technology_attributes, fetch_supplyfactors_data
 from siren_web.models import Analysis, ScenariosSettings
 from typing import Dict, Any, Tuple
-from .balance_grid_load import Technology, PowerMatchProcessor, DispatchResults
+from .balance_grid_load import PowerMatchProcessor, DispatchResults
+from common.decorators import settings_required
 
 
 def save_analysis(i, dispatch_summary, metadata, scenario, variation, stage):
@@ -428,7 +429,9 @@ def fetch_analysis(scenario, variation: str, stage: int) -> Tuple[np.ndarray, Di
     metadata.setdefault('underlying_technologies', [])
     
     return dispatch_summary, metadata
-    
+
+@login_required
+@settings_required(redirect_view='powermatchui_home')
 def submit_powermatch_with_progress(demand_year, scenario, option, stages, 
                                    variation_inst, save_data, progress_handler) -> Tuple[DispatchResults, Dict[str, Any]]:
     """ Progress reporting if handler supplied"""
