@@ -1,4 +1,8 @@
 # Release Notes (Latest first)
+## Version 3.12.0 - November 4, 2025
+### 🆕 New Features
+- Feature: Demand Projection ([#39](https://github.com/Sustainable-Energy-Now/siren_web/issues/39))
+
 ## Version 3.11.0 - November 2, 2025
 ### 🆕 New Features
 - Feature: Implement FacilityStorage ([#40](https://github.com/Sustainable-Energy-Now/siren_web/issues/40))

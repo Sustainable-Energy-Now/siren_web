@@ -1,0 +1,618 @@
+{% extends 'powerplotui_base.html' %}
+{% load static %}
+
+{% block title %}Demand Projection{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <h2>Electricity Demand Projection</h2>
+    
+    <!-- Control Panel -->
+    <div class="row mt-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-body">
+                    <form id="demandProjectionForm" class="row g-3">
+                        <div class="col-md-2">
+                            <label for="baseYearSelect" class="form-label">Base Year:</label>
+                            <select class="form-select" id="baseYearSelect" name="base_year" required>
+                                {% for year in available_years %}
+                                <option value="{{ year }}" {% if year == demand_config.base_year|add:0 %}selected{% endif %}>
+                                    {{ year }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        
+                        <div class="col-md-2">
+                            <label for="endYearSelect" class="form-label">Project To Year:</label>
+                            <select class="form-select" id="endYearSelect" name="end_year" required>
+                                {% for year in available_years.0|add:10|make_list %}
+                                    {% if forloop.counter0|add:available_years.0|add:10 <= 2060 %}
+                                    <option value="{{ forloop.counter0|add:available_years.0|add:10 }}" 
+                                            {% if forloop.counter0|add:available_years.0|add:10 == 2050 %}selected{% endif %}>
+                                        {{ forloop.counter0|add:available_years.0|add:10 }}
+                                    </option>
+                                    {% endif %}
+                                {% endfor %}
+                            </select>
+                        </div>
+                        
+                        <div class="col-md-3">
+                            <label for="viewModeSelect" class="form-label">View Mode:</label>
+                            <select class="form-select" id="viewModeSelect" name="view_mode">
+                                <option value="single" selected>Single Projection</option>
+                                <option value="comparison">Compare Scenarios</option>
+                                <option value="breakdown">Operational vs Underlying</option>
+                            </select>
+                        </div>
+                        
+                        <div class="col-md-3" id="scenarioSelectDiv">
+                            <label for="scenarioSelect" class="form-label">Scenario:</label>
+                            <select class="form-select" id="scenarioSelect" name="scenario">
+                                <option value="Current Config">Current Config</option>
+                                {% for scenario_name in scenarios.keys %}
+                                <option value="{{ scenario_name }}">{{ scenario_name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        
+                        <div class="col-md-2">
+                            <label class="form-label">&nbsp;</label>
+                            <button type="submit" class="btn btn-primary w-100">
+                                <i class="bi bi-graph-up"></i> Generate Projection
+                            </button>
+                        </div>
+                    </form>
+                    
+                    <!-- Multi-scenario selection (hidden by default) -->
+                    <div class="row mt-3" id="multiScenarioDiv" style="display: none;">
+                        <div class="col-md-12">
+                            <label class="form-label">Select Scenarios to Compare:</label>
+                            <div class="btn-group-vertical w-100" role="group">
+                                {% for scenario_name in scenarios.keys %}
+                                <div class="form-check">
+                                    <input class="form-check-input scenario-checkbox" type="checkbox" 
+                                           value="{{ scenario_name }}" id="scenario_{{ forloop.counter }}">
+                                    <label class="form-check-label" for="scenario_{{ forloop.counter }}">
+                                        {{ scenario_name }}
+                                    </label>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Interactive Growth Rate Sliders -->
+                    <div class="accordion mt-3" id="growthRateAccordion">
+                        <div class="accordion-item">
+                            <h2 class="accordion-header">
+                                <button class="accordion-button collapsed" type="button" 
+                                        data-bs-toggle="collapse" data-bs-target="#growthRateCollapse">
+                                    <i class="bi bi-sliders"></i>&nbsp; Adjust Growth Rates (Override Scenario)
+                                </button>
+                            </h2>
+                            <div id="growthRateCollapse" class="accordion-collapse collapse">
+                                <div class="accordion-body">
+                                    <div class="row g-3">
+                                        <!-- Operational Growth Rate -->
+                                        <div class="col-md-6">
+                                            <label for="operationalGrowthRate" class="form-label">
+                                                Operational Demand Growth Rate: 
+                                                <span id="operationalGrowthValue" class="badge bg-primary">
+                                                    {{ demand_config.operational_growth_rate|floatformat:3 }}
+                                                </span>
+                                            </label>
+                                            <input type="range" class="form-range" id="operationalGrowthRate" 
+                                                   min="0" max="0.10" step="0.001" 
+                                                   value="{{ demand_config.operational_growth_rate }}">
+                                            <div class="d-flex justify-content-between">
+                                                <small>0% (No growth)</small>
+                                                <small>10% (High growth)</small>
+                                            </div>
+                                        </div>
+                                        
+                                        <!-- Underlying Growth Rate -->
+                                        <div class="col-md-6">
+                                            <label for="underlyingGrowthRate" class="form-label">
+                                                Underlying Demand Growth Rate: 
+                                                <span id="underlyingGrowthValue" class="badge bg-success">
+                                                    {{ demand_config.underlying_growth_rate|floatformat:3 }}
+                                                </span>
+                                            </label>
+                                            <input type="range" class="form-range" id="underlyingGrowthRate" 
+                                                   min="0" max="0.15" step="0.001" 
+                                                   value="{{ demand_config.underlying_growth_rate }}">
+                                            <div class="d-flex justify-content-between">
+                                                <small>0% (No growth)</small>
+                                                <small>15% (Very high growth)</small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="row mt-3">
+                                        <div class="col-md-12">
+                                            <button type="button" class="btn btn-sm btn-secondary" id="resetSliders">
+                                                <i class="bi bi-arrow-counterclockwise"></i> Reset to Scenario Defaults
+                                            </button>
+                                            <button type="button" class="btn btn-sm btn-primary" id="applySliders">
+                                                <i class="bi bi-check-lg"></i> Apply Custom Rates
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Results Display -->
+    <div class="row mt-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Demand Projection Results</h5>
+                </div>
+                <div class="card-body">
+                    <!-- Loading Indicator -->
+                    <div id="loadingIndicator" class="text-center" style="display: none;">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <p class="mt-2">Calculating projections...</p>
+                    </div>
+                    
+                    <!-- Error Message -->
+                    <div id="errorMessage" class="alert alert-danger" style="display: none;">
+                    </div>
+                    
+                    <!-- Plot -->
+                    <div id="demandPlot" style="width: 100%; height: 600px;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Summary Statistics -->
+    <div class="row mt-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Projection Summary</h5>
+                </div>
+                <div class="card-body">
+                    <div id="summaryStats" class="row">
+                        <div class="col-md-3">
+                            <div class="card bg-light">
+                                <div class="card-body text-center">
+                                    <h6 class="card-subtitle mb-2 text-muted">Base Year Demand</h6>
+                                    <h4 id="baseYearDemand" class="card-title text-primary">-</h4>
+                                    <small>GWh/year</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card bg-light">
+                                <div class="card-body text-center">
+                                    <h6 class="card-subtitle mb-2 text-muted">End Year Demand</h6>
+                                    <h4 id="endYearDemand" class="card-title text-success">-</h4>
+                                    <small>GWh/year</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card bg-light">
+                                <div class="card-body text-center">
+                                    <h6 class="card-subtitle mb-2 text-muted">Total Growth</h6>
+                                    <h4 id="totalGrowth" class="card-title text-info">-</h4>
+                                    <small>% increase</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card bg-light">
+                                <div class="card-body text-center">
+                                    <h6 class="card-subtitle mb-2 text-muted">Avg. Annual Growth</h6>
+                                    <h4 id="avgGrowth" class="card-title text-warning">-</h4>
+                                    <small>% per year</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row mt-3" id="configSummary">
+                        <div class="col-md-12">
+                            <h6>Configuration Used:</h6>
+                            <p id="configDetails" class="text-muted small">-</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.plot.ly/plotly-2.26.0.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('demandProjectionForm');
+    const viewModeSelect = document.getElementById('viewModeSelect');
+    const scenarioSelectDiv = document.getElementById('scenarioSelectDiv');
+    const multiScenarioDiv = document.getElementById('multiScenarioDiv');
+    const demandPlot = document.getElementById('demandPlot');
+    const loadingIndicator = document.getElementById('loadingIndicator');
+    const errorMessage = document.getElementById('errorMessage');
+    
+    // Slider elements
+    const operationalSlider = document.getElementById('operationalGrowthRate');
+    const underlyingSlider = document.getElementById('underlyingGrowthRate');
+    const operationalValue = document.getElementById('operationalGrowthValue');
+    const underlyingValue = document.getElementById('underlyingGrowthValue');
+    const resetSliders = document.getElementById('resetSliders');
+    const applySliders = document.getElementById('applySliders');
+    
+    // Store original scenario values
+    let scenarioDefaults = {
+        operational: parseFloat('{{ demand_config.operational_growth_rate }}'),
+        underlying: parseFloat('{{ demand_config.underlying_growth_rate }}')
+    };
+    
+    // Update slider display values
+    operationalSlider.addEventListener('input', function() {
+        operationalValue.textContent = parseFloat(this.value).toFixed(3);
+    });
+    
+    underlyingSlider.addEventListener('input', function() {
+        underlyingValue.textContent = parseFloat(this.value).toFixed(3);
+    });
+    
+    // Reset sliders to scenario defaults
+    resetSliders.addEventListener('click', function() {
+        operationalSlider.value = scenarioDefaults.operational;
+        underlyingSlider.value = scenarioDefaults.underlying;
+        operationalValue.textContent = scenarioDefaults.operational.toFixed(3);
+        underlyingValue.textContent = scenarioDefaults.underlying.toFixed(3);
+    });
+    
+    // Apply custom slider values
+    applySliders.addEventListener('click', function() {
+        form.dispatchEvent(new Event('submit'));
+    });
+    
+    // Handle view mode changes
+    viewModeSelect.addEventListener('change', function() {
+        if (this.value === 'comparison') {
+            scenarioSelectDiv.style.display = 'none';
+            multiScenarioDiv.style.display = 'block';
+        } else {
+            scenarioSelectDiv.style.display = 'block';
+            multiScenarioDiv.style.display = 'none';
+        }
+    });
+    
+    // Handle scenario selection - update slider defaults
+    document.getElementById('scenarioSelect').addEventListener('change', function() {
+        const scenario = this.value;
+        // In a real implementation, you'd fetch the scenario config via AJAX
+        // For now, we'll just reset to config defaults
+        resetSliders.click();
+    });
+    
+    // Form submission handler
+    form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const baseYear = parseInt(document.getElementById('baseYearSelect').value);
+        const endYear = parseInt(document.getElementById('endYearSelect').value);
+        const viewMode = viewModeSelect.value;
+        
+        if (viewMode === 'comparison') {
+            // Multi-scenario comparison
+            const selectedScenarios = Array.from(
+                document.querySelectorAll('.scenario-checkbox:checked')
+            ).map(cb => cb.value);
+            
+            if (selectedScenarios.length === 0) {
+                showError('Please select at least one scenario to compare');
+                return;
+            }
+            
+            compareScenarios(baseYear, endYear, selectedScenarios);
+        } else {
+            // Single projection
+            const scenario = document.getElementById('scenarioSelect').value;
+            const customOpRate = parseFloat(operationalSlider.value);
+            const customUndRate = parseFloat(underlyingSlider.value);
+            
+            calculateProjection(baseYear, endYear, scenario, viewMode, 
+                               customOpRate, customUndRate);
+        }
+    });
+    
+    function calculateProjection(baseYear, endYear, scenario, viewMode, 
+                                 customOpRate, customUndRate) {
+        showLoading();
+        hideError();
+        
+        const requestData = {
+            base_year: baseYear,
+            end_year: endYear,
+            scenario: scenario,
+            operational_growth_rate: customOpRate,
+            underlying_growth_rate: customUndRate
+        };
+        
+        fetch('{% url "calculate_demand_projection" %}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken')
+            },
+            body: JSON.stringify(requestData)
+        })
+        .then(response => response.json())
+        .then(data => {
+            hideLoading();
+            if (data.error) {
+                showError(data.error);
+            } else {
+                plotProjection(data, viewMode);
+                updateSummaryStats(data);
+            }
+        })
+        .catch(error => {
+            hideLoading();
+            showError('Error calculating projection: ' + error.message);
+        });
+    }
+    
+    function compareScenarios(baseYear, endYear, scenarios) {
+        showLoading();
+        hideError();
+        
+        const requestData = {
+            base_year: baseYear,
+            end_year: endYear,
+            scenarios: scenarios
+        };
+        
+        fetch('{% url "compare_scenarios" %}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken')
+            },
+            body: JSON.stringify(requestData)
+        })
+        .then(response => response.json())
+        .then(data => {
+            hideLoading();
+            if (data.error) {
+                showError(data.error);
+            } else {
+                plotScenarioComparison(data);
+            }
+        })
+        .catch(error => {
+            hideLoading();
+            showError('Error comparing scenarios: ' + error.message);
+        });
+    }
+    
+    function plotProjection(data, viewMode) {
+        const traces = [];
+        
+        if (viewMode === 'breakdown') {
+            // Show operational, underlying, and total as separate traces
+            traces.push({
+                x: data.years,
+                y: data.operational_total_gwh,
+                name: 'Operational Demand',
+                type: 'scatter',
+                mode: 'lines',
+                line: { color: 'rgb(55, 128, 191)', width: 2 },
+                stackgroup: 'one'
+            });
+            
+            traces.push({
+                x: data.years,
+                y: data.underlying_total_gwh,
+                name: 'Underlying Demand',
+                type: 'scatter',
+                mode: 'lines',
+                line: { color: 'rgb(50, 171, 96)', width: 2 },
+                stackgroup: 'one'
+            });
+        } else {
+            // Show total only
+            traces.push({
+                x: data.years,
+                y: data.total_gwh,
+                name: 'Total Demand',
+                type: 'scatter',
+                mode: 'lines',
+                line: { color: 'rgb(219, 64, 82)', width: 3 }
+            });
+        }
+        
+        const layout = {
+            title: 'Electricity Demand Projection',
+            xaxis: {
+                title: 'Year',
+                showgrid: true
+            },
+            yaxis: {
+                title: 'Annual Demand (GWh)',
+                showgrid: true
+            },
+            hovermode: 'x unified',
+            showlegend: true,
+            legend: {
+                x: 0.02,
+                y: 0.98,
+                bgcolor: 'rgba(255, 255, 255, 0.8)',
+                bordercolor: '#666',
+                borderwidth: 1
+            }
+        };
+        
+        Plotly.newPlot(demandPlot, traces, layout, getPlotConfig());
+    }
+    
+    function plotScenarioComparison(data) {
+        const traces = [];
+        const colors = [
+            'rgb(55, 128, 191)', 
+            'rgb(50, 171, 96)', 
+            'rgb(219, 64, 82)',
+            'rgb(255, 127, 14)',
+            'rgb(148, 103, 189)'
+        ];
+        
+        let colorIdx = 0;
+        for (const [scenarioName, scenarioData] of Object.entries(data.scenarios)) {
+            traces.push({
+                x: data.years,
+                y: scenarioData.total_gwh,
+                name: scenarioName,
+                type: 'scatter',
+                mode: 'lines',
+                line: { 
+                    color: colors[colorIdx % colors.length], 
+                    width: 2 
+                }
+            });
+            colorIdx++;
+        }
+        
+        const layout = {
+            title: 'Demand Projection Scenario Comparison',
+            xaxis: {
+                title: 'Year',
+                showgrid: true
+            },
+            yaxis: {
+                title: 'Annual Demand (GWh)',
+                showgrid: true
+            },
+            hovermode: 'x unified',
+            showlegend: true,
+            legend: {
+                x: 0.02,
+                y: 0.98,
+                bgcolor: 'rgba(255, 255, 255, 0.8)',
+                bordercolor: '#666',
+                borderwidth: 1
+            }
+        };
+        
+        Plotly.newPlot(demandPlot, traces, layout, getPlotConfig());
+        
+        // Update summary for first scenario
+        const firstScenario = Object.values(data.scenarios)[0];
+        updateSummaryStats({
+            years: data.years,
+            total_gwh: firstScenario.total_gwh,
+            config: {}
+        });
+    }
+    
+    function updateSummaryStats(data) {
+        const baseYearIdx = 0;
+        const endYearIdx = data.years.length - 1;
+        
+        const baseDemand = data.total_gwh[baseYearIdx];
+        const endDemand = data.total_gwh[endYearIdx];
+        const totalGrowth = ((endDemand - baseDemand) / baseDemand * 100);
+        const numYears = data.years[endYearIdx] - data.years[baseYearIdx];
+        const avgGrowth = Math.pow(endDemand / baseDemand, 1 / numYears) - 1;
+        
+        document.getElementById('baseYearDemand').textContent = 
+            baseDemand.toFixed(0);
+        document.getElementById('endYearDemand').textContent = 
+            endDemand.toFixed(0);
+        document.getElementById('totalGrowth').textContent = 
+            totalGrowth.toFixed(1) + '%';
+        document.getElementById('avgGrowth').textContent = 
+            (avgGrowth * 100).toFixed(2) + '%';
+        
+        // Update config details
+        if (data.config) {
+            const configText = `
+                Operational Growth: ${(data.config.operational_growth_rate * 100).toFixed(1)}% 
+                (${data.config.operational_growth_type}), 
+                Underlying Growth: ${(data.config.underlying_growth_rate * 100).toFixed(1)}% 
+                (${data.config.underlying_growth_type})
+            `;
+            document.getElementById('configDetails').textContent = configText;
+        }
+    }
+    
+    function getPlotConfig() {
+        return {
+            responsive: true,
+            displayModeBar: true,
+            modeBarButtonsToRemove: ['lasso2d', 'select2d'],
+            displaylogo: false
+        };
+    }
+    
+    function showLoading() {
+        loadingIndicator.style.display = 'block';
+        demandPlot.style.display = 'none';
+    }
+    
+    function hideLoading() {
+        loadingIndicator.style.display = 'none';
+        demandPlot.style.display = 'block';
+    }
+    
+    function showError(message) {
+        errorMessage.textContent = message;
+        errorMessage.style.display = 'block';
+    }
+    
+    function hideError() {
+        errorMessage.style.display = 'none';
+    }
+    
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+});
+</script>
+
+<style>
+.form-range {
+    cursor: pointer;
+}
+
+.form-check {
+    padding: 0.5rem 0;
+}
+
+#summaryStats .card {
+    transition: transform 0.2s;
+}
+
+#summaryStats .card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+</style>
+
+{% endblock %}

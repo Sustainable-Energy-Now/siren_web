@@ -1,6 +1,6 @@
 # urls.py
 from django.urls import path, include
-from .views import variations_views, baseline_scenario_views, \
+from .views import variations_views, baseline_scenario_views, demand_projection_views, \
     merit_order_views, optimisation_views, \
     powermatchui_home_views, under_construction_views
 
@@ -21,5 +21,12 @@ urlpatterns = [
     # path('optimisation/', optimisation_views.optimisation, name='optimisation'),
     path('run_optimisation/', optimisation_views.run_optimisation, name='run_optimisation'),
     path('optimisation/', under_construction_views.under_construction, name='under_construction'),
-    # Add additional URL patterns here if needed
+
+    # Main demand projection page
+    path('demand-projection/', demand_projection_views.demand_projection_view, name='demand_projection'),
+    
+    # API endpoints for AJAX calls
+    path('api/demand-projection/calculate/', demand_projection_views.calculate_demand_projection, name='calculate_demand_projection'),
+    path('api/demand-projection/compare/', demand_projection_views.compare_scenarios, name='compare_scenarios'),
+    path('api/demand-projection/hourly/', demand_projection_views.get_hourly_projection, name='get_hourly_projection'),
 ]
