@@ -40,6 +40,8 @@ def baseline_scenario(request):
         }
         return render(request, 'powermatchui_home.html', context)
     
+
+    weather_year = request.session.get('weather_year', '')
     demand_year = request.session.get('demand_year')
     scenario = request.session.get('scenario')
     config_file = request.session.get('config_file')
@@ -133,6 +135,7 @@ def baseline_scenario(request):
                 'runpowermatch_form': RunPowermatchForm(),
                 'technologies': technologies,
                 'scenario_settings': scenario_settings,
+                'weather_year': weather_year,
                 'demand_year': demand_year,
                 'scenario': scenario,
                 'config_file': config_file,
@@ -141,7 +144,7 @@ def baseline_scenario(request):
             return render(request, 'baseline_scenario.html', context)
     else:
         scenario_obj = Scenarios.objects.get(title=scenario)
-        analysis_list = fetch_analysis_scenario(scenario_obj)
+        analysis_list = fetch_analysis_scenario(scenario)
         if analysis_list:
             if 'proceed' in request.GET:
                 if request.GET['proceed'] == 'Yes':
@@ -154,6 +157,7 @@ def baseline_scenario(request):
             else:
                 # Render a template with the warning message
                 context = {
+                    'weather_year': weather_year,
                     'demand_year': demand_year, 
                     'scenario': scenario,
                     'config_file': config_file,
@@ -177,6 +181,7 @@ def baseline_scenario(request):
         'runpowermatch_form': runpowermatch_form,
         'technologies': technologies,
         'scenario_settings': scenario_settings,
+        'weather_year': weather_year,
         'demand_year': demand_year, 
         'scenario': scenario,
         'config_file': config_file,
@@ -237,7 +242,7 @@ def run_baseline_progress(request):
                     progress_handler.update(5, "Starting PowerMatch analysis...")
                     
                     dispatch_results, summary_report = submit_powermatch_with_progress(
-                        demand_year, scenario, option, 1, None, save_baseline, progress_handler
+                        request, demand_year, scenario, option, 1, None, save_baseline, progress_handler
                     )
                     
                     if option == 'D':
@@ -444,6 +449,7 @@ def cancel_analysis(request, session_id):
         return JsonResponse({'error': 'Session not found'}, status=404)
 
 def run_baseline(request):
+    weather_year = request.session.get('weather_year', '')
     demand_year = request.session.get('demand_year')
     scenario = request.session.get('scenario')
     config_file = request.session.get('config_file')
@@ -459,7 +465,7 @@ def run_baseline(request):
             option = level_of_detail[0]
 
             dispatch_results, summary_report = submit_powermatch_with_progress(
-                demand_year, scenario, option, 1, 
+                request, demand_year, scenario, option, 1, 
                 None, save_baseline, None
                 )
             if option == 'D':
@@ -488,6 +494,7 @@ def run_baseline(request):
             'runpowermatch_form': runpowermatch_form,
             'technologies': technologies,
             'scenario_settings': scenario_settings,
+            'weather_year': weather_year,
             'demand_year': demand_year,
             'scenario': scenario,
             'config_file': config_file,

@@ -3,12 +3,14 @@ from django.db.models.signals import post_save, post_delete, m2m_changed
 from django.dispatch import receiver
 from siren_web.models import (
     facilities, 
+    FacilityStorage,
     ScenariosTechnologies, 
     Technologies, 
     Scenarios,
     FacilityWindTurbines
 )
 
+# === FACILITY STORAGE SIGNALS ===
 @receiver(post_save, sender='siren_web.ScenariosFacilities')
 def add_technology_to_scenario_on_facility_add(sender, instance, created, **kwargs):
     """
@@ -258,6 +260,78 @@ def handle_facility_wind_turbine_m2m_changes(sender, instance, action, pk_set, *
                 except ScenariosTechnologies.DoesNotExist:
                     pass
 
+@receiver(post_save, sender='siren_web.FacilityStorage')
+def update_facility_capacity_on_storage_change(sender, instance, created, **kwargs):
+    """
+    When storage installations are added/updated at a facility, recalculate 
+    the facility's total capacity. This ensures the facility capacity reflects 
+    the sum of all storage installation power capacities.
+    """
+    facility = instance.idfacilities
+    technology = instance.idtechnologies
+    
+    # Only update if this is a storage technology facility
+    if technology.category == 'Storage':
+        # Calculate total storage power capacity at this facility for this technology
+        total_storage_capacity = FacilityStorage.objects.filter(
+            idfacilities=facility,
+            idtechnologies=technology,
+            is_active=True
+        ).aggregate(
+            total=models.Sum('power_capacity')
+        )['total'] or 0
+        
+        if total_storage_capacity != facility.capacity:
+            # Update facility capacity
+            facility.capacity = total_storage_capacity
+            facility.save(update_fields=['capacity'])
+            
+            # Update all related scenario technologies
+            for scenario in facility.scenarios.all():
+                try:
+                    scenario_tech = ScenariosTechnologies.objects.get(
+                        idscenarios=scenario,
+                        idtechnologies=technology
+                    )
+                    scenario_tech.update_capacity()
+                except ScenariosTechnologies.DoesNotExist:
+                    pass
+
+@receiver(post_delete, sender='siren_web.FacilityStorage')
+def update_facility_capacity_on_storage_removal(sender, instance, **kwargs):
+    """
+    When storage installations are removed from a facility, recalculate 
+    the facility's total capacity.
+    """
+    facility = instance.idfacilities
+    technology = instance.idtechnologies
+    
+    # Only update if this is a storage technology
+    if technology.category == 'Storage':
+        # Calculate remaining storage capacity
+        total_storage_capacity = FacilityStorage.objects.filter(
+            idfacilities=facility,
+            idtechnologies=technology,
+            is_active=True
+        ).aggregate(
+            total=models.Sum('power_capacity')
+        )['total'] or 0
+        
+        # Update facility capacity
+        facility.capacity = total_storage_capacity
+        facility.save(update_fields=['capacity'])
+        
+        # Update all related scenario technologies
+        for scenario in facility.scenarios.all():
+            try:
+                scenario_tech = ScenariosTechnologies.objects.get(
+                    idscenarios=scenario,
+                    idtechnologies=technology
+                )
+                scenario_tech.update_capacity()
+            except ScenariosTechnologies.DoesNotExist:
+                pass
+
 # Utility function for bulk operations
 def sync_scenario_technologies_for_scenario(scenario):
     """
@@ -328,3 +402,91 @@ def sync_wind_facility_capacities():
                     pass
     
     return updated_count
+
+# Utility function for bulk operations
+def sync_storage_facility_capacities():
+    """
+    Utility function to sync all storage facility capacities with their 
+    FacilityStorage installation totals. Useful for data migrations or 
+    fixing inconsistencies.
+    """
+    storage_facilities = facilities.objects.filter(
+        idtechnologies__category='Storage'
+    ).prefetch_related('storage_installations')
+    
+    updated_count = 0
+    for facility in storage_facilities:
+        # Get the technology for this facility
+        technology = facility.idtechnologies
+        
+        # Calculate total storage power capacity
+        total_storage_capacity = FacilityStorage.objects.filter(
+            idfacilities=facility,
+            idtechnologies=technology,
+            is_active=True
+        ).aggregate(
+            total=models.Sum('power_capacity')
+        )['total'] or 0
+        
+        if total_storage_capacity != facility.capacity:
+            facility.capacity = total_storage_capacity
+            facility.save(update_fields=['capacity'])
+            updated_count += 1
+            
+            # Update related scenario technologies
+            for scenario in facility.scenarios.all():
+                try:
+                    scenario_tech = ScenariosTechnologies.objects.get(
+                        idscenarios=scenario,
+                        idtechnologies=technology
+                    )
+                    scenario_tech.update_capacity()
+                except ScenariosTechnologies.DoesNotExist:
+                    pass
+    
+    return updated_count
+
+def get_storage_summary_for_scenario(scenario):
+    """
+    Get a summary of all storage installations in a scenario.
+    Returns dict with technology names as keys and aggregated storage data as values.
+    """
+    from django.db.models import Sum, Count
+    
+    storage_summary = {}
+    
+    # Get all storage technologies in this scenario
+    storage_techs = ScenariosTechnologies.objects.filter(
+        idscenarios=scenario,
+        idtechnologies__category='Storage'
+    ).select_related('idtechnologies')
+    
+    for scenario_tech in storage_techs:
+        technology = scenario_tech.idtechnologies
+        tech_name = technology.technology_name
+        
+        # Get all FacilityStorage installations for this technology in this scenario
+        installations = FacilityStorage.objects.filter(
+            idtechnologies=technology,
+            idfacilities__scenarios=scenario,
+            is_active=True
+        ).aggregate(
+            total_power_capacity=Sum('power_capacity'),
+            total_energy_capacity=Sum('energy_capacity'),
+            num_installations=Count('idfacilitystorage')
+        )
+        
+        # Calculate average duration if we have both power and energy
+        avg_duration = None
+        if installations['total_power_capacity'] and installations['total_energy_capacity']:
+            avg_duration = installations['total_energy_capacity'] / installations['total_power_capacity']
+        
+        storage_summary[tech_name] = {
+            'power_capacity_mw': installations['total_power_capacity'] or 0,
+            'energy_capacity_mwh': installations['total_energy_capacity'] or 0,
+            'duration_hours': avg_duration,
+            'num_installations': installations['num_installations'] or 0,
+            'scenario_capacity': scenario_tech.capacity  # From facilities table
+        }
+    
+    return storage_summary

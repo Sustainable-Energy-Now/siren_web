@@ -6,7 +6,7 @@ import logging
 from django.db.models import Avg, Q, F, Sum, Count, When, OuterRef, Subquery
 from django.db.models.functions import TruncDay
 import os
-from siren_web.models import Analysis, facilities, Generatorattributes, Optimisations, \
+from siren_web.models import Analysis, facilities, FacilityStorage, Generatorattributes, Optimisations, \
     Scenarios, ScenariosTechnologies, ScenariosSettings, Settings, Storageattributes, supplyfactors, \
     Technologies, TechnologyYears, TradingPrice, variations
 from powermatchui.views.balance_grid_load import Technology
@@ -219,63 +219,6 @@ def fetch_supplyfactors_data(demand_year, scenario):
 
     return load_and_supply
 
-def get_all_technologies_for_year(demand_year):
-    """
-    Get all Technology rows joined with their corresponding TechnologyYears data
-    for a specific year.
-    
-    Args:
-        demand_year (int): The year to filter TechnologyYears data
-        
-    Returns:
-        list: A list of merged dictionaries containing Technology data with year-specific data
-    """
-    # Use a more efficient approach with select_related to minimize database hits
-    tech_years = TechnologyYears.objects.filter(
-        year=demand_year
-    ).select_related('idtechnologies')
-    
-    result = []
-    for tech_year in tech_years:
-        technology = tech_year.idtechnologies
-        
-        # Create a merged dictionary with data from both tables
-        tech_data = {
-            'idtechnologies': technology.idtechnologies,
-            'technology_name': technology.technology_name,
-            'technology_signature': technology.technology_signature,
-            'image': technology.image,
-            'caption': technology.caption,
-            'category': technology.category,
-            'renewable': technology.renewable,
-            'dispatchable': technology.dispatchable,
-            'description': technology.description,
-            'area': technology.area,
-            # Include year-specific data
-            'year': tech_year.year,
-            'capex': tech_year.capex,
-            'fom': tech_year.fom,
-            'vom': tech_year.vom,
-            'lifetime': tech_year.lifetime,
-            'discount_rate': tech_year.discount_rate,
-            'capacity': tech_year.capacity,
-            'capacity_factor': tech_year.capacity_factor,
-            'mult': tech_year.mult,
-            'approach': tech_year.approach,
-            'capacity_max': tech_year.capacity_max,
-            'capacity_min': tech_year.capacity_min,
-            'capacity_step': tech_year.capacity_step,
-            'capacities': tech_year.capacities,
-            'emissions': tech_year.emissions,
-            'initial': tech_year.initial,
-            'lcoe': tech_year.lcoe,
-            'lcoe_cf': tech_year.lcoe_cf,
-        }
-        
-        result.append(tech_data)
-        
-    return result
-
 def fetch_full_generator_storage_data(demand_year):
     """
     Fetch technologies with their associated year-specific data, generator attributes,
@@ -347,8 +290,18 @@ def fetch_technology_attributes(demand_year, scenario):
                 'idtechnologies__storageattributes_set',
                 queryset=Storageattributes.objects.all(),
                 to_attr='storage_attrs'
+            ),
+            # Get FacilityStorage installations for this scenario's facilities
+            Prefetch(
+                'idtechnologies__facility_installations',
+                queryset=FacilityStorage.objects.filter(
+                    idfacilities__scenarios=scenario_obj,
+                    is_active=True
+                ).select_related('idfacilities'),
+                to_attr='facility_storage_list'
             )
         ).order_by('merit_order')
+        
         # Initialize dictionaries to hold results
         technology_attributes = {}
         technology_attributes['Load'] = Technology(
@@ -378,14 +331,18 @@ def fetch_technology_attributes(demand_year, scenario):
         
         # Initialize attributes with defaults
         area = technology_row.area
+        capacity_max = capacity_min = None
         recharge_max = recharge_loss = discharge_max = discharge_loss = parasitic_loss = None
         
         # Get category-specific attributes
         if technology_row.category == 'Generator':
             if technology_row.generator_attrs:
                 generator = technology_row.generator_attrs[0]
+                capacity_max = generator.capacity_max
+                capacity_min = generator.capacity_min
                 
         elif technology_row.category == 'Storage':
+            # Get technology-level storage attributes (efficiency, losses, constraints)
             if technology_row.storage_attrs:
                 storage = technology_row.storage_attrs[0]
                 recharge_max = storage.recharge_max
@@ -393,6 +350,25 @@ def fetch_technology_attributes(demand_year, scenario):
                 discharge_max = storage.discharge_max
                 discharge_loss = storage.discharge_loss
                 parasitic_loss = storage.parasitic_loss
+            
+            # Aggregate facility-specific storage capacities for this scenario
+            # Note: The ScenariosTechnologies.capacity already contains the aggregated
+            # facility capacity, but for storage we may want power_capacity and 
+            # energy_capacity separately
+            total_power_capacity = 0
+            total_energy_capacity = 0
+            
+            for facility_storage in technology_row.facility_storage_list:
+                if facility_storage.power_capacity:
+                    total_power_capacity += facility_storage.power_capacity
+                if facility_storage.energy_capacity:
+                    total_energy_capacity += facility_storage.energy_capacity
+            
+            # For storage, you might want to use aggregated power_capacity as capacity_max
+            # and the total energy capacity separately.
+            if total_power_capacity > 0:
+                capacity_max = total_power_capacity
+                capacity_min = 0  # Storage can typically operate from 0 to max
         
         # Get merit order (already available from the query)
         merit_order = scenario_tech.merit_order
@@ -406,10 +382,10 @@ def fetch_technology_attributes(demand_year, scenario):
             category=technology_row.category,
             renewable=technology_row.renewable,
             dispatchable=technology_row.dispatchable,
-            capacity=scenario_tech.capacity,
+            capacity=scenario_tech.capacity,  # Aggregated capacity from ScenariosTechnologies
             multiplier=scenario_tech.mult,
-            capacity_max=generator.capacity_max, 
-            capacity_min=generator.capacity_min,
+            capacity_max=capacity_max, 
+            capacity_min=capacity_min,
             lcoe=0, 
             lcoe_cfs=0,
             recharge_max=recharge_max, 
@@ -420,12 +396,11 @@ def fetch_technology_attributes(demand_year, scenario):
             discharge_loss=discharge_loss, 
             parasitic_loss=parasitic_loss,
             emissions=technology_row.emissions, 
-            # initial=technology_row.initial,
             initial=0,
             merit_order=merit_order, 
-            capex=tech_year_data.capex,
-            fixed_om=tech_year_data.fom,
-            variable_om=tech_year_data.vom,
+            capex=tech_year_data.capex if tech_year_data else None,
+            fixed_om=tech_year_data.fom if tech_year_data else None,
+            variable_om=tech_year_data.vom if tech_year_data else None,
             fuel=fuel,
             lifetime=technology_row.lifetime, 
             area=area

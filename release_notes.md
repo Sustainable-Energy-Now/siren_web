@@ -1,4 +1,8 @@
 # Release Notes (Latest first)
+## Version 3.12.1 - November 12, 2025
+### 🐛 Bug Fixes
+- Debug Technology Attributes Fetch ([#44](https://github.com/Sustainable-Energy-Now/siren_web/issues/44))
+
 ## Version 3.12.0 - November 4, 2025
 ### 🆕 New Features
 - Feature: Demand Projection ([#39](https://github.com/Sustainable-Energy-Now/siren_web/issues/39))
