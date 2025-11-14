@@ -1,0 +1,324 @@
+{% extends 'powermapui_base.html' %}
+
+{% block powermapui_content %}
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h3>Edit Hybrid Solar+Storage Configuration</h3>
+    <div>
+      <a href="{% url 'powermapui:hybrid_detail' object.pk %}" class="btn btn-outline-info">View Details</a>
+      <a href="{% url 'powermapui:hybrid_list' %}" class="btn btn-outline-secondary">Back to List</a>
+    </div>
+  </div>
+
+  {% if object %}
+  <div class="alert alert-secondary">
+    <strong>Current Configuration:</strong> {{ object.facility.facility_name }} - 
+    {{ object.solar_installation.nameplate_capacity|floatformat:1 }}MW Solar + 
+    {{ object.storage_installation.power_capacity|floatformat:1 }}MW/{{ object.storage_installation.energy_capacity|floatformat:1 }}MWh Storage
+    ({{ object.get_coupling_type_display }})
+  </div>
+  {% endif %}
+
+  <div class="card">
+    <div class="card-body">
+      <form method="post" id="hybridForm">
+        {% csrf_token %}
+        
+        <!-- Facility Selection -->
+        <div class="row mb-4">
+          <div class="col-12">
+            <h5 class="border-bottom pb-2">1. Facility</h5>
+          </div>
+          <div class="col-md-6">
+            <label for="{{ form.facility.id_for_label }}" class="form-label">
+              Facility <span class="text-danger">*</span>
+            </label>
+            {{ form.facility }}
+            {% if form.facility.errors %}
+              <div class="text-danger">{{ form.facility.errors }}</div>
+            {% endif %}
+            <small class="form-text text-muted">
+              Select the facility where both solar and storage are co-located
+            </small>
+          </div>
+        </div>
+
+        <!-- Solar Installation -->
+        <div class="row mb-4">
+          <div class="col-12">
+            <h5 class="border-bottom pb-2">2. Solar Installation</h5>
+          </div>
+          <div class="col-md-6">
+            <label for="{{ form.solar_installation.id_for_label }}" class="form-label">
+              Solar Installation <span class="text-danger">*</span>
+            </label>
+            {{ form.solar_installation }}
+            {% if form.solar_installation.errors %}
+              <div class="text-danger">{{ form.solar_installation.errors }}</div>
+            {% endif %}
+            <small class="form-text text-muted">
+              Available solar installations will be filtered by selected facility
+            </small>
+          </div>
+        </div>
+
+        <!-- Storage Installation -->
+        <div class="row mb-4">
+          <div class="col-12">
+            <h5 class="border-bottom pb-2">3. Storage Installation</h5>
+          </div>
+          <div class="col-md-6">
+            <label for="{{ form.storage_installation.id_for_label }}" class="form-label">
+              Storage Installation <span class="text-danger">*</span>
+            </label>
+            {{ form.storage_installation }}
+            {% if form.storage_installation.errors %}
+              <div class="text-danger">{{ form.storage_installation.errors }}</div>
+            {% endif %}
+            <small class="form-text text-muted">
+              Available storage installations will be filtered by selected facility
+            </small>
+          </div>
+        </div>
+
+        <!-- Coupling Configuration -->
+        <div class="row mb-4">
+          <div class="col-12">
+            <h5 class="border-bottom pb-2">4. Coupling Configuration</h5>
+          </div>
+          <div class="col-md-6">
+            <label for="{{ form.coupling_type.id_for_label }}" class="form-label">
+              Coupling Type <span class="text-danger">*</span>
+            </label>
+            {{ form.coupling_type }}
+            {% if form.coupling_type.errors %}
+              <div class="text-danger">{{ form.coupling_type.errors }}</div>
+            {% endif %}
+            <small class="form-text text-muted">
+              <strong>DC-Coupled:</strong> Solar and battery share inverters (more efficient, common in new projects)<br>
+              <strong>AC-Coupled:</strong> Separate inverters for solar and battery (more flexible, common in retrofits)
+            </small>
+          </div>
+        </div>
+
+        <!-- Capacity Details -->
+        <div class="row mb-4">
+          <div class="col-12">
+            <h5 class="border-bottom pb-2">5. Capacity and Connection Details</h5>
+          </div>
+          <div class="col-md-4">
+            <label for="{{ form.shared_inverter_capacity.id_for_label }}" class="form-label">
+              Shared Inverter Capacity (MW AC)
+            </label>
+            {{ form.shared_inverter_capacity }}
+            {% if form.shared_inverter_capacity.errors %}
+              <div class="text-danger">{{ form.shared_inverter_capacity.errors }}</div>
+            {% endif %}
+            <small class="form-text text-muted">
+              Only for DC-coupled systems
+            </small>
+          </div>
+          <div class="col-md-4">
+            <label for="{{ form.grid_connection_capacity.id_for_label }}" class="form-label">
+              Grid Connection Capacity (MW) <span class="text-danger">*</span>
+            </label>
+            {{ form.grid_connection_capacity }}
+            {% if form.grid_connection_capacity.errors %}
+              <div class="text-danger">{{ form.grid_connection_capacity.errors }}</div>
+            {% endif %}
+            <small class="form-text text-muted">
+              Maximum capacity at point of interconnection
+            </small>
+          </div>
+          <div class="col-md-4">
+            <label for="{{ form.point_of_interconnection.id_for_label }}" class="form-label">
+              Point of Interconnection
+            </label>
+            {{ form.point_of_interconnection }}
+            {% if form.point_of_interconnection.errors %}
+              <div class="text-danger">{{ form.point_of_interconnection.errors }}</div>
+            {% endif %}
+            <small class="form-text text-muted">
+              Name/location of grid connection point
+            </small>
+          </div>
+        </div>
+
+        <!-- Operating Strategy -->
+        <div class="row mb-4">
+          <div class="col-12">
+            <h5 class="border-bottom pb-2">6. Operating Strategy</h5>
+          </div>
+          <div class="col-md-6">
+            <label for="{{ form.dispatch_strategy.id_for_label }}" class="form-label">
+              Dispatch Strategy
+            </label>
+            {{ form.dispatch_strategy }}
+            {% if form.dispatch_strategy.errors %}
+              <div class="text-danger">{{ form.dispatch_strategy.errors }}</div>
+            {% endif %}
+            <small class="form-text text-muted">
+              <strong>Time-shifting:</strong> Store solar during day, discharge at peak<br>
+              <strong>Self-consumption:</strong> Minimize grid export<br>
+              <strong>Grid services:</strong> Frequency regulation, voltage support<br>
+              <strong>Merchant:</strong> Market-driven dispatch
+            </small>
+          </div>
+          <div class="col-md-6">
+            <div class="form-check mt-4">
+              {{ form.charge_from_solar_only }}
+              <label class="form-check-label" for="{{ form.charge_from_solar_only.id_for_label }}">
+                Charge from Solar Only
+              </label>
+              <small class="form-text text-muted d-block">
+                If checked, storage only charges from co-located solar (not from grid)
+              </small>
+            </div>
+            {% if form.charge_from_solar_only.errors %}
+              <div class="text-danger">{{ form.charge_from_solar_only.errors }}</div>
+            {% endif %}
+          </div>
+        </div>
+
+        <!-- Dates and Status -->
+        <div class="row mb-4">
+          <div class="col-12">
+            <h5 class="border-bottom pb-2">7. Project Timeline</h5>
+          </div>
+          <div class="col-md-4">
+            <label for="{{ form.commissioned_date.id_for_label }}" class="form-label">
+              Commissioned Date
+            </label>
+            {{ form.commissioned_date }}
+            {% if form.commissioned_date.errors %}
+              <div class="text-danger">{{ form.commissioned_date.errors }}</div>
+            {% endif %}
+            <small class="form-text text-muted">
+              Date when hybrid configuration went operational
+            </small>
+          </div>
+          <div class="col-md-4">
+            <label for="{{ form.decommissioned_date.id_for_label }}" class="form-label">
+              Decommissioned Date
+            </label>
+            {{ form.decommissioned_date }}
+            {% if form.decommissioned_date.errors %}
+              <div class="text-danger">{{ form.decommissioned_date.errors }}</div>
+            {% endif %}
+            <small class="form-text text-muted">
+              Date when hybrid configuration ceased operation
+            </small>
+          </div>
+          <div class="col-md-4">
+            <div class="form-check mt-4">
+              {{ form.is_active }}
+              <label class="form-check-label" for="{{ form.is_active.id_for_label }}">
+                Is Active
+              </label>
+              <small class="form-text text-muted d-block">
+                Whether this hybrid configuration is currently operational
+              </small>
+            </div>
+            {% if form.is_active.errors %}
+              <div class="text-danger">{{ form.is_active.errors }}</div>
+            {% endif %}
+          </div>
+        </div>
+
+        <!-- Notes -->
+        <div class="row mb-4">
+          <div class="col-12">
+            <h5 class="border-bottom pb-2">8. Additional Information</h5>
+          </div>
+          <div class="col-12">
+            <label for="{{ form.notes.id_for_label }}" class="form-label">
+              Notes
+            </label>
+            {{ form.notes }}
+            {% if form.notes.errors %}
+              <div class="text-danger">{{ form.notes.errors }}</div>
+            {% endif %}
+            <small class="form-text text-muted">
+              Additional details about the hybrid configuration, operational constraints, or special characteristics
+            </small>
+          </div>
+        </div>
+
+        <!-- Form Actions -->
+        <div class="d-flex gap-2">
+          <button type="submit" class="btn btn-primary">Update Configuration</button>
+          <a href="{% url 'powermapui:hybrid_detail' object.pk %}" class="btn btn-secondary">Cancel</a>
+          <a href="{% url 'powermapui:hybrid_list' %}" class="btn btn-outline-secondary">Back to List</a>
+        </div>
+      </form>
+    </div>
+  </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const facilitySelect = document.getElementById('{{ form.facility.id_for_label }}');
+  const solarSelect = document.getElementById('{{ form.solar_installation.id_for_label }}');
+  const storageSelect = document.getElementById('{{ form.storage_installation.id_for_label }}');
+  const couplingSelect = document.getElementById('{{ form.coupling_type.id_for_label }}');
+  const sharedInverterInput = document.getElementById('{{ form.shared_inverter_capacity.id_for_label }}');
+
+  // Filter solar and storage installations when facility changes
+  if (facilitySelect) {
+    facilitySelect.addEventListener('change', function() {
+      const facilityId = this.value;
+      
+      if (facilityId) {
+        // Filter solar installations
+        fetch(`/powermapui/api/solar-installations/?facility=${facilityId}`)
+          .then(response => response.json())
+          .then(data => {
+            const currentSolarId = '{{ object.solar_installation.id }}';
+            solarSelect.innerHTML = '<option value="">---------</option>';
+            data.forEach(solar => {
+              const option = document.createElement('option');
+              option.value = solar.id;
+              option.textContent = solar.name;
+              if (solar.id == currentSolarId) {
+                option.selected = true;
+              }
+              solarSelect.appendChild(option);
+            });
+          });
+
+        // Filter storage installations
+        fetch(`/powermapui/api/storage-installations/?facility=${facilityId}`)
+          .then(response => response.json())
+          .then(data => {
+            const currentStorageId = '{{ object.storage_installation.id }}';
+            storageSelect.innerHTML = '<option value="">---------</option>';
+            data.forEach(storage => {
+              const option = document.createElement('option');
+              option.value = storage.id;
+              option.textContent = storage.name;
+              if (storage.id == currentStorageId) {
+                option.selected = true;
+              }
+              storageSelect.appendChild(option);
+            });
+          });
+      }
+    });
+  }
+
+  // Show/hide shared inverter capacity based on coupling type
+  if (couplingSelect && sharedInverterInput) {
+    function toggleSharedInverter() {
+      const isDCCoupled = couplingSelect.value === 'dc_coupled';
+      sharedInverterInput.closest('.col-md-4').style.display = isDCCoupled ? 'block' : 'none';
+      if (!isDCCoupled) {
+        sharedInverterInput.value = '';
+      }
+    }
+    
+    couplingSelect.addEventListener('change', toggleSharedInverter);
+    toggleSharedInverter(); // Run on page load
+  }
+});
+</script>
+{% endblock %}

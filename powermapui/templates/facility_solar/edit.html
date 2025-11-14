@@ -1,0 +1,369 @@
+<!-- facility_solar/edit.html -->
+{% extends 'powermapui_base.html' %}
+
+{% block powermapui_content %}
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h3>Edit Solar Installation</h3>
+      <small class="text-muted">
+        {{ installation.facility.facility_name }} - {{ installation.technology.technology_name }}
+      </small>
+    </div>
+    <div>
+      <a href="{% url 'powermapui:facility_solar_detail' installation.pk %}" class="btn btn-outline-secondary">Back to Details</a>
+    </div>
+  </div>
+
+  <p>Update the capacity and settings for this solar installation. Changes affect only this specific installation.</p>
+
+  <div class="row">
+    <div class="col-lg-8">
+      <div class="card">
+        <div class="card-body">
+          <form method="post" novalidate id="solarForm">
+            {% csrf_token %}
+            
+            <!-- Facility and Technology (Read-only) -->
+            <div class="row mb-3">
+              <div class="col-md-6">
+                <label class="form-label">Facility</label>
+                <input type="text" class="form-control" value="{{ installation.facility.facility_name }}" readonly>
+                <div class="form-text">Cannot be changed after creation</div>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Solar Technology</label>
+                <input type="text" class="form-control" value="{{ installation.technology.technology_name }}" readonly>
+                <div class="form-text">Cannot be changed after creation</div>
+              </div>
+            </div>
+
+            <div class="mb-3">
+              <label for="installation_name" class="form-label">Installation Name</label>
+              <input type="text" 
+                     class="form-control" 
+                     id="installation_name" 
+                     name="installation_name" 
+                     value="{{ form_data.installation_name|default:installation.installation_name|default:'' }}"
+                     placeholder="e.g., East Array">
+              <div class="form-text">Optional name to identify this installation</div>
+            </div>
+
+            <hr class="my-4">
+
+            <!-- Capacity Specifications -->
+            <h5 class="mb-3">Capacity Specifications</h5>
+
+            <div class="row mb-3">
+              <div class="col-md-4">
+                <label for="nameplate_capacity" class="form-label">DC Nameplate Capacity (MW)</label>
+                <input type="number" 
+                       class="form-control non-negative" 
+                       id="nameplate_capacity" 
+                       name="nameplate_capacity" 
+                       step="0.01" 
+                       min="0"
+                       value="{{ form_data.nameplate_capacity|default:installation.nameplate_capacity|default:'' }}">
+                <div class="form-text">DC panel capacity</div>
+              </div>
+              <div class="col-md-4">
+                <label for="ac_capacity" class="form-label">AC Capacity (MW)</label>
+                <input type="number" 
+                       class="form-control non-negative" 
+                       id="ac_capacity" 
+                       name="ac_capacity" 
+                       step="0.01" 
+                       min="0"
+                       value="{{ form_data.ac_capacity|default:installation.ac_capacity|default:'' }}">
+                <div class="form-text">Inverter AC capacity</div>
+              </div>
+              <div class="col-md-4">
+                <label for="dc_ac_ratio" class="form-label">DC/AC Ratio</label>
+                <input type="text" 
+                       class="form-control" 
+                       id="dc_ac_ratio" 
+                       readonly
+                       value="">
+                <div class="form-text" id="ratio-hint">Calculated automatically</div>
+              </div>
+            </div>
+
+            <hr class="my-4">
+
+            <!-- Panel Array Specifications -->
+            <h5 class="mb-3">Panel Array Specifications</h5>
+
+            <div class="row mb-3">
+              <div class="col-md-4">
+                <label for="panel_count" class="form-label">Number of Panels</label>
+                <input type="number" 
+                       class="form-control non-negative" 
+                       id="panel_count" 
+                       name="panel_count" 
+                       step="1" 
+                       min="0"
+                       value="{{ form_data.panel_count|default:installation.panel_count|default:'' }}">
+                <div class="form-text">Total panel count</div>
+              </div>
+              <div class="col-md-4">
+                <label for="panel_wattage" class="form-label">Panel Wattage (W)</label>
+                <input type="number" 
+                       class="form-control non-negative" 
+                       id="panel_wattage" 
+                       name="panel_wattage" 
+                       step="1" 
+                       min="0"
+                       value="{{ form_data.panel_wattage|default:installation.panel_wattage|default:'' }}">
+                <div class="form-text">Individual panel rating</div>
+              </div>
+              <div class="col-md-4">
+                <label for="array_area" class="form-label">Array Area (m²)</label>
+                <input type="number" 
+                       class="form-control non-negative" 
+                       id="array_area" 
+                       name="array_area" 
+                       step="0.1" 
+                       min="0"
+                       value="{{ form_data.array_area|default:installation.array_area|default:'' }}">
+                <div class="form-text">Total panel area</div>
+              </div>
+            </div>
+
+            <hr class="my-4">
+
+            <!-- Installation Geometry -->
+            <h5 class="mb-3">Installation Geometry</h5>
+
+            <div class="row mb-3">
+              <div class="col-md-6">
+                <label for="tilt_angle" class="form-label">Tilt Angle (degrees)</label>
+                <input type="number" 
+                       class="form-control" 
+                       id="tilt_angle" 
+                       name="tilt_angle" 
+                       step="0.1" 
+                       min="0" 
+                       max="90"
+                       value="{{ form_data.tilt_angle|default:installation.tilt_angle|default:'' }}">
+                <div class="form-text">Panel tilt from horizontal (0-90°)</div>
+              </div>
+              <div class="col-md-6">
+                <label for="azimuth_angle" class="form-label">Azimuth Angle (degrees)</label>
+                <input type="number" 
+                       class="form-control" 
+                       id="azimuth_angle" 
+                       name="azimuth_angle" 
+                       step="0.1" 
+                       min="0" 
+                       max="360"
+                       value="{{ form_data.azimuth_angle|default:installation.azimuth_angle|default:'' }}">
+                <div class="form-text">0=North, 90=East, 180=South, 270=West</div>
+              </div>
+            </div>
+
+            <hr class="my-4">
+
+            <!-- Inverter Specifications -->
+            <h5 class="mb-3">Inverter Specifications</h5>
+
+            <div class="row mb-3">
+              <div class="col-md-6">
+                <label for="inverter_count" class="form-label">Number of Inverters</label>
+                <input type="number" 
+                       class="form-control non-negative" 
+                       id="inverter_count" 
+                       name="inverter_count" 
+                       step="1" 
+                       min="0"
+                       value="{{ form_data.inverter_count|default:installation.inverter_count|default:'' }}">
+                <div class="form-text">Total inverter count</div>
+              </div>
+              <div class="col-md-6">
+                <label for="inverter_capacity_each" class="form-label">Inverter Capacity Each (kW)</label>
+                <input type="number" 
+                       class="form-control non-negative" 
+                       id="inverter_capacity_each" 
+                       name="inverter_capacity_each" 
+                       step="0.1" 
+                       min="0"
+                       value="{{ form_data.inverter_capacity_each|default:installation.inverter_capacity_each|default:'' }}">
+                <div class="form-text">Capacity per inverter</div>
+              </div>
+            </div>
+
+            <hr class="my-4">
+
+            <!-- Installation Details -->
+            <h5 class="mb-3">Installation Details</h5>
+
+            <div class="row mb-3">
+              <div class="col-md-6">
+                <label for="installation_date" class="form-label">Installation Date</label>
+                <input type="date" 
+                       class="form-control" 
+                       id="installation_date" 
+                       name="installation_date" 
+                       value="{{ form_data.installation_date|default:installation.installation_date|date:'Y-m-d'|default:'' }}">
+                <div class="form-text">When system was installed</div>
+              </div>
+              <div class="col-md-6">
+                <label for="commissioning_date" class="form-label">Commissioning Date</label>
+                <input type="date" 
+                       class="form-control" 
+                       id="commissioning_date" 
+                       name="commissioning_date" 
+                       value="{{ form_data.commissioning_date|default:installation.commissioning_date|date:'Y-m-d'|default:'' }}">
+                <div class="form-text">When system began operations</div>
+              </div>
+            </div>
+
+            <div class="row mb-3">
+              <div class="col-md-12">
+                <div class="form-check">
+                  <input class="form-check-input" 
+                         type="checkbox" 
+                         id="is_active" 
+                         name="is_active"
+                         {% if form_data.is_active|default:installation.is_active %}checked{% endif %}>
+                  <label class="form-check-label" for="is_active">
+                    <strong>Installation is Active</strong>
+                  </label>
+                  <div class="form-text">Uncheck to deactivate this installation</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="mb-4">
+              <label for="notes" class="form-label">Notes</label>
+              <textarea class="form-control" 
+                        id="notes" 
+                        name="notes" 
+                        rows="3">{{ form_data.notes|default:installation.notes|default:'' }}</textarea>
+              <div class="form-text">Additional information about this installation</div>
+            </div>
+
+            <div class="d-flex gap-2">
+              <button type="submit" class="btn btn-primary">Update Installation</button>
+              <a href="{% url 'powermapui:facility_solar_detail' installation.pk %}" class="btn btn-outline-secondary">Cancel</a>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-4">
+      <!-- Technology Reference -->
+      <div class="card mb-3">
+        <div class="card-header">
+          <h6 class="mb-0">Technology Information</h6>
+        </div>
+        <div class="card-body">
+          <p><strong>Technology:</strong><br>{{ installation.technology.technology_name }}</p>
+          
+          {% if solar_attrs %}
+            <p><strong>Module Efficiency:</strong><br>
+              {{ solar_attrs.module_efficiency|floatformat:1 }}%</p>
+            
+            {% if solar_attrs.performance_ratio %}
+              <p><strong>Performance Ratio:</strong><br>
+                {{ solar_attrs.performance_ratio|floatformat:1 }}%</p>
+            {% endif %}
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Current Values -->
+      <div class="card mb-3">
+        <div class="card-header">
+          <h6 class="mb-0">Current Values</h6>
+        </div>
+        <div class="card-body">
+          <table class="table table-sm mb-0">
+            <tr>
+              <td><strong>DC Capacity:</strong></td>
+              <td>{{ installation.nameplate_capacity|default:"-" }} MW</td>
+            </tr>
+            <tr>
+              <td><strong>AC Capacity:</strong></td>
+              <td>{{ installation.ac_capacity|default:"-" }} MW</td>
+            </tr>
+            <tr>
+              <td><strong>Panel Count:</strong></td>
+              <td>
+                {% if installation.panel_count %}
+                  {{ installation.panel_count|floatformat:0 }}
+                {% else %}
+                  -
+                {% endif %}
+              </td>
+            </tr>
+            <tr>
+              <td><strong>Status:</strong></td>
+              <td>
+                {% if installation.is_active %}
+                  <span class="badge bg-success">Active</span>
+                {% else %}
+                  <span class="badge bg-secondary">Inactive</span>
+                {% endif %}
+              </td>
+            </tr>
+          </table>
+        </div>
+      </div>
+
+      <!-- Help Card -->
+      <div class="card">
+        <div class="card-header">
+          <h6 class="mb-0">Editing Guidelines</h6>
+        </div>
+        <div class="card-body">
+          <div class="small">
+            <p><strong>Capacity Changes:</strong> Update DC/AC capacity as needed. These values are specific to this installation only.</p>
+            
+            <p><strong>Technology Characteristics:</strong> Panel efficiency and degradation are inherited from the technology and cannot be changed here.</p>
+            
+            <p class="mb-0"><strong>Deactivating:</strong> Uncheck "Active" to remove this installation from simulations without deleting the record.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Auto-calculate DC/AC ratio
+    const dcInput = document.getElementById('nameplate_capacity');
+    const acInput = document.getElementById('ac_capacity');
+    const ratioInput = document.getElementById('dc_ac_ratio');
+    const ratioHint = document.getElementById('ratio-hint');
+
+    function calculateRatio() {
+      const dc = parseFloat(dcInput.value);
+      const ac = parseFloat(acInput.value);
+      
+      if (dc > 0 && ac > 0) {
+        const ratio = dc / ac;
+        ratioInput.value = ratio.toFixed(2);
+        ratioHint.textContent = `DC/AC Ratio: ${ratio.toFixed(2)}`;
+        ratioHint.classList.add('text-primary');
+      } else {
+        ratioInput.value = '';
+        ratioHint.textContent = 'Calculated automatically';
+        ratioHint.classList.remove('text-primary');
+      }
+    }
+
+    // Initialize on page load
+    calculateRatio();
+
+    dcInput.addEventListener('input', calculateRatio);
+    acInput.addEventListener('input', calculateRatio);
+
+    // Prevent negative values
+    document.querySelectorAll('.non-negative').forEach(input => {
+      input.addEventListener('input', function() {
+        if (this.value < 0) {
+          this.value = 0;
+        }
+      });
+    });
+  </script>
+{% endblock %}

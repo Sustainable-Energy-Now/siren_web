@@ -1,9 +1,8 @@
-# urls.py
-from django.urls import path, include
-from django.contrib.auth import views as auth_views
-from powermapui.views import crud_scenario_views, facilities_views, facility_storage_views, \
-    crud_terminals_views, gridlines_views, powermapui_home_views, map_views, power_views, storage_views, \
-    table_update_views, technologies_views, terminals_connections_views, terminals_dashboard, terminals_views, \
+from django.urls import path
+from powermapui.views import crud_scenario_views, facilities_views, facility_solar_views, \
+    facility_storage_views, crud_terminals_views, gridlines_views, powermapui_home_views, \
+    hybrid_solar_storage_views, map_views, power_views, storage_views, table_update_views, \
+    technologies_views, terminals_connections_views, terminals_dashboard, terminals_views, \
     wind_turbines_views
 app_name = 'powermapui'
 
@@ -123,12 +122,32 @@ urlpatterns = [
     path('storage/<int:pk>/', storage_views.storage_detail, name='storage_detail'),
     path('storage/<int:pk>/edit/', storage_views.storage_edit, name='storage_edit'),
     path('api/storage/', storage_views.get_storage_json, name='get_storage_json'),
+
+    # Facility Solar Installations (installation-specific capacity)
+    path('facility-solar/', facility_solar_views.facility_solar_list, name='facility_solar_list'),
+    path('facility-solar/create/', facility_solar_views.facility_solar_create, name='facility_solar_create'),
+    path('facility-solar/<int:pk>/', facility_solar_views.facility_solar_detail, name='facility_solar_detail'),
+    path('facility-solar/<int:pk>/edit/', facility_solar_views.facility_solar_edit, name='facility_solar_edit'),
+    path('facility-solar/<int:pk>/delete/', facility_solar_views.facility_solar_delete, name='facility_solar_delete'),
+    path('api/facility-solar/', facility_solar_views.get_facility_solar_json, name='get_facility_solar_json'),
     
-        # Facility Storage Installations (installation-specific capacity)
+    # Facility Storage Installations (installation-specific capacity)
     path('facility-storage/', facility_storage_views.facility_storage_list, name='facility_storage_list'),
     path('facility-storage/create/', facility_storage_views.facility_storage_create, name='facility_storage_create'),
     path('facility-storage/<int:pk>/', facility_storage_views.facility_storage_detail, name='facility_storage_detail'),
     path('facility-storage/<int:pk>/edit/', facility_storage_views.facility_storage_edit, name='facility_storage_edit'),
     path('facility-storage/<int:pk>/delete/', facility_storage_views.facility_storage_delete, name='facility_storage_delete'),
     path('api/facility-storage/', facility_storage_views.get_facility_storage_json, name='get_facility_storage_json'),
+    
+    # Hybrid Solar+Storage Configurations
+    path('hybrid-solar-storage/', hybrid_solar_storage_views.hybrid_list, name='hybrid_list'),
+    path('hybrid-solar-storage/create/', hybrid_solar_storage_views.hybrid_create, name='hybrid_create'),
+    path('hybrid-solar-storage/<int:pk>/', hybrid_solar_storage_views.hybrid_detail, name='hybrid_detail'),
+    path('hybrid-solar-storage/<int:pk>/edit/', hybrid_solar_storage_views.hybrid_edit, name='hybrid_edit'),
+    path('hybrid-solar-storage/<int:pk>/delete/', hybrid_solar_storage_views.hybrid_delete, name='hybrid_delete'),
+    
+    # API Endpoints
+    path('api/hybrid-solar-storage/', hybrid_solar_storage_views.get_hybrid_json, name='get_hybrid_json'),
+    path('api/solar/<int:solar_pk>/available-storage/', hybrid_solar_storage_views.get_available_storage_for_solar, name='get_available_storage_for_solar'),
+
 ]

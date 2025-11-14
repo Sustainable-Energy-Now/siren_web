@@ -59,6 +59,7 @@ class facilities(models.Model):
                                         null=True, blank=True, related_name='primary_facilities')
     wind_turbines = models.ManyToManyField('WindTurbines', through='FacilityWindTurbines', 
                                          blank=True, related_name='connected_turbines')
+    emission_intensity = models.FloatField(null=True)
 
     class Meta:
         db_table = 'facilities'
@@ -121,7 +122,25 @@ class facilities(models.Model):
     def is_wind_farm(self):
         """Check if this facility has wind turbines"""
         return self.wind_turbines.exists()
+
+    def get_hybrid_systems(self):
+        '''Get all hybrid solar+storage configurations at this facility'''
+        from siren_web.models import HybridSolarStorage
+        return HybridSolarStorage.objects.filter(
+            solar_installation__idfacilities=self,
+            is_active=True
+        )
     
+    @property
+    def has_hybrid_systems(self):
+        '''Check if facility has any hybrid configurations'''
+        return self.get_hybrid_systems().exists()
+    
+    @property
+    def is_semi_dispatchable(self):
+        '''Check if facility has semi-dispatchable capacity (hybrid solar+storage)'''
+        return self.has_hybrid_systems
+
 class Generatorattributes(models.Model):
     idgeneratorattributes = models.AutoField(db_column='idGeneratorAttributes', primary_key=True)  
     idtechnologies = models.ForeignKey('Technologies', models.CASCADE, db_column='idTechnologies')
@@ -550,6 +569,221 @@ class WindTurbines(models.Model):
         """Get the currently active power curve for this turbine"""
         return self.power_curves.filter(is_active=True).first()
 
+class FacilitySolar(models.Model):
+    """
+    Installation-specific solar PV system data
+    Links facilities to solar technologies with deployment details
+    """
+    idfacilitysolar = models.AutoField(db_column='idfacilitysolar', primary_key=True)
+    idfacilities = models.ForeignKey(
+        'facilities',
+        on_delete=models.CASCADE,
+        db_column='idfacilities',
+        related_name='solar_installations'
+    )
+    idtechnologies = models.ForeignKey(
+        'Technologies',
+        on_delete=models.CASCADE,
+        db_column='idtechnologies',
+        related_name='solar_facility_installations',
+        limit_choices_to={'category': 'Solar'}
+    )
+    
+    # INSTALLATION-SPECIFIC CAPACITY
+    nameplate_capacity = models.FloatField(
+        null=True,
+        blank=True,
+        help_text='MW - DC nameplate capacity'
+    )
+    ac_capacity = models.FloatField(
+        null=True,
+        blank=True,
+        help_text='MW - AC capacity (inverter rating)'
+    )
+    
+    # PANEL ARRAY SPECIFICATIONS
+    panel_count = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text='Total number of solar panels'
+    )
+    panel_wattage = models.FloatField(
+        null=True,
+        blank=True,
+        help_text='Watts - Individual panel rating'
+    )
+    
+    # INSTALLATION GEOMETRY
+    tilt_angle = models.FloatField(
+        null=True,
+        blank=True,
+        help_text='Degrees - Panel tilt angle from horizontal'
+    )
+    azimuth_angle = models.FloatField(
+        null=True,
+        blank=True,
+        help_text='Degrees - Panel azimuth (0=North, 90=East, 180=South, 270=West)'
+    )
+    array_area = models.FloatField(
+        null=True,
+        blank=True,
+        help_text='Square meters - Total panel array area'
+    )
+    
+    # INSTALLATION METADATA
+    installation_name = models.CharField(
+        max_length=100,
+        blank=True,
+        null=True,
+        help_text='Name for this solar installation (e.g., "East Array")'
+    )
+    installation_date = models.DateField(
+        blank=True,
+        null=True,
+        help_text='Date when solar system was installed'
+    )
+    commissioning_date = models.DateField(
+        blank=True,
+        null=True,
+        help_text='Date when solar system began operations'
+    )
+    is_active = models.BooleanField(
+        default=True,
+        help_text='Whether this solar installation is currently active'
+    )
+
+    # OPERATIONAL SETTINGS
+    inverter_count = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text='Number of inverters'
+    )
+    inverter_capacity_each = models.FloatField(
+        null=True,
+        blank=True,
+        help_text='kW - Capacity of each inverter'
+    )
+
+    # NOTES AND TRACKING
+    notes = models.TextField(
+        blank=True,
+        null=True,
+        help_text='Additional notes about this solar installation'
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'FacilitySolar'
+        verbose_name = 'Facility Solar Installation'
+        verbose_name_plural = 'Facility Solar Installations'
+        unique_together = [['idfacilities', 'idtechnologies', 'installation_name']]
+        ordering = ['idfacilities', 'idtechnologies']
+
+    def __str__(self):
+        name = self.installation_name or "Solar"
+        return f"{self.facility.facility_name} - {self.technology.technology_name} ({name})"
+    
+    @property
+    def technology(self):
+        """Get the solar technology for this installation"""
+        return self.idtechnologies
+
+    @property
+    def facility(self):
+        """Get the facility for this installation"""
+        return self.idfacilities
+    
+    @property
+    def solar_attrs(self):
+        """Get the technology-level solar attributes"""
+        return self.technology.solar_attributes.first()
+    
+    def get_calculated_dc_ac_ratio(self):
+        """Calculate DC/AC ratio from nameplate and AC capacity"""
+        if self.nameplate_capacity and self.ac_capacity and self.ac_capacity > 0:
+            return self.nameplate_capacity / self.ac_capacity
+        return None
+    
+    def get_panel_efficiency(self):
+        """Get panel efficiency from solar attributes"""
+        solar_attrs = self.solar_attrs
+        if solar_attrs:
+            return solar_attrs.module_efficiency
+        return None
+    
+    def get_performance_ratio(self):
+        """Get performance ratio from solar attributes"""
+        solar_attrs = self.solar_attrs
+        if solar_attrs:
+            return solar_attrs.performance_ratio
+        return None
+    
+    def get_calculated_panel_count(self):
+        """Calculate panel count from capacity and panel wattage"""
+        if self.nameplate_capacity and self.panel_wattage and self.panel_wattage > 0:
+            # nameplate_capacity is in MW, panel_wattage is in W
+            return int((self.nameplate_capacity * 1_000_000) / self.panel_wattage)
+        return self.panel_count
+    
+    def get_calculated_array_area(self):
+        """Estimate array area based on capacity and efficiency"""
+        solar_attrs = self.solar_attrs
+        if self.nameplate_capacity and solar_attrs and solar_attrs.module_efficiency:
+            # Assuming ~1000 W/m² solar irradiance
+            # Area = Capacity / (Irradiance × Efficiency)
+            area_m2 = (self.nameplate_capacity * 1_000_000) / (1000 * solar_attrs.module_efficiency)
+            return area_m2
+        return self.array_area
+    
+    @property
+    def capacity_summary(self):
+        """Return a formatted string summarizing the capacity"""
+        if self.nameplate_capacity and self.ac_capacity:
+            dc_ac = self.get_calculated_dc_ac_ratio()
+            return f"{self.nameplate_capacity:.1f} MW DC / {self.ac_capacity:.1f} MW AC (ratio: {dc_ac:.2f})"
+        elif self.nameplate_capacity:
+            return f"{self.nameplate_capacity:.1f} MW DC"
+        elif self.ac_capacity:
+            return f"{self.ac_capacity:.1f} MW AC"
+        return "Not specified"
+    
+    def validate_capacity(self):
+        """Validate that capacity values are logical"""
+        if self.nameplate_capacity and self.nameplate_capacity <= 0:
+            raise ValueError("Nameplate capacity must be positive")
+        if self.ac_capacity and self.ac_capacity <= 0:
+            raise ValueError("AC capacity must be positive")
+        
+        # DC capacity should typically be higher than AC capacity
+        if self.nameplate_capacity and self.ac_capacity:
+            if self.ac_capacity > self.nameplate_capacity:
+                raise ValueError("AC capacity should not exceed DC nameplate capacity")
+        
+        return True
+    
+    def save(self, *args, **kwargs):
+        """Override save to calculate derived values"""
+        # Auto-calculate panel count if not provided
+        if not self.panel_count and self.nameplate_capacity and self.panel_wattage:
+            self.panel_count = self.get_calculated_panel_count()
+        
+        super().save(*args, **kwargs)
+
+    @property
+    def is_hybrid(self):
+        '''Check if this solar installation is part of a hybrid configuration'''
+        return self.hybrid_configurations.filter(is_active=True).exists()
+    
+    def get_hybrid_configuration(self):
+        '''Get the active hybrid configuration for this solar installation'''
+        return self.hybrid_configurations.filter(is_active=True).first()
+    
+    @property
+    def is_semi_dispatchable(self):
+        '''Check if solar is semi-dispatchable (has active storage)'''
+        return self.is_hybrid
+
 class FacilityStorage(models.Model):
     """
     Through model for many-to-many relationship between facilities and Storage Technologies
@@ -718,6 +952,268 @@ class FacilityStorage(models.Model):
         if not self.duration and self.power_capacity and self.energy_capacity:
             self.duration = self.energy_capacity / self.power_capacity
         
+        super().save(*args, **kwargs)
+
+    @property
+    def is_hybrid(self):
+        '''Check if this storage installation is part of a hybrid configuration'''
+        return self.hybrid_configurations.filter(is_active=True).exists()
+    
+    def get_hybrid_configuration(self):
+        '''Get the active hybrid configuration for this storage installation'''
+        return self.hybrid_configurations.filter(is_active=True).first()
+    
+    @property
+    def charges_from_solar(self):
+        '''Check if storage charges from paired solar'''
+        hybrid = self.get_hybrid_configuration()
+        return hybrid and hybrid.charge_from_solar_only
+
+class HybridSolarStorage(models.Model):
+    """
+    Links solar and storage installations to represent hybrid configurations.
+    Common in modern solar farms where batteries are co-located with solar arrays.
+    """
+    COUPLING_TYPES = [
+        ('dc_coupled', 'DC-Coupled'),
+        ('ac_coupled', 'AC-Coupled'),
+    ]
+    
+    idhybridsolarstorstorage = models.AutoField(
+        db_column='idhybridsolarstorstorage', 
+        primary_key=True
+    )
+    
+    # Links to the solar and storage installations
+    solar_installation = models.ForeignKey(
+        'FacilitySolar',
+        on_delete=models.CASCADE,
+        db_column='idfacilitysolar',
+        related_name='hybrid_configurations'
+    )
+    storage_installation = models.ForeignKey(
+        'FacilityStorage',
+        on_delete=models.CASCADE,
+        db_column='idfacilitystorage',
+        related_name='hybrid_configurations'
+    )
+    
+    # Hybrid Configuration Details
+    coupling_type = models.CharField(
+        max_length=20,
+        choices=COUPLING_TYPES,
+        default='dc_coupled',
+        help_text='DC-coupled shares inverter, AC-coupled has separate inverters'
+    )
+    
+    shared_grid_connection = models.BooleanField(
+        default=True,
+        help_text='Whether solar and storage share the same grid connection point'
+    )
+    
+    # If DC-coupled, they share inverters
+    shared_inverter_capacity = models.FloatField(
+        null=True,
+        blank=True,
+        help_text='MW - Shared inverter capacity for DC-coupled systems'
+    )
+    
+    # Grid Connection Details
+    grid_connection_capacity = models.FloatField(
+        null=True,
+        blank=True,
+        help_text='MW - Maximum capacity at point of interconnection (POI)'
+    )
+    
+    # Operational Configuration
+    charge_from_solar_only = models.BooleanField(
+        default=True,
+        help_text='Battery charges only from solar (not from grid)'
+    )
+    
+    priority_dispatch = models.CharField(
+        max_length=20,
+        choices=[
+            ('solar_first', 'Solar First (export excess)'),
+            ('battery_first', 'Battery First (charge then export)'),
+            ('balanced', 'Balanced (optimize based on signals)'),
+        ],
+        default='battery_first',
+        help_text='Dispatch priority strategy'
+    )
+    
+    # Installation Details
+    configuration_name = models.CharField(
+        max_length=100,
+        blank=True,
+        null=True,
+        help_text='Name for this hybrid configuration'
+    )
+    
+    commissioning_date = models.DateField(
+        blank=True,
+        null=True,
+        help_text='When hybrid system began combined operations'
+    )
+    
+    is_active = models.BooleanField(
+        default=True,
+        help_text='Whether hybrid configuration is currently active'
+    )
+    
+    # Performance Tracking
+    energy_clipping_losses = models.FloatField(
+        null=True,
+        blank=True,
+        help_text='% - Energy losses due to inverter clipping in DC-coupled systems'
+    )
+    
+    notes = models.TextField(
+        blank=True,
+        null=True,
+        help_text='Additional notes about hybrid configuration'
+    )
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        db_table = 'HybridSolarStorage'
+        verbose_name = 'Hybrid Solar+Storage Configuration'
+        verbose_name_plural = 'Hybrid Solar+Storage Configurations'
+        # Prevent linking same solar/storage multiple times
+        unique_together = [['solar_installation', 'storage_installation']]
+    
+    def __str__(self):
+        name = self.configuration_name or "Hybrid System"
+        return f"{self.facility.facility_name} - {name}"
+    
+    @property
+    def facility(self):
+        """Get the facility (should be same for both solar and storage)"""
+        return self.solar_installation.facility
+    
+    @property
+    def total_solar_capacity_dc(self):
+        """Total DC solar capacity"""
+        return self.solar_installation.nameplate_capacity
+    
+    @property
+    def total_solar_capacity_ac(self):
+        """Total AC solar capacity"""
+        return self.solar_installation.ac_capacity
+    
+    @property
+    def total_storage_power(self):
+        """Total storage power capacity"""
+        return self.storage_installation.power_capacity
+    
+    @property
+    def total_storage_energy(self):
+        """Total storage energy capacity"""
+        return self.storage_installation.energy_capacity
+    
+    @property
+    def storage_duration(self):
+        """Storage duration"""
+        return self.storage_installation.get_calculated_duration()
+    
+    def get_effective_ac_capacity(self):
+        """
+        Calculate effective AC capacity considering grid connection limits.
+        For DC-coupled: limited by shared inverter
+        For AC-coupled: sum of individual AC capacities, limited by POI
+        """
+        if self.coupling_type == 'dc_coupled':
+            # Limited by shared inverter capacity
+            if self.shared_inverter_capacity:
+                return self.shared_inverter_capacity
+            # Or use solar AC capacity as proxy
+            return self.total_solar_capacity_ac
+        else:  # ac_coupled
+            # Sum of separate AC capacities
+            combined = (self.total_solar_capacity_ac or 0) + (self.total_storage_power or 0)
+            # Limited by grid connection
+            if self.grid_connection_capacity:
+                return min(combined, self.grid_connection_capacity)
+            return combined
+    
+    def get_solar_to_storage_ratio(self):
+        """Calculate ratio of solar DC capacity to storage power capacity"""
+        if self.total_storage_power and self.total_storage_power > 0:
+            return self.total_solar_capacity_dc / self.total_storage_power
+        return None
+    
+    def get_storage_to_solar_duration(self):
+        """
+        Calculate how many hours of solar output can be stored.
+        Useful metric for hybrid systems.
+        """
+        if self.total_storage_energy and self.total_solar_capacity_dc:
+            return self.total_storage_energy / self.total_solar_capacity_dc
+        return None
+    
+    @property
+    def is_dc_coupled(self):
+        """Check if system is DC-coupled"""
+        return self.coupling_type == 'dc_coupled'
+    
+    @property
+    def is_ac_coupled(self):
+        """Check if system is AC-coupled"""
+        return self.coupling_type == 'ac_coupled'
+    
+    def get_configuration_summary(self):
+        """Return formatted summary of hybrid configuration"""
+        coupling = "DC-coupled" if self.is_dc_coupled else "AC-coupled"
+        solar_dc = self.total_solar_capacity_dc or 0
+        solar_ac = self.total_solar_capacity_ac or 0
+        storage_power = self.total_storage_power or 0
+        storage_energy = self.total_storage_energy or 0
+        
+        return (
+            f"{solar_dc:.1f}MW DC Solar + "
+            f"{storage_power:.1f}MW/{storage_energy:.1f}MWh Storage "
+            f"({coupling})"
+        )
+    
+    def validate_facilities_match(self):
+        """Validate that solar and storage are at the same facility"""
+        if self.solar_installation.facility != self.storage_installation.facility:
+            raise ValidationError(
+                "Solar and storage installations must be at the same facility"
+            )
+        return True
+    
+    def validate_capacity_constraints(self):
+        """Validate capacity relationships make sense"""
+        # For DC-coupled, shared inverter should be less than solar DC
+        if self.is_dc_coupled and self.shared_inverter_capacity:
+            if self.shared_inverter_capacity > self.total_solar_capacity_dc:
+                raise ValidationError(
+                    "Shared inverter capacity should not exceed solar DC capacity"
+                )
+        
+        # Grid connection should accommodate the system
+        if self.grid_connection_capacity:
+            effective_ac = self.get_effective_ac_capacity()
+            if effective_ac > self.grid_connection_capacity * 1.1:  # 10% margin
+                raise ValidationError(
+                    f"Effective AC capacity ({effective_ac:.1f}MW) significantly "
+                    f"exceeds grid connection capacity ({self.grid_connection_capacity:.1f}MW)"
+                )
+        
+        return True
+    
+    def clean(self):
+        """Custom validation"""
+        super().clean()
+        self.validate_facilities_match()
+        self.validate_capacity_constraints()
+    
+    def save(self, *args, **kwargs):
+        """Override save to validate"""
+        self.clean()
         super().save(*args, **kwargs)
 
 class FacilityWindTurbines(models.Model):
@@ -1034,7 +1530,157 @@ class sirensystem(models.Model):
     
     class Meta:
         db_table = 'sirensystem'
+
+class SolarAttributes(models.Model):
+    """
+    Technology-level attributes for solar PV systems
+    Linked to Technologies with category='Solar'
+    """
+    idsolarattributes = models.AutoField(db_column='idSolarAttributes', primary_key=True)
+    idtechnologies = models.ForeignKey(
+        'Technologies', 
+        models.CASCADE, 
+        db_column='idTechnologies', 
+        blank=True, 
+        null=True,
+        related_name='solar_attributes'
+    )
     
+    # Panel/Module Specifications
+    module_efficiency = models.FloatField(
+        null=True, 
+        blank=True,
+        help_text="Module efficiency as decimal (e.g., 0.20 for 20%)"
+    )
+    temperature_coefficient = models.FloatField(
+        null=True, 
+        blank=True,
+        help_text="Temperature coefficient of power (%/°C, typically -0.3 to -0.5)"
+    )
+    nominal_operating_cell_temp = models.FloatField(
+        null=True, 
+        blank=True,
+        help_text="NOCT in °C (typically 42-46°C)"
+    )
+    
+    # System Specifications
+    inverter_efficiency = models.FloatField(
+        null=True, 
+        blank=True,
+        help_text="Inverter efficiency as decimal (e.g., 0.98)"
+    )
+    system_loss_factor = models.FloatField(
+        null=True, 
+        blank=True,
+        help_text="Combined system losses as decimal (soiling, wiring, mismatch, etc.)"
+    )
+    dc_ac_ratio = models.FloatField(
+        null=True, 
+        blank=True,
+        help_text="DC to AC ratio (typically 1.1 to 1.3)"
+    )
+    
+    # Performance Metrics
+    performance_ratio = models.FloatField(
+        null=True, 
+        blank=True,
+        help_text="System performance ratio (PR) as decimal (typically 0.75-0.85)"
+    )
+    capacity_factor_typical = models.FloatField(
+        null=True, 
+        blank=True,
+        help_text="Typical capacity factor for this technology (location-dependent)"
+    )
+    
+    # Degradation
+    degradation_rate = models.FloatField(
+        null=True, 
+        blank=True,
+        help_text="Annual degradation rate as decimal (typically 0.005 = 0.5%/year)"
+    )
+    warranty_years = models.IntegerField(
+        null=True, 
+        blank=True,
+        help_text="Panel warranty period in years"
+    )
+    
+    # Technology Type
+    PANEL_TYPES = [
+        ('monocrystalline', 'Monocrystalline Silicon'),
+        ('polycrystalline', 'Polycrystalline Silicon'),
+        ('thin_film', 'Thin Film'),
+        ('cigs', 'CIGS'),
+        ('cdte', 'CdTe'),
+        ('perc', 'PERC'),
+        ('bifacial', 'Bifacial'),
+        ('tandem', 'Tandem/Multi-junction'),
+    ]
+    panel_technology = models.CharField(
+        max_length=30,
+        choices=PANEL_TYPES,
+        blank=True,
+        null=True,
+        help_text="Type of solar panel technology"
+    )
+    
+    # Tracking System
+    TRACKING_TYPES = [
+        ('fixed', 'Fixed Tilt'),
+        ('single_axis', 'Single-Axis Tracking'),
+        ('dual_axis', 'Dual-Axis Tracking'),
+    ]
+    tracking_type = models.CharField(
+        max_length=20,
+        choices=TRACKING_TYPES,
+        default='fixed',
+        help_text="Type of tracking system"
+    )
+    
+    class Meta:
+        db_table = 'SolarAttributes'
+        verbose_name = 'Solar Attribute'
+        verbose_name_plural = 'Solar Attributes'
+
+    def __str__(self):
+        tech_name = self.idtechnologies.technology_name if self.idtechnologies else "Unknown"
+        return f"Solar Attributes for {tech_name}"
+    
+    def get_typical_values_by_type(self, panel_type):
+        """Return typical values for different panel types"""
+        typical_values = {
+            'monocrystalline': {
+                'module_efficiency': 0.20,
+                'temperature_coefficient': -0.40,
+                'degradation_rate': 0.005,
+                'performance_ratio': 0.80,
+            },
+            'polycrystalline': {
+                'module_efficiency': 0.17,
+                'temperature_coefficient': -0.45,
+                'degradation_rate': 0.006,
+                'performance_ratio': 0.78,
+            },
+            'thin_film': {
+                'module_efficiency': 0.12,
+                'temperature_coefficient': -0.25,
+                'degradation_rate': 0.007,
+                'performance_ratio': 0.75,
+            },
+            'perc': {
+                'module_efficiency': 0.21,
+                'temperature_coefficient': -0.38,
+                'degradation_rate': 0.004,
+                'performance_ratio': 0.82,
+            },
+            'bifacial': {
+                'module_efficiency': 0.21,
+                'temperature_coefficient': -0.39,
+                'degradation_rate': 0.005,
+                'performance_ratio': 0.85,
+            },
+        }
+        return typical_values.get(panel_type, {})
+
 class Storageattributes(models.Model):
     idstorageattributes = models.AutoField(db_column='idStorageAttributes', primary_key=True)  
     idtechnologies = models.ForeignKey('Technologies', models.CASCADE, db_column='idTechnologies', blank=True, null=True)  

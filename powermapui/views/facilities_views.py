@@ -114,6 +114,7 @@ def facility_create(request):
             capacity_factor = request.POST.get('capacity_factor')
             generation = request.POST.get('generation')
             transmitted = request.POST.get('transmitted')
+            emission_intensity = request.POST.get('emission_intensity')
             latitude = request.POST.get('latitude')
             longitude = request.POST.get('longitude')
             scenario_ids = request.POST.getlist('scenarios')
@@ -151,6 +152,7 @@ def facility_create(request):
                 capacityfactor=float(capacity_factor) if capacity_factor else None,
                 generation=float(generation) if generation else None,
                 transmitted=float(transmitted) if transmitted else None,
+                emission_intensity=float(emission_intensity) if emission_intensity else None,
                 active=1,
                 existing=1,
                 latitude=float(latitude) if latitude else None,
@@ -212,6 +214,7 @@ def facility_edit(request, pk):
             capacity_factor = request.POST.get('capacity_factor')
             generation = request.POST.get('generation')
             transmitted = request.POST.get('transmitted')
+            emission_intensity = request.POST.get('emission_intensity')
             latitude = request.POST.get('latitude')
             longitude = request.POST.get('longitude')
             scenario_ids = request.POST.getlist('scenarios')
@@ -251,6 +254,7 @@ def facility_edit(request, pk):
             facility.capacityfactor = float(capacity_factor) if capacity_factor else None
             facility.generation = float(generation) if generation else None
             facility.transmitted = float(transmitted) if transmitted else None
+            facility.emission_intensity = float(emission_intensity) if emission_intensity else None
             facility.latitude = float(latitude) if latitude else None
             facility.longitude = float(longitude) if longitude else None
             facility.save()

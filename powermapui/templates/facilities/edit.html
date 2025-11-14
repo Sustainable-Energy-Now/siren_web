@@ -111,6 +111,20 @@
               </div>
             </div>
 
+            <div class="row mb-3">
+              <div class="col-md-6">
+                <label for="emission_intensity" class="form-label">Emission Intensity</label>
+                <input type="number" 
+                       class="form-control non-negative"  
+                       id="emission_intensity" 
+                       name="emission_intensity" 
+                       step="0.001" 
+                       min="0"
+                       value="{{ form_data.emission_intensity|default:facility.emission_intensity|default:'' }}">
+                <div class="form-text">CO₂ emissions per unit of energy (t CO₂-e/MWh)</div>
+              </div>
+            </div>
+
             <div class="row mb-4">
               <div class="col-md-6">
                 <label for="latitude" class="form-label">Latitude</label>

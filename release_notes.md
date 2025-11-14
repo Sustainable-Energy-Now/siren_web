@@ -1,4 +1,9 @@
 # Release Notes (Latest first)
+## Version 3.13.0 - November 14, 2025
+### 🆕 New Features
+- Feature: Solar CRUD ([#42](https://github.com/Sustainable-Energy-Now/siren_web/issues/42))
+- Feature: Solar Hybrid ([#45](https://github.com/Sustainable-Energy-Now/siren_web/issues/45))
+
 ## Version 3.12.1 - November 12, 2025
 ### 🐛 Bug Fixes
 - Debug Technology Attributes Fetch ([#44](https://github.com/Sustainable-Energy-Now/siren_web/issues/44))

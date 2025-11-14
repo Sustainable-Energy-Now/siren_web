@@ -87,6 +87,16 @@
                   </td>
                 </tr>
                 <tr>
+                  <td><strong>Emission Intensity:</strong></td>
+                  <td>
+                    {% if facility.emission_intensity %}
+                      {{ facility.emission_intensity|floatformat:3 }}
+                    {% else %}
+                      Not specified
+                    {% endif %}
+                  </td>
+                </tr>
+                <tr>
                   <td><strong>Latitude:</strong></td>
                   <td>
                     {% if facility.latitude %}
