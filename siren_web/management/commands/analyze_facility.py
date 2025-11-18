@@ -1,7 +1,7 @@
 # powerplot/management/commands/analyze_facility.py
 from django.core.management.base import BaseCommand
 from powerplotui.services.facility_analyzer import FacilityAnalyzer
-from datetime import datetime, timedelta
+from datetime import datetime
 import json
 
 class Command(BaseCommand):

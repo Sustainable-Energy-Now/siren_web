@@ -24,7 +24,7 @@ class FacilityAnalyzer:
         - negative_intervals: Count of intervals consuming
         """
         data = FacilityScada.objects.filter(
-            facility_code=facility_code,
+            facility__facility_code=facility_code
             dispatch_interval__gte=start_date,
             dispatch_interval__lt=end_date
         ).order_by('dispatch_interval')
@@ -34,8 +34,7 @@ class FacilityAnalyzer:
         
         df = pd.DataFrame(data.values('dispatch_interval', 'quantity'))
         
-        # Convert to energy (5-min intervals)
-        df['energy_mwh'] = df['quantity'] * 0.083333
+        df['energy_mwh'] = df['quantity'] # Assuming quantity is already in MWh for the interval
         
         # Separate positive and negative
         positive_df = df[df['quantity'] > 0]

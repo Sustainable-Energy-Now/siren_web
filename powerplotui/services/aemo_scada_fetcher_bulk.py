@@ -5,6 +5,7 @@ import zipfile
 import io
 from datetime import datetime, timedelta, date
 from decimal import Decimal
+from collections import defaultdict
 from django.db import transaction, connection
 from django.utils import timezone
 import pytz
@@ -366,10 +367,85 @@ class AEMOScadaFetcher:
         logger.debug(f"Parsed {len(records)} records from JSON")
         return records
     
+    def _aggregate_to_hourly(self, records):
+        """
+        Aggregate 5-minute dispatch intervals into hourly averages.
+        
+        For power generation data, we average the MW values across the 
+        12 five-minute intervals in each hour (not sum, since MW is already a rate).
+        
+        Args:
+            records: List of dicts with dispatch_interval, facility_id, quantity
+            
+        Returns:
+            List of hourly aggregated records
+        """
+        if not records:
+            return []
+        
+        # Group by hour and facility
+        hourly_data = defaultdict(lambda: {'total': Decimal('0'), 'count': 0})
+        
+        for record in records:
+            # Round down to hour start (remove minutes, seconds, microseconds)
+            hour_start = record['dispatch_interval'].replace(
+                minute=0, second=0, microsecond=0
+            )
+            
+            # Create composite key: (hour_start, facility_id)
+            key = (hour_start, record['facility_id'])
+            
+            hourly_data[key]['total'] += record['quantity']
+            hourly_data[key]['count'] += 1
+        
+        # Calculate averages and format output
+        aggregated = []
+        incomplete_hours = 0
+        
+        for (hour_start, facility_id), data in hourly_data.items():
+            if data['count'] > 0:
+                # Average the MW values (not sum, since MW is already a rate)
+                average_quantity = data['total'] / data['count']
+                
+                aggregated.append({
+                    'dispatch_interval': hour_start,
+                    'facility_id': facility_id,
+                    'quantity': average_quantity
+                })
+                
+                # Log warning if we don't have complete hour (12 x 5-min intervals)
+                if data['count'] != 12:
+                    incomplete_hours += 1
+        
+        logger.debug(
+            f"Aggregated {len(records)} 5-minute records into {len(aggregated)} hourly records"
+        )
+        
+        if incomplete_hours > 0:
+            logger.warning(
+                f"{incomplete_hours} hours have incomplete data (expected 12 samples/hour)"
+            )
+        
+        return aggregated
+    
     @transaction.atomic
     def _save_data(self, records):
-        """Bulk upsert optimized for MariaDB"""
+        """
+        Aggregate to hourly intervals and bulk upsert optimized for MariaDB
+        
+        Args:
+            records: List of 5-minute interval records
+            
+        Returns:
+            Number of hourly records saved
+        """
         if not records:
+            return 0
+        
+        # Aggregate 5-minute data to hourly averages
+        hourly_records = self._aggregate_to_hourly(records)
+        
+        if not hourly_records:
             return 0
         
         sql = """
@@ -383,7 +459,7 @@ class AEMOScadaFetcher:
         
         values = [
             (r['dispatch_interval'], r['facility_id'], r['quantity'])
-            for r in records
+            for r in hourly_records
         ]
         
         batch_size = 1000
@@ -395,19 +471,45 @@ class AEMOScadaFetcher:
                 cursor.executemany(sql, batch)
                 total_saved += len(batch)
         
-        logger.debug(f"Saved {total_saved} records")
+        logger.debug(f"Saved {total_saved} hourly records")
         return total_saved
     
     def verify_data_exists(self, trading_date):
-        """Check if data exists for a given trading date"""
+        """
+        Check if hourly data exists for a given trading date.
+        
+        Returns True if we have at least 20 unique hourly intervals
+        (allowing for some incomplete data at day boundaries).
+        A complete day should have 24 hourly records per facility.
+        
+        Args:
+            trading_date: datetime.date object
+            
+        Returns:
+            Tuple of (exists: bool, count: int)
+        """
         start_datetime = datetime.combine(trading_date, datetime.min.time())
         # Make timezone aware
         start_datetime = self.AWST.localize(start_datetime)
         end_datetime = start_datetime + timedelta(days=1)
         
+        # Get total count of records
         count = FacilityScada.objects.filter(
             dispatch_interval__gte=start_datetime,
             dispatch_interval__lt=end_datetime
         ).count()
         
-        return count > 0, count
+        # Count unique hourly intervals
+        from django.db.models import Count
+        unique_hours = FacilityScada.objects.filter(
+            dispatch_interval__gte=start_datetime,
+            dispatch_interval__lt=end_datetime
+        ).values('dispatch_interval').annotate(
+            hour_count=Count('dispatch_interval')
+        ).count()
+        
+        # Data exists if we have at least 20 unique hourly intervals
+        # (allowing for some missing data at day boundaries)
+        exists = unique_hours >= 20
+        
+        return exists, count

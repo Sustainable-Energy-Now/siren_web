@@ -1,9 +1,9 @@
 # powerplot/views.py
-from django.db.models import Avg, Case, Count, FloatField, Sum, Q, When, Max, Min
-from django.db.models.functions import ExtractHour, Coalesce, ExtractMonth, ExtractYear
-from django.shortcuts import render, get_object_or_404
-from django.http import HttpResponse, JsonResponse
-from siren_web.models import TradingPrice, DPVGeneration, LoadAnalysisSummary, facilities, FacilityScada, Technologies
+from django.db.models import Case, Count, FloatField, Sum, Q, When
+from django.db.models.functions import Coalesce
+from django.shortcuts import render
+from django.http import HttpResponse
+from siren_web.models import LoadAnalysisSummary, facilities, Technologies
 from powerplotui.services.load_analyzer import LoadAnalyzer
 from datetime import datetime, date
 import calendar

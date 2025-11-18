@@ -59,21 +59,12 @@ class LoadAnalyzer:
         scada_df['is_battery'] = scada_df['fuel_type'] == 'BATTERY'
         
         # Convert 5-min intervals to energy (MWh)
-        # quantity is in MW, 5 minutes = 1/12 hour
-        scada_df['energy_mwh'] = scada_df['quantity'] * Decimal('0.083333')
+        scada_df['energy_mwh'] = scada_df['quantity']
         
         # Process DPV data
         if not dpv_df.empty:
             dpv_df['trading_interval'] = pd.to_datetime(dpv_df['trading_interval'])
-            
-            # Check if post-reform (5-min) or pre-reform (30-min)
-            if start_date >= datetime(2023, 10, 1):
-                # 5-minute intervals
-                dpv_df['energy_mwh'] = dpv_df['estimated_generation'] * Decimal('0.083333')
-            else:
-                # 30-minute intervals
-                dpv_df['energy_mwh'] = dpv_df['estimated_generation'] * Decimal('0.5')
-            
+            dpv_df['energy_mwh'] = dpv_df['estimated_generation']
             total_dpv_generation = float(dpv_df['energy_mwh'].sum())
         else:
             logger.warning(f"No DPV data found for {year}-{month:02d}")

@@ -15,7 +15,6 @@ from pathlib import Path
 import os, sys
 import toml
 from siren_web.version import __version__
-from celery.schedules import crontab
 
 # Set up logging
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -199,21 +198,6 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 LOGIN_URL = '/accounts/login/'
 LOGOUT_URL = '/accounts/logout/'
-
-CELERY_BEAT_SCHEDULE = {
-    'fetch-daily-scada': {
-        'task': 'powerplot.tasks.fetch_daily_scada',
-        'schedule': crontab(hour=12, minute=0),  # 12:00 AWST daily
-    },
-    'fetch-monthly-dpv': {
-        'task': 'powerplot.tasks.fetch_monthly_dpv',
-        'schedule': crontab(day_of_month=2, hour=2, minute=0),  # 2nd of month at 2:00 AM
-    },
-    'monthly-analysis': {
-        'task': 'powerplot.tasks.calculate_monthly_analysis',
-        'schedule': crontab(day_of_month=3, hour=1, minute=0),  # 3rd of month (after DPV fetch)
-    },
-}
 
 # Internationalization
 # https://docs.djangoproject.com/en/5.0/topics/i18n/
