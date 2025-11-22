@@ -1,0 +1,75 @@
+{% extends 'scada/base.html' %}
+
+{% block title %}No Data Available{% endblock %}
+
+{% block content %}
+<div style="max-width: 800px; margin: 80px auto; text-align: center;">
+    <div style="font-size: 80px; color: #bdc3c7; margin-bottom: 20px;">
+        📊
+    </div>
+    
+    <h1 style="color: #34495e; margin-bottom: 20px;">No Data Available</h1>
+    
+    <p style="font-size: 1.2em; color: #7f8c8d; margin-bottom: 30px;">
+        {% if message %}
+            {{ message }}
+        {% else %}
+            No renewable energy performance data found for 
+            {% if month %}{{ month_name }}{% endif %} 
+            {% if year %}{{ year }}{% endif %}
+            {% if quarter %}Q{{ quarter }} {{ year }}{% endif %}.
+        {% endif %}
+    </p>
+    
+    <div style="background: #f8f9fa; padding: 30px; border-radius: 12px; margin: 30px 0; text-align: left;">
+        <h3 style="color: #2c3e50; margin-top: 0;">What you can do:</h3>
+        
+        <div style="margin: 20px 0;">
+            <h4 style="color: #34495e; margin-bottom: 10px;">1. Process the Data</h4>
+            <p style="color: #7f8c8d;">Run the management command to calculate performance from SCADA data:</p>
+            <pre style="background: #2c3e50; color: #ecf0f1; padding: 15px; border-radius: 6px; overflow-x: auto;">python manage.py update_ret_dashboard --year {{ year|default:"YYYY" }} --month {{ month|default:"MM" }}{% if quarter %} 
+# Or for the quarter:
+python manage.py update_ret_dashboard --ytd --year {{ year }}{% endif %}</pre>
+        </div>
+        
+        <div style="margin: 20px 0;">
+            <h4 style="color: #34495e; margin-bottom: 10px;">2. Check SCADA Data</h4>
+            <p style="color: #7f8c8d;">Verify that SCADA data exists for this period:</p>
+            <pre style="background: #2c3e50; color: #ecf0f1; padding: 15px; border-radius: 6px; overflow-x: auto;">python manage.py shell
+            </pre>
+        </div>
+        
+        <div style="margin: 20px 0;">
+            <h4 style="color: #34495e; margin-bottom: 10px;">3. View Available Periods</h4>
+            <p style="color: #7f8c8d;">Check which periods have data available:</p>
+            <a href="{% url 'ret_dashboard' %}" 
+               style="display: inline-block; background: #3498db; color: white; padding: 12px 24px; 
+                      border-radius: 6px; text-decoration: none; margin-top: 10px;">
+                View Dashboard
+            </a>
+        </div>
+    </div>
+    
+    <div style="margin-top: 40px;">
+        <a href="javascript:history.back()" 
+           style="color: #3498db; text-decoration: none; font-size: 1.1em;">
+            ← Go Back
+        </a>
+        <span style="margin: 0 20px; color: #bdc3c7;">|</span>
+        <a href="{% url 'ret_dashboard' %}" 
+           style="color: #3498db; text-decoration: none; font-size: 1.1em;">
+            Dashboard Home
+        </a>
+    </div>
+</div>
+
+<style>
+pre {
+    text-align: left;
+    font-family: 'Courier New', monospace;
+    font-size: 0.9em;
+    line-height: 1.5;
+}
+</style>
+
+{% endblock %}

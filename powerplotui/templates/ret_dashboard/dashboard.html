@@ -1,0 +1,585 @@
+<!-- templates/ret_dashboard/dashboard.html -->
+{% extends 'scada/base.html' %}
+{% load humanize %}
+{% load math_filters %}
+
+{% block title %}SWIS Renewable Energy Dashboard - {{ month_name }} {{ year }}{% endblock %}
+
+{% block content %}
+<header>
+    <h1>SWIS Renewable Energy Dashboard</h1>
+    <p style="color: #7f8c8d; font-size: 1.1em;">
+        {{ month_name }} {{ year }}
+    </p>
+    <p style="color: #95a5a6; font-size: 0.95em;">
+        Published: {{ performance.updated_at|date:"d F Y" }}
+    </p>
+</header>
+
+<!-- Quick Navigation Links -->
+<div style="margin: 20px 0; padding: 15px; background: #ecf0f1; border-radius: 8px; display: flex; gap: 15px; align-items: center;">
+    <strong style="color: #2c3e50;">Other Reports:</strong>
+    <a href="{% url 'quarterly_report' year quarter %}" style="color: #3498db; text-decoration: none; padding: 8px 15px; background: white; border-radius: 4px; font-weight: 500;">📈 Q{{ quarter }} Quarterly Report</a>
+    <a href="{% url 'annual_review' year %}" style="color: #3498db; text-decoration: none; padding: 8px 15px; background: white; border-radius: 4px; font-weight: 500;">📑 {{ year }} Annual Review</a>
+</div>
+
+<!-- Period Selector -->
+<div class="month-selector">
+    <label for="month-select"><strong>Select Period:</strong></label>
+    <select id="month-select" name="month">
+        {% for m in available_months %}
+        <option value="{{ m.value }}" {% if m.value == year|stringformat:"04d"|add:"-"|add:month|stringformat:"02d" %}selected{% endif %}>
+            {{ m.label }}
+        </option>
+        {% endfor %}
+    </select>
+    <button onclick="loadDashboard()">View</button>
+    <button onclick="window.print()" style="background: #95a5a6;">Print Report</button>
+</div>
+
+<!-- At a Glance Summary -->
+<div class="section-header">
+    <h2>At a Glance</h2>
+</div>
+
+<div class="metric-grid">
+    <!-- YTD RE Percentage -->
+    <div class="metric-card {% if target_status.status == 'ahead' %}positive{% elif target_status.status == 'behind' %}warning{% else %}neutral{% endif %}">
+        <div class="metric-label">Year to Date ({{ month_name }})</div>
+        <div class="metric-value">{{ ytd_summary.re_percentage|floatformat:1 }}%</div>
+        <div class="metric-sublabel">Renewable Energy Percentage</div>
+    </div>
+    
+    <!-- Target Status -->
+    <div class="metric-card {% if target_status.status == 'ahead' %}positive{% elif target_status.status == 'behind' %}negative{% else %}neutral{% endif %}">
+        <div class="metric-label">Target for {{ year }}</div>
+        <div class="metric-value">{{ target.target_percentage|floatformat:1 }}%</div>
+        <div class="metric-change">
+            {{ target_status.message }}
+        </div>
+    </div>
+    
+    <!-- Monthly RE Percentage -->
+    <div class="metric-card positive">
+        <div class="metric-label">{{ month_name }} {{ year }}</div>
+        <div class="metric-value">{{ performance.re_percentage_underlying|floatformat:1 }}%</div>
+        <div class="metric-change">
+            {% if prev_year_performance %}
+                {{ prev_year_performance.re_percentage_underlying|floatformat:1 }}% in {{ year|add:"-1" }}
+            {% endif %}
+        </div>
+    </div>
+    
+    <!-- Emissions -->
+    <div class="metric-card neutral">
+        <div class="metric-label">YTD Emissions</div>
+        <div class="metric-value">{{ ytd_summary.total_emissions|floatformat:0|intcomma }} t CO₂-e</div>
+        <div class="metric-change">
+            {% if ytd_emissions_change %}
+                {% if ytd_emissions_change < 0 %}✓{% else %}⚠{% endif %}
+                {{ ytd_emissions_change|floatformat:1 }}% vs {{ year|add:"-1" }}
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Monthly Highlights -->
+<div class="section-header">
+    <h2>{{ month_name }} Highlights</h2>
+</div>
+
+<div class="info-box">
+    <h3>Generation Mix</h3>
+    <p style="color: #7f8c8d; margin-bottom: 10px;">
+        <em>Note: Battery discharge shown for information but excluded from RE% calculation</em>
+    </p>
+    
+    <table class="stats-table" style="margin-top: 15px;">
+        <thead>
+            <tr>
+                <th>Technology</th>
+                <th class="value">Generation (GWh)</th>
+                <th class="value">Share (%)</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr class="renewable-row">
+                <td><strong>Wind</strong></td>
+                <td class="value">{{ performance.wind_generation|floatformat:1 }}</td>
+                <td class="value">{{ performance.wind_generation|div:performance.underlying_demand|mul:100|floatformat:1 }}%</td>
+            </tr>
+            <tr class="renewable-row">
+                <td><strong>Solar (Utility)</strong></td>
+                <td class="value">{{ performance.solar_utility_generation|floatformat:1 }}</td>
+                <td class="value">{{ performance.solar_utility_generation|div:performance.underlying_demand|mul:100|floatformat:1 }}%</td>
+            </tr>
+            <tr class="renewable-row">
+                <td><strong>Solar (Rooftop)</strong></td>
+                <td class="value">{{ performance.solar_rooftop_generation|floatformat:1 }}</td>
+                <td class="value">{{ performance.solar_rooftop_generation|div:performance.underlying_demand|mul:100|floatformat:1 }}%</td>
+            </tr>
+            <tr class="renewable-row">
+                <td><strong>Biomass + Hydro</strong></td>
+                <td class="value">{{ performance.biomass_generation|add:performance.hydro_generation|floatformat:1 }}</td>
+                <td class="value">{{ performance.biomass_generation|add:performance.hydro_generation|div:performance.underlying_demand|mul:100|floatformat:1 }}%</td>
+            </tr>
+            <tr class="fossil-row">
+                <td>Gas (CCGT)</td>
+                <td class="value">{{ performance.gas_ccgt_generation|floatformat:1 }}</td>
+                <td class="value">{{ performance.gas_ccgt_generation|div:performance.underlying_demand|mul:100|floatformat:1 }}%</td>
+            </tr>
+            <tr class="fossil-row">
+                <td>Gas (OCGT)</td>
+                <td class="value">{{ performance.gas_ocgt_generation|floatformat:1 }}</td>
+                <td class="value">{{ performance.gas_ocgt_generation|div:performance.underlying_demand|mul:100|floatformat:1 }}%</td>
+            </tr>
+            {% if performance.battery_net_discharge > 0 %}
+            <tr class="info-row">
+                <td><em>Battery (net discharge)</em></td>
+                <td class="value"><em>{{ performance.battery_net_discharge|floatformat:1 }}</em></td>
+                <td class="value"><em>{{ performance.battery_net_discharge|div:performance.underlying_demand|mul:100|floatformat:1 }}%</em></td>
+            </tr>
+            {% endif %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Key Statistics -->
+<div class="section-header">
+    <h2>Key Statistics</h2>
+</div>
+
+<div class="metric-grid" style="grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));">
+    <div class="metric-card neutral">
+        <div class="metric-label">Avg Grid Emissions Intensity</div>
+        <div class="metric-value">{{ performance.emissions_intensity_kg_mwh|floatformat:0 }}</div>
+        <div class="metric-sublabel">kg CO₂-e/MWh</div>
+    </div>
+    
+    {% if performance.best_re_hour_percentage %}
+    <div class="metric-card positive">
+        <div class="metric-label">Best Renewable Hour</div>
+        <div class="metric-value">{{ performance.best_re_hour_percentage|floatformat:1 }}%</div>
+        <div class="metric-sublabel">{{ performance.best_re_hour_datetime|date:"d M, g:i A" }}</div>
+    </div>
+    {% endif %}
+    
+    {% if performance.peak_demand_mw %}
+    <div class="metric-card neutral">
+        <div class="metric-label">Peak Demand</div>
+        <div class="metric-value">{{ performance.peak_demand_mw|floatformat:0|intcomma }}</div>
+        <div class="metric-sublabel">MW on {{ performance.peak_demand_datetime|date:"d M, g:i A" }}</div>
+    </div>
+    {% endif %}
+    
+    {% if performance.minimum_demand_mw %}
+    <div class="metric-card neutral">
+        <div class="metric-label">Minimum Demand</div>
+        <div class="metric-value">{{ performance.minimum_demand_mw|floatformat:0|intcomma }}</div>
+        <div class="metric-sublabel">MW on {{ performance.minimum_demand_datetime|date:"d M, g:i A" }}</div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Charts -->
+<div class="section-header">
+    <h2>Visualizations</h2>
+</div>
+
+<div class="chart-container">
+    <div class="chart-title">Generation Mix - {{ month_name }} {{ year }}</div>
+    {{ generation_mix_chart|safe }}
+</div>
+
+<div class="chart-container">
+    <div class="chart-title">Pathway to 2040 Target</div>
+    {{ pathway_chart|safe }}
+</div>
+
+<!-- New Capacity -->
+{% if new_capacity %}
+<div class="section-header">
+    <h2>New Capacity</h2>
+</div>
+
+<div class="info-box">
+    <h3>Commissioned in {{ month_name }}</h3>
+    <ul class="bullet-list">
+        {% for facility in new_capacity %}
+        <li>
+            <strong>✓ {{ facility.facility.facility_name }}</strong> - 
+            {{ facility.capacity_mw|floatformat:0 }} MW 
+            ({{ facility.commissioned_date|date:"d F Y" }})
+        </li>
+        {% endfor %}
+    </ul>
+    
+    <p style="margin-top: 20px;"><strong>Total New Capacity {{ month_name }} {{ year }}: 
+        {{ new_capacity|sum_attr:"capacity_mw"|floatformat:0 }} MW renewable</strong></p>
+</div>
+{% endif %}
+
+{% if upcoming_capacity %}
+<div class="info-box" style="margin-top: 20px;">
+    <h3>Under Construction (Expected next 3 months)</h3>
+    <ul class="bullet-list">
+        {% for facility in upcoming_capacity %}
+        <li>
+            {{ facility.facility.facility_name }} - 
+            {{ facility.capacity_mw|floatformat:0 }} MW 
+            ({{ facility.expected_commissioning_date|date:"F Y" }})
+        </li>
+        {% endfor %}
+    </ul>
+</div>
+{% endif %}
+
+<!-- Emissions Performance -->
+<div class="section-header">
+    <h2>Emissions Performance</h2>
+</div>
+
+<table class="stats-table">
+    <thead>
+        <tr>
+            <th>Period</th>
+            <th class="value">Total Emissions</th>
+            <th class="value">Intensity</th>
+            <th class="value">Change YoY</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td><strong>{{ month_name }} {{ year }}</strong></td>
+            <td class="value">{{ performance.total_emissions_tonnes|floatformat:0|intcomma }} t CO₂-e</td>
+            <td class="value">{{ performance.emissions_intensity_kg_mwh|floatformat:0 }} kg/MWh</td>
+            <td class="value {% if emissions_change and emissions_change < 0 %}positive{% elif emissions_change and emissions_change > 0 %}negative{% endif %}">
+                {% if emissions_change %}
+                    {{ emissions_change|floatformat:1 }}%
+                {% else %}N/A{% endif %}
+            </td>
+        </tr>
+        <tr>
+            <td><strong>YTD {{ year }}</strong></td>
+            <td class="value">{{ ytd_summary.total_emissions|floatformat:0|intcomma }} t CO₂-e</td>
+            <td class="value">{{ ytd_summary.emissions_intensity|floatformat:0 }} kg/MWh</td>
+            <td class="value {% if ytd_emissions_change and ytd_emissions_change < 0 %}positive{% elif ytd_emissions_change and ytd_emissions_change > 0 %}negative{% endif %}">
+                {% if ytd_emissions_change %}
+                    {{ ytd_emissions_change|floatformat:1 }}%
+                {% else %}N/A{% endif %}
+            </td>
+        </tr>
+    </tbody>
+</table>
+
+<!-- Pathway to 2040 -->
+{% if base_case_scenario %}
+<div class="section-header">
+    <h2>Pathway to 2040</h2>
+</div>
+
+<div class="info-box">
+    <h3>Current Trajectory: 
+        {% if base_case_scenario.projected_re_percentage_2040 >= target.target_percentage %}
+            <span style="color: #27ae60;">✓ ON TRACK</span> to exceed 2040 target
+        {% else %}
+            <span style="color: #e74c3c;">⚠ AT RISK</span> of missing 2040 target
+        {% endif %}
+    </h3>
+    
+    <table class="stats-table" style="margin-top: 15px;">
+        <thead>
+            <tr>
+                <th>Year</th>
+                <th class="value">Target RE%</th>
+                <th class="value">Projected RE%</th>
+                <th class="value">Gap</th>
+                <th>Status</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><strong>{{ year }}</strong></td>
+                <td class="value">{{ target.target_percentage|floatformat:1 }}%</td>
+                <td class="value">{{ ytd_summary.re_percentage|floatformat:1 }}%</td>
+                <td class="value positive">+{{ target_status.gap|floatformat:1 }} pp</td>
+                <td>✓</td>
+            </tr>
+            <tr>
+                <td><strong>2040</strong></td>
+                <td class="value">75.0%</td>
+                <td class="value">{{ base_case_scenario.projected_re_percentage_2040|floatformat:1 }}%</td>
+                <td class="value {% if base_case_scenario.projected_re_percentage_2040 >= 75 %}positive{% else %}negative{% endif %}">
+                    {% if base_case_scenario.projected_re_percentage_2040 >= 75 %}+{% endif %}{{ base_case_scenario.projected_re_percentage_2040|sub:75|floatformat:1 }} pp
+                </td>
+                <td>{% if base_case_scenario.projected_re_percentage_2040 >= 75 %}On Track{% else %}At Risk{% endif %}</td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+{% endif %}
+
+<!-- What This Means -->
+<div class="section-header">
+    <h2>What This Means</h2>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 20px;">
+    <div class="info-box">
+        <h3>For Consumers</h3>
+        <ul class="bullet-list">
+            {% if emissions_change and emissions_change < 0 %}
+            <li><strong>Lower emissions:</strong> Every kWh consumed in {{ month_name }} had 
+                {{ emissions_change|abs|floatformat:1 }}% lower carbon intensity than {{ month_name }} {{ year|add:"-1" }}</li>
+            {% endif %}
+            <li><strong>More renewables:</strong> {{ performance.re_percentage_underlying|floatformat:0 }}% 
+                of grid electricity came from zero-emission sources</li>
+            <li><strong>On track:</strong> Current trajectory will 
+                {% if base_case_scenario.projected_re_percentage_2040 >= 75 %}exceed{% else %}fall short of{% endif %} 
+                75% renewable energy by 2040</li>
+        </ul>
+    </div>
+    
+    <div class="info-box">
+        <h3>For the Grid</h3>
+        <ul class="bullet-list">
+            <li><strong>Growing integration challenge:</strong> Need more battery storage and grid flexibility</li>
+            <li><strong>Strong performance:</strong> New wind and solar facilities performing at/above expectations</li>
+            {% if performance.battery_net_discharge > 0 %}
+            <li><strong>Battery value:</strong> BESS avoided ~{{ performance.battery_net_discharge|floatformat:0 }} GWh 
+                of curtailment this month</li>
+            {% endif %}
+        </ul>
+    </div>
+</div>
+
+<!-- Footer -->
+<div style="margin-top: 40px; padding: 20px; background: #ecf0f1; border-radius: 8px;">
+    <p style="margin: 0;"><strong>Next Update:</strong> 
+        {% now "j F Y" as current_date %}
+        {{ current_date|date:"j F Y"|add_months:1 }}
+    </p>
+    <p style="margin: 5px 0 0 0;"><strong>Contact:</strong> modelling.lead@sen.asn.au</p>
+</div>
+
+<style>
+.section-header {
+    margin: 40px 0 20px 0;
+    padding-bottom: 10px;
+    border-bottom: 2px solid #3498db;
+}
+
+.section-header h2 {
+    color: #2c3e50;
+    margin: 0;
+}
+
+.metric-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 20px;
+    margin: 20px 0;
+}
+
+.metric-card {
+    background: white;
+    padding: 25px;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    border-left: 4px solid #bdc3c7;
+}
+
+.metric-card.positive {
+    border-left-color: #27ae60;
+    background: linear-gradient(135deg, #ffffff 0%, #e8f5e9 100%);
+}
+
+.metric-card.negative {
+    border-left-color: #e74c3c;
+    background: linear-gradient(135deg, #ffffff 0%, #ffebee 100%);
+}
+
+.metric-card.warning {
+    border-left-color: #f39c12;
+    background: linear-gradient(135deg, #ffffff 0%, #fff8e1 100%);
+}
+
+.metric-card.neutral {
+    border-left-color: #3498db;
+    background: linear-gradient(135deg, #ffffff 0%, #e3f2fd 100%);
+}
+
+.metric-label {
+    font-size: 0.9em;
+    color: #7f8c8d;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 8px;
+}
+
+.metric-value {
+    font-size: 2.5em;
+    font-weight: 700;
+    color: #2c3e50;
+    margin: 10px 0;
+}
+
+.metric-sublabel {
+    font-size: 0.85em;
+    color: #95a5a6;
+    margin-top: 8px;
+}
+
+.metric-change {
+    font-size: 0.9em;
+    color: #7f8c8d;
+    margin-top: 8px;
+}
+
+.info-box {
+    background: #f8f9fa;
+    padding: 25px;
+    border-radius: 8px;
+    margin: 20px 0;
+    border-left: 4px solid #3498db;
+}
+
+.info-box h3 {
+    color: #2c3e50;
+    margin-top: 0;
+    margin-bottom: 15px;
+}
+
+.bullet-list {
+    list-style: none;
+    padding-left: 0;
+}
+
+.bullet-list li {
+    padding: 8px 0 8px 25px;
+    position: relative;
+    line-height: 1.6;
+}
+
+.bullet-list li:before {
+    content: "▪";
+    position: absolute;
+    left: 5px;
+    color: #3498db;
+    font-size: 1.2em;
+}
+
+.stats-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 20px 0;
+    background: white;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.stats-table thead {
+    background: #34495e;
+    color: white;
+}
+
+.stats-table th,
+.stats-table td {
+    padding: 12px 15px;
+    text-align: left;
+}
+
+.stats-table th.value,
+.stats-table td.value {
+    text-align: right;
+}
+
+.stats-table tbody tr:nth-child(even) {
+    background: #f8f9fa;
+}
+
+.stats-table tbody tr:hover {
+    background: #e8f4f8;
+}
+
+.renewable-row {
+    background: #e8f5e9 !important;
+}
+
+.fossil-row {
+    background: #fafafa !important;
+}
+
+.info-row {
+    background: #e3f2fd !important;
+    font-style: italic;
+}
+
+.chart-container {
+    background: white;
+    padding: 20px;
+    border-radius: 8px;
+    margin: 20px 0;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.chart-title {
+    font-size: 1.2em;
+    font-weight: 600;
+    color: #2c3e50;
+    margin-bottom: 15px;
+}
+
+.month-selector {
+    background: white;
+    padding: 20px;
+    border-radius: 8px;
+    margin: 20px 0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.month-selector select,
+.month-selector button {
+    padding: 10px 15px;
+    border: 1px solid #bdc3c7;
+    border-radius: 6px;
+    font-size: 1em;
+}
+
+.month-selector button {
+    background: #3498db;
+    color: white;
+    border: none;
+    cursor: pointer;
+    transition: background 0.3s;
+}
+
+.month-selector button:hover {
+    background: #2980b9;
+}
+
+@media print {
+    .month-selector {
+        display: none;
+    }
+    
+    .metric-card {
+        break-inside: avoid;
+    }
+}
+</style>
+
+<script>
+function loadDashboard() {
+    const selected = document.getElementById('month-select').value;
+    const [year, month] = selected.split('-');
+    window.location.href = `/ret_dashboard/${year}/${parseInt(month)}/`;
+}
+</script>
+
+{% endblock %}

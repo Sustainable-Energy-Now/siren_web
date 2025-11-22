@@ -62,7 +62,7 @@ class AEMOScadaFetcher:
         # Get or create 'Unknown' technology
         unknown_tech, _ = Technologies.objects.get_or_create(
             technology_name='Unknown',
-            defaults={'technology_type': 'Unknown'}
+            defaults={'technology_signature': 'UNK','category': 'Generator', 'renewable': '0', 'dispatchable':'0','fuel_type': 'Unknown'}
         )
         
         # Create facility

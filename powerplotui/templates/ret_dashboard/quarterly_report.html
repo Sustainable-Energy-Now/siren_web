@@ -1,0 +1,724 @@
+{% extends 'scada/base.html' %}
+{% load humanize %}
+{% load math_filters %}
+
+{% block title %}SWIS Quarterly Report - Q{{ quarter }} {{ year }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .quarterly-report {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 20px;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+
+    .report-header {
+        background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+        color: white;
+        padding: 40px;
+        border-radius: 8px;
+        margin-bottom: 30px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+
+    .report-header h1 {
+        margin: 0 0 10px 0;
+        font-size: 2.5em;
+        font-weight: 600;
+    }
+
+    .report-header .subtitle {
+        font-size: 1.2em;
+        opacity: 0.9;
+    }
+
+    .section {
+        background: white;
+        padding: 30px;
+        margin-bottom: 30px;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    .section h2 {
+        color: #1e3c72;
+        border-bottom: 3px solid #4CAF50;
+        padding-bottom: 10px;
+        margin-bottom: 20px;
+        font-size: 1.8em;
+    }
+
+    .section h3 {
+        color: #2a5298;
+        margin-top: 25px;
+        margin-bottom: 15px;
+        font-size: 1.4em;
+    }
+
+    /* Executive Summary Cards */
+    .summary-cards {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 20px;
+        margin-bottom: 30px;
+    }
+
+    .summary-card {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 25px;
+        border-radius: 8px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+
+    .summary-card.success {
+        background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+    }
+
+    .summary-card.warning {
+        background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+    }
+
+    .summary-card.info {
+        background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+    }
+
+    .summary-card .label {
+        font-size: 0.9em;
+        opacity: 0.9;
+        margin-bottom: 10px;
+    }
+
+    .summary-card .value {
+        font-size: 2.5em;
+        font-weight: 700;
+        margin-bottom: 5px;
+    }
+
+    .summary-card .change {
+        font-size: 0.95em;
+        opacity: 0.95;
+    }
+
+    /* Tables */
+    .data-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 20px 0;
+    }
+
+    .data-table thead {
+        background: #f5f5f5;
+    }
+
+    .data-table th {
+        padding: 15px;
+        text-align: left;
+        font-weight: 600;
+        color: #333;
+        border-bottom: 2px solid #ddd;
+    }
+
+    .data-table td {
+        padding: 12px 15px;
+        border-bottom: 1px solid #eee;
+    }
+
+    .data-table tr:hover {
+        background: #f9f9f9;
+    }
+
+    .data-table .value {
+        text-align: right;
+    }
+
+    .renewable-row {
+        background: #e8f5e9;
+    }
+
+    .fossil-row {
+        background: #fafafa;
+    }
+
+    .total-row {
+        font-weight: 600;
+        background: #e3f2fd;
+        border-top: 2px solid #2196F3;
+    }
+
+    /* Status Indicators */
+    .status-indicator {
+        display: inline-block;
+        padding: 5px 15px;
+        border-radius: 20px;
+        font-weight: 600;
+        font-size: 0.9em;
+    }
+
+    .status-indicator.on-track {
+        background: #c8e6c9;
+        color: #2e7d32;
+    }
+
+    .status-indicator.at-risk {
+        background: #ffe0b2;
+        color: #e65100;
+    }
+
+    .status-indicator.behind {
+        background: #ffcdd2;
+        color: #c62828;
+    }
+
+    /* Charts */
+    .chart-container {
+        margin: 30px 0;
+        padding: 20px;
+        background: #fafafa;
+        border-radius: 8px;
+    }
+
+    /* Comparison Grid */
+    .comparison-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 20px;
+        margin: 20px 0;
+    }
+
+    .comparison-item {
+        background: #f5f5f5;
+        padding: 15px;
+        border-radius: 8px;
+        border-left: 4px solid #2196F3;
+    }
+
+    .comparison-item .metric {
+        font-size: 0.9em;
+        color: #666;
+        margin-bottom: 5px;
+    }
+
+    .comparison-item .value {
+        font-size: 1.5em;
+        font-weight: 600;
+        color: #333;
+    }
+
+    /* Observations */
+    .observations {
+        background: #fff3e0;
+        border-left: 4px solid #ff9800;
+        padding: 20px;
+        margin: 20px 0;
+        border-radius: 4px;
+    }
+
+    .observations ul {
+        margin: 10px 0;
+        padding-left: 20px;
+    }
+
+    .observations li {
+        margin: 8px 0;
+        line-height: 1.6;
+    }
+
+    /* Print Styles */
+    @media print {
+        .report-header {
+            background: #1e3c72;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+        }
+
+        .section {
+            page-break-inside: avoid;
+        }
+
+        .chart-container {
+            page-break-inside: avoid;
+        }
+    }
+
+    /* Navigation */
+    .nav-buttons {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 20px;
+    }
+
+    .nav-button {
+        padding: 10px 20px;
+        background: #2196F3;
+        color: white;
+        text-decoration: none;
+        border-radius: 4px;
+        font-weight: 500;
+        transition: background 0.3s;
+    }
+
+    .nav-button:hover {
+        background: #1976D2;
+        color: white;
+    }
+
+    .nav-button.secondary {
+        background: #757575;
+    }
+
+    .nav-button.secondary:hover {
+        background: #616161;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="quarterly-report">
+    
+    <!-- Navigation -->
+    <div class="nav-buttons">
+        <a href="{% url 'ret_dashboard' %}" class="nav-button secondary">← Back to Dashboard</a>
+        <a href="{% url 'annual_review' year %}" class="nav-button">View Annual Review</a>
+        <button onclick="window.print()" class="nav-button">🖨️ Print Report</button>
+    </div>
+
+    <!-- Header -->
+    <div class="report-header">
+        <h1>SWIS Renewable Energy Quarterly Report</h1>
+        <div class="subtitle">
+            Quarter {{ quarter }}, {{ year }} 
+            ({{ quarter_start_month }} - {{ quarter_end_month }})
+        </div>
+    </div>
+
+    <!-- Executive Summary -->
+    <div class="section">
+        <h2>Executive Summary</h2>
+        
+        <div class="summary-cards">
+            <div class="summary-card {% if quarterly_summary.re_percentage_underlying >= target.target_percentage %}success{% else %}warning{% endif %}">
+                <div class="label">Quarter {{ quarter }} RE%</div>
+                <div class="value">{{ quarterly_summary.re_percentage_underlying|floatformat:1 }}%</div>
+                <div class="change">
+                    {% if prev_quarter_summary %}
+                        {% with change=quarterly_summary.re_percentage_underlying|sub:prev_quarter_summary.re_percentage_underlying %}
+                            {{ change|floatformat:1|add:0|floatformat:1 }} pp vs Q{{ quarter }} {{ year|add:"-1" }}
+                        {% endwith %}
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="summary-card info">
+                <div class="label">Total Generation</div>
+                <div class="value">{{ quarterly_summary.total_generation|floatformat:0|intcomma }}</div>
+                <div class="change">GWh</div>
+            </div>
+
+            <div class="summary-card success">
+                <div class="label">Renewable Generation</div>
+                <div class="value">{{ quarterly_summary.renewable_generation|floatformat:0|intcomma }}</div>
+                <div class="change">GWh</div>
+            </div>
+
+            <div class="summary-card warning">
+                <div class="label">Total Emissions</div>
+                <div class="value">{{ quarterly_summary.total_emissions|floatformat:0|intcomma }}</div>
+                <div class="change">tonnes CO₂-e</div>
+            </div>
+        </div>
+
+        <div class="comparison-grid">
+            <div class="comparison-item">
+                <div class="metric">Emissions Intensity</div>
+                <div class="value">{{ quarterly_summary.emissions_intensity|floatformat:0 }} kg/MWh</div>
+            </div>
+            <div class="comparison-item">
+                <div class="metric">Underlying Demand</div>
+                <div class="value">{{ quarterly_summary.underlying_demand|floatformat:0|intcomma }} GWh</div>
+            </div>
+        </div>
+
+        {% if target %}
+        <p style="margin-top: 20px;">
+            <strong>Target Status:</strong>
+            {% if quarterly_summary.re_percentage_underlying >= target.target_percentage %}
+                <span class="status-indicator on-track">✓ ON TRACK</span> 
+                ({{ quarterly_summary.re_percentage_underlying|sub:target.target_percentage|floatformat:1 }} pp ahead of {{ year }} target)
+            {% elif quarterly_summary.re_percentage_underlying >= target.target_percentage|sub:3 %}
+                <span class="status-indicator at-risk">⚠ AT RISK</span>
+                ({{ target.target_percentage|sub:quarterly_summary.re_percentage_underlying|floatformat:1 }} pp behind {{ year }} target)
+            {% else %}
+                <span class="status-indicator behind">✗ BEHIND TARGET</span>
+                ({{ target.target_percentage|sub:quarterly_summary.re_percentage_underlying|floatformat:1 }} pp behind {{ year }} target)
+            {% endif %}
+        </p>
+        {% endif %}
+    </div>
+
+    <!-- Quarterly Performance Table -->
+    <div class="section">
+        <h2>Quarterly Performance Breakdown</h2>
+        
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Technology</th>
+                    <th class="value">Generation (GWh)</th>
+                    <th class="value">Share of Total (%)</th>
+                    <th class="value">Change vs Q{{ quarter }} {{ year|add:"-1" }}</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- Renewables -->
+                <tr class="renewable-row">
+                    <td><strong>Wind</strong></td>
+                    <td class="value">{{ quarterly_summary.wind_generation|floatformat:1 }}</td>
+                    <td class="value">{{ quarterly_summary.wind_generation|percent:quarterly_summary.underlying_demand|floatformat:1 }}%</td>
+                    <td class="value">
+                        {% if prev_quarter_summary %}
+                            {% with change=quarterly_summary.wind_generation|sub:prev_quarter_summary.wind_generation %}
+                                {% if change >= 0 %}+{% endif %}{{ change|floatformat:1 }}
+                            {% endwith %}
+                        {% else %}—{% endif %}
+                    </td>
+                </tr>
+                <tr class="renewable-row">
+                    <td><strong>Solar (Utility)</strong></td>
+                    <td class="value">{{ quarterly_summary.solar_utility_generation|floatformat:1 }}</td>
+                    <td class="value">{{ quarterly_summary.solar_utility_generation|percent:quarterly_summary.underlying_demand|floatformat:1 }}%</td>
+                    <td class="value">
+                        {% if prev_quarter_summary %}
+                            {% with change=quarterly_summary.solar_utility_generation|sub:prev_quarter_summary.solar_utility_generation %}
+                                {% if change >= 0 %}+{% endif %}{{ change|floatformat:1 }}
+                            {% endwith %}
+                        {% else %}—{% endif %}
+                    </td>
+                </tr>
+                <tr class="renewable-row">
+                    <td><strong>Solar (Rooftop)</strong></td>
+                    <td class="value">{{ quarterly_summary.solar_rooftop_generation|floatformat:1 }}</td>
+                    <td class="value">{{ quarterly_summary.solar_rooftop_generation|percent:quarterly_summary.underlying_demand|floatformat:1 }}%</td>
+                    <td class="value">
+                        {% if prev_quarter_summary %}
+                            {% with change=quarterly_summary.solar_rooftop_generation|sub:prev_quarter_summary.solar_rooftop_generation %}
+                                {% if change >= 0 %}+{% endif %}{{ change|floatformat:1 }}
+                            {% endwith %}
+                        {% else %}—{% endif %}
+                    </td>
+                </tr>
+                <tr class="renewable-row">
+                    <td><strong>Biomass + Hydro</strong></td>
+                    <td class="value">{{ quarterly_summary.biomass_generation|add:quarterly_summary.hydro_generation|floatformat:1 }}</td>
+                    <td class="value">{{ quarterly_summary.biomass_generation|add:quarterly_summary.hydro_generation|percent:quarterly_summary.underlying_demand|floatformat:1 }}%</td>
+                    <td class="value">—</td>
+                </tr>
+                
+                <!-- Fossil Fuels -->
+                <tr class="fossil-row">
+                    <td>Gas (CCGT)</td>
+                    <td class="value">{{ quarterly_summary.gas_ccgt_generation|floatformat:1 }}</td>
+                    <td class="value">{{ quarterly_summary.gas_ccgt_generation|percent:quarterly_summary.underlying_demand|floatformat:1 }}%</td>
+                    <td class="value">
+                        {% if prev_quarter_summary %}
+                            {% with change=quarterly_summary.gas_ccgt_generation|sub:prev_quarter_summary.gas_ccgt_generation %}
+                                {% if change >= 0 %}+{% endif %}{{ change|floatformat:1 }}
+                            {% endwith %}
+                        {% else %}—{% endif %}
+                    </td>
+                </tr>
+                <tr class="fossil-row">
+                    <td>Gas (OCGT)</td>
+                    <td class="value">{{ quarterly_summary.gas_ocgt_generation|floatformat:1 }}</td>
+                    <td class="value">{{ quarterly_summary.gas_ocgt_generation|percent:quarterly_summary.underlying_demand|floatformat:1 }}%</td>
+                    <td class="value">
+                        {% if prev_quarter_summary %}
+                            {% with change=quarterly_summary.gas_ocgt_generation|sub:prev_quarter_summary.gas_ocgt_generation %}
+                                {% if change >= 0 %}+{% endif %}{{ change|floatformat:1 }}
+                            {% endwith %}
+                        {% else %}—{% endif %}
+                    </td>
+                </tr>
+
+                <!-- Totals -->
+                <tr class="total-row">
+                    <td><strong>TOTAL RENEWABLES</strong></td>
+                    <td class="value"><strong>{{ quarterly_summary.renewable_generation|floatformat:1 }}</strong></td>
+                    <td class="value"><strong>{{ quarterly_summary.re_percentage_underlying|floatformat:1 }}%</strong></td>
+                    <td class="value">—</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Monthly Breakdown -->
+    <div class="section">
+        <h2>Monthly Performance within Q{{ quarter }}</h2>
+        
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Month</th>
+                    <th class="value">Underlying Demand (GWh)</th>
+                    <th class="value">Renewable Gen (GWh)</th>
+                    <th class="value">RE%</th>
+                    <th class="value">Emissions (tonnes)</th>
+                    <th class="value">Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for monthly in monthly_performances %}
+                <tr>
+                    <td><strong>{{ monthly.month_name }} {{ year }}</strong></td>
+                    <td class="value">{{ monthly.underlying_demand|floatformat:0|intcomma }}</td>
+                    <td class="value">{{ monthly.renewable_generation|floatformat:0|intcomma }}</td>
+                    <td class="value"><strong>{{ monthly.re_percentage_underlying|floatformat:1 }}%</strong></td>
+                    <td class="value">{{ monthly.total_emissions_tonnes|floatformat:0|intcomma }}</td>
+                    <td class="value">
+                        {% if monthly.re_percentage_underlying >= target.target_percentage %}
+                            <span class="status-indicator on-track">✓</span>
+                        {% else %}
+                            <span class="status-indicator at-risk">⚠</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+                <tr class="total-row">
+                    <td><strong>Q{{ quarter }} TOTAL</strong></td>
+                    <td class="value"><strong>{{ quarterly_summary.underlying_demand|floatformat:0|intcomma }}</strong></td>
+                    <td class="value"><strong>{{ quarterly_summary.renewable_generation|floatformat:0|intcomma }}</strong></td>
+                    <td class="value"><strong>{{ quarterly_summary.re_percentage_underlying|floatformat:1 }}%</strong></td>
+                    <td class="value"><strong>{{ quarterly_summary.total_emissions|floatformat:0|intcomma }}</strong></td>
+                    <td class="value">—</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <p style="margin-top: 20px;">
+            <strong>Best Performing Month:</strong> 
+            {% for monthly in monthly_performances %}
+                {% if forloop.first or monthly.re_percentage_underlying > best_month_re %}
+                    {% if forloop.first %}
+                        {{ monthly.month_name }} ({{ monthly.re_percentage_underlying|floatformat:1 }}%)
+                    {% endif %}
+                {% endif %}
+            {% endfor %}
+        </p>
+    </div>
+
+    <!-- Year-to-Date Cumulative -->
+    <div class="section">
+        <h2>Cumulative Year-to-Date Performance</h2>
+        
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Metric</th>
+                    <th class="value">Q{{ quarter }} {{ year }}</th>
+                    <th class="value">YTD {{ year }}</th>
+                    <th class="value">YTD {{ year|add:"-1" }}</th>
+                    <th class="value">Change</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>Renewable Energy %</strong></td>
+                    <td class="value">{{ quarterly_summary.re_percentage_underlying|floatformat:1 }}%</td>
+                    <td class="value"><strong>{{ ytd_summary.re_percentage_underlying|floatformat:1 }}%</strong></td>
+                    <td class="value">{{ prev_ytd_summary.re_percentage_underlying|floatformat:1 }}%</td>
+                    <td class="value">
+                        {% with change=ytd_summary.re_percentage_underlying|sub:prev_ytd_summary.re_percentage_underlying %}
+                            {% if change >= 0 %}+{% endif %}{{ change|floatformat:1 }} pp
+                        {% endwith %}
+                    </td>
+                </tr>
+                <tr>
+                    <td>Total Emissions (tonnes CO₂-e)</td>
+                    <td class="value">{{ quarterly_summary.total_emissions|floatformat:0|intcomma }}</td>
+                    <td class="value">{{ ytd_summary.total_emissions|floatformat:0|intcomma }}</td>
+                    <td class="value">{{ prev_ytd_summary.total_emissions|floatformat:0|intcomma }}</td>
+                    <td class="value">
+                        {% with change=ytd_summary.total_emissions|sub:prev_ytd_summary.total_emissions %}
+                            {% with pct_change=change|div:prev_ytd_summary.total_emissions|mul:100 %}
+                                {% if pct_change >= 0 %}+{% endif %}{{ pct_change|floatformat:1 }}%
+                            {% endwith %}
+                        {% endwith %}
+                    </td>
+                </tr>
+                <tr>
+                    <td>Emissions Intensity (kg/MWh)</td>
+                    <td class="value">{{ quarterly_summary.emissions_intensity|floatformat:0 }}</td>
+                    <td class="value">{{ ytd_summary.emissions_intensity|floatformat:0 }}</td>
+                    <td class="value">{{ prev_ytd_summary.emissions_intensity|floatformat:0 }}</td>
+                    <td class="value">
+                        {% with change=ytd_summary.emissions_intensity|sub:prev_ytd_summary.emissions_intensity %}
+                            {% if change >= 0 %}+{% endif %}{{ change|floatformat:0 }}
+                        {% endwith %}
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+
+        <p style="margin-top: 20px;">
+            {% if ytd_summary.re_percentage_underlying >= target.target_percentage %}
+                ✓ YTD performance is <strong>{{ ytd_summary.re_percentage_underlying|sub:target.target_percentage|floatformat:1 }} percentage points ahead</strong> of the {{ year }} annual target.
+            {% else %}
+                ⚠ YTD performance is <strong>{{ target.target_percentage|sub:ytd_summary.re_percentage_underlying|floatformat:1 }} percentage points behind</strong> the {{ year }} annual target. Acceleration needed in remaining quarters.
+            {% endif %}
+        </p>
+    </div>
+
+    <!-- Charts -->
+    <div class="section">
+        <h2>Quarterly Trends</h2>
+        
+        <div class="chart-container">
+            <h3>Monthly Generation Breakdown (Q{{ quarter }} {{ year }})</h3>
+            <div id="monthly-generation-chart"></div>
+        </div>
+
+        <div class="chart-container">
+            <h3>Year-over-Year Comparison (Q{{ quarter }})</h3>
+            <div id="yoy-comparison-chart"></div>
+        </div>
+    </div>
+
+    <!-- New Capacity -->
+    {% if new_capacity %}
+    <div class="section">
+        <h2>New Capacity Commissioned in Q{{ quarter }} {{ year }}</h2>
+        
+        <ul>
+            {% for facility in new_capacity %}
+            <li style="margin: 10px 0;">
+                <strong>{{ facility.facility.facility_name }}</strong> - 
+                {{ facility.capacity_mw|floatformat:0 }} MW 
+                ({{ facility.technology_type }})
+                <br>
+                <small style="color: #666;">Commissioned: {{ facility.commissioned_date|date:"d F Y" }}</small>
+            </li>
+            {% endfor %}
+        </ul>
+
+        <p style="margin-top: 20px;">
+            <strong>Total New Capacity Q{{ quarter }} {{ year }}: {{ new_capacity|sum_attr:"capacity_mw"|floatformat:0 }} MW renewable</strong>
+        </p>
+    </div>
+    {% endif %}
+
+    <!-- Observations and Key Findings -->
+    <div class="section">
+        <h2>Key Observations</h2>
+        
+        <div class="observations">
+            <h3>Positive Developments</h3>
+            <ul>
+                {% if quarterly_summary.re_percentage_underlying > prev_quarter_summary.re_percentage_underlying %}
+                <li>RE% increased by {{ quarterly_summary.re_percentage_underlying|sub:prev_quarter_summary.re_percentage_underlying|floatformat:1 }} percentage points compared to Q{{ quarter }} {{ year|add:"-1" }}</li>
+                {% endif %}
+                
+                {% if ytd_summary.total_emissions < prev_ytd_summary.total_emissions %}
+                <li>YTD emissions reduced by {{ prev_ytd_summary.total_emissions|sub:ytd_summary.total_emissions|floatformat:0|intcomma }} tonnes CO₂-e ({{ prev_ytd_summary.total_emissions|sub:ytd_summary.total_emissions|div:prev_ytd_summary.total_emissions|mul:100|floatformat:1 }}%) compared to same period last year</li>
+                {% endif %}
+
+                {% if new_capacity %}
+                <li>{{ new_capacity|length }} new renewable facilit{{ new_capacity|length|pluralize:"y,ies" }} commissioned, adding {{ new_capacity|sum_attr:"capacity_mw"|floatformat:0 }} MW of capacity</li>
+                {% endif %}
+
+                <li>Wind generation contributed {{ quarterly_summary.wind_generation|percent:quarterly_summary.underlying_demand|floatformat:1 }}% of total underlying demand</li>
+                
+                <li>Combined solar (utility + rooftop) provided {{ quarterly_summary.solar_utility_generation|add:quarterly_summary.solar_rooftop_generation|percent:quarterly_summary.underlying_demand|floatformat:1 }}% of electricity</li>
+            </ul>
+        </div>
+
+        <div class="observations" style="background: #fce4ec; border-left-color: #e91e63;">
+            <h3>Challenges and Risks</h3>
+            <ul>
+                {% if quarterly_summary.re_percentage_underlying < target.target_percentage %}
+                <li>Quarterly RE% ({{ quarterly_summary.re_percentage_underlying|floatformat:1 }}%) is below annual target ({{ target.target_percentage }}%)</li>
+                {% endif %}
+
+                {% if quarterly_summary.gas_ocgt_generation > prev_quarter_summary.gas_ocgt_generation %}
+                <li>OCGT gas generation increased, indicating higher reliance on peaking generation</li>
+                {% endif %}
+
+                <li>Continued monitoring needed to ensure annual target achievement</li>
+            </ul>
+        </div>
+    </div>
+
+</div>
+
+<!-- Plotly Charts -->
+<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+<script>
+    // Monthly Generation Breakdown Chart
+    var monthlyGenData = [
+        {
+            x: [{% for monthly in monthly_performances %}'{{ monthly.month_name }}'{% if not forloop.last %}, {% endif %}{% endfor %}],
+            y: [{% for monthly in monthly_performances %}{{ monthly.wind_generation|default:0 }}{% if not forloop.last %}, {% endif %}{% endfor %}],
+            name: 'Wind',
+            type: 'bar',
+            marker: {color: '#4CAF50'}
+        },
+        {
+            x: [{% for monthly in monthly_performances %}'{{ monthly.month_name }}'{% if not forloop.last %}, {% endif %}{% endfor %}],
+            y: [{% for monthly in monthly_performances %}{{ monthly.solar_utility_generation|default:0 }}{% if not forloop.last %}, {% endif %}{% endfor %}],
+            name: 'Solar (Utility)',
+            type: 'bar',
+            marker: {color: '#FFC107'}
+        },
+        {
+            x: [{% for monthly in monthly_performances %}'{{ monthly.month_name }}'{% if not forloop.last %}, {% endif %}{% endfor %}],
+            y: [{% for monthly in monthly_performances %}{{ monthly.solar_rooftop_generation|default:0 }}{% if not forloop.last %}, {% endif %}{% endfor %}],
+            name: 'Solar (Rooftop)',
+            type: 'bar',
+            marker: {color: '#FFE082'}
+        },
+        {
+            x: [{% for monthly in monthly_performances %}'{{ monthly.month_name }}'{% if not forloop.last %}, {% endif %}{% endfor %}],
+            y: [{% for monthly in monthly_performances %}{{ monthly.gas_ccgt_generation|default:0 }}{% if not forloop.last %}, {% endif %}{% endfor %}],
+            name: 'Gas (CCGT)',
+            type: 'bar',
+            marker: {color: '#9E9E9E'}
+        },
+        {
+            x: [{% for monthly in monthly_performances %}'{{ monthly.month_name }}'{% if not forloop.last %}, {% endif %}{% endfor %}],
+            y: [{% for monthly in monthly_performances %}{{ monthly.gas_ocgt_generation|default:0 }}{% if not forloop.last %}, {% endif %}{% endfor %}],
+            name: 'Gas (OCGT)',
+            type: 'bar',
+            marker: {color: '#757575'}
+        }
+    ];
+
+    var monthlyLayout = {
+        barmode: 'stack',
+        title: 'Monthly Generation by Technology',
+        xaxis: {title: 'Month'},
+        yaxis: {title: 'Generation (GWh)'},
+        legend: {x: 0, y: 1.2, orientation: 'h'}
+    };
+
+    Plotly.newPlot('monthly-generation-chart', monthlyGenData, monthlyLayout, {responsive: true});
+
+    // Year-over-Year Comparison
+    var yoyData = [
+        {
+            x: ['Q{{ quarter }} {{ year|add:"-1" }}', 'Q{{ quarter }} {{ year }}'],
+            y: [{{ prev_quarter_summary.re_percentage_underlying|default:0 }}, {{ quarterly_summary.re_percentage_underlying }}],
+            name: 'RE%',
+            type: 'bar',
+            marker: {color: ['#90CAF9', '#2196F3']}
+        }
+    ];
+
+    var yoyLayout = {
+        title: 'Renewable Energy % Comparison',
+        yaxis: {title: 'RE%', range: [0, 100]},
+        showlegend: false
+    };
+
+    Plotly.newPlot('yoy-comparison-chart', yoyData, yoyLayout, {responsive: true});
+</script>
+{% endblock %}

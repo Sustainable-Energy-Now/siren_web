@@ -1473,6 +1473,324 @@ class Reference(models.Model):
         """Check if this is a web-based source"""
         return self.reference_type == 'web' or (self.location and self.location.startswith('http'))
 
+class RenewableEnergyTarget(models.Model):
+    """Store renewable energy targets for different years"""
+    target_year = models.IntegerField(unique=True, db_index=True)
+    target_percentage = models.FloatField(help_text="Target RE% for this year")
+    target_emissions_tonnes = models.FloatField(null=True, blank=True, 
+                                                help_text="Target emissions in tonnes CO2-e")
+    description = models.CharField(max_length=500, blank=True, null=True)
+    is_interim_target = models.BooleanField(default=False, 
+                                           help_text="Is this an interim milestone?")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        db_table = 'renewable_energy_targets'
+        ordering = ['target_year']
+    
+    def __str__(self):
+        return f"{self.target_year}: {self.target_percentage}% RE Target"
+    
+    def get_monthly_target(self, month):
+        """Calculate monthly target based on linear interpolation"""
+        # Simplified - could be enhanced with seasonal adjustments
+        return self.target_percentage
+
+class MonthlyREPerformance(models.Model):
+    """Store monthly renewable energy performance data"""
+    year = models.IntegerField(db_index=True)
+    month = models.IntegerField(db_index=True, 
+                                help_text="Month number (1-12)")
+    
+    # Generation data (GWh)
+    total_generation = models.FloatField(help_text="Total grid generation in GWh")
+    operational_demand = models.FloatField(help_text="Operational demand in GWh")
+    underlying_demand = models.FloatField(help_text="Underlying demand (includes rooftop) in GWh")
+    
+    # Renewable generation by technology (GWh)
+    wind_generation = models.FloatField(default=0)
+    solar_utility_generation = models.FloatField(default=0)
+    solar_rooftop_generation = models.FloatField(default=0)
+    biomass_generation = models.FloatField(default=0)
+    hydro_generation = models.FloatField(default=0)
+    
+    # Non-renewable generation (GWh)
+    gas_ccgt_generation = models.FloatField(default=0, help_text="Combined Cycle Gas Turbine")
+    gas_ocgt_generation = models.FloatField(default=0, help_text="Open Cycle Gas Turbine")
+    coal_generation = models.FloatField(default=0)
+    
+    # Battery (for information only - not counted in RE%)
+    battery_discharge = models.FloatField(default=0)
+    battery_charge = models.FloatField(default=0)
+    
+    # Emissions data
+    total_emissions_tonnes = models.FloatField(help_text="Total emissions in tonnes CO2-e")
+    emissions_intensity_kg_mwh = models.FloatField(help_text="Grid emissions intensity kg CO2-e/MWh")
+    
+    # Peak/minimum stats
+    peak_demand_mw = models.FloatField(null=True, blank=True)
+    peak_demand_datetime = models.DateTimeField(null=True, blank=True)
+    minimum_demand_mw = models.FloatField(null=True, blank=True)
+    minimum_demand_datetime = models.DateTimeField(null=True, blank=True)
+    best_re_hour_percentage = models.FloatField(null=True, blank=True)
+    best_re_hour_datetime = models.DateTimeField(null=True, blank=True)
+    
+    # Data quality
+    data_complete = models.BooleanField(default=False)
+    data_source = models.CharField(max_length=100, default='SCADA')
+    notes = models.TextField(blank=True, null=True)
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        db_table = 'monthly_re_performance'
+        unique_together = ['year', 'month']
+        ordering = ['-year', '-month']
+        indexes = [
+            models.Index(fields=['year', 'month']),
+            models.Index(fields=['-year', '-month']),
+        ]
+    
+    def __str__(self):
+        return f"{self.get_month_name()} {self.year}"
+    
+    @property
+    def total_renewable_generation(self):
+        """Calculate total renewable generation"""
+        return (self.wind_generation + 
+                self.solar_utility_generation + 
+                self.solar_rooftop_generation + 
+                self.biomass_generation + 
+                self.hydro_generation)
+    
+    @property
+    def re_percentage_operational(self):
+        """Calculate RE% based on operational demand"""
+        if self.operational_demand > 0:
+            # Exclude rooftop solar for operational demand basis
+            re_gen = (self.wind_generation + 
+                     self.solar_utility_generation + 
+                     self.biomass_generation + 
+                     self.hydro_generation)
+            return (re_gen / self.operational_demand) * 100
+        return 0
+    
+    @property
+    def re_percentage_underlying(self):
+        """Calculate RE% based on underlying demand (PRIMARY METRIC)"""
+        if self.underlying_demand > 0:
+            return (self.total_renewable_generation / self.underlying_demand) * 100
+        return 0
+    
+    @property
+    def dpv_percentage_underlying(self):
+        """Calculate distributed PV percentage of underlying demand"""
+        if self.underlying_demand > 0:
+            return (self.solar_rooftop_generation / self.underlying_demand) * 100
+        return 0
+    
+    @property
+    def battery_net_discharge(self):
+        """Net battery discharge (positive = net discharge)"""
+        return self.battery_discharge - self.battery_charge
+    
+    def get_month_name(self):
+        """Return month name"""
+        months = ['', 'January', 'February', 'March', 'April', 'May', 'June',
+                 'July', 'August', 'September', 'October', 'November', 'December']
+        return months[self.month] if 1 <= self.month <= 12 else 'Unknown'
+    
+    def get_target_for_period(self):
+        """Get the renewable energy target for this period"""
+        try:
+            target = RenewableEnergyTarget.objects.get(target_year=self.year)
+            return target
+        except RenewableEnergyTarget.DoesNotExist:
+            # Interpolate if exact year not found
+            return self.interpolate_target()
+    
+    def interpolate_target(self):
+        """Interpolate target between known target years"""
+        targets = RenewableEnergyTarget.objects.all().order_by('target_year')
+        
+        # Find surrounding targets
+        before = targets.filter(target_year__lt=self.year).last()
+        after = targets.filter(target_year__gt=self.year).first()
+        
+        if before and after:
+            # Linear interpolation
+            year_diff = after.target_year - before.target_year
+            year_progress = self.year - before.target_year
+            target_diff = after.target_percentage - before.target_percentage
+            
+            interpolated_percentage = before.target_percentage + (target_diff * year_progress / year_diff)
+            
+            # Create a temporary target object (not saved)
+            from collections import namedtuple
+            Target = namedtuple('Target', ['target_year', 'target_percentage'])
+            return Target(self.year, interpolated_percentage)
+        elif before:
+            return before
+        elif after:
+            return after
+        
+        return None
+    
+    def get_status_vs_target(self):
+        """Determine if performance is ahead/behind target"""
+        target = self.get_target_for_period()
+        if not target:
+            return {'status': 'unknown', 'gap': 0, 'message': 'No target set'}
+        
+        gap = self.re_percentage_underlying - target.target_percentage
+        
+        if gap >= 0:
+            return {
+                'status': 'ahead',
+                'gap': gap,
+                'message': f'✓ {abs(gap):.1f} percentage points ahead'
+            }
+        else:
+            return {
+                'status': 'behind',
+                'gap': gap,
+                'message': f'⚠ {abs(gap):.1f} percentage points behind'
+            }
+    
+    def calculate_ytd_summary(self):
+        """Calculate year-to-date summary up to this month"""
+        ytd_records = MonthlyREPerformance.objects.filter(
+            year=self.year,
+            month__lte=self.month
+        )
+        
+        summary = {
+            'total_generation': sum(r.total_generation for r in ytd_records),
+            'operational_demand': sum(r.operational_demand for r in ytd_records),
+            'underlying_demand': sum(r.underlying_demand for r in ytd_records),
+            'renewable_generation': sum(r.total_renewable_generation for r in ytd_records),
+            'total_emissions': sum(r.total_emissions_tonnes for r in ytd_records),
+            'wind_generation': sum(r.wind_generation for r in ytd_records),
+            'solar_utility_generation': sum(r.solar_utility_generation for r in ytd_records),
+            'solar_rooftop_generation': sum(r.solar_rooftop_generation for r in ytd_records),
+            'biomass_generation': sum(r.biomass_generation for r in ytd_records),
+            'hydro_generation': sum(r.hydro_generation for r in ytd_records),
+        }
+        
+        # Calculate percentages
+        if summary['underlying_demand'] > 0:
+            summary['re_percentage'] = (summary['renewable_generation'] / 
+                                       summary['underlying_demand']) * 100
+            summary['emissions_intensity'] = (summary['total_emissions'] / 
+                                             (summary['underlying_demand'] * 1000))  # kg/MWh
+        else:
+            summary['re_percentage'] = 0
+            summary['emissions_intensity'] = 0
+        
+        return summary
+
+class NewCapacityCommissioned(models.Model):
+    """Track new renewable capacity commissioned"""
+    facility = models.ForeignKey('facilities', on_delete=models.CASCADE, 
+                                related_name='commissioning_records')
+    commissioned_date = models.DateField()
+    capacity_mw = models.FloatField(help_text="Capacity in MW")
+    technology_type = models.CharField(max_length=50)
+    
+    # Monthly association for reporting
+    report_year = models.IntegerField()
+    report_month = models.IntegerField()
+    
+    status = models.CharField(max_length=20, choices=[
+        ('commissioned', 'Commissioned'),
+        ('under_construction', 'Under Construction'),
+        ('planned', 'Planned'),
+        ('probable', 'Probable'),
+        ('possible', 'Possible'),
+    ], default='commissioned')
+    
+    expected_commissioning_date = models.DateField(null=True, blank=True,
+                                                   help_text="For future projects")
+    
+    notes = models.TextField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        db_table = 'new_capacity_commissioned'
+        ordering = ['-commissioned_date']
+        indexes = [
+            models.Index(fields=['commissioned_date']),
+            models.Index(fields=['report_year', 'report_month']),
+        ]
+    
+    def __str__(self):
+        return f"{self.facility.facility_name} - {self.capacity_mw}MW ({self.commissioned_date})"
+
+class TargetScenario(models.Model):
+    """Store different scenarios for 2040 target achievement"""
+    scenario_name = models.CharField(max_length=100, unique=True)
+    scenario_type = models.CharField(max_length=30, choices=[
+        ('base_case', 'Base Case'),
+        ('high_electrification', 'High Electrification'),
+        ('delayed_pipeline', 'Delayed Pipeline'),
+        ('accelerated_pipeline', 'Accelerated Pipeline'),
+    ])
+    
+    description = models.TextField()
+    
+    # 2040 Projections
+    projected_re_percentage_2040 = models.FloatField()
+    projected_emissions_2040_tonnes = models.FloatField()
+    
+    # Generation mix projections for 2040 (GWh)
+    wind_generation_2040 = models.FloatField()
+    solar_utility_generation_2040 = models.FloatField()
+    solar_rooftop_generation_2040 = models.FloatField()
+    biomass_hydro_generation_2040 = models.FloatField()
+    gas_ccgt_generation_2040 = models.FloatField()
+    gas_ocgt_generation_2040 = models.FloatField()
+    
+    # Probability of achievement
+    probability_percentage = models.FloatField(null=True, blank=True,
+                                              help_text="Monte Carlo probability (%)")
+    
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        db_table = 'target_scenarios'
+        ordering = ['scenario_type']
+    
+    def __str__(self):
+        return f"{self.scenario_name}: {self.projected_re_percentage_2040}% by 2040"
+    
+    @property
+    def total_generation_2040(self):
+        """Calculate total generation for 2040"""
+        return (self.wind_generation_2040 + 
+                self.solar_utility_generation_2040 + 
+                self.solar_rooftop_generation_2040 + 
+                self.biomass_hydro_generation_2040 + 
+                self.gas_ccgt_generation_2040 + 
+                self.gas_ocgt_generation_2040)
+    
+    def get_status_vs_target(self, target_year=2040):
+        """Check if scenario meets target"""
+        try:
+            target = RenewableEnergyTarget.objects.get(target_year=target_year)
+            gap = self.projected_re_percentage_2040 - target.target_percentage
+            
+            return {
+                'meets_target': gap >= 0,
+                'gap': gap,
+                'message': f"{'✓ Exceeds' if gap >= 0 else '✗ Below'} target by {abs(gap):.1f}pp"
+            }
+        except RenewableEnergyTarget.DoesNotExist:
+            return {'meets_target': None, 'gap': 0, 'message': 'No target set'}
+
 class ScenariosFacilities(models.Model):
     idscenariosfacilities = models.AutoField(primary_key=True)  
     idscenarios = models.ForeignKey('Scenarios', on_delete=models.CASCADE, db_column='idScenarios')

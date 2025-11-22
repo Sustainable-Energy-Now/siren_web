@@ -16,6 +16,17 @@
             }
         },
         {
+            "name": "Python Debugger: Update RET dashboard",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}\\manage.py",
+            "args": [
+                "update_ret_dashboard"
+            ],
+            "django": true,
+            "autoStartBrowser": false
+        },
+        {
             "name": "Python Debugger: Load Wholesale Prices",
             "type": "debugpy",
             "request": "launch",

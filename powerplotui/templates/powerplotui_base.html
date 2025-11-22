@@ -22,13 +22,17 @@
           <a href="/supply_plot/">Facility Supply</a>
         </li>
         <li class="nav-item">
-          <a href="/scada-plot/">Facility Scada</a>
-        </li>
-        <li class="nav-item">
           <a href="/variants/">Variants Statistics</a>
         </li>
-        <li class="nav-item">
-          <a href="/scada_analysis/">Scada Analysis</a>
+        <li class="nav-item dropdown">
+          <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+            Scada Data
+          </a>
+          <ul class="dropdown-menu">
+            <li><a class="dropdown-item" href="{% url 'scada_plot' %}">Facility Scada</a></li>
+            <li><a class="dropdown-item" href="{% url 'scada_analysis' %}">Scada Analysis</a></li>
+            <li><a class="dropdown-item" href="{% url 'ret_dashboard' %}">RET Dashboard</a></li>
+          </ul>
         </li>
         <li class="nav-item">
           <a href="/trading_prices/">Trading Prices</a>

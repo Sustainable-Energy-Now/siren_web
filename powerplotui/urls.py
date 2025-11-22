@@ -2,8 +2,8 @@
 from django.urls import path
 from .views.variants_views import VariantsView
 from .views.echart_views import eChartView
-from .views import facility_scada_views, tradingprice_views, plot3D_views, powerplotui_home_views, supplyfactors_views, \
-    scada_views
+from .views import facility_scada_views, tradingprice_views, plot3D_views, powerplotui_home_views, ret_dashboard_views, \
+    supplyfactors_views, scada_views
 
 urlpatterns = [
     path('powerplotui/', powerplotui_home_views.powerplotui_home, name='powerplotui_home'),
@@ -37,7 +37,17 @@ urlpatterns = [
     path('scada_analysis/<int:year>/<int:month>/', scada_views.scada_analysis_report, name='scada_analysis_detail'),
     # Export historical data endpoint
     path('scada_analysis/export/', scada_views.export_historical_data, name='export_historical_data'),
+
+    # RET Dashboard URLs
+    path('ret_dashboard/', ret_dashboard_views.ret_dashboard, name='ret_dashboard'),
+    path('ret_dashboard/<int:year>/<int:month>/', ret_dashboard_views.ret_dashboard, name='ret_dashboard_period'),
+    path('ret_quarterly_report/<int:year>/<int:quarter>/', ret_dashboard_views.quarterly_report, name='quarterly_report'),
+    path('ret_annual_review/<int:year>/', ret_dashboard_views.annual_review, name='annual_review'),
     
+    # API endpoints for data updates
+    path('api/ret_dashboard/update_monthly/', ret_dashboard_views.update_monthly_data, name='update_monthly_data'),
+    path('api/ret_dashboard/calculate/<int:year>/<int:month>/', ret_dashboard_views.api_calculate_monthly, name='api_calculate_monthly'),
+
     # Miscellaneous URLs
     path('trading_prices/', tradingprice_views.trading_price_list, name='trading_price_list'),
     path('trading_prices/update/<int:pk>/', tradingprice_views.update_trading_price, name='update_trading_price'),

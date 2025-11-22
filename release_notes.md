@@ -1,4 +1,8 @@
 # Release Notes (Latest first)
+## Version 3.14.0 - November 20, 2025
+### 🆕 New Features
+- Feature: Renewable Energy Target (RET) ([#46](https://github.com/Sustainable-Energy-Now/siren_web/issues/46))
+
 ## Version 3.13.0 - November 14, 2025
 ### 🆕 New Features
 - Feature: Solar CRUD ([#42](https://github.com/Sustainable-Energy-Now/siren_web/issues/42))
