@@ -16,6 +16,17 @@
             }
         },
         {
+            "name": "Python Debugger: Scada to Excel",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}\\manage.py",
+            "args": [
+                "scada_to_excel", "SCADA_2025-10-31.json"
+            ],
+            "django": true,
+            "autoStartBrowser": false
+        },
+        {
             "name": "Python Debugger: Update RET dashboard",
             "type": "debugpy",
             "request": "launch",

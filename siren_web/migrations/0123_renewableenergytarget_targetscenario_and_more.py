@@ -82,10 +82,10 @@ class Migration(migrations.Migration):
                 ("projected_re_percentage_2030", models.FloatField()),
                 ("projected_emissions_2030_tonnes", models.FloatField()),
                 ("wind_generation_2030", models.FloatField()),
-                ("solar_utility_generation_2030", models.FloatField()),
-                ("solar_rooftop_generation_2030", models.FloatField()),
+                ("solar_generation_2030", models.FloatField()),
+                ("dpv_generation_2030", models.FloatField()),
                 ("biomass_hydro_generation_2030", models.FloatField()),
-                ("gas_ccgt_generation_2030", models.FloatField()),
+                ("gas_generation_2030", models.FloatField()),
                 ("gas_ocgt_generation_2030", models.FloatField()),
                 (
                     "probability_percentage",
@@ -134,12 +134,12 @@ class Migration(migrations.Migration):
                     ),
                 ),
                 ("wind_generation", models.FloatField(default=0)),
-                ("solar_utility_generation", models.FloatField(default=0)),
-                ("solar_rooftop_generation", models.FloatField(default=0)),
+                ("solar_generation", models.FloatField(default=0)),
+                ("dpv_generation", models.FloatField(default=0)),
                 ("biomass_generation", models.FloatField(default=0)),
                 ("hydro_generation", models.FloatField(default=0)),
                 (
-                    "gas_ccgt_generation",
+                    "gas_generation",
                     models.FloatField(
                         default=0, help_text="Combined Cycle Gas Turbine"
                     ),
@@ -149,8 +149,8 @@ class Migration(migrations.Migration):
                     models.FloatField(default=0, help_text="Open Cycle Gas Turbine"),
                 ),
                 ("coal_generation", models.FloatField(default=0)),
-                ("battery_discharge", models.FloatField(default=0)),
-                ("battery_charge", models.FloatField(default=0)),
+                ("storage_discharge", models.FloatField(default=0)),
+                ("storage_charge", models.FloatField(default=0)),
                 (
                     "total_emissions_tonnes",
                     models.FloatField(help_text="Total emissions in tonnes CO2-e"),

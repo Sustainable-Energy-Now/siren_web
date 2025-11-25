@@ -16,8 +16,8 @@ class Migration(migrations.Migration):
         ),
         migrations.RenameField(
             model_name="targetscenario",
-            old_name="gas_ccgt_generation_2030",
-            new_name="gas_ccgt_generation_2040",
+            old_name="gas_generation_2030",
+            new_name="gas_generation_2040",
         ),
         migrations.RenameField(
             model_name="targetscenario",
@@ -36,13 +36,13 @@ class Migration(migrations.Migration):
         ),
         migrations.RenameField(
             model_name="targetscenario",
-            old_name="solar_rooftop_generation_2030",
-            new_name="solar_rooftop_generation_2040",
+            old_name="dpv_generation_2030",
+            new_name="dpv_generation_2040",
         ),
         migrations.RenameField(
             model_name="targetscenario",
-            old_name="solar_utility_generation_2030",
-            new_name="solar_utility_generation_2040",
+            old_name="solar_generation_2030",
+            new_name="solar_generation_2040",
         ),
         migrations.RenameField(
             model_name="targetscenario",

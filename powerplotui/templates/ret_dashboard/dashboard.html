@@ -110,13 +110,13 @@
             </tr>
             <tr class="renewable-row">
                 <td><strong>Solar (Utility)</strong></td>
-                <td class="value">{{ performance.solar_utility_generation|floatformat:1 }}</td>
-                <td class="value">{{ performance.solar_utility_generation|div:performance.underlying_demand|mul:100|floatformat:1 }}%</td>
+                <td class="value">{{ performance.solar_generation|floatformat:1 }}</td>
+                <td class="value">{{ performance.solar_generation|div:performance.underlying_demand|mul:100|floatformat:1 }}%</td>
             </tr>
             <tr class="renewable-row">
                 <td><strong>Solar (Rooftop)</strong></td>
-                <td class="value">{{ performance.solar_rooftop_generation|floatformat:1 }}</td>
-                <td class="value">{{ performance.solar_rooftop_generation|div:performance.underlying_demand|mul:100|floatformat:1 }}%</td>
+                <td class="value">{{ performance.dpv_generation|floatformat:1 }}</td>
+                <td class="value">{{ performance.dpv_generation|div:performance.underlying_demand|mul:100|floatformat:1 }}%</td>
             </tr>
             <tr class="renewable-row">
                 <td><strong>Biomass + Hydro</strong></td>
@@ -125,19 +125,14 @@
             </tr>
             <tr class="fossil-row">
                 <td>Gas (CCGT)</td>
-                <td class="value">{{ performance.gas_ccgt_generation|floatformat:1 }}</td>
-                <td class="value">{{ performance.gas_ccgt_generation|div:performance.underlying_demand|mul:100|floatformat:1 }}%</td>
+                <td class="value">{{ performance.gas_generation|floatformat:1 }}</td>
+                <td class="value">{{ performance.gas_generation|div:performance.underlying_demand|mul:100|floatformat:1 }}%</td>
             </tr>
-            <tr class="fossil-row">
-                <td>Gas (OCGT)</td>
-                <td class="value">{{ performance.gas_ocgt_generation|floatformat:1 }}</td>
-                <td class="value">{{ performance.gas_ocgt_generation|div:performance.underlying_demand|mul:100|floatformat:1 }}%</td>
-            </tr>
-            {% if performance.battery_net_discharge > 0 %}
+            {% if performance.storage_net_discharge > 0 %}
             <tr class="info-row">
                 <td><em>Battery (net discharge)</em></td>
-                <td class="value"><em>{{ performance.battery_net_discharge|floatformat:1 }}</em></td>
-                <td class="value"><em>{{ performance.battery_net_discharge|div:performance.underlying_demand|mul:100|floatformat:1 }}%</em></td>
+                <td class="value"><em>{{ performance.storage_net_discharge|floatformat:1 }}</em></td>
+                <td class="value"><em>{{ performance.storage_net_discharge|div:performance.underlying_demand|mul:100|floatformat:1 }}%</em></td>
             </tr>
             {% endif %}
         </tbody>
@@ -345,8 +340,8 @@
         <ul class="bullet-list">
             <li><strong>Growing integration challenge:</strong> Need more battery storage and grid flexibility</li>
             <li><strong>Strong performance:</strong> New wind and solar facilities performing at/above expectations</li>
-            {% if performance.battery_net_discharge > 0 %}
-            <li><strong>Battery value:</strong> BESS avoided ~{{ performance.battery_net_discharge|floatformat:0 }} GWh 
+            {% if performance.storage_net_discharge > 0 %}
+            <li><strong>Battery value:</strong> BESS avoided ~{{ performance.storage_net_discharge|floatformat:0 }} GWh 
                 of curtailment this month</li>
             {% endif %}
         </ul>

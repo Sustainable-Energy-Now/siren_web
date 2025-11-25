@@ -80,11 +80,10 @@ class Command(BaseCommand):
                 'projected_re_percentage_2040': 76.8,
                 'projected_emissions_2040_tonnes': 3890000,
                 'wind_generation_2040': 9247,
-                'solar_utility_generation_2040': 4187,
-                'solar_rooftop_generation_2040': 3413,
-                'biomass_hydro_generation_2040': 547,
-                'gas_ccgt_generation_2040': 4789,
-                'gas_ocgt_generation_2040': 767,
+                'solar_generation_2040': 4187,
+                'dpv_generation_2040': 3413,
+                'biomass_generation_2040': 547,
+                'gas_generation_2040': 4789,
                 'probability_percentage': 78.0,
                 'is_active': True
             },
@@ -96,11 +95,10 @@ class Command(BaseCommand):
                 'projected_re_percentage_2040': 68.5,
                 'projected_emissions_2040_tonnes': 5200000,
                 'wind_generation_2040': 9247,
-                'solar_utility_generation_2040': 4187,
-                'solar_rooftop_generation_2040': 3900,  # Higher rooftop adoption
-                'biomass_hydro_generation_2040': 547,
-                'gas_ccgt_generation_2040': 6500,  # More gas needed
-                'gas_ocgt_generation_2040': 1200,
+                'solar_generation_2040': 4187,
+                'dpv_generation_2040': 3900,  # Higher rooftop adoption
+                'biomass_generation_2040': 547,
+                'gas_generation_2040': 6500,  # More gas needed
                 'probability_percentage': 35.0,
                 'is_active': True
             },
@@ -112,11 +110,10 @@ class Command(BaseCommand):
                 'projected_re_percentage_2040': 71.2,
                 'projected_emissions_2040_tonnes': 4850000,
                 'wind_generation_2040': 7800,  # Reduced from delays
-                'solar_utility_generation_2040': 3600,  # Reduced from delays
-                'solar_rooftop_generation_2040': 3413,
-                'biomass_hydro_generation_2040': 547,
-                'gas_ccgt_generation_2040': 5600,
-                'gas_ocgt_generation_2040': 950,
+                'solar_generation_2040': 3600,  # Reduced from delays
+                'dpv_generation_2040': 3413,
+                'biomass_generation_2040': 547,
+                'gas_generation_2040': 5600,
                 'probability_percentage': 22.0,
                 'is_active': True
             },
@@ -128,11 +125,10 @@ class Command(BaseCommand):
                 'projected_re_percentage_2040': 82.3,
                 'projected_emissions_2040_tonnes': 3100000,
                 'wind_generation_2040': 11200,
-                'solar_utility_generation_2040': 5400,
-                'solar_rooftop_generation_2040': 3413,
-                'biomass_hydro_generation_2040': 547,
-                'gas_ccgt_generation_2040': 3800,
-                'gas_ocgt_generation_2040': 450,
+                'solar_generation_2040': 5400,
+                'dpv_generation_2040': 3413,
+                'biomass_generation_2040': 547,
+                'gas_generation_2040': 3800,
                 'probability_percentage': 45.0,
                 'is_active': True
             },

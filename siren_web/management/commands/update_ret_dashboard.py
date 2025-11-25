@@ -154,14 +154,13 @@ class Command(BaseCommand):
                 'operational_demand': operational_demand,
                 'underlying_demand': underlying_demand,
                 'wind_generation': generation_data['wind'],
-                'solar_utility_generation': generation_data['solar_utility'],
-                'solar_rooftop_generation': rooftop_solar,
+                'solar_generation': generation_data['solar_utility'],
+                'dpv_generation': rooftop_solar,
                 'biomass_generation': generation_data['biomass'],
                 'hydro_generation': generation_data['hydro'],
-                'gas_ccgt_generation': generation_data.get('gas_ccgt', 0),
-                'gas_ocgt_generation': generation_data.get('gas_ocgt', 0),
-                'battery_discharge': generation_data.get('battery_discharge', 0),
-                'battery_charge': generation_data.get('battery_charge', 0),
+                'gas_generation': generation_data.get('gas_ccgt', 0),
+                'storage_discharge': generation_data.get('storage_discharge', 0),
+                'storage_charge': generation_data.get('storage_charge', 0),
                 'total_emissions_tonnes': emissions_data['total_emissions'],
                 'emissions_intensity_kg_mwh': emissions_data['emissions_intensity'],
                 'peak_demand_mw': peak_min_data.get('peak_mw'),
@@ -202,8 +201,8 @@ class Command(BaseCommand):
             'gas_ocgt': 0,
             'gas': 0,  # Generic gas
             'coal': 0,
-            'battery_discharge': 0,
-            'battery_charge': 0,
+            'storage_discharge': 0,
+            'storage_charge': 0,
         }
         
         # Aggregate generation by fuel type
@@ -232,9 +231,9 @@ class Command(BaseCommand):
                 if 'battery' in tech_name or 'bess' in tech_name or 'storage' in category:
                     # Batteries: positive is discharge, negative might be charge
                     if gen_gwh >= 0:
-                        generation['battery_discharge'] += gen_gwh
+                        generation['storage_discharge'] += gen_gwh
                     else:
-                        generation['battery_charge'] += abs(gen_gwh)
+                        generation['storage_charge'] += abs(gen_gwh)
                 continue
             
             # Map fuel types to generation categories
@@ -271,7 +270,7 @@ class Command(BaseCommand):
             generation['gas_ocgt'] +
             generation['gas'] +
             generation['coal'] +
-            generation['battery_discharge']
+            generation['storage_discharge']
         )
         
         return generation

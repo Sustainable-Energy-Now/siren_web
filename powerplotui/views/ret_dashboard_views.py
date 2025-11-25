@@ -243,14 +243,13 @@ def calculate_monthly_performance(year, month):
             'operational_demand': generation['operational_demand'],
             'underlying_demand': underlying_demand,
             'wind_generation': generation['wind'],
-            'solar_utility_generation': generation['solar'],
-            'solar_rooftop_generation': generation['dpv'],
+            'solar_generation': generation['solar'],
+            'dpv_generation': generation['dpv'],
             'biomass_generation': generation['biomass'],
-            'hydro_generation': generation['hydro'],
-            'gas_ccgt_generation': generation['gas'],
+            'gas_generation': generation['gas'],
             'coal_generation': generation['coal'],
-            'battery_discharge': generation['bess_discharge'],
-            'battery_charge': generation['bess_charge'],
+            'storage_discharge': generation['bess_discharge'],
+            'storage_charge': generation['bess_charge'] + generation['hydro_charge'],
             'total_emissions_tonnes': total_emissions,
             'emissions_intensity_kg_mwh': emissions_intensity,
             'peak_demand_mw': peak_record.quantity if peak_record else None,
@@ -302,11 +301,10 @@ def generate_generation_mix_chart(performance):
     
     values = [
         performance.wind_generation,
-        performance.solar_utility_generation,
-        performance.solar_rooftop_generation,
+        performance.solar_generation,
+        performance.dpv_generation,
         performance.biomass_generation + performance.hydro_generation,
-        performance.gas_ccgt_generation,
-        performance.gas_ocgt_generation,
+        performance.gas_generation,
     ]
     
     # Colors - green for renewables, gray for fossil
@@ -571,23 +569,22 @@ def calculate_aggregate_summary(queryset):
         operational_demand=Sum('operational_demand'),
         underlying_demand=Sum('underlying_demand'),
         wind_generation=Sum('wind_generation'),
-        solar_utility_generation=Sum('solar_utility_generation'),
-        solar_rooftop_generation=Sum('solar_rooftop_generation'),
+        solar_generation=Sum('solar_generation'),
+        dpv_generation=Sum('dpv_generation'),
         biomass_generation=Sum('biomass_generation'),
         hydro_generation=Sum('hydro_generation'),
-        gas_ccgt_generation=Sum('gas_ccgt_generation'),
-        gas_ocgt_generation=Sum('gas_ocgt_generation'),
+        gas_generation=Sum('gas_generation'),
         coal_generation=Sum('coal_generation'),
-        battery_discharge=Sum('battery_discharge'),
-        battery_charge=Sum('battery_charge'),
+        storage_discharge=Sum('storage_discharge'),
+        storage_charge=Sum('storage_charge'),
         total_emissions_tonnes=Sum('total_emissions_tonnes'),
     )
     
     # Calculate renewable generation total
     renewable_generation = (
         (totals['wind_generation'] or 0) +
-        (totals['solar_utility_generation'] or 0) +
-        (totals['solar_rooftop_generation'] or 0) +
+        (totals['solar_generation'] or 0) +
+        (totals['dpv_generation'] or 0) +
         (totals['biomass_generation'] or 0) +
         (totals['hydro_generation'] or 0)
     )
@@ -611,15 +608,14 @@ def calculate_aggregate_summary(queryset):
         'operational_demand': totals['operational_demand'] or 0,
         'underlying_demand': underlying_demand,
         'wind_generation': totals['wind_generation'] or 0,
-        'solar_utility_generation': totals['solar_utility_generation'] or 0,
-        'solar_rooftop_generation': totals['solar_rooftop_generation'] or 0,
+        'solar_generation': totals['solar_generation'] or 0,
+        'dpv_generation': totals['dpv_generation'] or 0,
         'biomass_generation': totals['biomass_generation'] or 0,
         'hydro_generation': totals['hydro_generation'] or 0,
-        'gas_ccgt_generation': totals['gas_ccgt_generation'] or 0,
-        'gas_ocgt_generation': totals['gas_ocgt_generation'] or 0,
+        'gas_generation': totals['gas_generation'] or 0,
         'coal_generation': totals['coal_generation'] or 0,
-        'battery_discharge': totals['battery_discharge'] or 0,
-        'battery_charge': totals['battery_charge'] or 0,
+        'storage_discharge': totals['storage_discharge'] or 0,
+        'storage_charge': totals['storage_charge'] or 0,
         'renewable_generation': renewable_generation,
         're_percentage_underlying': re_percentage_underlying,
         're_percentage': re_percentage_underlying,  # Alias for backwards compatibility
@@ -764,14 +760,14 @@ def generate_annual_generation_chart(annual_data):
     fig.add_trace(go.Bar(
         name='Solar (Utility)',
         x=months,
-        y=[record.solar_utility_generation for record in annual_data],
+        y=[record.solar_generation for record in annual_data],
         marker_color='#f39c12'
     ))
     
     fig.add_trace(go.Bar(
         name='Solar (Rooftop)',
         x=months,
-        y=[record.solar_rooftop_generation for record in annual_data],
+        y=[record.dpv_generation for record in annual_data],
         marker_color='#f1c40f'
     ))
     
@@ -785,7 +781,7 @@ def generate_annual_generation_chart(annual_data):
     fig.add_trace(go.Bar(
         name='Gas',
         x=months,
-        y=[record.gas_ccgt_generation + record.gas_ocgt_generation for record in annual_data],
+        y=[record.gas_generation for record in annual_data],
         marker_color='#95a5a6'
     ))
     
@@ -1017,8 +1013,8 @@ def api_calculate_monthly(request, year, month):
                     'underlying_demand': existing.underlying_demand,
                     'operational_demand': existing.operational_demand,
                     'wind_generation': existing.wind_generation,
-                    'solar_utility_generation': existing.solar_utility_generation,
-                    'solar_rooftop_generation': existing.solar_rooftop_generation,
+                    'solar_generation': existing.solar_generation,
+                    'dpv_generation': existing.dpv_generation,
                     'total_emissions': existing.total_emissions_tonnes,
                     'emissions_intensity': existing.emissions_intensity_kg_mwh,
                     'data_complete': existing.data_complete,
@@ -1083,12 +1079,11 @@ def api_calculate_monthly(request, year, month):
                 'operational_demand': performance.operational_demand,
                 'renewable_generation': performance.total_renewable_generation,
                 'wind_generation': performance.wind_generation,
-                'solar_utility_generation': performance.solar_utility_generation,
-                'solar_rooftop_generation': performance.solar_rooftop_generation,
+                'solar_generation': performance.solar_generation,
+                'dpv_generation': performance.dpv_generation,
                 'biomass_generation': performance.biomass_generation,
                 'hydro_generation': performance.hydro_generation,
-                'gas_ccgt_generation': performance.gas_ccgt_generation,
-                'gas_ocgt_generation': performance.gas_ocgt_generation,
+                'gas_generation': performance.gas_generation,
                 'total_emissions': performance.total_emissions_tonnes,
                 'emissions_intensity': performance.emissions_intensity_kg_mwh,
                 'peak_demand_mw': performance.peak_demand_mw,

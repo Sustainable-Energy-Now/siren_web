@@ -386,11 +386,11 @@
                 </tr>
                 <tr class="renewable-row">
                     <td><strong>Solar (Utility)</strong></td>
-                    <td class="value">{{ quarterly_summary.solar_utility_generation|floatformat:1 }}</td>
-                    <td class="value">{{ quarterly_summary.solar_utility_generation|percent:quarterly_summary.underlying_demand|floatformat:1 }}%</td>
+                    <td class="value">{{ quarterly_summary.solar_generation|floatformat:1 }}</td>
+                    <td class="value">{{ quarterly_summary.solar_generation|percent:quarterly_summary.underlying_demand|floatformat:1 }}%</td>
                     <td class="value">
                         {% if prev_quarter_summary %}
-                            {% with change=quarterly_summary.solar_utility_generation|sub:prev_quarter_summary.solar_utility_generation %}
+                            {% with change=quarterly_summary.solar_generation|sub:prev_quarter_summary.solar_generation %}
                                 {% if change >= 0 %}+{% endif %}{{ change|floatformat:1 }}
                             {% endwith %}
                         {% else %}—{% endif %}
@@ -398,11 +398,11 @@
                 </tr>
                 <tr class="renewable-row">
                     <td><strong>Solar (Rooftop)</strong></td>
-                    <td class="value">{{ quarterly_summary.solar_rooftop_generation|floatformat:1 }}</td>
-                    <td class="value">{{ quarterly_summary.solar_rooftop_generation|percent:quarterly_summary.underlying_demand|floatformat:1 }}%</td>
+                    <td class="value">{{ quarterly_summary.dpv_generation|floatformat:1 }}</td>
+                    <td class="value">{{ quarterly_summary.dpv_generation|percent:quarterly_summary.underlying_demand|floatformat:1 }}%</td>
                     <td class="value">
                         {% if prev_quarter_summary %}
-                            {% with change=quarterly_summary.solar_rooftop_generation|sub:prev_quarter_summary.solar_rooftop_generation %}
+                            {% with change=quarterly_summary.dpv_generation|sub:prev_quarter_summary.dpv_generation %}
                                 {% if change >= 0 %}+{% endif %}{{ change|floatformat:1 }}
                             {% endwith %}
                         {% else %}—{% endif %}
@@ -418,29 +418,16 @@
                 <!-- Fossil Fuels -->
                 <tr class="fossil-row">
                     <td>Gas (CCGT)</td>
-                    <td class="value">{{ quarterly_summary.gas_ccgt_generation|floatformat:1 }}</td>
-                    <td class="value">{{ quarterly_summary.gas_ccgt_generation|percent:quarterly_summary.underlying_demand|floatformat:1 }}%</td>
+                    <td class="value">{{ quarterly_summary.gas_generation|floatformat:1 }}</td>
+                    <td class="value">{{ quarterly_summary.gas_generation|percent:quarterly_summary.underlying_demand|floatformat:1 }}%</td>
                     <td class="value">
                         {% if prev_quarter_summary %}
-                            {% with change=quarterly_summary.gas_ccgt_generation|sub:prev_quarter_summary.gas_ccgt_generation %}
+                            {% with change=quarterly_summary.gas_generation|sub:prev_quarter_summary.gas_generation %}
                                 {% if change >= 0 %}+{% endif %}{{ change|floatformat:1 }}
                             {% endwith %}
                         {% else %}—{% endif %}
                     </td>
                 </tr>
-                <tr class="fossil-row">
-                    <td>Gas (OCGT)</td>
-                    <td class="value">{{ quarterly_summary.gas_ocgt_generation|floatformat:1 }}</td>
-                    <td class="value">{{ quarterly_summary.gas_ocgt_generation|percent:quarterly_summary.underlying_demand|floatformat:1 }}%</td>
-                    <td class="value">
-                        {% if prev_quarter_summary %}
-                            {% with change=quarterly_summary.gas_ocgt_generation|sub:prev_quarter_summary.gas_ocgt_generation %}
-                                {% if change >= 0 %}+{% endif %}{{ change|floatformat:1 }}
-                            {% endwith %}
-                        {% else %}—{% endif %}
-                    </td>
-                </tr>
-
                 <!-- Totals -->
                 <tr class="total-row">
                     <td><strong>TOTAL RENEWABLES</strong></td>
@@ -628,7 +615,7 @@
 
                 <li>Wind generation contributed {{ quarterly_summary.wind_generation|percent:quarterly_summary.underlying_demand|floatformat:1 }}% of total underlying demand</li>
                 
-                <li>Combined solar (utility + rooftop) provided {{ quarterly_summary.solar_utility_generation|add:quarterly_summary.solar_rooftop_generation|percent:quarterly_summary.underlying_demand|floatformat:1 }}% of electricity</li>
+                <li>Combined solar (utility + rooftop) provided {{ quarterly_summary.solar_generation|add:quarterly_summary.dpv_generation|percent:quarterly_summary.underlying_demand|floatformat:1 }}% of electricity</li>
             </ul>
         </div>
 
@@ -638,11 +625,6 @@
                 {% if quarterly_summary.re_percentage_underlying < target.target_percentage %}
                 <li>Quarterly RE% ({{ quarterly_summary.re_percentage_underlying|floatformat:1 }}%) is below annual target ({{ target.target_percentage }}%)</li>
                 {% endif %}
-
-                {% if quarterly_summary.gas_ocgt_generation > prev_quarter_summary.gas_ocgt_generation %}
-                <li>OCGT gas generation increased, indicating higher reliance on peaking generation</li>
-                {% endif %}
-
                 <li>Continued monitoring needed to ensure annual target achievement</li>
             </ul>
         </div>
@@ -664,31 +646,24 @@
         },
         {
             x: [{% for monthly in monthly_performances %}'{{ monthly.month_name }}'{% if not forloop.last %}, {% endif %}{% endfor %}],
-            y: [{% for monthly in monthly_performances %}{{ monthly.solar_utility_generation|default:0 }}{% if not forloop.last %}, {% endif %}{% endfor %}],
+            y: [{% for monthly in monthly_performances %}{{ monthly.solar_generation|default:0 }}{% if not forloop.last %}, {% endif %}{% endfor %}],
             name: 'Solar (Utility)',
             type: 'bar',
             marker: {color: '#FFC107'}
         },
         {
             x: [{% for monthly in monthly_performances %}'{{ monthly.month_name }}'{% if not forloop.last %}, {% endif %}{% endfor %}],
-            y: [{% for monthly in monthly_performances %}{{ monthly.solar_rooftop_generation|default:0 }}{% if not forloop.last %}, {% endif %}{% endfor %}],
+            y: [{% for monthly in monthly_performances %}{{ monthly.dpv_generation|default:0 }}{% if not forloop.last %}, {% endif %}{% endfor %}],
             name: 'Solar (Rooftop)',
             type: 'bar',
             marker: {color: '#FFE082'}
         },
         {
             x: [{% for monthly in monthly_performances %}'{{ monthly.month_name }}'{% if not forloop.last %}, {% endif %}{% endfor %}],
-            y: [{% for monthly in monthly_performances %}{{ monthly.gas_ccgt_generation|default:0 }}{% if not forloop.last %}, {% endif %}{% endfor %}],
+            y: [{% for monthly in monthly_performances %}{{ monthly.gas_generation|default:0 }}{% if not forloop.last %}, {% endif %}{% endfor %}],
             name: 'Gas (CCGT)',
             type: 'bar',
             marker: {color: '#9E9E9E'}
-        },
-        {
-            x: [{% for monthly in monthly_performances %}'{{ monthly.month_name }}'{% if not forloop.last %}, {% endif %}{% endfor %}],
-            y: [{% for monthly in monthly_performances %}{{ monthly.gas_ocgt_generation|default:0 }}{% if not forloop.last %}, {% endif %}{% endfor %}],
-            name: 'Gas (OCGT)',
-            type: 'bar',
-            marker: {color: '#757575'}
         }
     ];
 

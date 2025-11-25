@@ -166,14 +166,14 @@
         </tr>
         <tr class="renewable-row">
             <td><strong>Solar (Utility)</strong></td>
-            <td class="value">{{ annual_summary.solar_utility_generation|floatformat:0|intcomma }}</td>
-            <td class="value">{{ annual_summary.solar_utility_generation|div:annual_summary.total_generation|mul:100|floatformat:1 }}%</td>
+            <td class="value">{{ annual_summary.solar_generation|floatformat:0|intcomma }}</td>
+            <td class="value">{{ annual_summary.solar_generation|div:annual_summary.total_generation|mul:100|floatformat:1 }}%</td>
             <td class="value">0</td>
         </tr>
         <tr class="renewable-row">
             <td><strong>Solar (Rooftop)</strong></td>
-            <td class="value">{{ annual_summary.solar_rooftop_generation|floatformat:0|intcomma }}</td>
-            <td class="value">{{ annual_summary.solar_rooftop_generation|div:annual_summary.underlying_demand|mul:100|floatformat:1 }}%</td>
+            <td class="value">{{ annual_summary.dpv_generation|floatformat:0|intcomma }}</td>
+            <td class="value">{{ annual_summary.dpv_generation|div:annual_summary.underlying_demand|mul:100|floatformat:1 }}%</td>
             <td class="value">0</td>
         </tr>
         <tr class="renewable-row">

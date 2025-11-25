@@ -87,11 +87,11 @@ class Migration(migrations.Migration):
                     models.DecimalField(decimal_places=3, max_digits=12),
                 ),
                 (
-                    "battery_discharge",
+                    "storage_discharge",
                     models.DecimalField(decimal_places=3, max_digits=12),
                 ),
                 (
-                    "battery_charge",
+                    "storage_charge",
                     models.DecimalField(decimal_places=3, max_digits=12),
                 ),
                 (

@@ -56,7 +56,7 @@ class LoadAnalyzer:
         # Categorize generation by fuel type
         scada_df['fuel_type'] = scada_df['technology_name'].apply(self._categorize_technology)
         scada_df['is_renewable'] = scada_df['fuel_type'].isin(['WIND', 'SOLAR', 'HYDRO', 'BIOMASS'])
-        scada_df['is_battery'] = scada_df['fuel_type'] == 'BATTERY'
+        scada_df['is_storage'] = scada_df['fuel_type'] == 'BATTERY' or scada_df['fuel_type'] == 'HYDRO'
         
         # Convert 5-min intervals to energy (MWh)
         scada_df['energy_mwh'] = scada_df['quantity']
@@ -75,21 +75,21 @@ class LoadAnalyzer:
         total_wind = float(scada_df[scada_df['fuel_type'] == 'WIND']['energy_mwh'].sum())
         total_solar = float(scada_df[scada_df['fuel_type'] == 'SOLAR']['energy_mwh'].sum())
         
-        total_battery_discharge = float(scada_df[
-            (scada_df['is_battery']) & (scada_df['quantity'] > 0)
+        total_storage_discharge = float(scada_df[
+            (scada_df['is_storage']) & (scada_df['quantity'] > 0)
         ]['energy_mwh'].sum())
         
-        total_battery_charge = abs(float(scada_df[
-            (scada_df['is_battery']) & (scada_df['quantity'] < 0)
+        total_storage_charge = abs(float(scada_df[
+            (scada_df['is_storage']) & (scada_df['quantity'] < 0)
         ]['energy_mwh'].sum()))
         
         total_fossil = float(scada_df[
-            ~scada_df['is_renewable'] & ~scada_df['is_battery']
+            ~scada_df['is_renewable'] & ~scada_df['is_storage']
         ]['energy_mwh'].sum())
         
         # Operational demand = total generation - battery charging
         total_generation = float(scada_df['energy_mwh'].sum())
-        operational_demand_mwh = total_generation - total_battery_charge
+        operational_demand_mwh = total_generation - total_storage_charge
         operational_demand_gwh = operational_demand_mwh / 1000
         
         # Underlying demand = operational + DPV
@@ -116,7 +116,7 @@ class LoadAnalyzer:
         )
         
         bess_pct_operational = (
-            (total_battery_discharge / operational_demand_mwh) * 100
+            (total_storage_discharge / operational_demand_mwh) * 100
             if operational_demand_mwh > 0 else 0
         )
         
@@ -130,8 +130,8 @@ class LoadAnalyzer:
                 'dpv_generation': Decimal(str(total_dpv_generation / 1000)),
                 'wind_generation': Decimal(str(total_wind / 1000)),
                 'solar_generation': Decimal(str(total_solar / 1000)),
-                'battery_discharge': Decimal(str(total_battery_discharge / 1000)),
-                'battery_charge': Decimal(str(total_battery_charge / 1000)),
+                'storage_discharge': Decimal(str(total_storage_discharge / 1000)),
+                'storage_charge': Decimal(str(total_storage_charge / 1000)),
                 'fossil_generation': Decimal(str(total_fossil / 1000)),
                 're_percentage_operational': Decimal(str(round(re_pct_operational, 2))),
                 're_percentage_underlying': Decimal(str(round(re_pct_underlying, 2))),

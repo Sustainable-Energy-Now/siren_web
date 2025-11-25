@@ -84,25 +84,25 @@ def scada_analysis_report(request, year=None, month=None):
     
     # Calculate BESS percentages and efficiency
     bess_percentage = (
-        (summary.battery_discharge / summary.operational_demand) * 100 
+        (summary.storage_discharge / summary.operational_demand) * 100 
         if summary.operational_demand > 0 else 0
     )
     ytd_bess_percentage = (
-        (ytd_summary['battery_discharge'] / ytd_summary['operational_demand']) * 100
+        (ytd_summary['storage_discharge'] / ytd_summary['operational_demand']) * 100
         if ytd_summary['operational_demand'] > 0 else 0
     )
     ytd_prev_bess_percentage = (
-        (ytd_prev_summary['battery_discharge'] / ytd_prev_summary['operational_demand']) * 100
+        (ytd_prev_summary['storage_discharge'] / ytd_prev_summary['operational_demand']) * 100
         if ytd_prev_summary['operational_demand'] > 0 else 0
     )
     
     bess_efficiency = (
-        (summary.battery_discharge / abs(summary.battery_charge)) * 100
-        if summary.battery_charge != 0 else 0
+        (summary.storage_discharge / abs(summary.storage_charge)) * 100
+        if summary.storage_charge != 0 else 0
     )
     ytd_bess_efficiency = (
-        (ytd_summary['battery_discharge'] / abs(ytd_summary['battery_charge'])) * 100
-        if ytd_summary['battery_charge'] != 0 else 0
+        (ytd_summary['storage_discharge'] / abs(ytd_summary['storage_charge'])) * 100
+        if ytd_summary['storage_charge'] != 0 else 0
     )
     
     # Generate improved charts
@@ -209,8 +209,8 @@ def get_historical_data(current_year, current_month, years_back=3):
             'solar_generation': float(summary.solar_generation),
             'dpv_generation': float(summary.dpv_generation),
             'fossil_generation': float(summary.fossil_generation),
-            'battery_discharge': float(summary.battery_discharge),
-            'battery_charge': float(summary.battery_charge),
+            'storage_discharge': float(summary.storage_discharge),
+            'storage_charge': float(summary.storage_charge),
             're_percentage_operational': float(summary.re_percentage_operational),
             're_percentage_underlying': float(summary.re_percentage_underlying),
             'dpv_percentage_underlying': float(summary.dpv_percentage_underlying),
@@ -344,8 +344,8 @@ def export_historical_data(request):
             float(summary.wind_generation),
             float(summary.solar_generation),
             float(summary.dpv_generation),
-            float(summary.battery_discharge),
-            float(summary.battery_charge),
+            float(summary.storage_discharge),
+            float(summary.storage_charge),
             float(summary.fossil_generation),
             float(summary.re_percentage_operational),
             float(summary.re_percentage_underlying),
@@ -361,8 +361,8 @@ def aggregate_summaries(summaries):
         return {
             'operational_demand': 0,
             'underlying_demand': 0,
-            'battery_discharge': 0,
-            'battery_charge': 0,
+            'storage_discharge': 0,
+            'storage_charge': 0,
             'fossil_generation': 0,
             're_percentage_operational': 0,
             're_percentage_underlying': 0,
@@ -375,8 +375,8 @@ def aggregate_summaries(summaries):
     total = {
         'operational_demand': sum(s.operational_demand for s in summaries),
         'underlying_demand': sum(s.underlying_demand for s in summaries),
-        'battery_discharge': sum(s.battery_discharge for s in summaries),
-        'battery_charge': sum(s.battery_charge for s in summaries),
+        'storage_discharge': sum(s.storage_discharge for s in summaries),
+        'storage_charge': sum(s.storage_charge for s in summaries),
         'fossil_generation': sum(s.fossil_generation for s in summaries),
         'dpv_generation': sum(s.dpv_generation for s in summaries),
         'wind_generation': sum(s.wind_generation for s in summaries),
@@ -438,7 +438,7 @@ class ChartGenerator:
             values=[
                 float(monthly_summary.wind_generation),
                 float(monthly_summary.solar_generation),
-                float(monthly_summary.battery_discharge),
+                float(monthly_summary.storage_discharge),
                 float(monthly_summary.fossil_generation)
             ],
             marker_colors=[self.COLORS['wind'], self.COLORS['solar'], 
@@ -454,7 +454,7 @@ class ChartGenerator:
                 float(monthly_summary.wind_generation),
                 float(monthly_summary.solar_generation),
                 float(monthly_summary.dpv_generation),
-                float(monthly_summary.battery_discharge),
+                float(monthly_summary.storage_discharge),
                 float(monthly_summary.fossil_generation)
             ],
             marker_colors=[self.COLORS['wind'], self.COLORS['solar'], 
@@ -470,7 +470,7 @@ class ChartGenerator:
             values=[
                 ytd_summary['wind_generation'],
                 ytd_summary['solar_generation'],
-                ytd_summary['battery_discharge'],
+                ytd_summary['storage_discharge'],
                 ytd_summary['fossil_generation']
             ],
             marker_colors=[self.COLORS['wind'], self.COLORS['solar'], 
@@ -486,7 +486,7 @@ class ChartGenerator:
                 ytd_summary['wind_generation'],
                 ytd_summary['solar_generation'],
                 ytd_summary['dpv_generation'],
-                ytd_summary['battery_discharge'],
+                ytd_summary['storage_discharge'],
                 ytd_summary['fossil_generation']
             ],
             marker_colors=[self.COLORS['wind'], self.COLORS['solar'], 
@@ -692,7 +692,7 @@ class ChartGenerator:
         
         fig.add_trace(go.Scatter(
             x=dates,
-            y=[record['battery_discharge'] for record in historical_data],
+            y=[record['storage_discharge'] for record in historical_data],
             name='Battery',
             stackgroup='one',
             fillcolor=self.COLORS['battery'],

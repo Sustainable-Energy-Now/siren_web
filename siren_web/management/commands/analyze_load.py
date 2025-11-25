@@ -227,10 +227,10 @@ class Command(BaseCommand):
         
         # Battery
         self.stdout.write(f'\n{self.style.WARNING("BATTERY STORAGE (BESS)")}')
-        self.stdout.write(f'  Discharge:              {summary.battery_discharge:>10.2f} GWh')
-        self.stdout.write(f'  Charge:                 {summary.battery_charge:>10.2f} GWh')
-        net_battery = summary.battery_discharge - summary.battery_charge
-        efficiency = (summary.battery_discharge / summary.battery_charge * 100) if summary.battery_charge > 0 else 0
+        self.stdout.write(f'  Discharge:              {summary.storage_discharge:>10.2f} GWh')
+        self.stdout.write(f'  Charge:                 {summary.storage_charge:>10.2f} GWh')
+        net_battery = summary.storage_discharge - summary.storage_charge
+        efficiency = (summary.storage_discharge / summary.storage_charge * 100) if summary.storage_charge > 0 else 0
         self.stdout.write(f'  Net Contribution:       {net_battery:>10.2f} GWh')
         self.stdout.write(f'  Round-trip Efficiency:  {efficiency:>10.1f} %')
         
@@ -256,8 +256,8 @@ class Command(BaseCommand):
             ['Solar Generation', f'{summary.solar_generation:.2f}', 'GWh'],
             ['DPV Generation', f'{summary.dpv_generation:.2f}', 'GWh'],
             ['Fossil Generation', f'{summary.fossil_generation:.2f}', 'GWh'],
-            ['Battery Discharge', f'{summary.battery_discharge:.2f}', 'GWh'],
-            ['Battery Charge', f'{summary.battery_charge:.2f}', 'GWh'],
+            ['Battery Discharge', f'{summary.storage_discharge:.2f}', 'GWh'],
+            ['Storage Charge', f'{summary.storage_charge:.2f}', 'GWh'],
             ['RE % (Operational)', f'{summary.re_percentage_operational:.1f}', '%'],
             ['RE % (Underlying)', f'{summary.re_percentage_underlying:.1f}', '%'],
             ['DPV % (Underlying)', f'{summary.dpv_percentage_underlying:.1f}', '%'],
@@ -277,8 +277,8 @@ class Command(BaseCommand):
             'wind_generation_gwh': float(summary.wind_generation),
             'solar_generation_gwh': float(summary.solar_generation),
             'fossil_generation_gwh': float(summary.fossil_generation),
-            'battery_discharge_gwh': float(summary.battery_discharge),
-            'battery_charge_gwh': float(summary.battery_charge),
+            'storage_discharge_gwh': float(summary.storage_discharge),
+            'storage_charge_gwh': float(summary.storage_charge),
             're_percentage_operational': float(summary.re_percentage_operational),
             're_percentage_underlying': float(summary.re_percentage_underlying),
             'dpv_percentage_underlying': float(summary.dpv_percentage_underlying),

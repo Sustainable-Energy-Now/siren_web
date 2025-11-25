@@ -1327,8 +1327,8 @@ class LoadAnalysisSummary(models.Model):
     # Generation by type (GWh/MWh)
     wind_generation = models.DecimalField(max_digits=12, decimal_places=3)
     solar_generation = models.DecimalField(max_digits=12, decimal_places=3)
-    battery_discharge = models.DecimalField(max_digits=12, decimal_places=3)
-    battery_charge = models.DecimalField(max_digits=12, decimal_places=3)
+    storage_discharge = models.DecimalField(max_digits=12, decimal_places=3)
+    storage_charge = models.DecimalField(max_digits=12, decimal_places=3)
     fossil_generation = models.DecimalField(max_digits=12, decimal_places=3)
     
     # Percentages
@@ -1510,19 +1510,18 @@ class MonthlyREPerformance(models.Model):
     
     # Renewable generation by technology (GWh)
     wind_generation = models.FloatField(default=0)
-    solar_utility_generation = models.FloatField(default=0)
-    solar_rooftop_generation = models.FloatField(default=0)
+    solar_generation = models.FloatField(default=0)
+    dpv_generation = models.FloatField(default=0)
     biomass_generation = models.FloatField(default=0)
     hydro_generation = models.FloatField(default=0)
     
     # Non-renewable generation (GWh)
-    gas_ccgt_generation = models.FloatField(default=0, help_text="Combined Cycle Gas Turbine")
-    gas_ocgt_generation = models.FloatField(default=0, help_text="Open Cycle Gas Turbine")
+    gas_generation = models.FloatField(default=0, help_text="Combined Cycle Gas Turbine")
     coal_generation = models.FloatField(default=0)
     
-    # Battery (for information only - not counted in RE%)
-    battery_discharge = models.FloatField(default=0)
-    battery_charge = models.FloatField(default=0)
+    # Storage (for information only - not counted in RE%)
+    storage_discharge = models.FloatField(default=0)
+    storage_charge = models.FloatField(default=0)
     
     # Emissions data
     total_emissions_tonnes = models.FloatField(help_text="Total emissions in tonnes CO2-e")
@@ -1560,8 +1559,8 @@ class MonthlyREPerformance(models.Model):
     def total_renewable_generation(self):
         """Calculate total renewable generation"""
         return (self.wind_generation + 
-                self.solar_utility_generation + 
-                self.solar_rooftop_generation + 
+                self.solar_generation + 
+                self.dpv_generation + 
                 self.biomass_generation + 
                 self.hydro_generation)
     
@@ -1571,7 +1570,7 @@ class MonthlyREPerformance(models.Model):
         if self.operational_demand > 0:
             # Exclude rooftop solar for operational demand basis
             re_gen = (self.wind_generation + 
-                     self.solar_utility_generation + 
+                     self.solar_generation + 
                      self.biomass_generation + 
                      self.hydro_generation)
             return (re_gen / self.operational_demand) * 100
@@ -1588,13 +1587,13 @@ class MonthlyREPerformance(models.Model):
     def dpv_percentage_underlying(self):
         """Calculate distributed PV percentage of underlying demand"""
         if self.underlying_demand > 0:
-            return (self.solar_rooftop_generation / self.underlying_demand) * 100
+            return (self.dpv_generation / self.underlying_demand) * 100
         return 0
     
     @property
-    def battery_net_discharge(self):
-        """Net battery discharge (positive = net discharge)"""
-        return self.battery_discharge - self.battery_charge
+    def storage_net_discharge(self):
+        """Net storage discharge (positive = net discharge)"""
+        return self.storage_discharge - self.storage_charge
     
     def get_month_name(self):
         """Return month name"""
@@ -1673,8 +1672,8 @@ class MonthlyREPerformance(models.Model):
             'renewable_generation': sum(r.total_renewable_generation for r in ytd_records),
             'total_emissions': sum(r.total_emissions_tonnes for r in ytd_records),
             'wind_generation': sum(r.wind_generation for r in ytd_records),
-            'solar_utility_generation': sum(r.solar_utility_generation for r in ytd_records),
-            'solar_rooftop_generation': sum(r.solar_rooftop_generation for r in ytd_records),
+            'solar_generation': sum(r.solar_generation for r in ytd_records),
+            'dpv_generation': sum(r.dpv_generation for r in ytd_records),
             'biomass_generation': sum(r.biomass_generation for r in ytd_records),
             'hydro_generation': sum(r.hydro_generation for r in ytd_records),
         }
@@ -1746,11 +1745,10 @@ class TargetScenario(models.Model):
     
     # Generation mix projections for 2040 (GWh)
     wind_generation_2040 = models.FloatField()
-    solar_utility_generation_2040 = models.FloatField()
-    solar_rooftop_generation_2040 = models.FloatField()
-    biomass_hydro_generation_2040 = models.FloatField()
-    gas_ccgt_generation_2040 = models.FloatField()
-    gas_ocgt_generation_2040 = models.FloatField()
+    solar_generation_2040 = models.FloatField()
+    dpv_generation_2040 = models.FloatField()
+    biomass_generation_2040 = models.FloatField()
+    gas_generation_2040 = models.FloatField()
     
     # Probability of achievement
     probability_percentage = models.FloatField(null=True, blank=True,
@@ -1771,11 +1769,10 @@ class TargetScenario(models.Model):
     def total_generation_2040(self):
         """Calculate total generation for 2040"""
         return (self.wind_generation_2040 + 
-                self.solar_utility_generation_2040 + 
-                self.solar_rooftop_generation_2040 + 
-                self.biomass_hydro_generation_2040 + 
-                self.gas_ccgt_generation_2040 + 
-                self.gas_ocgt_generation_2040)
+                self.solar_generation_2040 + 
+                self.dpv_generation_2040 + 
+                self.biomass_generation_2040 + 
+                self.gas_generation_2040)
     
     def get_status_vs_target(self, target_year=2040):
         """Check if scenario meets target"""

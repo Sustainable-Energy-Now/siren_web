@@ -31,7 +31,7 @@ class ChartGenerator:
                     summary.wind_generation,
                     summary.solar_generation,
                     summary.fossil_generation,
-                    summary.battery_discharge - summary.battery_charge
+                    summary.storage_discharge - summary.storage_charge
                 ],
                 name="Monthly Operational"
             ),
@@ -47,7 +47,7 @@ class ChartGenerator:
                     summary.solar_generation,
                     summary.dpv_generation,
                     summary.fossil_generation,
-                    summary.battery_discharge - summary.battery_charge
+                    summary.storage_discharge - summary.storage_charge
                 ],
                 name="Monthly Underlying"
             ),
@@ -62,7 +62,7 @@ class ChartGenerator:
                     ytd_summary['wind_generation'],
                     ytd_summary['solar_generation'],
                     ytd_summary.get('fossil_generation', 0),
-                    ytd_summary['battery_discharge'] - ytd_summary.get('battery_charge', 0)
+                    ytd_summary['storage_discharge'] - ytd_summary.get('storage_charge', 0)
                 ],
                 name="YTD Operational"
             ),
@@ -78,7 +78,7 @@ class ChartGenerator:
                     ytd_summary['solar_generation'],
                     ytd_summary['dpv_generation'],
                     ytd_summary.get('fossil_generation', 0),
-                    ytd_summary['battery_discharge'] - ytd_summary.get('battery_charge', 0)
+                    ytd_summary['storage_discharge'] - ytd_summary.get('storage_charge', 0)
                 ],
                 name="YTD Underlying"
             ),
