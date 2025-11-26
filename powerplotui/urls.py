@@ -3,7 +3,7 @@ from django.urls import path
 from .views.variants_views import VariantsView
 from .views.echart_views import eChartView
 from .views import facility_scada_views, tradingprice_views, plot3D_views, powerplotui_home_views, ret_dashboard_views, \
-    supplyfactors_views, scada_views
+    ret_targets_views, supplyfactors_views, scada_views
 
 urlpatterns = [
     path('powerplotui/', powerplotui_home_views.powerplotui_home, name='powerplotui_home'),
@@ -47,6 +47,28 @@ urlpatterns = [
     # API endpoints for data updates
     path('api/ret_dashboard/update_monthly/', ret_dashboard_views.update_monthly_data, name='update_monthly_data'),
     path('api/ret_dashboard/calculate/<int:year>/<int:month>/', ret_dashboard_views.api_calculate_monthly, name='api_calculate_monthly'),
+
+    # Main targets list view
+    path('ret_dashboard/targets/', ret_targets_views.ret_targets_list, name='ret_targets_list'),
+    
+    # Target CRUD operations
+    path('ret_dashboard/targets/create/', ret_targets_views.ret_target_create, name='ret_target_create'),
+    path('ret_dashboard/targets/<int:target_id>/update/', ret_targets_views.ret_target_update, name='ret_target_update'),
+    path('ret_dashboard/targets/<int:target_id>/delete/', ret_targets_views.ret_target_delete, name='ret_target_delete'),
+    
+    # Scenario CRUD operations
+    path('ret_dashboard/scenarios/create/', ret_targets_views.scenario_create, name='scenario_create'),
+    path('ret_dashboard/scenarios/<int:scenario_id>/update/', ret_targets_views.scenario_update, name='scenario_update'),
+    path('ret_dashboard/scenarios/<int:scenario_id>/delete/', ret_targets_views.scenario_delete, name='scenario_delete'),
+    path('ret_dashboard/scenarios/<int:scenario_id>/toggle/', ret_targets_views.scenario_toggle_active, name='scenario_toggle_active'),
+    
+    # =========================================================================
+    # API Endpoints (JSON responses)
+    # =========================================================================
+    path('api/ret_dashboard/targets/', ret_targets_views.api_targets_list, name='api_targets_list'),
+    path('api/ret_dashboard/targets/<int:target_id>/', ret_targets_views.api_target_detail, name='api_target_detail'),
+    path('api/ret_dashboard/scenarios/', ret_targets_views.api_scenarios_list, name='api_scenarios_list'),
+    path('api/ret_dashboard/scenarios/<int:scenario_id>/', ret_targets_views.api_scenario_detail, name='api_scenario_detail'),
 
     # Miscellaneous URLs
     path('trading_prices/', tradingprice_views.trading_price_list, name='trading_price_list'),
