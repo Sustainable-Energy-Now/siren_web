@@ -27,9 +27,42 @@ class Command(BaseCommand):
             type=int,
             help='End year for range fetch',
         )
+        parser.add_argument(
+            '--previous-month',
+            action='store_true',
+            help='Fetch data for the previous month (ideal for monthly cron jobs)',
+        )
     
     def handle(self, *args, **options):
         fetcher = DPVDataFetcher()
+        
+        # Fetch previous month (for cron jobs)
+        if options['previous_month']:
+            now = datetime.now()
+            
+            # Calculate previous month
+            if now.month == 1:
+                year = now.year - 1
+                month = 12
+            else:
+                year = now.year
+                month = now.month - 1
+            
+            self.stdout.write(
+                f"Fetching DPV data for previous month ({year}-{month:02d})..."
+            )
+            
+            try:
+                count = fetcher.fetch_dpv_data(year, month)
+                self.stdout.write(
+                    self.style.SUCCESS(f"✓ Successfully fetched {count:,} records for {year}-{month:02d}")
+                )
+            except Exception as e:
+                self.stdout.write(
+                    self.style.ERROR(f"✗ Error: {str(e)}")
+                )
+                raise
+            return
         
         # Fetch year range
         if options['start_year'] and options['end_year']:
