@@ -43,11 +43,18 @@
 </div>
 
 <div class="metric-grid">
-    <!-- YTD RE Percentage -->
+    <!-- YTD RE Percentage - Operational -->
     <div class="metric-card {% if target_status.status == 'ahead' %}positive{% elif target_status.status == 'behind' %}warning{% else %}neutral{% endif %}">
-        <div class="metric-label">Year to Date ({{ month_name }})</div>
-        <div class="metric-value">{{ ytd_summary.re_percentage|floatformat:1 }}%</div>
-        <div class="metric-sublabel">Renewable Energy Percentage</div>
+        <div class="metric-label">YTD RE% (Operational)</div>
+        <div class="metric-value">{{ ytd_summary.re_percentage_operational|floatformat:1 }}%</div>
+        <div class="metric-sublabel">Grid-sent electricity</div>
+    </div>
+    
+    <!-- YTD RE Percentage - Underlying -->
+    <div class="metric-card {% if target_status.status == 'ahead' %}positive{% elif target_status.status == 'behind' %}warning{% else %}neutral{% endif %}">
+        <div class="metric-label">YTD RE% (Underlying)</div>
+        <div class="metric-value">{{ ytd_summary.re_percentage_underlying|floatformat:1 }}%</div>
+        <div class="metric-sublabel">Including rooftop solar</div>
     </div>
     
     <!-- Target Status -->
@@ -83,6 +90,50 @@
     </div>
 </div>
 
+<!-- Monthly RE Performance -->
+<div class="section-header">
+    <h2>{{ month_name }} {{ year }} RE Performance</h2>
+</div>
+
+<div class="metric-grid">
+    <!-- Monthly RE% Operational -->
+    <div class="metric-card positive">
+        <div class="metric-label">RE% (Operational Demand)</div>
+        <div class="metric-value">{{ performance.re_percentage_operational|floatformat:1 }}%</div>
+        <div class="metric-sublabel">
+            {{ performance.operational_demand|floatformat:1 }} GWh operational demand
+        </div>
+        <div class="metric-change">
+            {% if prev_year_performance %}
+                {{ prev_year_performance.re_percentage_operational|floatformat:1 }}% in {{ year|add:"-1" }}
+            {% endif %}
+        </div>
+    </div>
+    
+    <!-- Monthly RE% Underlying -->
+    <div class="metric-card positive">
+        <div class="metric-label">RE% (Underlying Demand)</div>
+        <div class="metric-value">{{ performance.re_percentage_underlying|floatformat:1 }}%</div>
+        <div class="metric-sublabel">
+            {{ performance.underlying_demand|floatformat:1 }} GWh underlying demand
+        </div>
+        <div class="metric-change">
+            {% if prev_year_performance %}
+                {{ prev_year_performance.re_percentage_underlying|floatformat:1 }}% in {{ year|add:"-1" }}
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Demand Definitions Info Box -->
+<div class="info-box" style="background: #e3f2fd; border-left-color: #2196f3;">
+    <h3 style="margin-top: 0;">Understanding Demand Measures</h3>
+    <p style="margin-bottom: 0;">
+        <strong>Operational Demand:</strong> Total grid-sent generation minus storage charging (BESS + Hydro). This represents electricity delivered through the grid.<br>
+        <strong>Underlying Demand:</strong> Operational demand plus rooftop solar (DPV). This represents total electricity consumed including behind-the-meter generation.
+    </p>
+</div>
+
 <!-- Monthly Highlights -->
 <div class="section-header">
     <h2>{{ month_name }} Highlights</h2>
@@ -91,7 +142,7 @@
 <div class="info-box">
     <h3>Generation Mix</h3>
     <p style="color: #7f8c8d; margin-bottom: 10px;">
-        <em>Note: Battery discharge shown for information but excluded from RE% calculation</em>
+        <em>Note: Storage (BESS + Hydro) discharge shown for information but excluded from RE% calculation and demand</em>
     </p>
     
     <table class="stats-table" style="margin-top: 15px;">
@@ -99,43 +150,57 @@
             <tr>
                 <th>Technology</th>
                 <th class="value">Generation (GWh)</th>
-                <th class="value">Share (%)</th>
+                <th class="value">% of Operational</th>
+                <th class="value">% of Underlying</th>
             </tr>
         </thead>
         <tbody>
             <tr class="renewable-row">
                 <td><strong>Wind</strong></td>
                 <td class="value">{{ performance.wind_generation|floatformat:1 }}</td>
+                <td class="value">{{ performance.wind_generation|div:performance.operational_demand|mul:100|floatformat:1 }}%</td>
                 <td class="value">{{ performance.wind_generation|div:performance.underlying_demand|mul:100|floatformat:1 }}%</td>
             </tr>
             <tr class="renewable-row">
                 <td><strong>Solar (Utility)</strong></td>
                 <td class="value">{{ performance.solar_generation|floatformat:1 }}</td>
+                <td class="value">{{ performance.solar_generation|div:performance.operational_demand|mul:100|floatformat:1 }}%</td>
                 <td class="value">{{ performance.solar_generation|div:performance.underlying_demand|mul:100|floatformat:1 }}%</td>
             </tr>
             <tr class="renewable-row">
                 <td><strong>Solar (Rooftop)</strong></td>
                 <td class="value">{{ performance.dpv_generation|floatformat:1 }}</td>
+                <td class="value">—</td>
                 <td class="value">{{ performance.dpv_generation|div:performance.underlying_demand|mul:100|floatformat:1 }}%</td>
             </tr>
             <tr class="renewable-row">
                 <td><strong>Biomass + Hydro</strong></td>
                 <td class="value">{{ performance.biomass_generation|add:performance.hydro_generation|floatformat:1 }}</td>
+                <td class="value">{{ performance.biomass_generation|add:performance.hydro_generation|div:performance.operational_demand|mul:100|floatformat:1 }}%</td>
                 <td class="value">{{ performance.biomass_generation|add:performance.hydro_generation|div:performance.underlying_demand|mul:100|floatformat:1 }}%</td>
             </tr>
             <tr class="fossil-row">
                 <td>Gas (CCGT)</td>
                 <td class="value">{{ performance.gas_generation|floatformat:1 }}</td>
+                <td class="value">{{ performance.gas_generation|div:performance.operational_demand|mul:100|floatformat:1 }}%</td>
                 <td class="value">{{ performance.gas_generation|div:performance.underlying_demand|mul:100|floatformat:1 }}%</td>
             </tr>
-            {% if performance.storage_net_discharge > 0 %}
+            {% if performance.storage_discharge > 0 %}
             <tr class="info-row">
-                <td><em>Battery (net discharge)</em></td>
-                <td class="value"><em>{{ performance.storage_net_discharge|floatformat:1 }}</em></td>
-                <td class="value"><em>{{ performance.storage_net_discharge|div:performance.underlying_demand|mul:100|floatformat:1 }}%</em></td>
+                <td><em>Storage (net discharge)</em></td>
+                <td class="value"><em>{{ performance.storage_discharge|floatformat:1 }}</em></td>
+                <td class="value" colspan="2"><em>Excluded from demand calculations</em></td>
             </tr>
             {% endif %}
         </tbody>
+        <tfoot>
+            <tr style="background: #34495e; color: white;">
+                <td><strong>Total RE%</strong></td>
+                <td class="value">—</td>
+                <td class="value"><strong>{{ performance.re_percentage_operational|floatformat:1 }}%</strong></td>
+                <td class="value"><strong>{{ performance.re_percentage_underlying|floatformat:1 }}%</strong></td>
+            </tr>
+        </tfoot>
     </table>
 </div>
 
@@ -248,71 +313,30 @@
             <td><strong>{{ month_name }} {{ year }}</strong></td>
             <td class="value">{{ performance.total_emissions_tonnes|floatformat:0|intcomma }} t CO₂-e</td>
             <td class="value">{{ performance.emissions_intensity_kg_mwh|floatformat:0 }} kg/MWh</td>
-            <td class="value {% if emissions_change and emissions_change < 0 %}positive{% elif emissions_change and emissions_change > 0 %}negative{% endif %}">
+            <td class="value">
                 {% if emissions_change %}
+                    {% if emissions_change < 0 %}✓{% else %}⚠{% endif %}
                     {{ emissions_change|floatformat:1 }}%
-                {% else %}N/A{% endif %}
+                {% else %}
+                    —
+                {% endif %}
             </td>
         </tr>
         <tr>
             <td><strong>YTD {{ year }}</strong></td>
             <td class="value">{{ ytd_summary.total_emissions|floatformat:0|intcomma }} t CO₂-e</td>
             <td class="value">{{ ytd_summary.emissions_intensity|floatformat:0 }} kg/MWh</td>
-            <td class="value {% if ytd_emissions_change and ytd_emissions_change < 0 %}positive{% elif ytd_emissions_change and ytd_emissions_change > 0 %}negative{% endif %}">
+            <td class="value">
                 {% if ytd_emissions_change %}
+                    {% if ytd_emissions_change < 0 %}✓{% else %}⚠{% endif %}
                     {{ ytd_emissions_change|floatformat:1 }}%
-                {% else %}N/A{% endif %}
+                {% else %}
+                    —
+                {% endif %}
             </td>
         </tr>
     </tbody>
 </table>
-
-<!-- Pathway to 2040 -->
-{% if base_case_scenario %}
-<div class="section-header">
-    <h2>Pathway to 2040</h2>
-</div>
-
-<div class="info-box">
-    <h3>Current Trajectory: 
-        {% if base_case_scenario.projected_re_percentage_2040 >= target.target_percentage %}
-            <span style="color: #27ae60;">✓ ON TRACK</span> to exceed 2040 target
-        {% else %}
-            <span style="color: #e74c3c;">⚠ AT RISK</span> of missing 2040 target
-        {% endif %}
-    </h3>
-    
-    <table class="stats-table" style="margin-top: 15px;">
-        <thead>
-            <tr>
-                <th>Year</th>
-                <th class="value">Target RE%</th>
-                <th class="value">Projected RE%</th>
-                <th class="value">Gap</th>
-                <th>Status</th>
-            </tr>
-        </thead>
-        <tbody>
-            <tr>
-                <td><strong>{{ year }}</strong></td>
-                <td class="value">{{ target.target_percentage|floatformat:1 }}%</td>
-                <td class="value">{{ ytd_summary.re_percentage|floatformat:1 }}%</td>
-                <td class="value positive">+{{ target_status.gap|floatformat:1 }} pp</td>
-                <td>✓</td>
-            </tr>
-            <tr>
-                <td><strong>2040</strong></td>
-                <td class="value">75.0%</td>
-                <td class="value">{{ base_case_scenario.projected_re_percentage_2040|floatformat:1 }}%</td>
-                <td class="value {% if base_case_scenario.projected_re_percentage_2040 >= 75 %}positive{% else %}negative{% endif %}">
-                    {% if base_case_scenario.projected_re_percentage_2040 >= 75 %}+{% endif %}{{ base_case_scenario.projected_re_percentage_2040|sub:75|floatformat:1 }} pp
-                </td>
-                <td>{% if base_case_scenario.projected_re_percentage_2040 >= 75 %}On Track{% else %}At Risk{% endif %}</td>
-            </tr>
-        </tbody>
-    </table>
-</div>
-{% endif %}
 
 <!-- What This Means -->
 <div class="section-header">
@@ -327,8 +351,10 @@
             <li><strong>Lower emissions:</strong> Every kWh consumed in {{ month_name }} had 
                 {{ emissions_change|abs|floatformat:1 }}% lower carbon intensity than {{ month_name }} {{ year|add:"-1" }}</li>
             {% endif %}
-            <li><strong>More renewables:</strong> {{ performance.re_percentage_underlying|floatformat:0 }}% 
+            <li><strong>Grid renewables:</strong> {{ performance.re_percentage_operational|floatformat:0 }}% 
                 of grid electricity came from zero-emission sources</li>
+            <li><strong>Including rooftop:</strong> {{ performance.re_percentage_underlying|floatformat:0 }}% 
+                of total electricity (grid + rooftop solar) was renewable</li>
             <li><strong>On track:</strong> Current trajectory will 
                 {% if base_case_scenario.projected_re_percentage_2040 >= 75 %}exceed{% else %}fall short of{% endif %} 
                 75% renewable energy by 2040</li>
@@ -340,8 +366,8 @@
         <ul class="bullet-list">
             <li><strong>Growing integration challenge:</strong> Need more battery storage and grid flexibility</li>
             <li><strong>Strong performance:</strong> New wind and solar facilities performing at/above expectations</li>
-            {% if performance.storage_net_discharge > 0 %}
-            <li><strong>Battery value:</strong> BESS avoided ~{{ performance.storage_net_discharge|floatformat:0 }} GWh 
+            {% if performance.storage_discharge > 0 %}
+            <li><strong>Storage value:</strong> BESS + Hydro avoided ~{{ performance.storage_discharge|floatformat:0 }} GWh 
                 of curtailment this month</li>
             {% endif %}
         </ul>
@@ -354,7 +380,7 @@
         {% now "j F Y" as current_date %}
         {{ current_date|date:"j F Y"|add_months:1 }}
     </p>
-    <p style="margin: 5px 0 0 0;"><strong>Contact:</strong> modelling.lead@sen.asn.au</p>
+    <p style="margin: 5px 0 0 0;"><strong>Contact:</strong> <a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="95f8faf1f0f9f9fcfbf2bbf9f0f4f1d5e6f0fbbbf4e6fbbbf4e0">[email&#160;protected]</a></p>
 </div>
 
 <style>
@@ -499,6 +525,10 @@
     background: #e8f4f8;
 }
 
+.stats-table tfoot td {
+    padding: 12px 15px;
+}
+
 .renewable-row {
     background: #e8f5e9 !important;
 }
@@ -571,9 +601,11 @@
 
 <script>
 function loadDashboard() {
-    const selected = document.getElementById('month-select').value;
-    const [year, month] = selected.split('-');
-    window.location.href = `/ret_dashboard/${year}/${parseInt(month)}/`;
+    var selected = document.getElementById('month-select').value;
+    var parts = selected.split('-');
+    var year = parts[0];
+    var month = parts[1];
+    window.location.href = '/ret_dashboard/' + year + '/' + parseInt(month) + '/';
 }
 </script>
 

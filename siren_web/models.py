@@ -1513,7 +1513,7 @@ class MonthlyREPerformance(models.Model):
     solar_generation = models.FloatField(default=0)
     dpv_generation = models.FloatField(default=0)
     biomass_generation = models.FloatField(default=0)
-    hydro_generation = models.FloatField(default=0)
+    hydro_generation = models.FloatField(default=0, help_text="Pumped storage hydro - excluded from RE%")
     
     # Non-renewable generation (GWh)
     gas_generation = models.FloatField(default=0, help_text="Combined Cycle Gas Turbine")
@@ -1555,30 +1555,58 @@ class MonthlyREPerformance(models.Model):
     def __str__(self):
         return f"{self.get_month_name()} {self.year}"
     
+    # -------------------------------------------------------------------------
+    # Renewable Generation Properties
+    # -------------------------------------------------------------------------
+    
+    @property
+    def renewable_gen_operational(self):
+        """
+        Renewable generation for operational demand basis.
+        Excludes:
+        - DPV (not grid-sent, behind-the-meter)
+        - Hydro (pumped storage, like BESS)
+        """
+        return (self.wind_generation + 
+                self.solar_generation + 
+                self.biomass_generation)
+    
     @property
     def total_renewable_generation(self):
-        """Calculate total renewable generation"""
+        """
+        Total renewable generation for underlying demand basis.
+        Includes DPV (rooftop solar).
+        Excludes hydro (pumped storage) as it's storage, not generation.
+        """
         return (self.wind_generation + 
                 self.solar_generation + 
                 self.dpv_generation + 
-                self.biomass_generation + 
-                self.hydro_generation)
+                self.biomass_generation)
+    
+    # -------------------------------------------------------------------------
+    # RE Percentage Properties
+    # -------------------------------------------------------------------------
     
     @property
     def re_percentage_operational(self):
-        """Calculate RE% based on operational demand"""
+        """
+        Calculate RE% based on operational demand.
+        RE% = (wind + utility solar + biomass) / operational_demand
+        
+        Operational demand = grid-sent generation minus storage charging.
+        """
         if self.operational_demand > 0:
-            # Exclude rooftop solar for operational demand basis
-            re_gen = (self.wind_generation + 
-                     self.solar_generation + 
-                     self.biomass_generation + 
-                     self.hydro_generation)
-            return (re_gen / self.operational_demand) * 100
+            return (self.renewable_gen_operational / self.operational_demand) * 100
         return 0
     
     @property
     def re_percentage_underlying(self):
-        """Calculate RE% based on underlying demand (PRIMARY METRIC)"""
+        """
+        Calculate RE% based on underlying demand (PRIMARY METRIC).
+        RE% = (wind + utility solar + biomass + DPV) / underlying_demand
+        
+        Underlying demand = operational demand + rooftop solar (DPV).
+        """
         if self.underlying_demand > 0:
             return (self.total_renewable_generation / self.underlying_demand) * 100
         return 0
@@ -1595,11 +1623,19 @@ class MonthlyREPerformance(models.Model):
         """Net storage discharge (positive = net discharge)"""
         return self.storage_discharge - self.storage_charge
     
+    # -------------------------------------------------------------------------
+    # Helper Methods
+    # -------------------------------------------------------------------------
+    
     def get_month_name(self):
         """Return month name"""
         months = ['', 'January', 'February', 'March', 'April', 'May', 'June',
                  'July', 'August', 'September', 'October', 'November', 'December']
         return months[self.month] if 1 <= self.month <= 12 else 'Unknown'
+    
+    # -------------------------------------------------------------------------
+    # Target Methods
+    # -------------------------------------------------------------------------
     
     def get_target_for_period(self):
         """Get the renewable energy target for this period"""
@@ -1658,38 +1694,123 @@ class MonthlyREPerformance(models.Model):
                 'message': f'⚠ {abs(gap):.1f} percentage points behind'
             }
     
+    # -------------------------------------------------------------------------
+    # Aggregate Summary Methods
+    # -------------------------------------------------------------------------
+    
+    @classmethod
+    def aggregate_summary(cls, queryset):
+        """
+        Calculate aggregate summary from a queryset of MonthlyREPerformance records.
+        
+        This is the SINGLE SOURCE OF TRUTH for RE% calculations.
+        
+        Storage policy:
+        - BESS and Hydro (pumped storage) are EXCLUDED from:
+          - Renewable generation totals
+          - RE% calculations
+          - Demand is already net of storage charging
+        
+        Args:
+            queryset: QuerySet of MonthlyREPerformance records
+            
+        Returns:
+            dict with aggregated values, or None if queryset is empty
+        """
+        if not queryset.exists():
+            return None
+        
+        # Fetch all records once to avoid multiple queries
+        records = list(queryset)
+        
+        # Sum generation fields
+        wind = sum(r.wind_generation for r in records)
+        solar = sum(r.solar_generation for r in records)
+        dpv = sum(r.dpv_generation for r in records)
+        biomass = sum(r.biomass_generation for r in records)
+        hydro = sum(r.hydro_generation for r in records)  # For display only
+        gas = sum(r.gas_generation for r in records)
+        coal = sum(r.coal_generation for r in records)
+        
+        # Sum demand fields
+        total_generation = sum(r.total_generation for r in records)
+        operational_demand = sum(r.operational_demand for r in records)
+        underlying_demand = sum(r.underlying_demand for r in records)
+        
+        # Sum storage fields
+        storage_discharge = sum(r.storage_discharge for r in records)
+        storage_charge = sum(r.storage_charge for r in records)
+        
+        # Sum emissions
+        total_emissions = sum(r.total_emissions_tonnes for r in records)
+        
+        # Calculate renewable totals
+        # Hydro (pumped storage) excluded - it's storage like BESS
+        renewable_gen_operational = wind + solar + biomass
+        renewable_gen_underlying = renewable_gen_operational + dpv
+        
+        # Calculate RE percentages
+        if operational_demand > 0:
+            re_pct_operational = (renewable_gen_operational / operational_demand) * 100
+        else:
+            re_pct_operational = 0
+            
+        if underlying_demand > 0:
+            re_pct_underlying = (renewable_gen_underlying / underlying_demand) * 100
+            emissions_intensity = (total_emissions * 1000) / underlying_demand  # kg/MWh
+        else:
+            re_pct_underlying = 0
+            emissions_intensity = 0
+        
+        return {
+            # Generation totals
+            'total_generation': total_generation,
+            'operational_demand': operational_demand,
+            'underlying_demand': underlying_demand,
+            
+            # Generation by technology
+            'wind_generation': wind,
+            'solar_generation': solar,
+            'dpv_generation': dpv,
+            'biomass_generation': biomass,
+            'hydro_generation': hydro,  # For display only, excluded from RE%
+            'gas_generation': gas,
+            'coal_generation': coal,
+            
+            # Storage (for display only)
+            'storage_discharge': storage_discharge,
+            'storage_charge': storage_charge,
+            
+            # Renewable totals
+            'renewable_generation': renewable_gen_underlying,
+            'renewable_gen_operational': renewable_gen_operational,
+            'renewable_gen_underlying': renewable_gen_underlying,
+            
+            # RE percentages
+            're_percentage_operational': re_pct_operational,
+            're_percentage_underlying': re_pct_underlying,
+            're_percentage': re_pct_underlying,  # Backwards compatibility alias
+            
+            # Emissions
+            'total_emissions': total_emissions,
+            'total_emissions_tonnes': total_emissions,
+            'emissions_intensity': emissions_intensity,
+            'emissions_intensity_kg_mwh': emissions_intensity,
+        }
+    
     def calculate_ytd_summary(self):
-        """Calculate year-to-date summary up to this month"""
+        """
+        Calculate year-to-date summary up to and including this month.
+        
+        Returns:
+            dict with YTD aggregated values
+        """
         ytd_records = MonthlyREPerformance.objects.filter(
             year=self.year,
             month__lte=self.month
         )
-        
-        summary = {
-            'total_generation': sum(r.total_generation for r in ytd_records),
-            'operational_demand': sum(r.operational_demand for r in ytd_records),
-            'underlying_demand': sum(r.underlying_demand for r in ytd_records),
-            'renewable_generation': sum(r.total_renewable_generation for r in ytd_records),
-            'total_emissions': sum(r.total_emissions_tonnes for r in ytd_records),
-            'wind_generation': sum(r.wind_generation for r in ytd_records),
-            'solar_generation': sum(r.solar_generation for r in ytd_records),
-            'dpv_generation': sum(r.dpv_generation for r in ytd_records),
-            'biomass_generation': sum(r.biomass_generation for r in ytd_records),
-            'hydro_generation': sum(r.hydro_generation for r in ytd_records),
-        }
-        
-        # Calculate percentages
-        if summary['underlying_demand'] > 0:
-            summary['re_percentage'] = (summary['renewable_generation'] / 
-                                       summary['underlying_demand']) * 100
-            summary['emissions_intensity'] = (summary['total_emissions'] / 
-                                             (summary['underlying_demand'] * 1000))  # kg/MWh
-        else:
-            summary['re_percentage'] = 0
-            summary['emissions_intensity'] = 0
-        
-        return summary
-
+        return MonthlyREPerformance.aggregate_summary(ytd_records)
+    
 class NewCapacityCommissioned(models.Model):
     """Track new renewable capacity commissioned"""
     facility = models.ForeignKey('facilities', on_delete=models.CASCADE, 

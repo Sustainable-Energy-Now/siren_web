@@ -33,13 +33,24 @@
 <div class="info-box">
     <p style="font-size: 1.1em; line-height: 1.8;">
         The South West Interconnected System (SWIS) achieved 
-        <strong>{{ annual_summary.re_percentage|floatformat:1 }}%</strong> renewable energy 
-        (underlying demand basis) in {{ year }}, representing a significant milestone in 
+        <strong>{{ annual_summary.re_percentage_operational|floatformat:1 }}%</strong> renewable energy 
+        (operational demand basis) and <strong>{{ annual_summary.re_percentage_underlying|floatformat:1 }}%</strong> 
+        (underlying demand basis, including rooftop solar) in {{ year }}, representing a significant milestone in 
         Western Australia's energy transition. Total grid emissions were 
         <strong>{{ annual_summary.total_emissions|floatformat:0|intcomma }} tonnes CO₂-e</strong>
         {% if yoy_changes.emissions %}, a reduction of 
         <strong>{{ yoy_changes.emissions|floatformat:1|abs }}%</strong> from {{ year|add:"-1" }}.
         {% else %}.{% endif %}
+    </p>
+</div>
+
+<!-- Demand Definitions -->
+<div class="info-box" style="background: #e3f2fd; border-left-color: #2196f3;">
+    <h3 style="margin-top: 0;">Understanding Demand Measures</h3>
+    <p style="margin-bottom: 0;">
+        <strong>Operational Demand:</strong> Total grid-sent generation minus storage charging (BESS + Hydro). This represents electricity delivered through the grid.<br>
+        <strong>Underlying Demand:</strong> Operational demand plus rooftop solar (DPV). This represents total electricity consumed including behind-the-meter generation.<br>
+        <strong>Note:</strong> Storage (BESS and Hydro pumped storage) is excluded from both RE% calculations.
     </p>
 </div>
 
@@ -50,22 +61,28 @@
 
 <div class="metric-grid">
     <div class="metric-card {% if target_status.status == 'ahead' %}positive{% elif target_status.status == 'behind' %}negative{% else %}neutral{% endif %}">
-        <div class="metric-label">{{ year }} Performance</div>
-        <div class="metric-value">{{ annual_summary.re_percentage|floatformat:1 }}%</div>
-        <div class="metric-sublabel">Renewable Energy</div>
+        <div class="metric-label">{{ year }} RE% (Operational)</div>
+        <div class="metric-value">{{ annual_summary.re_percentage_operational|floatformat:1 }}%</div>
+        <div class="metric-sublabel">Grid-sent electricity</div>
+    </div>
+    
+    <div class="metric-card {% if target_status.status == 'ahead' %}positive{% elif target_status.status == 'behind' %}negative{% else %}neutral{% endif %}">
+        <div class="metric-label">{{ year }} RE% (Underlying)</div>
+        <div class="metric-value">{{ annual_summary.re_percentage_underlying|floatformat:1 }}%</div>
+        <div class="metric-sublabel">Including rooftop solar</div>
         <div class="metric-change">
             {% if target %}{{ target_status.message }}{% endif %}
         </div>
     </div>
     
     <div class="metric-card neutral">
-        <div class="metric-label">Total Generation</div>
-        <div class="metric-value">{{ annual_summary.total_generation|floatformat:0|intcomma }}</div>
-        <div class="metric-sublabel">GWh</div>
-        {% if yoy_changes.total_generation %}
+        <div class="metric-label">Total Consumption</div>
+        <div class="metric-value">{{ annual_summary.underlying_demand|floatformat:0|intcomma }}</div>
+        <div class="metric-sublabel">GWh (underlying)</div>
+        {% if yoy_changes.underlying_demand %}
         <div class="metric-change">
-            {% if yoy_changes.total_generation > 0 %}↑{% else %}↓{% endif %}
-            {{ yoy_changes.total_generation|floatformat:1|abs }}% vs {{ year|add:"-1" }}
+            {% if yoy_changes.underlying_demand > 0 %}↑{% else %}↓{% endif %}
+            {{ yoy_changes.underlying_demand|floatformat:1|abs }}% vs {{ year|add:"-1" }}
         </div>
         {% endif %}
     </div>
@@ -107,11 +124,23 @@
     </thead>
     <tbody>
         <tr>
-            <td><strong>Total Consumption</strong></td>
+            <td><strong>Operational Demand</strong></td>
+            <td class="value">{{ annual_summary.operational_demand|floatformat:0|intcomma }} GWh</td>
+            {% if prev_annual_summary %}
+            <td class="value">{{ prev_annual_summary.operational_demand|floatformat:0|intcomma }} GWh</td>
+            <td class="value">
+                {% with change=annual_summary.operational_demand|sub:prev_annual_summary.operational_demand|div:prev_annual_summary.operational_demand|mul:100 %}
+                    {% if change >= 0 %}+{% endif %}{{ change|floatformat:1 }}%
+                {% endwith %}
+            </td>
+            {% endif %}
+        </tr>
+        <tr>
+            <td><strong>Underlying Demand</strong></td>
             <td class="value">{{ annual_summary.underlying_demand|floatformat:0|intcomma }} GWh</td>
             {% if prev_annual_summary %}
             <td class="value">{{ prev_annual_summary.underlying_demand|floatformat:0|intcomma }} GWh</td>
-            <td class="value {% if yoy_changes.underlying_demand > 0 %}neutral{% else %}neutral{% endif %}">
+            <td class="value">
                 {{ yoy_changes.underlying_demand|floatformat:1 }}%
             </td>
             {% endif %}
@@ -129,10 +158,22 @@
             {% endif %}
         </tr>
         <tr class="highlight-row">
-            <td><strong>RE%</strong></td>
-            <td class="value"><strong>{{ annual_summary.re_percentage|floatformat:1 }}%</strong></td>
+            <td><strong>RE% (Operational)</strong></td>
+            <td class="value"><strong>{{ annual_summary.re_percentage_operational|floatformat:1 }}%</strong></td>
             {% if prev_annual_summary %}
-            <td class="value">{{ prev_annual_summary.re_percentage|floatformat:1 }}%</td>
+            <td class="value">{{ prev_annual_summary.re_percentage_operational|floatformat:1 }}%</td>
+            <td class="value positive">
+                {% with change=annual_summary.re_percentage_operational|sub:prev_annual_summary.re_percentage_operational %}
+                    {% if change >= 0 %}+{% endif %}{{ change|floatformat:1 }} pp
+                {% endwith %}
+            </td>
+            {% endif %}
+        </tr>
+        <tr class="highlight-row">
+            <td><strong>RE% (Underlying)</strong></td>
+            <td class="value"><strong>{{ annual_summary.re_percentage_underlying|floatformat:1 }}%</strong></td>
+            {% if prev_annual_summary %}
+            <td class="value">{{ prev_annual_summary.re_percentage_underlying|floatformat:1 }}%</td>
             <td class="value positive">
                 +{{ yoy_changes.re_percentage|floatformat:1 }} pp
             </td>
@@ -147,13 +188,15 @@
 </div>
 
 <h3>Annual Generation by Technology ({{ year }})</h3>
+<p style="color: #7f8c8d;"><em>Note: Storage (BESS + Hydro) excluded from RE% calculations</em></p>
 
 <table class="stats-table">
     <thead>
         <tr>
             <th>Technology</th>
             <th class="value">Gen (GWh)</th>
-            <th class="value">%</th>
+            <th class="value">% of Operational</th>
+            <th class="value">% of Underlying</th>
             <th class="value">Emissions</th>
         </tr>
     </thead>
@@ -161,28 +204,56 @@
         <tr class="renewable-row">
             <td><strong>Wind</strong></td>
             <td class="value">{{ annual_summary.wind_generation|floatformat:0|intcomma }}</td>
-            <td class="value">{{ annual_summary.wind_generation|div:annual_summary.total_generation|mul:100|floatformat:1 }}%</td>
+            <td class="value">{{ annual_summary.wind_generation|div:annual_summary.operational_demand|mul:100|floatformat:1 }}%</td>
+            <td class="value">{{ annual_summary.wind_generation|div:annual_summary.underlying_demand|mul:100|floatformat:1 }}%</td>
             <td class="value">0</td>
         </tr>
         <tr class="renewable-row">
             <td><strong>Solar (Utility)</strong></td>
             <td class="value">{{ annual_summary.solar_generation|floatformat:0|intcomma }}</td>
-            <td class="value">{{ annual_summary.solar_generation|div:annual_summary.total_generation|mul:100|floatformat:1 }}%</td>
+            <td class="value">{{ annual_summary.solar_generation|div:annual_summary.operational_demand|mul:100|floatformat:1 }}%</td>
+            <td class="value">{{ annual_summary.solar_generation|div:annual_summary.underlying_demand|mul:100|floatformat:1 }}%</td>
             <td class="value">0</td>
         </tr>
         <tr class="renewable-row">
             <td><strong>Solar (Rooftop)</strong></td>
             <td class="value">{{ annual_summary.dpv_generation|floatformat:0|intcomma }}</td>
+            <td class="value">—</td>
             <td class="value">{{ annual_summary.dpv_generation|div:annual_summary.underlying_demand|mul:100|floatformat:1 }}%</td>
             <td class="value">0</td>
         </tr>
         <tr class="renewable-row">
-            <td><strong>Biomass + Hydro</strong></td>
+            <td><strong>Biomass</strong></td>
             <td class="value">{{ annual_summary.biomass_generation|floatformat:0|intcomma }}</td>
-            <td class="value">{{ annual_summary.biomass_generation|div:annual_summary.total_generation|mul:100|floatformat:1 }}%</td>
+            <td class="value">{{ annual_summary.biomass_generation|div:annual_summary.operational_demand|mul:100|floatformat:1 }}%</td>
+            <td class="value">{{ annual_summary.biomass_generation|div:annual_summary.underlying_demand|mul:100|floatformat:1 }}%</td>
             <td class="value">0</td>
         </tr>
+        <tr class="fossil-row">
+            <td>Gas (CCGT)</td>
+            <td class="value">{{ annual_summary.gas_generation|floatformat:0|intcomma }}</td>
+            <td class="value">{{ annual_summary.gas_generation|div:annual_summary.operational_demand|mul:100|floatformat:1 }}%</td>
+            <td class="value">{{ annual_summary.gas_generation|div:annual_summary.underlying_demand|mul:100|floatformat:1 }}%</td>
+            <td class="value">{{ annual_summary.gas_generation|mul:380|floatformat:0|intcomma }} t</td>
+        </tr>
+        {% if annual_summary.storage_discharge > 0 %}
+        <tr class="info-row">
+            <td><em>Storage (net discharge)</em></td>
+            <td class="value"><em>{{ annual_summary.storage_discharge|floatformat:0|intcomma }}</em></td>
+            <td class="value" colspan="2"><em>Excluded from RE%</em></td>
+            <td class="value"><em>0</em></td>
+        </tr>
+        {% endif %}
     </tbody>
+    <tfoot>
+        <tr style="background: #34495e; color: white;">
+            <td><strong>Total RE%</strong></td>
+            <td class="value">—</td>
+            <td class="value"><strong>{{ annual_summary.re_percentage_operational|floatformat:1 }}%</strong></td>
+            <td class="value"><strong>{{ annual_summary.re_percentage_underlying|floatformat:1 }}%</strong></td>
+            <td class="value">—</td>
+        </tr>
+    </tfoot>
 </table>
 
 <!-- Charts -->
@@ -323,7 +394,7 @@
 
 .metric-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
     gap: 20px;
     margin: 20px 0;
 }
@@ -446,8 +517,21 @@
     background: #e8f4f8;
 }
 
+.stats-table tfoot td {
+    padding: 12px 15px;
+}
+
 .renewable-row {
     background: #e8f5e9 !important;
+}
+
+.fossil-row {
+    background: #fafafa !important;
+}
+
+.info-row {
+    background: #e3f2fd !important;
+    font-style: italic;
 }
 
 .highlight-row {
