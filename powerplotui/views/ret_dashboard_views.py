@@ -151,7 +151,6 @@ def ret_dashboard(request, year=None, month=None):
     
     return render(request, 'ret_dashboard/dashboard.html', context)
 
-
 # =============================================================================
 # Monthly Performance Calculation
 # =============================================================================
@@ -652,7 +651,6 @@ def get_available_years():
     
     return list(years)
 
-
 # =============================================================================
 # Quarterly Report View
 # =============================================================================
@@ -721,8 +719,13 @@ def quarterly_report(request, year, quarter):
         year=year-1,
         month__in=months
     )
-    prev_quarter_summary = MonthlyREPerformance.aggregate_summary(prev_year_monthly) if prev_year_monthly.exists() else None
-    
+    if prev_year_monthly.exists():
+        prev_quarter_summary = MonthlyREPerformance.aggregate_summary(prev_year_monthly)
+    else:
+        prev_quarter_summary = {
+            're_percentage_operational': 0,
+            're_percentage_underlying': 0,
+        }    
     # Get year-to-date summary (all months up to end of this quarter)
     ytd_months = list(range(1, months[-1] + 1))
     ytd_data = MonthlyREPerformance.objects.filter(
@@ -736,7 +739,16 @@ def quarterly_report(request, year, quarter):
         year=year-1,
         month__in=ytd_months
     )
-    prev_ytd_summary = MonthlyREPerformance.aggregate_summary(prev_ytd_data) if prev_ytd_data.exists() else None
+    if prev_ytd_data.exists():
+        prev_ytd_summary = MonthlyREPerformance.aggregate_summary(prev_ytd_data)
+    else:
+        # Provide default values to avoid template errors
+        prev_ytd_summary = {
+            're_percentage_operational': 0,
+            're_percentage_underlying': 0,
+            'total_emissions': 0,
+            'emissions_intensity': 0,
+        }
     
     # Get target for this year
     target = _get_target_for_year(year)

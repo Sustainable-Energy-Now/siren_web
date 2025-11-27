@@ -113,7 +113,6 @@ def ret_target_create(request):
     
     return redirect('ret_targets_list')
 
-
 @require_http_methods(["GET", "POST"])
 def ret_target_update(request, target_id):
     """Update an existing Renewable Energy Target."""
@@ -144,7 +143,6 @@ def ret_target_update(request, target_id):
     
     return redirect('ret_targets_list')
 
-
 @require_POST
 def ret_target_delete(request, target_id):
     """Delete a Renewable Energy Target."""
@@ -160,7 +158,6 @@ def ret_target_delete(request, target_id):
         messages.error(request, f'Error deleting target: {str(e)}')
     
     return redirect('ret_targets_list')
-
 
 # =============================================================================
 # Target Scenario CRUD
@@ -244,7 +241,6 @@ def scenario_update(request, scenario_id):
     
     return redirect('ret_targets_list')
 
-
 @require_POST
 def scenario_delete(request, scenario_id):
     """Delete a Target Scenario."""
@@ -261,7 +257,6 @@ def scenario_delete(request, scenario_id):
     
     return redirect('ret_targets_list')
 
-
 @require_POST
 def scenario_toggle_active(request, scenario_id):
     """Toggle active status of a scenario."""
@@ -277,7 +272,6 @@ def scenario_toggle_active(request, scenario_id):
         messages.error(request, f'Error toggling scenario: {str(e)}')
     
     return redirect('ret_targets_list')
-
 
 # =============================================================================
 # API Endpoints (JSON)
@@ -299,7 +293,6 @@ def api_targets_list(request):
     } for t in targets]
     
     return JsonResponse({'targets': data})
-
 
 def api_scenarios_list(request):
     """API endpoint to get all scenarios as JSON."""
@@ -327,7 +320,6 @@ def api_scenarios_list(request):
     
     return JsonResponse({'scenarios': data})
 
-
 def api_target_detail(request, target_id):
     """API endpoint to get a single target."""
     target = get_object_or_404(RenewableEnergyTarget, id=target_id)
@@ -342,7 +334,6 @@ def api_target_detail(request, target_id):
         'created_at': target.created_at.isoformat() if target.created_at else None,
         'updated_at': target.updated_at.isoformat() if target.updated_at else None,
     })
-
 
 def api_scenario_detail(request, scenario_id):
     """API endpoint to get a single scenario."""
