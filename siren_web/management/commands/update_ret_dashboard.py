@@ -4,22 +4,20 @@ Django management command to update renewable energy dashboard data
 Can be run via cron job: python manage.py update_ret_dashboard
 """
 
-from django.core.management.base import BaseCommand, CommandError
+from django.core.management.base import BaseCommand
 from django.utils import timezone
-from django.db.models import Sum, Avg, Max, Min, Q, F, Count
+from django.db.models import Sum, F
 from datetime import datetime, timedelta
 from calendar import monthrange
-from decimal import Decimal
 import logging
 
 from siren_web.models import (
     MonthlyREPerformance,
     NewCapacityCommissioned, FacilityScada, facilities,
-    DPVGeneration, Technologies
+    DPVGeneration
 )
 
 logger = logging.getLogger(__name__)
-
 
 class Command(BaseCommand):
     help = 'Update renewable energy dashboard data from SCADA'
@@ -48,7 +46,7 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         """Main command handler"""
-        
+
         # Determine which period to update
         if options['year'] and options['month']:
             year = options['year']
@@ -157,8 +155,8 @@ class Command(BaseCommand):
                 'solar_generation': generation_data['solar_utility'],
                 'dpv_generation': rooftop_solar,
                 'biomass_generation': generation_data['biomass'],
-                'hydro_generation': generation_data['hydro'],
-                'gas_generation': generation_data.get('gas_ccgt', 0),
+                'gas_generation': generation_data.get('gas', 0),
+                'coal_generation': generation_data.get('coal', 0),
                 'storage_discharge': generation_data.get('storage_discharge', 0),
                 'storage_charge': generation_data.get('storage_charge', 0),
                 'total_emissions_tonnes': emissions_data['total_emissions'],
@@ -196,10 +194,7 @@ class Command(BaseCommand):
             'solar_utility': 0,
             'solar_rooftop': 0,  # Will be filled from DPVGeneration
             'biomass': 0,
-            'hydro': 0,
-            'gas_ccgt': 0,
-            'gas_ocgt': 0,
-            'gas': 0,  # Generic gas
+            'gas': 0,
             'coal': 0,
             'storage_discharge': 0,
             'storage_charge': 0,
@@ -226,38 +221,27 @@ class Command(BaseCommand):
             # To get GWh, divide by 1000
             gen_gwh = total_mw / 1000.0
             
-            if not fuel_type:
-                # Try to infer from technology name or category
-                if 'battery' in tech_name or 'bess' in tech_name or 'storage' in category:
-                    # Batteries: positive is discharge, negative might be charge
-                    if gen_gwh >= 0:
-                        generation['storage_discharge'] += gen_gwh
-                    else:
-                        generation['storage_charge'] += abs(gen_gwh)
-                continue
-            
             # Map fuel types to generation categories
             if fuel_type == 'WIND':
                 generation['wind'] += gen_gwh
             elif fuel_type == 'SOLAR':
                 # Distinguish between utility and rooftop
                 # Rooftop should come from DPVGeneration model
-                if 'rooftop' not in tech_name and 'dpv' not in tech_name:
+                if 'dpv' in tech_name:
+                    generation['solar_rooftop'] += gen_gwh
+                else:
                     generation['solar_utility'] += gen_gwh
             elif fuel_type == 'BIOMASS':
                 generation['biomass'] += gen_gwh
-            elif fuel_type == 'HYDRO':
-                generation['hydro'] += gen_gwh
             elif fuel_type == 'GAS':
-                # Check technology name for CCGT vs OCGT
-                if 'ccgt' in tech_name or 'combined cycle' in tech_name:
-                    generation['gas_ccgt'] += gen_gwh
-                elif 'ocgt' in tech_name or 'open cycle' in tech_name:
-                    generation['gas_ocgt'] += gen_gwh
-                else:
-                    generation['gas'] += gen_gwh
+                generation['gas'] += gen_gwh
             elif fuel_type == 'COAL':
                 generation['coal'] += gen_gwh
+            elif fuel_type == 'BESS' or fuel_type == 'HYDRO':
+                if gen_gwh >= 0:
+                    generation['storage_discharge'] += gen_gwh
+                else:
+                    generation['storage_charge'] += abs(gen_gwh)
         
         # Calculate total operational demand
         # Sum of all generation (excluding battery charge)
@@ -265,12 +249,8 @@ class Command(BaseCommand):
             generation['wind'] +
             generation['solar_utility'] +
             generation['biomass'] +
-            generation['hydro'] +
-            generation['gas_ccgt'] +
-            generation['gas_ocgt'] +
             generation['gas'] +
-            generation['coal'] +
-            generation['storage_discharge']
+            generation['coal']
         )
         
         return generation
@@ -405,7 +385,7 @@ class Command(BaseCommand):
             re_generation=Sum(
                 Case(
                     When(
-                        facility__idtechnologies__fuel_type__in=['WIND', 'SOLAR', 'HYDRO', 'BIOMASS'],
+                        facility__idtechnologies__fuel_type__in=['WIND', 'SOLAR', 'BIOMASS'],
                         then=F('quantity')
                     ),
                     default=Value(0),

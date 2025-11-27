@@ -45,7 +45,7 @@ urlpatterns = [
     path('ret_annual_review/<int:year>/', ret_dashboard_views.annual_review, name='annual_review'),
     
     # API endpoints for data updates
-    path('api/ret_dashboard/update_monthly/', ret_dashboard_views.update_monthly_data, name='update_monthly_data'),
+    path('api/ret_dashboard/update_monthly/', ret_dashboard_views.api_update_monthly, name='update_monthly_data'),
     path('api/ret_dashboard/calculate/<int:year>/<int:month>/', ret_dashboard_views.api_calculate_monthly, name='api_calculate_monthly'),
 
     # Main targets list view

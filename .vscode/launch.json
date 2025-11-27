@@ -32,7 +32,7 @@
             "request": "launch",
             "program": "${workspaceFolder}\\manage.py",
             "args": [
-                "update_ret_dashboard"
+                "update_ret_dashboard", "--month", "10", "--force"
             ],
             "django": true,
             "autoStartBrowser": false

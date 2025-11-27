@@ -367,15 +367,17 @@
     <!-- Year-to-Date Cumulative -->
     <div class="section">
         <h2>Cumulative Year-to-Date Performance</h2>
-        
+
         <table class="data-table">
             <thead>
                 <tr>
                     <th>Metric</th>
                     <th class="value">Q{{ quarter }} {{ year }}</th>
                     <th class="value">YTD {{ year }}</th>
+                    {% if prev_ytd_summary %}
                     <th class="value">YTD {{ year|add:"-1" }}</th>
                     <th class="value">Change</th>
+                    {% endif %}
                 </tr>
             </thead>
             <tbody>
@@ -383,28 +385,33 @@
                     <td><strong>RE% (Operational)</strong></td>
                     <td class="value">{{ quarterly_summary.re_percentage_operational|floatformat:1 }}%</td>
                     <td class="value"><strong>{{ ytd_summary.re_percentage_operational|floatformat:1 }}%</strong></td>
+                    {% if prev_ytd_summary %}
                     <td class="value">{{ prev_ytd_summary.re_percentage_operational|floatformat:1 }}%</td>
                     <td class="value">
                         {% with change=ytd_summary.re_percentage_operational|sub:prev_ytd_summary.re_percentage_operational %}
                             {% if change >= 0 %}+{% endif %}{{ change|floatformat:1 }} pp
                         {% endwith %}
                     </td>
+                    {% endif %}
                 </tr>
                 <tr>
                     <td><strong>RE% (Underlying)</strong></td>
                     <td class="value">{{ quarterly_summary.re_percentage_underlying|floatformat:1 }}%</td>
                     <td class="value"><strong>{{ ytd_summary.re_percentage_underlying|floatformat:1 }}%</strong></td>
+                    {% if prev_ytd_summary %}
                     <td class="value">{{ prev_ytd_summary.re_percentage_underlying|floatformat:1 }}%</td>
                     <td class="value">
                         {% with change=ytd_summary.re_percentage_underlying|sub:prev_ytd_summary.re_percentage_underlying %}
                             {% if change >= 0 %}+{% endif %}{{ change|floatformat:1 }} pp
                         {% endwith %}
                     </td>
+                    {% endif %}
                 </tr>
                 <tr>
                     <td>Total Emissions (tonnes CO₂-e)</td>
                     <td class="value">{{ quarterly_summary.total_emissions|floatformat:0|intcomma }}</td>
                     <td class="value">{{ ytd_summary.total_emissions|floatformat:0|intcomma }}</td>
+                    {% if prev_ytd_summary %}
                     <td class="value">{{ prev_ytd_summary.total_emissions|floatformat:0|intcomma }}</td>
                     <td class="value">
                         {% with change=ytd_summary.total_emissions|sub:prev_ytd_summary.total_emissions %}
@@ -413,17 +420,20 @@
                             {% endwith %}
                         {% endwith %}
                     </td>
+                    {% endif %}
                 </tr>
                 <tr>
                     <td>Emissions Intensity (kg/MWh)</td>
                     <td class="value">{{ quarterly_summary.emissions_intensity|floatformat:0 }}</td>
                     <td class="value">{{ ytd_summary.emissions_intensity|floatformat:0 }}</td>
+                    {% if prev_ytd_summary %}
                     <td class="value">{{ prev_ytd_summary.emissions_intensity|floatformat:0 }}</td>
                     <td class="value">
                         {% with change=ytd_summary.emissions_intensity|sub:prev_ytd_summary.emissions_intensity %}
                             {% if change >= 0 %}+{% endif %}{{ change|floatformat:0 }}
                         {% endwith %}
                     </td>
+                    {% endif %}
                 </tr>
             </tbody>
         </table>
@@ -482,16 +492,12 @@
         <div class="observations">
             <h3>Positive Developments</h3>
             <ul>
-                {% if quarterly_summary.re_percentage_underlying > prev_quarter_summary.re_percentage_underlying %}
+                {% if prev_quarter_summary and quarterly_summary.re_percentage_underlying > prev_quarter_summary.re_percentage_underlying %}
                 <li>RE% (underlying) increased by {{ quarterly_summary.re_percentage_underlying|sub:prev_quarter_summary.re_percentage_underlying|floatformat:1 }} percentage points compared to Q{{ quarter }} {{ year|add:"-1" }}</li>
                 {% endif %}
                 
-                {% if ytd_summary.total_emissions < prev_ytd_summary.total_emissions %}
+                {% if prev_ytd_summary and ytd_summary.total_emissions < prev_ytd_summary.total_emissions %}
                 <li>YTD emissions reduced by {{ prev_ytd_summary.total_emissions|sub:ytd_summary.total_emissions|floatformat:0|intcomma }} tonnes CO₂-e ({{ prev_ytd_summary.total_emissions|sub:ytd_summary.total_emissions|div:prev_ytd_summary.total_emissions|mul:100|floatformat:1 }}%) compared to same period last year</li>
-                {% endif %}
-
-                {% if new_capacity %}
-                <li>{{ new_capacity|length }} new renewable facilit{{ new_capacity|length|pluralize:"y,ies" }} commissioned, adding {{ new_capacity|sum_attr:"capacity_mw"|floatformat:0 }} MW of capacity</li>
                 {% endif %}
 
                 <li>Wind generation contributed {{ quarterly_summary.wind_generation|percent:quarterly_summary.underlying_demand|floatformat:1 }}% of total underlying demand</li>
@@ -542,7 +548,7 @@
         {
             x: [{% for monthly in monthly_performances %}'{{ monthly.month_name }}'{% if not forloop.last %}, {% endif %}{% endfor %}],
             y: [{% for monthly in monthly_performances %}{{ monthly.gas_generation|default:0 }}{% if not forloop.last %}, {% endif %}{% endfor %}],
-            name: 'Gas (CCGT)',
+            name: 'Gas',
             type: 'bar',
             marker: {color: '#9E9E9E'}
         }
@@ -560,7 +566,7 @@
 
     // Year-over-Year Comparison - now showing both RE% measures
     var yoyData = [
-        {
+        {*************Here
             x: ['Q{{ quarter }} {{ year|add:"-1" }} (Op)', 'Q{{ quarter }} {{ year }} (Op)', 'Q{{ quarter }} {{ year|add:"-1" }} (Und)', 'Q{{ quarter }} {{ year }} (Und)'],
             y: [{{ prev_quarter_summary.re_percentage_operational|default:0 }}, {{ quarterly_summary.re_percentage_operational }}, {{ prev_quarter_summary.re_percentage_underlying|default:0 }}, {{ quarterly_summary.re_percentage_underlying }}],
             name: 'RE%',

@@ -67,14 +67,11 @@ def ret_dashboard(request, year=None, month=None):
     try:
         performance = MonthlyREPerformance.objects.get(year=year, month=month)
     except MonthlyREPerformance.DoesNotExist:
-        # Calculate from SCADA data if monthly record doesn't exist
-        performance = calculate_monthly_performance(year, month)
-        if not performance:
-            return render(request, 'ret_dashboard/no_data.html', {
-                'year': year,
-                'month': month_name[month]
-            })
-    
+        return render(request, 'ret_dashboard/no_data.html', {
+            'year': year,
+            'month': month_name[month]
+        })
+
     # Get target for this year
     target = performance.get_target_for_period()
     target_status = performance.get_status_vs_target()
@@ -110,8 +107,9 @@ def ret_dashboard(request, year=None, month=None):
     scenarios = TargetScenario.objects.filter(is_active=True)
     base_case = scenarios.filter(scenario_type='base_case').first()
     
-    # Generate charts
-    generation_mix_chart = generate_generation_mix_chart(performance)
+    # Generate charts - TWO separate pie charts for operational and underlying
+    generation_mix_operational_chart = generate_generation_mix_operational_chart(performance)
+    generation_mix_underlying_chart = generate_generation_mix_underlying_chart(performance)
     pathway_chart = generate_pathway_chart(year, month)
     
     # Calculate emissions reduction
@@ -143,7 +141,9 @@ def ret_dashboard(request, year=None, month=None):
         'new_capacity': new_capacity,
         'upcoming_capacity': upcoming_capacity,
         'base_case_scenario': base_case,
-        'generation_mix_chart': generation_mix_chart,
+        # Two separate charts
+        'generation_mix_operational_chart': generation_mix_operational_chart,
+        'generation_mix_underlying_chart': generation_mix_underlying_chart,
         'pathway_chart': pathway_chart,
         'available_months': get_available_months(),
         'available_years': get_available_years(),
@@ -151,190 +151,14 @@ def ret_dashboard(request, year=None, month=None):
     
     return render(request, 'ret_dashboard/dashboard.html', context)
 
-# =============================================================================
-# Monthly Performance Calculation
-# =============================================================================
-
-def calculate_monthly_performance(year, month):
+def get_dpv_generation(year, month):
     """
-    Calculate monthly performance from SCADA data.
-    
-    Uses:
-    - dispatch_interval (instead of trading_date)
-    - facility / facility_id (instead of facility_code)
-    - quantity (for generation)
-    
-    Storage Policy:
-    - BESS and Hydro (pumped storage) are excluded from RE% calculations
-    - Storage discharge is excluded from demand calculations
+    Get DPV (Distributed PV / Rooftop Solar) generation for a month.
+    Returns generation in GWh.
     """
-    # Get date range for the month
     _, last_day = monthrange(year, month)
-    start_datetime = datetime(year, month, 1)
-    end_datetime = datetime(year, month, last_day, 23, 59, 59)
     
-    # Query SCADA data for this month using dispatch_interval
-    scada_data = FacilityScada.objects.filter(
-        dispatch_interval__gte=start_datetime,
-        dispatch_interval__lte=end_datetime
-    )
-    
-    if not scada_data.exists():
-        return None
-    
-    print(f"Found {scada_data.count()} SCADA records for {month}/{year}")
-    
-    # Initialize generation totals
-    generation = defaultdict(lambda: Decimal("0"))
-
-    # Get unique facilities in this period
-    facility_ids = scada_data.values_list('facility_id', flat=True).distinct()
-    
-    print(f"Found {len(list(facility_ids))} unique facilities")
-    
-    # Sum generation by facility, then categorize by technology
-    for facility_id in facility_ids:
-        try:
-            facility = facilities.objects.select_related('idtechnologies').get(
-                idfacilities=facility_id
-            )
-        except facilities.DoesNotExist:
-            print(f"Warning: Facility ID {facility_id} not found in facilities table")
-            continue
-        
-        # Sum this facility's generation for the period
-        facility_gen = scada_data.filter(
-            facility_id=facility_id
-        ).aggregate(total=Sum('quantity'))['total'] or 0
-        
-        # Convert MWh to GWh
-        facility_gen_gwh = facility_gen / 1000
-        
-        # Get technology type
-        tech = facility.idtechnologies.fuel_type.lower()
-        
-        # Categorize by technology
-        if tech == 'bess':
-            if facility_gen_gwh >= 0:
-                generation['bess_discharge'] += facility_gen_gwh
-            else:
-                generation['bess_charge'] += abs(facility_gen_gwh)
-        elif tech == 'hydro_pumped_storage':
-            if facility_gen_gwh >= 0:
-                generation['hydro_discharge'] += facility_gen_gwh
-            else:
-                generation['hydro_charge'] += abs(facility_gen_gwh)
-        else:
-            generation[tech] += facility_gen_gwh
-
-    # Calculate total operational demand
-    # Operational demand = sum of all generation less storage charging
-    # Storage discharge is NOT added to demand (it's already in the generation that serves load)
-    generation['operational_demand'] = (
-        sum(value for key, value in generation.items() 
-            if key not in ['bess_charge', 'hydro_charge', 'bess_discharge', 'hydro_discharge', 'operational_demand'])
-    )
-    
-    # Get rooftop solar generation estimate
-    generation['dpv'] = estimate_rooftop_generation(year, month)
-    
-    # Calculate underlying demand (operational + rooftop)
-    underlying_demand = generation['operational_demand'] + generation['dpv']
-    
-    # Calculate renewable generation totals
-    # Note: Hydro (pumped storage) is EXCLUDED - it's storage like BESS
-    renewable_gen_operational = (
-        generation['wind'] +
-        generation['solar'] +
-        generation['biomass']
-    )
-    renewable_gen_underlying = renewable_gen_operational + generation['dpv']
-    
-    # Calculate RE percentages
-    if generation['operational_demand'] > 0:
-        re_percentage_operational = (renewable_gen_operational / generation['operational_demand']) * 100
-    else:
-        re_percentage_operational = 0
-        
-    if underlying_demand > 0:
-        re_percentage_underlying = (renewable_gen_underlying / underlying_demand) * 100
-    else:
-        re_percentage_underlying = 0
-    
-    # Calculate emissions
-    gas_emissions = generation['gas'] * 380  # tonnes CO2-e/GWh
-    coal_emissions = generation['coal'] * 900  # tonnes CO2-e/GWh
-    total_emissions = gas_emissions + coal_emissions
-    
-    # Calculate emissions intensity (kg CO2-e per MWh)
-    if underlying_demand > 0:
-        emissions_intensity = (total_emissions * 1000) / underlying_demand
-    else:
-        emissions_intensity = 0
-    
-    # Get peak/minimum demand
-    peak_record = scada_data.order_by('-quantity').first()
-    min_record = scada_data.order_by('quantity').first()
-    
-    # Calculate best RE hour (placeholder - would need interval-level calculation for accuracy)
-    best_re_hour = None
-    best_re_percentage = 0
-    
-    print(f"Creating MonthlyREPerformance record for {month}/{year}")
-    print(f"  Operational demand: {generation['operational_demand']:.1f} GWh")
-    print(f"  Underlying demand: {underlying_demand:.1f} GWh")
-    print(f"  Wind: {generation['wind']:.1f} GWh")
-    print(f"  Solar (Utility): {generation['solar']:.1f} GWh")
-    print(f"  Solar (Rooftop): {generation['dpv']:.1f} GWh")
-    print(f"  Biomass: {generation['biomass']:.1f} GWh")
-    print(f"  Hydro (pumped storage): {generation.get('hydro_discharge', 0):.1f} GWh (excluded from RE%)")
-    print(f"  Gas: {generation['gas']:.1f} GWh")
-    print(f"  RE% (operational): {re_percentage_operational:.1f}%")
-    print(f"  RE% (underlying): {re_percentage_underlying:.1f}%")
-    print(f"  Total emissions: {total_emissions:.0f} tonnes")
-    
-    # Total storage discharge (BESS + Hydro)
-    total_storage_discharge = generation['bess_discharge'] + generation.get('hydro_discharge', 0)
-    total_storage_charge = generation['bess_charge'] + generation.get('hydro_charge', 0)
-    
-    # Create or update MonthlyREPerformance record
-    performance, created = MonthlyREPerformance.objects.update_or_create(
-        year=year,
-        month=month,
-        defaults={
-            'total_generation': generation['operational_demand'],
-            'operational_demand': generation['operational_demand'],
-            'underlying_demand': underlying_demand,
-            'wind_generation': generation['wind'],
-            'solar_generation': generation['solar'],
-            'dpv_generation': generation['dpv'],
-            'biomass_generation': generation['biomass'],
-            'hydro_generation': generation.get('hydro_discharge', 0),  # Store for reference, excluded from RE%
-            'gas_generation': generation['gas'],
-            'coal_generation': generation['coal'],
-            'storage_discharge': total_storage_discharge,
-            'storage_charge': total_storage_charge,
-            'total_emissions_tonnes': total_emissions,
-            'emissions_intensity_kg_mwh': emissions_intensity,
-            'peak_demand_mw': peak_record.quantity if peak_record else None,
-            'peak_demand_datetime': peak_record.dispatch_interval if peak_record else None,
-            'minimum_demand_mw': min_record.quantity if min_record else None,
-            'minimum_demand_datetime': min_record.dispatch_interval if min_record else None,
-            'best_re_hour_percentage': best_re_percentage if best_re_percentage > 0 else None,
-            'best_re_hour_datetime': best_re_hour,
-            'data_complete': True,
-            'data_source': 'SCADA',
-        }
-    )
-    
-    return performance
-
-def estimate_rooftop_generation(year: int, month: int) -> float:
-    """
-    Returns total rooftop PV generation for the given year and month in GWh.
-    DPVGeneration intervals are 30 minutes and estimated_generation is in MW.
-    """
-
+    # Try to get from DPVGeneration model
     qs = DPVGeneration.objects.filter(
         trading_date__year=year,
         trading_date__month=month
@@ -355,16 +179,73 @@ def estimate_rooftop_generation(year: int, month: int) -> float:
 # Chart Generation Functions
 # =============================================================================
 
-def generate_generation_mix_chart(performance):
+def generate_generation_mix_operational_chart(performance):
     """
-    Generate Plotly chart for generation mix.
+    Generate Plotly pie chart for OPERATIONAL generation mix.
     
-    Note: Storage (BESS + Hydro) is excluded from the pie chart
-    as it's not counted in RE% calculations.
+    Shows grid-sent generation only (excludes rooftop solar/DPV).
+    Storage (BESS + Hydro) is also excluded as it's not counted in RE%.
     """
     import plotly.graph_objects as go
     
-    # Data for pie chart - excludes storage
+    # Data for pie chart - EXCLUDES DPV (rooftop solar) and storage
+    labels = ['Wind', 'Solar (Utility)', 'Biomass', 'Gas (CCGT)']
+    
+    values = [
+        performance.wind_generation,
+        performance.solar_generation,
+        performance.biomass_generation,
+        performance.gas_generation,
+    ]
+    
+    # Add coal if present
+    if performance.coal_generation and performance.coal_generation > 0:
+        labels.append('Coal')
+        values.append(performance.coal_generation)
+    
+    # Colors - green for renewables, gray for fossil
+    colors = ['#27ae60', '#f39c12', '#16a085', '#95a5a6', '#7f8c8d']
+    
+    fig = go.Figure(data=[go.Pie(
+        labels=labels,
+        values=values,
+        marker=dict(colors=colors[:len(labels)]),
+        textposition='inside',
+        textinfo='label+percent',
+        hovertemplate='<b>%{label}</b><br>%{value:.1f} GWh<br>%{percent}<extra></extra>',
+        hole=0,
+        domain=dict(x=[0.1, 0.9], y=[0.15, 0.85])
+    )])
+    
+    fig.update_layout(
+        title=dict(
+            text=f"Operational Demand - RE: {performance.re_percentage_operational:.1f}%",
+            x=0.5,
+            xanchor='center',
+            font=dict(size=14)
+        ),
+        height=400,
+        showlegend=True,
+        legend=dict(orientation='h', yanchor='top', y=0.02, xanchor='center', x=0.5),
+        margin=dict(l=20, r=20, t=50, b=50),
+    )
+    
+    # Wrap in a div with explicit width control
+    chart_html = fig.to_html(include_plotlyjs='cdn', div_id='generation_mix_operational_chart', 
+                             full_html=False)
+    return f'<div style="width:100%;overflow:hidden;">{chart_html}</div>'
+
+
+def generate_generation_mix_underlying_chart(performance):
+    """
+    Generate Plotly pie chart for UNDERLYING generation mix.
+    
+    Shows total generation including rooftop solar (DPV).
+    Storage (BESS + Hydro) is excluded as it's not counted in RE%.
+    """
+    import plotly.graph_objects as go
+    
+    # Data for pie chart - INCLUDES DPV (rooftop solar), excludes storage
     labels = ['Wind', 'Solar (Utility)', 'Solar (Rooftop)', 'Biomass', 'Gas (CCGT)']
     
     values = [
@@ -375,29 +256,50 @@ def generate_generation_mix_chart(performance):
         performance.gas_generation,
     ]
     
-    # Colors - green for renewables, gray for fossil
-    colors = ['#27ae60', '#f39c12', '#f1c40f', '#16a085', '#95a5a6']
+    # Add coal if present
+    if performance.coal_generation and performance.coal_generation > 0:
+        labels.append('Coal')
+        values.append(performance.coal_generation)
+    
+    # Colors - green for renewables (including rooftop solar in yellow), gray for fossil
+    colors = ['#27ae60', '#f39c12', '#f1c40f', '#16a085', '#95a5a6', '#7f8c8d']
     
     fig = go.Figure(data=[go.Pie(
         labels=labels,
         values=values,
-        marker=dict(colors=colors),
-        textposition='auto',
+        marker=dict(colors=colors[:len(labels)]),
+        textposition='inside',
         textinfo='label+percent',
-        hovertemplate='<b>%{label}</b><br>%{value:.1f} GWh<br>%{percent}<extra></extra>'
+        hovertemplate='<b>%{label}</b><br>%{value:.1f} GWh<br>%{percent}<extra></extra>',
+        hole=0,
+        domain=dict(x=[0.1, 0.9], y=[0.15, 0.85])
     )])
     
     fig.update_layout(
-        title=f"Generation Mix - {performance.get_month_name()} {performance.year}<br><sub>(Storage excluded from RE%)</sub>",
+        title=dict(
+            text=f"Underlying Demand - RE: {performance.re_percentage_underlying:.1f}%",
+            x=0.5,
+            xanchor='center',
+            font=dict(size=14)
+        ),
         height=400,
         showlegend=True,
-        margin=dict(l=20, r=20, t=80, b=20)
+        legend=dict(orientation='h', yanchor='top', y=0.02, xanchor='center', x=0.5),
+        margin=dict(l=20, r=20, t=50, b=50),
     )
     
-    return fig.to_html(include_plotlyjs='cdn', div_id='generation_mix_chart')
+    # Wrap in a div with explicit width control
+    chart_html = fig.to_html(include_plotlyjs=False, div_id='generation_mix_underlying_chart',
+                             full_html=False)
+    return f'<div style="width:100%;overflow:hidden;">{chart_html}</div>'
 
 def generate_pathway_chart(current_year, current_month):
-    """Generate chart showing pathway to 2040 target"""
+    """
+    Generate chart showing pathway to 2040 target.
+    
+    Uses OPERATIONAL RE% (not underlying) as this is the primary policy metric.
+    Includes a cumulative YTD RE% line that builds month by month.
+    """
     import plotly.graph_objects as go
     
     # Get historical performance
@@ -408,14 +310,43 @@ def generate_pathway_chart(current_year, current_month):
     # Get targets
     targets = RenewableEnergyTarget.objects.all().order_by('target_year')
     
-    # Prepare data for plotting
+    # Prepare data for plotting - USE OPERATIONAL RE%
     hist_years = []
     hist_re_pct = []
     
     for record in historical:
         date_label = f"{record.year}-{record.month:02d}"
         hist_years.append(date_label)
-        hist_re_pct.append(record.re_percentage_underlying)
+        hist_re_pct.append(record.re_percentage_operational)
+    
+    # Calculate cumulative YTD RE% for current year (month by month)
+    ytd_months = []
+    ytd_re_pcts = []
+    
+    # Get all months for current year up to current_month
+    current_year_data = MonthlyREPerformance.objects.filter(
+        year=current_year,
+        month__lte=current_month
+    ).order_by('month')
+    
+    if current_year_data.exists():
+        cumulative_renewable = 0
+        cumulative_operational = 0
+        
+        for record in current_year_data:
+            # Add this month's values to cumulative totals
+            cumulative_renewable += (
+                record.wind_generation + 
+                record.solar_generation + 
+                record.biomass_generation
+            )
+            cumulative_operational += record.operational_demand
+            
+            # Calculate YTD RE% up to this month
+            if cumulative_operational > 0:
+                ytd_pct = (cumulative_renewable / cumulative_operational) * 100
+                ytd_months.append(f"{current_year}-{record.month:02d}")
+                ytd_re_pcts.append(ytd_pct)
     
     # Target trajectory
     target_years = [t.target_year for t in targets]
@@ -424,15 +355,26 @@ def generate_pathway_chart(current_year, current_month):
     # Create figure
     fig = go.Figure()
     
-    # Historical performance
+    # Historical performance (monthly)
     fig.add_trace(go.Scatter(
         x=hist_years,
         y=hist_re_pct,
         mode='lines+markers',
-        name='Actual RE%',
+        name='Monthly RE% (Operational)',
         line=dict(color='#27ae60', width=2),
         marker=dict(size=6)
     ))
+    
+    # YTD RE% cumulative line (only for current year)
+    if ytd_months and ytd_re_pcts:
+        fig.add_trace(go.Scatter(
+            x=ytd_months,
+            y=ytd_re_pcts,
+            mode='lines+markers',
+            name=f'YTD {current_year} RE%',
+            line=dict(color='#2980b9', width=3),
+            marker=dict(size=8, symbol='square')
+        ))
     
     # Target line
     if target_years and target_pcts:
@@ -446,7 +388,7 @@ def generate_pathway_chart(current_year, current_month):
         ))
     
     fig.update_layout(
-        title='Pathway to 2040 Target',
+        title='Pathway to 2040 Target (Operational RE%)',
         xaxis_title='Year',
         yaxis_title='Renewable Energy %',
         height=400,
@@ -454,7 +396,8 @@ def generate_pathway_chart(current_year, current_month):
         yaxis=dict(range=[0, 100])
     )
     
-    return fig.to_html(include_plotlyjs='cdn', div_id='pathway_chart')
+    chart_html = fig.to_html(include_plotlyjs=False, div_id='pathway_chart', full_html=False)
+    return f'<div style="width:100%;overflow:hidden;">{chart_html}</div>'
 
 
 def generate_annual_generation_chart(annual_data):
@@ -536,11 +479,11 @@ def generate_annual_trends_chart(year):
     
     fig = go.Figure()
     
-    # Add line for each year
+    # Add line for each year - USE OPERATIONAL RE%
     for y in sorted(years_data.keys()):
         records = years_data[y]
         months = [record.month for record in records]
-        re_pcts = [record.re_percentage_underlying for record in records]
+        re_pcts = [record.re_percentage_operational for record in records]  # CHANGED
         
         fig.add_trace(go.Scatter(
             name=str(y),
@@ -566,7 +509,7 @@ def generate_annual_trends_chart(year):
         pass
     
     fig.update_layout(
-        title='Multi-Year RE% Trends',
+        title='Multi-Year RE% Trends (Operational)',
         xaxis_title='Month',
         yaxis_title='Renewable Energy %',
         height=400,
@@ -604,21 +547,16 @@ def generate_scenario_comparison_chart(scenarios):
         )
     ])
     
-    # Add target line
-    fig.add_hline(
-        y=75, 
-        line_dash="dash", 
-        line_color="red",
-        annotation_text="2040 Target (75%)",
-        annotation_position="right"
-    )
+    # Add 75% target line
+    fig.add_hline(y=75, line_dash="dash", line_color="red",
+                  annotation_text="75% Target", annotation_position="right")
     
     fig.update_layout(
-        title='2040 Scenario Projections',
+        title='2040 Scenario Comparison',
         xaxis_title='Scenario',
-        yaxis_title='Projected RE% by 2040',
+        yaxis_title='Projected RE%',
         height=400,
-        showlegend=False
+        yaxis=dict(range=[0, 100])
     )
     
     return fig.to_html(include_plotlyjs='cdn', div_id='scenario_comparison_chart')
@@ -629,22 +567,20 @@ def generate_scenario_comparison_chart(scenarios):
 # =============================================================================
 
 def get_available_months():
-    """Get list of available months with data"""
-    records = MonthlyREPerformance.objects.values(
-        'year', 'month'
-    ).distinct().order_by('-year', '-month')
+    """Get list of months with available data for dropdown"""
+    records = MonthlyREPerformance.objects.all().order_by('-year', '-month')
     
     months = []
     for record in records:
         months.append({
-            'value': f"{record['year']}-{record['month']:02d}",
-            'label': f"{month_name[record['month']]} {record['year']}"
+            'value': f"{record.year}-{record.month:02d}",
+            'label': f"{month_name[record.month]} {record.year}"
         })
     
     return months
 
 def get_available_years():
-    """Get list of available years"""
+    """Get list of years with available data"""
     years = MonthlyREPerformance.objects.values_list(
         'year', flat=True
     ).distinct().order_by('-year')
@@ -657,265 +593,375 @@ def get_available_years():
 
 def quarterly_report(request, year, quarter):
     """
-    Generate quarterly report (Q1, Q2, Q3, or Q4).
-    Aggregates 3 months of data for the specified quarter.
+    Generate quarterly report view.
     """
     year = int(year)
     quarter = int(quarter)
     
-    # Validate quarter
-    if quarter not in [1, 2, 3, 4]:
-        return render(request, 'ret_dashboard/no_data.html', {
-            'year': year,
-            'message': f'Invalid quarter: {quarter}. Must be 1, 2, 3, or 4.'
-        })
+    # Get months in this quarter
+    start_month = (quarter - 1) * 3 + 1
+    end_month = start_month + 2
     
-    # Map quarter to months
-    quarter_months = {
-        1: [1, 2, 3],    # Q1: Jan, Feb, Mar
-        2: [4, 5, 6],    # Q2: Apr, May, Jun
-        3: [7, 8, 9],    # Q3: Jul, Aug, Sep
-        4: [10, 11, 12]  # Q4: Oct, Nov, Dec
-    }
-    
-    months = quarter_months[quarter]
-    quarter_start_month = month_name[months[0]]
-    quarter_end_month = month_name[months[-1]]
-    
-    # Get monthly performance data for this quarter
-    monthly_performances = MonthlyREPerformance.objects.filter(
+    # Get monthly data for this quarter
+    quarterly_data = MonthlyREPerformance.objects.filter(
         year=year,
-        month__in=months
+        month__gte=start_month,
+        month__lte=end_month
     ).order_by('month')
     
-    if not monthly_performances.exists():
+    if not quarterly_data.exists():
         return render(request, 'ret_dashboard/no_data.html', {
             'year': year,
-            'quarter': quarter,
-            'message': f'No data available for Q{quarter} {year}. Please process monthly data first.'
+            'quarter': quarter
         })
     
-    # Check if we have all 3 months
-    if monthly_performances.count() < 3:
-        missing_months = [m for m in months if not monthly_performances.filter(month=m).exists()]
-        missing_names = [month_name[m] for m in missing_months]
-        return render(request, 'ret_dashboard/no_data.html', {
-            'year': year,
-            'quarter': quarter,
-            'message': f'Incomplete data for Q{quarter} {year}. Missing: {", ".join(missing_names)}'
-        })
+    # Calculate quarterly totals
+    total_generation = sum(r.total_generation for r in quarterly_data)
+    total_renewable = sum(r.total_renewable_generation for r in quarterly_data)
+    total_emissions = sum(r.total_emissions_tonnes for r in quarterly_data)
+    total_operational_demand = sum(r.operational_demand for r in quarterly_data)
+    total_underlying_demand = sum(r.underlying_demand for r in quarterly_data)
+    total_dpv = sum(r.dpv_generation for r in quarterly_data)
+    total_wind = sum(r.wind_generation for r in quarterly_data)
+    total_solar = sum(r.solar_generation for r in quarterly_data)
+    total_biomass = sum(r.biomass_generation for r in quarterly_data)
     
-    # Calculate quarterly summary using model's classmethod
-    quarterly_summary = MonthlyREPerformance.aggregate_summary(monthly_performances)
+    # Calculate quarterly RE percentages
+    re_pct_operational = (total_renewable / total_operational_demand * 100) if total_operational_demand > 0 else 0
+    re_with_dpv = total_renewable + total_dpv
+    re_pct_underlying = (re_with_dpv / total_underlying_demand * 100) if total_underlying_demand > 0 else 0
     
-    # Add month names to monthly performances for template
-    monthly_performances_with_names = []
-    for perf in monthly_performances:
-        perf.month_name = month_name[perf.month]
-        monthly_performances_with_names.append(perf)
+    # Emissions intensity (kg CO2 per MWh)
+    emissions_intensity = (total_emissions * 1000 / (total_generation * 1000)) if total_generation > 0 else 0
     
-    # Get same quarter from previous year for comparison
-    prev_year_monthly = MonthlyREPerformance.objects.filter(
+    # Build quarterly_summary dict (what the template expects)
+    quarterly_summary = {
+        'total_generation': total_generation,
+        'total_renewable': total_renewable,
+        'renewable_generation': total_renewable,  # alias used in template
+        'total_emissions': total_emissions,
+        'total_operational_demand': total_operational_demand,
+        'operational_demand': total_operational_demand,  # alias
+        'total_underlying_demand': total_underlying_demand,
+        'underlying_demand': total_underlying_demand,  # alias used in template
+        'total_dpv': total_dpv,
+        'dpv_generation': total_dpv,  # alias used in template
+        'wind_generation': total_wind,
+        'solar_generation': total_solar,
+        'biomass_generation': total_biomass,
+        're_percentage_operational': re_pct_operational,
+        're_percentage_underlying': re_pct_underlying,
+        'emissions_intensity': emissions_intensity,
+    }
+    
+    # Previous quarter (same quarter, previous year) for comparison
+    prev_quarter_data = MonthlyREPerformance.objects.filter(
         year=year-1,
-        month__in=months
+        month__gte=start_month,
+        month__lte=end_month
     )
-    if prev_year_monthly.exists():
-        prev_quarter_summary = MonthlyREPerformance.aggregate_summary(prev_year_monthly)
-    else:
+    
+    if prev_quarter_data.exists():
+        prev_q_generation = sum(r.total_generation for r in prev_quarter_data)
+        prev_q_renewable = sum(r.total_renewable_generation for r in prev_quarter_data)
+        prev_q_dpv = sum(r.dpv_generation for r in prev_quarter_data)
+        prev_q_operational = sum(r.operational_demand for r in prev_quarter_data)
+        prev_q_underlying = sum(r.underlying_demand for r in prev_quarter_data)
+        prev_q_emissions = sum(r.total_emissions_tonnes for r in prev_quarter_data)
+        
+        prev_q_re_pct_operational = (prev_q_renewable / prev_q_operational * 100) if prev_q_operational > 0 else 0
+        prev_q_re_with_dpv = prev_q_renewable + prev_q_dpv
+        prev_q_re_pct_underlying = (prev_q_re_with_dpv / prev_q_underlying * 100) if prev_q_underlying > 0 else 0
+        
         prev_quarter_summary = {
-            're_percentage_operational': 0,
-            're_percentage_underlying': 0,
-        }    
-    # Get year-to-date summary (all months up to end of this quarter)
-    ytd_months = list(range(1, months[-1] + 1))
+            're_percentage_operational': prev_q_re_pct_operational,
+            're_percentage_underlying': prev_q_re_pct_underlying,
+            'total_emissions': prev_q_emissions,
+        }
+    else:
+        prev_quarter_summary = None
+    
+    # Calculate YTD summary (January to end of this quarter)
     ytd_data = MonthlyREPerformance.objects.filter(
         year=year,
-        month__in=ytd_months
-    )
-    ytd_summary = MonthlyREPerformance.aggregate_summary(ytd_data)
+        month__lte=end_month
+    ).order_by('month')
     
-    # Get previous year YTD for comparison
+    if ytd_data.exists():
+        ytd_total_generation = sum(r.total_generation for r in ytd_data)
+        ytd_total_renewable = sum(r.total_renewable_generation for r in ytd_data)
+        ytd_total_dpv = sum(r.dpv_generation for r in ytd_data)
+        ytd_total_operational = sum(r.operational_demand for r in ytd_data)
+        ytd_total_underlying = sum(r.underlying_demand for r in ytd_data)
+        ytd_total_emissions = sum(r.total_emissions_tonnes for r in ytd_data)
+        
+        ytd_re_pct_operational = (ytd_total_renewable / ytd_total_operational * 100) if ytd_total_operational > 0 else 0
+        ytd_re_with_dpv = ytd_total_renewable + ytd_total_dpv
+        ytd_re_pct_underlying = (ytd_re_with_dpv / ytd_total_underlying * 100) if ytd_total_underlying > 0 else 0
+        ytd_emissions_intensity = (ytd_total_emissions * 1000 / (ytd_total_generation * 1000)) if ytd_total_generation > 0 else 0
+        
+        ytd_summary = {
+            'total_generation': ytd_total_generation,
+            'total_renewable': ytd_total_renewable,
+            'total_dpv': ytd_total_dpv,
+            'total_operational_demand': ytd_total_operational,
+            'total_underlying_demand': ytd_total_underlying,
+            'total_emissions': ytd_total_emissions,
+            're_percentage_operational': ytd_re_pct_operational,
+            're_percentage_underlying': ytd_re_pct_underlying,
+            'emissions_intensity': ytd_emissions_intensity,
+        }
+    else:
+        ytd_summary = None
+    
+    # Previous year YTD comparison (same months)
     prev_ytd_data = MonthlyREPerformance.objects.filter(
         year=year-1,
-        month__in=ytd_months
+        month__lte=end_month
     )
+    
     if prev_ytd_data.exists():
-        prev_ytd_summary = MonthlyREPerformance.aggregate_summary(prev_ytd_data)
-    else:
-        # Provide default values to avoid template errors
+        prev_ytd_generation = sum(r.total_generation for r in prev_ytd_data)
+        prev_ytd_renewable = sum(r.total_renewable_generation for r in prev_ytd_data)
+        prev_ytd_dpv = sum(r.dpv_generation for r in prev_ytd_data)
+        prev_ytd_operational = sum(r.operational_demand for r in prev_ytd_data)
+        prev_ytd_underlying = sum(r.underlying_demand for r in prev_ytd_data)
+        prev_ytd_emissions = sum(r.total_emissions_tonnes for r in prev_ytd_data)
+        
+        prev_ytd_re_pct_operational = (prev_ytd_renewable / prev_ytd_operational * 100) if prev_ytd_operational > 0 else 0
+        prev_ytd_re_with_dpv = prev_ytd_renewable + prev_ytd_dpv
+        prev_ytd_re_pct_underlying = (prev_ytd_re_with_dpv / prev_ytd_underlying * 100) if prev_ytd_underlying > 0 else 0
+        prev_ytd_emissions_intensity = (prev_ytd_emissions * 1000 / (prev_ytd_generation * 1000)) if prev_ytd_generation > 0 else 0
+        
         prev_ytd_summary = {
-            're_percentage_operational': 0,
-            're_percentage_underlying': 0,
-            'total_emissions': 0,
-            'emissions_intensity': 0,
+            'total_generation': prev_ytd_generation,
+            'total_renewable': prev_ytd_renewable,
+            'total_dpv': prev_ytd_dpv,
+            'total_operational_demand': prev_ytd_operational,
+            'total_underlying_demand': prev_ytd_underlying,
+            'total_emissions': prev_ytd_emissions,
+            're_percentage_operational': prev_ytd_re_pct_operational,
+            're_percentage_underlying': prev_ytd_re_pct_underlying,
+            'emissions_intensity': prev_ytd_emissions_intensity,
         }
+    else:
+        prev_ytd_summary = None
     
-    # Get target for this year
-    target = _get_target_for_year(year)
+    # Get target
+    try:
+        target = RenewableEnergyTarget.objects.get(target_year=year)
+    except RenewableEnergyTarget.DoesNotExist:
+        target = None
     
-    # Get new capacity commissioned during this quarter
-    new_capacity = NewCapacityCommissioned.objects.filter(
-        report_year=year,
-        report_month__in=months,
-        status='commissioned'
-    ).select_related('facility', 'facility__idtechnologies').order_by('commissioned_date')
+    # Previous year same quarter RE% (for backward compatibility)
+    prev_total_renewable = sum(r.total_renewable_generation for r in prev_quarter_data) if prev_quarter_data else None
+    prev_total_operational = sum(r.operational_demand for r in prev_quarter_data) if prev_quarter_data else None
+    prev_re_pct = (prev_total_renewable / prev_total_operational * 100) if prev_total_operational else None
     
     context = {
         'year': year,
         'quarter': quarter,
-        'quarter_start_month': quarter_start_month,
-        'quarter_end_month': quarter_end_month,
+        'quarter_start_month': month_name[start_month],
+        'quarter_end_month': month_name[end_month],
+        'quarterly_data': quarterly_data,
         'quarterly_summary': quarterly_summary,
-        'monthly_performances': monthly_performances_with_names,
         'prev_quarter_summary': prev_quarter_summary,
         'ytd_summary': ytd_summary,
         'prev_ytd_summary': prev_ytd_summary,
+        # Keep these for backward compatibility
+        'total_generation': total_generation,
+        'total_renewable': total_renewable,
+        'total_emissions': total_emissions,
+        'total_operational_demand': total_operational_demand,
+        'total_underlying_demand': total_underlying_demand,
+        're_percentage_operational': re_pct_operational,
+        're_percentage_underlying': re_pct_underlying,
         'target': target,
-        'new_capacity': new_capacity,
+        'prev_re_percentage': prev_re_pct,
     }
     
     return render(request, 'ret_dashboard/quarterly_report.html', context)
-
 
 # =============================================================================
 # Annual Review View
 # =============================================================================
 
 def annual_review(request, year):
-    """Generate comprehensive annual review"""
+    """
+    Generate annual review view.
+    """
     year = int(year)
     
-    # Get all monthly data for the year
+    # Get all monthly data for this year
     annual_data = MonthlyREPerformance.objects.filter(
         year=year
     ).order_by('month')
     
     if not annual_data.exists():
         return render(request, 'ret_dashboard/no_data.html', {
-            'year': year,
-            'message': f'No data available for {year}'
+            'year': year
         })
     
-    # Calculate annual summary using model's classmethod
-    annual_summary = MonthlyREPerformance.aggregate_summary(annual_data)
+    # Calculate annual totals
+    total_generation = sum(r.total_generation for r in annual_data)
+    total_renewable = sum(r.total_renewable_generation for r in annual_data)
+    total_emissions = sum(r.total_emissions_tonnes for r in annual_data)
+    total_operational_demand = sum(r.operational_demand for r in annual_data)
+    total_underlying_demand = sum(r.underlying_demand for r in annual_data)
+    total_dpv = sum(r.dpv_generation for r in annual_data)
+    total_wind = sum(r.wind_generation for r in annual_data)
+    total_solar = sum(r.solar_generation for r in annual_data)
+    total_biomass = sum(r.biomass_generation for r in annual_data)
+    total_gas = sum(r.gas_generation for r in annual_data)
+    total_coal = sum(r.coal_generation or 0 for r in annual_data)
     
-    # Get previous year for comparison
-    prev_year_data = MonthlyREPerformance.objects.filter(year=year-1)
-    prev_annual_summary = MonthlyREPerformance.aggregate_summary(prev_year_data) if prev_year_data.exists() else None
+    # Calculate annual RE percentages
+    re_pct_operational = (total_renewable / total_operational_demand * 100) if total_operational_demand > 0 else 0
+    re_with_dpv = total_renewable + total_dpv
+    re_pct_underlying = (re_with_dpv / total_underlying_demand * 100) if total_underlying_demand > 0 else 0
     
-    # Get target for this year
-    target = _get_target_for_year(year)
+    # Build annual_summary dictionary for template
+    annual_summary = {
+        'total_generation': total_generation,
+        'renewable_generation': total_renewable,
+        'total_emissions': total_emissions,
+        'operational_demand': total_operational_demand,
+        'underlying_demand': total_underlying_demand,
+        're_percentage_operational': re_pct_operational,
+        're_percentage_underlying': re_pct_underlying,
+        'wind_generation': total_wind,
+        'solar_generation': total_solar,
+        'dpv_generation': total_dpv,
+        'biomass_generation': total_biomass,
+        'gas_generation': total_gas,
+        'coal_generation': total_coal,
+    }
+    
+    # Get target
+    try:
+        target = RenewableEnergyTarget.objects.get(target_year=year)
+    except RenewableEnergyTarget.DoesNotExist:
+        target = None
     
     # Calculate target status
-    if target and annual_summary:
-        gap = annual_summary['re_percentage_underlying'] - target.target_percentage
-        target_status = {
-            'status': 'ahead' if gap >= 0 else 'behind',
-            'gap': gap,
-            'message': f"{'✓' if gap >= 0 else '⚠'} {abs(gap):.1f} percentage points {'ahead' if gap >= 0 else 'behind'}"
-        }
-    else:
-        target_status = None
+    target_status = None
+    if target:
+        diff = re_pct_underlying - target.target_percentage
+        if diff >= 0:
+            target_status = {
+                'status': 'ahead',
+                'message': f'✓ {diff:.1f} pp above target'
+            }
+        else:
+            target_status = {
+                'status': 'behind',
+                'message': f'⚠ {abs(diff):.1f} pp below target'
+            }
     
-    # Get all scenarios for 2040 projections
-    scenarios = TargetScenario.objects.filter(is_active=True).order_by('scenario_type')
+    # Get previous year data for comparison
+    prev_annual_data = MonthlyREPerformance.objects.filter(
+        year=year-1
+    ).order_by('month')
     
-    # Get new capacity commissioned during the year
-    new_capacity = NewCapacityCommissioned.objects.filter(
-        report_year=year,
-        status='commissioned'
-    ).select_related('facility')
-    
-    total_new_capacity = new_capacity.aggregate(
-        total=Sum('capacity_mw')
-    )['total'] or 0
-    
-    # Calculate year-over-year changes
+    prev_annual_summary = None
     yoy_changes = {}
-    if prev_annual_summary and annual_summary:
+    
+    if prev_annual_data.exists():
+        prev_total_generation = sum(r.total_generation for r in prev_annual_data)
+        prev_total_renewable = sum(r.total_renewable_generation for r in prev_annual_data)
+        prev_total_emissions = sum(r.total_emissions_tonnes for r in prev_annual_data)
+        prev_operational_demand = sum(r.operational_demand for r in prev_annual_data)
+        prev_underlying_demand = sum(r.underlying_demand for r in prev_annual_data)
+        prev_total_dpv = sum(r.dpv_generation for r in prev_annual_data)
+        prev_total_wind = sum(r.wind_generation for r in prev_annual_data)
+        prev_total_solar = sum(r.solar_generation for r in prev_annual_data)
+        prev_total_biomass = sum(r.biomass_generation for r in prev_annual_data)
+        prev_total_gas = sum(r.gas_generation for r in prev_annual_data)
+        prev_total_coal = sum(r.coal_generation or 0 for r in prev_annual_data)
+        
+        prev_re_pct_operational = (prev_total_renewable / prev_operational_demand * 100) if prev_operational_demand > 0 else 0
+        prev_re_with_dpv = prev_total_renewable + prev_total_dpv
+        prev_re_pct_underlying = (prev_re_with_dpv / prev_underlying_demand * 100) if prev_underlying_demand > 0 else 0
+        
+        prev_annual_summary = {
+            'total_generation': prev_total_generation,
+            'renewable_generation': prev_total_renewable,
+            'total_emissions': prev_total_emissions,
+            'operational_demand': prev_operational_demand,
+            'underlying_demand': prev_underlying_demand,
+            're_percentage_operational': prev_re_pct_operational,
+            're_percentage_underlying': prev_re_pct_underlying,
+            'wind_generation': prev_total_wind,
+            'solar_generation': prev_total_solar,
+            'dpv_generation': prev_total_dpv,
+            'biomass_generation': prev_total_biomass,
+            'gas_generation': prev_total_gas,
+            'coal_generation': prev_total_coal,
+        }
+        
+        # Calculate year-over-year changes
         yoy_changes = {
-            're_percentage': annual_summary['re_percentage_underlying'] - prev_annual_summary['re_percentage_underlying'],
-            'total_generation': ((annual_summary['total_generation'] - prev_annual_summary['total_generation']) / 
-                               prev_annual_summary['total_generation'] * 100) if prev_annual_summary['total_generation'] else 0,
-            'emissions': ((annual_summary['total_emissions'] - prev_annual_summary['total_emissions']) / 
-                         prev_annual_summary['total_emissions'] * 100) if prev_annual_summary['total_emissions'] else 0,
-            'underlying_demand': ((annual_summary['underlying_demand'] - prev_annual_summary['underlying_demand']) / 
-                                 prev_annual_summary['underlying_demand'] * 100) if prev_annual_summary['underlying_demand'] else 0,
+            'emissions': ((total_emissions - prev_total_emissions) / prev_total_emissions * 100) if prev_total_emissions > 0 else None,
+            'underlying_demand': ((total_underlying_demand - prev_underlying_demand) / prev_underlying_demand * 100) if prev_underlying_demand > 0 else None,
+            're_percentage': re_pct_underlying - prev_re_pct_underlying,
+            'renewable_generation': ((total_renewable - prev_total_renewable) / prev_total_renewable * 100) if prev_total_renewable > 0 else None,
         }
     
     # Generate annual charts
     annual_generation_chart = generate_annual_generation_chart(annual_data)
     annual_trends_chart = generate_annual_trends_chart(year)
-    scenario_comparison_chart = generate_scenario_comparison_chart(scenarios)
+    
+    # Get scenarios for projection
+    scenarios = TargetScenario.objects.filter(is_active=True)
+    scenario_chart = generate_scenario_comparison_chart(scenarios)
+    
+    # New capacity this year
+    new_capacity = NewCapacityCommissioned.objects.filter(
+        report_year=year,
+        status='commissioned'
+    ).select_related('facility').order_by('commissioned_date')
+    
+    total_new_capacity = sum(nc.capacity_mw for nc in new_capacity) if new_capacity else 0
     
     context = {
         'year': year,
+        'annual_data': annual_data,
         'annual_summary': annual_summary,
         'prev_annual_summary': prev_annual_summary,
+        'yoy_changes': yoy_changes,
         'target': target,
         'target_status': target_status,
-        'yoy_changes': yoy_changes,
-        'monthly_data': annual_data,
-        'scenarios': scenarios,
         'new_capacity': new_capacity,
         'total_new_capacity': total_new_capacity,
         'annual_generation_chart': annual_generation_chart,
         'annual_trends_chart': annual_trends_chart,
-        'scenario_comparison_chart': scenario_comparison_chart,
+        'scenario_chart': scenario_chart,
+        'scenarios': scenarios,
+        'available_years': get_available_years(),
     }
     
     return render(request, 'ret_dashboard/annual_review.html', context)
-
-
-def _get_target_for_year(year):
-    """
-    Get target for a given year, interpolating if necessary.
-    
-    Returns:
-        Target object or namedtuple with target_year and target_percentage
-    """
-    try:
-        return RenewableEnergyTarget.objects.get(target_year=year)
-    except RenewableEnergyTarget.DoesNotExist:
-        # Try to interpolate
-        targets = RenewableEnergyTarget.objects.all().order_by('target_year')
-        before = targets.filter(target_year__lt=year).last()
-        after = targets.filter(target_year__gt=year).first()
-        
-        if before and after:
-            # Linear interpolation
-            year_diff = after.target_year - before.target_year
-            year_progress = year - before.target_year
-            target_diff = after.target_percentage - before.target_percentage
-            interpolated_percentage = before.target_percentage + (target_diff * year_progress / year_diff)
-            
-            from collections import namedtuple
-            Target = namedtuple('Target', ['target_year', 'target_percentage'])
-            return Target(year, interpolated_percentage)
-        
-        return None
 
 
 # =============================================================================
 # API Endpoints
 # =============================================================================
 
+import json
+
 @csrf_exempt
 @require_POST
-def update_monthly_data(request):
+def api_update_monthly(request):
     """
-    API endpoint to trigger manual update of monthly data.
-    POST to /api/ret_dashboard/update_monthly/
+    API endpoint to trigger monthly data update.
+    POST /api/ret_dashboard/update/
     
-    Body (JSON):
-    {
-        "year": 2025,
-        "month": 9,
-        "force": true
+    Body: {
+        "year": 2024,
+        "month": 10,
+        "force": false  // optional, force recalculation
     }
     """
-    import json
-    
     try:
         data = json.loads(request.body)
         year = data.get('year')

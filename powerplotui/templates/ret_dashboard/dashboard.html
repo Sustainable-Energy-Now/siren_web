@@ -175,16 +175,22 @@
                 <td class="value">{{ performance.dpv_generation|div:performance.underlying_demand|mul:100|floatformat:1 }}%</td>
             </tr>
             <tr class="renewable-row">
-                <td><strong>Biomass + Hydro</strong></td>
-                <td class="value">{{ performance.biomass_generation|add:performance.hydro_generation|floatformat:1 }}</td>
-                <td class="value">{{ performance.biomass_generation|add:performance.hydro_generation|div:performance.operational_demand|mul:100|floatformat:1 }}%</td>
-                <td class="value">{{ performance.biomass_generation|add:performance.hydro_generation|div:performance.underlying_demand|mul:100|floatformat:1 }}%</td>
+                <td><strong>Biomass</strong></td>
+                <td class="value">{{ performance.biomass_generation|floatformat:1 }}</td>
+                <td class="value">{{ performance.biomass_generation|div:performance.operational_demand|mul:100|floatformat:1 }}%</td>
+                <td class="value">{{ performance.biomass_generation|div:performance.underlying_demand|mul:100|floatformat:1 }}%</td>
             </tr>
             <tr class="fossil-row">
-                <td>Gas (CCGT)</td>
+                <td>Gas</td>
                 <td class="value">{{ performance.gas_generation|floatformat:1 }}</td>
                 <td class="value">{{ performance.gas_generation|div:performance.operational_demand|mul:100|floatformat:1 }}%</td>
                 <td class="value">{{ performance.gas_generation|div:performance.underlying_demand|mul:100|floatformat:1 }}%</td>
+            </tr>
+            <tr class="fossil-row">
+                <td>Coal</td>
+                <td class="value">{{ performance.coal_generation|floatformat:1 }}</td>
+                <td class="value">{{ performance.coal_generation|div:performance.operational_demand|mul:100|floatformat:1 }}%</td>
+                <td class="value">{{ performance.coal_generation|div:performance.underlying_demand|mul:100|floatformat:1 }}%</td>
             </tr>
             {% if performance.storage_discharge > 0 %}
             <tr class="info-row">
@@ -213,7 +219,7 @@
 <div class="metric-grid" style="grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));">
     <div class="metric-card neutral">
         <div class="metric-label">Avg Grid Emissions Intensity</div>
-        <div class="metric-value">{{ performance.emissions_intensity_kg_mwh|floatformat:0 }}</div>
+        <div class="metric-value">{{ performance.emissions_intensity_kg_mwh|floatformat:2 }}</div>
         <div class="metric-sublabel">kg CO₂-e/MWh</div>
     </div>
     
@@ -247,13 +253,23 @@
     <h2>Visualizations</h2>
 </div>
 
-<div class="chart-container">
-    <div class="chart-title">Generation Mix - {{ month_name }} {{ year }}</div>
-    {{ generation_mix_chart|safe }}
+<!-- Generation Mix Charts - Side by Side -->
+<div class="charts-grid">
+    <div class="chart-container pie-chart-container">
+        {{ generation_mix_operational_chart|safe }}
+        <p class="chart-note">Excludes rooftop solar (DPV)</p>
+    </div>
+    
+    <div class="chart-container pie-chart-container">
+        {{ generation_mix_underlying_chart|safe }}
+        <p class="chart-note">Includes rooftop solar (DPV)</p>
+    </div>
 </div>
 
+<!-- Pathway Chart - Full Width -->
 <div class="chart-container">
     <div class="chart-title">Pathway to 2040 Target</div>
+    <p class="chart-subtitle">Based on Operational RE% (grid-sent electricity)</p>
     {{ pathway_chart|safe }}
 </div>
 
@@ -313,7 +329,7 @@
         <tr>
             <td><strong>{{ month_name }} {{ year }}</strong></td>
             <td class="value">{{ performance.total_emissions_tonnes|floatformat:0|intcomma }} t CO₂-e</td>
-            <td class="value">{{ performance.emissions_intensity_kg_mwh|floatformat:0 }} kg/MWh</td>
+            <td class="value">{{ performance.emissions_intensity_kg_mwh|floatformat:2 }} kg/MWh</td>
             <td class="value">
                 {% if emissions_change %}
                     {% if emissions_change < 0 %}✓{% else %}⚠{% endif %}
@@ -326,7 +342,7 @@
         <tr>
             <td><strong>YTD {{ year }}</strong></td>
             <td class="value">{{ ytd_summary.total_emissions|floatformat:0|intcomma }} t CO₂-e</td>
-            <td class="value">{{ ytd_summary.emissions_intensity|floatformat:0 }} kg/MWh</td>
+            <td class="value">{{ ytd_summary.emissions_intensity|floatformat:2 }} kg/MWh</td>
             <td class="value">
                 {% if ytd_emissions_change %}
                     {% if ytd_emissions_change < 0 %}✓{% else %}⚠{% endif %}
@@ -381,7 +397,9 @@
         {% now "j F Y" as current_date %}
         {{ current_date|date:"j F Y"|add_months:1 }}
     </p>
-    <p style="margin: 5px 0 0 0;"><strong>Contact:</strong> <a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="95f8faf1f0f9f9fcfbf2bbf9f0f4f1d5e6f0fbbbf4e6fbbbf4e0">[email&#160;protected]</a></p>
+    <p style="margin: 5px 0 0 0;"><strong>Contact:</strong>
+        <a href="mailto:contact@sen.asn.au">Contact: &#99;&#111;&#110;&#116;&#97;&#99;&#116;&#64;&#115;&#101;&#110;&#46;&#97;&#115;&#110;&#46;&#97;&#117;</a>
+    </p>
 </div>
 
 <style>
@@ -543,19 +561,75 @@
     font-style: italic;
 }
 
+/* Charts Grid - Side by Side Layout */
+.charts-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 20px;
+    margin: 20px 0;
+    width: 100%;
+}
+
+/* Responsive: Stack on smaller screens */
+@media (max-width: 900px) {
+    .charts-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
 .chart-container {
     background: white;
     padding: 20px;
     border-radius: 8px;
     margin: 20px 0;
     box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    overflow: hidden;
+}
+
+/* Pie chart specific styling */
+.pie-chart-container {
+    min-height: 420px;
+}
+
+/* Force Plotly charts to respect container width */
+.chart-container > div,
+.pie-chart-container > div {
+    width: 100% !important;
+    max-width: 100% !important;
+}
+
+.chart-container .js-plotly-plot,
+.chart-container .plotly,
+.chart-container .plot-container,
+.chart-container .svg-container {
+    width: 100% !important;
+    max-width: 100% !important;
+}
+
+.chart-note {
+    font-size: 0.85em;
+    color: #7f8c8d;
+    text-align: center;
+    margin: 10px 0 0 0;
+    font-style: italic;
+}
+
+/* Remove margin for charts inside grid */
+.charts-grid .chart-container {
+    margin: 0;
 }
 
 .chart-title {
     font-size: 1.2em;
     font-weight: 600;
     color: #2c3e50;
-    margin-bottom: 15px;
+    margin-bottom: 5px;
+}
+
+.chart-subtitle {
+    font-size: 0.9em;
+    color: #7f8c8d;
+    margin: 0 0 15px 0;
 }
 
 .month-selector {
@@ -597,6 +671,14 @@
     .metric-card {
         break-inside: avoid;
     }
+    
+    .charts-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .chart-container {
+        break-inside: avoid;
+    }
 }
 </style>
 
@@ -608,6 +690,31 @@ function loadDashboard() {
     var month = parts[1];
     window.location.href = '/ret_dashboard/' + year + '/' + parseInt(month) + '/';
 }
-</script>
 
+// Fix Plotly charts not respecting container width on initial render
+document.addEventListener('DOMContentLoaded', function() {
+    // Small delay to ensure Plotly has initialized
+    setTimeout(function() {
+        // Find all Plotly charts and trigger resize
+        var plots = document.querySelectorAll('.js-plotly-plot');
+        plots.forEach(function(plot) {
+            if (window.Plotly) {
+                Plotly.Plots.resize(plot);
+            }
+        });
+    }, 100);
+});
+
+// Also resize on window load (catches cases where DOMContentLoaded is too early)
+window.addEventListener('load', function() {
+    setTimeout(function() {
+        var plots = document.querySelectorAll('.js-plotly-plot');
+        plots.forEach(function(plot) {
+            if (window.Plotly) {
+                Plotly.Plots.resize(plot);
+            }
+        });
+    }, 100);
+});
+</script>
 {% endblock %}
