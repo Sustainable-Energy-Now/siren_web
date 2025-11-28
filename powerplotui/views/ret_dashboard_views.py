@@ -62,6 +62,13 @@ def ret_dashboard(request, year=None, month=None):
     year = int(year)
     month = int(month)
     quarter = (month - 1) // 3 + 1
+    # Calculate last complete quarter (previous quarter)
+    if quarter == 1:
+        last_complete_quarter = 4
+        last_complete_quarter_year = year - 1
+    else:
+        last_complete_quarter = quarter - 1
+        last_complete_quarter_year = year
     
     # Get selected month's performance
     try:
@@ -129,6 +136,8 @@ def ret_dashboard(request, year=None, month=None):
         'year': year,
         'month': month,
         'quarter': quarter,
+        'last_complete_quarter': last_complete_quarter,
+        'last_complete_quarter_year': last_complete_quarter_year,
         'month_name': month_name[month],
         'performance': performance,
         'target': target,
@@ -173,7 +182,6 @@ def get_dpv_generation(year, month):
     total_gwh = (total_mw * 0.5) / 1000
 
     return total_gwh
-
 
 # =============================================================================
 # Chart Generation Functions
@@ -234,7 +242,6 @@ def generate_generation_mix_operational_chart(performance):
     chart_html = fig.to_html(include_plotlyjs='cdn', div_id='generation_mix_operational_chart', 
                              full_html=False)
     return f'<div style="width:100%;overflow:hidden;">{chart_html}</div>'
-
 
 def generate_generation_mix_underlying_chart(performance):
     """
@@ -399,7 +406,6 @@ def generate_pathway_chart(current_year, current_month):
     chart_html = fig.to_html(include_plotlyjs=False, div_id='pathway_chart', full_html=False)
     return f'<div style="width:100%;overflow:hidden;">{chart_html}</div>'
 
-
 def generate_annual_generation_chart(annual_data):
     """Generate chart showing monthly generation trends for the year"""
     import plotly.graph_objects as go
@@ -454,7 +460,6 @@ def generate_annual_generation_chart(annual_data):
     )
     
     return fig.to_html(include_plotlyjs='cdn', div_id='annual_generation_chart')
-
 
 def generate_annual_trends_chart(year):
     """Generate multi-year trends chart"""
@@ -523,7 +528,6 @@ def generate_annual_trends_chart(year):
     
     return fig.to_html(include_plotlyjs='cdn', div_id='annual_trends_chart')
 
-
 def generate_scenario_comparison_chart(scenarios):
     """Generate chart comparing different 2040 scenarios"""
     import plotly.graph_objects as go
@@ -561,7 +565,6 @@ def generate_scenario_comparison_chart(scenarios):
     
     return fig.to_html(include_plotlyjs='cdn', div_id='scenario_comparison_chart')
 
-
 # =============================================================================
 # Helper Functions
 # =============================================================================
@@ -594,15 +597,15 @@ def get_available_years():
 def quarterly_report(request, year, quarter):
     """
     Generate quarterly report view.
+    Uses MonthlyREPerformance.aggregate_summary() for consistent RE% calculations.
     """
     year = int(year)
     quarter = int(quarter)
     
-    # Get months in this quarter
     start_month = (quarter - 1) * 3 + 1
-    end_month = start_month + 2
+    end_month = quarter * 3
     
-    # Get monthly data for this quarter
+    # Get quarterly data
     quarterly_data = MonthlyREPerformance.objects.filter(
         year=year,
         month__gte=start_month,
@@ -615,44 +618,8 @@ def quarterly_report(request, year, quarter):
             'quarter': quarter
         })
     
-    # Calculate quarterly totals
-    total_generation = sum(r.total_generation for r in quarterly_data)
-    total_renewable = sum(r.total_renewable_generation for r in quarterly_data)
-    total_emissions = sum(r.total_emissions_tonnes for r in quarterly_data)
-    total_operational_demand = sum(r.operational_demand for r in quarterly_data)
-    total_underlying_demand = sum(r.underlying_demand for r in quarterly_data)
-    total_dpv = sum(r.dpv_generation for r in quarterly_data)
-    total_wind = sum(r.wind_generation for r in quarterly_data)
-    total_solar = sum(r.solar_generation for r in quarterly_data)
-    total_biomass = sum(r.biomass_generation for r in quarterly_data)
-    
-    # Calculate quarterly RE percentages
-    re_pct_operational = (total_renewable / total_operational_demand * 100) if total_operational_demand > 0 else 0
-    re_with_dpv = total_renewable + total_dpv
-    re_pct_underlying = (re_with_dpv / total_underlying_demand * 100) if total_underlying_demand > 0 else 0
-    
-    # Emissions intensity (kg CO2 per MWh)
-    emissions_intensity = (total_emissions * 1000 / (total_generation * 1000)) if total_generation > 0 else 0
-    
-    # Build quarterly_summary dict (what the template expects)
-    quarterly_summary = {
-        'total_generation': total_generation,
-        'total_renewable': total_renewable,
-        'renewable_generation': total_renewable,  # alias used in template
-        'total_emissions': total_emissions,
-        'total_operational_demand': total_operational_demand,
-        'operational_demand': total_operational_demand,  # alias
-        'total_underlying_demand': total_underlying_demand,
-        'underlying_demand': total_underlying_demand,  # alias used in template
-        'total_dpv': total_dpv,
-        'dpv_generation': total_dpv,  # alias used in template
-        'wind_generation': total_wind,
-        'solar_generation': total_solar,
-        'biomass_generation': total_biomass,
-        're_percentage_operational': re_pct_operational,
-        're_percentage_underlying': re_pct_underlying,
-        'emissions_intensity': emissions_intensity,
-    }
+    # Use model's aggregate_summary for quarterly totals (single source of truth)
+    quarterly_summary = MonthlyREPerformance.aggregate_summary(quarterly_data)
     
     # Previous quarter (same quarter, previous year) for comparison
     prev_quarter_data = MonthlyREPerformance.objects.filter(
@@ -660,92 +627,24 @@ def quarterly_report(request, year, quarter):
         month__gte=start_month,
         month__lte=end_month
     )
+    prev_quarter_summary = MonthlyREPerformance.aggregate_summary(prev_quarter_data)
     
-    if prev_quarter_data.exists():
-        prev_q_generation = sum(r.total_generation for r in prev_quarter_data)
-        prev_q_renewable = sum(r.total_renewable_generation for r in prev_quarter_data)
-        prev_q_dpv = sum(r.dpv_generation for r in prev_quarter_data)
-        prev_q_operational = sum(r.operational_demand for r in prev_quarter_data)
-        prev_q_underlying = sum(r.underlying_demand for r in prev_quarter_data)
-        prev_q_emissions = sum(r.total_emissions_tonnes for r in prev_quarter_data)
-        
-        prev_q_re_pct_operational = (prev_q_renewable / prev_q_operational * 100) if prev_q_operational > 0 else 0
-        prev_q_re_with_dpv = prev_q_renewable + prev_q_dpv
-        prev_q_re_pct_underlying = (prev_q_re_with_dpv / prev_q_underlying * 100) if prev_q_underlying > 0 else 0
-        
-        prev_quarter_summary = {
-            're_percentage_operational': prev_q_re_pct_operational,
-            're_percentage_underlying': prev_q_re_pct_underlying,
-            'total_emissions': prev_q_emissions,
-        }
-    else:
-        prev_quarter_summary = None
+    # YTD summary - get last month of quarter and use calculate_ytd_summary()
+    try:
+        end_month_record = MonthlyREPerformance.objects.get(year=year, month=end_month)
+        ytd_summary = end_month_record.calculate_ytd_summary()
+    except MonthlyREPerformance.DoesNotExist:
+        # Fall back to aggregate_summary if exact end month missing
+        ytd_data = MonthlyREPerformance.objects.filter(year=year, month__lte=end_month)
+        ytd_summary = MonthlyREPerformance.aggregate_summary(ytd_data)
     
-    # Calculate YTD summary (January to end of this quarter)
-    ytd_data = MonthlyREPerformance.objects.filter(
-        year=year,
-        month__lte=end_month
-    ).order_by('month')
-    
-    if ytd_data.exists():
-        ytd_total_generation = sum(r.total_generation for r in ytd_data)
-        ytd_total_renewable = sum(r.total_renewable_generation for r in ytd_data)
-        ytd_total_dpv = sum(r.dpv_generation for r in ytd_data)
-        ytd_total_operational = sum(r.operational_demand for r in ytd_data)
-        ytd_total_underlying = sum(r.underlying_demand for r in ytd_data)
-        ytd_total_emissions = sum(r.total_emissions_tonnes for r in ytd_data)
-        
-        ytd_re_pct_operational = (ytd_total_renewable / ytd_total_operational * 100) if ytd_total_operational > 0 else 0
-        ytd_re_with_dpv = ytd_total_renewable + ytd_total_dpv
-        ytd_re_pct_underlying = (ytd_re_with_dpv / ytd_total_underlying * 100) if ytd_total_underlying > 0 else 0
-        ytd_emissions_intensity = (ytd_total_emissions * 1000 / (ytd_total_generation * 1000)) if ytd_total_generation > 0 else 0
-        
-        ytd_summary = {
-            'total_generation': ytd_total_generation,
-            'total_renewable': ytd_total_renewable,
-            'total_dpv': ytd_total_dpv,
-            'total_operational_demand': ytd_total_operational,
-            'total_underlying_demand': ytd_total_underlying,
-            'total_emissions': ytd_total_emissions,
-            're_percentage_operational': ytd_re_pct_operational,
-            're_percentage_underlying': ytd_re_pct_underlying,
-            'emissions_intensity': ytd_emissions_intensity,
-        }
-    else:
-        ytd_summary = None
-    
-    # Previous year YTD comparison (same months)
-    prev_ytd_data = MonthlyREPerformance.objects.filter(
-        year=year-1,
-        month__lte=end_month
-    )
-    
-    if prev_ytd_data.exists():
-        prev_ytd_generation = sum(r.total_generation for r in prev_ytd_data)
-        prev_ytd_renewable = sum(r.total_renewable_generation for r in prev_ytd_data)
-        prev_ytd_dpv = sum(r.dpv_generation for r in prev_ytd_data)
-        prev_ytd_operational = sum(r.operational_demand for r in prev_ytd_data)
-        prev_ytd_underlying = sum(r.underlying_demand for r in prev_ytd_data)
-        prev_ytd_emissions = sum(r.total_emissions_tonnes for r in prev_ytd_data)
-        
-        prev_ytd_re_pct_operational = (prev_ytd_renewable / prev_ytd_operational * 100) if prev_ytd_operational > 0 else 0
-        prev_ytd_re_with_dpv = prev_ytd_renewable + prev_ytd_dpv
-        prev_ytd_re_pct_underlying = (prev_ytd_re_with_dpv / prev_ytd_underlying * 100) if prev_ytd_underlying > 0 else 0
-        prev_ytd_emissions_intensity = (prev_ytd_emissions * 1000 / (prev_ytd_generation * 1000)) if prev_ytd_generation > 0 else 0
-        
-        prev_ytd_summary = {
-            'total_generation': prev_ytd_generation,
-            'total_renewable': prev_ytd_renewable,
-            'total_dpv': prev_ytd_dpv,
-            'total_operational_demand': prev_ytd_operational,
-            'total_underlying_demand': prev_ytd_underlying,
-            'total_emissions': prev_ytd_emissions,
-            're_percentage_operational': prev_ytd_re_pct_operational,
-            're_percentage_underlying': prev_ytd_re_pct_underlying,
-            'emissions_intensity': prev_ytd_emissions_intensity,
-        }
-    else:
-        prev_ytd_summary = None
+    # Previous year YTD comparison
+    try:
+        prev_end_month_record = MonthlyREPerformance.objects.get(year=year-1, month=end_month)
+        prev_ytd_summary = prev_end_month_record.calculate_ytd_summary()
+    except MonthlyREPerformance.DoesNotExist:
+        prev_ytd_data = MonthlyREPerformance.objects.filter(year=year-1, month__lte=end_month)
+        prev_ytd_summary = MonthlyREPerformance.aggregate_summary(prev_ytd_data)
     
     # Get target
     try:
@@ -753,31 +652,27 @@ def quarterly_report(request, year, quarter):
     except RenewableEnergyTarget.DoesNotExist:
         target = None
     
-    # Previous year same quarter RE% (for backward compatibility)
-    prev_total_renewable = sum(r.total_renewable_generation for r in prev_quarter_data) if prev_quarter_data else None
-    prev_total_operational = sum(r.operational_demand for r in prev_quarter_data) if prev_quarter_data else None
-    prev_re_pct = (prev_total_renewable / prev_total_operational * 100) if prev_total_operational else None
-    
     context = {
         'year': year,
         'quarter': quarter,
         'quarter_start_month': month_name[start_month],
         'quarter_end_month': month_name[end_month],
         'quarterly_data': quarterly_data,
+        'monthly_performances': quarterly_data,  # Alias for template chart
         'quarterly_summary': quarterly_summary,
         'prev_quarter_summary': prev_quarter_summary,
         'ytd_summary': ytd_summary,
         'prev_ytd_summary': prev_ytd_summary,
-        # Keep these for backward compatibility
-        'total_generation': total_generation,
-        'total_renewable': total_renewable,
-        'total_emissions': total_emissions,
-        'total_operational_demand': total_operational_demand,
-        'total_underlying_demand': total_underlying_demand,
-        're_percentage_operational': re_pct_operational,
-        're_percentage_underlying': re_pct_underlying,
         'target': target,
-        'prev_re_percentage': prev_re_pct,
+        # Backward compatibility (can remove once template fully updated)
+        'total_generation': quarterly_summary.get('total_generation') if quarterly_summary else None,
+        'total_renewable': quarterly_summary.get('renewable_generation') if quarterly_summary else None,
+        'total_emissions': quarterly_summary.get('total_emissions') if quarterly_summary else None,
+        'total_operational_demand': quarterly_summary.get('operational_demand') if quarterly_summary else None,
+        'total_underlying_demand': quarterly_summary.get('underlying_demand') if quarterly_summary else None,
+        're_percentage_operational': quarterly_summary.get('re_percentage_operational') if quarterly_summary else None,
+        're_percentage_underlying': quarterly_summary.get('re_percentage_underlying') if quarterly_summary else None,
+        'prev_re_percentage': prev_quarter_summary.get('re_percentage_operational') if prev_quarter_summary else None,
     }
     
     return render(request, 'ret_dashboard/quarterly_report.html', context)
@@ -941,208 +836,6 @@ def annual_review(request, year):
     }
     
     return render(request, 'ret_dashboard/annual_review.html', context)
-
-
-# =============================================================================
-# API Endpoints
-# =============================================================================
-
-import json
-
-@csrf_exempt
-@require_POST
-def api_update_monthly(request):
-    """
-    API endpoint to trigger monthly data update.
-    POST /api/ret_dashboard/update/
-    
-    Body: {
-        "year": 2024,
-        "month": 10,
-        "force": false  // optional, force recalculation
-    }
-    """
-    try:
-        data = json.loads(request.body)
-        year = data.get('year')
-        month = data.get('month')
-        force = data.get('force', False)
-        
-        if not year or not month:
-            return JsonResponse({
-                'success': False,
-                'error': 'Year and month are required'
-            }, status=400)
-        
-        # Check if data already exists
-        existing = MonthlyREPerformance.objects.filter(
-            year=year, month=month
-        ).first()
-        
-        if existing and not force:
-            return JsonResponse({
-                'success': False,
-                'error': f'Data for {month}/{year} already exists. Use force=true to overwrite.',
-                'data': {
-                    're_percentage_operational': existing.re_percentage_operational,
-                    're_percentage_underlying': existing.re_percentage_underlying,
-                    'total_emissions': existing.total_emissions_tonnes
-                }
-            }, status=409)
-        
-        # Calculate performance
-        performance = calculate_monthly_performance(year, month)
-        
-        if not performance:
-            return JsonResponse({
-                'success': False,
-                'error': f'No SCADA data found for {month}/{year}'
-            }, status=404)
-        
-        return JsonResponse({
-            'success': True,
-            'message': f'Successfully updated data for {month}/{year}',
-            'data': {
-                're_percentage_operational': performance.re_percentage_operational,
-                're_percentage_underlying': performance.re_percentage_underlying,
-                'total_generation': performance.total_generation,
-                'operational_demand': performance.operational_demand,
-                'underlying_demand': performance.underlying_demand,
-                'total_emissions': performance.total_emissions_tonnes,
-                'emissions_intensity': performance.emissions_intensity_kg_mwh
-            }
-        })
-        
-    except json.JSONDecodeError:
-        return JsonResponse({
-            'success': False,
-            'error': 'Invalid JSON in request body'
-        }, status=400)
-    
-    except Exception as e:
-        logger.error(f"Error updating monthly data: {str(e)}", exc_info=True)
-        return JsonResponse({
-            'success': False,
-            'error': str(e)
-        }, status=500)
-
-def api_calculate_monthly(request, year, month):
-    """
-    API endpoint to calculate/recalculate monthly performance.
-    GET /api/ret_dashboard/calculate/<year>/<month>/
-    
-    Query params:
-    - force=1 : Force recalculation even if data exists
-    - dry_run=1 : Calculate but don't save
-    """
-    year = int(year)
-    month = int(month)
-    force = request.GET.get('force', '0') == '1'
-    dry_run = request.GET.get('dry_run', '0') == '1'
-    
-    try:
-        # Check if data already exists
-        existing = MonthlyREPerformance.objects.filter(
-            year=year, month=month
-        ).first()
-        
-        if existing and not force:
-            return JsonResponse({
-                'success': True,
-                'message': f'Data for {month}/{year} already exists',
-                'data': {
-                    're_percentage_operational': existing.re_percentage_operational,
-                    're_percentage_underlying': existing.re_percentage_underlying,
-                    'total_generation': existing.total_generation,
-                    'underlying_demand': existing.underlying_demand,
-                    'operational_demand': existing.operational_demand,
-                    'wind_generation': existing.wind_generation,
-                    'solar_generation': existing.solar_generation,
-                    'dpv_generation': existing.dpv_generation,
-                    'total_emissions': existing.total_emissions_tonnes,
-                    'emissions_intensity': existing.emissions_intensity_kg_mwh,
-                    'data_complete': existing.data_complete,
-                    'updated_at': existing.updated_at.isoformat() if existing.updated_at else None
-                },
-                'existing': True
-            })
-        
-        if dry_run:
-            # Calculate but don't save
-            _, last_day = monthrange(year, month)
-            start_date = datetime(year, month, 1).date()
-            end_date = datetime(year, month, last_day).date()
-            
-            scada_data = FacilityScada.objects.filter(
-                trading_date__gte=start_date,
-                trading_date__lte=end_date
-            )
-            
-            if not scada_data.exists():
-                return JsonResponse({
-                    'success': False,
-                    'error': f'No SCADA data found for {month}/{year}'
-                }, status=404)
-            
-            return JsonResponse({
-                'success': True,
-                'message': f'Dry run for {month}/{year}',
-                'data': {
-                    'scada_records': scada_data.count(),
-                    'date_range': {
-                        'start': start_date.isoformat(),
-                        'end': end_date.isoformat()
-                    }
-                },
-                'dry_run': True
-            })
-        
-        # Calculate and save
-        performance = calculate_monthly_performance(year, month)
-        
-        if not performance:
-            return JsonResponse({
-                'success': False,
-                'error': f'No SCADA data found for {month}/{year}'
-            }, status=404)
-        
-        # Get target status
-        target_status = performance.get_status_vs_target()
-        
-        return JsonResponse({
-            'success': True,
-            'message': f'Successfully calculated data for {month}/{year}',
-            'data': {
-                're_percentage_operational': performance.re_percentage_operational,
-                're_percentage_underlying': performance.re_percentage_underlying,
-                'total_generation': performance.total_generation,
-                'underlying_demand': performance.underlying_demand,
-                'operational_demand': performance.operational_demand,
-                'renewable_generation': performance.total_renewable_generation,
-                'wind_generation': performance.wind_generation,
-                'solar_generation': performance.solar_generation,
-                'dpv_generation': performance.dpv_generation,
-                'biomass_generation': performance.biomass_generation,
-                'hydro_generation': performance.hydro_generation,
-                'gas_generation': performance.gas_generation,
-                'total_emissions': performance.total_emissions_tonnes,
-                'emissions_intensity': performance.emissions_intensity_kg_mwh,
-                'peak_demand_mw': performance.peak_demand_mw,
-                'minimum_demand_mw': performance.minimum_demand_mw,
-                'target_status': target_status,
-                'data_complete': performance.data_complete,
-                'created_at': performance.created_at.isoformat() if performance.created_at else None,
-                'updated_at': performance.updated_at.isoformat() if performance.updated_at else None
-            },
-            'calculated': True
-        })
-        
-    except Exception as e:
-        logger.error(f"Error calculating monthly data: {str(e)}", exc_info=True)
-        return JsonResponse({
-            'success': False,
-            'error': str(e)
-        }, status=500)
 
 def get_monthly_summary_json(performance):
     """Helper to convert MonthlyREPerformance to JSON-serializable dict"""

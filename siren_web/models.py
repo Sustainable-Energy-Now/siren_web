@@ -1693,7 +1693,7 @@ class MonthlyREPerformance(models.Model):
                 'gap': gap,
                 'message': f'⚠ {abs(gap):.1f} percentage points behind'
             }
-    
+
     # -------------------------------------------------------------------------
     # Aggregate Summary Methods
     # -------------------------------------------------------------------------
@@ -1728,7 +1728,6 @@ class MonthlyREPerformance(models.Model):
         solar = sum(r.solar_generation for r in records)
         dpv = sum(r.dpv_generation for r in records)
         biomass = sum(r.biomass_generation for r in records)
-        hydro = sum(r.hydro_generation for r in records)  # For display only
         gas = sum(r.gas_generation for r in records)
         coal = sum(r.coal_generation for r in records)
         
@@ -1752,16 +1751,15 @@ class MonthlyREPerformance(models.Model):
         # Calculate RE percentages
         if operational_demand > 0:
             re_pct_operational = (renewable_gen_operational / operational_demand) * 100
+            emissions_intensity = (total_emissions * 1000) / operational_demand  # kg/MWh
         else:
             re_pct_operational = 0
-            
+            emissions_intensity = 0
         if underlying_demand > 0:
             re_pct_underlying = (renewable_gen_underlying / underlying_demand) * 100
-            emissions_intensity = (total_emissions * 1000) / underlying_demand  # kg/MWh
         else:
             re_pct_underlying = 0
-            emissions_intensity = 0
-        
+
         return {
             # Generation totals
             'total_generation': total_generation,
@@ -1773,7 +1771,6 @@ class MonthlyREPerformance(models.Model):
             'solar_generation': solar,
             'dpv_generation': dpv,
             'biomass_generation': biomass,
-            'hydro_generation': hydro,  # For display only, excluded from RE%
             'gas_generation': gas,
             'coal_generation': coal,
             

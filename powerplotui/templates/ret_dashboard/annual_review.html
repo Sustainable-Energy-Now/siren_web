@@ -236,9 +236,22 @@
             <td class="value">{{ annual_summary.gas_generation|div:annual_summary.underlying_demand|mul:100|floatformat:1 }}%</td>
             <td class="value">{{ annual_summary.gas_generation|mul:380|floatformat:0|intcomma }} t</td>
         </tr>
+        <tr class="fossil-row">
+            <td>Coal</td>
+            <td class="value">{{ annual_summary.coal_generation|floatformat:1 }}</td>
+            <td class="value">{{ annual_summary.coal_generation|div:annual_summary.operational_demand|mul:100|floatformat:1 }}%</td>
+            <td class="value">{{ annual_summary.coal_generation|div:annual_summary.underlying_demand|mul:100|floatformat:1 }}%</td>
+        </tr>
+        {% if annual_summary.storage_charge > 0 %}
+        <tr class="info-row">
+            <td><em>Storage Charge</em></td>
+            <td class="value"><em>{{ annual_summary.storage_charge|floatformat:1 }}</em></td>
+            <td class="value" colspan="2"></td>
+        </tr>
+        {% endif %}
         {% if annual_summary.storage_discharge > 0 %}
         <tr class="info-row">
-            <td><em>Storage (net discharge)</em></td>
+            <td><em>Storage Discharge</em></td>
             <td class="value"><em>{{ annual_summary.storage_discharge|floatformat:0|intcomma }}</em></td>
             <td class="value" colspan="2"><em>Excluded from RE%</em></td>
             <td class="value"><em>0</em></td>

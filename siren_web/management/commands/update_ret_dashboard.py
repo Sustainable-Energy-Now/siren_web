@@ -292,7 +292,7 @@ class Command(BaseCommand):
         """Calculate total emissions using facility emission intensities"""
         
         # Calculate emissions from each facility
-        # emission_intensity is in kg CO2-e per MWh
+        # emission_intensity is in t CO2-e per MWh
         # quantity is in MW (average for the hour)
         
         total_emissions_kg = 0
@@ -316,7 +316,7 @@ class Command(BaseCommand):
             
             if emission_intensity and generation_mwh > 0:
                 # Emissions = generation (MWh) * intensity (kg/MWh)
-                emissions_kg = generation_mwh * float(emission_intensity)
+                emissions_kg = generation_mwh * float(emission_intensity*1000)  # Convert t to kg
                 total_emissions_kg += emissions_kg
             
             total_generation_mwh += generation_mwh

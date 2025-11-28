@@ -19,7 +19,7 @@
 <!-- Quick Navigation Links -->
 <div style="margin: 20px 0; padding: 15px; background: #ecf0f1; border-radius: 8px; display: flex; gap: 15px; align-items: center;">
     <strong style="color: #2c3e50;">Other Reports:</strong>
-    <a href="{% url 'quarterly_report' year quarter %}" style="color: #3498db; text-decoration: none; padding: 8px 15px; background: white; border-radius: 4px; font-weight: 500;">📈 Q{{ quarter }} Quarterly Report</a>
+    <a href="{% url 'quarterly_report' last_complete_quarter_year last_complete_quarter %}" style="color: #3498db; text-decoration: none; padding: 8px 15px; background: white; border-radius: 4px; font-weight: 500;">📈 Q{{ last_complete_quarter }} Quarterly Report</a>
     <a href="{% url 'annual_review' year %}" style="color: #3498db; text-decoration: none; padding: 8px 15px; background: white; border-radius: 4px; font-weight: 500;">📑 {{ year }} Annual Review</a>
     <a href="{% url 'ret_targets_list' %}" style="color: #27ae60; text-decoration: none; padding: 8px 15px; background: white; border-radius: 4px; font-weight: 500;">🎯 Manage Targets</a>
 </div>
@@ -36,59 +36,6 @@
     </select>
     <button onclick="loadDashboard()">View</button>
     <button onclick="window.print()" style="background: #95a5a6;">Print Report</button>
-</div>
-
-<!-- At a Glance Summary -->
-<div class="section-header">
-    <h2>At a Glance</h2>
-</div>
-
-<div class="metric-grid">
-    <!-- YTD RE Percentage - Operational -->
-    <div class="metric-card {% if target_status.status == 'ahead' %}positive{% elif target_status.status == 'behind' %}warning{% else %}neutral{% endif %}">
-        <div class="metric-label">YTD RE% (Operational)</div>
-        <div class="metric-value">{{ ytd_summary.re_percentage_operational|floatformat:1 }}%</div>
-        <div class="metric-sublabel">Grid-sent electricity</div>
-    </div>
-    
-    <!-- YTD RE Percentage - Underlying -->
-    <div class="metric-card {% if target_status.status == 'ahead' %}positive{% elif target_status.status == 'behind' %}warning{% else %}neutral{% endif %}">
-        <div class="metric-label">YTD RE% (Underlying)</div>
-        <div class="metric-value">{{ ytd_summary.re_percentage_underlying|floatformat:1 }}%</div>
-        <div class="metric-sublabel">Including rooftop solar</div>
-    </div>
-    
-    <!-- Target Status -->
-    <div class="metric-card {% if target_status.status == 'ahead' %}positive{% elif target_status.status == 'behind' %}negative{% else %}neutral{% endif %}">
-        <div class="metric-label">Target for {{ year }}</div>
-        <div class="metric-value">{{ target.target_percentage|floatformat:1 }}%</div>
-        <div class="metric-change">
-            {{ target_status.message }}
-        </div>
-    </div>
-    
-    <!-- Monthly RE Percentage -->
-    <div class="metric-card positive">
-        <div class="metric-label">{{ month_name }} {{ year }}</div>
-        <div class="metric-value">{{ performance.re_percentage_underlying|floatformat:1 }}%</div>
-        <div class="metric-change">
-            {% if prev_year_performance %}
-                {{ prev_year_performance.re_percentage_underlying|floatformat:1 }}% in {{ year|add:"-1" }}
-            {% endif %}
-        </div>
-    </div>
-    
-    <!-- Emissions -->
-    <div class="metric-card neutral">
-        <div class="metric-label">YTD Emissions</div>
-        <div class="metric-value">{{ ytd_summary.total_emissions|floatformat:0|intcomma }} t CO₂-e</div>
-        <div class="metric-change">
-            {% if ytd_emissions_change %}
-                {% if ytd_emissions_change < 0 %}✓{% else %}⚠{% endif %}
-                {{ ytd_emissions_change|floatformat:1 }}% vs {{ year|add:"-1" }}
-            {% endif %}
-        </div>
-    </div>
 </div>
 
 <!-- Monthly RE Performance -->
@@ -121,6 +68,48 @@
         <div class="metric-change">
             {% if prev_year_performance %}
                 {{ prev_year_performance.re_percentage_underlying|floatformat:1 }}% in {{ year|add:"-1" }}
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Year to Date Summary -->
+<div class="section-header">
+    <h2>Year to Date</h2>
+</div>
+
+<div class="metric-grid">
+    <!-- YTD RE Percentage - Operational -->
+    <div class="metric-card {% if target_status.status == 'ahead' %}positive{% elif target_status.status == 'behind' %}warning{% else %}neutral{% endif %}">
+        <div class="metric-label">YTD RE% (Operational)</div>
+        <div class="metric-value">{{ ytd_summary.re_percentage_operational|floatformat:1 }}%</div>
+        <div class="metric-sublabel">Grid-sent electricity</div>
+    </div>
+    
+    <!-- YTD RE Percentage - Underlying -->
+    <div class="metric-card {% if target_status.status == 'ahead' %}positive{% elif target_status.status == 'behind' %}warning{% else %}neutral{% endif %}">
+        <div class="metric-label">YTD RE% (Underlying)</div>
+        <div class="metric-value">{{ ytd_summary.re_percentage_underlying|floatformat:1 }}%</div>
+        <div class="metric-sublabel">Including rooftop solar</div>
+    </div>
+    
+    <!-- Target Status -->
+    <div class="metric-card {% if target_status.status == 'ahead' %}positive{% elif target_status.status == 'behind' %}negative{% else %}neutral{% endif %}">
+        <div class="metric-label">Target for {{ year }}</div>
+        <div class="metric-value">{{ target.target_percentage|floatformat:1 }}%</div>
+        <div class="metric-change">
+            {{ target_status.message }}
+        </div>
+    </div>
+    
+    <!-- Emissions -->
+    <div class="metric-card neutral">
+        <div class="metric-label">YTD Emissions</div>
+        <div class="metric-value">{{ ytd_summary.total_emissions|floatformat:0|intcomma }} t CO₂-e</div>
+        <div class="metric-change">
+            {% if ytd_emissions_change %}
+                {% if ytd_emissions_change < 0 %}✓{% else %}⚠{% endif %}
+                {{ ytd_emissions_change|floatformat:1 }}% vs {{ year|add:"-1" }}
             {% endif %}
         </div>
     </div>
@@ -192,9 +181,16 @@
                 <td class="value">{{ performance.coal_generation|div:performance.operational_demand|mul:100|floatformat:1 }}%</td>
                 <td class="value">{{ performance.coal_generation|div:performance.underlying_demand|mul:100|floatformat:1 }}%</td>
             </tr>
+            {% if performance.storage_charge > 0 %}
+            <tr class="info-row">
+                <td><em>Storage Charge</em></td>
+                <td class="value"><em>{{ performance.storage_charge|floatformat:1 }}</em></td>
+                <td class="value" colspan="2"></td>
+            </tr>
+            {% endif %}
             {% if performance.storage_discharge > 0 %}
             <tr class="info-row">
-                <td><em>Storage (net discharge)</em></td>
+                <td><em>Storage Discharge</em></td>
                 <td class="value"><em>{{ performance.storage_discharge|floatformat:1 }}</em></td>
                 <td class="value" colspan="2"><em>Excluded from demand calculations</em></td>
             </tr>
