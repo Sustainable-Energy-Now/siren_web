@@ -1,11 +1,7 @@
-from django.db.models import Avg
-from django.db.models.functions import TruncMonth, TruncHour
 from django.shortcuts import render
 from django.utils.safestring import mark_safe
 import plotly.graph_objs as go
-from plotly.utils import PlotlyJSONEncoder
 from plotly.offline import plot
-from siren_web.database_operations import get_monthly_average_reference_price
 
 def wem_price_history(request):
     # Initialise data
@@ -513,7 +509,6 @@ def wem_price_history(request):
         colorscale='RdBu',
         colorbar=dict(
             title='Max. Price ($/MWh)',
-            titleside='right',
             x=0.8,
             y=0.5,   # Center vertically
             len=0.75  
@@ -528,7 +523,6 @@ def wem_price_history(request):
         colorscale='Jet',
         colorbar=dict(
             title='Avg. Price ($/MWh)',
-            titleside='right',
             x=0.9, 
             y=0.5,   # Center vertically
             len=0.75  
@@ -543,7 +537,6 @@ def wem_price_history(request):
         colorscale='RdBu',
         colorbar=dict(
             title='Min. Price ($/MWh)',
-            titleside='right',
             x=1.0, 
             y=0.5,   # Center vertically
             len=0.75  
@@ -728,7 +721,6 @@ def swis_demand_history(request):
         colorscale='RdBu',
         colorbar=dict(
             title='Underlying (MWh)',
-            titleside='right',
             x=0.8,  # Move colorbar more to the right
             y=0.8,   # Center vertically
             len=0.4,  
@@ -744,7 +736,6 @@ def swis_demand_history(request):
         colorscale=[[0.0, '#000000'], [1.0, '#808080']],
         colorbar=dict(
             title='Fossil (MWh)',
-            titleside='right',
             x=0.8,  # Move colorbar more to the right
             y=0.4,   # Center vertically
             len=0.4,  
@@ -760,7 +751,6 @@ def swis_demand_history(request):
         colorscale='Greens',
         colorbar=dict(
             title='RE (MWh)',
-            titleside='right',
             x=0.95,  # Move colorbar more to the right
             y=0.8,   # Center vertically
             len=0.4,  
@@ -776,7 +766,6 @@ def swis_demand_history(request):
         colorscale='Hot',
         colorbar=dict(
             title='DPV (MWh)',
-            titleside='right',
             x=0.95,  # Move colorbar more to the right
             y=0.4,   # Center vertically
             len=0.4,  

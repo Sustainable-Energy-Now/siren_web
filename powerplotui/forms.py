@@ -4,13 +4,8 @@ from django.forms import modelformset_factory
 from crispy_forms.helper import FormHelper
 from crispy_forms.layout import Layout, Submit, Row, Column, Submit, HTML
 from crispy_forms.bootstrap import FormActions
-from siren_web.models import Analysis, Scenarios, Technologies, TradingPrice, variations
+from siren_web.models import Analysis, Scenarios, variations
 
-class TradingPriceForm(forms.ModelForm):
-    class Meta:
-        model = TradingPrice
-        fields = ['trading_interval', 'reference_price']
-        
 class PlotForm(forms.Form):
     scenario_choices = [(scenario.idscenarios, scenario.title) for scenario in Scenarios.objects.all()]
     scenario = forms.ChoiceField(

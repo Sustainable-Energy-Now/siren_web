@@ -8,7 +8,7 @@ from django.db.models.functions import TruncDay
 import os
 from siren_web.models import Analysis, facilities, FacilityStorage, Generatorattributes, Optimisations, \
     Scenarios, ScenariosTechnologies, ScenariosSettings, Settings, Storageattributes, supplyfactors, \
-    Technologies, TechnologyYears, TradingPrice, variations
+    Technologies, TechnologyYears, variations
 from powermatchui.views.balance_grid_load import Technology
 
 def delete_analysis_scenario(idscenario):
@@ -684,15 +684,3 @@ def fetch_variation(variation):
         # Handle any errors that occur during the database query
         return None
     return variation
-
-def get_monthly_average_reference_price():  
-    # Query to calculate daily average reference_price for each day within the specified month
-    average_prices = (
-        TradingPrice.objects
-        .all()
-        .annotate(day=TruncDay('trading_interval'))
-        .values('day')
-        .annotate(avg_price=Avg('reference_price'))
-        .order_by('day')
-    )
-    return average_prices

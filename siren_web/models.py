@@ -1513,7 +1513,6 @@ class MonthlyREPerformance(models.Model):
     solar_generation = models.FloatField(default=0)
     dpv_generation = models.FloatField(default=0)
     biomass_generation = models.FloatField(default=0)
-    hydro_generation = models.FloatField(default=0, help_text="Pumped storage hydro - excluded from RE%")
     
     # Non-renewable generation (GWh)
     gas_generation = models.FloatField(default=0, help_text="Combined Cycle Gas Turbine")
@@ -2536,15 +2535,6 @@ class WholesalePrice(models.Model):
     
     def __str__(self):
         return f"Wolesale Price {self.trading_date} #{self.interval_number}: {self.wholesale_price}$/MW"
-
-class TradingPrice(models.Model):
-    id = models.AutoField(db_column='idTechnologies', primary_key=True)
-    trading_month = models.CharField(max_length=7, blank=True, null=True)
-    trading_interval = models.IntegerField(blank=True, null=True)
-    reference_price = models.FloatField()
-
-    class Meta:
-        db_table = 'tradingprice'
 
 class variations(models.Model):
     idvariations = models.AutoField(db_column='idvariations', primary_key=True)  

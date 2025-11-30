@@ -2,7 +2,7 @@
 from django.urls import path
 from .views.variants_views import VariantsView
 from .views.echart_views import eChartView
-from .views import facility_scada_views, tradingprice_views, plot3D_views, powerplotui_home_views, ret_dashboard_views, \
+from .views import facility_scada_views, plot3D_views, powerplotui_home_views, ret_dashboard_views, \
     ret_targets_views, supplyfactors_views, scada_views
 
 urlpatterns = [
@@ -67,8 +67,6 @@ urlpatterns = [
     path('api/ret_dashboard/scenarios/<int:scenario_id>/', ret_targets_views.api_scenario_detail, name='api_scenario_detail'),
 
     # Miscellaneous URLs
-    path('trading_prices/', tradingprice_views.trading_price_list, name='trading_price_list'),
-    path('trading_prices/update/<int:pk>/', tradingprice_views.update_trading_price, name='update_trading_price'),
     path('wem_prices/', plot3D_views.wem_price_history, name='wem_price_history'),
     path('swis_demand/', plot3D_views.swis_demand_history, name='swis_demand_history'),
 ]
