@@ -1534,6 +1534,40 @@ class MonthlyREPerformance(models.Model):
     best_re_hour_percentage = models.FloatField(null=True, blank=True)
     best_re_hour_datetime = models.DateTimeField(null=True, blank=True)
     
+    # Wholesale price statistics
+    wholesale_price_max = models.FloatField(
+        null=True, blank=True,
+        help_text="Maximum wholesale price ($/MWh) for the month"
+    )
+    wholesale_price_max_datetime = models.DateTimeField(
+        null=True, blank=True,
+        help_text="Date/time of maximum wholesale price"
+    )
+    wholesale_price_min = models.FloatField(
+        null=True, blank=True,
+        help_text="Minimum wholesale price ($/MWh) for the month"
+    )
+    wholesale_price_min_datetime = models.DateTimeField(
+        null=True, blank=True,
+        help_text="Date/time of minimum wholesale price"
+    )
+    wholesale_price_avg = models.FloatField(
+        null=True, blank=True,
+        help_text="Average wholesale price ($/MWh) for the month"
+    )
+    wholesale_price_std_dev = models.FloatField(
+        null=True, blank=True,
+        help_text="Standard deviation of wholesale prices ($/MWh)"
+    )
+    wholesale_negative_count = models.IntegerField(
+        null=True, blank=True,
+        help_text="Number of trading intervals with negative prices"
+    )
+    wholesale_spike_count = models.IntegerField(
+        null=True, blank=True,
+        help_text="Number of trading intervals with prices > $300/MWh"
+    )
+
     # Data quality
     data_complete = models.BooleanField(default=False)
     data_source = models.CharField(max_length=100, default='SCADA')
@@ -1621,6 +1655,62 @@ class MonthlyREPerformance(models.Model):
     def storage_net_discharge(self):
         """Net storage discharge (positive = net discharge)"""
         return self.storage_discharge - self.storage_charge
+    
+    @property
+    def wholesale_price_range(self):
+        """Return the spread between max and min wholesale prices"""
+        if self.wholesale_price_max is not None and self.wholesale_price_min is not None:
+            return self.wholesale_price_max - self.wholesale_price_min
+        return None
+    
+    @property
+    def has_negative_pricing(self):
+        """Check if there was negative pricing during the month"""
+        return self.wholesale_negative_count is not None and self.wholesale_negative_count > 0
+    
+    @property
+    def has_price_spikes(self):
+        """Check if there were price spikes (>$300/MWh) during the month"""
+        return self.wholesale_spike_count is not None and self.wholesale_spike_count > 0
+    
+    @property
+    def wholesale_coefficient_of_variation(self):
+        """
+        Coefficient of variation (CV) for wholesale prices.
+        CV = (std_dev / avg) * 100
+        Useful for comparing volatility across months with different average prices.
+        """
+        if (self.wholesale_price_std_dev is not None and 
+            self.wholesale_price_avg is not None and 
+            self.wholesale_price_avg != 0):
+            return (self.wholesale_price_std_dev / self.wholesale_price_avg) * 100
+        return None
+    
+    @property
+    def wholesale_total_intervals(self):
+        """
+        Approximate total trading intervals in the month.
+        Based on 48 intervals per day (30-min intervals).
+        """
+        from calendar import monthrange
+        _, days = monthrange(self.year, self.month)
+        return days * 48
+    
+    @property
+    def wholesale_negative_percentage(self):
+        """Percentage of intervals with negative prices"""
+        total = self.wholesale_total_intervals
+        if self.wholesale_negative_count is not None and total > 0:
+            return (self.wholesale_negative_count / total) * 100
+        return None
+    
+    @property
+    def wholesale_spike_percentage(self):
+        """Percentage of intervals with price spikes (>$300/MWh)"""
+        total = self.wholesale_total_intervals
+        if self.wholesale_spike_count is not None and total > 0:
+            return (self.wholesale_spike_count / total) * 100
+        return None
     
     # -------------------------------------------------------------------------
     # Helper Methods
@@ -1742,6 +1832,31 @@ class MonthlyREPerformance(models.Model):
         # Sum emissions
         total_emissions = sum(r.total_emissions_tonnes for r in records)
         
+        # Wholesale price statistics
+        # For multi-month aggregation:
+        # - Averages: simple average of monthly averages
+        # - Std dev: average of monthly std devs (approximation)
+        # - Counts: sum of monthly counts
+        # - Max/Min: overall max/min across months
+        
+        wholesale_avgs = [r.wholesale_price_avg for r in records if r.wholesale_price_avg is not None]
+        wholesale_std_devs = [r.wholesale_price_std_dev for r in records if r.wholesale_price_std_dev is not None]
+        negative_counts = [r.wholesale_negative_count for r in records if r.wholesale_negative_count is not None]
+        spike_counts = [r.wholesale_spike_count for r in records if r.wholesale_spike_count is not None]
+        
+        if wholesale_avgs:
+            avg_wholesale_price = sum(wholesale_avgs) / len(wholesale_avgs)
+            max_wholesale = max((r.wholesale_price_max for r in records if r.wholesale_price_max is not None), default=None)
+            min_wholesale = min((r.wholesale_price_min for r in records if r.wholesale_price_min is not None), default=None)
+        else:
+            avg_wholesale_price = None
+            max_wholesale = None
+            min_wholesale = None
+        
+        avg_std_dev = sum(wholesale_std_devs) / len(wholesale_std_devs) if wholesale_std_devs else None
+        total_negative_count = sum(negative_counts) if negative_counts else None
+        total_spike_count = sum(spike_counts) if spike_counts else None
+            
         # Calculate renewable totals
         # Hydro (pumped storage) excluded - it's storage like BESS
         renewable_gen_operational = wind + solar + biomass
@@ -1792,6 +1907,14 @@ class MonthlyREPerformance(models.Model):
             'total_emissions_tonnes': total_emissions,
             'emissions_intensity': emissions_intensity,
             'emissions_intensity_kg_mwh': emissions_intensity,
+            
+            # Wholesale prices
+            'wholesale_price_avg': avg_wholesale_price,
+            'wholesale_price_max': max_wholesale,
+            'wholesale_price_min': min_wholesale,
+            'wholesale_price_std_dev': avg_std_dev,
+            'wholesale_negative_count': total_negative_count,
+            'wholesale_spike_count': total_spike_count,
         }
     
     def calculate_ytd_summary(self):

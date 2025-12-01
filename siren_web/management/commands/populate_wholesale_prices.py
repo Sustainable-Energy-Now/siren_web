@@ -2,13 +2,20 @@
 Django management command to populate WholesalePrice model from AEMO data.
 
 Downloads dated files from AEMO directory and processes them.
-Files are named: ReferenceTradingPrice_YYYYMMDD.zip
+
+Data sources:
+    --yesterday: Uses current endpoint (uncompressed JSON, ideal for cron jobs)
+        https://data.wa.aemo.com.au/public/market-data/wemde/referenceTradingPrice/current/
+    
+    Other options: Uses previous endpoint (ZIP archives)
+        https://data.wa.aemo.com.au/public/market-data/wemde/referenceTradingPrice/previous/
 
 Usage:
     python manage.py populate_wholesale_prices --date 2025-10-24
     python manage.py populate_wholesale_prices --start-date 2025-10-20 --end-date 2025-10-24
-    python manage.py populate_wholesale_prices --yesterday
+    python manage.py populate_wholesale_prices --yesterday      # Uses current endpoint (for cron)
     python manage.py populate_wholesale_prices --last-7-days
+    python manage.py populate_wholesale_prices --last-30-days
 """
 import json
 import zipfile
@@ -63,6 +70,7 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         force_update = options['force']
+        use_current = options['yesterday']  # Use current endpoint for yesterday's data
         
         # Determine which dates to fetch
         dates_to_fetch = self.get_dates_to_fetch(options)
@@ -74,7 +82,11 @@ class Command(BaseCommand):
             f'Starting wholesale price import for {len(dates_to_fetch)} date(s)...'
         ))
         
-        base_url = 'https://data.wa.aemo.com.au/public/market-data/wemde/referenceTradingPrice/previous'
+        # Use different endpoints for current vs previous data
+        if use_current:
+            base_url = 'https://data.wa.aemo.com.au/public/market-data/wemde/referenceTradingPrice/current'
+        else:
+            base_url = 'https://data.wa.aemo.com.au/public/market-data/wemde/referenceTradingPrice/previous'
         
         total_saved = 0
         successful = 0
@@ -86,14 +98,17 @@ class Command(BaseCommand):
             self.stdout.write('='*80)
             
             try:
-                # Construct filename
-                filename = f'ReferenceTradingPrice_{fetch_date.strftime("%Y%m%d")}.zip'
+                # Construct filename - current endpoint uses .json, previous uses .zip
+                if use_current:
+                    filename = f'ReferenceTradingPrice_{fetch_date.strftime("%Y-%m-%d")}.json'
+                else:
+                    filename = f'ReferenceTradingPrice_{fetch_date.strftime("%Y%m%d")}.zip'
                 file_url = f'{base_url}/{filename}'
                 
                 self.stdout.write(f'Downloading: {file_url}')
                 
                 # Download and process the file
-                saved_count = self.download_and_process(file_url, force_update)
+                saved_count = self.download_and_process(file_url, force_update, is_json=use_current)
                 
                 total_saved += saved_count
                 successful += 1
@@ -164,8 +179,14 @@ class Command(BaseCommand):
         
         return dates
 
-    def download_and_process(self, url, force_update=False):
-        """Download a file and process it."""
+    def download_and_process(self, url, force_update=False, is_json=False):
+        """Download a file and process it.
+        
+        Args:
+            url: URL to download
+            force_update: Whether to force update existing records
+            is_json: If True, expect plain JSON file; if False, expect ZIP archive
+        """
         
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
@@ -179,23 +200,30 @@ class Command(BaseCommand):
         self.stdout.write(f'Content-Type: {content_type}')
         self.stdout.write(f'Size: {len(response.content)} bytes')
         
-        # Process ZIP file
-        try:
-            with zipfile.ZipFile(BytesIO(response.content)) as zip_file:
-                # Get JSON files
-                json_files = [f for f in zip_file.namelist() if f.endswith('.json')]
-                
-                if not json_files:
-                    raise CommandError('No JSON files found in ZIP archive')
-                
-                self.stdout.write(f'Found {len(json_files)} JSON file(s) in archive')
-                
-                # Process the first JSON file
-                with zip_file.open(json_files[0]) as json_file:
-                    data = json.load(json_file)
+        if is_json:
+            # Process plain JSON file
+            try:
+                data = response.json()
+            except json.JSONDecodeError as e:
+                raise CommandError(f'Failed to parse JSON: {e}')
+        else:
+            # Process ZIP file
+            try:
+                with zipfile.ZipFile(BytesIO(response.content)) as zip_file:
+                    # Get JSON files
+                    json_files = [f for f in zip_file.namelist() if f.endswith('.json')]
                     
-        except zipfile.BadZipFile:
-            raise CommandError('Downloaded file is not a valid ZIP archive')
+                    if not json_files:
+                        raise CommandError('No JSON files found in ZIP archive')
+                    
+                    self.stdout.write(f'Found {len(json_files)} JSON file(s) in archive')
+                    
+                    # Process the first JSON file
+                    with zip_file.open(json_files[0]) as json_file:
+                        data = json.load(json_file)
+                        
+            except zipfile.BadZipFile:
+                raise CommandError('Downloaded file is not a valid ZIP archive')
         
         # Process and save data
         saved_count = self.process_data(data, force_update)
@@ -204,6 +232,12 @@ class Command(BaseCommand):
 
     def process_data(self, data, force_update=False):
         """Process JSON data and save to database."""
+        
+        # Handle array-wrapped format: [{"data": {...}}]
+        if isinstance(data, list):
+            if not data:
+                raise CommandError('Invalid data structure: empty array')
+            data = data[0]
         
         if 'data' not in data:
             raise CommandError('Invalid data structure: missing "data" key')

@@ -6,7 +6,7 @@ Can be run via cron job: python manage.py update_ret_dashboard
 
 from django.core.management.base import BaseCommand
 from django.utils import timezone
-from django.db.models import Sum, F
+from django.db.models import Sum, F, Avg, Max, Min, StdDev, Count, Q
 from datetime import datetime, timedelta
 from calendar import monthrange
 import logging
@@ -14,10 +14,14 @@ import logging
 from siren_web.models import (
     MonthlyREPerformance,
     NewCapacityCommissioned, FacilityScada, facilities,
-    DPVGeneration
+    DPVGeneration, WholesalePrice
 )
 
 logger = logging.getLogger(__name__)
+
+# Price spike threshold ($/MWh)
+PRICE_SPIKE_THRESHOLD = 300.0
+
 
 class Command(BaseCommand):
     help = 'Update renewable energy dashboard data from SCADA'
@@ -140,6 +144,9 @@ class Command(BaseCommand):
         # Get best RE hour
         best_re_hour = self.calculate_best_re_hour(scada_data, rooftop_solar)
         
+        # Get wholesale price statistics
+        wholesale_data = self.calculate_wholesale_prices(year, month, start_datetime, end_datetime)
+        
         # Calculate underlying demand (operational + rooftop)
         underlying_demand = operational_demand + rooftop_solar
         
@@ -167,6 +174,15 @@ class Command(BaseCommand):
                 'minimum_demand_datetime': peak_min_data.get('min_datetime'),
                 'best_re_hour_percentage': best_re_hour.get('percentage'),
                 'best_re_hour_datetime': best_re_hour.get('datetime'),
+                # Wholesale price fields
+                'wholesale_price_max': wholesale_data.get('max_price'),
+                'wholesale_price_max_datetime': wholesale_data.get('max_datetime'),
+                'wholesale_price_min': wholesale_data.get('min_price'),
+                'wholesale_price_min_datetime': wholesale_data.get('min_datetime'),
+                'wholesale_price_avg': wholesale_data.get('avg_price'),
+                'wholesale_price_std_dev': wholesale_data.get('std_dev'),
+                'wholesale_negative_count': wholesale_data.get('negative_count'),
+                'wholesale_spike_count': wholesale_data.get('spike_count'),
                 'data_complete': True,
                 'data_source': 'SCADA',
             }
@@ -175,15 +191,110 @@ class Command(BaseCommand):
         action = "Created" if created else "Updated"
         re_pct = performance.re_percentage_underlying
         
-        self.stdout.write(
-            self.style.SUCCESS(
-                f"  {action} record: {month}/{year} - "
-                f"RE%: {re_pct:.1f}%, Emissions: {emissions_data['total_emissions']:.0f}t"
-            )
-        )
+        # Build output message
+        msg = f"  {action} record: {month}/{year} - RE%: {re_pct:.1f}%, Emissions: {emissions_data['total_emissions']:.0f}t"
+        if wholesale_data.get('avg_price') is not None:
+            msg += f", Avg Price: ${wholesale_data['avg_price']:.2f}/MWh"
+            if wholesale_data.get('negative_count', 0) > 0:
+                msg += f", Neg intervals: {wholesale_data['negative_count']}"
+            if wholesale_data.get('spike_count', 0) > 0:
+                msg += f", Spikes: {wholesale_data['spike_count']}"
+        
+        self.stdout.write(self.style.SUCCESS(msg))
         
         # Update new capacity commissioned
         self.update_new_capacity(year, month)
+
+    def calculate_wholesale_prices(self, year, month, start_datetime, end_datetime):
+        """
+        Calculate wholesale price statistics for the month.
+        
+        Returns dict with:
+            - max_price: Maximum wholesale price ($/MWh)
+            - max_datetime: DateTime of maximum price
+            - min_price: Minimum wholesale price ($/MWh)
+            - min_datetime: DateTime of minimum price
+            - avg_price: Average wholesale price ($/MWh)
+            - std_dev: Standard deviation of prices ($/MWh)
+            - negative_count: Number of intervals with negative prices
+            - spike_count: Number of intervals with prices > $300/MWh
+        """
+        result = {
+            'max_price': None,
+            'max_datetime': None,
+            'min_price': None,
+            'min_datetime': None,
+            'avg_price': None,
+            'std_dev': None,
+            'negative_count': None,
+            'spike_count': None,
+        }
+        
+        # Query wholesale prices for the month
+        price_data = WholesalePrice.objects.filter(
+            trading_interval__gte=start_datetime,
+            trading_interval__lte=end_datetime
+        )
+        
+        if not price_data.exists():
+            self.stdout.write(
+                self.style.WARNING(
+                    f"  No wholesale price data found for {month}/{year}"
+                )
+            )
+            return result
+        
+        record_count = price_data.count()
+        self.stdout.write(f"  Found {record_count} wholesale price records")
+        
+        # Calculate aggregate statistics using Django ORM
+        aggregates = price_data.aggregate(
+            avg_price=Avg('wholesale_price'),
+            max_price=Max('wholesale_price'),
+            min_price=Min('wholesale_price'),
+            std_dev=StdDev('wholesale_price'),
+            negative_count=Count('id', filter=Q(wholesale_price__lt=0)),
+            spike_count=Count('id', filter=Q(wholesale_price__gt=PRICE_SPIKE_THRESHOLD))
+        )
+        
+        result['avg_price'] = aggregates['avg_price']
+        result['max_price'] = aggregates['max_price']
+        result['min_price'] = aggregates['min_price']
+        result['std_dev'] = aggregates['std_dev']
+        result['negative_count'] = aggregates['negative_count']
+        result['spike_count'] = aggregates['spike_count']
+        
+        # Find the datetime for max price
+        if result['max_price'] is not None:
+            max_record = price_data.filter(
+                wholesale_price=result['max_price']
+            ).order_by('trading_interval').first()
+            if max_record:
+                result['max_datetime'] = max_record.trading_interval
+        
+        # Find the datetime for min price
+        if result['min_price'] is not None:
+            min_record = price_data.filter(
+                wholesale_price=result['min_price']
+            ).order_by('trading_interval').first()
+            if min_record:
+                result['min_datetime'] = min_record.trading_interval
+        
+        # Log summary
+        self.stdout.write(
+            f"  Wholesale prices: "
+            f"Min ${result['min_price']:.2f}, "
+            f"Avg ${result['avg_price']:.2f} (±${result['std_dev']:.2f}), "
+            f"Max ${result['max_price']:.2f}"
+        )
+        if result['negative_count'] > 0 or result['spike_count'] > 0:
+            self.stdout.write(
+                f"  Price events: "
+                f"{result['negative_count']} negative intervals, "
+                f"{result['spike_count']} spike intervals (>${PRICE_SPIKE_THRESHOLD})"
+            )
+        
+        return result
 
     def calculate_generation(self, scada_data):
         """Calculate generation totals by technology fuel type from SCADA data"""
@@ -211,33 +322,28 @@ class Command(BaseCommand):
         )
         
         for item in facility_totals:
-            fuel_type = item.get('facility__idtechnologies__fuel_type')
-            tech_name = item.get('facility__idtechnologies__technology_name', '').lower()
-            category = item.get('facility__idtechnologies__category', '').lower()
+            fuel_type = item.get('facility__idtechnologies__fuel_type', '').upper() if item.get('facility__idtechnologies__fuel_type') else ''
+            tech_name = item.get('facility__idtechnologies__technology_name', '') or ''
+            category = item.get('facility__idtechnologies__category', '').upper() if item.get('facility__idtechnologies__category') else ''
             total_mw = float(item['total_mw'] or 0)
             
-            # Convert MW to GWh (MW * hours in month / 1000)
-            # Since we have hourly SCADA data, total_mw is sum of all hourly MW readings
-            # To get GWh, divide by 1000
-            gen_gwh = total_mw / 1000.0
+            # Convert from MW (hourly average) to GWh
+            # Assuming data is 30-minute intervals: MW * 0.5 / 1000 = GWh
+            gen_gwh = total_mw * 0.5 / 1000.0
             
-            # Map fuel types to generation categories
+            # Categorize by fuel type
             if fuel_type == 'WIND':
                 generation['wind'] += gen_gwh
             elif fuel_type == 'SOLAR':
-                # Distinguish between utility and rooftop
-                # Rooftop should come from DPVGeneration model
-                if 'dpv' in tech_name:
-                    generation['solar_rooftop'] += gen_gwh
-                else:
-                    generation['solar_utility'] += gen_gwh
-            elif fuel_type == 'BIOMASS':
+                generation['solar_utility'] += gen_gwh
+            elif fuel_type in ['BIOMASS', 'LANDFILL_GAS', 'BIOGAS']:
                 generation['biomass'] += gen_gwh
-            elif fuel_type == 'GAS':
+            elif fuel_type in ['GAS', 'NATURAL_GAS', 'DISTILLATE']:
                 generation['gas'] += gen_gwh
             elif fuel_type == 'COAL':
                 generation['coal'] += gen_gwh
-            elif fuel_type == 'BESS' or fuel_type == 'HYDRO':
+            elif category == 'STORAGE' or 'BATTERY' in tech_name.upper():
+                # Battery can be positive (discharge) or negative (charge)
                 if gen_gwh >= 0:
                     generation['storage_discharge'] += gen_gwh
                 else:

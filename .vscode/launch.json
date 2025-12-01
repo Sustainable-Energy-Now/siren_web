@@ -38,12 +38,12 @@
             "autoStartBrowser": false
         },
         {
-            "name": "Python Debugger: Load Wholesale Prices",
+            "name": "Python Debugger: Populate Wholesale Prices",
             "type": "debugpy",
             "request": "launch",
             "program": "${workspaceFolder}\\manage.py",
             "args": [
-                "populate_wholesale_prices"
+                "populate_wholesale_prices", "--date", "2025-11-01"
             ],
             "django": true,
             "autoStartBrowser": false
