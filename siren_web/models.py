@@ -1608,8 +1608,7 @@ class MonthlyREPerformance(models.Model):
     def total_renewable_generation(self):
         """
         Total renewable generation for underlying demand basis.
-        Includes DPV (rooftop solar).
-        Excludes hydro (pumped storage) as it's storage, not generation.
+        Excludes storage discharge.
         """
         return (self.wind_generation + 
                 self.solar_generation + 

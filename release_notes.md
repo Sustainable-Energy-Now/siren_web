@@ -1,4 +1,10 @@
 # Release Notes (Latest first)
+## Version 3.14.1 - November 20, 2025
+### 🆕 New Features
+- Feature: Track Wholesale Prices ([#47](https://github.com/Sustainable-Energy-Now/siren_web/issues/47))
+### 🐛 Bug Fixes
+- Debug RE % ([#48](https://github.com/Sustainable-Energy-Now/siren_web/issues/48))
+
 ## Version 3.14.0 - November 20, 2025
 ### 🆕 New Features
 - Feature: Renewable Energy Target (RET) ([#46](https://github.com/Sustainable-Energy-Now/siren_web/issues/46))

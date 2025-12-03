@@ -54,7 +54,7 @@ class AEMOScadaFetcher:
     
     def _create_placeholder_facility(self, facility_code):
         """Create a placeholder facility for unknown codes"""
-        from powerplot.models import Technologies
+        from siren_web.models import Technologies
         
         # Get or create 'Unknown' technology
         unknown_tech, _ = Technologies.objects.get_or_create(

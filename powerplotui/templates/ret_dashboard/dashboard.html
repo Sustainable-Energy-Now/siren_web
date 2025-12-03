@@ -244,6 +244,97 @@
     {% endif %}
 </div>
 
+<!-- Wholesale Price Statistics -->
+{% if performance.wholesale_price_avg is not None %}
+<div class="section-header">
+    <h2>Wholesale Price Statistics</h2>
+</div>
+
+<div class="metric-grid" style="grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));">
+    <div class="metric-card neutral">
+        <div class="metric-label">Average Price</div>
+        <div class="metric-value">${{ performance.wholesale_price_avg|floatformat:2 }}</div>
+        <div class="metric-sublabel">$/MWh</div>
+        {% if prev_year_performance.wholesale_price_avg %}
+        <div class="metric-change">
+            ${{ prev_year_performance.wholesale_price_avg|floatformat:2 }}/MWh in {{ year|add:"-1" }}
+        </div>
+        {% endif %}
+    </div>
+    
+    {% if performance.wholesale_price_max is not None %}
+    <div class="metric-card {% if performance.wholesale_price_max > 300 %}warning{% else %}neutral{% endif %}">
+        <div class="metric-label">Maximum Price</div>
+        <div class="metric-value">${{ performance.wholesale_price_max|floatformat:2 }}</div>
+        <div class="metric-sublabel">$/MWh</div>
+        {% if performance.wholesale_price_max_datetime %}
+        <div class="metric-change">{{ performance.wholesale_price_max_datetime|date:"d M, g:i A" }}</div>
+        {% endif %}
+    </div>
+    {% endif %}
+    
+    {% if performance.wholesale_price_min is not None %}
+    <div class="metric-card {% if performance.wholesale_price_min < 0 %}positive{% else %}neutral{% endif %}">
+        <div class="metric-label">Minimum Price</div>
+        <div class="metric-value">${{ performance.wholesale_price_min|floatformat:2 }}</div>
+        <div class="metric-sublabel">$/MWh</div>
+        {% if performance.wholesale_price_min_datetime %}
+        <div class="metric-change">{{ performance.wholesale_price_min_datetime|date:"d M, g:i A" }}</div>
+        {% endif %}
+    </div>
+    {% endif %}
+    
+    {% if performance.wholesale_price_std_dev is not None %}
+    <div class="metric-card neutral">
+        <div class="metric-label">Price Volatility (Std Dev)</div>
+        <div class="metric-value">${{ performance.wholesale_price_std_dev|floatformat:2 }}</div>
+        <div class="metric-sublabel">$/MWh</div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Price Events Summary -->
+{% if performance.wholesale_negative_count is not None or performance.wholesale_spike_count is not None %}
+<div class="metric-grid" style="grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); margin-top: 20px;">
+    {% if performance.wholesale_negative_count is not None %}
+    <div class="metric-card {% if performance.wholesale_negative_count > 0 %}positive{% else %}neutral{% endif %}">
+        <div class="metric-label">Negative Price Intervals</div>
+        <div class="metric-value">{{ performance.wholesale_negative_count|intcomma }}</div>
+        <div class="metric-sublabel">trading intervals with price &lt; $0/MWh</div>
+        {% if prev_year_performance.wholesale_negative_count is not None %}
+        <div class="metric-change">
+            {{ prev_year_performance.wholesale_negative_count|intcomma }} intervals in {{ year|add:"-1" }}
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+    
+    {% if performance.wholesale_spike_count is not None %}
+    <div class="metric-card {% if performance.wholesale_spike_count > 0 %}warning{% else %}neutral{% endif %}">
+        <div class="metric-label">Price Spike Intervals</div>
+        <div class="metric-value">{{ performance.wholesale_spike_count|intcomma }}</div>
+        <div class="metric-sublabel">trading intervals with price &gt; $300/MWh</div>
+        {% if prev_year_performance.wholesale_spike_count is not None %}
+        <div class="metric-change">
+            {{ prev_year_performance.wholesale_spike_count|intcomma }} intervals in {{ year|add:"-1" }}
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endif %}
+
+<!-- Wholesale Price Info Box -->
+<div class="info-box" style="background: #fff3e0; border-left-color: #ff9800; margin-top: 20px;">
+    <h3 style="margin-top: 0;">Understanding Wholesale Prices</h3>
+    <p style="margin-bottom: 0;">
+        <strong>Negative prices:</strong> Occur when renewable generation exceeds demand, incentivising storage charging and demand response.<br>
+        <strong>Price spikes (&gt;$300/MWh):</strong> Typically occur during periods of high demand or low renewable generation, indicating grid stress.<br>
+        <strong>Volatility:</strong> Higher standard deviation indicates more variable prices, which can affect investment decisions.
+    </p>
+</div>
+{% endif %}
+
 <!-- Charts -->
 <div class="section-header">
     <h2>Visualizations</h2>
@@ -362,7 +453,7 @@
         <ul class="bullet-list">
             {% if emissions_change and emissions_change < 0 %}
             <li><strong>Lower emissions:</strong> Every kWh consumed in {{ month_name }} had 
-                {{ emissions_change|abs|floatformat:1 }}% lower carbon intensity than {{ month_name }} {{ year|add:"-1" }}</li>
+                {{ emissions_change|mul:-1|floatformat:1 }}% lower carbon intensity than {{ month_name }} {{ year|add:"-1" }}</li>
             {% endif %}
             <li><strong>Grid renewables:</strong> {{ performance.re_percentage_operational|floatformat:0 }}% 
                 of grid electricity came from zero-emission sources</li>
@@ -383,6 +474,10 @@
             <li><strong>Storage value:</strong> BESS + Hydro avoided ~{{ performance.storage_discharge|floatformat:0 }} GWh 
                 of curtailment this month</li>
             {% endif %}
+            {% if performance.wholesale_negative_count and performance.wholesale_negative_count > 0 %}
+            <li><strong>Negative pricing:</strong> {{ performance.wholesale_negative_count }} intervals of negative prices
+                indicate opportunities for storage and demand response</li>
+            {% endif %}
         </ul>
     </div>
 </div>
@@ -394,7 +489,7 @@
         {{ current_date|date:"j F Y"|add_months:1 }}
     </p>
     <p style="margin: 5px 0 0 0;"><strong>Contact:</strong>
-        <a href="mailto:contact@sen.asn.au">Contact: &#99;&#111;&#110;&#116;&#97;&#99;&#116;&#64;&#115;&#101;&#110;&#46;&#97;&#115;&#110;&#46;&#97;&#117;</a>
+        <a href="/cdn-cgi/l/email-protection#f3909c9d87929087b380969ddd92809ddd9286">Contact: &#99;&#111;&#110;&#116;&#97;&#99;&#116;&#64;&#115;&#101;&#110;&#46;&#97;&#115;&#110;&#46;&#97;&#117;</a>
     </p>
 </div>
 
@@ -678,7 +773,7 @@
 }
 </style>
 
-<script>
+<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
 function loadDashboard() {
     var selected = document.getElementById('month-select').value;
     var parts = selected.split('-');
@@ -710,7 +805,7 @@ window.addEventListener('load', function() {
                 Plotly.Plots.resize(plot);
             }
         });
-    }, 100);
+    }, 200);
 });
 </script>
 {% endblock %}

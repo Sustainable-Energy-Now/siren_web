@@ -85,6 +85,10 @@
     .summary-card.info {
         background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
     }
+    
+    .summary-card.price {
+        background: linear-gradient(135deg, #ff9a56 0%, #ff6b35 100%);
+    }
 
     .summary-card .label {
         font-size: 0.85em;
@@ -234,6 +238,48 @@
         margin: 20px 0;
         border-radius: 4px;
     }
+    
+    .price-stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 15px;
+        margin: 20px 0;
+    }
+    
+    .price-stat-card {
+        background: #fff;
+        padding: 15px;
+        border-radius: 8px;
+        border-left: 4px solid #ff9800;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    .price-stat-card .stat-label {
+        font-size: 0.8em;
+        color: #666;
+        text-transform: uppercase;
+        margin-bottom: 5px;
+    }
+    
+    .price-stat-card .stat-value {
+        font-size: 1.5em;
+        font-weight: 700;
+        color: #333;
+    }
+    
+    .price-stat-card .stat-detail {
+        font-size: 0.85em;
+        color: #888;
+        margin-top: 5px;
+    }
+    
+    .price-stat-card.negative {
+        border-left-color: #4caf50;
+    }
+    
+    .price-stat-card.spike {
+        border-left-color: #f44336;
+    }
 
     /* Print Styles */
     @media print {
@@ -340,6 +386,14 @@
                     {% endif %}
                 </div>
             </div>
+            
+            {% if quarterly_summary.wholesale_price_avg %}
+            <div class="summary-card price">
+                <div class="label">Q{{ quarter }} Avg Price</div>
+                <div class="value">${{ quarterly_summary.wholesale_price_avg|floatformat:2 }}</div>
+                <div class="change">$/MWh wholesale</div>
+            </div>
+            {% endif %}
         </div>
         
         <!-- Demand Definitions Info Box -->
@@ -350,6 +404,129 @@
             Storage is excluded from both demand calculations and RE% numerators.
         </div>
     </div>
+
+    <!-- Wholesale Price Statistics -->
+    {% if quarterly_summary.wholesale_price_avg %}
+    <div class="section">
+        <h2>Wholesale Price Statistics</h2>
+        
+        <div class="price-stats-grid">
+            <div class="price-stat-card">
+                <div class="stat-label">Average Price</div>
+                <div class="stat-value">${{ quarterly_summary.wholesale_price_avg|floatformat:2 }}</div>
+                <div class="stat-detail">$/MWh</div>
+            </div>
+            
+            {% if quarterly_summary.wholesale_price_max %}
+            <div class="price-stat-card">
+                <div class="stat-label">Maximum Price</div>
+                <div class="stat-value">${{ quarterly_summary.wholesale_price_max|floatformat:2 }}</div>
+                <div class="stat-detail">
+                    {% if quarterly_summary.wholesale_price_max_datetime %}
+                    {{ quarterly_summary.wholesale_price_max_datetime|date:"d M, g:i A" }}
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+            
+            {% if quarterly_summary.wholesale_price_min %}
+            <div class="price-stat-card">
+                <div class="stat-label">Minimum Price</div>
+                <div class="stat-value">${{ quarterly_summary.wholesale_price_min|floatformat:2 }}</div>
+                <div class="stat-detail">
+                    {% if quarterly_summary.wholesale_price_min_datetime %}
+                    {{ quarterly_summary.wholesale_price_min_datetime|date:"d M, g:i A" }}
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+            
+            {% if quarterly_summary.wholesale_negative_count is not None %}
+            <div class="price-stat-card negative">
+                <div class="stat-label">Negative Price Intervals</div>
+                <div class="stat-value">{{ quarterly_summary.wholesale_negative_count|intcomma }}</div>
+                <div class="stat-detail">intervals &lt; $0/MWh</div>
+            </div>
+            {% endif %}
+            
+            {% if quarterly_summary.wholesale_spike_count is not None %}
+            <div class="price-stat-card spike">
+                <div class="stat-label">Price Spikes</div>
+                <div class="stat-value">{{ quarterly_summary.wholesale_spike_count|intcomma }}</div>
+                <div class="stat-detail">intervals &gt; $300/MWh</div>
+            </div>
+            {% endif %}
+        </div>
+        
+        <!-- Monthly Wholesale Price Breakdown -->
+        <h3>Monthly Wholesale Price Breakdown</h3>
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Month</th>
+                    <th class="value">Avg Price ($/MWh)</th>
+                    <th class="value">Max Price ($/MWh)</th>
+                    <th class="value">Min Price ($/MWh)</th>
+                    <th class="value">Negative Intervals</th>
+                    <th class="value">Spike Intervals</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for monthly in quarterly_data %}
+                <tr>
+                    <td><strong>{{ monthly.get_month_name }}</strong></td>
+                    <td class="value">
+                        {% if monthly.wholesale_price_avg is not None %}
+                            ${{ monthly.wholesale_price_avg|floatformat:2 }}
+                        {% else %}
+                            —
+                        {% endif %}
+                    </td>
+                    <td class="value">
+                        {% if monthly.wholesale_price_max is not None %}
+                            ${{ monthly.wholesale_price_max|floatformat:2 }}
+                        {% else %}
+                            —
+                        {% endif %}
+                    </td>
+                    <td class="value">
+                        {% if monthly.wholesale_price_min is not None %}
+                            ${{ monthly.wholesale_price_min|floatformat:2 }}
+                        {% else %}
+                            —
+                        {% endif %}
+                    </td>
+                    <td class="value">
+                        {% if monthly.wholesale_negative_count is not None %}
+                            {{ monthly.wholesale_negative_count|intcomma }}
+                        {% else %}
+                            —
+                        {% endif %}
+                    </td>
+                    <td class="value">
+                        {% if monthly.wholesale_spike_count is not None %}
+                            {{ monthly.wholesale_spike_count|intcomma }}
+                        {% else %}
+                            —
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        
+        {% if prev_quarter_summary.wholesale_price_avg %}
+        <div class="info-box" style="margin-top: 20px;">
+            <strong>Year-over-Year Comparison:</strong>
+            Q{{ quarter }} {{ year|add:"-1" }} average wholesale price was 
+            ${{ prev_quarter_summary.wholesale_price_avg|floatformat:2 }}/MWh
+            {% with change=quarterly_summary.wholesale_price_avg|sub:prev_quarter_summary.wholesale_price_avg|div:prev_quarter_summary.wholesale_price_avg|mul:100 %}
+                ({% if change >= 0 %}+{% endif %}{{ change|floatformat:1 }}% change)
+            {% endwith %}
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
 
     <!-- Monthly Breakdown -->
     <div class="section">
@@ -475,6 +652,24 @@
                     </td>
                     {% endif %}
                 </tr>
+                {% if ytd_summary.wholesale_price_avg %}
+                <tr>
+                    <td>Avg Wholesale Price ($/MWh)</td>
+                    <td class="value">${{ quarterly_summary.wholesale_price_avg|floatformat:2 }}</td>
+                    <td class="value">${{ ytd_summary.wholesale_price_avg|floatformat:2 }}</td>
+                    {% if prev_ytd_summary.wholesale_price_avg %}
+                    <td class="value">${{ prev_ytd_summary.wholesale_price_avg|floatformat:2 }}</td>
+                    <td class="value">
+                        {% with change=ytd_summary.wholesale_price_avg|sub:prev_ytd_summary.wholesale_price_avg|div:prev_ytd_summary.wholesale_price_avg|mul:100 %}
+                            {% if change >= 0 %}+{% endif %}{{ change|floatformat:1 }}%
+                        {% endwith %}
+                    </td>
+                    {% else %}
+                    <td class="value">—</td>
+                    <td class="value">—</td>
+                    {% endif %}
+                </tr>
+                {% endif %}
             </tbody>
         </table>
 
@@ -543,6 +738,10 @@
                 <li>Wind generation contributed {{ quarterly_summary.wind_generation|percent:quarterly_summary.underlying_demand|floatformat:1 }}% of total underlying demand</li>
                 
                 <li>Combined solar (utility + rooftop) provided {{ quarterly_summary.solar_generation|add:quarterly_summary.dpv_generation|percent:quarterly_summary.underlying_demand|floatformat:1 }}% of electricity</li>
+                
+                {% if quarterly_summary.wholesale_negative_count and quarterly_summary.wholesale_negative_count > 0 %}
+                <li>{{ quarterly_summary.wholesale_negative_count|intcomma }} intervals of negative wholesale prices indicate strong renewable energy penetration</li>
+                {% endif %}
             </ul>
         </div>
 
@@ -551,6 +750,9 @@
             <ul>
                 {% if quarterly_summary.re_percentage_underlying < target.target_percentage %}
                 <li>Quarterly RE% ({{ quarterly_summary.re_percentage_underlying|floatformat:1 }}%) is below annual target ({{ target.target_percentage }}%)</li>
+                {% endif %}
+                {% if quarterly_summary.wholesale_spike_count and quarterly_summary.wholesale_spike_count > 0 %}
+                <li>{{ quarterly_summary.wholesale_spike_count|intcomma }} price spike intervals (&gt;$300/MWh) indicate periods of grid stress</li>
                 {% endif %}
                 <li>Continued monitoring needed to ensure annual target achievement</li>
             </ul>

@@ -21,7 +21,7 @@ from django.shortcuts import render
 from django.views.decorators.http import require_POST
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
-from django.db.models import Sum
+from django.db.models import Sum, Avg, Max, Min
 from django.utils import timezone
 from datetime import datetime, timedelta
 from calendar import month_name, monthrange
@@ -590,6 +590,67 @@ def get_available_years():
     
     return list(years)
 
+def aggregate_wholesale_price_stats(queryset):
+    """
+    Aggregate wholesale price statistics from a queryset of MonthlyREPerformance records.
+    
+    Returns a dictionary with aggregated wholesale price statistics.
+    """
+    if not queryset.exists():
+        return None
+    
+    # Get records with wholesale price data
+    records_with_prices = [r for r in queryset if r.wholesale_price_avg is not None]
+    
+    if not records_with_prices:
+        return None
+    
+    # Find overall max and min
+    max_record = max(
+        [r for r in records_with_prices if r.wholesale_price_max is not None],
+        key=lambda r: r.wholesale_price_max,
+        default=None
+    )
+    min_record = min(
+        [r for r in records_with_prices if r.wholesale_price_min is not None],
+        key=lambda r: r.wholesale_price_min,
+        default=None
+    )
+    
+    # Calculate weighted average price (weighted by number of trading intervals in each month)
+    # Approximation: weight by days in month
+    total_weighted_avg = 0
+    total_weight = 0
+    total_negative_count = 0
+    total_spike_count = 0
+    
+    for record in records_with_prices:
+        if record.wholesale_price_avg is not None:
+            _, days_in_month = monthrange(record.year, record.month)
+            intervals_in_month = days_in_month * 48  # 48 half-hour intervals per day
+            total_weighted_avg += record.wholesale_price_avg * intervals_in_month
+            total_weight += intervals_in_month
+        
+        if record.wholesale_negative_count is not None:
+            total_negative_count += record.wholesale_negative_count
+        
+        if record.wholesale_spike_count is not None:
+            total_spike_count += record.wholesale_spike_count
+    
+    weighted_avg = total_weighted_avg / total_weight if total_weight > 0 else None
+    
+    return {
+        'wholesale_price_max': max_record.wholesale_price_max if max_record else None,
+        'wholesale_price_max_datetime': max_record.wholesale_price_max_datetime if max_record else None,
+        'wholesale_price_max_month': month_name[max_record.month] if max_record else None,
+        'wholesale_price_min': min_record.wholesale_price_min if min_record else None,
+        'wholesale_price_min_datetime': min_record.wholesale_price_min_datetime if min_record else None,
+        'wholesale_price_min_month': month_name[min_record.month] if min_record else None,
+        'wholesale_price_avg': weighted_avg,
+        'wholesale_negative_count': total_negative_count,
+        'wholesale_spike_count': total_spike_count,
+    }
+
 # =============================================================================
 # Quarterly Report View
 # =============================================================================
@@ -621,6 +682,11 @@ def quarterly_report(request, year, quarter):
     # Use model's aggregate_summary for quarterly totals (single source of truth)
     quarterly_summary = MonthlyREPerformance.aggregate_summary(quarterly_data)
     
+    # Aggregate wholesale price statistics for the quarter
+    quarterly_wholesale_stats = aggregate_wholesale_price_stats(quarterly_data)
+    if quarterly_wholesale_stats and quarterly_summary:
+        quarterly_summary.update(quarterly_wholesale_stats)
+    
     # Previous quarter (same quarter, previous year) for comparison
     prev_quarter_data = MonthlyREPerformance.objects.filter(
         year=year-1,
@@ -628,6 +694,11 @@ def quarterly_report(request, year, quarter):
         month__lte=end_month
     )
     prev_quarter_summary = MonthlyREPerformance.aggregate_summary(prev_quarter_data)
+    
+    # Add wholesale stats for previous quarter comparison
+    prev_quarterly_wholesale_stats = aggregate_wholesale_price_stats(prev_quarter_data)
+    if prev_quarterly_wholesale_stats and prev_quarter_summary:
+        prev_quarter_summary.update(prev_quarterly_wholesale_stats)
     
     # YTD summary - get last month of quarter and use calculate_ytd_summary()
     try:
@@ -637,6 +708,12 @@ def quarterly_report(request, year, quarter):
         # Fall back to aggregate_summary if exact end month missing
         ytd_data = MonthlyREPerformance.objects.filter(year=year, month__lte=end_month)
         ytd_summary = MonthlyREPerformance.aggregate_summary(ytd_data)
+    
+    # Add YTD wholesale stats
+    ytd_data = MonthlyREPerformance.objects.filter(year=year, month__lte=end_month)
+    ytd_wholesale_stats = aggregate_wholesale_price_stats(ytd_data)
+    if ytd_wholesale_stats and ytd_summary:
+        ytd_summary.update(ytd_wholesale_stats)
     
     # Previous year YTD comparison
     try:
@@ -685,7 +762,21 @@ def annual_review(request, year):
     """
     Generate annual review view.
     """
+    from datetime import date
+    
     year = int(year)
+    
+    # Calculate completed quarters for the report year
+    today = date.today()
+    current_year = today.year
+    current_quarter = (today.month - 1) // 3 + 1
+    
+    if year < current_year:
+        completed_quarters = [1, 2, 3, 4]
+    elif year == current_year:
+        completed_quarters = list(range(1, current_quarter))
+    else:
+        completed_quarters = []
     
     # Get all monthly data for this year
     annual_data = MonthlyREPerformance.objects.filter(
@@ -699,6 +790,7 @@ def annual_review(request, year):
     
     # Calculate annual totals
     total_generation = sum(r.total_generation for r in annual_data)
+    total_renewable_operational = sum(r.renewable_gen_operational for r in annual_data)
     total_renewable = sum(r.total_renewable_generation for r in annual_data)
     total_emissions = sum(r.total_emissions_tonnes for r in annual_data)
     total_operational_demand = sum(r.operational_demand for r in annual_data)
@@ -711,9 +803,8 @@ def annual_review(request, year):
     total_coal = sum(r.coal_generation or 0 for r in annual_data)
     
     # Calculate annual RE percentages
-    re_pct_operational = (total_renewable / total_operational_demand * 100) if total_operational_demand > 0 else 0
-    re_with_dpv = total_renewable + total_dpv
-    re_pct_underlying = (re_with_dpv / total_underlying_demand * 100) if total_underlying_demand > 0 else 0
+    re_pct_operational = (total_renewable_operational / total_operational_demand * 100) if total_operational_demand > 0 else 0
+    re_pct_underlying = (total_renewable / total_underlying_demand * 100) if total_underlying_demand > 0 else 0
     
     # Build annual_summary dictionary for template
     annual_summary = {
@@ -731,6 +822,11 @@ def annual_review(request, year):
         'gas_generation': total_gas,
         'coal_generation': total_coal,
     }
+    
+    # Aggregate wholesale price statistics for the year
+    annual_wholesale_stats = aggregate_wholesale_price_stats(annual_data)
+    if annual_wholesale_stats:
+        annual_summary.update(annual_wholesale_stats)
     
     # Get target
     try:
@@ -762,6 +858,7 @@ def annual_review(request, year):
     yoy_changes = {}
     
     if prev_annual_data.exists():
+        prev_total_renewable_operational = sum(r.renewable_gen_operational for r in prev_annual_data)
         prev_total_generation = sum(r.total_generation for r in prev_annual_data)
         prev_total_renewable = sum(r.total_renewable_generation for r in prev_annual_data)
         prev_total_emissions = sum(r.total_emissions_tonnes for r in prev_annual_data)
@@ -774,7 +871,7 @@ def annual_review(request, year):
         prev_total_gas = sum(r.gas_generation for r in prev_annual_data)
         prev_total_coal = sum(r.coal_generation or 0 for r in prev_annual_data)
         
-        prev_re_pct_operational = (prev_total_renewable / prev_operational_demand * 100) if prev_operational_demand > 0 else 0
+        prev_re_pct_operational = (prev_total_renewable_operational / prev_operational_demand * 100) if prev_operational_demand > 0 else 0
         prev_re_with_dpv = prev_total_renewable + prev_total_dpv
         prev_re_pct_underlying = (prev_re_with_dpv / prev_underlying_demand * 100) if prev_underlying_demand > 0 else 0
         
@@ -794,6 +891,11 @@ def annual_review(request, year):
             'coal_generation': prev_total_coal,
         }
         
+        # Add wholesale stats for previous year
+        prev_annual_wholesale_stats = aggregate_wholesale_price_stats(prev_annual_data)
+        if prev_annual_wholesale_stats:
+            prev_annual_summary.update(prev_annual_wholesale_stats)
+        
         # Calculate year-over-year changes
         yoy_changes = {
             'emissions': ((total_emissions - prev_total_emissions) / prev_total_emissions * 100) if prev_total_emissions > 0 else None,
@@ -801,6 +903,14 @@ def annual_review(request, year):
             're_percentage': re_pct_underlying - prev_re_pct_underlying,
             'renewable_generation': ((total_renewable - prev_total_renewable) / prev_total_renewable * 100) if prev_total_renewable > 0 else None,
         }
+        
+        # Add wholesale price change
+        if annual_wholesale_stats and prev_annual_wholesale_stats:
+            if annual_wholesale_stats.get('wholesale_price_avg') and prev_annual_wholesale_stats.get('wholesale_price_avg'):
+                yoy_changes['wholesale_price_avg'] = (
+                    (annual_wholesale_stats['wholesale_price_avg'] - prev_annual_wholesale_stats['wholesale_price_avg']) /
+                    prev_annual_wholesale_stats['wholesale_price_avg'] * 100
+                )
     
     # Generate annual charts
     annual_generation_chart = generate_annual_generation_chart(annual_data)
@@ -833,6 +943,7 @@ def annual_review(request, year):
         'scenario_chart': scenario_chart,
         'scenarios': scenarios,
         'available_years': get_available_years(),
+        'completed_quarters': completed_quarters,  # Add this line
     }
     
     return render(request, 'ret_dashboard/annual_review.html', context)
@@ -842,7 +953,7 @@ def get_monthly_summary_json(performance):
     if not performance:
         return None
     
-    return {
+    result = {
         'year': performance.year,
         'month': performance.month,
         'month_name': performance.get_month_name(),
@@ -855,5 +966,25 @@ def get_monthly_summary_json(performance):
         'total_emissions': round(performance.total_emissions_tonnes, 2),
         'emissions_intensity': round(performance.emissions_intensity_kg_mwh, 2),
         'data_complete': performance.data_complete,
-        'updated_at': performance.updated_at.isoformat() if performance.updated_at else None
+        'updated_at': performance.updated_at.isoformat() if performance.updated_at else None,
     }
+    
+    # Add wholesale price statistics if available
+    if performance.wholesale_price_avg is not None:
+        result['wholesale_price_avg'] = round(performance.wholesale_price_avg, 2)
+    if performance.wholesale_price_max is not None:
+        result['wholesale_price_max'] = round(performance.wholesale_price_max, 2)
+    if performance.wholesale_price_max_datetime:
+        result['wholesale_price_max_datetime'] = performance.wholesale_price_max_datetime.isoformat()
+    if performance.wholesale_price_min is not None:
+        result['wholesale_price_min'] = round(performance.wholesale_price_min, 2)
+    if performance.wholesale_price_min_datetime:
+        result['wholesale_price_min_datetime'] = performance.wholesale_price_min_datetime.isoformat()
+    if performance.wholesale_price_std_dev is not None:
+        result['wholesale_price_std_dev'] = round(performance.wholesale_price_std_dev, 2)
+    if performance.wholesale_negative_count is not None:
+        result['wholesale_negative_count'] = performance.wholesale_negative_count
+    if performance.wholesale_spike_count is not None:
+        result['wholesale_spike_count'] = performance.wholesale_spike_count
+    
+    return result

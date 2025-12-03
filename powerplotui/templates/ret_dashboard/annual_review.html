@@ -15,13 +15,21 @@
 </header>
 
 <!-- Quick Navigation Links -->
-<div style="margin: 20px 0; padding: 15px; background: #ecf0f1; border-radius: 8px; display: flex; gap: 15px; align-items: center;">
+<div style="margin: 20px 0; padding: 15px; background: #ecf0f1; border-radius: 8px; display: flex; gap: 15px; align-items: center; flex-wrap: wrap;">
     <strong style="color: #2c3e50;">Other Reports:</strong>
     <a href="{% url 'ret_dashboard' %}" style="color: #3498db; text-decoration: none; padding: 8px 15px; background: white; border-radius: 4px; font-weight: 500;">📊 Monthly Dashboard</a>
+    {% if 1 in completed_quarters %}
     <a href="{% url 'quarterly_report' year 1 %}" style="color: #3498db; text-decoration: none; padding: 8px 15px; background: white; border-radius: 4px; font-weight: 500;">📈 Q1 Report</a>
+    {% endif %}
+    {% if 2 in completed_quarters %}
     <a href="{% url 'quarterly_report' year 2 %}" style="color: #3498db; text-decoration: none; padding: 8px 15px; background: white; border-radius: 4px; font-weight: 500;">📈 Q2 Report</a>
+    {% endif %}
+    {% if 3 in completed_quarters %}
     <a href="{% url 'quarterly_report' year 3 %}" style="color: #3498db; text-decoration: none; padding: 8px 15px; background: white; border-radius: 4px; font-weight: 500;">📈 Q3 Report</a>
+    {% endif %}
+    {% if 4 in completed_quarters %}
     <a href="{% url 'quarterly_report' year 4 %}" style="color: #3498db; text-decoration: none; padding: 8px 15px; background: white; border-radius: 4px; font-weight: 500;">📈 Q4 Report</a>
+    {% endif %}
     <button onclick="window.print()" style="padding: 8px 15px; background: #95a5a6; color: white; border: none; border-radius: 4px; font-weight: 500; cursor: pointer;">🖨️ Print</button>
 </div>
 
@@ -39,8 +47,15 @@
         Western Australia's energy transition. Total grid emissions were 
         <strong>{{ annual_summary.total_emissions|floatformat:0|intcomma }} tonnes CO₂-e</strong>
         {% if yoy_changes.emissions %}, a reduction of 
-        <strong>{{ yoy_changes.emissions|floatformat:1|abs }}%</strong> from {{ year|add:"-1" }}.
+        {% if yoy_changes.emissions < 0 %}
+        <strong>{{ yoy_changes.emissions|mul:-1|floatformat:1 }}%</strong> from {{ year|add:"-1" }}.
+        {% else %}
+        <strong>{{ yoy_changes.emissions|floatformat:1 }}%</strong> from {{ year|add:"-1" }}.
+        {% endif %}
         {% else %}.{% endif %}
+        {% if annual_summary.wholesale_price_avg %}
+        The average wholesale electricity price was <strong>${{ annual_summary.wholesale_price_avg|floatformat:2 }}/MWh</strong>.
+        {% endif %}
     </p>
 </div>
 
@@ -82,7 +97,11 @@
         {% if yoy_changes.underlying_demand %}
         <div class="metric-change">
             {% if yoy_changes.underlying_demand > 0 %}↑{% else %}↓{% endif %}
-            {{ yoy_changes.underlying_demand|floatformat:1|abs }}% vs {{ year|add:"-1" }}
+            {% if yoy_changes.underlying_demand >= 0 %}
+            {{ yoy_changes.underlying_demand|floatformat:1 }}% vs {{ year|add:"-1" }}
+            {% else %}
+            {{ yoy_changes.underlying_demand|mul:-1|floatformat:1 }}% vs {{ year|add:"-1" }}
+            {% endif %}
         </div>
         {% endif %}
     </div>
@@ -94,7 +113,11 @@
         {% if yoy_changes.emissions %}
         <div class="metric-change {% if yoy_changes.emissions < 0 %}positive{% else %}negative{% endif %}">
             {% if yoy_changes.emissions < 0 %}✓{% else %}⚠{% endif %}
-            {{ yoy_changes.emissions|floatformat:1|abs }}% vs {{ year|add:"-1" }}
+            {% if yoy_changes.emissions < 0 %}
+            {{ yoy_changes.emissions|mul:-1|floatformat:1 }}% vs {{ year|add:"-1" }}
+            {% else %}
+            {{ yoy_changes.emissions|floatformat:1 }}% vs {{ year|add:"-1" }}
+            {% endif %}
         </div>
         {% endif %}
     </div>
@@ -105,6 +128,180 @@
         <div class="metric-sublabel">MW renewable</div>
     </div>
 </div>
+
+<!-- Wholesale Price Summary -->
+{% if annual_summary.wholesale_price_avg %}
+<div class="section-header">
+    <h2>Wholesale Price Summary</h2>
+</div>
+
+<div class="metric-grid">
+    <div class="metric-card neutral">
+        <div class="metric-label">Average Price</div>
+        <div class="metric-value">${{ annual_summary.wholesale_price_avg|floatformat:2 }}</div>
+        <div class="metric-sublabel">$/MWh weighted average</div>
+        {% if yoy_changes.wholesale_price_avg %}
+        <div class="metric-change">
+            {% if yoy_changes.wholesale_price_avg >= 0 %}↑{% else %}↓{% endif %}
+            {% if yoy_changes.wholesale_price_avg >= 0 %}
+            {{ yoy_changes.wholesale_price_avg|floatformat:1 }}% vs {{ year|add:"-1" }}
+            {% else %}
+            {{ yoy_changes.wholesale_price_avg|mul:-1|floatformat:1 }}% vs {{ year|add:"-1" }}
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+    
+    {% if annual_summary.wholesale_price_max %}
+    <div class="metric-card {% if annual_summary.wholesale_price_max > 500 %}warning{% else %}neutral{% endif %}">
+        <div class="metric-label">Maximum Price</div>
+        <div class="metric-value">${{ annual_summary.wholesale_price_max|floatformat:2 }}</div>
+        <div class="metric-sublabel">$/MWh ({{ annual_summary.wholesale_price_max_month }})</div>
+        {% if annual_summary.wholesale_price_max_datetime %}
+        <div class="metric-change">{{ annual_summary.wholesale_price_max_datetime|date:"d M Y, g:i A" }}</div>
+        {% endif %}
+    </div>
+    {% endif %}
+    
+    {% if annual_summary.wholesale_price_min %}
+    <div class="metric-card {% if annual_summary.wholesale_price_min < 0 %}positive{% else %}neutral{% endif %}">
+        <div class="metric-label">Minimum Price</div>
+        <div class="metric-value">${{ annual_summary.wholesale_price_min|floatformat:2 }}</div>
+        <div class="metric-sublabel">$/MWh ({{ annual_summary.wholesale_price_min_month }})</div>
+        {% if annual_summary.wholesale_price_min_datetime %}
+        <div class="metric-change">{{ annual_summary.wholesale_price_min_datetime|date:"d M Y, g:i A" }}</div>
+        {% endif %}
+    </div>
+    {% endif %}
+    
+    {% if annual_summary.wholesale_negative_count is not None %}
+    <div class="metric-card {% if annual_summary.wholesale_negative_count > 100 %}positive{% else %}neutral{% endif %}">
+        <div class="metric-label">Negative Price Intervals</div>
+        <div class="metric-value">{{ annual_summary.wholesale_negative_count|intcomma }}</div>
+        <div class="metric-sublabel">trading intervals &lt; $0/MWh</div>
+        {% if prev_annual_summary.wholesale_negative_count is not None %}
+        <div class="metric-change">
+            {{ prev_annual_summary.wholesale_negative_count|intcomma }} in {{ year|add:"-1" }}
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+    
+    {% if annual_summary.wholesale_spike_count is not None %}
+    <div class="metric-card {% if annual_summary.wholesale_spike_count > 100 %}warning{% else %}neutral{% endif %}">
+        <div class="metric-label">Price Spike Intervals</div>
+        <div class="metric-value">{{ annual_summary.wholesale_spike_count|intcomma }}</div>
+        <div class="metric-sublabel">trading intervals &gt; $300/MWh</div>
+        {% if prev_annual_summary.wholesale_spike_count is not None %}
+        <div class="metric-change">
+            {{ prev_annual_summary.wholesale_spike_count|intcomma }} in {{ year|add:"-1" }}
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+
+<!-- Monthly Wholesale Price Table -->
+<h3>Monthly Wholesale Price Statistics</h3>
+<table class="stats-table">
+    <thead>
+        <tr>
+            <th>Month</th>
+            <th class="value">Avg ($/MWh)</th>
+            <th class="value">Max ($/MWh)</th>
+            <th class="value">Min ($/MWh)</th>
+            <th class="value">Std Dev</th>
+            <th class="value">Negative</th>
+            <th class="value">Spikes</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for record in annual_data %}
+        <tr>
+            <td><strong>{{ record.get_month_name }}</strong></td>
+            <td class="value">
+                {% if record.wholesale_price_avg is not None %}
+                    ${{ record.wholesale_price_avg|floatformat:2 }}
+                {% else %}
+                    —
+                {% endif %}
+            </td>
+            <td class="value">
+                {% if record.wholesale_price_max is not None %}
+                    ${{ record.wholesale_price_max|floatformat:2 }}
+                {% else %}
+                    —
+                {% endif %}
+            </td>
+            <td class="value">
+                {% if record.wholesale_price_min is not None %}
+                    ${{ record.wholesale_price_min|floatformat:2 }}
+                {% else %}
+                    —
+                {% endif %}
+            </td>
+            <td class="value">
+                {% if record.wholesale_price_std_dev is not None %}
+                    ${{ record.wholesale_price_std_dev|floatformat:2 }}
+                {% else %}
+                    —
+                {% endif %}
+            </td>
+            <td class="value">
+                {% if record.wholesale_negative_count is not None %}
+                    {{ record.wholesale_negative_count }}
+                {% else %}
+                    —
+                {% endif %}
+            </td>
+            <td class="value">
+                {% if record.wholesale_spike_count is not None %}
+                    {{ record.wholesale_spike_count }}
+                {% else %}
+                    —
+                {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+    <tfoot>
+        <tr style="background: #34495e; color: white;">
+            <td><strong>{{ year }} Total/Avg</strong></td>
+            <td class="value"><strong>${{ annual_summary.wholesale_price_avg|floatformat:2 }}</strong></td>
+            <td class="value"><strong>${{ annual_summary.wholesale_price_max|floatformat:2 }}</strong></td>
+            <td class="value"><strong>${{ annual_summary.wholesale_price_min|floatformat:2 }}</strong></td>
+            <td class="value">—</td>
+            <td class="value"><strong>{{ annual_summary.wholesale_negative_count|intcomma }}</strong></td>
+            <td class="value"><strong>{{ annual_summary.wholesale_spike_count|intcomma }}</strong></td>
+        </tr>
+    </tfoot>
+</table>
+
+<!-- Wholesale Price Insights -->
+<div class="info-box" style="background: #fff3e0; border-left-color: #ff9800; margin-top: 20px;">
+    <h3 style="margin-top: 0;">Wholesale Price Insights</h3>
+    <ul class="bullet-list">
+        {% if annual_summary.wholesale_negative_count and annual_summary.wholesale_negative_count > 0 %}
+        <li><strong>Negative pricing:</strong> {{ annual_summary.wholesale_negative_count|intcomma }} intervals of negative prices 
+            occurred in {{ year }}, indicating periods when renewable generation exceeded demand and created opportunities 
+            for storage charging and demand response.</li>
+        {% endif %}
+        {% if annual_summary.wholesale_spike_count and annual_summary.wholesale_spike_count > 0 %}
+        <li><strong>Price spikes:</strong> {{ annual_summary.wholesale_spike_count|intcomma }} intervals exceeded $300/MWh, 
+            typically during periods of high demand or low renewable generation.</li>
+        {% endif %}
+        {% if yoy_changes.wholesale_price_avg %}
+        <li><strong>Year-on-year:</strong> Average wholesale prices 
+            {% if yoy_changes.wholesale_price_avg >= 0 %}increased{% else %}decreased{% endif %} 
+            {% if yoy_changes.wholesale_price_avg >= 0 %}
+            by {{ yoy_changes.wholesale_price_avg|floatformat:1 }}% compared to {{ year|add:"-1" }}.</li>
+            {% else %}
+            by {{ yoy_changes.wholesale_price_avg|mul:-1|floatformat:1 }}% compared to {{ year|add:"-1" }}.</li>
+            {% endif %}
+        {% endif %}
+    </ul>
+</div>
+{% endif %}
 
 <!-- Annual Performance Summary -->
 <div class="section-header">
@@ -383,6 +580,9 @@
             <li><strong>Battery Storage:</strong> Current BESS pipeline needs to increase by ~800 MW by 2028</li>
             <li><strong>Grid Constraints:</strong> Identify transmission upgrades needed to maintain RE% growth</li>
             <li><strong>Interim Targets:</strong> Consider establishing 2027 and 2028 milestones</li>
+            {% if annual_summary.wholesale_negative_count and annual_summary.wholesale_negative_count > 500 %}
+            <li><strong>Price Management:</strong> Increasing negative price intervals suggest need for more storage and demand response capacity</li>
+            {% endif %}
         </ul>
     </div>
 </div>
@@ -428,6 +628,11 @@
 .metric-card.negative {
     border-left-color: #e74c3c;
     background: linear-gradient(135deg, #ffffff 0%, #ffebee 100%);
+}
+
+.metric-card.warning {
+    border-left-color: #f39c12;
+    background: linear-gradient(135deg, #ffffff 0%, #fff8e1 100%);
 }
 
 .metric-card.neutral {
