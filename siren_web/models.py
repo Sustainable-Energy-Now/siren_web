@@ -42,8 +42,6 @@ class facilities(models.Model):
     idzones = models.ForeignKey('Zones', models.DO_NOTHING, db_column='idzones', blank=True, null=True)
     capacity = models.FloatField(null=True)
     capacityfactor = models.FloatField(null=True)
-    generation = models.FloatField(null=True)
-    transmitted = models.FloatField(null=True)
     latitude = models.FloatField(blank=True, null=True)
     longitude = models.FloatField(blank=True, null=True)
     turbine = models.CharField(db_column='turbine', max_length=70, blank=True, null=True)

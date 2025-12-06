@@ -84,30 +84,6 @@
 
             <div class="row mb-3">
               <div class="col-md-6">
-                <label for="generation" class="form-label">Generation</label>
-                <input type="number" 
-                       class="form-control non-negative"  
-                       id="generation" 
-                       name="generation" 
-                       step="0.01" 
-                       min="0"
-                       value="{{ form_data.generation|default:'' }}">
-                <div class="form-text">Expected or actual generation output</div>
-              </div>
-              <div class="col-md-6">
-                <label for="transmitted" class="form-label">Transmitted</label>
-                <input type="number" 
-                       class="form-control non-negative"  
-                       id="transmitted" 
-                       name="transmitted" 
-                       step="0.01"
-                       value="{{ form_data.transmitted|default:'' }}">
-                <div class="form-text">Energy transmitted from this facility</div>
-              </div>
-            </div>
-
-            <div class="row mb-3">
-              <div class="col-md-6">
                 <label for="emission_intensity" class="form-label">Emission Intensity</label>
                 <input type="number" 
                        class="form-control non-negative"  

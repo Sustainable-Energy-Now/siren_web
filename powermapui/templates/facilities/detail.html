@@ -67,26 +67,6 @@
             <div class="col-md-6">
               <table class="table table-sm">
                 <tr>
-                  <td><strong>Generation:</strong></td>
-                  <td>
-                    {% if facility.generation %}
-                      {{ facility.generation|floatformat:2 }}
-                    {% else %}
-                      Not specified
-                    {% endif %}
-                  </td>
-                </tr>
-                <tr>
-                  <td><strong>Transmitted:</strong></td>
-                  <td>
-                    {% if facility.transmitted %}
-                      {{ facility.transmitted|floatformat:2 }}
-                    {% else %}
-                      Not specified
-                    {% endif %}
-                  </td>
-                </tr>
-                <tr>
                   <td><strong>Emission Intensity:</strong></td>
                   <td>
                     {% if facility.emission_intensity %}

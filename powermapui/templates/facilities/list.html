@@ -79,8 +79,6 @@
           <th>Zone</th>
           <th>Capacity</th>
           <th>Capacity Factor</th>
-          <th>Generation</th>
-          <th>Transmitted</th>
           <th>Latitude</th>
           <th>Longitude</th>
           <th>Actions</th>
@@ -106,20 +104,6 @@
             <td>
               {% if facility.capacityfactor %}
                 {{ facility.capacityfactor|floatformat:3 }}
-              {% else %}
-                -
-              {% endif %}
-            </td>
-            <td>
-              {% if facility.generation %}
-                {{ facility.generation|floatformat:2 }}
-              {% else %}
-                -
-              {% endif %}
-            </td>
-            <td>
-              {% if facility.transmitted %}
-                {{ facility.transmitted|floatformat:2 }}
               {% else %}
                 -
               {% endif %}

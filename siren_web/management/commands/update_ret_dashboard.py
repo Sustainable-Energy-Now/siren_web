@@ -6,7 +6,7 @@ Can be run via cron job: python manage.py update_ret_dashboard
 
 from django.core.management.base import BaseCommand
 from django.utils import timezone
-from django.db.models import Sum, F, Avg, Max, Min, StdDev, Count, Q
+from django.db.models import Sum, F, Avg, Max, Min, StdDev, Count, Q, Case, When, Value, DecimalField
 from datetime import datetime, timedelta
 from calendar import monthrange
 import logging
@@ -318,7 +318,16 @@ class Command(BaseCommand):
             'facility__idtechnologies__technology_name',
             'facility__idtechnologies__category'
         ).annotate(
-            total_mw=Sum('quantity')
+            total_mw=Sum(
+                Case(
+                    When(
+                        quantity__gt=0,
+                        then=F('quantity')
+                    ),
+                    default=Value(0),
+                    output_field=DecimalField()
+                )
+            )
         )
         
         for item in facility_totals:
@@ -328,8 +337,7 @@ class Command(BaseCommand):
             total_mw = float(item['total_mw'] or 0)
             
             # Convert from MW (hourly average) to GWh
-            # Assuming data is 30-minute intervals: MW * 0.5 / 1000 = GWh
-            gen_gwh = total_mw * 0.5 / 1000.0
+            gen_gwh = total_mw / 1000.0
             
             # Categorize by fuel type
             if fuel_type == 'WIND':
@@ -350,13 +358,14 @@ class Command(BaseCommand):
                     generation['storage_charge'] += abs(gen_gwh)
         
         # Calculate total operational demand
-        # Sum of all generation (excluding battery charge)
+        # Sum of all generation
         generation['operational_demand'] = (
             generation['wind'] +
             generation['solar_utility'] +
             generation['biomass'] +
             generation['gas'] +
-            generation['coal']
+            generation['coal'] +
+            generation['storage_discharge']
         )
         
         return generation
@@ -491,7 +500,8 @@ class Command(BaseCommand):
             re_generation=Sum(
                 Case(
                     When(
-                        facility__idtechnologies__fuel_type__in=['WIND', 'SOLAR', 'BIOMASS'],
+                        facility__idtechnologies__fuel_type__in=['WIND', 'SOLAR', 'BIOMASS', 'BESS', 'HYDRO'],
+                        quantity__gt=0,
                         then=F('quantity')
                     ),
                     default=Value(0),

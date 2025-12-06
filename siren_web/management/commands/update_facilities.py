@@ -70,8 +70,6 @@ class Command(BaseCommand):
                             'active': True,
                             'idzones': zone_instance,
                             'capacityfactor': 1,
-                            'generation': 0,
-                            'transmitted': 0,
                         }
                     )
                     if created:

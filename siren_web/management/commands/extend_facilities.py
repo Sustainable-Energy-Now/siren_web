@@ -71,8 +71,6 @@ class Command(BaseCommand):
                             'active': True,
                             'idzones': zone_instance,
                             'capacityfactor': 1,
-                            'generation': 0,
-                            'transmitted': 0,
                             'latitude': float(0),
                             'longitude': float(0)
                         }
@@ -171,8 +169,6 @@ class Command(BaseCommand):
                             'active': True,
                             'idzones': zone_instance,
                             'capacityfactor': 1,
-                            'generation': 0,
-                            'transmitted': 0,
                             'latitude': float(0),
                             'longitude': float(0)
                         }
