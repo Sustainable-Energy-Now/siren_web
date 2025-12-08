@@ -1969,7 +1969,6 @@ class TargetScenario(models.Model):
     scenario_name = models.CharField(max_length=100, unique=True)
     scenario_type = models.CharField(max_length=30, choices=[
         ('base_case', 'Base Case'),
-        ('high_electrification', 'High Electrification'),
         ('delayed_pipeline', 'Delayed Pipeline'),
         ('accelerated_pipeline', 'Accelerated Pipeline'),
     ])

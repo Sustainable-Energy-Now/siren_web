@@ -118,11 +118,15 @@ def facility_solar_detail(request, pk):
 
 def facility_solar_create(request):
     """Create a new facility solar installation"""
+    # Filter to facilities with solar technology
+    solar_facilities = facilities.objects.filter(
+        idtechnologies__fuel_type='SOLAR'
+    ).select_related('idtechnologies').order_by('facility_name')
+    
     if request.method == 'POST':
         try:
             # Extract form data
             facility_id = request.POST.get('facility')
-            technology_id = request.POST.get('technology')
             installation_name = request.POST.get('installation_name', '').strip()
             nameplate_capacity = request.POST.get('nameplate_capacity')
             ac_capacity = request.POST.get('ac_capacity')
@@ -138,11 +142,10 @@ def facility_solar_create(request):
             notes = request.POST.get('notes', '').strip()
             
             # Validation
-            if not facility_id or not technology_id:
-                messages.error(request, 'Facility and solar technology are required.')
+            if not facility_id:
+                messages.error(request, 'Facility is required.')
                 return render(request, 'facility_solar/create.html', {
-                    'facilities': facilities.objects.all().order_by('facility_name'),
-                    'technologies': Technologies.objects.filter(fuel_type='SOLAR').order_by('technology_name'),
+                    'facilities': solar_facilities,
                     'form_data': request.POST
                 })
             
@@ -150,13 +153,17 @@ def facility_solar_create(request):
             if not any([nameplate_capacity, ac_capacity]):
                 messages.error(request, 'At least one capacity field (DC or AC) must be provided.')
                 return render(request, 'facility_solar/create.html', {
-                    'facilities': facilities.objects.all().order_by('facility_name'),
-                    'technologies': Technologies.objects.filter(fuel_type = 'SOLAR').order_by('technology_name'),
+                    'facilities': solar_facilities,
                     'form_data': request.POST
                 })
             
-            facility = get_object_or_404(facilities, pk=facility_id)
-            technology = get_object_or_404(Technologies, pk=technology_id, fuel_type = 'SOLAR')
+            # Get facility and its associated technology
+            facility = get_object_or_404(
+                facilities.objects.select_related('idtechnologies'), 
+                pk=facility_id,
+                idtechnologies__fuel_type='SOLAR'
+            )
+            technology = facility.idtechnologies
             
             # Check for duplicate installation
             if FacilitySolar.objects.filter(
@@ -166,8 +173,7 @@ def facility_solar_create(request):
             ).exists():
                 messages.error(request, 'This solar installation already exists at this facility.')
                 return render(request, 'facility_solar/create.html', {
-                    'facilities': facilities.objects.all().order_by('facility_name'),
-                    'technologies': Technologies.objects.filter(fuel_type = 'SOLAR').order_by('technology_name'),
+                    'facilities': solar_facilities,
                     'form_data': request.POST
                 })
             
@@ -200,8 +206,7 @@ def facility_solar_create(request):
             messages.error(request, f'Error creating solar installation: {str(e)}')
     
     context = {
-        'facilities': facilities.objects.all().order_by('facility_name'),
-        'technologies': Technologies.objects.filter(fuel_type = 'SOLAR').order_by('technology_name')
+        'facilities': solar_facilities,
     }
     
     if request.method == 'POST':

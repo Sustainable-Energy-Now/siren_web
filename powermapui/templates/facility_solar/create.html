@@ -17,33 +17,18 @@
             {% csrf_token %}
             
             <!-- Facility and Technology Selection -->
-            <div class="row mb-3">
-              <div class="col-md-6">
-                <label for="facility" class="form-label">Facility <span class="text-danger">*</span></label>
-                <select class="form-select" id="facility" name="facility" required>
-                  <option value="">Select facility</option>
-                  {% for fac in facilities %}
-                    <option value="{{ fac.pk }}" 
-                            {% if form_data.facility == fac.pk|stringformat:"s" %}selected{% endif %}>
-                      {{ fac.facility_name }}
-                    </option>
-                  {% endfor %}
-                </select>
-                <div class="form-text">Location where solar will be installed</div>
-              </div>
-              <div class="col-md-6">
-                <label for="technology" class="form-label">Solar Technology <span class="text-danger">*</span></label>
-                <select class="form-select" id="technology" name="technology" required>
-                  <option value="">Select technology</option>
-                  {% for tech in technologies %}
-                    <option value="{{ tech.pk }}" 
-                            {% if form_data.technology == tech.pk|stringformat:"s" %}selected{% endif %}>
-                      {{ tech.technology_name }}
-                    </option>
-                  {% endfor %}
-                </select>
-                <div class="form-text">Type of solar PV system</div>
-              </div>
+            <div class="mb-3">
+              <label for="facility" class="form-label">Facility <span class="text-danger">*</span></label>
+              <select class="form-select" id="facility" name="facility" required>
+                <option value="">Select facility</option>
+                {% for fac in facilities %}
+                  <option value="{{ fac.pk }}" 
+                          {% if form_data.facility == fac.pk|stringformat:"s" %}selected{% endif %}>
+                    {{ fac.facility_name }} ({{ fac.idtechnologies.technology_name }})
+                  </option>
+                {% endfor %}
+              </select>
+              <div class="form-text">Solar facility and its associated technology</div>
             </div>
 
             <div class="mb-3">
