@@ -336,10 +336,6 @@ class FacilitiesAdmin(admin.ModelAdmin):
         ('Grid Connection', {
             'fields': ['primary_grid_line']
         }),
-        ('Wind Turbine Details', {
-            'fields': ['turbine', 'hub_height', 'no_turbines', 'tilt'],
-            'classes': ['collapse']
-        }),
         ('Additional Attributes', {
             'fields': ['storage_hours', 'power_file', 'grid_line', 'direction'],
             'classes': ['collapse']

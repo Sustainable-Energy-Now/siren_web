@@ -220,12 +220,6 @@ def add_facility(request):
             create_new_grid_line = data.get('create_new_grid_line', False)
             new_grid_line_data = data.get('new_grid_line_data', {})
             
-            # Wind turbine specific fields
-            turbine = data.get('turbine')
-            hub_height = data.get('hub_height')
-            no_turbines = data.get('no_turbines')
-            tilt = data.get('tilt')
-            
             # Validate required fields
             if not all([facility_name, technology_id, latitude, longitude]):
                 return JsonResponse({'status': 'error', 'message': 'Missing required fields'}, status=400)
@@ -253,17 +247,7 @@ def add_facility(request):
             # Create facility code
             tech_prefix = technology.technology_name[:3].upper() if technology.technology_name else "FAC"
             facility_code = f"{tech_prefix}_{facility_name.replace(' ', '_').lower()}"[:30]
-            
-            # Validate wind turbine fields
-            wind_tech_ids = [15, 16, 147]
-            if int(technology_id) in wind_tech_ids:
-                if not turbine:
-                    return JsonResponse({'status': 'error', 'message': 'Turbine model is required for wind facilities'}, status=400)
-                if not hub_height:
-                    return JsonResponse({'status': 'error', 'message': 'Hub height is required for wind facilities'}, status=400)
-                if not no_turbines or int(no_turbines) < 1:
-                    return JsonResponse({'status': 'error', 'message': 'Number of turbines must be at least 1'}, status=400)
-            
+                        
             # Handle grid line connection
             grid_line = None
             connection_distance = 0
@@ -318,13 +302,6 @@ def add_facility(request):
                 existing=False,
                 primary_grid_line=grid_line
             )
-            
-            # Add wind turbine specific fields
-            if int(technology_id) in wind_tech_ids:
-                new_facility.turbine = turbine
-                new_facility.hub_height = float(hub_height) if hub_height else None
-                new_facility.no_turbines = int(no_turbines) if no_turbines else None
-                new_facility.tilt = int(tilt) if tilt else None
             
             new_facility.save()
             
@@ -744,26 +721,6 @@ def get_facility_details(request, facility_id):
             'existing': facility.existing,
             # 'registered_from': facility.registered_from.isoformat()
         }
-        
-        # Add wind turbine specific details if applicable
-        wind_tech_ids = [15, 16, 147]  # Onshore, Offshore, Floating wind
-        if technology_info['technology_id'] in wind_tech_ids:
-            turbine_details = {
-                'turbine': getattr(facility, 'turbine', None),
-                'hub_height': float(facility.hub_height) if getattr(facility, 'hub_height', None) else None,
-                'no_turbines': int(facility.no_turbines) if getattr(facility, 'no_turbines', None) else None,
-                'tilt': float(facility.tilt) if getattr(facility, 'tilt', None) else None,
-            }
-            
-            # Calculate additional turbine metrics if we have the data
-            if turbine_details['turbine'] and facility.capacity and turbine_details['no_turbines']:
-                turbine_details['capacity_per_turbine'] = float(facility.capacity) / int(turbine_details['no_turbines'])
-            
-            # Add rotor diameter if available (you might need to add this field to your model)
-            if hasattr(facility, 'rotor_diameter') and facility.rotor_diameter:
-                turbine_details['rotor_diameter'] = float(facility.rotor_diameter)
-            
-            facility_data['turbine_details'] = turbine_details
         
         # Get economic data if available
         economic_data = {}

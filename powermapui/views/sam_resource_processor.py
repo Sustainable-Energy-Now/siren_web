@@ -418,9 +418,16 @@ class SAMResourceProcessor:
         return power_curve
     
     def process_wind_facility(self, facility, weather_year: str,
-                            power_curve: Dict[float, float] = None) -> SimulationResults:
+                            power_curve: Dict[float, float] = None,
+                            wind_installation=None) -> SimulationResults:
         """
         Process wind facility using SAM wind power module with file-based approach
+        
+        Args:
+            facility: Facility model instance
+            weather_year: Year string for weather data
+            power_curve: Optional power curve dictionary
+            wind_installation: FacilityWindTurbines instance (optional, for turbine specs)
         """
         temp_weather_file = None
         try:
@@ -459,10 +466,18 @@ class SAMResourceProcessor:
             # REQUIRED: System capacity in kW
             data.set_number(b'system_capacity', float(facility.capacity * 1000))
             
-            # REQUIRED: Turbine parameters
-            rotor_diameter = 77.0  # Default, could be from turbine specs
+            # REQUIRED: Turbine parameters - use wind_installation if available
+            if wind_installation and wind_installation.wind_turbine:
+                turbine = wind_installation.wind_turbine
+                rotor_diameter = float(turbine.rotor_diameter) if turbine.rotor_diameter else 77.0
+                hub_height = float(turbine.hub_height) if turbine.hub_height else 85.0
+            else:
+                # Fallback to facility attributes (legacy) or defaults
+                rotor_diameter = 77.0
+                hub_height = float(facility.hub_height) if facility.hub_height else 85.0
+            
             data.set_number(b'wind_turbine_rotor_diameter', rotor_diameter)
-            data.set_number(b'wind_turbine_hub_ht', float(facility.hub_height or 85))
+            data.set_number(b'wind_turbine_hub_ht', hub_height)
             
             # REQUIRED: Power curve
             if power_curve and len(power_curve) > 0:
@@ -471,12 +486,16 @@ class SAMResourceProcessor:
                 data.set_array(b'wind_turbine_powercurve_windspeeds', wind_speeds)
                 data.set_array(b'wind_turbine_powercurve_powerout', power_outputs)
                 
-                # Extract cut-in speed from power curve (first non-zero power)
+                # Get cut-in speed from turbine model if available, otherwise extract from power curve
                 cutin_speed = 3.0  # default
-                for ws, power in power_curve.items():
-                    if power > 0:
-                        cutin_speed = ws
-                        break
+                if wind_installation and wind_installation.wind_turbine and wind_installation.wind_turbine.cut_in_speed:
+                    cutin_speed = float(wind_installation.wind_turbine.cut_in_speed)
+                else:
+                    # Extract from power curve (first non-zero power)
+                    for ws, power in power_curve.items():
+                        if power > 0:
+                            cutin_speed = ws
+                            break
                 data.set_number(b'wind_turbine_cutin', cutin_speed)
                 
                 logger.debug(f"Using custom power curve: {len(power_curve)} points, cut-in: {cutin_speed} m/s")
@@ -490,8 +509,14 @@ class SAMResourceProcessor:
                 
                 logger.debug("Using default power curve")
             
-            # REQUIRED: Wind farm layout
-            no_turbines = int(facility.no_turbines) if facility.no_turbines and facility.no_turbines > 0 else 1
+            # REQUIRED: Wind farm layout - get turbine count from wind_installation or facility
+            if wind_installation and wind_installation.no_turbines:
+                no_turbines = int(wind_installation.no_turbines)
+            elif facility.no_turbines and facility.no_turbines > 0:
+                # Fallback to facility attribute (legacy)
+                no_turbines = int(facility.no_turbines)
+            else:
+                no_turbines = 1
             
             # Calculate turbine coordinates in a grid (SIREN approach)
             import math

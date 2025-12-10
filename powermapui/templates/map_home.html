@@ -816,7 +816,6 @@ function loadTurbinesFromBackend() {
         fetch('/get_turbines_json/')
             .then(response => response.json())
             .then(data => {
-                // Convert to the format your existing code expects
                 turbineData = {};
                 data.turbines.forEach(turbine => {
                     turbineData[turbine.turbine_model] = {

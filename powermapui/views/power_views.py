@@ -13,7 +13,7 @@ from siren_web.database_operations import (
 from siren_web.models import facilities, supplyfactors, Scenarios
 
 # Import the SAM processor
-from powermapui.views.sam_resource_processor import SAMResourceProcessor, SAMError, WeatherFileError, SimulationResults
+from powermapui.views.sam_resource_processor import SAMResourceProcessor, SAMError, WeatherFileError
 
 logger = logging.getLogger(__name__)
 
@@ -167,11 +167,11 @@ def process_facilities(config, facilities_list, weather_year, scenario, refresh_
                 continue
             
             technology = facility_obj.idtechnologies
-            tech_name = technology.technology_name.lower()
+            fuel_type = technology.fuel_type.lower()
             
             # Process the facility
             if technology.renewable and not technology.dispatchable:
-                results = process_renewable_facility(sam_processor, facility_obj, tech_name, weather_year)
+                results = process_renewable_facility(sam_processor, facility_obj, fuel_type, weather_year)
                 
                 if results:
                     sam_processed_count += 1
@@ -203,7 +203,7 @@ def process_facilities(config, facilities_list, weather_year, scenario, refresh_
     
     return sam_processed_count, skipped_count
 
-def process_renewable_facility(sam_processor, facility_obj, tech_name, weather_year):
+def process_renewable_facility(sam_processor, facility_obj, fuel_type, weather_year):
     """
     Process renewable facilities using SAM
     
@@ -214,7 +214,7 @@ def process_renewable_facility(sam_processor, facility_obj, tech_name, weather_y
         weather_file_path = sam_processor.get_weather_file_path(
             facility_obj.latitude, 
             facility_obj.longitude, 
-            tech_name, 
+            fuel_type, 
             weather_year
         )
         
@@ -224,20 +224,25 @@ def process_renewable_facility(sam_processor, facility_obj, tech_name, weather_y
         # Process based on technology type
         results = None
 
-        if tech_name in ['onshore wind', 'offshore wind', 'offshore wind floating']:
+        if fuel_type == 'wind':
             # Process wind facility
             power_curve = {}
-            if facility_obj.turbine:
+            
+            # Get wind turbine info from related FacilityWindTurbines model
+            wind_installation = facility_obj.facilitywindturbines_set.filter(is_active=True).first()
+            
+            if wind_installation:
+                turbine = wind_installation.wind_turbine
                 power_curve_path = sam_processor.get_power_curve_file_path(
-                    facility_obj.turbine
+                    turbine.turbine_model
                 )
                 power_curve = sam_processor.load_power_curve(power_curve_path)
             
             results = sam_processor.process_wind_facility(
-                facility_obj, weather_year, power_curve
+                facility_obj, weather_year, power_curve, wind_installation
             )
             
-        elif tech_name in ['single axis pv', 'fixed pv', 'rooftop pv']:
+        elif fuel_type == 'solar':
             # Process solar facility
             results = sam_processor.process_solar_facility(
                 facility_obj, weather_data

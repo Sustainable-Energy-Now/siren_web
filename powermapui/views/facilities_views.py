@@ -150,8 +150,6 @@ def facility_create(request):
                 idzones=zone,
                 capacity=float(capacity) if capacity else None,
                 capacityfactor=float(capacity_factor) if capacity_factor else None,
-                generation=float(generation) if generation else None,
-                transmitted=float(transmitted) if transmitted else None,
                 emission_intensity=float(emission_intensity) if emission_intensity else None,
                 active=1,
                 existing=1,
