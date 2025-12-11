@@ -2,10 +2,14 @@
 #   * Make sure each ForeignKey and OneToOneField has `on_delete` set to the desired behavior
 #   * Remove `managed = False` lines if you wish to allow Django to create, modify, and delete the table
 # Feel free to rename the models, but don't rename db_table values or field names.
+from django.contrib.auth import get_user_model
+from django.core.validators import MinValueValidator, MaxValueValidator
 from django.db import models
 from django.urls import reverse
 from django.core.exceptions import ValidationError
 from django.utils import timezone
+
+User = get_user_model()
 
 class Analysis(models.Model):
     idanalysis = models.AutoField(db_column='idAnalysis', primary_key=True)
@@ -1960,6 +1964,106 @@ class NewCapacityCommissioned(models.Model):
     def __str__(self):
         return f"{self.facility.facility_name} - {self.capacity_mw}MW ({self.commissioned_date})"
 
+class ReportComment(models.Model):
+    """
+    Comments for RET dashboard reports (monthly, quarterly, annual).
+    """
+    REPORT_TYPE_CHOICES = [
+        ('monthly', 'Monthly Dashboard'),
+        ('quarterly', 'Quarterly Report'),
+        ('annual', 'Annual Review'),
+    ]
+    
+    # Report identification
+    report_type = models.CharField(max_length=20, choices=REPORT_TYPE_CHOICES)
+    year = models.IntegerField(validators=[MinValueValidator(2000), MaxValueValidator(2100)])
+    month = models.IntegerField(
+        null=True, blank=True,
+        validators=[MinValueValidator(1), MaxValueValidator(12)],
+        help_text="Required for monthly reports"
+    )
+    quarter = models.IntegerField(
+        null=True, blank=True,
+        validators=[MinValueValidator(1), MaxValueValidator(4)],
+        help_text="Required for quarterly reports"
+    )
+    
+    # Comment content
+    author = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='ret_comments',
+        db_constraint=False  # Avoids FK constraint issues with unmanaged auth_user table
+    )
+    author_name = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text="Stored separately in case user is deleted"
+    )
+    content = models.TextField()
+    
+    # Optional: categorise comments
+    CATEGORY_CHOICES = [
+        ('general', 'General'),
+        ('observation', 'Observation'),
+        ('question', 'Question'),
+        ('action_item', 'Action Item'),
+        ('correction', 'Correction'),
+    ]
+    category = models.CharField(
+        max_length=20,
+        choices=CATEGORY_CHOICES,
+        default='general'
+    )
+    
+    # Metadata
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    is_pinned = models.BooleanField(default=False, help_text="Pinned comments appear at top")
+    is_resolved = models.BooleanField(default=False, help_text="Mark action items/questions as resolved")
+    
+    class Meta:
+        ordering = ['-is_pinned', '-created_at']
+        indexes = [
+            models.Index(fields=['report_type', 'year', 'month']),
+            models.Index(fields=['report_type', 'year', 'quarter']),
+            models.Index(fields=['report_type', 'year']),
+        ]
+    
+    def save(self, *args, **kwargs):
+        # Store author name separately for persistence
+        if self.author and not self.author_name:
+            self.author_name = self.author.get_full_name() or self.author.username
+        super().save(*args, **kwargs)
+    
+    def __str__(self):
+        return f"{self.get_report_type_display()} - {self.get_period_display()} by {self.author_name}"
+    
+    def get_period_display(self):
+        """Return human-readable period string."""
+        if self.report_type == 'monthly':
+            from calendar import month_name
+            return f"{month_name[self.month]} {self.year}"
+        elif self.report_type == 'quarterly':
+            return f"Q{self.quarter} {self.year}"
+        else:
+            return str(self.year)
+    
+    @classmethod
+    def get_comments_for_report(cls, report_type, year, month=None, quarter=None):
+        """
+        Retrieve all comments for a specific report.
+        """
+        queryset = cls.objects.filter(report_type=report_type, year=year)
+        
+        if report_type == 'monthly' and month:
+            queryset = queryset.filter(month=month)
+        elif report_type == 'quarterly' and quarter:
+            queryset = queryset.filter(quarter=quarter)
+        
+        return queryset.select_related('author')
+
 class TargetScenario(models.Model):
     """Store different scenarios for 2040 target achievement"""
     scenario_name = models.CharField(max_length=100, unique=True)
@@ -2726,7 +2830,6 @@ class AuthUserGroups(models.Model):
         managed = False
         db_table = 'auth_user_groups'
         unique_together = (('user_id', 'group_id'),)
-
 
 class AuthUserUserPermissions(models.Model):
     id = models.BigAutoField(primary_key=True)

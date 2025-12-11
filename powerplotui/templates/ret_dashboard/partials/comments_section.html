@@ -1,0 +1,590 @@
+{# 
+   Required context variables:
+   - report_type: 'monthly', 'quarterly', or 'annual'
+   - year: the year
+   - month: (for monthly reports)
+   - quarter: (for quarterly reports)
+   - comments: QuerySet of ReportComment objects
+#}
+
+<div class="section-header" style="margin-top: 40px;">
+    <h2>
+        Comments 
+        <span class="comment-count">({{ comments.count }})</span>
+    </h2>
+</div>
+
+<div class="comments-section" id="comments-section">
+    {# Comment Form #}
+    {% if user.is_authenticated %}
+    <div class="comment-form-container">
+        <form id="comment-form" method="post" action="{% url 'ret_comment_add' %}">
+            {% csrf_token %}
+            <input type="hidden" name="report_type" value="{{ report_type }}">
+            <input type="hidden" name="year" value="{{ year }}">
+            {% if report_type == 'monthly' %}
+            <input type="hidden" name="month" value="{{ month }}">
+            {% elif report_type == 'quarterly' %}
+            <input type="hidden" name="quarter" value="{{ quarter }}">
+            {% endif %}
+            <input type="hidden" name="next" value="{{ request.path }}">
+            
+            <div class="comment-form-row">
+                <textarea name="content" 
+                          placeholder="Add a comment..." 
+                          rows="2" 
+                          required
+                          class="comment-textarea"></textarea>
+            </div>
+            
+            <div class="comment-form-actions">
+                <select name="category" class="comment-category-select">
+                    <option value="general">General</option>
+                    <option value="observation">Observation</option>
+                    <option value="question">Question</option>
+                    <option value="action_item">Action Item</option>
+                    <option value="correction">Correction</option>
+                </select>
+                
+                <button type="submit" class="btn btn-primary">
+                    Add Comment
+                </button>
+            </div>
+        </form>
+    </div>
+    {% else %}
+    <div class="login-prompt">
+        <p>Please <a href="{% url 'login' %}?next={{ request.path }}">log in</a> to add comments.</p>
+    </div>
+    {% endif %}
+    
+    {# Comments List #}
+    <div id="comments-list">
+        {% include "ret_dashboard/partials/comments_list.html" with comments=comments %}
+    </div>
+</div>
+
+{# Edit Comment Modal #}
+<div id="edit-comment-modal" class="modal" style="display: none;">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Edit Comment</h3>
+            <button class="modal-close" onclick="closeEditModal()">&times;</button>
+        </div>
+        <form id="edit-comment-form" method="post">
+            {% csrf_token %}
+            <textarea name="content" id="edit-content" rows="4" required class="comment-textarea"></textarea>
+            
+            <div class="edit-form-options">
+                <select name="category" id="edit-category" class="comment-category-select">
+                    <option value="general">General</option>
+                    <option value="observation">Observation</option>
+                    <option value="question">Question</option>
+                    <option value="action_item">Action Item</option>
+                    <option value="correction">Correction</option>
+                </select>
+                
+                <label class="checkbox-label">
+                    <input type="checkbox" name="is_pinned" id="edit-is-pinned">
+                    Pin comment
+                </label>
+                
+                <label class="checkbox-label">
+                    <input type="checkbox" name="is_resolved" id="edit-is-resolved">
+                    Mark resolved
+                </label>
+            </div>
+            
+            <div class="modal-actions">
+                <button type="button" class="btn btn-secondary" onclick="closeEditModal()">Cancel</button>
+                <button type="submit" class="btn btn-primary">Save Changes</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<style>
+/* Comments Section Styles */
+.comments-section {
+    margin: 20px 0;
+}
+
+.comment-form-container {
+    background: white;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    margin-bottom: 20px;
+}
+
+.comment-textarea {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    font-family: inherit;
+    font-size: 14px;
+    resize: vertical;
+    box-sizing: border-box;
+}
+
+.comment-textarea:focus {
+    outline: none;
+    border-color: #3498db;
+    box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2);
+}
+
+.comment-form-row {
+    margin-bottom: 12px;
+}
+
+.comment-form-actions {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    justify-content: flex-end;
+}
+
+.comment-category-select {
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    font-size: 14px;
+    background: white;
+}
+
+.comments-list {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.comment-item {
+    background: white;
+    padding: 15px 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.08);
+    border-left: 4px solid #3498db;
+}
+
+.comment-item.pinned {
+    border-left-color: #f39c12;
+    background: linear-gradient(135deg, #ffffff 0%, #fffbf0 100%);
+}
+
+.comment-item.resolved {
+    opacity: 0.7;
+    border-left-color: #27ae60;
+}
+
+.comment-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 10px;
+}
+
+.comment-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+}
+
+.comment-author {
+    font-weight: 600;
+    color: #2c3e50;
+}
+
+.comment-date {
+    font-size: 0.85em;
+    color: #7f8c8d;
+}
+
+.comment-category {
+    font-size: 0.75em;
+    padding: 3px 8px;
+    border-radius: 12px;
+    font-weight: 500;
+    text-transform: uppercase;
+}
+
+.category-observation { background: #e3f2fd; color: #1976d2; }
+.category-question { background: #fff3e0; color: #f57c00; }
+.category-action_item { background: #fce4ec; color: #c2185b; }
+.category-correction { background: #ffebee; color: #c62828; }
+
+.comment-badge {
+    font-size: 0.9em;
+}
+
+.comment-actions {
+    display: flex;
+    gap: 5px;
+}
+
+.btn-icon {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 5px;
+    font-size: 1em;
+    opacity: 0.6;
+    transition: opacity 0.2s;
+}
+
+.btn-icon:hover {
+    opacity: 1;
+}
+
+.btn-icon.btn-danger:hover {
+    color: #e74c3c;
+}
+
+.comment-content {
+    color: #34495e;
+    line-height: 1.6;
+}
+
+.comment-content p {
+    margin: 0 0 10px 0;
+}
+
+.comment-content p:last-child {
+    margin-bottom: 0;
+}
+
+.comment-edited {
+    font-size: 0.8em;
+    color: #95a5a6;
+    font-style: italic;
+    margin-top: 10px;
+}
+
+.no-comments {
+    text-align: center;
+    padding: 30px;
+    color: #7f8c8d;
+    background: #f8f9fa;
+    border-radius: 8px;
+}
+
+.login-prompt {
+    text-align: center;
+    padding: 20px;
+    background: #f8f9fa;
+    border-radius: 8px;
+    margin-bottom: 20px;
+}
+
+.login-prompt a {
+    color: #3498db;
+    font-weight: 500;
+}
+
+/* Button Styles */
+.btn {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.btn-primary {
+    background: #3498db;
+    color: white;
+}
+
+.btn-primary:hover {
+    background: #2980b9;
+}
+
+.btn-secondary {
+    background: #95a5a6;
+    color: white;
+}
+
+.btn-secondary:hover {
+    background: #7f8c8d;
+}
+
+/* Modal Styles */
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+
+.modal-content {
+    background: white;
+    padding: 25px;
+    border-radius: 12px;
+    width: 90%;
+    max-width: 500px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.modal-header h3 {
+    margin: 0;
+    color: #2c3e50;
+}
+
+.modal-close {
+    background: none;
+    border: none;
+    font-size: 1.5em;
+    cursor: pointer;
+    color: #7f8c8d;
+}
+
+.modal-close:hover {
+    color: #2c3e50;
+}
+
+.edit-form-options {
+    display: flex;
+    gap: 15px;
+    align-items: center;
+    margin: 15px 0;
+    flex-wrap: wrap;
+}
+
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 14px;
+    color: #555;
+}
+
+.modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 20px;
+}
+
+.comment-count {
+    font-weight: normal;
+    color: #7f8c8d;
+    font-size: 0.8em;
+}
+
+/* Print styles - hide comments form */
+@media print {
+    .comment-form-container,
+    .comment-actions,
+    .login-prompt {
+        display: none !important;
+    }
+    
+    .comment-item {
+        box-shadow: none;
+        border: 1px solid #ddd;
+        break-inside: avoid;
+    }
+}
+</style>
+
+<script>
+// CSRF token helper
+function getCsrfToken() {
+    return document.querySelector('[name=csrfmiddlewaretoken]').value;
+}
+
+// Add comment via AJAX
+document.getElementById('comment-form').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const form = this;
+    const formData = new FormData(form);
+    
+    fetch(form.action, {
+        method: 'POST',
+        body: formData,
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest',
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Prepend new comment to list
+            const commentsList = document.getElementById('comments-list');
+            const noComments = commentsList.querySelector('.no-comments');
+            if (noComments) {
+                noComments.remove();
+                commentsList.innerHTML = '<div class="comments-list"></div>';
+            }
+            
+            const list = commentsList.querySelector('.comments-list') || commentsList;
+            list.insertAdjacentHTML('afterbegin', data.html);
+            
+            // Clear form
+            form.querySelector('textarea').value = '';
+            form.querySelector('select').value = 'general';
+            
+            // Update count
+            updateCommentCount();
+        } else {
+            alert('Error adding comment: ' + JSON.stringify(data.errors));
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Error adding comment. Please try again.');
+    });
+});
+
+// Delete comment
+function deleteComment(commentId) {
+    if (!confirm('Are you sure you want to delete this comment?')) return;
+    
+    fetch(`{% url 'ret_comment_delete' comment_id=0 %}`.replace('0', commentId), {
+        method: 'POST',
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest',
+            'X-CSRFToken': getCsrfToken(),
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            const commentEl = document.querySelector(`[data-comment-id="${commentId}"]`);
+            commentEl.remove();
+            updateCommentCount();
+            
+            // Show "no comments" if empty
+            const list = document.querySelector('.comments-list');
+            if (list && list.children.length === 0) {
+                document.getElementById('comments-list').innerHTML = 
+                    '<div class="no-comments"><p>No comments yet. Be the first to add a comment!</p></div>';
+            }
+        } else {
+            alert('Error deleting comment: ' + data.error);
+        }
+    });
+}
+
+// Toggle pin
+function togglePinComment(commentId) {
+    fetch(`{% url 'ret_comment_toggle_pin' comment_id=0 %}`.replace('0', commentId), {
+        method: 'POST',
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest',
+            'X-CSRFToken': getCsrfToken(),
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            location.reload(); // Reload to re-sort comments
+        }
+    });
+}
+
+// Toggle resolve
+function toggleResolveComment(commentId) {
+    fetch(`{% url 'ret_comment_toggle_resolve' comment_id=0 %}`.replace('0', commentId), {
+        method: 'POST',
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest',
+            'X-CSRFToken': getCsrfToken(),
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            const commentEl = document.querySelector(`[data-comment-id="${commentId}"]`);
+            commentEl.classList.toggle('resolved', data.is_resolved);
+            
+            // Update badge
+            const badge = commentEl.querySelector('.resolved-badge');
+            if (data.is_resolved && !badge) {
+                const meta = commentEl.querySelector('.comment-meta');
+                meta.insertAdjacentHTML('beforeend', '<span class="comment-badge resolved-badge" title="Resolved">✓</span>');
+            } else if (!data.is_resolved && badge) {
+                badge.remove();
+            }
+        }
+    });
+}
+
+// Edit comment modal
+let currentEditId = null;
+
+function editComment(commentId) {
+    const commentEl = document.querySelector(`[data-comment-id="${commentId}"]`);
+    const content = commentEl.querySelector('.comment-content').textContent.trim();
+    
+    document.getElementById('edit-content').value = content;
+    document.getElementById('edit-comment-form').action = 
+        `{% url 'ret_comment_edit' comment_id=0 %}`.replace('0', commentId);
+    
+    // Set current values for checkboxes
+    document.getElementById('edit-is-pinned').checked = commentEl.classList.contains('pinned');
+    document.getElementById('edit-is-resolved').checked = commentEl.classList.contains('resolved');
+    
+    currentEditId = commentId;
+    document.getElementById('edit-comment-modal').style.display = 'flex';
+}
+
+function closeEditModal() {
+    document.getElementById('edit-comment-modal').style.display = 'none';
+    currentEditId = null;
+}
+
+// Handle edit form submission
+document.getElementById('edit-comment-form').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const form = this;
+    const formData = new FormData(form);
+    
+    fetch(form.action, {
+        method: 'POST',
+        body: formData,
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest',
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            const commentEl = document.querySelector(`[data-comment-id="${currentEditId}"]`);
+            commentEl.outerHTML = data.html;
+            closeEditModal();
+        } else {
+            alert('Error saving changes: ' + JSON.stringify(data.errors));
+        }
+    });
+});
+
+// Close modal on background click
+document.getElementById('edit-comment-modal').addEventListener('click', function(e) {
+    if (e.target === this) closeEditModal();
+});
+
+// Update comment count in header
+function updateCommentCount() {
+    const count = document.querySelectorAll('.comment-item').length;
+    document.querySelector('.comment-count').textContent = `(${count})`;
+}
+</script>

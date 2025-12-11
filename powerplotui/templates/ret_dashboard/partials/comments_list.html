@@ -1,0 +1,13 @@
+{# templates/ret_dashboard/partials/comments_list.html #}
+
+{% if comments %}
+<div class="comments-list">
+    {% for comment in comments %}
+        {% include "ret_dashboard/partials/comment_item.html" with comment=comment %}
+    {% endfor %}
+</div>
+{% else %}
+<div class="no-comments">
+    <p>No comments yet. Be the first to add a comment!</p>
+</div>
+{% endif %}

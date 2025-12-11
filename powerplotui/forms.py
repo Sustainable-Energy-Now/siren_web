@@ -4,7 +4,7 @@ from django.forms import modelformset_factory
 from crispy_forms.helper import FormHelper
 from crispy_forms.layout import Layout, Submit, Row, Column, Submit, HTML
 from crispy_forms.bootstrap import FormActions
-from siren_web.models import Analysis, Scenarios, variations
+from siren_web.models import Analysis, Scenarios, variations, ReportComment
 
 class PlotForm(forms.Form):
     scenario_choices = [(scenario.idscenarios, scenario.title) for scenario in Scenarios.objects.all()]
@@ -132,3 +132,36 @@ class PlotForm(forms.Form):
         self.fields['series_1_component'].choices = component_choices
         self.fields['series_2_component'].choices = component_choices
         
+class ReportCommentForm(forms.ModelForm):
+    """Form for adding comments to reports."""
+    
+    class Meta:
+        model = ReportComment
+        fields = ['content', 'category']
+        widgets = {
+            'content': forms.Textarea(attrs={
+                'rows': 3,
+                'placeholder': 'Add a comment...',
+                'class': 'comment-textarea',
+            }),
+            'category': forms.Select(attrs={
+                'class': 'comment-category-select',
+            }),
+        }
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['category'].required = False
+
+class CommentEditForm(forms.ModelForm):
+    """Form for editing existing comments."""
+    
+    class Meta:
+        model = ReportComment
+        fields = ['content', 'category', 'is_pinned', 'is_resolved']
+        widgets = {
+            'content': forms.Textarea(attrs={
+                'rows': 3,
+                'class': 'comment-textarea',
+            }),
+        }

@@ -586,7 +586,7 @@
         </ul>
     </div>
 </div>
-
+{% include "ret_dashboard/partials/comments_section.html" with report_type="annual" year=year comments=comments %}
 <!-- Footer -->
 <div style="margin-top: 40px; padding: 20px; background: #ecf0f1; border-radius: 8px;">
     <p style="margin: 0;"><strong>Next Report:</strong> {{ year|add:"1" }} Annual Review (January {{ year|add:"2" }})</p>

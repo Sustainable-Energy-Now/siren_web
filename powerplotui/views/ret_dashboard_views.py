@@ -14,14 +14,9 @@ RE% Calculation Policy:
 - RE% (operational) = (wind + utility solar + biomass) / operational demand
 - RE% (underlying) = (wind + utility solar + biomass + DPV) / underlying demand
 """
-
-from decimal import Decimal
-from collections import defaultdict
 from django.shortcuts import render
 from django.views.decorators.http import require_POST
-from django.http import JsonResponse
-from django.views.decorators.csrf import csrf_exempt
-from django.db.models import Sum, Avg, Max, Min
+from django.db.models import Sum
 from django.utils import timezone
 from datetime import datetime, timedelta
 from calendar import month_name, monthrange
@@ -29,11 +24,10 @@ from calendar import month_name, monthrange
 from siren_web.models import (
     DPVGeneration, 
     MonthlyREPerformance, 
-    RenewableEnergyTarget, 
+    RenewableEnergyTarget,
+    ReportComment,
     NewCapacityCommissioned, 
-    TargetScenario, 
-    FacilityScada, 
-    facilities
+    TargetScenario
 )
 import logging
 
@@ -131,7 +125,8 @@ def ret_dashboard(request, year=None, month=None):
         ytd_emissions_change = ((ytd_summary['total_emissions'] - 
                                prev_ytd_summary['total_emissions']) / 
                               prev_ytd_summary['total_emissions'] * 100)
-    
+
+    comments = ReportComment.get_comments_for_report('monthly', year, month=month)
     context = {
         'year': year,
         'month': month,
@@ -156,8 +151,10 @@ def ret_dashboard(request, year=None, month=None):
         'pathway_chart': pathway_chart,
         'available_months': get_available_months(),
         'available_years': get_available_years(),
+        'comments': comments,
+        'report_type': 'monthly',
     }
-    
+
     return render(request, 'ret_dashboard/dashboard.html', context)
 
 def get_dpv_generation(year, month):
@@ -729,6 +726,8 @@ def quarterly_report(request, year, quarter):
     except RenewableEnergyTarget.DoesNotExist:
         target = None
     
+    comments = ReportComment.get_comments_for_report('quarterly', year, quarter=quarter)
+
     context = {
         'year': year,
         'quarter': quarter,
@@ -750,6 +749,8 @@ def quarterly_report(request, year, quarter):
         're_percentage_operational': quarterly_summary.get('re_percentage_operational') if quarterly_summary else None,
         're_percentage_underlying': quarterly_summary.get('re_percentage_underlying') if quarterly_summary else None,
         'prev_re_percentage': prev_quarter_summary.get('re_percentage_operational') if prev_quarter_summary else None,
+        'comments': comments,
+        'report_type': 'quarterly',
     }
     
     return render(request, 'ret_dashboard/quarterly_report.html', context)
@@ -927,7 +928,8 @@ def annual_review(request, year):
     ).select_related('facility').order_by('commissioned_date')
     
     total_new_capacity = sum(nc.capacity_mw for nc in new_capacity) if new_capacity else 0
-    
+    comments = ReportComment.get_comments_for_report('annual', year)
+        
     context = {
         'year': year,
         'annual_data': annual_data,
@@ -944,6 +946,8 @@ def annual_review(request, year):
         'scenarios': scenarios,
         'available_years': get_available_years(),
         'completed_quarters': completed_quarters,  # Add this line
+        'comments': comments,
+        'report_type': 'annual',
     }
     
     return render(request, 'ret_dashboard/annual_review.html', context)

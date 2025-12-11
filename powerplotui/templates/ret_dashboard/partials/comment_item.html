@@ -1,0 +1,53 @@
+{# templates/ret_dashboard/partials/comment_item.html #}
+
+<div class="comment-item {% if comment.is_pinned %}pinned{% endif %} {% if comment.is_resolved %}resolved{% endif %}" 
+     data-comment-id="{{ comment.id }}">
+    <div class="comment-header">
+        <div class="comment-meta">
+            <span class="comment-author">{{ comment.author_name }}</span>
+            <span class="comment-date">{{ comment.created_at|date:"d M Y, H:i" }}</span>
+            {% if comment.category != 'general' %}
+            <span class="comment-category category-{{ comment.category }}">
+                {{ comment.get_category_display }}
+            </span>
+            {% endif %}
+            {% if comment.is_pinned %}
+            <span class="comment-badge pinned-badge" title="Pinned">📌</span>
+            {% endif %}
+            {% if comment.is_resolved %}
+            <span class="comment-badge resolved-badge" title="Resolved">✓</span>
+            {% endif %}
+        </div>
+        
+        <div class="comment-actions">
+            {% if user.is_staff %}
+            <button class="btn-icon" onclick="togglePinComment({{ comment.id }})" 
+                    title="{% if comment.is_pinned %}Unpin{% else %}Pin{% endif %}">
+                {% if comment.is_pinned %}📌{% else %}📍{% endif %}
+            </button>
+            {% endif %}
+            
+            {% if comment.category == 'action_item' or comment.category == 'question' %}
+            <button class="btn-icon" onclick="toggleResolveComment({{ comment.id }})"
+                    title="{% if comment.is_resolved %}Mark unresolved{% else %}Mark resolved{% endif %}">
+                {% if comment.is_resolved %}↩️{% else %}✓{% endif %}
+            </button>
+            {% endif %}
+            
+            {% if comment.author == user or user.is_staff %}
+            <button class="btn-icon" onclick="editComment({{ comment.id }})" title="Edit">✏️</button>
+            <button class="btn-icon btn-danger" onclick="deleteComment({{ comment.id }})" title="Delete">🗑️</button>
+            {% endif %}
+        </div>
+    </div>
+    
+    <div class="comment-content">
+        {{ comment.content|linebreaks }}
+    </div>
+    
+    {% if comment.updated_at != comment.created_at %}
+    <div class="comment-edited">
+        Edited {{ comment.updated_at|date:"d M Y, H:i" }}
+    </div>
+    {% endif %}
+</div>
