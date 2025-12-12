@@ -20,6 +20,8 @@ from django.db.models import Sum
 from django.utils import timezone
 from datetime import datetime, timedelta
 from calendar import month_name, monthrange
+import json
+from django.http import JsonResponse
 
 from siren_web.models import (
     DPVGeneration, 
@@ -127,6 +129,10 @@ def ret_dashboard(request, year=None, month=None):
                               prev_ytd_summary['total_emissions'] * 100)
 
     comments = ReportComment.get_comments_for_report('monthly', year, month=month)
+    
+    # Get Executive Summary from comments
+    executive_summary = comments.filter(category='executive_summary').first()
+
     context = {
         'year': year,
         'month': month,
@@ -152,6 +158,7 @@ def ret_dashboard(request, year=None, month=None):
         'available_months': get_available_months(),
         'available_years': get_available_years(),
         'comments': comments,
+        'executive_summary': executive_summary,
         'report_type': 'monthly',
     }
 
@@ -675,6 +682,10 @@ def quarterly_report(request, year, quarter):
             'year': year,
             'quarter': quarter
         })
+    if quarter == 3:
+        next_report = f"{year} Annual Report"
+    else:
+        next_report = f"Q{quarter + 1} {year} Quarterly Report"
     
     # Use model's aggregate_summary for quarterly totals (single source of truth)
     quarterly_summary = MonthlyREPerformance.aggregate_summary(quarterly_data)
@@ -728,28 +739,23 @@ def quarterly_report(request, year, quarter):
     
     comments = ReportComment.get_comments_for_report('quarterly', year, quarter=quarter)
 
+    # Get Executive Summary from comments
+    executive_summary = comments.filter(category='executive_summary').first()
+
     context = {
         'year': year,
         'quarter': quarter,
         'quarter_start_month': month_name[start_month],
         'quarter_end_month': month_name[end_month],
         'quarterly_data': quarterly_data,
-        'monthly_performances': quarterly_data,  # Alias for template chart
         'quarterly_summary': quarterly_summary,
         'prev_quarter_summary': prev_quarter_summary,
+        'next_report': next_report,
         'ytd_summary': ytd_summary,
         'prev_ytd_summary': prev_ytd_summary,
         'target': target,
-        # Backward compatibility (can remove once template fully updated)
-        'total_generation': quarterly_summary.get('total_generation') if quarterly_summary else None,
-        'total_renewable': quarterly_summary.get('renewable_generation') if quarterly_summary else None,
-        'total_emissions': quarterly_summary.get('total_emissions') if quarterly_summary else None,
-        'total_operational_demand': quarterly_summary.get('operational_demand') if quarterly_summary else None,
-        'total_underlying_demand': quarterly_summary.get('underlying_demand') if quarterly_summary else None,
-        're_percentage_operational': quarterly_summary.get('re_percentage_operational') if quarterly_summary else None,
-        're_percentage_underlying': quarterly_summary.get('re_percentage_underlying') if quarterly_summary else None,
-        'prev_re_percentage': prev_quarter_summary.get('re_percentage_operational') if prev_quarter_summary else None,
         'comments': comments,
+        'executive_summary': executive_summary,
         'report_type': 'quarterly',
     }
     
@@ -778,7 +784,7 @@ def annual_review(request, year):
         completed_quarters = list(range(1, current_quarter))
     else:
         completed_quarters = []
-    
+    next_report = f"Q1 {year + 1} Quarterly Report"
     # Get all monthly data for this year
     annual_data = MonthlyREPerformance.objects.filter(
         year=year
@@ -929,7 +935,10 @@ def annual_review(request, year):
     
     total_new_capacity = sum(nc.capacity_mw for nc in new_capacity) if new_capacity else 0
     comments = ReportComment.get_comments_for_report('annual', year)
-        
+    
+    # Get Executive Summary from comments
+    executive_summary = comments.filter(category='executive_summary').first()
+
     context = {
         'year': year,
         'annual_data': annual_data,
@@ -947,7 +956,9 @@ def annual_review(request, year):
         'available_years': get_available_years(),
         'completed_quarters': completed_quarters,  # Add this line
         'comments': comments,
+        'executive_summary': executive_summary,
         'report_type': 'annual',
+        'next_report': next_report,
     }
     
     return render(request, 'ret_dashboard/annual_review.html', context)
@@ -992,3 +1003,52 @@ def get_monthly_summary_json(performance):
         result['wholesale_spike_count'] = performance.wholesale_spike_count
     
     return result
+
+@require_POST
+def update_executive_summary(request):
+    """
+    Update or create executive summary via AJAX.
+    """
+    if not request.user.is_authenticated:
+        return JsonResponse({'success': False, 'error': 'Authentication required'}, status=403)
+        
+    try:
+        data = json.loads(request.body)
+        report_type = data.get('report_type')
+        year = int(data.get('year'))
+        content = data.get('content')
+        
+        month = data.get('month')
+        if month:
+            month = int(month)
+            
+        quarter = data.get('quarter')
+        if quarter:
+            quarter = int(quarter)
+            
+        if not report_type or not year or not content:
+            return JsonResponse({'success': False, 'error': 'Missing required fields'})
+            
+        # Create or update
+        summary, created = ReportComment.objects.update_or_create(
+            report_type=report_type,
+            year=year,
+            month=month,
+            quarter=quarter,
+            author=request.user,
+            author_name=request.user.get_full_name() or request.user.username,
+            category='executive_summary',
+            defaults={
+                'content': content,
+            }
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'updated_at': summary.updated_at.strftime('%d %b %Y, %I:%M %p'),
+            'author': summary.author_name or summary.author
+        })
+        
+    except Exception as e:
+        logger.error(f"Error updating executive summary: {str(e)}")
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)

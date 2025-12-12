@@ -6,7 +6,6 @@ from django.shortcuts import render
 from ..forms import PlotForm
 import io
 import logging
-import matplotlib.pyplot as plt
 import re
 from siren_web.models import Analysis, Scenarios, variations, Technologies
 from siren_web.database_operations import fetch_analysis_scenario

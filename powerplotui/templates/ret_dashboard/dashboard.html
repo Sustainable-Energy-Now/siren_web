@@ -38,6 +38,125 @@
     <button onclick="window.print()" style="background: #95a5a6;">Print Report</button>
 </div>
 
+
+<!-- Executive Summary -->
+<div class="section-header">
+    <h2>Executive Summary</h2>
+</div>
+
+<div class="info-box" id="exec-summary-container" style="background: white; border-left: 4px solid #9b59b6;">
+    <div id="exec-summary-display">
+        {% if executive_summary and executive_summary.content %}
+            <div style="font-size: 1.1em; line-height: 1.6; color: #2c3e50;">
+                {{ executive_summary.content|linebreaks }}
+            </div>
+            {% if user.is_authenticated %}
+                <div style="margin-top: 15px; border-top: 1px solid #eee; padding-top: 10px;">
+                    <button onclick="toggleExecSummaryEdit()" class="action-btn">Edit Summary</button>
+                    <small style="color: #7f8c8d; margin-left: 10px;">
+                        Last updated: {{ executive_summary.updated_at|date:"d M Y" }} by {{ executive_summary.updated_by.get_full_name|default:executive_summary.updated_by.username }}
+                    </small>
+                </div>
+            {% endif %}
+        {% else %}
+            <p style="color: #7f8c8d; font-style: italic;">No executive summary provided for this month.</p>
+            {% if user.is_authenticated %}
+                <button onclick="toggleExecSummaryEdit()" class="action-btn primary-btn">Add Summary</button>
+            {% endif %}
+        {% endif %}
+    </div>
+    
+    {% if user.is_authenticated %}
+    <div id="exec-summary-edit" style="display: none;">
+        {% csrf_token %}
+        <p style="margin-top: 0; color: #7f8c8d; font-size: 0.9em;">Enter the executive summary for this report. You can use this to highlight key trends that may not be obvious from the data.</p>
+        <textarea id="exec-summary-content" style="width: 100%; min-height: 200px; padding: 15px; margin-bottom: 15px; border-radius: 6px; border: 1px solid #bdc3c7; font-family: inherit; font-size: 1em; line-height: 1.5; resize: vertical;">{{ executive_summary.content|default:"" }}</textarea>
+        <div style="display: flex; gap: 10px;">
+            <button onclick="saveExecSummary()" class="action-btn primary-btn">Save Summary</button>
+            <button onclick="toggleExecSummaryEdit()" class="action-btn">Cancel</button>
+        </div>
+    </div>
+    
+    <script>
+    function toggleExecSummaryEdit() {
+        var displayDiv = document.getElementById('exec-summary-display');
+        var editDiv = document.getElementById('exec-summary-edit');
+        
+        if (editDiv.style.display === 'none') {
+            editDiv.style.display = 'block';
+            displayDiv.style.display = 'none';
+        } else {
+            editDiv.style.display = 'none';
+            displayDiv.style.display = 'block';
+        }
+    }
+    
+    function saveExecSummary() {
+        var content = document.getElementById('exec-summary-content').value;
+        var csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+        var btn = document.querySelector('#exec-summary-edit button.primary-btn');
+        var originalText = btn.textContent;
+        
+        btn.textContent = 'Saving...';
+        btn.disabled = true;
+        
+        fetch("{% url 'ret_executive_summary_update' %}", {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            },
+            body: JSON.stringify({
+                report_type: 'monthly',
+                year: {{ year }},
+                month: {{ month }},
+                content: content
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                location.reload();
+            } else {
+                alert('Error saving summary: ' + (data.error || 'Unknown error'));
+                btn.textContent = originalText;
+                btn.disabled = false;
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Error saving summary');
+            btn.textContent = originalText;
+            btn.disabled = false;
+        });
+    }
+    </script>
+    <style>
+        .action-btn {
+            padding: 8px 15px;
+            border: 1px solid #bdc3c7;
+            border-radius: 4px;
+            background: white;
+            cursor: pointer;
+            font-size: 0.9em;
+            color: #2c3e50;
+            transition: all 0.2s;
+        }
+        .action-btn:hover {
+            background: #ecf0f1;
+        }
+        .primary-btn {
+            background: #3498db;
+            border-color: #3498db;
+            color: white;
+        }
+        .primary-btn:hover {
+            background: #2980b9;
+        }
+    </style>
+    {% endif %}
+</div>
+
 <!-- Monthly RE Performance -->
 <div class="section-header">
     <h2>{{ month_name }} {{ year }} RE Performance</h2>
@@ -119,7 +238,7 @@
 <div class="info-box" style="background: #e3f2fd; border-left-color: #2196f3;">
     <h3 style="margin-top: 0;">Understanding Demand Measures</h3>
     <p style="margin-bottom: 0;">
-        <strong>Operational Demand:</strong> Total grid-sent generation minus storage charging (BESS + Hydro). This represents electricity delivered through the grid.<br>
+        <strong>Operational Demand:</strong> Total grid-sent generation. This represents electricity delivered through the grid.<br>
         <strong>Underlying Demand:</strong> Operational demand plus rooftop solar (DPV). This represents total electricity consumed including behind-the-meter generation.
     </p>
 </div>
@@ -131,9 +250,6 @@
 
 <div class="info-box">
     <h3>Generation Mix</h3>
-    <p style="color: #7f8c8d; margin-bottom: 10px;">
-        <em>Note: Storage (BESS + Hydro) discharge shown for information but excluded from RE% calculation and demand</em>
-    </p>
     
     <table class="stats-table" style="margin-top: 15px;">
         <thead>
@@ -192,7 +308,6 @@
             <tr class="info-row">
                 <td><em>Storage Discharge</em></td>
                 <td class="value"><em>{{ performance.storage_discharge|floatformat:1 }}</em></td>
-                <td class="value" colspan="2"><em>Excluded from demand calculations</em></td>
             </tr>
             {% endif %}
         </tbody>
@@ -442,7 +557,6 @@
     </tbody>
 </table>
 
-<!-- What This Means -->
 <div class="section-header">
     <h2>What This Means</h2>
 </div>
@@ -484,12 +598,8 @@
 {% include "ret_dashboard/partials/comments_section.html" with report_type="monthly" year=year month=month comments=comments %}
 <!-- Footer -->
 <div style="margin-top: 40px; padding: 20px; background: #ecf0f1; border-radius: 8px;">
-    <p style="margin: 0;"><strong>Next Update:</strong> 
-        {% now "j F Y" as current_date %}
-        {{ current_date|date:"j F Y"|add_months:1 }}
-    </p>
-    <p style="margin: 5px 0 0 0;"><strong>Contact:</strong>
-        <a href="/cdn-cgi/l/email-protection#f3909c9d87929087b380969ddd92809ddd9286">Contact: &#99;&#111;&#110;&#116;&#97;&#99;&#116;&#64;&#115;&#101;&#110;&#46;&#97;&#115;&#110;&#46;&#97;&#117;</a>
+    <p style="margin: 5px 0 0 0;">
+        <strong></strong><a href="mailto:modelling.lead@sen.asn.au">Contact SEN Modelling</a></strong>
     </p>
 </div>
 

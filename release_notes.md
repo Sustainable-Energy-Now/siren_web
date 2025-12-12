@@ -1,4 +1,9 @@
 # Release Notes (Latest first)
+## Version 3.14.2 - December 12, 2025
+### 🆕 New Features
+- Feature: Remove Facilities Generation and Transmitted ([#49](https://github.com/Sustainable-Energy-Now/siren_web/issues/49))
+- Feature: Add Comments to RET Reports ([#50](https://github.com/Sustainable-Energy-Now/siren_web/issues/50))
+
 ## Version 3.14.1 - November 20, 2025
 ### 🆕 New Features
 - Feature: Track Wholesale Prices ([#47](https://github.com/Sustainable-Energy-Now/siren_web/issues/47))

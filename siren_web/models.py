@@ -2010,6 +2010,7 @@ class ReportComment(models.Model):
         ('question', 'Question'),
         ('action_item', 'Action Item'),
         ('correction', 'Correction'),
+        ('executive_summary', 'Executive Summary'),
     ]
     category = models.CharField(
         max_length=20,
@@ -2048,7 +2049,7 @@ class ReportComment(models.Model):
         elif self.report_type == 'quarterly':
             return f"Q{self.quarter} {self.year}"
         else:
-            return str(self.year)
+            return f"{self.year} Annual Review"
     
     @classmethod
     def get_comments_for_report(cls, report_type, year, month=None, quarter=None):
