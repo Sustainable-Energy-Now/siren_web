@@ -1,5 +1,6 @@
 # signals.py
 from django.db.models.signals import post_save, post_delete, m2m_changed
+from django.db.models import Sum
 from django.dispatch import receiver
 from siren_web.models import (
     facilities, 
@@ -278,7 +279,7 @@ def update_facility_capacity_on_storage_change(sender, instance, created, **kwar
             idtechnologies=technology,
             is_active=True
         ).aggregate(
-            total=models.Sum('power_capacity')
+            total=Sum('power_capacity')
         )['total'] or 0
         
         if total_storage_capacity != facility.capacity:

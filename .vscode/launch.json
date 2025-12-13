@@ -16,6 +16,17 @@
             }
         },
         {
+            "name": "Python Debugger: Migrate Facilities",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}\\manage.py",
+            "args": [
+                "migrate_facilities", "--verbose"
+            ],
+            "django": true,
+            "autoStartBrowser": false
+        },
+        {
             "name": "Python Debugger: Scada to Excel",
             "type": "debugpy",
             "request": "launch",

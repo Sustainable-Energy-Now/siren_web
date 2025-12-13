@@ -34,6 +34,16 @@ class Scenarios(models.Model):
         db_table = 'Scenarios'
 
 class facilities(models.Model):
+    """
+    Energy facility that can contain multiple technology installations.
+    
+    RESTRUCTURED: A facility can now have:
+    - Multiple wind turbine installations (different models, phases)
+    - Multiple solar installations (fixed, tracking, different phases)
+    - Multiple storage installations (batteries, PHES)
+    
+    The facility's total capacity and technology mix is computed from its installations.
+    """
     idfacilities = models.AutoField(db_column='idfacilities', primary_key=True)
     facility_name = models.CharField(db_column='facility_name', unique=True, max_length=45, blank=True, null=True)
     facility_code = models.CharField(db_column='facility_code', unique=True, max_length=30, blank=True, null=True)
@@ -41,60 +51,218 @@ class facilities(models.Model):
     registered_from = models.DateField(null=True)
     active = models.BooleanField(null=False)
     existing = models.BooleanField(null=False)
-    idtechnologies = models.ForeignKey('Technologies', models.DO_NOTHING, db_column='idtechnologies')
-    scenarios = models.ManyToManyField(Scenarios, through='ScenariosFacilities', blank=True)
+
+    # For backward compatibility during migration, keep as nullable
+    idtechnologies = models.ForeignKey(
+        'Technologies', 
+        models.DO_NOTHING, 
+        db_column='idtechnologies',
+        blank=True, 
+        null=True,
+        related_name='legacy_facilities',
+        help_text="DEPRECATED: Use installation models instead. Kept for migration."
+    )
+    
+    scenarios = models.ManyToManyField('Scenarios', through='ScenariosFacilities', blank=True)
     idzones = models.ForeignKey('Zones', models.DO_NOTHING, db_column='idzones', blank=True, null=True)
-    capacity = models.FloatField(null=True)
-    capacityfactor = models.FloatField(null=True)
+    
+    # Capacity can be set as override, otherwise computed from installations
+    capacity = models.FloatField(
+        null=True, 
+        blank=True,
+        help_text="Override total capacity (MW). If null, computed from installations."
+    )
+    capacityfactor = models.FloatField(null=True, blank=True)
+    
     latitude = models.FloatField(blank=True, null=True)
     longitude = models.FloatField(blank=True, null=True)
-    storage_hours = models.FloatField(blank=True, null=True)
-    power_file = models.CharField( max_length=45, blank=True, null=True)
-    direction = models.CharField( max_length=28, blank=True, null=True)
-    grid_connections = models.ManyToManyField('GridLines', through='FacilityGridConnections', 
-                                            blank=True, related_name='connected_facilities')
-    primary_grid_line = models.ForeignKey('GridLines', on_delete=models.SET_NULL, 
-                                        null=True, blank=True, related_name='primary_facilities')
-    wind_turbines = models.ManyToManyField('WindTurbines', through='FacilityWindTurbines', 
-                                         blank=True, related_name='connected_turbines')
+    
+    # Storage hours - legacy field, now use FacilityStorage.duration
+    storage_hours = models.FloatField(
+        blank=True, 
+        null=True,
+        help_text="DEPRECATED: Use FacilityStorage installations instead."
+    )
+    
+    power_file = models.CharField(max_length=45, blank=True, null=True)
+    direction = models.CharField(max_length=28, blank=True, null=True)
+    
+    grid_connections = models.ManyToManyField(
+        'GridLines', 
+        through='FacilityGridConnections',
+        blank=True, 
+        related_name='connected_facilities'
+    )
+    primary_grid_line = models.ForeignKey(
+        'GridLines', 
+        on_delete=models.SET_NULL,
+        null=True, 
+        blank=True, 
+        related_name='primary_facilities'
+    )
+    wind_turbines = models.ManyToManyField(
+        'WindTurbines', 
+        through='FacilityWindTurbines',
+        blank=True, 
+        related_name='connected_turbines'
+    )
     emission_intensity = models.FloatField(null=True)
 
     class Meta:
         db_table = 'facilities'
-    
-    def get_primary_grid_connection(self):
-        """Get the primary grid connection for this facility"""
-        try:
-            return self.facilitygridconnections_set.filter(is_primary=True).first()
-        except:
-            return None
-    
-    def get_all_grid_connections(self):
-        """Get all grid connections for this facility"""
-        return self.facilitygridconnections_set.filter(active=True)
-    
-    def calculate_total_grid_losses_mw(self, power_output_mw):
-        """Calculate total losses from facility through all grid connections"""
-        total_losses = 0
-        connections = self.get_all_grid_connections()
-        
-        # Distribute power across connections (simplified - equal distribution)
-        if connections:
-            power_per_connection = power_output_mw / len(connections)
-            
-            for connection in connections:
-                # Connection losses (facility to grid line)
-                connection_losses = connection.calculate_connection_losses_mw(power_per_connection)
-                
-                # Grid line losses (simplified)
-                grid_line_losses = connection.idgridlines.calculate_line_losses_mw(power_per_connection)
-                
-                total_losses += connection_losses + grid_line_losses
-        
-        return total_losses
 
+    def __str__(self):
+        return self.facility_name or f"Facility {self.idfacilities}"
+
+    # =========================================================================
+    # TECHNOLOGY AGGREGATION METHODS
+    # =========================================================================
+    
+    @property
+    def technologies(self):
+        """Get all technology types at this facility as a QuerySet"""
+        tech_ids = set()
+        
+        # From wind installations
+        for inst in self.facilitywindturbines_set.filter(is_active=True):
+            if inst.idtechnologies_id:
+                tech_ids.add(inst.idtechnologies_id)
+        
+        # From solar installations
+        for inst in self.solar_installations.filter(is_active=True):
+            if inst.idtechnologies_id:
+                tech_ids.add(inst.idtechnologies_id)
+            
+        # From storage installations
+        for inst in self.storage_installations.filter(is_active=True):
+            if inst.idtechnologies_id:
+                tech_ids.add(inst.idtechnologies_id)
+        
+        # Fallback to legacy field if no installations
+        if not tech_ids and self.idtechnologies_id:
+            tech_ids.add(self.idtechnologies_id)
+            
+        return Technologies.objects.filter(idtechnologies__in=tech_ids)
+    
+    @property
+    def technology_categories(self):
+        """Get unique technology categories at this facility"""
+        categories = set()
+        for tech in self.technologies:
+            if tech.category:
+                categories.add(tech.category)
+        return categories
+    
+    @property
+    def primary_technology(self):
+        """
+        Get the primary/largest capacity technology.
+        Returns the Technology object with the highest capacity at this facility.
+        """
+        tech_capacities = self.get_capacity_by_technology()
+        if tech_capacities:
+            max_tech = max(tech_capacities, key=tech_capacities.get)
+            return max_tech
+        # Fallback to legacy
+        return self.idtechnologies_legacy
+    
+    def get_capacity_by_technology(self):
+        """
+        Returns dict of {Technology: capacity_mw} for all technologies at facility.
+        """
+        capacities = {}
+        
+        # Wind capacity by technology
+        for inst in self.facilitywindturbines_set.filter(is_active=True):
+            tech = inst.idtechnologies
+            if tech:
+                cap = inst.total_capacity or 0
+                capacities[tech] = capacities.get(tech, 0) + cap
+        
+        # Solar capacity by technology (nameplate DC capacity)
+        for inst in self.solar_installations.filter(is_active=True):
+            tech = inst.idtechnologies
+            if tech:
+                cap = inst.nameplate_capacity or 0
+                capacities[tech] = capacities.get(tech, 0) + cap
+            
+        # Storage capacity by technology (power capacity)
+        for inst in self.storage_installations.filter(is_active=True):
+            tech = inst.idtechnologies
+            if tech:
+                cap = inst.power_capacity or 0
+                capacities[tech] = capacities.get(tech, 0) + cap
+            
+        return capacities
+    
+    def get_capacity_by_category(self):
+        """
+        Returns dict of {category: capacity_mw} aggregated by technology category.
+        Example: {'Wind': 150.0, 'Solar': 80.0, 'Storage': 50.0}
+        """
+        category_capacities = {}
+        for tech, cap in self.get_capacity_by_technology().items():
+            category = tech.category or 'Unknown'
+            category_capacities[category] = category_capacities.get(category, 0) + cap
+        return category_capacities
+    
+    @property
+    def total_capacity(self):
+        """
+        Get total capacity across all technologies.
+        Uses override capacity if set, otherwise computes from installations.
+        """
+        if self.capacity:
+            return self.capacity
+        computed = sum(self.get_capacity_by_technology().values())
+        return computed if computed > 0 else None
+    
+    # =========================================================================
+    # FACILITY TYPE PROPERTIES
+    # =========================================================================
+    
+    @property
+    def is_hybrid(self):
+        """Check if facility has multiple technology categories (e.g., Wind + Solar)"""
+        return len(self.technology_categories) > 1
+    
+    @property
+    def is_wind_farm(self):
+        """Check if this facility has active wind turbine installations"""
+        return self.facilitywindturbines_set.filter(is_active=True).exists()
+    
+    @property
+    def is_solar_farm(self):
+        """Check if this facility has active solar installations"""
+        return self.solar_installations.filter(is_active=True).exists()
+    
+    @property
+    def has_storage(self):
+        """Check if this facility has active storage installations"""
+        return self.storage_installations.filter(is_active=True).exists()
+    
+    @property
+    def is_generator(self):
+        """Check if facility has conventional generation (gas, coal, etc.)"""
+        for tech in self.technologies:
+            if tech.category in ('Generator', 'Thermal', 'Gas', 'Coal'):
+                return True
+        return False
+    
+    @property
+    def is_renewable(self):
+        """Check if all technologies at facility are renewable"""
+        technologies = list(self.technologies)
+        if not technologies:
+            return False
+        return all(tech.renewable for tech in technologies)
+    
+    # =========================================================================
+    # WIND-SPECIFIC METHODS
+    # =========================================================================
+    
     def get_total_wind_capacity(self):
-        """Calculate total wind capacity for this facility"""
+        """Calculate total wind capacity for this facility in MW"""
         total = 0
         for installation in self.facilitywindturbines_set.filter(is_active=True):
             if installation.total_capacity:
@@ -107,20 +275,116 @@ class facilities(models.Model):
         summary = []
         for installation in installations:
             summary.append({
+                'technology': str(installation.idtechnologies) if installation.idtechnologies else None,
                 'model': installation.wind_turbine.turbine_model,
                 'manufacturer': installation.wind_turbine.manufacturer,
                 'count': installation.no_turbines,
-                'capacity': installation.total_capacity,
-                'tilt': installation.tilt,
-                'direction': installation.direction
+                'capacity_mw': installation.total_capacity,
+                'hub_height': installation.hub_height,
+                'installation_name': installation.installation_name,
+                'commissioned': installation.commissioning_date,
             })
         return summary
     
-    @property
-    def is_wind_farm(self):
-        """Check if this facility has wind turbines"""
-        return self.wind_turbines.exists()
-
+    # =========================================================================
+    # SOLAR-SPECIFIC METHODS
+    # =========================================================================
+    
+    def get_total_solar_capacity(self):
+        """Calculate total solar DC capacity for this facility in MW"""
+        total = 0
+        for installation in self.solar_installations.filter(is_active=True):
+            if installation.nameplate_capacity:
+                total += installation.nameplate_capacity
+        return total
+    
+    def get_solar_installation_summary(self):
+        """Get summary of solar installations at this facility"""
+        installations = self.solar_installations.filter(is_active=True)
+        summary = []
+        for installation in installations:
+            summary.append({
+                'technology': str(installation.idtechnologies),
+                'name': installation.installation_name,
+                'capacity_dc_mw': installation.nameplate_capacity,
+                'capacity_ac_mw': installation.ac_capacity,
+                'tracking': installation.idtechnologies.solar_attributes.first().tracking_type if installation.idtechnologies.solar_attributes.exists() else None,
+                'commissioned': installation.commissioning_date,
+            })
+        return summary
+    
+    # =========================================================================
+    # STORAGE-SPECIFIC METHODS
+    # =========================================================================
+    
+    def get_total_storage_power(self):
+        """Calculate total storage power capacity for this facility in MW"""
+        total = 0
+        for installation in self.storage_installations.filter(is_active=True):
+            if installation.power_capacity:
+                total += installation.power_capacity
+        return total
+    
+    def get_total_storage_energy(self):
+        """Calculate total storage energy capacity for this facility in MWh"""
+        total = 0
+        for installation in self.storage_installations.filter(is_active=True):
+            if installation.energy_capacity:
+                total += installation.energy_capacity
+        return total
+    
+    def get_storage_installation_summary(self):
+        """Get summary of storage installations at this facility"""
+        installations = self.storage_installations.filter(is_active=True)
+        summary = []
+        for installation in installations:
+            summary.append({
+                'technology': str(installation.idtechnologies),
+                'name': installation.installation_name,
+                'power_mw': installation.power_capacity,
+                'energy_mwh': installation.energy_capacity,
+                'duration_hours': installation.get_calculated_duration(),
+                'commissioned': installation.commissioning_date,
+            })
+        return summary
+    
+    # =========================================================================
+    # COMPREHENSIVE SUMMARY METHODS
+    # =========================================================================
+    
+    def get_installation_summary(self):
+        """Get a complete summary of all installations at this facility"""
+        return {
+            'wind': self.get_wind_turbine_summary(),
+            'solar': self.get_solar_installation_summary(),
+            'storage': self.get_storage_installation_summary(),
+            'total_capacity_mw': self.total_capacity,
+            'is_hybrid': self.is_hybrid,
+            'categories': list(self.technology_categories),
+        }
+    
+    def get_capacity_summary_string(self):
+        """Get a formatted string summarizing facility capacity"""
+        parts = []
+        categories = self.get_capacity_by_category()
+        
+        if 'Wind' in categories:
+            parts.append(f"{categories['Wind']:.1f} MW Wind")
+        if 'Solar' in categories:
+            parts.append(f"{categories['Solar']:.1f} MW Solar")
+        if 'Storage' in categories:
+            storage_energy = self.get_total_storage_energy()
+            parts.append(f"{categories['Storage']:.1f} MW / {storage_energy:.1f} MWh Storage")
+        
+        if not parts:
+            return f"{self.total_capacity or 0:.1f} MW"
+        
+        return " + ".join(parts)
+    
+    # =========================================================================
+    # HYBRID SYSTEM METHODS
+    # =========================================================================
+    
     def get_hybrid_systems(self):
         '''Get all hybrid solar+storage configurations at this facility'''
         from siren_web.models import HybridSolarStorage
@@ -138,9 +402,40 @@ class facilities(models.Model):
     def is_semi_dispatchable(self):
         '''Check if facility has semi-dispatchable capacity (hybrid solar+storage)'''
         return self.has_hybrid_systems
+    
+    # =========================================================================
+    # GRID CONNECTION METHODS
+    # =========================================================================
+    
+    def get_primary_grid_connection(self):
+        """Get the primary grid connection for this facility"""
+        try:
+            return self.facilitygridconnections_set.filter(is_primary=True).first()
+        except:
+            return None
+    
+    def get_all_grid_connections(self):
+        """Get all grid connections for this facility"""
+        return self.facilitygridconnections_set.filter(active=True)
+    
+    def calculate_total_grid_losses_mw(self, power_output_mw):
+        """Calculate total losses from facility through all grid connections"""
+        total_losses = 0
+        connections = self.get_all_grid_connections()
+        
+        if connections:
+            power_per_connection = power_output_mw / len(connections)
+            
+            for connection in connections:
+                connection_losses = connection.calculate_connection_losses_mw(power_per_connection)
+                grid_line_losses = connection.idgridlines.calculate_line_losses_mw(power_per_connection)
+                total_losses += connection_losses + grid_line_losses
+        
+        return total_losses
 
 class Generatorattributes(models.Model):
-    idgeneratorattributes = models.AutoField(db_column='idGeneratorAttributes', primary_key=True)  
+    """Technology-level attributes for conventional generators"""
+    idgeneratorattributes = models.AutoField(db_column='idGeneratorAttributes', primary_key=True)
     idtechnologies = models.ForeignKey('Technologies', models.CASCADE, db_column='idTechnologies')
     capacity_max = models.FloatField(null=True)
     capacity_min = models.FloatField(null=True)
@@ -518,59 +813,15 @@ class FacilityGridConnections(models.Model):
         
         return connection_losses_mw
 
-class WindTurbines(models.Model):
-    APPLICATION_CHOICES = [
-        ('onshore', 'Onshore'),
-        ('offshore', 'Offshore'),
-        ('floating', 'Floating'),
-    ]
-    idwindturbines = models.AutoField(db_column='idwindturbines', primary_key=True)
-    turbine_model = models.CharField(max_length=70, unique=True,
-                                   help_text="Wind turbine model/type (must be unique)")
-    manufacturer = models.CharField(max_length=50, blank=True, null=True,
-                                  help_text="Turbine manufacturer")
-    application = models.CharField(max_length=20, choices=APPLICATION_CHOICES,
-                                   blank=True, null=True,
-                                   help_text="Turbine application type")
-    hub_height = models.FloatField(blank=True, null=True, 
-                                 help_text="Standard hub height in meters")
-    rated_power = models.FloatField(blank=True, null=True,
-                                  help_text="Rated power output in kW")
-    rotor_diameter = models.FloatField(blank=True, null=True,
-                                     help_text="Rotor diameter in meters")
-    cut_in_speed = models.FloatField(blank=True, null=True,
-                                   help_text="Cut-in wind speed in m/s")
-    cut_out_speed = models.FloatField(blank=True, null=True,
-                                    help_text="Cut-out wind speed in m/s")
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        db_table = 'WindTurbines'
-        verbose_name = 'Wind Turbine Model'
-        verbose_name_plural = 'Wind Turbine Models'
-
-    def __str__(self):
-        return f"{self.manufacturer} {self.turbine_model}" if self.manufacturer else self.turbine_model
-
-    def get_total_installations(self):
-        """Get total number of this turbine model installed across all facilities"""
-        return sum(installation.no_turbines 
-                  for installation in self.facilitywindturbines_set.filter(is_active=True))
-    
-    def get_facilities_using(self):
-        """Get list of facilities using this turbine model"""
-        return [installation.facility 
-                for installation in self.facilitywindturbines_set.filter(is_active=True)]
-    
-    def get_active_power_curve(self):
-        """Get the currently active power curve for this turbine"""
-        return self.power_curves.filter(is_active=True).first()
-
 class FacilitySolar(models.Model):
     """
-    Installation-specific solar PV system data
-    Links facilities to solar technologies with deployment details
+    Installation-specific solar PV system data.
+    Links facilities to solar technologies with deployment details.
+    
+    A facility can have multiple solar installations with different:
+    - Technology types (fixed tilt, single-axis tracking, etc.)
+    - Commissioning dates (Phase 1, Phase 2)
+    - Array configurations
     """
     idfacilitysolar = models.AutoField(db_column='idfacilitysolar', primary_key=True)
     idfacilities = models.ForeignKey(
@@ -633,7 +884,7 @@ class FacilitySolar(models.Model):
         max_length=100,
         blank=True,
         null=True,
-        help_text='Name for this solar installation (e.g., "East Array")'
+        help_text='Name for this solar installation (e.g., "East Array", "Phase 2")'
     )
     installation_date = models.DateField(
         blank=True,
@@ -729,7 +980,6 @@ class FacilitySolar(models.Model):
         solar_attrs = self.solar_attrs
         if self.nameplate_capacity and solar_attrs and solar_attrs.module_efficiency:
             # Assuming ~1000 W/m² solar irradiance
-            # Area = Capacity / (Irradiance × Efficiency)
             area_m2 = (self.nameplate_capacity * 1_000_000) / (1000 * solar_attrs.module_efficiency)
             return area_m2
         return self.array_area
@@ -770,22 +1020,27 @@ class FacilitySolar(models.Model):
 
     @property
     def is_hybrid(self):
-        '''Check if this solar installation is part of a hybrid configuration'''
+        """Check if this solar installation is part of a hybrid configuration"""
         return self.hybrid_configurations.filter(is_active=True).exists()
     
     def get_hybrid_configuration(self):
-        '''Get the active hybrid configuration for this solar installation'''
+        """Get the active hybrid configuration for this solar installation"""
         return self.hybrid_configurations.filter(is_active=True).first()
     
     @property
     def is_semi_dispatchable(self):
-        '''Check if solar is semi-dispatchable (has active storage)'''
+        """Check if solar is semi-dispatchable (has active storage)"""
         return self.is_hybrid
 
 class FacilityStorage(models.Model):
     """
-    Through model for many-to-many relationship between facilities and Storage Technologies
-    Contains installation-specific data for storage systems at each facility
+    Through model for many-to-many relationship between facilities and Storage Technologies.
+    Contains installation-specific data for storage systems at each facility.
+    
+    A facility can have multiple storage installations with different:
+    - Technology types (Battery, PHES, Flow Battery)
+    - Durations (1hr, 4hr, 24hr)
+    - Commissioning dates
     """
     idfacilitystorage = models.AutoField(db_column='idfacilitystorage', primary_key=True)
     idfacilities = models.ForeignKey(
@@ -802,7 +1057,7 @@ class FacilityStorage(models.Model):
         limit_choices_to={'category': 'Storage'}
     )
     
-    # INSTALLATION-SPECIFIC CAPACITY (moved from StorageAttributes)
+    # INSTALLATION-SPECIFIC CAPACITY
     power_capacity = models.FloatField(
         null=True, 
         blank=True,
@@ -824,7 +1079,7 @@ class FacilityStorage(models.Model):
         max_length=100, 
         blank=True, 
         null=True,
-        help_text='Name for this storage installation (e.g., "Main Battery Bank")'
+        help_text='Name for this storage installation (e.g., "Main Battery Bank", "Phase 2")'
     )
     installation_date = models.DateField(
         blank=True, 
@@ -954,16 +1209,16 @@ class FacilityStorage(models.Model):
 
     @property
     def is_hybrid(self):
-        '''Check if this storage installation is part of a hybrid configuration'''
+        """Check if this storage installation is part of a hybrid configuration"""
         return self.hybrid_configurations.filter(is_active=True).exists()
     
     def get_hybrid_configuration(self):
-        '''Get the active hybrid configuration for this storage installation'''
+        """Get the active hybrid configuration for this storage installation"""
         return self.hybrid_configurations.filter(is_active=True).first()
     
     @property
     def charges_from_solar(self):
-        '''Check if storage charges from paired solar'''
+        """Check if storage charges from paired solar"""
         hybrid = self.get_hybrid_configuration()
         return hybrid and hybrid.charge_from_solar_only
 
@@ -1143,10 +1398,7 @@ class HybridSolarStorage(models.Model):
         return None
     
     def get_storage_to_solar_duration(self):
-        """
-        Calculate how many hours of solar output can be stored.
-        Useful metric for hybrid systems.
-        """
+        """Calculate how many hours of solar output can be stored."""
         if self.total_storage_energy and self.total_solar_capacity_dc:
             return self.total_storage_energy / self.total_solar_capacity_dc
         return None
@@ -1214,25 +1466,196 @@ class HybridSolarStorage(models.Model):
         self.clean()
         super().save(*args, **kwargs)
 
+class WindTurbines(models.Model):
+    """
+    Wind turbine model specifications.
+    Contains technical data for turbine types that can be installed at facilities.
+    """
+    APPLICATION_CHOICES = [
+        ('onshore', 'Onshore'),
+        ('offshore', 'Offshore'),
+        ('floating', 'Floating'),
+    ]
+    idwindturbines = models.AutoField(db_column='idwindturbines', primary_key=True)
+    turbine_model = models.CharField(
+        max_length=70, 
+        unique=True,
+        help_text="Wind turbine model/type (must be unique)"
+    )
+    manufacturer = models.CharField(
+        max_length=50, 
+        blank=True, 
+        null=True,
+        help_text="Turbine manufacturer"
+    )
+    application = models.CharField(
+        max_length=20, 
+        choices=APPLICATION_CHOICES,
+        blank=True, 
+        null=True,
+        help_text="Turbine application type"
+    )
+    hub_height = models.FloatField(
+        blank=True, 
+        null=True,
+        help_text="Standard hub height in meters"
+    )
+    rated_power = models.FloatField(
+        blank=True, 
+        null=True,
+        help_text="Rated power output in kW"
+    )
+    rotor_diameter = models.FloatField(
+        blank=True, 
+        null=True,
+        help_text="Rotor diameter in meters"
+    )
+    cut_in_speed = models.FloatField(
+        blank=True, 
+        null=True,
+        help_text="Cut-in wind speed in m/s"
+    )
+    cut_out_speed = models.FloatField(
+        blank=True, 
+        null=True,
+        help_text="Cut-out wind speed in m/s"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'WindTurbines'
+        verbose_name = 'Wind Turbine Model'
+        verbose_name_plural = 'Wind Turbine Models'
+
+    def __str__(self):
+        return f"{self.manufacturer} {self.turbine_model}" if self.manufacturer else self.turbine_model
+
+    def get_total_installations(self):
+        """Get total number of this turbine model installed across all facilities"""
+        return sum(
+            installation.no_turbines 
+            for installation in self.facilitywindturbines_set.filter(is_active=True)
+        )
+    
+    def get_facilities_using(self):
+        """Get list of facilities using this turbine model"""
+        return [
+            installation.facility 
+            for installation in self.facilitywindturbines_set.filter(is_active=True)
+        ]
+    
+    def get_active_power_curve(self):
+        """Get the currently active power curve for this turbine"""
+        return self.power_curves.filter(is_active=True).first()
+    
+    @property
+    def rated_power_mw(self):
+        """Get rated power in MW"""
+        if self.rated_power:
+            return self.rated_power / 1000
+        return None
+    
+    @property
+    def swept_area(self):
+        """Calculate swept area in m² from rotor diameter"""
+        if self.rotor_diameter:
+            import math
+            return math.pi * (self.rotor_diameter / 2) ** 2
+        return None
+    
+    @property
+    def specific_power(self):
+        """Calculate specific power (W/m²) - rated power per swept area"""
+        if self.rated_power and self.swept_area:
+            return (self.rated_power * 1000) / self.swept_area
+        return None
+
 class FacilityWindTurbines(models.Model):
     """
     Through model for many-to-many relationship between facilities and WindTurbines
     Contains installation-specific data for turbines at each facility
     """
     idfacilitywindturbines = models.AutoField(db_column='idfacilitywindturbines', primary_key=True)
-    idfacilities = models.ForeignKey(facilities, on_delete=models.CASCADE, db_column='idfacilities')
-    idwindturbines = models.ForeignKey(WindTurbines, on_delete=models.CASCADE, db_column='idwindturbines')
-    no_turbines = models.IntegerField(help_text="Number of this turbine model at this facility")
-    tilt = models.IntegerField(blank=True, null=True, 
-                             help_text="Turbine tilt angle in degrees")
-    direction = models.CharField(max_length=28, blank=True, null=True,
-                               help_text="Primary wind direction or turbine orientation")
-    installation_date = models.DateField(blank=True, null=True,
-                                       help_text="Date when these turbines were installed")
-    is_active = models.BooleanField(default=True,
-                                  help_text="Whether these turbines are currently active")
-    notes = models.TextField(blank=True, null=True,
-                           help_text="Additional notes about this turbine installation")
+    idfacilities = models.ForeignKey(
+        facilities, 
+        on_delete=models.CASCADE, 
+        db_column='idfacilities'
+    )
+    idwindturbines = models.ForeignKey(
+        WindTurbines, 
+        on_delete=models.CASCADE, 
+        db_column='idwindturbines'
+    )
+    
+    # NEW: Link to technology type (e.g., "Onshore Wind", "Offshore Wind")
+    idtechnologies = models.ForeignKey(
+        'Technologies',
+        on_delete=models.CASCADE,
+        db_column='idtechnologies',
+        related_name='wind_facility_installations',
+        limit_choices_to={'category': 'Wind'},
+        null=True,  # Nullable for migration compatibility
+        blank=True,
+        help_text="Wind technology type (e.g., Onshore Wind, Offshore Wind)"
+    )
+    
+    no_turbines = models.IntegerField(
+        help_text="Number of this turbine model in this installation"
+    )
+    
+    # Capacity override - if not set, calculated from turbine count × rated power
+    nameplate_capacity = models.FloatField(
+        null=True, 
+        blank=True,
+        help_text="MW - Override capacity. If null, calculated from turbine count × rated power"
+    )
+    
+    # Installation geometry
+    tilt = models.IntegerField(
+        blank=True, 
+        null=True,
+        help_text="Turbine tilt angle in degrees"
+    )
+    direction = models.CharField(
+        max_length=28, 
+        blank=True, 
+        null=True,
+        help_text="Primary wind direction or turbine orientation"
+    )
+    hub_height_override = models.FloatField(
+        blank=True, 
+        null=True,
+        help_text="Override hub height (m) if different from turbine default"
+    )
+    
+    # Installation metadata
+    installation_name = models.CharField(
+        max_length=100, 
+        blank=True, 
+        null=True,
+        help_text="Name for this installation (e.g., 'Phase 1', 'North Array')"
+    )
+    installation_date = models.DateField(
+        blank=True, 
+        null=True,
+        help_text="Date when these turbines were installed"
+    )
+    commissioning_date = models.DateField(
+        blank=True, 
+        null=True,
+        help_text="Date when these turbines began operations"
+    )
+    is_active = models.BooleanField(
+        default=True,
+        help_text="Whether these turbines are currently active"
+    )
+    
+    notes = models.TextField(
+        blank=True, 
+        null=True,
+        help_text="Additional notes about this turbine installation"
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -1240,24 +1663,40 @@ class FacilityWindTurbines(models.Model):
         db_table = 'FacilityWindTurbines'
         verbose_name = 'Facility Wind Turbine Installation'
         verbose_name_plural = 'Facility Wind Turbine Installations'
-        unique_together = [['idfacilities', 'idwindturbines']]  # Prevent duplicate entries
+        # Allow same turbine model multiple times with different installation names
+        unique_together = [['idfacilities', 'idwindturbines', 'installation_name']]
+        ordering = ['idfacilities', 'commissioning_date']
 
     def __str__(self):
-        return f"{self.facility.facility_name} - {self.wind_turbine.turbine_model} ({self.no_turbines} units)"
+        name = self.installation_name or "Wind"
+        return f"{self.facility.facility_name} - {self.wind_turbine.turbine_model} ({self.no_turbines} units) [{name}]"
     
     @property
     def wind_turbine(self):
+        """Get the wind turbine model"""
         return self.idwindturbines
 
     @property
     def facility(self):
+        """Get the facility"""
         return self.idfacilities
 
     @property
+    def technology(self):
+        """Get the technology type"""
+        return self.idtechnologies
+
+    @property
     def total_capacity(self):
-        """Calculate total capacity for this turbine installation"""
+        """
+        Calculate total capacity for this turbine installation in MW.
+        Uses override if set, otherwise calculates from turbine count × rated power.
+        """
+        if self.nameplate_capacity:
+            return self.nameplate_capacity
         if self.wind_turbine.rated_power and self.no_turbines:
-            return self.wind_turbine.rated_power * self.no_turbines
+            # rated_power is in kW, convert to MW
+            return (self.wind_turbine.rated_power * self.no_turbines) / 1000
         return None
 
 class DPVGeneration(models.Model):
@@ -1366,18 +1805,24 @@ class TurbinePowerCurves(models.Model):
         return f"Power Curve - {self.wind_turbine.turbine_model} ({self.power_file_name})"
 
     @property
-    def wind_speeds(self):
-        """Extract wind speeds from power curve data"""
-        if isinstance(self.power_curve_data, dict) and 'wind_speeds' in self.power_curve_data:
-            return self.power_curve_data['wind_speeds']
-        return []
-
-    @property 
-    def power_outputs(self):
-        """Extract power outputs from power curve data"""
-        if isinstance(self.power_curve_data, dict) and 'power_outputs' in self.power_curve_data:
-            return self.power_curve_data['power_outputs']
-        return []
+    def hub_height(self):
+        """Get hub height, using installation override if set"""
+        return self.hub_height_override or self.wind_turbine.hub_height
+    
+    @property
+    def capacity_summary(self):
+        """Return a formatted string summarizing the installation"""
+        cap = self.total_capacity
+        if cap:
+            return f"{self.no_turbines}× {self.wind_turbine.turbine_model} = {cap:.1f} MW"
+        return f"{self.no_turbines}× {self.wind_turbine.turbine_model}"
+    
+    def clean(self):
+        """Validate the installation"""
+        if self.no_turbines is not None and self.no_turbines <= 0:
+            raise ValidationError("Number of turbines must be positive")
+        if self.nameplate_capacity is not None and self.nameplate_capacity <= 0:
+            raise ValidationError("Nameplate capacity must be positive")
     
 class Optimisations(models.Model):
     idoptimisation = models.AutoField(db_column='idOptimisation', primary_key=True)
@@ -2334,8 +2779,16 @@ class SolarAttributes(models.Model):
         return typical_values.get(panel_type, {})
 
 class Storageattributes(models.Model):
-    idstorageattributes = models.AutoField(db_column='idStorageAttributes', primary_key=True)  
-    idtechnologies = models.ForeignKey('Technologies', models.CASCADE, db_column='idTechnologies', blank=True, null=True)  
+    """Technology-level attributes for energy storage systems"""
+    idstorageattributes = models.AutoField(db_column='idStorageAttributes', primary_key=True)
+    idtechnologies = models.ForeignKey(
+        'Technologies', 
+        models.CASCADE, 
+        db_column='idTechnologies', 
+        blank=True, 
+        null=True,
+        related_name='storage_attributes'
+    )
     discharge_loss = models.IntegerField(blank=True, null=True)
     discharge_max = models.FloatField(null=True)
     parasitic_loss = models.IntegerField(blank=True, null=True)
@@ -2525,10 +2978,14 @@ class ComponentConnection(models.Model):
         return f"{self.from_component.name} -> {self.to_component.name}"
   
 class Technologies(models.Model):
-    idtechnologies = models.AutoField(db_column='idTechnologies', primary_key=True)  
+    """
+    Technology types for energy generation and storage.
+    Categories include: Wind, Solar, Storage, Generator, etc.
+    """
+    idtechnologies = models.AutoField(db_column='idTechnologies', primary_key=True)
     technology_name = models.CharField(unique=True, max_length=45)
     technology_signature = models.CharField(unique=True, max_length=20)
-    scenarios = models.ManyToManyField(Scenarios, through='ScenariosTechnologies', blank=True)
+    scenarios = models.ManyToManyField('Scenarios', through='ScenariosTechnologies', blank=True)
     image = models.CharField(max_length=50, blank=True, null=True)
     caption = models.CharField(max_length=50, blank=True, null=True)
     category = models.CharField(max_length=45, blank=True, null=True)
@@ -2552,8 +3009,11 @@ class Technologies(models.Model):
 
     class Meta:
         db_table = 'Technologies'
+
+    def __str__(self):
+        return self.technology_name
+
     @property
-    
     def storage_attrs(self):
         """
         Helper property to easily access storage attributes.
@@ -2566,6 +3026,7 @@ class Technologies(models.Model):
             return None
         
 class TechnologyYears(models.Model):
+    """Year-specific cost data for technologies"""
     idtechnologyyears = models.AutoField(primary_key=True)
     idtechnologies = models.ForeignKey('Technologies', on_delete=models.RESTRICT)
     year = models.IntegerField(default=0, null=True)
