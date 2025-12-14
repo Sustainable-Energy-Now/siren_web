@@ -9,8 +9,8 @@
 
   <p>
     This displays all facilities in the system. Facilities represent infrastructure that comprises the grid.
-    Use the search and filters below to find specific facilities. Where more than one technology is used at the 
-    same location (hybrid facility), they are handled as separate facilities for each technology.
+    Use the search and filters below to find specific facilities. A single facility can now have multiple
+    technology installations (wind, solar, storage), making it a hybrid facility.
   </p>
 
   <!-- Search and Filter Form -->
@@ -92,7 +92,15 @@
                 {{ facility.facility_name }}
               </a>
             </td>
-            <td>{{ facility.idtechnologies.technology_name|default:"-" }}</td>
+            <td>
+              {% if facility.technologies.exists %}
+                {% for tech in facility.technologies %}
+                  <span class="badge bg-secondary me-1">{{ tech.technology_name }}</span>
+                {% endfor %}
+              {% else %}
+                -
+              {% endif %}
+            </td>
             <td>{{ facility.idzones.name|default:"-" }}</td>
             <td>
               {% if facility.capacity %}

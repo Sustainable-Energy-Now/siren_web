@@ -1699,6 +1699,15 @@ class FacilityWindTurbines(models.Model):
             return (self.wind_turbine.rated_power * self.no_turbines) / 1000
         return None
 
+    @property
+    def hub_height(self):
+        """Get hub height, using installation override if set, otherwise from turbine model"""
+        if self.hub_height_override:
+            return self.hub_height_override
+        if self.wind_turbine and hasattr(self.wind_turbine, 'hub_height'):
+            return self.wind_turbine.hub_height
+        return None
+
 class DPVGeneration(models.Model):
     """Store AEMO DPV generation estimates"""
     trading_date = models.DateField(db_index=True)

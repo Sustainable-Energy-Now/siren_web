@@ -22,13 +22,30 @@
               <select class="form-select" id="facility" name="facility" required>
                 <option value="">Select facility</option>
                 {% for fac in facilities %}
-                  <option value="{{ fac.pk }}" 
+                  <option value="{{ fac.pk }}"
                           {% if form_data.facility == fac.pk|stringformat:"s" %}selected{% endif %}>
-                    {{ fac.facility_name }} ({{ fac.idtechnologies.technology_name }})
+                    {{ fac.facility_name }}
+                    {% if fac.technologies.exists %}
+                      ({% for tech in fac.technologies %}{{ tech.technology_name }}{% if not forloop.last %}, {% endif %}{% endfor %})
+                    {% endif %}
                   </option>
                 {% endfor %}
               </select>
-              <div class="form-text">Solar facility and its associated technology</div>
+              <div class="form-text">Facility where this solar installation will be located</div>
+            </div>
+
+            <div class="mb-3">
+              <label for="technology" class="form-label">Solar Technology <span class="text-danger">*</span></label>
+              <select class="form-select" id="technology" name="technology" required>
+                <option value="">Select solar technology</option>
+                {% for tech in solar_technologies %}
+                  <option value="{{ tech.pk }}"
+                          {% if form_data.technology == tech.pk|stringformat:"s" %}selected{% endif %}>
+                    {{ tech.technology_name }}
+                  </option>
+                {% endfor %}
+              </select>
+              <div class="form-text">Type of solar technology (e.g., Fixed Tilt, Single-Axis Tracking)</div>
             </div>
 
             <div class="mb-3">

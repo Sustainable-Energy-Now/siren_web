@@ -13,16 +13,22 @@ def facilities_list(request):
     zone_filter = request.GET.get('zone', '')
     
     facs = facilities.objects.select_related(
-        'idtechnologies', 'idzones'
+        'idzones'
+    ).prefetch_related(
+        'solar_installations__idtechnologies',
+        'storage_installations__idtechnologies',
+        'facilitywindturbines_set__idtechnologies'
     ).all().order_by('facility_name')
-    
+
     # Apply search filter
     if search_query:
         facs = facs.filter(
             Q(facility_name__icontains=search_query) |
-            Q(idtechnologies__technology_name__icontains=search_query) |
+            Q(solar_installations__idtechnologies__technology_name__icontains=search_query) |
+            Q(storage_installations__idtechnologies__technology_name__icontains=search_query) |
+            Q(facilitywindturbines_set__idtechnologies__technology_name__icontains=search_query) |
             Q(idzones__name__icontains=search_query)
-        )
+        ).distinct()
     
     # Apply scenario filter
     if scenario_filter:
@@ -34,7 +40,11 @@ def facilities_list(request):
     
     # Apply technology filter
     if technology_filter:
-        facs = facs.filter(idtechnologies__technology_name__icontains=technology_filter)
+        facs = facs.filter(
+            Q(solar_installations__idtechnologies__technology_name__icontains=technology_filter) |
+            Q(storage_installations__idtechnologies__technology_name__icontains=technology_filter) |
+            Q(facilitywindturbines_set__idtechnologies__technology_name__icontains=technology_filter)
+        ).distinct()
     
     # Apply zone filter
     if zone_filter:
@@ -78,28 +88,49 @@ def facilities_list(request):
 
 def facility_detail(request, pk):
     """Detail view for a specific facility"""
+    from siren_web.models import FacilityWindTurbines, FacilitySolar, FacilityStorage, HybridSolarStorage
+
     facility = get_object_or_404(facilities, pk=pk)
-    
+
     # Get scenarios this facility belongs to
     facility_scenarios = ScenariosFacilities.objects.filter(
         idfacilities=facility
     ).select_related('idscenarios')
-    
-    # Get wind turbine installations if this is a wind facility
-    wind_turbines = None
-    if facility.idtechnologies and 'wind' in facility.idtechnologies.technology_name.lower():
-        from siren_web.models import FacilityWindTurbines
-        wind_turbines = FacilityWindTurbines.objects.filter(
-            idfacilities=facility,
-            is_active=True
-        ).select_related('idwindturbines')
-    
+
+    # Get all technology installations at this facility
+    wind_installations = FacilityWindTurbines.objects.filter(
+        idfacilities=facility,
+        is_active=True
+    ).select_related('idwindturbines', 'idtechnologies')
+
+    solar_installations = FacilitySolar.objects.filter(
+        idfacilities=facility,
+        is_active=True
+    ).select_related('idtechnologies')
+
+    storage_installations = FacilityStorage.objects.filter(
+        idfacilities=facility,
+        is_active=True
+    ).select_related('idtechnologies')
+
+    hybrid_systems = HybridSolarStorage.objects.filter(
+        solar_installation__idfacilities=facility,
+        is_active=True
+    ).select_related('solar_installation__idtechnologies', 'storage_installation__idtechnologies')
+
+    # Get facility capacity summary
+    capacity_summary = facility.get_installation_summary()
+
     context = {
         'facility': facility,
         'facility_scenarios': facility_scenarios,
-        'wind_turbines': wind_turbines,
+        'wind_installations': wind_installations,
+        'solar_installations': solar_installations,
+        'storage_installations': storage_installations,
+        'hybrid_systems': hybrid_systems,
+        'capacity_summary': capacity_summary,
     }
-    
+
     return render(request, 'facilities/detail.html', context)
 
 def facility_create(request):

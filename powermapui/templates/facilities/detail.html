@@ -29,12 +29,14 @@
                   <td>{{ facility.facility_name }}</td>
                 </tr>
                 <tr>
-                  <td><strong>Technology:</strong></td>
+                  <td><strong>Technologies:</strong></td>
                   <td>
-                    {% if facility.idtechnologies %}
-                      <span class="badge bg-secondary">{{ facility.idtechnologies.technology_name }}</span>
+                    {% if facility.technologies.exists %}
+                      {% for tech in facility.technologies %}
+                        <span class="badge bg-secondary me-1">{{ tech.technology_name }}</span>
+                      {% endfor %}
                     {% else %}
-                      Not specified
+                      <span class="text-muted">No technology installations</span>
                     {% endif %}
                   </td>
                 </tr>
@@ -135,44 +137,163 @@
         </div>
       </div>
 
-      <!-- Wind Turbines (if applicable) -->
-      {% if wind_turbines %}
+      <!-- Wind Installations -->
+      {% if wind_installations %}
         <div class="card mb-4">
-          <div class="card-header">
-            <h5 class="mb-0">Wind Turbine Installations</h5>
+          <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">Wind Installations</h5>
+            <a href="{% url 'powermapui:facility_wind_turbine_create' %}" class="btn btn-sm btn-primary">Add Wind Installation</a>
           </div>
           <div class="card-body">
             <div class="table-responsive">
               <table class="table table-sm">
                 <thead>
                   <tr>
+                    <th>Installation Name</th>
+                    <th>Technology</th>
                     <th>Turbine Model</th>
-                    <th>Manufacturer</th>
-                    <th>Number of Units</th>
-                    <th>Tilt</th>
-                    <th>Direction</th>
-                    <th>Installation Date</th>
+                    <th>Units</th>
+                    <th>Total Capacity</th>
+                    <th>Commissioned</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {% for wt in wind_turbines %}
+                  {% for inst in wind_installations %}
                     <tr>
+                      <td>{{ inst.installation_name|default:"Unnamed" }}</td>
+                      <td><span class="badge bg-info">{{ inst.idtechnologies.technology_name }}</span></td>
+                      <td>{{ inst.idwindturbines.turbine_model }}</td>
+                      <td>{{ inst.no_turbines }}</td>
+                      <td>{{ inst.total_capacity|floatformat:2 }} MW</td>
+                      <td>{{ inst.commissioning_date|default:"-" }}</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      {% endif %}
+
+      <!-- Solar Installations -->
+      {% if solar_installations %}
+        <div class="card mb-4">
+          <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">Solar Installations</h5>
+            <a href="{% url 'powermapui:facility_solar_create' %}" class="btn btn-sm btn-primary">Add Solar Installation</a>
+          </div>
+          <div class="card-body">
+            <div class="table-responsive">
+              <table class="table table-sm">
+                <thead>
+                  <tr>
+                    <th>Installation Name</th>
+                    <th>Technology</th>
+                    <th>DC Capacity</th>
+                    <th>AC Capacity</th>
+                    <th>Commissioned</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for inst in solar_installations %}
+                    <tr>
+                      <td>{{ inst.installation_name|default:"Unnamed" }}</td>
+                      <td><span class="badge bg-warning text-dark">{{ inst.idtechnologies.technology_name }}</span></td>
+                      <td>{{ inst.nameplate_capacity|floatformat:2 }} MW</td>
+                      <td>{{ inst.ac_capacity|floatformat:2|default:"-" }} MW</td>
+                      <td>{{ inst.commissioning_date|default:"-" }}</td>
                       <td>
-                        <a href="{% url 'powermapui:wind_turbine_detail' wt.idwindturbines.pk %}" class="text-decoration-none">
-                          {{ wt.idwindturbines.turbine_model }}
-                        </a>
+                        <a href="{% url 'powermapui:facility_solar_detail' inst.pk %}" class="btn btn-sm btn-outline-primary">View</a>
                       </td>
-                      <td>{{ wt.idwindturbines.manufacturer|default:"-" }}</td>
-                      <td>{{ wt.no_turbines }}</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      {% endif %}
+
+      <!-- Storage Installations -->
+      {% if storage_installations %}
+        <div class="card mb-4">
+          <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">Storage Installations</h5>
+            <a href="{% url 'powermapui:facility_storage_create' %}" class="btn btn-sm btn-primary">Add Storage Installation</a>
+          </div>
+          <div class="card-body">
+            <div class="table-responsive">
+              <table class="table table-sm">
+                <thead>
+                  <tr>
+                    <th>Installation Name</th>
+                    <th>Technology</th>
+                    <th>Power</th>
+                    <th>Energy</th>
+                    <th>Duration</th>
+                    <th>Commissioned</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for inst in storage_installations %}
+                    <tr>
+                      <td>{{ inst.installation_name|default:"Unnamed" }}</td>
+                      <td><span class="badge bg-success">{{ inst.idtechnologies.technology_name }}</span></td>
+                      <td>{{ inst.power_capacity|floatformat:2|default:"-" }} MW</td>
+                      <td>{{ inst.energy_capacity|floatformat:2|default:"-" }} MWh</td>
+                      <td>{{ inst.get_calculated_duration|floatformat:1|default:"-" }} hrs</td>
+                      <td>{{ inst.commissioning_date|default:"-" }}</td>
                       <td>
-                        {% if wt.tilt %}
-                          {{ wt.tilt }}°
+                        <a href="{% url 'powermapui:facility_storage_detail' inst.pk %}" class="btn btn-sm btn-outline-primary">View</a>
+                      </td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      {% endif %}
+
+      <!-- Hybrid Solar+Storage Systems -->
+      {% if hybrid_systems %}
+        <div class="card mb-4">
+          <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">Hybrid Solar+Storage Systems</h5>
+            <a href="{% url 'powermapui:hybrid_create' %}" class="btn btn-sm btn-primary">Add Hybrid System</a>
+          </div>
+          <div class="card-body">
+            <div class="table-responsive">
+              <table class="table table-sm">
+                <thead>
+                  <tr>
+                    <th>Configuration Name</th>
+                    <th>Coupling Type</th>
+                    <th>Solar DC</th>
+                    <th>Storage Power</th>
+                    <th>Storage Energy</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for hybrid in hybrid_systems %}
+                    <tr>
+                      <td>{{ hybrid.configuration_name|default:"Unnamed" }}</td>
+                      <td>
+                        {% if hybrid.is_dc_coupled %}
+                          <span class="badge bg-primary">DC Coupled</span>
                         {% else %}
-                          -
+                          <span class="badge bg-secondary">AC Coupled</span>
                         {% endif %}
                       </td>
-                      <td>{{ wt.direction|default:"-" }}</td>
-                      <td>{{ wt.installation_date|default:"-" }}</td>
+                      <td>{{ hybrid.total_solar_capacity_dc|floatformat:2|default:"-" }} MW</td>
+                      <td>{{ hybrid.total_storage_power|floatformat:2|default:"-" }} MW</td>
+                      <td>{{ hybrid.total_storage_energy|floatformat:2|default:"-" }} MWh</td>
+                      <td>
+                        <a href="{% url 'powermapui:hybrid_detail' hybrid.pk %}" class="btn btn-sm btn-outline-primary">View</a>
+                      </td>
                     </tr>
                   {% endfor %}
                 </tbody>
@@ -194,11 +315,18 @@
             <a href="{% url 'powermapui:facility_edit' facility.pk %}" class="btn btn-warning btn-sm">
               Edit Facility
             </a>
-            {% if facility.idtechnologies and 'wind' in facility.idtechnologies.technology_name|lower %}
-              <a href="{% url 'powermapui:facility_wind_turbine_create' %}" class="btn btn-primary btn-sm">
-                Add Wind Turbine
-              </a>
-            {% endif %}
+            <a href="{% url 'powermapui:facility_wind_turbine_create' %}" class="btn btn-outline-primary btn-sm">
+              Add Wind Installation
+            </a>
+            <a href="{% url 'powermapui:facility_solar_create' %}" class="btn btn-outline-primary btn-sm">
+              Add Solar Installation
+            </a>
+            <a href="{% url 'powermapui:facility_storage_create' %}" class="btn btn-outline-primary btn-sm">
+              Add Storage Installation
+            </a>
+            <a href="{% url 'powermapui:hybrid_create' %}" class="btn btn-outline-primary btn-sm">
+              Add Hybrid System
+            </a>
             <button class="btn btn-danger btn-sm" onclick="confirmDelete()">
               Delete Facility
             </button>
@@ -234,18 +362,45 @@
               <small class="text-muted">Scenario{{ facility_scenarios.count|pluralize }}</small>
             </div>
           </div>
-          {% if facility.capacity %}
+          {% if facility.total_capacity %}
             <hr>
             <div class="text-center">
-              <h4 class="text-success">{{ facility.capacity|floatformat:2 }}</h4>
-              <small class="text-muted">Capacity</small>
+              <h4 class="text-success">{{ facility.total_capacity|floatformat:2 }} MW</h4>
+              <small class="text-muted">Total Capacity</small>
             </div>
           {% endif %}
-          {% if wind_turbines %}
+          {% if capacity_summary.is_hybrid %}
             <hr>
             <div class="text-center">
-              <h4 class="text-info">{{ wind_turbines.count }}</h4>
-              <small class="text-muted">Wind Turbine Installation{{ wind_turbines.count|pluralize }}</small>
+              <span class="badge bg-warning text-dark">HYBRID FACILITY</span>
+            </div>
+          {% endif %}
+          {% if wind_installations %}
+            <hr>
+            <div class="text-center">
+              <h5 class="text-info">{{ wind_installations.count }}</h5>
+              <small class="text-muted">Wind Installation{{ wind_installations.count|pluralize }}</small>
+            </div>
+          {% endif %}
+          {% if solar_installations %}
+            <hr>
+            <div class="text-center">
+              <h5 class="text-warning">{{ solar_installations.count }}</h5>
+              <small class="text-muted">Solar Installation{{ solar_installations.count|pluralize }}</small>
+            </div>
+          {% endif %}
+          {% if storage_installations %}
+            <hr>
+            <div class="text-center">
+              <h5 class="text-success">{{ storage_installations.count }}</h5>
+              <small class="text-muted">Storage Installation{{ storage_installations.count|pluralize }}</small>
+            </div>
+          {% endif %}
+          {% if hybrid_systems %}
+            <hr>
+            <div class="text-center">
+              <h5 class="text-primary">{{ hybrid_systems.count }}</h5>
+              <small class="text-muted">Hybrid System{{ hybrid_systems.count|pluralize }}</small>
             </div>
           {% endif %}
         </div>
