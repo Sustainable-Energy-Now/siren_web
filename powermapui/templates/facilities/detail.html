@@ -261,51 +261,6 @@
         </div>
       {% endif %}
 
-      <!-- Hybrid Solar+Storage Systems -->
-      {% if hybrid_systems %}
-        <div class="card mb-4">
-          <div class="card-header">
-            <h5 class="mb-0">Hybrid Solar+Storage Systems</h5>
-          </div>
-          <div class="card-body">
-            <div class="table-responsive">
-              <table class="table table-sm">
-                <thead>
-                  <tr>
-                    <th>Configuration Name</th>
-                    <th>Coupling Type</th>
-                    <th>Solar DC</th>
-                    <th>Storage Power</th>
-                    <th>Storage Energy</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {% for hybrid in hybrid_systems %}
-                    <tr>
-                      <td>{{ hybrid.configuration_name|default:"Unnamed" }}</td>
-                      <td>
-                        {% if hybrid.is_dc_coupled %}
-                          <span class="badge bg-primary">DC Coupled</span>
-                        {% else %}
-                          <span class="badge bg-secondary">AC Coupled</span>
-                        {% endif %}
-                      </td>
-                      <td>{{ hybrid.total_solar_capacity_dc|floatformat:2|default:"-" }} MW</td>
-                      <td>{{ hybrid.total_storage_power|floatformat:2|default:"-" }} MW</td>
-                      <td>{{ hybrid.total_storage_energy|floatformat:2|default:"-" }} MWh</td>
-                      <td>
-                        <a href="{% url 'powermapui:hybrid_edit' hybrid.pk %}" class="btn btn-sm btn-outline-warning">Edit</a>
-                        <button class="btn btn-sm btn-outline-danger delete-installation-btn" data-type="hybrid" data-id="{{ hybrid.pk }}" data-name="{{ hybrid.configuration_name|default:'Unnamed' }}">Delete</button>
-                      </td>
-                    </tr>
-                  {% endfor %}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      {% endif %}
     </div>
 
     <!-- Quick Actions Sidebar -->
@@ -327,9 +282,6 @@
             </a>
             <a href="{% url 'powermapui:facility_storage_create_for_facility' facility.pk %}" class="btn btn-outline-primary btn-sm">
               Add Storage Installation
-            </a>
-            <a href="{% url 'powermapui:hybrid_create_for_facility' facility.pk %}" class="btn btn-outline-primary btn-sm">
-              Add Hybrid System
             </a>
             <button class="btn btn-danger btn-sm" onclick="confirmDelete()">
               Delete Facility
@@ -373,12 +325,6 @@
               <small class="text-muted">Total Capacity</small>
             </div>
           {% endif %}
-          {% if capacity_summary.is_hybrid %}
-            <hr>
-            <div class="text-center">
-              <span class="badge bg-warning text-dark">HYBRID FACILITY</span>
-            </div>
-          {% endif %}
           {% if wind_installations %}
             <hr>
             <div class="text-center">
@@ -398,13 +344,6 @@
             <div class="text-center">
               <h5 class="text-success">{{ storage_installations.count }}</h5>
               <small class="text-muted">Storage Installation{{ storage_installations.count|pluralize }}</small>
-            </div>
-          {% endif %}
-          {% if hybrid_systems %}
-            <hr>
-            <div class="text-center">
-              <h5 class="text-primary">{{ hybrid_systems.count }}</h5>
-              <small class="text-muted">Hybrid System{{ hybrid_systems.count|pluralize }}</small>
             </div>
           {% endif %}
         </div>
@@ -499,9 +438,6 @@
               break;
             case 'storage':
               deleteUrl = "{% url 'powermapui:facility_storage_delete' 0 %}".replace('0', id);
-              break;
-            case 'hybrid':
-              deleteUrl = "{% url 'powermapui:hybrid_delete' 0 %}".replace('0', id);
               break;
           }
 

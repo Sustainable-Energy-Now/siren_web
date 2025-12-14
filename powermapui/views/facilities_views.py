@@ -88,7 +88,7 @@ def facilities_list(request):
 
 def facility_detail(request, pk):
     """Detail view for a specific facility"""
-    from siren_web.models import FacilityWindTurbines, FacilitySolar, FacilityStorage, HybridSolarStorage
+    from siren_web.models import FacilityWindTurbines, FacilitySolar, FacilityStorage
 
     facility = get_object_or_404(facilities, pk=pk)
 
@@ -113,11 +113,6 @@ def facility_detail(request, pk):
         is_active=True
     ).select_related('idtechnologies')
 
-    hybrid_systems = HybridSolarStorage.objects.filter(
-        solar_installation__idfacilities=facility,
-        is_active=True
-    ).select_related('solar_installation__idtechnologies', 'storage_installation__idtechnologies')
-
     # Get facility capacity summary
     capacity_summary = facility.get_installation_summary()
 
@@ -127,7 +122,6 @@ def facility_detail(request, pk):
         'wind_installations': wind_installations,
         'solar_installations': solar_installations,
         'storage_installations': storage_installations,
-        'hybrid_systems': hybrid_systems,
         'capacity_summary': capacity_summary,
     }
 

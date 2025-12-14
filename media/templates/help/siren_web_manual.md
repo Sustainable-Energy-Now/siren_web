@@ -9168,13 +9168,6 @@ Large facility lists are paginated with 25 facilities per page. Use the paginati
 
 
 
-- For hybrid facilities, create separate facility records for each technology
-
-
-
-
-
-
 
 **Zone Assignment**
 
@@ -9584,7 +9577,7 @@ Large facility lists are paginated with 25 facilities per page. Use the paginati
 
 
 
-- For co-located technologies (hybrid sites), create separate facilities
+- For co-located technologies (hybrid sites), create separate installations
 
 
 
