@@ -7,7 +7,7 @@
       <h3>Edit Wind Turbine Installation</h3>
       <small class="text-muted">{{ installation.idfacilities.facility_name }} - {{ installation.idwindturbines.turbine_model }}</small>
     </div>
-    <a href="{% url 'powermapui:facility_wind_turbines_list' %}" class="btn btn-outline-secondary">Back to List</a>
+    <a href="{% url 'powermapui:facility_detail' installation.idfacilities.idfacilities %}" class="btn btn-outline-secondary">Back to Facility</a>
   </div>
 
   <p>Update the installation details for this wind turbine deployment. Changes will affect capacity calculations and operational parameters.</p>
@@ -23,21 +23,30 @@
             <div class="row mb-3">
               <div class="col-md-6">
                 <label class="form-label">Facility</label>
-                <input type="text" class="form-control" readonly 
+                <input type="text" class="form-control" readonly
                        value="{{ installation.idfacilities.facility_name }}">
-                <div class="form-text">Zone: {{ installation.idfacilities.idzones.name|default:"Not assigned" }}</div>
+                <div class="form-text">Cannot be changed after creation</div>
               </div>
               <div class="col-md-6">
                 <label class="form-label">Wind Turbine Model</label>
-                <input type="text" class="form-control" readonly 
+                <input type="text" class="form-control" readonly
                        value="{{ installation.idwindturbines.manufacturer|default:'Unknown' }} {{ installation.idwindturbines.turbine_model }}">
-                <div class="form-text">
-                  {% if installation.idwindturbines.rated_power %}
-                    Rated Power: {{ installation.idwindturbines.rated_power|floatformat:0 }} kW
-                  {% endif %}
-                </div>
+                <div class="form-text">Cannot be changed after creation</div>
               </div>
             </div>
+
+            <div class="mb-3">
+              <label for="installation_name" class="form-label">Installation Name</label>
+              <input type="text"
+                     class="form-control"
+                     id="installation_name"
+                     name="installation_name"
+                     value="{{ installation.installation_name|default:'' }}"
+                     placeholder="e.g., Phase 1, North Array">
+              <div class="form-text">Optional name to identify this installation</div>
+            </div>
+
+            <hr class="my-4">
 
             <!-- Editable fields -->
             <div class="row mb-3">
@@ -108,7 +117,7 @@
 
             <div class="d-flex gap-2">
               <button type="submit" class="btn btn-primary">Update Installation</button>
-              <a href="{% url 'powermapui:facility_wind_turbines_list' %}" class="btn btn-outline-secondary">Cancel</a>
+              <a href="{% url 'powermapui:facility_detail' installation.idfacilities.idfacilities %}" class="btn btn-outline-secondary">Cancel</a>
             </div>
           </form>
         </div>

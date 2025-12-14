@@ -18,7 +18,7 @@ def storage_list(request):
     # Get all storage technologies - simply filter by category='Storage'
     storage_techs = Technologies.objects.filter(
         category='Storage'
-    ).prefetch_related('storageattributes_set').order_by('technology_name')
+    ).prefetch_related('storage_attributes').order_by('technology_name')
     
     # Apply search filter
     if search_query:
@@ -340,11 +340,11 @@ def get_storage_json(request):
     """Return storage technologies data as JSON for frontend consumption"""
     storage_techs = Technologies.objects.filter(
         category='Storage'
-    ).prefetch_related('storageattributes_set')
-    
+    ).prefetch_related('storage_attributes')
+
     results = []
     for tech in storage_techs:
-        storage_attrs = tech.storageattributes_set.first()
+        storage_attrs = tech.storage_attributes.first()
         results.append({
             'id': tech.idtechnologies,
             'name': tech.technology_name,
@@ -354,7 +354,7 @@ def get_storage_json(request):
             'duration': storage_attrs.duration if storage_attrs else None,
             'round_trip_efficiency': storage_attrs.round_trip_efficiency if storage_attrs else None,
         })
-    
+
     return JsonResponse({
         'storage_technologies': results,
         'count': len(results)

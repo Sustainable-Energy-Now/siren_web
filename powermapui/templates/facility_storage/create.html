@@ -16,35 +16,28 @@
           <form method="post" novalidate id="storageForm">
             {% csrf_token %}
             
-            <!-- Facility and Technology Selection -->
-            <div class="row mb-3">
-              <div class="col-md-6">
-                <label for="facility" class="form-label">Facility <span class="text-danger">*</span></label>
-                <select class="form-select" id="facility" name="facility" required>
-                  <option value="">Select facility</option>
-                  {% for fac in facilities %}
-                    <option value="{{ fac.pk }}" 
-                            {% if form_data.facility == fac.pk|stringformat:"s" %}selected{% endif %}>
-                      {{ fac.facility_name }}
-                    </option>
-                  {% endfor %}
-                </select>
-                <div class="form-text">Location where storage will be installed</div>
-              </div>
-              <div class="col-md-6">
-                <label for="technology" class="form-label">Storage Technology <span class="text-danger">*</span></label>
-                <select class="form-select" id="technology" name="technology" required>
-                  <option value="">Select technology</option>
-                  {% for tech in technologies %}
-                    <option value="{{ tech.pk }}" 
-                            {% if form_data.technology == tech.pk|stringformat:"s" %}selected{% endif %}
-                            data-signature="{{ tech.technology_signature }}">
-                      {{ tech.technology_name }}
-                    </option>
-                  {% endfor %}
-                </select>
-                <div class="form-text">Type of storage system</div>
-              </div>
+            <!-- Facility Information -->
+            <div class="alert alert-info mb-3">
+              <strong>Facility:</strong> {{ facility.facility_name }}
+              {% if facility.idzones %}
+                <span class="ms-2 text-muted">| Zone: {{ facility.idzones.name }}</span>
+              {% endif %}
+            </div>
+
+            <!-- Technology Selection -->
+            <div class="mb-3">
+              <label for="technology" class="form-label">Storage Technology <span class="text-danger">*</span></label>
+              <select class="form-select" id="technology" name="technology" required>
+                <option value="">Select technology</option>
+                {% for tech in technologies %}
+                  <option value="{{ tech.pk }}"
+                          {% if form_data.technology == tech.pk|stringformat:"s" %}selected{% endif %}
+                          data-signature="{{ tech.technology_signature }}">
+                    {{ tech.technology_name }}
+                  </option>
+                {% endfor %}
+              </select>
+              <div class="form-text">Type of storage system</div>
             </div>
 
             <div class="mb-3">

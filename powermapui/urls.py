@@ -44,7 +44,13 @@ urlpatterns = [
     path('facilities/<int:pk>/', facilities_views.facility_detail, name='facility_detail'),
     path('facilities/<int:pk>/edit/', facilities_views.facility_edit, name='facility_edit'),
     path('facilities/<int:pk>/delete/', facilities_views.facility_delete, name='facility_delete'),
-    
+
+    # Facility-specific installation creation URLs
+    path('facilities/<int:facility_id>/solar/create/', facility_solar_views.facility_solar_create, name='facility_solar_create_for_facility'),
+    path('facilities/<int:facility_id>/storage/create/', facility_storage_views.facility_storage_create, name='facility_storage_create_for_facility'),
+    path('facilities/<int:facility_id>/hybrid/create/', hybrid_solar_storage_views.hybrid_create, name='hybrid_create_for_facility'),
+    path('facilities/<int:facility_id>/wind/create/', wind_turbines_views.facility_wind_turbine_create, name='facility_wind_turbine_create'),
+
     # Basic Terminal CRUD
     path('terminals/', crud_terminals_views.terminals_list, name='terminals_list'),
     path('terminals/create/', crud_terminals_views.terminal_create, name='terminal_create'),
@@ -125,23 +131,20 @@ urlpatterns = [
 
     # Facility Solar Installations (installation-specific capacity)
     path('facility-solar/', facility_solar_views.facility_solar_list, name='facility_solar_list'),
-    path('facility-solar/create/', facility_solar_views.facility_solar_create, name='facility_solar_create'),
     path('facility-solar/<int:pk>/', facility_solar_views.facility_solar_detail, name='facility_solar_detail'),
     path('facility-solar/<int:pk>/edit/', facility_solar_views.facility_solar_edit, name='facility_solar_edit'),
     path('facility-solar/<int:pk>/delete/', facility_solar_views.facility_solar_delete, name='facility_solar_delete'),
     path('api/facility-solar/', facility_solar_views.get_facility_solar_json, name='get_facility_solar_json'),
-    
+
     # Facility Storage Installations (installation-specific capacity)
     path('facility-storage/', facility_storage_views.facility_storage_list, name='facility_storage_list'),
-    path('facility-storage/create/', facility_storage_views.facility_storage_create, name='facility_storage_create'),
     path('facility-storage/<int:pk>/', facility_storage_views.facility_storage_detail, name='facility_storage_detail'),
     path('facility-storage/<int:pk>/edit/', facility_storage_views.facility_storage_edit, name='facility_storage_edit'),
     path('facility-storage/<int:pk>/delete/', facility_storage_views.facility_storage_delete, name='facility_storage_delete'),
     path('api/facility-storage/', facility_storage_views.get_facility_storage_json, name='get_facility_storage_json'),
-    
+
     # Hybrid Solar+Storage Configurations
     path('hybrid-solar-storage/', hybrid_solar_storage_views.hybrid_list, name='hybrid_list'),
-    path('hybrid-solar-storage/create/', hybrid_solar_storage_views.hybrid_create, name='hybrid_create'),
     path('hybrid-solar-storage/<int:pk>/', hybrid_solar_storage_views.hybrid_detail, name='hybrid_detail'),
     path('hybrid-solar-storage/<int:pk>/edit/', hybrid_solar_storage_views.hybrid_edit, name='hybrid_edit'),
     path('hybrid-solar-storage/<int:pk>/delete/', hybrid_solar_storage_views.hybrid_delete, name='hybrid_delete'),

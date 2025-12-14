@@ -4,8 +4,7 @@
   <div class="d-flex justify-content-between align-items-center mb-4">
     <h3>Edit Hybrid Solar+Storage Configuration</h3>
     <div>
-      <a href="{% url 'powermapui:hybrid_detail' object.pk %}" class="btn btn-outline-info">View Details</a>
-      <a href="{% url 'powermapui:hybrid_list' %}" class="btn btn-outline-secondary">Back to List</a>
+      <a href="{% url 'powermapui:facility_detail' object.facility.idfacilities %}" class="btn btn-outline-secondary">Back to Facility</a>
     </div>
   </div>
 
@@ -246,8 +245,7 @@
         <!-- Form Actions -->
         <div class="d-flex gap-2">
           <button type="submit" class="btn btn-primary">Update Configuration</button>
-          <a href="{% url 'powermapui:hybrid_detail' object.pk %}" class="btn btn-secondary">Cancel</a>
-          <a href="{% url 'powermapui:hybrid_list' %}" class="btn btn-outline-secondary">Back to List</a>
+          <a href="{% url 'powermapui:facility_detail' object.facility.idfacilities %}" class="btn btn-outline-secondary">Cancel</a>
         </div>
       </form>
     </div>

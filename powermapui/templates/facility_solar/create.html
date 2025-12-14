@@ -16,22 +16,12 @@
           <form method="post" novalidate id="solarForm">
             {% csrf_token %}
             
-            <!-- Facility and Technology Selection -->
-            <div class="mb-3">
-              <label for="facility" class="form-label">Facility <span class="text-danger">*</span></label>
-              <select class="form-select" id="facility" name="facility" required>
-                <option value="">Select facility</option>
-                {% for fac in facilities %}
-                  <option value="{{ fac.pk }}"
-                          {% if form_data.facility == fac.pk|stringformat:"s" %}selected{% endif %}>
-                    {{ fac.facility_name }}
-                    {% if fac.technologies.exists %}
-                      ({% for tech in fac.technologies %}{{ tech.technology_name }}{% if not forloop.last %}, {% endif %}{% endfor %})
-                    {% endif %}
-                  </option>
-                {% endfor %}
-              </select>
-              <div class="form-text">Facility where this solar installation will be located</div>
+            <!-- Facility Information -->
+            <div class="alert alert-info">
+              <strong>Facility:</strong> {{ facility.facility_name }}
+              {% if facility.idzones %}
+                <span class="ms-2 text-muted">| Zone: {{ facility.idzones.name }}</span>
+              {% endif %}
             </div>
 
             <div class="mb-3">

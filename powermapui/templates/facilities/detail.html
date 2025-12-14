@@ -140,9 +140,8 @@
       <!-- Wind Installations -->
       {% if wind_installations %}
         <div class="card mb-4">
-          <div class="card-header d-flex justify-content-between align-items-center">
+          <div class="card-header">
             <h5 class="mb-0">Wind Installations</h5>
-            <a href="{% url 'powermapui:facility_wind_turbine_create' %}" class="btn btn-sm btn-primary">Add Wind Installation</a>
           </div>
           <div class="card-body">
             <div class="table-responsive">
@@ -155,6 +154,7 @@
                     <th>Units</th>
                     <th>Total Capacity</th>
                     <th>Commissioned</th>
+                    <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -166,6 +166,10 @@
                       <td>{{ inst.no_turbines }}</td>
                       <td>{{ inst.total_capacity|floatformat:2 }} MW</td>
                       <td>{{ inst.commissioning_date|default:"-" }}</td>
+                      <td>
+                        <a href="{% url 'powermapui:facility_wind_turbine_edit' inst.pk %}" class="btn btn-sm btn-outline-warning">Edit</a>
+                        <button class="btn btn-sm btn-outline-danger delete-installation-btn" data-type="wind" data-id="{{ inst.pk }}" data-name="{{ inst.installation_name|default:'Unnamed' }}">Delete</button>
+                      </td>
                     </tr>
                   {% endfor %}
                 </tbody>
@@ -178,9 +182,8 @@
       <!-- Solar Installations -->
       {% if solar_installations %}
         <div class="card mb-4">
-          <div class="card-header d-flex justify-content-between align-items-center">
+          <div class="card-header">
             <h5 class="mb-0">Solar Installations</h5>
-            <a href="{% url 'powermapui:facility_solar_create' %}" class="btn btn-sm btn-primary">Add Solar Installation</a>
           </div>
           <div class="card-body">
             <div class="table-responsive">
@@ -204,7 +207,8 @@
                       <td>{{ inst.ac_capacity|floatformat:2|default:"-" }} MW</td>
                       <td>{{ inst.commissioning_date|default:"-" }}</td>
                       <td>
-                        <a href="{% url 'powermapui:facility_solar_detail' inst.pk %}" class="btn btn-sm btn-outline-primary">View</a>
+                        <a href="{% url 'powermapui:facility_solar_edit' inst.pk %}" class="btn btn-sm btn-outline-warning">Edit</a>
+                        <button class="btn btn-sm btn-outline-danger delete-installation-btn" data-type="solar" data-id="{{ inst.pk }}" data-name="{{ inst.installation_name|default:'Unnamed' }}">Delete</button>
                       </td>
                     </tr>
                   {% endfor %}
@@ -218,9 +222,8 @@
       <!-- Storage Installations -->
       {% if storage_installations %}
         <div class="card mb-4">
-          <div class="card-header d-flex justify-content-between align-items-center">
+          <div class="card-header">
             <h5 class="mb-0">Storage Installations</h5>
-            <a href="{% url 'powermapui:facility_storage_create' %}" class="btn btn-sm btn-primary">Add Storage Installation</a>
           </div>
           <div class="card-body">
             <div class="table-responsive">
@@ -246,7 +249,8 @@
                       <td>{{ inst.get_calculated_duration|floatformat:1|default:"-" }} hrs</td>
                       <td>{{ inst.commissioning_date|default:"-" }}</td>
                       <td>
-                        <a href="{% url 'powermapui:facility_storage_detail' inst.pk %}" class="btn btn-sm btn-outline-primary">View</a>
+                        <a href="{% url 'powermapui:facility_storage_edit' inst.pk %}" class="btn btn-sm btn-outline-warning">Edit</a>
+                        <button class="btn btn-sm btn-outline-danger delete-installation-btn" data-type="storage" data-id="{{ inst.pk }}" data-name="{{ inst.installation_name|default:'Unnamed' }}">Delete</button>
                       </td>
                     </tr>
                   {% endfor %}
@@ -260,9 +264,8 @@
       <!-- Hybrid Solar+Storage Systems -->
       {% if hybrid_systems %}
         <div class="card mb-4">
-          <div class="card-header d-flex justify-content-between align-items-center">
+          <div class="card-header">
             <h5 class="mb-0">Hybrid Solar+Storage Systems</h5>
-            <a href="{% url 'powermapui:hybrid_create' %}" class="btn btn-sm btn-primary">Add Hybrid System</a>
           </div>
           <div class="card-body">
             <div class="table-responsive">
@@ -292,7 +295,8 @@
                       <td>{{ hybrid.total_storage_power|floatformat:2|default:"-" }} MW</td>
                       <td>{{ hybrid.total_storage_energy|floatformat:2|default:"-" }} MWh</td>
                       <td>
-                        <a href="{% url 'powermapui:hybrid_detail' hybrid.pk %}" class="btn btn-sm btn-outline-primary">View</a>
+                        <a href="{% url 'powermapui:hybrid_edit' hybrid.pk %}" class="btn btn-sm btn-outline-warning">Edit</a>
+                        <button class="btn btn-sm btn-outline-danger delete-installation-btn" data-type="hybrid" data-id="{{ hybrid.pk }}" data-name="{{ hybrid.configuration_name|default:'Unnamed' }}">Delete</button>
                       </td>
                     </tr>
                   {% endfor %}
@@ -315,16 +319,16 @@
             <a href="{% url 'powermapui:facility_edit' facility.pk %}" class="btn btn-warning btn-sm">
               Edit Facility
             </a>
-            <a href="{% url 'powermapui:facility_wind_turbine_create' %}" class="btn btn-outline-primary btn-sm">
+            <a href="{% url 'powermapui:facility_wind_turbine_create' facility.pk %}" class="btn btn-outline-primary btn-sm">
               Add Wind Installation
             </a>
-            <a href="{% url 'powermapui:facility_solar_create' %}" class="btn btn-outline-primary btn-sm">
+            <a href="{% url 'powermapui:facility_solar_create_for_facility' facility.pk %}" class="btn btn-outline-primary btn-sm">
               Add Solar Installation
             </a>
-            <a href="{% url 'powermapui:facility_storage_create' %}" class="btn btn-outline-primary btn-sm">
+            <a href="{% url 'powermapui:facility_storage_create_for_facility' facility.pk %}" class="btn btn-outline-primary btn-sm">
               Add Storage Installation
             </a>
-            <a href="{% url 'powermapui:hybrid_create' %}" class="btn btn-outline-primary btn-sm">
+            <a href="{% url 'powermapui:hybrid_create_for_facility' facility.pk %}" class="btn btn-outline-primary btn-sm">
               Add Hybrid System
             </a>
             <button class="btn btn-danger btn-sm" onclick="confirmDelete()">
@@ -408,7 +412,7 @@
     </div>
   </div>
 
-  <!-- Delete Confirmation Modal -->
+  <!-- Delete Facility Confirmation Modal -->
   <div class="modal fade" id="deleteModal" tabindex="-1">
     <div class="modal-dialog">
       <div class="modal-content">
@@ -435,10 +439,76 @@
     </div>
   </div>
 
+  <!-- Delete Installation Confirmation Modal -->
+  <div class="modal fade" id="deleteInstallationModal" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Confirm Delete Installation</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <p>Are you sure you want to delete the installation "<span id="installationNameText"></span>"?</p>
+          <div class="alert alert-warning">
+            <strong>Warning:</strong> This action cannot be undone.
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <form method="post" id="deleteInstallationForm" style="display: inline;">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-danger">
+              Delete Installation
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script>
     function confirmDelete() {
       var deleteModal = new bootstrap.Modal(document.getElementById('deleteModal'));
       deleteModal.show();
     }
+
+    // Handle installation delete button clicks
+    document.addEventListener('DOMContentLoaded', function() {
+      const deleteButtons = document.querySelectorAll('.delete-installation-btn');
+      const deleteModal = new bootstrap.Modal(document.getElementById('deleteInstallationModal'));
+      const deleteForm = document.getElementById('deleteInstallationForm');
+      const installationNameText = document.getElementById('installationNameText');
+
+      deleteButtons.forEach(function(button) {
+        button.addEventListener('click', function() {
+          const type = this.dataset.type;
+          const id = this.dataset.id;
+          const name = this.dataset.name;
+
+          // Set the installation name in the modal
+          installationNameText.textContent = name;
+
+          // Set the form action based on type
+          let deleteUrl = '';
+          switch(type) {
+            case 'wind':
+              deleteUrl = "{% url 'powermapui:facility_wind_turbine_delete' 0 %}".replace('0', id);
+              break;
+            case 'solar':
+              deleteUrl = "{% url 'powermapui:facility_solar_delete' 0 %}".replace('0', id);
+              break;
+            case 'storage':
+              deleteUrl = "{% url 'powermapui:facility_storage_delete' 0 %}".replace('0', id);
+              break;
+            case 'hybrid':
+              deleteUrl = "{% url 'powermapui:hybrid_delete' 0 %}".replace('0', id);
+              break;
+          }
+
+          deleteForm.action = deleteUrl;
+          deleteModal.show();
+        });
+      });
+    });
   </script>
 {% endblock %}

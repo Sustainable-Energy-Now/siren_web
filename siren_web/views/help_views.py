@@ -331,9 +331,9 @@ Follow these steps to begin using the system:
 2. Select your scenario
 3. Choose your analysis module
 
-## Main Interface
+## Main Landing Page
 
-The main interface provides access to three core modules:
+The main landing page provides access to three core modules:
 - Powermap
 - Powermatch 
 - Powerplot

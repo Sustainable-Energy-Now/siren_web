@@ -10,7 +10,7 @@
       </small>
     </div>
     <div>
-      <a href="{% url 'powermapui:facility_solar_detail' installation.pk %}" class="btn btn-outline-secondary">Back to Details</a>
+      <a href="{% url 'powermapui:facility_detail' installation.facility.idfacilities %}" class="btn btn-outline-secondary">Back to Facility</a>
     </div>
   </div>
 
@@ -243,7 +243,7 @@
 
             <div class="d-flex gap-2">
               <button type="submit" class="btn btn-primary">Update Installation</button>
-              <a href="{% url 'powermapui:facility_solar_detail' installation.pk %}" class="btn btn-outline-secondary">Cancel</a>
+              <a href="{% url 'powermapui:facility_detail' installation.facility.idfacilities %}" class="btn btn-outline-secondary">Cancel</a>
             </div>
           </form>
         </div>

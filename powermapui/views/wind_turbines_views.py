@@ -740,19 +740,21 @@ def facility_wind_turbine_edit(request, pk):
     
     if request.method == 'POST':
         try:
+            installation_name = request.POST.get('installation_name', '').strip()
             no_turbines = request.POST.get('no_turbines')
             tilt = request.POST.get('tilt')
             direction = request.POST.get('direction', '').strip()
             installation_date = request.POST.get('installation_date')
             notes = request.POST.get('notes', '').strip()
             is_active = request.POST.get('is_active') == 'on'
-            
+
             # Validation
             if not no_turbines:
                 messages.error(request, 'Number of turbines is required.')
                 return render(request, 'facility_wind_turbines/edit.html', {'installation': installation})
-            
+
             # Update the installation
+            installation.installation_name = installation_name if installation_name else None
             installation.no_turbines = int(no_turbines)
             installation.tilt = int(tilt) if tilt else None
             installation.direction = direction if direction else None
@@ -760,9 +762,9 @@ def facility_wind_turbine_edit(request, pk):
             installation.notes = notes if notes else None
             installation.is_active = is_active
             installation.save()
-            
+
             messages.success(request, f'Wind turbine installation updated successfully.')
-            return redirect('powermapui:facility_wind_turbines_list')
+            return redirect('powermapui:facility_detail', pk=installation.idfacilities.idfacilities)
             
         except ValueError as e:
             messages.error(request, 'Invalid numeric value provided.')
@@ -776,13 +778,14 @@ def facility_wind_turbine_edit(request, pk):
 def facility_wind_turbine_delete(request, pk):
     """Delete a facility wind turbine installation"""
     installation = get_object_or_404(FacilityWindTurbines, pk=pk)
-    
+
+    facility_id = installation.idfacilities.idfacilities
     facility_name = installation.idfacilities.facility_name
     turbine_model = installation.idwindturbines.turbine_model
-    
+
     installation.delete()
     messages.success(request, f'Removed {turbine_model} installation from {facility_name}.')
-    return redirect('powermapui:facility_wind_turbines_list')
+    return redirect('powermapui:facility_detail', pk=facility_id)
 
 def get_turbines_json(request):
     """Return wind turbines data as JSON for frontend consumption"""

@@ -6,51 +6,48 @@
     <a href="{% url 'powermapui:hybrid_list' %}" class="btn btn-outline-secondary">Back to List</a>
   </div>
 
-  <div class="alert alert-info">
-    <strong>About Hybrid Configurations:</strong> Link existing solar and storage installations at the same facility 
-    to represent modern hybrid projects. Choose DC-coupled (shared inverters) for new projects or AC-coupled (separate inverters) 
-    for retrofits. This makes the facility semi-dispatchable rather than purely variable generation.
-  </div>
+  {% if facility %}
+    <div class="alert alert-info">
+      <strong>Creating hybrid configuration for:</strong> {{ facility.facility_name }}
+    </div>
+    <div class="alert alert-secondary">
+      <small>Link existing solar and storage installations at this facility to represent modern hybrid projects.
+      Choose DC-coupled (shared inverters) for new projects or AC-coupled (separate inverters) for retrofits.</small>
+    </div>
+  {% else %}
+    <div class="alert alert-info">
+      <strong>About Hybrid Configurations:</strong> Link existing solar and storage installations at the same facility
+      to represent modern hybrid projects. Choose DC-coupled (shared inverters) for new projects or AC-coupled (separate inverters)
+      for retrofits. This makes the facility semi-dispatchable rather than purely variable generation.
+    </div>
+  {% endif %}
 
   <div class="card">
     <div class="card-body">
       <form method="post" id="hybridForm">
         {% csrf_token %}
         
-        <!-- Facility Selection -->
-        <div class="row mb-4">
-          <div class="col-12">
-            <h5 class="border-bottom pb-2">1. Select Facility</h5>
-          </div>
-          <div class="col-md-6">
-            <label for="{{ form.facility.id_for_label }}" class="form-label">
-              Facility <span class="text-danger">*</span>
-            </label>
-            {{ form.facility }}
-            {% if form.facility.errors %}
-              <div class="text-danger">{{ form.facility.errors }}</div>
-            {% endif %}
-            <small class="form-text text-muted">
-              Select the facility where both solar and storage are co-located
-            </small>
-          </div>
-        </div>
-
         <!-- Solar Installation -->
         <div class="row mb-4">
           <div class="col-12">
-            <h5 class="border-bottom pb-2">2. Select Solar Installation</h5>
+            <h5 class="border-bottom pb-2">1. Select Solar Installation <span class="text-danger">*</span></h5>
           </div>
-          <div class="col-md-6">
-            <label for="{{ form.solar_installation.id_for_label }}" class="form-label">
-              Solar Installation <span class="text-danger">*</span>
-            </label>
-            {{ form.solar_installation }}
-            {% if form.solar_installation.errors %}
-              <div class="text-danger">{{ form.solar_installation.errors }}</div>
-            {% endif %}
+          <div class="col-md-8">
+            <select class="form-select" id="solar_installation" name="solar_installation" required>
+              <option value="">Select solar installation</option>
+              {% for install in solar_installations %}
+                <option value="{{ install.pk }}"
+                        {% if form_data.solar_installation == install.pk|stringformat:"s" %}selected{% endif %}>
+                  {% if facility %}
+                    {{ install.installation_name|default:"Unnamed" }} - {{ install.idtechnologies.technology_name }} ({{ install.nameplate_capacity|floatformat:2 }} MW DC)
+                  {% else %}
+                    {{ install.idfacilities.facility_name }} - {{ install.installation_name|default:"Unnamed" }} - {{ install.idtechnologies.technology_name }} ({{ install.nameplate_capacity|floatformat:2 }} MW DC)
+                  {% endif %}
+                </option>
+              {% endfor %}
+            </select>
             <small class="form-text text-muted">
-              Available solar installations will be filtered by selected facility
+              {% if facility %}Select the solar installation at this facility{% else %}Solar installations grouped by facility{% endif %}
             </small>
           </div>
         </div>
@@ -58,18 +55,24 @@
         <!-- Storage Installation -->
         <div class="row mb-4">
           <div class="col-12">
-            <h5 class="border-bottom pb-2">3. Select Storage Installation</h5>
+            <h5 class="border-bottom pb-2">2. Select Storage Installation <span class="text-danger">*</span></h5>
           </div>
-          <div class="col-md-6">
-            <label for="{{ form.storage_installation.id_for_label }}" class="form-label">
-              Storage Installation <span class="text-danger">*</span>
-            </label>
-            {{ form.storage_installation }}
-            {% if form.storage_installation.errors %}
-              <div class="text-danger">{{ form.storage_installation.errors }}</div>
-            {% endif %}
+          <div class="col-md-8">
+            <select class="form-select" id="storage_installation" name="storage_installation" required>
+              <option value="">Select storage installation</option>
+              {% for install in storage_installations %}
+                <option value="{{ install.pk }}"
+                        {% if form_data.storage_installation == install.pk|stringformat:"s" %}selected{% endif %}>
+                  {% if facility %}
+                    {{ install.installation_name|default:"Unnamed" }} - {{ install.idtechnologies.technology_name }} ({{ install.power_capacity|floatformat:2 }} MW / {{ install.energy_capacity|floatformat:2 }} MWh)
+                  {% else %}
+                    {{ install.idfacilities.facility_name }} - {{ install.installation_name|default:"Unnamed" }} - {{ install.idtechnologies.technology_name }} ({{ install.power_capacity|floatformat:2 }} MW / {{ install.energy_capacity|floatformat:2 }} MWh)
+                  {% endif %}
+                </option>
+              {% endfor %}
+            </select>
             <small class="form-text text-muted">
-              Available storage installations will be filtered by selected facility
+              {% if facility %}Select the storage installation at this facility{% else %}Storage installations grouped by facility{% endif %}
             </small>
           </div>
         </div>

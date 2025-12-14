@@ -61,7 +61,7 @@
       </thead>
       <tbody>
         {% for tech in page_obj %}
-          {% with storage_attrs=tech.storageattributes_set.first %}
+          {% with storage_attrs=tech.storage_attributes.first %}
           <tr>
             <td>
               <a href="{% url 'powermapui:storage_detail' tech.pk %}" class="text-decoration-none">

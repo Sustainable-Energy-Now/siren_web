@@ -107,12 +107,13 @@ def facility_storage_detail(request, pk):
     
     return render(request, 'facility_storage/detail.html', context)
 
-def facility_storage_create(request):
-    """Create a new facility storage installation"""
+def facility_storage_create(request, facility_id):
+    """Create a new storage installation for a specific facility"""
+    facility = get_object_or_404(facilities, pk=facility_id)
+
     if request.method == 'POST':
         try:
             # Extract form data
-            facility_id = request.POST.get('facility')
             technology_id = request.POST.get('technology')
             installation_name = request.POST.get('installation_name', '').strip()
             power_capacity = request.POST.get('power_capacity')
@@ -124,24 +125,24 @@ def facility_storage_create(request):
             notes = request.POST.get('notes', '').strip()
             
             # Validation
-            if not facility_id or not technology_id:
-                messages.error(request, 'Facility and storage technology are required.')
+            if not technology_id:
+                messages.error(request, 'Storage technology is required.')
                 return render(request, 'facility_storage/create.html', {
-                    'facilities': facilities.objects.all().order_by('facility_name'),
+                    'facility': facility,
                     'technologies': Technologies.objects.filter(category='Storage').order_by('technology_name'),
                     'form_data': request.POST
                 })
-            
+
             # At least one capacity field should be provided
             if not any([power_capacity, energy_capacity, duration]):
                 messages.error(request, 'At least one capacity field (Power, Energy, or Duration) must be provided.')
                 return render(request, 'facility_storage/create.html', {
-                    'facilities': facilities.objects.all().order_by('facility_name'),
+                    'facility': facility,
                     'technologies': Technologies.objects.filter(category='Storage').order_by('technology_name'),
                     'form_data': request.POST
                 })
-            
-            facility = get_object_or_404(facilities, pk=facility_id)
+
+            # Get technology
             technology = get_object_or_404(Technologies, pk=technology_id, category='Storage')
             
             # Check for duplicate installation (same facility, technology, and name)
@@ -152,7 +153,7 @@ def facility_storage_create(request):
             ).exists():
                 messages.error(request, 'This storage installation already exists at this facility.')
                 return render(request, 'facility_storage/create.html', {
-                    'facilities': facilities.objects.all().order_by('facility_name'),
+                    'facility': facility,
                     'technologies': Technologies.objects.filter(category='Storage').order_by('technology_name'),
                     'form_data': request.POST
                 })
@@ -181,13 +182,13 @@ def facility_storage_create(request):
             messages.error(request, f'Error creating storage installation: {str(e)}')
     
     context = {
-        'facilities': facilities.objects.all().order_by('facility_name'),
+        'facility': facility,
         'technologies': Technologies.objects.filter(category='Storage').order_by('technology_name')
     }
-    
+
     if request.method == 'POST':
         context['form_data'] = request.POST
-    
+
     return render(request, 'facility_storage/create.html', context)
 
 def facility_storage_edit(request, pk):
@@ -226,9 +227,9 @@ def facility_storage_edit(request, pk):
             installation.notes = notes if notes else None
             installation.is_active = is_active
             installation.save()
-            
+
             messages.success(request, 'Storage installation updated successfully.')
-            return redirect('powermapui:facility_storage_detail', pk=installation.pk)
+            return redirect('powermapui:facility_detail', pk=installation.facility.idfacilities)
             
         except ValueError as e:
             messages.error(request, f'Invalid numeric value provided: {str(e)}')
@@ -245,13 +246,14 @@ def facility_storage_edit(request, pk):
 def facility_storage_delete(request, pk):
     """Delete a facility storage installation"""
     installation = get_object_or_404(FacilityStorage, pk=pk)
-    
+
+    facility_id = installation.facility.idfacilities
     facility_name = installation.facility.facility_name
     technology_name = installation.technology.technology_name
-    
+
     installation.delete()
     messages.success(request, f'Removed {technology_name} installation from {facility_name}.')
-    return redirect('powermapui:facility_storage_list')
+    return redirect('powermapui:facility_detail', pk=facility_id)
 
 def get_facility_storage_json(request):
     """Return facility storage installations as JSON"""

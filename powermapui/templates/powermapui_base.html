@@ -22,14 +22,36 @@
           <a href="/map/">Grid Map</a>
         </li>
         <li class="nav-item">
-          <a href="/technologies/">Technologies</a>
-        </li>
-        <li class="nav-item">
-          <a href="/facilities/">Facilities</a>
+          <a href="/scenarios/">Scenarios</a>
         </li>
         <li class="nav-item dropdown">
           <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
-            Terminals
+            Technologies
+          </a>
+          <ul class="dropdown-menu">
+            <li><a class="dropdown-item" href="{% url 'powermapui:technologies' %}">All Technologies</a></li>
+            <li><a class="dropdown-item" href="{% url 'powermapui:wind_turbines_list' %}">Wind Turbines Types</a></li>
+            <li><a class="dropdown-item" href="{% url 'powermapui:wind_turbine_create' %}">Add Wind Turbine Type</a></li>
+            <li><a class="dropdown-item" href="{% url 'powermapui:storage_list' %}">Storage Types</a></li>
+            <li><a class="dropdown-item" href="{% url 'powermapui:storage_create' %}">Add Storage Type</a></li>
+
+          </ul>
+        </li>
+        <li class="nav-item dropdown">
+          <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+            Facilities
+          </a>
+          <ul class="dropdown-menu">
+            <li><a class="dropdown-item" href="{% url 'powermapui:facilities_list' %}">All Facilities</a></li>
+            <li><a class="dropdown-item" href="{% url 'powermapui:facility_wind_turbines_list' %}">Wind Facilities</a></li>
+            <li><a class="dropdown-item" href="{% url 'powermapui:facility_solar_list' %}">Solar Facilities</a></li>
+            <li><a class="dropdown-item" href="{% url 'powermapui:facility_storage_list' %}">Storage Facilities</a></li>
+            <li><a class="dropdown-item" href="{% url 'powermapui:hybrid_list' %}">Hybrid Facilities</a></li>
+          </ul>
+        </li>
+        <li class="nav-item dropdown">
+          <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+            Transmission
           </a>
           <ul class="dropdown-menu">
             <li><a class="dropdown-item" href="{% url 'powermapui:terminals_list' %}">All Terminals</a></li>
@@ -45,43 +67,6 @@
 
             <li><a class="dropdown-item" href="{% url 'powermapui:terminals_dashboard' %}">Dashboard</a></li>
             <li><a class="dropdown-item" href="{% url 'powermapui:terminal_health_check' %}">Health Check</a></li>
-          </ul>
-        </li>
-        <li class="nav-item">
-          <a href="/scenarios/">Scenarios</a>
-        </li>
-
-        <li class="nav-item dropdown">
-          <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
-            Solar Installations
-          </a>
-          <ul class="dropdown-menu">
-            <li><a class="dropdown-item" href="{% url 'powermapui:facility_solar_list' %}">All Solar Facilities</a></li>
-            <li><a class="dropdown-item" href="{% url 'powermapui:facility_solar_create' %}">Add Solar Facilities</a></li>
-            <li><a class="dropdown-item" href="{% url 'powermapui:hybrid_list' %}">All Hybrid Facilities</a></li>
-            <li><a class="dropdown-item" href="{% url 'powermapui:hybrid_create' %}">Add Hybrid Facility</a></li>
-          </ul>
-        </li>
-        <li class="nav-item dropdown">
-          <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
-            Wind Turbines
-          </a>
-          <ul class="dropdown-menu">
-            <li><a class="dropdown-item" href="{% url 'powermapui:wind_turbines_list' %}">All Wind Turbines</a></li>
-            <li><a class="dropdown-item" href="{% url 'powermapui:facility_wind_turbines_list' %}">Wind Facilities</a></li>
-            <li><a class="dropdown-item" href="{% url 'powermapui:wind_turbine_create' %}">Add Wind Turbine</a></li>
-            <li><a class="dropdown-item" href="{% url 'powermapui:facility_wind_turbine_create' %}">Add Wind Turbine Facility</a></li>
-          </ul>
-        </li>
-        <li class="nav-item dropdown">
-          <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
-            Storage
-          </a>
-          <ul class="dropdown-menu">
-            <li><a class="dropdown-item" href="{% url 'powermapui:storage_list' %}">All Storage</a></li>
-            <li><a class="dropdown-item" href="{% url 'powermapui:facility_storage_list' %}">Storage Facilities</a></li>
-            <li><a class="dropdown-item" href="{% url 'powermapui:storage_create' %}">Add Storage</a></li>
-            <li><a class="dropdown-item" href="{% url 'powermapui:facility_storage_create' %}">Add Storage Facility</a></li>
           </ul>
         </li>
         <li class="nav-item">

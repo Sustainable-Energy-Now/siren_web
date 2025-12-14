@@ -116,8 +116,21 @@ def hybrid_detail(request, pk):
     
     return render(request, 'hybrid_solar_storage/detail.html', context)
 
-def hybrid_create(request):
-    """Create a new hybrid configuration"""
+def hybrid_create(request, facility_id):
+    """Create a new hybrid solar+storage configuration for a specific facility"""
+    facility = get_object_or_404(facilities, pk=facility_id)
+
+    # Filter installations to only those at this facility
+    solar_installations = FacilitySolar.objects.filter(
+        idfacilities=facility,
+        is_active=True
+    ).select_related('idtechnologies')
+
+    storage_installations = FacilityStorage.objects.filter(
+        idfacilities=facility,
+        is_active=True
+    ).select_related('idtechnologies')
+
     if request.method == 'POST':
         try:
             # Extract form data
@@ -138,8 +151,9 @@ def hybrid_create(request):
             if not solar_installation_id or not storage_installation_id:
                 messages.error(request, 'Both solar and storage installations are required.')
                 return render(request, 'hybrid_solar_storage/create.html', {
-                    'solar_installations': FacilitySolar.objects.filter(is_active=True).select_related('idfacilities', 'idtechnologies'),
-                    'storage_installations': FacilityStorage.objects.filter(is_active=True).select_related('idfacilities', 'idtechnologies'),
+                    'facility': facility,
+                    'solar_installations': solar_installations,
+                    'storage_installations': storage_installations,
                     'form_data': request.POST
                 })
             
@@ -150,8 +164,9 @@ def hybrid_create(request):
             if solar.facility != storage.facility:
                 messages.error(request, 'Solar and storage installations must be at the same facility.')
                 return render(request, 'hybrid_solar_storage/create.html', {
-                    'solar_installations': FacilitySolar.objects.filter(is_active=True).select_related('idfacilities', 'idtechnologies'),
-                    'storage_installations': FacilityStorage.objects.filter(is_active=True).select_related('idfacilities', 'idtechnologies'),
+                    'facility': facility,
+                    'solar_installations': solar_installations,
+                    'storage_installations': storage_installations,
                     'form_data': request.POST
                 })
             
@@ -162,8 +177,9 @@ def hybrid_create(request):
             ).exists():
                 messages.error(request, 'This solar and storage combination is already configured as hybrid.')
                 return render(request, 'hybrid_solar_storage/create.html', {
-                    'solar_installations': FacilitySolar.objects.filter(is_active=True).select_related('idfacilities', 'idtechnologies'),
-                    'storage_installations': FacilityStorage.objects.filter(is_active=True).select_related('idfacilities', 'idtechnologies'),
+                    'facility': facility,
+                    'solar_installations': solar_installations,
+                    'storage_installations': storage_installations,
                     'form_data': request.POST
                 })
             
@@ -191,19 +207,16 @@ def hybrid_create(request):
             messages.error(request, f'Invalid numeric value provided: {str(e)}')
         except Exception as e:
             messages.error(request, f'Error creating hybrid configuration: {str(e)}')
-    
-    # Get available installations grouped by facility
-    solar_installations = FacilitySolar.objects.filter(is_active=True).select_related('idfacilities', 'idtechnologies').order_by('idfacilities__facility_name')
-    storage_installations = FacilityStorage.objects.filter(is_active=True).select_related('idfacilities', 'idtechnologies').order_by('idfacilities__facility_name')
-    
+
     context = {
+        'facility': facility,
         'solar_installations': solar_installations,
         'storage_installations': storage_installations,
     }
-    
+
     if request.method == 'POST':
         context['form_data'] = request.POST
-    
+
     return render(request, 'hybrid_solar_storage/create.html', context)
 
 def hybrid_edit(request, pk):
@@ -238,9 +251,9 @@ def hybrid_edit(request, pk):
             hybrid.notes = notes if notes else None
             hybrid.is_active = is_active
             hybrid.save()
-            
+
             messages.success(request, 'Hybrid configuration updated successfully.')
-            return redirect('powermapui:hybrid_detail', pk=hybrid.pk)
+            return redirect('powermapui:facility_detail', pk=hybrid.facility.idfacilities)
             
         except ValueError as e:
             messages.error(request, f'Invalid numeric value provided: {str(e)}')
@@ -256,13 +269,14 @@ def hybrid_edit(request, pk):
 def hybrid_delete(request, pk):
     """Delete a hybrid configuration"""
     hybrid = get_object_or_404(HybridSolarStorage, pk=pk)
-    
+
+    facility_id = hybrid.facility.idfacilities
     facility_name = hybrid.facility.facility_name
     config_name = hybrid.configuration_name or "Hybrid System"
-    
+
     hybrid.delete()
     messages.success(request, f'Removed hybrid configuration "{config_name}" from {facility_name}.')
-    return redirect('powermapui:hybrid_list')
+    return redirect('powermapui:facility_detail', pk=facility_id)
 
 def get_hybrid_json(request):
     """Return hybrid configurations as JSON"""

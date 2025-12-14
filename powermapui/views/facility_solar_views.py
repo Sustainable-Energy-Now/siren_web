@@ -116,16 +116,14 @@ def facility_solar_detail(request, pk):
     
     return render(request, 'facility_solar/detail.html', context)
 
-def facility_solar_create(request):
-    """Create a new facility solar installation"""
-    # Get all facilities and solar technologies
-    all_facilities = facilities.objects.all().order_by('facility_name')
+def facility_solar_create(request, facility_id):
+    """Create a new solar installation for a specific facility"""
+    facility = get_object_or_404(facilities, pk=facility_id)
     solar_technologies = Technologies.objects.filter(fuel_type='SOLAR').order_by('technology_name')
-    
+
     if request.method == 'POST':
         try:
             # Extract form data
-            facility_id = request.POST.get('facility')
             technology_id = request.POST.get('technology')
             installation_name = request.POST.get('installation_name', '').strip()
             nameplate_capacity = request.POST.get('nameplate_capacity')
@@ -142,10 +140,10 @@ def facility_solar_create(request):
             notes = request.POST.get('notes', '').strip()
 
             # Validation
-            if not facility_id or not technology_id:
-                messages.error(request, 'Both facility and technology are required.')
+            if not technology_id:
+                messages.error(request, 'Solar technology is required.')
                 return render(request, 'facility_solar/create.html', {
-                    'facilities': all_facilities,
+                    'facility': facility,
                     'solar_technologies': solar_technologies,
                     'form_data': request.POST
                 })
@@ -154,13 +152,12 @@ def facility_solar_create(request):
             if not any([nameplate_capacity, ac_capacity]):
                 messages.error(request, 'At least one capacity field (DC or AC) must be provided.')
                 return render(request, 'facility_solar/create.html', {
-                    'facilities': all_facilities,
+                    'facility': facility,
                     'solar_technologies': solar_technologies,
                     'form_data': request.POST
                 })
 
-            # Get facility and technology
-            facility = get_object_or_404(facilities, pk=facility_id)
+            # Get technology
             technology = get_object_or_404(Technologies, pk=technology_id, fuel_type='SOLAR')
             
             # Check for duplicate installation
@@ -171,7 +168,7 @@ def facility_solar_create(request):
             ).exists():
                 messages.error(request, 'This solar installation already exists at this facility.')
                 return render(request, 'facility_solar/create.html', {
-                    'facilities': all_facilities,
+                    'facility': facility,
                     'solar_technologies': solar_technologies,
                     'form_data': request.POST
                 })
@@ -205,7 +202,7 @@ def facility_solar_create(request):
             messages.error(request, f'Error creating solar installation: {str(e)}')
 
     context = {
-        'facilities': all_facilities,
+        'facility': facility,
         'solar_technologies': solar_technologies,
     }
 
@@ -260,9 +257,9 @@ def facility_solar_edit(request, pk):
             installation.notes = notes if notes else None
             installation.is_active = is_active
             installation.save()
-            
+
             messages.success(request, 'Solar installation updated successfully.')
-            return redirect('powermapui:facility_solar_detail', pk=installation.pk)
+            return redirect('powermapui:facility_detail', pk=installation.facility.idfacilities)
             
         except ValueError as e:
             messages.error(request, f'Invalid numeric value provided: {str(e)}')
@@ -279,13 +276,14 @@ def facility_solar_edit(request, pk):
 def facility_solar_delete(request, pk):
     """Delete a facility solar installation"""
     installation = get_object_or_404(FacilitySolar, pk=pk)
-    
+
+    facility_id = installation.facility.idfacilities
     facility_name = installation.facility.facility_name
     technology_name = installation.technology.technology_name
-    
+
     installation.delete()
     messages.success(request, f'Removed {technology_name} installation from {facility_name}.')
-    return redirect('powermapui:facility_solar_list')
+    return redirect('powermapui:facility_detail', pk=facility_id)
 
 def get_facility_solar_json(request):
     """Return facility solar installations as JSON"""
