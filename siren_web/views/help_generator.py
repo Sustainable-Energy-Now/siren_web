@@ -27,17 +27,26 @@ class SirenWebHelpGenerator:
 
 
     def parse_markdown_sections(self, content: str) -> tuple:
-        """Parse markdown and build TOC from actual headers"""
+        """Parse markdown and build TOC from actual headers
+
+        Structure:
+        - # (h1) creates new sections/pages
+        - First ## (h2) after h1 stays on same page as subsection
+        - Subsequent ## (h2) create new sections/pages
+        - ### (h3) are always subsections
+        """
         sections = []
         toc_items = []
         current_section = None
         current_content = []
         current_subsections = []
-        
+        first_h2_after_h1 = False  # Track if we just saw an h1
+
         lines = content.split('\n')
-        
+
         for line in lines:
-            if line.startswith('## ') and not line.startswith('### '):
+            # Handle level 1 headings (# )
+            if line.startswith('# ') and not line.startswith('## '):
                 # Save previous section
                 if current_section:
                     sections.append({
@@ -52,12 +61,49 @@ class SirenWebHelpGenerator:
                         'subsections': current_subsections.copy(),
                         'type': 'section'
                     })
-                
-                # Start new section
-                current_section = line[3:].strip()
+
+                # Start new section with level 1 heading
+                current_section = line[2:].strip()
                 current_content = [line]
                 current_subsections = []
-                
+                first_h2_after_h1 = True  # Next h2 should be a subsection
+
+            # Handle level 2 headings (## )
+            elif line.startswith('## ') and not line.startswith('### '):
+                # Check if this is the first h2 after an h1
+                if first_h2_after_h1:
+                    # Add as subsection to current h1
+                    subsection_title = line[3:].strip()
+                    subsection_id = self.create_section_id(subsection_title)
+                    current_subsections.append({
+                        'title': subsection_title,
+                        'id': subsection_id,
+                        'type': 'subsection'
+                    })
+                    current_content.append(line)
+                    first_h2_after_h1 = False  # Next h2 will be a new section
+                else:
+                    # Save previous section and start new one
+                    if current_section:
+                        sections.append({
+                            'title': current_section,
+                            'content': '\n'.join(current_content),
+                            'id': self.create_section_id(current_section)
+                        })
+                        toc_items.append({
+                            'title': current_section,
+                            'id': self.create_section_id(current_section),
+                            'index': len(sections) - 1,
+                            'subsections': current_subsections.copy(),
+                            'type': 'section'
+                        })
+
+                    # Start new section with level 2 heading
+                    current_section = line[3:].strip()
+                    current_content = [line]
+                    current_subsections = []
+
+            # Handle level 3 headings (### ) as subsections
             elif line.startswith('### ') and not line.startswith('#### '):
                 # Add subsection to current section
                 if current_section:
@@ -69,11 +115,11 @@ class SirenWebHelpGenerator:
                         'type': 'subsection'
                     })
                 current_content.append(line)
-                
+
             else:
                 if current_section:
                     current_content.append(line)
-        
+
         # Handle last section
         if current_section:
             sections.append({
@@ -88,7 +134,7 @@ class SirenWebHelpGenerator:
                 'subsections': current_subsections.copy(),
                 'type': 'section'
             })
-        
+
         return sections, toc_items
 
     def create_section_id(self, title: str) -> str:

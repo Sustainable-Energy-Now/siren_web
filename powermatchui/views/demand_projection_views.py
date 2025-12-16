@@ -7,6 +7,7 @@ from django.shortcuts import render
 from django.db.models import Sum
 from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
+from common.decorators import settings_required
 from configparser import ConfigParser
 import os
 import numpy as np
@@ -145,7 +146,6 @@ def get_base_year_demand(year: int, config_section: Dict = None) -> Dict[str, np
         'underlying': underlying_array
     }
 
-
 def get_base_year_demand_with_total(year: int, config_section: Dict = None) -> Dict[str, np.ndarray]:
     """
     Alternative version that calculates total demand as operational + underlying.
@@ -158,7 +158,6 @@ def get_base_year_demand_with_total(year: int, config_section: Dict = None) -> D
     demand['total'] = demand['operational'] + demand['underlying']
     
     return demand
-
 
 def validate_data_availability(year: int) -> Dict[str, bool]:
     """
@@ -212,7 +211,6 @@ def validate_data_availability(year: int) -> Dict[str, bool]:
     
     return result
 
-
 def get_available_years() -> Dict[str, list]:
     """
     Get list of years with data available.
@@ -243,7 +241,6 @@ def get_available_years() -> Dict[str, list]:
         'both': both_years,
         'all': sorted(list(set(operational_years + underlying_years)))
     }
-
 
 def test_data_retrieval(year: int = None):
     """
@@ -305,6 +302,7 @@ def test_data_retrieval(year: int = None):
         traceback.print_exc()
 
 @login_required
+@settings_required(redirect_view='powermatchui_home')
 def demand_projection_view(request):
     """Main view for demand projection visualization."""
     
@@ -314,7 +312,7 @@ def demand_projection_view(request):
     
     # Get available years for base year selection
     # TODO: Replace with actual years available in your database
-    available_years = list(range(2020, 2025))
+    available_years = list(range(2024, 2025))
     
     context = {
         'demand_config': demand_config,
@@ -324,7 +322,6 @@ def demand_projection_view(request):
     }
     
     return render(request, 'demand_projection.html', context)
-
 
 @require_http_methods(["POST"])
 @login_required
@@ -403,7 +400,6 @@ def calculate_demand_projection(request):
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=400)
 
-
 @require_http_methods(["POST"])
 @login_required
 def compare_scenarios(request):
@@ -464,7 +460,6 @@ def compare_scenarios(request):
         
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=400)
-
 
 @require_http_methods(["GET"])
 @login_required

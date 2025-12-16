@@ -532,29 +532,12 @@
     }
 
     // Auto-save functionality
-    let autoSaveTimeout;
     const textarea = document.querySelector('textarea[name="template_content"]');
-    
-    textarea.addEventListener('input', function() {
-        clearTimeout(autoSaveTimeout);
-        autoSaveTimeout = setTimeout(() => {
-            // Save to localStorage as backup
-            localStorage.setItem('sirenweb_help_template_backup', this.value);
-        }, 5000); // Auto-save after 5 seconds of inactivity
-    });
     
     // Restore from localStorage if available
     document.addEventListener('DOMContentLoaded', function() {
         // Initialize search functionality
         new MarkdownSearch();
-        
-        // Auto-save restoration
-        const backup = localStorage.getItem('sirenweb_help_template_backup');
-        if (backup && backup !== textarea.value) {
-            if (confirm('A newer version of your template was found in local storage. Would you like to restore it?')) {
-                textarea.value = backup;
-            }
-        }
     });
 </script>
 {% endblock %}

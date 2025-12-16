@@ -279,21 +279,27 @@ def edit_help_markdown(request):
     if request.method == 'POST':
         try:
             content = request.POST.get('template_content', '')
-            
+
+            # Normalize line endings to prevent extra blank lines
+            # Replace Windows line endings (\r\n) with Unix line endings (\n)
+            content = content.replace('\r\n', '\n')
+            # Remove any standalone \r characters
+            content = content.replace('\r', '\n')
+
             # Validate markdown content
             validation_errors = validate_markdown_content(content)
             if validation_errors:
                 for error in validation_errors:
                     messages.warning(request, f'Markdown Warning: {error}')
-            
+
             # Create backup before saving
             create_markdown_backup(markdown_file_path)
-            
+
             # Ensure directory exists
             os.makedirs(os.path.dirname(markdown_file_path), exist_ok=True)
-            
-            # Save the markdown file
-            with open(markdown_file_path, 'w', encoding='utf-8') as f:
+
+            # Save the markdown file with normalized line endings
+            with open(markdown_file_path, 'w', encoding='utf-8', newline='\n') as f:
                 f.write(content)
             
             messages.success(request, f'Markdown file saved successfully to {markdown_file_path}!')
