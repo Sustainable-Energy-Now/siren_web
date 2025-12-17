@@ -2953,6 +2953,309 @@ class DjangoContentType(models.Model):
         db_table = 'django_content_type'
         unique_together = (('app_label', 'model'),)
 
+# ============================================================================
+# DEMAND PROJECTION MODELS
+# ============================================================================
+
+class DemandFactorType(models.Model):
+    """
+    Defines a type of demand growth factor (e.g., EV Adoption, Industrial Electrification).
+    These are the categories of demand drivers that can be modeled.
+    """
+    iddemandfactortype = models.AutoField(db_column='iddemandfactortype', primary_key=True)
+    name = models.CharField(max_length=100, unique=True, help_text="Factor name (e.g., 'EV Adoption')")
+    description = models.TextField(blank=True, help_text="Detailed description of this demand factor")
+
+    CATEGORY_CHOICES = [
+        ('operational', 'Operational Demand Only'),
+        ('underlying', 'Underlying Demand Only'),
+        ('both', 'Both Operational and Underlying'),
+    ]
+    category = models.CharField(
+        max_length=20,
+        choices=CATEGORY_CHOICES,
+        default='both',
+        help_text="Which demand type this factor applies to"
+    )
+
+    is_system_default = models.BooleanField(
+        default=False,
+        help_text="True if this is a system-provided factor type"
+    )
+    display_order = models.IntegerField(
+        default=0,
+        help_text="Order for displaying in UI (lower numbers first)"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'demandfactortype'
+        ordering = ['display_order', 'name']
+        verbose_name = 'Demand Factor Type'
+        verbose_name_plural = 'Demand Factor Types'
+
+    def __str__(self):
+        return self.name
+
+
+class DemandFactor(models.Model):
+    """
+    Specific instance of a demand factor with growth parameters.
+    Each factor represents a portion of base demand that grows independently.
+    Multiple factors can be assigned to a scenario.
+    """
+    iddemandfactor = models.AutoField(db_column='iddemandfactor', primary_key=True)
+
+    factor_type = models.ForeignKey(
+        DemandFactorType,
+        on_delete=models.CASCADE,
+        db_column='iddemandfactortype',
+        related_name='factor_instances',
+        help_text="The type of demand factor"
+    )
+
+    scenario = models.ForeignKey(
+        'Scenarios',
+        on_delete=models.CASCADE,
+        db_column='idscenarios',
+        null=True,
+        blank=True,
+        related_name='demand_factors',
+        help_text="Scenario this factor belongs to (null = default/template)"
+    )
+
+    # Base year configuration
+    base_year = models.IntegerField(
+        default=2024,
+        help_text="Starting year for projections"
+    )
+
+    base_percentage_operational = models.FloatField(
+        default=0.0,
+        validators=[MinValueValidator(0.0), MaxValueValidator(100.0)],
+        help_text="Percentage of total operational demand in base year (0-100)"
+    )
+
+    base_percentage_underlying = models.FloatField(
+        default=0.0,
+        validators=[MinValueValidator(0.0), MaxValueValidator(100.0)],
+        help_text="Percentage of total underlying demand in base year (0-100)"
+    )
+
+    # Growth configuration
+    GROWTH_TYPE_CHOICES = [
+        ('linear', 'Linear Growth'),
+        ('exponential', 'Exponential Growth'),
+        ('s_curve', 'S-Curve (Logistic)'),
+        ('compound', 'Compound Annual Growth'),
+    ]
+
+    growth_rate = models.FloatField(
+        default=0.02,
+        validators=[MinValueValidator(-1.0), MaxValueValidator(10.0)],
+        help_text="Annual growth rate (e.g., 0.03 for 3% growth)"
+    )
+
+    growth_type = models.CharField(
+        max_length=20,
+        choices=GROWTH_TYPE_CHOICES,
+        default='exponential',
+        help_text="Mathematical model for growth"
+    )
+
+    # S-curve specific parameters
+    saturation_multiplier = models.FloatField(
+        default=2.0,
+        validators=[MinValueValidator(1.0), MaxValueValidator(10.0)],
+        help_text="Maximum growth multiplier for S-curve (e.g., 2.0 = doubles at saturation)"
+    )
+
+    midpoint_year = models.IntegerField(
+        default=2035,
+        help_text="Year where S-curve reaches 50% of saturation"
+    )
+
+    # Advanced: Time-varying growth rates
+    time_varying_config = models.JSONField(
+        null=True,
+        blank=True,
+        help_text='Time-varying rates as JSON: {"2025": 0.03, "2030": 0.05}. Year keys must be strings.'
+    )
+
+    # Status
+    is_active = models.BooleanField(
+        default=True,
+        help_text="Whether this factor is included in projections"
+    )
+
+    # Metadata
+    notes = models.TextField(
+        blank=True,
+        help_text="Additional notes about this factor configuration"
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'demandfactor'
+        ordering = ['scenario', 'factor_type__display_order', 'factor_type__name']
+        verbose_name = 'Demand Factor'
+        verbose_name_plural = 'Demand Factors'
+        unique_together = [['scenario', 'factor_type']]
+
+    def __str__(self):
+        scenario_name = self.scenario.title if self.scenario else "Default"
+        return f"{self.factor_type.name} ({scenario_name})"
+
+    def get_growth_rate_for_year(self, year):
+        """
+        Get the growth rate for a specific year.
+        Supports time-varying rates via JSON config.
+
+        Args:
+            year: Target year (int)
+
+        Returns:
+            float: Growth rate for that year
+        """
+        if self.time_varying_config:
+            # Find the most recent year <= target year in config
+            years = sorted([int(y) for y in self.time_varying_config.keys()])
+            applicable_years = [y for y in years if y <= year]
+
+            if applicable_years:
+                most_recent_year = max(applicable_years)
+                return float(self.time_varying_config[str(most_recent_year)])
+
+        # Fall back to fixed growth rate
+        return self.growth_rate
+
+    def validate_percentages(self):
+        """
+        Validate that this factor's percentages are reasonable.
+        Note: Total across all factors in a scenario should sum to ~100%,
+        but that's validated at the scenario level.
+        """
+        if self.base_percentage_operational < 0 or self.base_percentage_operational > 100:
+            raise ValidationError("Operational percentage must be between 0 and 100")
+        if self.base_percentage_underlying < 0 or self.base_percentage_underlying > 100:
+            raise ValidationError("Underlying percentage must be between 0 and 100")
+
+    def clean(self):
+        """Django model validation"""
+        super().clean()
+        self.validate_percentages()
+
+
+class DemandProjectionScenario(models.Model):
+    """
+    Enhanced scenario model specifically for demand projections.
+    Links to Scenarios model for integration with existing system.
+    """
+    iddemandprojectionscenario = models.AutoField(db_column='iddemandprojectionscenario', primary_key=True)
+
+    scenario = models.OneToOneField(
+        'Scenarios',
+        on_delete=models.CASCADE,
+        db_column='idscenarios',
+        related_name='demand_projection_config',
+        help_text="Link to main scenario"
+    )
+
+    base_year = models.IntegerField(
+        default=2024,
+        help_text="Base year for demand projections"
+    )
+
+    projection_end_year = models.IntegerField(
+        default=2050,
+        help_text="Final year of projection"
+    )
+
+    # Factor-based projection settings
+    use_factor_breakdown = models.BooleanField(
+        default=True,
+        help_text="Use factor-based projections (vs legacy simple rates)"
+    )
+
+    # Legacy compatibility - simple growth rates (deprecated)
+    simple_operational_rate = models.FloatField(
+        null=True,
+        blank=True,
+        help_text="DEPRECATED: Simple operational growth rate (use factors instead)"
+    )
+
+    simple_underlying_rate = models.FloatField(
+        null=True,
+        blank=True,
+        help_text="DEPRECATED: Simple underlying growth rate (use factors instead)"
+    )
+
+    # Validation and quality checks
+    require_100_percent = models.BooleanField(
+        default=False,
+        help_text="Require factor percentages to sum to exactly 100%"
+    )
+
+    # Metadata
+    description = models.TextField(
+        blank=True,
+        help_text="Description of this projection configuration"
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'demandprojectionscenario'
+        ordering = ['-created_at']
+        verbose_name = 'Demand Projection Scenario'
+        verbose_name_plural = 'Demand Projection Scenarios'
+
+    def __str__(self):
+        return f"Projection Config: {self.scenario.title}"
+
+    def get_total_operational_percentage(self):
+        """Calculate total % of operational demand covered by factors"""
+        factors = self.scenario.demand_factors.filter(is_active=True)
+        return sum(f.base_percentage_operational for f in factors)
+
+    def get_total_underlying_percentage(self):
+        """Calculate total % of underlying demand covered by factors"""
+        factors = self.scenario.demand_factors.filter(is_active=True)
+        return sum(f.base_percentage_underlying for f in factors)
+
+    def validate_factor_percentages(self):
+        """Validate that factor percentages sum appropriately"""
+        operational_total = self.get_total_operational_percentage()
+        underlying_total = self.get_total_underlying_percentage()
+
+        if self.require_100_percent:
+            if abs(operational_total - 100.0) > 0.01:
+                raise ValidationError(
+                    f"Operational factor percentages must sum to 100% (currently {operational_total:.1f}%)"
+                )
+            if abs(underlying_total - 100.0) > 0.01:
+                raise ValidationError(
+                    f"Underlying factor percentages must sum to 100% (currently {underlying_total:.1f}%)"
+                )
+
+        # Warn if significantly over 100%
+        if operational_total > 105.0 or underlying_total > 105.0:
+            raise ValidationError(
+                f"Factor percentages exceed 100% (Operational: {operational_total:.1f}%, "
+                f"Underlying: {underlying_total:.1f}%)"
+            )
+
+    def clean(self):
+        """Django model validation"""
+        super().clean()
+        if self.use_factor_breakdown:
+            self.validate_factor_percentages()
+
+
 class DjangoMigrations(models.Model):
     id = models.BigAutoField(primary_key=True)
     app = models.CharField(max_length=255)

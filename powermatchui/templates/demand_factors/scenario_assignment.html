@@ -1,0 +1,285 @@
+{% extends 'powermatchui_base.html' %}
+{% load static %}
+
+{% block powermatchui_content %}
+<div class="container-fluid mt-4">
+    <div class="row">
+        <div class="col-md-12">
+            <h3>Configure Demand Factors for Scenario: {{ scenario.title }}</h3>
+            <p class="text-muted">
+                Assign and configure demand growth factors for this scenario.
+                Total percentages show the portion of base demand covered by all factors.
+            </p>
+        </div>
+    </div>
+
+    <!-- Total Coverage Summary -->
+    <div class="row mb-3">
+        <div class="col-md-6">
+            <div class="card {% if total_operational_pct > 100 %}border-warning{% elif total_operational_pct >= 95 %}border-success{% endif %}">
+                <div class="card-body">
+                    <h5 class="card-title">Operational Demand Coverage</h5>
+                    <div class="progress" style="height: 30px;">
+                        <div class="progress-bar {% if total_operational_pct > 100 %}bg-warning{% elif total_operational_pct >= 95 %}bg-success{% else %}bg-primary{% endif %}"
+                             role="progressbar"
+                             style="width: {{ total_operational_pct }}%;"
+                             aria-valuenow="{{ total_operational_pct }}"
+                             aria-valuemin="0" aria-valuemax="100">
+                            <strong>{{ total_operational_pct|floatformat:1 }}%</strong>
+                        </div>
+                    </div>
+                    {% if total_operational_pct > 100 %}
+                    <div class="text-warning mt-2">
+                        <i class="bi bi-exclamation-triangle"></i> Exceeds 100% - factors will overlap
+                    </div>
+                    {% elif total_operational_pct < 95 %}
+                    <div class="text-info mt-2">
+                        <i class="bi bi-info-circle"></i> {{ 100|floatformat:0|add:"-"|add:total_operational_pct|floatformat:1 }}% of demand unaccounted for
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6">
+            <div class="card {% if total_underlying_pct > 100 %}border-warning{% elif total_underlying_pct >= 95 %}border-success{% endif %}">
+                <div class="card-body">
+                    <h5 class="card-title">Underlying Demand Coverage</h5>
+                    <div class="progress" style="height: 30px;">
+                        <div class="progress-bar {% if total_underlying_pct > 100 %}bg-warning{% elif total_underlying_pct >= 95 %}bg-success{% else %}bg-primary{% endif %}"
+                             role="progressbar"
+                             style="width: {{ total_underlying_pct }}%;"
+                             aria-valuenow="{{ total_underlying_pct }}"
+                             aria-valuemin="0" aria-valuemax="100">
+                            <strong>{{ total_underlying_pct|floatformat:1 }}%</strong>
+                        </div>
+                    </div>
+                    {% if total_underlying_pct > 100 %}
+                    <div class="text-warning mt-2">
+                        <i class="bi bi-exclamation-triangle"></i> Exceeds 100% - factors will overlap
+                    </div>
+                    {% elif total_underlying_pct < 95 %}
+                    <div class="text-info mt-2">
+                        <i class="bi bi-info-circle"></i> {{ 100|floatformat:0|add:"-"|add:underlying_pct|floatformat:1 }}% of demand unaccounted for
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Factor Configuration Table -->
+    <div class="row">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Factor Configuration</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover" id="factorsTable">
+                            <thead>
+                                <tr>
+                                    <th style="width: 20%;">Factor</th>
+                                    <th style="width: 15%;">Category</th>
+                                    <th style="width: 15%;">Operational %</th>
+                                    <th style="width: 15%;">Underlying %</th>
+                                    <th style="width: 12%;">Growth Rate</th>
+                                    <th style="width: 13%;">Growth Type</th>
+                                    <th style="width: 10%;">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for factor_type in factor_types %}
+                                {% with existing_factors|get:factor_type.iddemandfactortype as factor %}
+                                <tr data-factor-type-id="{{ factor_type.iddemandfactortype }}"
+                                    {% if factor and not factor.is_active %}class="table-secondary"{% endif %}>
+                                    <td><strong>{{ factor_type.name }}</strong></td>
+                                    <td>
+                                        <span class="badge bg-{% if factor_type.category == 'operational' %}info{% elif factor_type.category == 'underlying' %}warning{% else %}success{% endif %}">
+                                            {{ factor_type.get_category_display }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        {% if factor_type.category == 'operational' or factor_type.category == 'both' %}
+                                        <input type="number" class="form-control form-control-sm pct-input"
+                                               data-type="operational"
+                                               value="{% if factor %}{{ factor.base_percentage_operational }}{% else %}0{% endif %}"
+                                               min="0" max="100" step="0.1">
+                                        {% else %}
+                                        <span class="text-muted">N/A</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if factor_type.category == 'underlying' or factor_type.category == 'both' %}
+                                        <input type="number" class="form-control form-control-sm pct-input"
+                                               data-type="underlying"
+                                               value="{% if factor %}{{ factor.base_percentage_underlying }}{% else %}0{% endif %}"
+                                               min="0" max="100" step="0.1">
+                                        {% else %}
+                                        <span class="text-muted">N/A</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <input type="number" class="form-control form-control-sm growth-rate-input"
+                                               value="{% if factor %}{{ factor.growth_rate }}{% else %}0.02{% endif %}"
+                                               min="-1.0" max="10.0" step="0.001">
+                                    </td>
+                                    <td>
+                                        <select class="form-select form-select-sm growth-type-select">
+                                            <option value="linear" {% if factor and factor.growth_type == 'linear' %}selected{% endif %}>Linear</option>
+                                            <option value="exponential" {% if not factor or factor.growth_type == 'exponential' %}selected{% endif %}>Exponential</option>
+                                            <option value="s_curve" {% if factor and factor.growth_type == 's_curve' %}selected{% endif %}>S-Curve</option>
+                                            <option value="compound" {% if factor and factor.growth_type == 'compound' %}selected{% endif %}>Compound</option>
+                                        </select>
+                                    </td>
+                                    <td>
+                                        {% if factor %}
+                                        <a href="{% url 'powermatchui:factor_edit' factor.pk %}"
+                                           class="btn btn-sm btn-outline-primary" title="Advanced Edit">
+                                            <i class="bi bi-gear"></i>
+                                        </a>
+                                        {% else %}
+                                        <button class="btn btn-sm btn-outline-secondary" disabled title="Not configured">
+                                            <i class="bi bi-gear"></i>
+                                        </button>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endwith %}
+                                {% endfor %}
+                            </tbody>
+                            <tfoot>
+                                <tr class="table-light">
+                                    <td colspan="2"><strong>TOTALS:</strong></td>
+                                    <td><strong id="total-operational">{{ total_operational_pct|floatformat:1 }}%</strong></td>
+                                    <td><strong id="total-underlying">{{ total_underlying_pct|floatformat:1 }}%</strong></td>
+                                    <td colspan="3"></td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end mt-3">
+                        <a href="{% url 'powermatchui:factor_list' %}" class="btn btn-secondary">
+                            <i class="bi bi-arrow-left"></i> Back to Factor List
+                        </a>
+                        <button type="button" class="btn btn-primary" id="saveFactorsBtn">
+                            <i class="bi bi-save"></i> Save All Changes
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Help -->
+    <div class="row mt-3">
+        <div class="col-md-12">
+            <div class="alert alert-info">
+                <h6><i class="bi bi-lightbulb"></i> Tips</h6>
+                <ul class="mb-0">
+                    <li>Percentages represent the portion of <em>base year</em> demand allocated to each factor</li>
+                    <li>Factors grow independently - total future demand = sum of all projected factors</li>
+                    <li>For detailed configuration (S-curve parameters, time-varying rates), click the <i class="bi bi-gear"></i> icon</li>
+                    <li>Changes are saved only when you click "Save All Changes"</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Real-time total calculation
+function updateTotals() {
+    let totalOp = 0;
+    let totalUnd = 0;
+
+    document.querySelectorAll('.pct-input').forEach(input => {
+        const value = parseFloat(input.value) || 0;
+        if (input.dataset.type === 'operational') {
+            totalOp += value;
+        } else if (input.dataset.type === 'underlying') {
+            totalUnd += value;
+        }
+    });
+
+    document.getElementById('total-operational').textContent = totalOp.toFixed(1) + '%';
+    document.getElementById('total-underlying').textContent = totalUnd.toFixed(1) + '%';
+
+    // Update progress bars
+    updateProgressBars(totalOp, totalUnd);
+}
+
+function updateProgressBars(totalOp, totalUnd) {
+    // Update operational progress bar
+    const opBar = document.querySelector('.card:nth-child(1) .progress-bar');
+    if (opBar) {
+        opBar.style.width = Math.min(totalOp, 100) + '%';
+        opBar.textContent = totalOp.toFixed(1) + '%';
+        opBar.className = 'progress-bar ' + (totalOp > 100 ? 'bg-warning' : totalOp >= 95 ? 'bg-success' : 'bg-primary');
+    }
+
+    // Update underlying progress bar
+    const undBar = document.querySelector('.card:nth-child(2) .progress-bar');
+    if (undBar) {
+        undBar.style.width = Math.min(totalUnd, 100) + '%';
+        undBar.textContent = totalUnd.toFixed(1) + '%';
+        undBar.className = 'progress-bar ' + (totalUnd > 100 ? 'bg-warning' : totalUnd >= 95 ? 'bg-success' : 'bg-primary');
+    }
+}
+
+// Attach listeners to percentage inputs
+document.querySelectorAll('.pct-input').forEach(input => {
+    input.addEventListener('input', updateTotals);
+});
+
+// Save all factors via AJAX
+document.getElementById('saveFactorsBtn').addEventListener('click', function() {
+    const factors = [];
+    const rows = document.querySelectorAll('#factorsTable tbody tr');
+
+    rows.forEach(row => {
+        const factorTypeId = row.dataset.factorTypeId;
+        const opInput = row.querySelector('.pct-input[data-type="operational"]');
+        const undInput = row.querySelector('.pct-input[data-type="underlying"]');
+        const rateInput = row.querySelector('.growth-rate-input');
+        const typeSelect = row.querySelector('.growth-type-select');
+
+        factors.push({
+            factor_type_id: factorTypeId,
+            base_pct_op: opInput ? parseFloat(opInput.value) || 0 : 0,
+            base_pct_und: undInput ? parseFloat(undInput.value) || 0 : 0,
+            growth_rate: parseFloat(rateInput.value) || 0.02,
+            growth_type: typeSelect.value,
+            is_active: true
+        });
+    });
+
+    // Send to server
+    fetch('{% url "powermatchui:bulk_update_scenario_factors" scenario.idscenarios %}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': '{{ csrf_token }}'
+        },
+        body: JSON.stringify({ factors: factors })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('Factors saved successfully!');
+            location.reload();
+        } else {
+            alert('Error saving factors: ' + (data.error || 'Unknown error'));
+        }
+    })
+    .catch(error => {
+        alert('Network error: ' + error);
+    });
+});
+
+// Initialize totals on page load
+updateTotals();
+</script>
+{% endblock %}

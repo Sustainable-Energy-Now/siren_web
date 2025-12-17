@@ -17,9 +17,24 @@
       <ul class="navbar-nav">
         <li class="nav-item">
           <a href="/powermatchui/">Home</a>
-        </li>
-          <li class="nav-item">
-          <a href="/demand-projection/">Demand Projection</a>
+        <li class="nav-item dropdown">
+          <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+            Demand Projection Management
+          </a>
+          <ul class="dropdown-menu">
+            <li><a class="dropdown-item" href="{% url 'powermatchui:factor_type_list' %}">List Demand Factor Types</a></li>
+            <li><a class="dropdown-item" href="{% url 'powermatchui:factor_type_create' %}">Add Demand Factor Type</a></li>
+
+            <li><hr class="dropdown-divider"></li>
+
+            <li><a class="dropdown-item" href="{% url 'powermatchui:factor_list' %}">List Demand Factors</a></li>
+            <li><a class="dropdown-item" href="{% url 'powermatchui:factor_create' %}">Add Demand Factor</a></li>
+
+            <li><hr class="dropdown-divider"></li>
+
+            <li><h6 class="dropdown-header">Demand Projection</h6></li>
+            <li><a class="dropdown-item" href="{% url 'powermatchui:demand_projection' %}">Demand Projection</a></li>
+          </ul>
         </li>
         <li class="nav-item">
           <a href="/merit_order/">Set Merit Order</a>

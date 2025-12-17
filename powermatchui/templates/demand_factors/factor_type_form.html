@@ -1,0 +1,118 @@
+{% extends 'powermatchui_base.html' %}
+{% load static %}
+
+{% block powermatchui_content %}
+<div class="container-fluid mt-4">
+    <div class="row">
+        <div class="col-md-8 offset-md-2">
+            <h3>{% if editing %}Edit{% else %}Create{% endif %} Factor Type</h3>
+            <p class="text-muted">
+                Define a new category of demand driver for scenario modeling.
+            </p>
+
+            <div class="card">
+                <div class="card-body">
+                    <form method="post">
+                        {% csrf_token %}
+
+                        <div class="mb-3">
+                            <label for="name" class="form-label">
+                                Factor Name <span class="text-danger">*</span>
+                            </label>
+                            <input type="text" class="form-control" id="name" name="name"
+                                   value="{% if editing %}{{ factor_type.name }}{% endif %}"
+                                   placeholder="e.g., EV Adoption, Industrial Electrification"
+                                   required maxlength="100">
+                            <div class="form-text">
+                                Unique, descriptive name for this demand factor category.
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="description" class="form-label">Description</label>
+                            <textarea class="form-control" id="description" name="description"
+                                      rows="3"
+                                      placeholder="Detailed description of what this factor represents...">{% if editing %}{{ factor_type.description }}{% endif %}</textarea>
+                            <div class="form-text">
+                                Explain what this factor models and how it should be used.
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="category" class="form-label">
+                                Category <span class="text-danger">*</span>
+                            </label>
+                            <select class="form-select" id="category" name="category" required>
+                                {% for value, label in categories %}
+                                <option value="{{ value }}"
+                                        {% if editing and factor_type.category == value %}selected{% endif %}
+                                        {% if not editing and value == 'both' %}selected{% endif %}>
+                                    {{ label }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                            <div class="form-text">
+                                <strong>Operational:</strong> Grid-sent demand only<br>
+                                <strong>Underlying:</strong> Total consumption (incl. distributed generation)<br>
+                                <strong>Both:</strong> Affects both demand types
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="display_order" class="form-label">Display Order</label>
+                            <input type="number" class="form-control" id="display_order" name="display_order"
+                                   value="{% if editing %}{{ factor_type.display_order }}{% else %}0{% endif %}"
+                                   min="0" max="1000">
+                            <div class="form-text">
+                                Lower numbers appear first in lists. Default: 0
+                            </div>
+                        </div>
+
+                        <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                            <a href="{% url 'powermatchui:factor_type_list' %}" class="btn btn-secondary">
+                                <i class="bi bi-x-circle"></i> Cancel
+                            </a>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-save"></i> {% if editing %}Update{% else %}Create{% endif %} Factor Type
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Examples -->
+            {% if not editing %}
+            <div class="alert alert-info mt-3">
+                <h6><i class="bi bi-lightbulb"></i> Example Factor Types</h6>
+                <table class="table table-sm mb-0">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Category</th>
+                            <th>Description</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>EV Adoption</td>
+                            <td>Both</td>
+                            <td>Electric vehicle charging demand (home and public)</td>
+                        </tr>
+                        <tr>
+                            <td>Hydrogen Production</td>
+                            <td>Operational</td>
+                            <td>Electrolysis for green hydrogen</td>
+                        </tr>
+                        <tr>
+                            <td>Rooftop Solar</td>
+                            <td>Underlying</td>
+                            <td>Distributed solar PV generation (demand offset)</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -48,13 +48,30 @@
                         <div class="col-md-3" id="scenarioSelectDiv">
                             <label for="scenarioSelect" class="form-label">Scenario:</label>
                             <select class="form-select" id="scenarioSelect" name="scenario">
-                                <option value="Current Config">Current Config</option>
-                                {% for scenario_name in scenarios.keys %}
-                                <option value="{{ scenario_name }}">{{ scenario_name }}</option>
-                                {% endfor %}
+                                <optgroup label="Factor-Based Scenarios">
+                                    {% for scenario in db_scenarios %}
+                                    <option value="db_{{ scenario.id }}"
+                                            data-scenario-id="{{ scenario.id }}"
+                                            data-has-factors="{{ scenario.has_factors }}"
+                                            data-factor-count="{{ scenario.factor_count }}">
+                                        {{ scenario.title }}
+                                        {% if scenario.has_factors %}
+                                            ({{ scenario.factor_count }} factors)
+                                        {% else %}
+                                            (no factors)
+                                        {% endif %}
+                                    </option>
+                                    {% endfor %}
+                                </optgroup>
+                                <optgroup label="Legacy Config-Based">
+                                    <option value="Current Config">Current Config</option>
+                                    {% for scenario_name in scenarios.keys %}
+                                    <option value="{{ scenario_name }}">{{ scenario_name }}</option>
+                                    {% endfor %}
+                                </optgroup>
                             </select>
                         </div>
-                        
+
                         <div class="col-md-2">
                             <label class="form-label">&nbsp;</label>
                             <button type="submit" class="btn btn-primary w-100">
@@ -62,6 +79,18 @@
                             </button>
                         </div>
                     </form>
+
+                    <!-- Factor Management Link -->
+                    <div class="row mt-2">
+                        <div class="col-md-12">
+                            <div class="alert alert-info alert-dismissible fade show" role="alert">
+                                <strong>New!</strong> Factor-based demand projections allow detailed breakdown by sector (EV, Industrial, etc.).
+                                <a href="{% url 'powermatchui:factor_list' %}" class="alert-link">Manage Factors</a> |
+                                <a href="{% url 'powermatchui:factor_type_list' %}" class="alert-link">Factor Types</a>
+                                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                            </div>
+                        </div>
+                    </div>
                     
                     <!-- Multi-scenario selection (hidden by default) -->
                     <div class="row mt-3" id="multiScenarioDiv" style="display: none;">
@@ -282,12 +311,24 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Handle view mode changes
     viewModeSelect.addEventListener('change', function() {
+        const scenarioSelect = document.getElementById('scenarioSelect');
+        const selectedOption = scenarioSelect.options[scenarioSelect.selectedIndex];
+        const hasFactors = selectedOption.dataset.hasFactors === 'true';
+
         if (this.value === 'comparison') {
             scenarioSelectDiv.style.display = 'none';
             multiScenarioDiv.style.display = 'block';
         } else {
             scenarioSelectDiv.style.display = 'block';
             multiScenarioDiv.style.display = 'none';
+
+            // Show warning if breakdown mode selected but scenario has no factors
+            if (this.value === 'breakdown' && !hasFactors) {
+                showError('Selected scenario does not have factor-based configuration. ' +
+                         'Please select a factor-based scenario or configure factors first.');
+            } else {
+                hideError();
+            }
         }
     });
     
@@ -330,11 +371,17 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
     
-    function calculateProjection(baseYear, endYear, scenario, viewMode, 
+    function calculateProjection(baseYear, endYear, scenario, viewMode,
                                  customOpRate, customUndRate) {
         showLoading();
         hideError();
-        
+
+        // Check if this is a factor-based scenario
+        const scenarioSelect = document.getElementById('scenarioSelect');
+        const selectedOption = scenarioSelect.options[scenarioSelect.selectedIndex];
+        const scenarioId = selectedOption.dataset.scenarioId;
+        const hasFactors = selectedOption.dataset.hasFactors === 'true';
+
         const requestData = {
             base_year: baseYear,
             end_year: endYear,
@@ -342,8 +389,13 @@ document.addEventListener('DOMContentLoaded', function() {
             operational_growth_rate: customOpRate,
             underlying_growth_rate: customUndRate
         };
-        
-        fetch('{% url "calculate_demand_projection" %}', {
+
+        // Add scenario_id if it's a database scenario
+        if (scenarioId) {
+            requestData.scenario_id = parseInt(scenarioId);
+        }
+
+        fetch('{% url "powermatchui:calculate_demand_projection" %}', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -357,7 +409,12 @@ document.addEventListener('DOMContentLoaded', function() {
             if (data.error) {
                 showError(data.error);
             } else {
-                plotProjection(data, viewMode);
+                // Check if this is a factor-based projection
+                if (data.projection_type === 'factor_based' && viewMode === 'breakdown') {
+                    plotFactorBreakdown(data);
+                } else {
+                    plotProjection(data, viewMode);
+                }
                 updateSummaryStats(data);
             }
         })
@@ -377,7 +434,7 @@ document.addEventListener('DOMContentLoaded', function() {
             scenarios: scenarios
         };
         
-        fetch('{% url "compare_scenarios" %}', {
+        fetch('{% url "powermatchui:compare_scenarios" %}', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -459,7 +516,95 @@ document.addEventListener('DOMContentLoaded', function() {
         
         Plotly.newPlot(demandPlot, traces, layout, getPlotConfig());
     }
-    
+
+    function plotFactorBreakdown(data) {
+        // Create stacked area chart showing individual factor contributions
+        const traces = [];
+        const colors = [
+            'rgb(55, 128, 191)',   // Blue - EV
+            'rgb(50, 171, 96)',    // Green - Industrial
+            'rgb(219, 64, 82)',    // Red - Hydrogen
+            'rgb(255, 127, 14)',   // Orange - Data Centers
+            'rgb(148, 103, 189)',  // Purple - HVAC
+            'rgb(140, 86, 75)',    // Brown
+            'rgb(227, 119, 194)',  // Pink
+            'rgb(127, 127, 127)'   // Gray
+        ];
+
+        let colorIdx = 0;
+
+        // Add traces for operational factors
+        if (data.factor_breakdown_operational_gwh) {
+            for (const [factorName, factorValues] of Object.entries(data.factor_breakdown_operational_gwh)) {
+                traces.push({
+                    x: data.years,
+                    y: factorValues,
+                    name: factorName + ' (Op)',
+                    type: 'scatter',
+                    mode: 'lines',
+                    line: { width: 0 },
+                    fillcolor: colors[colorIdx % colors.length],
+                    fill: 'tonexty',
+                    stackgroup: 'operational',
+                    hovertemplate: '<b>%{fullData.name}</b><br>' +
+                                   'Year: %{x}<br>' +
+                                   'Demand: %{y:.0f} GWh<br>' +
+                                   '<extra></extra>'
+                });
+                colorIdx++;
+            }
+        }
+
+        // Add traces for underlying factors
+        if (data.factor_breakdown_underlying_gwh) {
+            for (const [factorName, factorValues] of Object.entries(data.factor_breakdown_underlying_gwh)) {
+                traces.push({
+                    x: data.years,
+                    y: factorValues,
+                    name: factorName + ' (Und)',
+                    type: 'scatter',
+                    mode: 'lines',
+                    line: { width: 0 },
+                    fillcolor: colors[colorIdx % colors.length],
+                    fill: 'tonexty',
+                    stackgroup: 'underlying',
+                    hovertemplate: '<b>%{fullData.name}</b><br>' +
+                                   'Year: %{x}<br>' +
+                                   'Demand: %{y:.0f} GWh<br>' +
+                                   '<extra></extra>'
+                });
+                colorIdx++;
+            }
+        }
+
+        const layout = {
+            title: 'Factor-Based Demand Projection Breakdown',
+            xaxis: {
+                title: 'Year',
+                showgrid: true
+            },
+            yaxis: {
+                title: 'Annual Demand (GWh)',
+                showgrid: true
+            },
+            hovermode: 'x unified',
+            showlegend: true,
+            legend: {
+                x: 1.02,
+                y: 1,
+                bgcolor: 'rgba(255, 255, 255, 0.8)',
+                bordercolor: '#666',
+                borderwidth: 1,
+                orientation: 'v'
+            },
+            margin: {
+                r: 200  // Extra space for legend
+            }
+        };
+
+        Plotly.newPlot(demandPlot, traces, layout, getPlotConfig());
+    }
+
     function plotScenarioComparison(data) {
         const traces = [];
         const colors = [
@@ -521,28 +666,46 @@ document.addEventListener('DOMContentLoaded', function() {
     function updateSummaryStats(data) {
         const baseYearIdx = 0;
         const endYearIdx = data.years.length - 1;
-        
+
         const baseDemand = data.total_gwh[baseYearIdx];
         const endDemand = data.total_gwh[endYearIdx];
         const totalGrowth = ((endDemand - baseDemand) / baseDemand * 100);
         const numYears = data.years[endYearIdx] - data.years[baseYearIdx];
         const avgGrowth = Math.pow(endDemand / baseDemand, 1 / numYears) - 1;
-        
-        document.getElementById('baseYearDemand').textContent = 
+
+        document.getElementById('baseYearDemand').textContent =
             baseDemand.toFixed(0);
-        document.getElementById('endYearDemand').textContent = 
+        document.getElementById('endYearDemand').textContent =
             endDemand.toFixed(0);
-        document.getElementById('totalGrowth').textContent = 
+        document.getElementById('totalGrowth').textContent =
             totalGrowth.toFixed(1) + '%';
-        document.getElementById('avgGrowth').textContent = 
+        document.getElementById('avgGrowth').textContent =
             (avgGrowth * 100).toFixed(2) + '%';
-        
+
         // Update config details
-        if (data.config) {
+        if (data.projection_type === 'factor_based') {
+            // Show factor-based summary
+            let factorSummary = '<strong>Factor-Based Projection</strong><br>';
+
+            if (data.factor_breakdown_operational_gwh) {
+                factorSummary += '<br><em>Operational Factors:</em> ';
+                const opFactors = Object.keys(data.factor_breakdown_operational_gwh);
+                factorSummary += opFactors.join(', ');
+            }
+
+            if (data.factor_breakdown_underlying_gwh) {
+                factorSummary += '<br><em>Underlying Factors:</em> ';
+                const undFactors = Object.keys(data.factor_breakdown_underlying_gwh);
+                factorSummary += undFactors.join(', ');
+            }
+
+            document.getElementById('configDetails').innerHTML = factorSummary;
+        } else if (data.config) {
+            // Show legacy config summary
             const configText = `
-                Operational Growth: ${(data.config.operational_growth_rate * 100).toFixed(1)}% 
-                (${data.config.operational_growth_type}), 
-                Underlying Growth: ${(data.config.underlying_growth_rate * 100).toFixed(1)}% 
+                Operational Growth: ${(data.config.operational_growth_rate * 100).toFixed(1)}%
+                (${data.config.operational_growth_type}),
+                Underlying Growth: ${(data.config.underlying_growth_rate * 100).toFixed(1)}%
                 (${data.config.underlying_growth_type})
             `;
             document.getElementById('configDetails').textContent = configText;

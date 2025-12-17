@@ -1,0 +1,260 @@
+{% extends 'powermatchui_base.html' %}
+{% load static %}
+
+{% block powermatchui_content %}
+<div class="container-fluid mt-4">
+    <div class="row">
+        <div class="col-md-10 offset-md-1">
+            <h3>{% if editing %}Edit{% else %}Create{% endif %} Demand Factor</h3>
+            <p class="text-muted">
+                Configure growth parameters for a demand factor in a specific scenario.
+            </p>
+
+            <div class="card">
+                <div class="card-body">
+                    <form method="post">
+                        {% csrf_token %}
+
+                        <!-- Factor Type and Scenario Selection -->
+                        <div class="row mb-4">
+                            <div class="col-md-6">
+                                <label for="factor_type" class="form-label">
+                                    Factor Type <span class="text-danger">*</span>
+                                </label>
+                                <select class="form-select" id="factor_type" name="factor_type"
+                                        required {% if editing %}disabled{% endif %}>
+                                    <option value="">Select a factor type...</option>
+                                    {% for ft in factor_types %}
+                                    <option value="{{ ft.iddemandfactortype }}"
+                                            {% if editing and factor.factor_type.iddemandfactortype == ft.iddemandfactortype %}selected{% endif %}>
+                                        {{ ft.name }} ({{ ft.get_category_display }})
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                                {% if editing %}
+                                <div class="form-text text-warning">
+                                    Factor type cannot be changed after creation
+                                </div>
+                                {% endif %}
+                            </div>
+
+                            <div class="col-md-6">
+                                <label for="scenario" class="form-label">
+                                    Scenario {% if not editing %}<span class="text-danger">*</span>{% endif %}
+                                </label>
+                                <select class="form-select" id="scenario" name="scenario"
+                                        {% if editing %}disabled{% endif %}>
+                                    <option value="">Default (Template)</option>
+                                    {% for sc in scenarios %}
+                                    <option value="{{ sc.idscenarios }}"
+                                            {% if editing and factor.scenario and factor.scenario.idscenarios == sc.idscenarios %}selected{% endif %}>
+                                        {{ sc.title }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                                {% if editing %}
+                                <div class="form-text text-warning">
+                                    Scenario cannot be changed after creation
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <hr>
+
+                        <!-- Base Year -->
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="base_year" class="form-label">Base Year</label>
+                                <input type="number" class="form-control" id="base_year" name="base_year"
+                                       value="{% if editing %}{{ factor.base_year }}{% else %}2024{% endif %}"
+                                       min="2020" max="2030">
+                                <div class="form-text">Starting year for projections</div>
+                            </div>
+                        </div>
+
+                        <!-- Base Percentages -->
+                        <h5 class="mt-4">Base Demand Percentages</h5>
+                        <p class="text-muted">Percentage of total demand in base year allocated to this factor</p>
+
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="base_percentage_operational" class="form-label">
+                                    Operational Demand %
+                                </label>
+                                <div class="input-group">
+                                    <input type="number" class="form-control" id="base_percentage_operational"
+                                           name="base_percentage_operational"
+                                           value="{% if editing %}{{ factor.base_percentage_operational }}{% else %}0{% endif %}"
+                                           min="0" max="100" step="0.1">
+                                    <span class="input-group-text">%</span>
+                                </div>
+                                <div class="form-text">Grid-sent operational demand (0-100%)</div>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label for="base_percentage_underlying" class="form-label">
+                                    Underlying Demand %
+                                </label>
+                                <div class="input-group">
+                                    <input type="number" class="form-control" id="base_percentage_underlying"
+                                           name="base_percentage_underlying"
+                                           value="{% if editing %}{{ factor.base_percentage_underlying }}{% else %}0{% endif %}"
+                                           min="0" max="100" step="0.1">
+                                    <span class="input-group-text">%</span>
+                                </div>
+                                <div class="form-text">Total consumption incl. distributed generation (0-100%)</div>
+                            </div>
+                        </div>
+
+                        <hr>
+
+                        <!-- Growth Parameters -->
+                        <h5 class="mt-4">Growth Parameters</h5>
+
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="growth_type" class="form-label">Growth Type</label>
+                                <select class="form-select" id="growth_type" name="growth_type">
+                                    {% for value, label in growth_types %}
+                                    <option value="{{ value }}"
+                                            {% if editing and factor.growth_type == value %}selected{% endif %}
+                                            {% if not editing and value == 'exponential' %}selected{% endif %}>
+                                        {{ label }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label for="growth_rate" class="form-label">Growth Rate (Annual)</label>
+                                <div class="input-group">
+                                    <input type="number" class="form-control" id="growth_rate" name="growth_rate"
+                                           value="{% if editing %}{{ factor.growth_rate }}{% else %}0.02{% endif %}"
+                                           min="-1.0" max="10.0" step="0.001">
+                                    <span class="input-group-text">
+                                        (<span id="growth_rate_pct">2.0</span>%)
+                                    </span>
+                                </div>
+                                <div class="form-text">e.g., 0.03 = 3% annual growth</div>
+                            </div>
+                        </div>
+
+                        <!-- S-Curve Parameters (shown only when s_curve is selected) -->
+                        <div id="scurve_params" style="display: none;">
+                            <div class="alert alert-info">
+                                <strong>S-Curve Parameters</strong> - For technology adoption curves
+                            </div>
+
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label for="saturation_multiplier" class="form-label">Saturation Multiplier</label>
+                                    <input type="number" class="form-control" id="saturation_multiplier"
+                                           name="saturation_multiplier"
+                                           value="{% if editing %}{{ factor.saturation_multiplier }}{% else %}2.0{% endif %}"
+                                           min="1.0" max="10.0" step="0.1">
+                                    <div class="form-text">Maximum growth (1.0 = no growth, 2.0 = doubles)</div>
+                                </div>
+
+                                <div class="col-md-6">
+                                    <label for="midpoint_year" class="form-label">Midpoint Year</label>
+                                    <input type="number" class="form-control" id="midpoint_year" name="midpoint_year"
+                                           value="{% if editing %}{{ factor.midpoint_year }}{% else %}2035{% endif %}"
+                                           min="2020" max="2100">
+                                    <div class="form-text">Year of 50% saturation</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <hr>
+
+                        <!-- Advanced: Time-Varying Rates -->
+                        <h5 class="mt-4">
+                            Advanced: Time-Varying Growth Rates
+                            <small class="text-muted">(Optional)</small>
+                        </h5>
+                        <p class="text-muted">
+                            Specify different growth rates for different time periods using JSON format.
+                            Leave blank to use fixed growth rate above.
+                        </p>
+
+                        <div class="mb-3">
+                            <label for="time_varying_config" class="form-label">Time-Varying Configuration (JSON)</label>
+                            <textarea class="form-control font-monospace" id="time_varying_config"
+                                      name="time_varying_config" rows="5"
+                                      placeholder='{"2025": 0.03, "2030": 0.08, "2040": 0.02}'>{% if editing %}{{ time_varying_str }}{% endif %}</textarea>
+                            <div class="form-text">
+                                Format: <code>{"year": rate, "year": rate, ...}</code><br>
+                                Example: <code>{"2025": 0.03, "2030": 0.08, "2040": 0.02}</code> means 3% until 2030, 8% until 2040, then 2%
+                            </div>
+                        </div>
+
+                        <hr>
+
+                        <!-- Status and Notes -->
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="is_active" name="is_active"
+                                           {% if not editing or factor.is_active %}checked{% endif %}>
+                                    <label class="form-check-label" for="is_active">
+                                        <strong>Active</strong> - Include in projections
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="notes" class="form-label">Notes</label>
+                            <textarea class="form-control" id="notes" name="notes" rows="3"
+                                      placeholder="Additional notes about this factor configuration...">{% if editing %}{{ factor.notes }}{% endif %}</textarea>
+                        </div>
+
+                        <!-- Submit Buttons -->
+                        <div class="d-grid gap-2 d-md-flex justify-content-md-end mt-4">
+                            <a href="{% url 'powermatchui:factor_list' %}" class="btn btn-secondary">
+                                <i class="bi bi-x-circle"></i> Cancel
+                            </a>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-save"></i> {% if editing %}Update{% else %}Create{% endif %} Factor
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Show/hide S-curve parameters based on growth type selection
+document.getElementById('growth_type').addEventListener('change', function() {
+    const scurveParams = document.getElementById('scurve_params');
+    if (this.value === 's_curve') {
+        scurveParams.style.display = 'block';
+    } else {
+        scurveParams.style.display = 'none';
+    }
+});
+
+// Initialize on page load
+window.addEventListener('DOMContentLoaded', function() {
+    const growthType = document.getElementById('growth_type').value;
+    if (growthType === 's_curve') {
+        document.getElementById('scurve_params').style.display = 'block';
+    }
+});
+
+// Update growth rate percentage display
+document.getElementById('growth_rate').addEventListener('input', function() {
+    const percentage = (parseFloat(this.value) * 100).toFixed(1);
+    document.getElementById('growth_rate_pct').textContent = percentage;
+});
+
+// Initialize percentage display
+window.addEventListener('DOMContentLoaded', function() {
+    const rate = parseFloat(document.getElementById('growth_rate').value);
+    document.getElementById('growth_rate_pct').textContent = (rate * 100).toFixed(1);
+});
+</script>
+{% endblock %}

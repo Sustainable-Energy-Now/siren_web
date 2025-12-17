@@ -17,7 +17,8 @@ from datetime import datetime
 from siren_web.models import supplyfactors, DPVGeneration
 from powermatchui.utils.demand_projector import DemandProjector, ScenarioComparator
 
-from siren_web.models import supplyfactors, facilities
+from siren_web.models import supplyfactors, facilities, Scenarios, DemandFactor
+from powermatchui.utils.factor_based_projector import FactorBasedProjector
 
 def load_demand_config(config_file='siren.ini'):
     """Load demand projection configuration from INI file."""
@@ -305,22 +306,38 @@ def test_data_retrieval(year: int = None):
 @settings_required(redirect_view='powermatchui_home')
 def demand_projection_view(request):
     """Main view for demand projection visualization."""
-    
+
     # Load configuration
     config_file = request.session.get('config_file', 'siren.ini')
     demand_config, scenarios = load_demand_config(config_file)
-    
+
     # Get available years for base year selection
     # TODO: Replace with actual years available in your database
     available_years = list(range(2024, 2025))
-    
+
+    # Get database scenarios with factor configurations
+    db_scenarios = Scenarios.objects.all().order_by('title')
+    scenarios_with_factors = []
+    for scenario in db_scenarios:
+        factor_count = DemandFactor.objects.filter(
+            scenario=scenario,
+            is_active=True
+        ).count()
+        scenarios_with_factors.append({
+            'id': scenario.idscenarios,
+            'title': scenario.title,
+            'has_factors': factor_count > 0,
+            'factor_count': factor_count
+        })
+
     context = {
         'demand_config': demand_config,
-        'scenarios': scenarios,
+        'scenarios': scenarios,  # Legacy config-based scenarios
+        'db_scenarios': scenarios_with_factors,  # New factor-based scenarios
         'available_years': available_years,
         'current_file': config_file
     }
-    
+
     return render(request, 'demand_projection.html', context)
 
 @require_http_methods(["POST"])
@@ -329,23 +346,83 @@ def calculate_demand_projection(request):
     """
     API endpoint to calculate demand projections.
     Returns JSON data for plotting.
+    Supports both legacy (simple rates) and factor-based projections.
     """
     try:
         data = json.loads(request.body)
-        
+
         # Get parameters from request
         base_year = int(data.get('base_year', 2024))
         end_year = int(data.get('end_year', 2050))
-        scenario_name = data.get('scenario', 'Current Config')
-        
+        scenario_id = data.get('scenario_id')  # New: DB scenario ID
+        scenario_name = data.get('scenario', 'Current Config')  # Legacy: config name
+        use_factors = data.get('use_factors', False)  # New: explicit factor mode
+
+        # Get base year demand data
+        base_demand = get_base_year_demand(base_year)
+        year_range = list(range(base_year, end_year + 1))
+
+        # CHECK 1: Try factor-based projection if scenario_id provided
+        if scenario_id:
+            try:
+                scenario = Scenarios.objects.get(idscenarios=scenario_id)
+                factors = DemandFactor.objects.filter(
+                    scenario=scenario,
+                    is_active=True
+                )
+
+                if factors.exists():
+                    # Use factor-based projector
+                    projector = FactorBasedProjector(factors, base_year)
+                    projections = projector.project_multiple_years(
+                        base_demand['operational'],
+                        base_demand['underlying'],
+                        year_range
+                    )
+
+                    # Prepare factor breakdown data
+                    factor_breakdown = {}
+                    for year in year_range:
+                        factor_breakdown[year] = {
+                            'operational': projections[year]['factor_breakdown_operational_gwh'],
+                            'underlying': projections[year]['factor_breakdown_underlying_gwh']
+                        }
+
+                    response_data = {
+                        'years': year_range,
+                        'operational_total_gwh': [projections[y]['operational_total_mwh'] / 1000
+                                                  for y in year_range],
+                        'underlying_total_gwh': [projections[y]['underlying_total_mwh'] / 1000
+                                                 for y in year_range],
+                        'total_gwh': [projections[y]['total_mwh'] / 1000
+                                     for y in year_range],
+                        'operational_peak_mw': [projections[y]['operational_peak_mw']
+                                               for y in year_range],
+                        'underlying_peak_mw': [projections[y]['underlying_peak_mw']
+                                              for y in year_range],
+                        'total_peak_mw': [projections[y]['total_peak_mw']
+                                         for y in year_range],
+                        'projection_type': 'factor_based',
+                        'scenario_id': scenario_id,
+                        'scenario_title': scenario.title,
+                        'factor_count': factors.count(),
+                        'factor_breakdown': factor_breakdown,
+                        'metadata': projections[base_year]['metadata']
+                    }
+
+                    return JsonResponse(response_data)
+            except Scenarios.DoesNotExist:
+                pass  # Fall through to legacy projection
+
+        # CHECK 2: Legacy projection using config file
         # Optional: custom growth rates from sliders
         custom_operational_rate = data.get('operational_growth_rate')
         custom_underlying_rate = data.get('underlying_growth_rate')
-        
+
         # Load configuration
         config_file = request.session.get('config_file', 'siren.ini')
         demand_config, scenarios = load_demand_config(config_file)
-        
+
         # Use scenario config or custom values
         if scenario_name in scenarios:
             projection_config = scenarios[scenario_name]
@@ -353,40 +430,37 @@ def calculate_demand_projection(request):
         else:
             projection_config = demand_config.copy()
             projection_config['base_year'] = str(base_year)
-        
+
         # Override with custom slider values if provided
         if custom_operational_rate is not None:
             projection_config['operational_growth_rate'] = str(custom_operational_rate)
         if custom_underlying_rate is not None:
             projection_config['underlying_growth_rate'] = str(custom_underlying_rate)
-        
-        # Get base year demand data
-        base_demand = get_base_year_demand(base_year)
-        
+
+        # Use legacy projector
         projector = DemandProjector(projection_config)
-        
-        year_range = list(range(base_year, end_year + 1))
         projections = projector.project_multiple_years(
             base_demand['operational'],
             base_demand['underlying'],
             year_range
         )
-        
-        # Prepare response data
+
+        # Prepare response data (legacy format)
         response_data = {
             'years': year_range,
-            'operational_total_gwh': [projections[y]['operational_total_mwh'] / 1000 
+            'operational_total_gwh': [projections[y]['operational_total_mwh'] / 1000
                                       for y in year_range],
-            'underlying_total_gwh': [projections[y]['underlying_total_mwh'] / 1000 
+            'underlying_total_gwh': [projections[y]['underlying_total_mwh'] / 1000
                                      for y in year_range],
-            'total_gwh': [projections[y]['total_mwh'] / 1000 
+            'total_gwh': [projections[y]['total_mwh'] / 1000
                          for y in year_range],
-            'operational_peak_mw': [projections[y]['operational_peak_mw'] 
+            'operational_peak_mw': [projections[y]['operational_peak_mw']
                                    for y in year_range],
-            'underlying_peak_mw': [projections[y]['underlying_peak_mw'] 
+            'underlying_peak_mw': [projections[y]['underlying_peak_mw']
                                   for y in year_range],
-            'total_peak_mw': [projections[y]['total_peak_mw'] 
+            'total_peak_mw': [projections[y]['total_peak_mw']
                              for y in year_range],
+            'projection_type': 'legacy',
             'config': {
                 'operational_growth_rate': float(projection_config['operational_growth_rate']),
                 'underlying_growth_rate': float(projection_config['underlying_growth_rate']),
@@ -394,11 +468,15 @@ def calculate_demand_projection(request):
                 'underlying_growth_type': projection_config['underlying_growth_type']
             }
         }
-        
+
         return JsonResponse(response_data)
-        
+
     except Exception as e:
-        return JsonResponse({'error': str(e)}, status=400)
+        import traceback
+        return JsonResponse({
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        }, status=400)
 
 @require_http_methods(["POST"])
 @login_required

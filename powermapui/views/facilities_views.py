@@ -1,9 +1,9 @@
 from django.contrib import messages
 from django.core.paginator import Paginator
 from django.shortcuts import render, get_object_or_404, redirect
-from django.db.models import Q
+from django.db.models import Q, Prefetch
 from django.views.decorators.http import require_POST
-from siren_web.models import facilities, Scenarios, ScenariosFacilities, Technologies, Zones
+from siren_web.models import facilities, Scenarios, ScenariosFacilities, Technologies, Zones, FacilityWindTurbines
 
 def facilities_list(request):
     """List all facilities with search and pagination"""
@@ -17,16 +17,21 @@ def facilities_list(request):
     ).prefetch_related(
         'solar_installations__idtechnologies',
         'storage_installations__idtechnologies',
-        'facilitywindturbines_set__idtechnologies'
+        Prefetch('facilitywindturbines_set',
+                 queryset=FacilityWindTurbines.objects.select_related('idtechnologies'))
     ).all().order_by('facility_name')
 
     # Apply search filter
     if search_query:
+        wind_facility_ids = FacilityWindTurbines.objects.filter(
+            idtechnologies__technology_name__icontains=search_query
+        ).values_list('idfacilities', flat=True)
+
         facs = facs.filter(
             Q(facility_name__icontains=search_query) |
             Q(solar_installations__idtechnologies__technology_name__icontains=search_query) |
             Q(storage_installations__idtechnologies__technology_name__icontains=search_query) |
-            Q(facilitywindturbines_set__idtechnologies__technology_name__icontains=search_query) |
+            Q(idfacilities__in=wind_facility_ids) |
             Q(idzones__name__icontains=search_query)
         ).distinct()
     
@@ -40,10 +45,14 @@ def facilities_list(request):
     
     # Apply technology filter
     if technology_filter:
+        wind_facility_ids = FacilityWindTurbines.objects.filter(
+            idtechnologies__technology_name__icontains=technology_filter
+        ).values_list('idfacilities', flat=True)
+
         facs = facs.filter(
             Q(solar_installations__idtechnologies__technology_name__icontains=technology_filter) |
             Q(storage_installations__idtechnologies__technology_name__icontains=technology_filter) |
-            Q(facilitywindturbines_set__idtechnologies__technology_name__icontains=technology_filter)
+            Q(idfacilities__in=wind_facility_ids)
         ).distinct()
     
     # Apply zone filter
