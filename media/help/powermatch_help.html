@@ -1,0 +1,763 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Powermatch Module</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 0;
+            background: #f8f9fa;
+            color: #333;
+        }
+        
+        .container {
+            display: flex;
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            min-height: 100vh;
+            box-shadow: 0 0 20px rgba(0,0,0,0.1);
+        }
+        
+        .sidebar {
+            width: 350px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px 25px;
+            position: sticky;
+            top: 0;
+            height: 100vh;
+            overflow-y: auto;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+        }
+        
+        .sidebar h2 {
+            margin-top: 0;
+            color: #ffffff;
+            border-bottom: 2px solid rgba(255,255,255,0.3);
+            padding-bottom: 15px;
+            font-size: 1.4em;
+            font-weight: 600;
+        }
+        
+        .toc-list {
+            list-style: none;
+            padding: 0;
+            margin: 20px 0;
+        }
+        
+        .toc-item {
+            margin: 5px 0;
+        }
+        
+        .toc-link {
+            color: rgba(255,255,255,0.8);
+            text-decoration: none;
+            padding: 12px 15px;
+            display: block;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+            font-weight: 500;
+            border-left: 3px solid transparent;
+        }
+        
+        .toc-link:hover {
+            background: rgba(255,255,255,0.1);
+            color: white;
+            transform: translateX(5px);
+            border-left-color: rgba(255,255,255,0.5);
+        }
+        
+        .toc-link.active {
+            background: rgba(255,255,255,0.2);
+            color: white;
+            border-left-color: #ffd700;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+        }
+        .toc-subsections {
+            list-style: none;
+            padding: 0;
+            margin: 5px 0 0 20px;
+        }
+
+        .toc-subitem {
+            margin: 3px 0;
+        }
+
+        .toc-sublink {
+            color: rgba(255,255,255,0.6);
+            text-decoration: none;
+            padding: 6px 12px;
+            display: block;
+            border-radius: 5px;
+            transition: all 0.3s ease;
+            font-size: 0.9em;
+            border-left: 2px solid transparent;
+        }
+
+        .toc-sublink:hover {
+            background: rgba(255,255,255,0.05);
+            color: rgba(255,255,255,0.8);
+            border-left-color: rgba(255,255,255,0.3);
+        }
+        .content {
+            flex: 1;
+            padding: 40px 50px;
+            position: relative;
+            max-width: none;
+        }
+        
+        .page-section {
+            display: none;
+            animation: fadeIn 0.4s ease-in;
+        }
+        
+        .page-section.active {
+            display: block !important;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .navigation {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            display: flex;
+            gap: 15px;
+            z-index: 1000;
+        }
+        
+        .nav-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px 20px;
+            border-radius: 50px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+            min-width: 120px;
+        }
+        
+        .nav-btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+        }
+        
+        .nav-btn:disabled {
+            background: #cbd5e0;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        
+        .back-to-top {
+            position: fixed;
+            bottom: 120px;
+            right: 30px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px;
+            border-radius: 50%;
+            cursor: pointer;
+            width: 55px;
+            height: 55px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+            font-size: 18px;
+        }
+        
+        .back-to-top:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+        }
+        
+        .page-indicator {
+            position: fixed;
+            top: 30px;
+            right: 30px;
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 10px 15px;
+            border-radius: 25px;
+            font-size: 14px;
+            font-weight: 600;
+            z-index: 1000;
+            backdrop-filter: blur(10px);
+        }
+        
+        /* Content Styling */
+        h1, h2, h3, h4, h5, h6 {
+            color: #2d3748;
+            margin-top: 2em;
+            margin-bottom: 1em;
+        }
+        
+        h1 {
+            font-size: 2.5em;
+            border-bottom: 3px solid #667eea;
+            padding-bottom: 0.5em;
+            margin-top: 0;
+        }
+        
+        h2 {
+            font-size: 2em;
+            color: #4a5568;
+            border-bottom: 2px solid #e2e8f0;
+            padding-bottom: 0.3em;
+        }
+        
+        h3 {
+            font-size: 1.5em;
+            color: #667eea;
+        }
+        
+        p {
+            margin-bottom: 1.2em;
+            text-align: justify;
+        }
+        
+        ul, ol {
+            margin-bottom: 1.2em;
+            padding-left: 2em;
+        }
+        
+        li {
+            margin-bottom: 0.5em;
+        }
+        
+        code {
+            background: #f7fafc;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'Monaco', 'Consolas', monospace;
+            color: #e53e3e;
+            border: 1px solid #e2e8f0;
+        }
+        
+        pre {
+            background: #2d3748;
+            color: #e2e8f0;
+            padding: 20px;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin: 1.5em 0;
+        }
+        
+        pre code {
+            background: none;
+            padding: 0;
+            border: none;
+            color: inherit;
+        }
+        
+        strong {
+            color: #2d3748;
+            font-weight: 600;
+        }
+        
+        /* Mobile Responsive */
+        @media (max-width: 768px) {
+            .container {
+                flex-direction: column;
+            }
+            
+            .sidebar {
+                width: 100%;
+                height: auto;
+                position: relative;
+                padding: 20px;
+            }
+            
+            .content {
+                padding: 30px 20px;
+            }
+            
+            .navigation {
+                position: relative;
+                bottom: auto;
+                right: auto;
+                justify-content: center;
+                margin-top: 30px;
+            }
+            
+            .page-indicator {
+                position: relative;
+                top: auto;
+                right: auto;
+                margin-bottom: 20px;
+                display: inline-block;
+            }
+            
+            .back-to-top {
+                display: none;
+            }
+        }
+        
+        /* Print Styles */
+        @media print {
+            .sidebar, .navigation, .back-to-top, .page-indicator {
+                display: none;
+            }
+            
+            .page-section {
+                display: block !important;
+                page-break-after: always;
+            }
+            
+            .content {
+                width: 100%;
+                padding: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <nav class="sidebar">
+            <h2>📖 Table of Contents</h2>
+            
+            <div style="margin-bottom: 20px; padding-bottom: 15px; border-bottom: 1px solid rgba(255,255,255,0.2);">
+                <a href="/help/" style="color: rgba(255,255,255,0.9); text-decoration: none; padding: 10px 15px; display: block; border-radius: 8px; background: rgba(255,255,255,0.1); transition: all 0.3s ease;">
+                    ← Back to Main Help
+                </a>
+            </div>
+            <ul class="toc-list" id="tocList">
+                
+                <li class="toc-item">
+                    <a href="#" class="toc-link active" data-section="0">Powermatch Module</a>
+                </li><ul class="toc-subsections">
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="0" data-subsection="overview">Overview</a>
+                    </li></ul></li>
+                <li class="toc-item">
+                    <a href="#" class="toc-link " data-section="1">Key Features</a>
+                </li></li>
+                <li class="toc-item">
+                    <a href="#" class="toc-link " data-section="2">Navigation Overview</a>
+                </li></li>
+                <li class="toc-item">
+                    <a href="#" class="toc-link " data-section="3">Home Page - Scenario Selection</a>
+                </li><ul class="toc-subsections">
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="3" data-subsection="purpose">Purpose</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="3" data-subsection="steps-to-configure">Steps to Configure</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="3" data-subsection="important-notes">Important Notes</a>
+                    </li></ul></li>
+                <li class="toc-item">
+                    <a href="#" class="toc-link " data-section="4">Merit Order Configuration</a>
+                </li><ul class="toc-subsections">
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="4" data-subsection="purpose">Purpose</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="4" data-subsection="interface-components">Interface Components</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="4" data-subsection="how-to-configure-merit-order">How to Configure Merit Order</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="4" data-subsection="best-practices">Best Practices</a>
+                    </li></ul></li>
+                <li class="toc-item">
+                    <a href="#" class="toc-link " data-section="5">Baseline Scenario Management</a>
+                </li><ul class="toc-subsections">
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="5" data-subsection="purpose">Purpose</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="5" data-subsection="configuration-parameters">Configuration Parameters</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="5" data-subsection="setting-up-a-baseline">Setting Up a Baseline</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="5" data-subsection="running-analysis">Running Analysis</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="5" data-subsection="analysis-controls">Analysis Controls</a>
+                    </li></ul></li>
+                <li class="toc-item">
+                    <a href="#" class="toc-link " data-section="6">Variations and Analysis</a>
+                </li><ul class="toc-subsections">
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="6" data-subsection="purpose">Purpose</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="6" data-subsection="creating-variations">Creating Variations</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="6" data-subsection="understanding-variations">Understanding Variations</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="6" data-subsection="best-practices">Best Practices</a>
+                    </li></ul></li>
+                <li class="toc-item">
+                    <a href="#" class="toc-link " data-section="7">Progress Tracking</a>
+                </li><ul class="toc-subsections">
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="7" data-subsection="realtime-monitoring-features">Real-time Monitoring Features</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="7" data-subsection="managing-longrunning-analysis">Managing Long-Running Analysis</a>
+                    </li></ul></li>
+            </ul>
+            <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid rgba(255,255,255,0.2); font-size: 0.9em;">
+                <p><strong>Generated:</strong><br>December 18, 2025</p>
+                <p><strong>Sections:</strong> 8</p>
+            </div>
+        </nav>
+        
+        <main class="content">
+            <div class="page-indicator">
+                Page <span id="currentPage">1</span> of <span id="totalPages">8</span>
+            </div>
+            
+            
+            <div class="page-section active" data-section="0">
+                <h1 id="powermatch-module">Powermatch Module</h1>
+<h2 id="overview">Overview</h2>
+<p>PowerMatch is a web-based interface for matching and balancing Renewable Energy resources to the load on the South West Interconnected System (SWIS). The application quantifies and costs dispatchable energy generation, storage, and CO2-e emissions by taking input from Powermap load and generation data.</p>
+            </div>
+            <div class="page-section " data-section="1">
+                <h2 id="key-features">Key Features</h2>
+<ul>
+<li><strong>Renewable Energy Matching</strong>: Balance renewable resources with system load</li>
+<li><strong>Cost Analysis</strong>: Calculate levelised cost of energy (LCOE)</li>
+<li><strong>Emissions Tracking</strong>: Quantify CO2-e emissions</li>
+<li><strong>Scenario Analysis</strong>: Create and compare different energy scenarios</li>
+<li><strong>Real-time Progress</strong>: Monitor analysis progress with live updates</li>
+</ul>
+            </div>
+            <div class="page-section " data-section="2">
+                <h2 id="navigation-overview">Navigation Overview</h2>
+<p>The PowerMatch interface consists of five main sections:
+1. <strong>Home</strong>: Scenario and demand year selection
+2. <strong>Load Projection</strong>: Project Load Growth into the Future
+3. <strong>Merit Order</strong>: Configure technology dispatch priority
+4. <strong>Baseline Scenario</strong>: Set parameters and run analysis
+5. <strong>Variations</strong>: Create and analyze scenario variants</p>
+            </div>
+            <div class="page-section " data-section="3">
+                <h2 id="home-page-scenario-selection">Home Page - Scenario Selection</h2>
+<h3 id="purpose">Purpose</h3>
+<p>The home page allows you to select the demand year and scenario that will be used throughout a PowerMatch session. This selection is a prerequisite for all other functions.</p>
+<h3 id="steps-to-configure">Steps to Configure</h3>
+<ol>
+<li><strong>Select Demand Year</strong>: Choose from available demand years in the dropdown</li>
+<li><strong>Select Scenario</strong>: Choose the scenario you want to analyze</li>
+<li><strong>Apply Settings</strong>: Click the "Apply Settings" button to confirm selection</li>
+</ol>
+<h3 id="important-notes">Important Notes</h3>
+<ul>
+<li>Both weather year, demand year and scenario must be specified before proceeding</li>
+<li>The selected scenario becomes the basis for all subsequent analysis</li>
+<li>Data availability depends on what has been imported from Powermap</li>
+</ul>
+            </div>
+            <div class="page-section " data-section="4">
+                <h2 id="merit-order-configuration">Merit Order Configuration</h2>
+<h3 id="purpose">Purpose</h3>
+<p>The merit order determines the dispatch priority of different energy technologies. Technologies higher in the list are dispatched first when demand needs to be met.</p>
+<h3 id="interface-components">Interface Components</h3>
+<p><strong>Merit Order Panel (Left Side)</strong>
+- <strong>Active Technologies</strong>: Technologies that will be used in the analysis
+- <strong>Drag and Drop</strong>: Reorder technologies by dragging items up or down
+- <strong>Color Coding</strong>: Each technology has a color based on emissions characteristics
+<strong>Excluded Resources Panel (Right Side)</strong>
+- <strong>Excluded Technologies</strong>: Technologies not included in the current analysis
+- <strong>Move Between Lists</strong>: Drag technologies between merit order and excluded lists</p>
+<h3 id="how-to-configure-merit-order">How to Configure Merit Order</h3>
+<ol>
+<li><strong>Reorder Technologies</strong>:</li>
+<li>Click and drag technology items within the Merit Order list</li>
+<li>Higher position = higher dispatch priority</li>
+<li>Lower emissions technologies typically go higher</li>
+<li><strong>Include/Exclude Technologies</strong>:</li>
+<li>Drag technologies between "Merit Order" and "Excluded Resources" lists</li>
+<li>Only technologies in the Merit Order list will be used in analysis</li>
+<li><strong>Save Configuration</strong>:</li>
+<li>Click "Save Merit Order" button to save the configuration</li>
+<li>Page will reload to confirm changes</li>
+</ol>
+<h3 id="best-practices">Best Practices</h3>
+<ul>
+<li>Place renewable technologies (solar, wind) at the top</li>
+<li>Order by emissions intensity (lowest first)</li>
+<li>Consider economic dispatch order for conventional technologies</li>
+</ul>
+            </div>
+            <div class="page-section " data-section="5">
+                <h2 id="baseline-scenario-management">Baseline Scenario Management</h2>
+<h3 id="purpose">Purpose</h3>
+<p>The baseline scenario establishes the foundation for an analysis by setting technology capacities, carbon pricing, and discount rates.</p>
+<h3 id="configuration-parameters">Configuration Parameters</h3>
+<p><strong>Economic Settings</strong>
+- <strong>Carbon Price</strong>: Set the carbon price ($/tonne CO2-e) for emissions costing
+- <strong>Discount Rate</strong>: Set the discount rate (%) for economic calculations
+<strong>Technology Capacity Settings</strong>
+For each technology, you can configure:
+- <strong>Capacity</strong>: Base capacity in MW or MWh (read-only, from Powermap data)
+- <strong>Multiplier</strong>: Factor to scale the base capacity (editable)
+- <strong>Effective Capacity</strong>: Calculated result (Capacity × Multiplier)</p>
+<h3 id="setting-up-a-baseline">Setting Up a Baseline</h3>
+<ol>
+<li><strong>Configure Economic Parameters</strong>:</li>
+<li>Enter carbon price in the designated field</li>
+<li>Set appropriate discount rate</li>
+<li><strong>Adjust Technology Multipliers</strong>:</li>
+<li>Click in multiplier fields to edit values</li>
+<li>Use multipliers to scale technologies up or down from base capacity</li>
+<li>Effective capacity updates automatically</li>
+<li><strong>Save Parameters</strong>:</li>
+<li>Click "Save Runtime Parameters" to store a configuration</li>
+</ol>
+<h3 id="running-analysis">Running Analysis</h3>
+<p><strong>Standard Analysis</strong>
+- <strong>Quick Run</strong>: Click "Run Standard Analysis" for immediate results
+- <strong>No Progress Tracking</strong>: Analysis runs in background
+- <strong>Direct Results</strong>: Redirects to results page when complete
+<strong>Progress Tracking Analysis</strong>
+- <strong>Real-time Updates</strong>: Click "Run with Progress Tracking"
+- <strong>Live Progress Bar</strong>: Shows completion percentage
+- <strong>Time Estimates</strong>: Displays elapsed and remaining time
+- <strong>Connection Status</strong>: Shows real-time connection status
+<strong>Level of Detail Options</strong>
+- Choose analysis detail level from dropdown
+- Higher detail = more accurate results but longer processing time
+- Select "Save baseline" checkbox to store results for future use</p>
+<h3 id="analysis-controls">Analysis Controls</h3>
+<ul>
+<li><strong>Cancel</strong>: Stop running analysis at any time</li>
+<li><strong>Progress Panel</strong>: Shows real-time status and timing</li>
+<li><strong>Connection Status</strong>: Monitors live data feed</li>
+</ul>
+            </div>
+            <div class="page-section " data-section="6">
+                <h2 id="variations-and-analysis">Variations and Analysis</h2>
+<h3 id="purpose">Purpose</h3>
+<p>Variations allow you to explore different scenarios by systematically changing technology parameters and comparing results.</p>
+<h3 id="creating-variations">Creating Variations</h3>
+<p><strong>Prerequisites</strong>
+- Must have a baseline scenario established
+- Select existing variant or choose "Create a new variant"
+<strong>Configuration Steps</strong>
+1. <strong>Select Variant</strong>: Choose existing variant or create new one
+2. <strong>Refresh Settings</strong>: Click "Refresh" to load variant parameters
+3. <strong>Set Analysis Parameters</strong>:
+   - <strong>Number of Stages</strong>: How many analysis steps to run
+   - <strong>Step Value</strong>: Increment for parameter changes
+   - <strong>Technology Selection</strong>: Choose which technology to vary
+<strong>Technology Parameter Variation</strong>
+- <strong>Expand Technology</strong>: Click down arrow to show technology options
+- <strong>Set Step Change</strong>: Enter the increment value for each stage
+- <strong>Submit Analysis</strong>: Click "Submit" to run variation analysis</p>
+<h3 id="understanding-variations">Understanding Variations</h3>
+<ul>
+<li><strong>Iterative Analysis</strong>: PowerMatch runs multiple times with different parameters</li>
+<li><strong>Systematic Changes</strong>: One technology parameter changes by step value each iteration</li>
+<li><strong>Comparative Results</strong>: Results stored for plotting and comparison</li>
+<li><strong>Unique Naming</strong>: Each variation gets automatically generated unique name</li>
+</ul>
+<h3 id="best-practices">Best Practices</h3>
+<ul>
+<li>Start with small step changes to understand sensitivity</li>
+<li>Focus on technologies with significant impact on outcomes</li>
+<li>Use variations to optimize for specific goals (emissions, cost, reliability)</li>
+</ul>
+            </div>
+            <div class="page-section " data-section="7">
+                <h2 id="progress-tracking">Progress Tracking</h2>
+<h3 id="real-time-monitoring-features">Real-time Monitoring Features</h3>
+<p><strong>Connection Status Indicators</strong>
+- <strong>Connected</strong> (Green): Receiving real-time updates
+- <strong>Connecting</strong> (Orange): Establishing connection
+- <strong>Disconnected</strong> (Red): No active connection
+- <strong>Error</strong> (Red, Pulsing): Connection or analysis error
+<strong>Progress Information</strong>
+- <strong>Progress Bar</strong>: Visual completion percentage
+- <strong>Status Messages</strong>: Current analysis step
+- <strong>Timing Data</strong>:
+  - Elapsed time since start
+  - Estimated remaining time
+- <strong>Completion Percentage</strong>: Numeric progress indicator
+<strong>Browser Features</strong>
+- <strong>Background Processing</strong>: Analysis continues if you switch tabs
+- <strong>Automatic Reconnection</strong>: Reconnects if connection is lost
+- <strong>Download Integration</strong>: Automatic file download when complete</p>
+<h3 id="managing-long-running-analysis">Managing Long-Running Analysis</h3>
+<ul>
+<li><strong>Tab Switching</strong>: Safe to switch browser tabs during analysis</li>
+<li><strong>Connection Recovery</strong>: System attempts to reconnect automatically</li>
+<li><strong>Cancel Option</strong>: Stop analysis at any time using Cancel button</li>
+<li><strong>Result Persistence</strong>: Results saved even if connection is lost</li>
+</ul>
+<hr />
+            </div>
+        </main>
+    </div>
+    
+    <div class="navigation">
+        <button class="nav-btn" id="prevBtn" onclick="previousPage()">← Previous</button>
+        <button class="nav-btn" id="nextBtn" onclick="nextPage()">Next →</button>
+    </div>
+    
+    <button class="back-to-top" onclick="scrollToTop()" title="Back to top">↑</button>
+    
+    <script>
+        let currentSection = 0;
+        const totalSections = 8;
+        
+        function showSection(sectionIndex) {
+            // Hide all sections
+            document.querySelectorAll('.page-section').forEach(section => {
+                section.classList.remove('active');
+            });
+            
+            // Show selected section
+            const targetSection = document.querySelector(`.content .page-section[data-section="${sectionIndex}"]`);
+            if (targetSection) {
+                targetSection.classList.add('active');
+            }
+            
+            // Update TOC active state
+            document.querySelectorAll('.toc-link').forEach(link => {
+                link.classList.remove('active');
+            });
+            const activeLink = document.querySelector(`[data-section="${sectionIndex}"]`);
+            if (activeLink) {
+                activeLink.classList.add('active');
+            }
+            
+            // Update current section
+            currentSection = sectionIndex;
+            
+            // Update page indicator
+            document.getElementById('currentPage').textContent = sectionIndex + 1;
+            
+            // Update navigation buttons
+            updateNavigationButtons();
+            
+            // Scroll to top of content
+            document.querySelector('.content').scrollTop = 0;
+            window.scrollTo(0, 0);
+        }
+        
+        function updateNavigationButtons() {
+            const prevBtn = document.getElementById('prevBtn');
+            const nextBtn = document.getElementById('nextBtn');
+            
+            prevBtn.disabled = currentSection === 0;
+            nextBtn.disabled = currentSection === totalSections - 1;
+        }
+        
+        function nextPage() {
+            if (currentSection < totalSections - 1) {
+                showSection(currentSection + 1);
+            }
+        }
+        
+        function previousPage() {
+            if (currentSection > 0) {
+                showSection(currentSection - 1);
+            }
+        }
+        
+        function scrollToTop() {
+            showSection(0);
+        }
+        
+        // Keyboard navigation
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'ArrowRight' || e.key === 'PageDown') {
+                nextPage();
+                e.preventDefault();
+            } else if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
+                previousPage();
+                e.preventDefault();
+            }
+        });
+        
+                // TOC click handlers
+        document.addEventListener("DOMContentLoaded", function () {
+            const tocLinks = document.querySelectorAll(".toc-link");
+            const tocSubLinks = document.querySelectorAll(".toc-sublink");
+            const pageSections = document.querySelectorAll(".page-section");
+            const currentPage = document.getElementById("currentPage");
+
+            // Handle main section navigation
+            tocLinks.forEach(link => {
+                link.addEventListener("click", function (e) {
+                    e.preventDefault();
+
+                    const sectionIndex = this.dataset.section;
+
+                    // Activate the correct section
+                    pageSections.forEach(sec => {
+                        sec.classList.toggle("active", sec.dataset.section === sectionIndex);
+                    });
+
+                    // Update TOC link active state
+                    tocLinks.forEach(l => l.classList.remove("active"));
+                    this.classList.add("active");
+
+                    // Update page number
+                    if (currentPage) currentPage.textContent = parseInt(sectionIndex) + 1;
+
+                    // Scroll to top smoothly
+                    window.scrollTo({ top: 0, behavior: "smooth" });
+                });
+            });
+
+            // Handle subsection navigation
+            tocSubLinks.forEach(link => {
+                link.addEventListener("click", function (e) {
+                    e.preventDefault();
+
+                    const sectionIndex = this.dataset.section;
+                    const subsectionId = this.dataset.subsection;
+
+                    // 1️⃣ Activate correct section first
+                    pageSections.forEach(sec => {
+                        sec.classList.toggle("active", sec.dataset.section === sectionIndex);
+                    });
+
+                    // 2️⃣ Delay scroll until browser has rendered section
+                    setTimeout(() => {
+                        const target = document.getElementById(subsectionId);
+                        if (target) {
+                            target.scrollIntoView({ behavior: "smooth", block: "center" });
+
+                            // 3️⃣ Temporary highlight
+                            target.style.transition = "background-color 0.5s ease";
+                            const originalBg = target.style.backgroundColor;
+                            target.style.backgroundColor = "#fffa9e"; // light yellow
+                            setTimeout(() => {
+                                target.style.backgroundColor = originalBg;
+                            }, 1200);
+                        }
+                    }, 100); // wait a bit to ensure section is visible
+                });
+            });
+        });
+
+    </script>
+</body>
+</html>

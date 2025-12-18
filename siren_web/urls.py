@@ -33,10 +33,15 @@ urlpatterns = [
     path('references/api/search/', reference_views.reference_search_api, name='reference_search_api'),
     path('gendocs/', include('gendocs.urls')),
     path('config_views/', config_views.edit_config, name='edit_config'),
+    # Main help system URLs
     path('generate-help/', help_views.generate_help_html, name='generate_help_html'),
     path('help/', help_views.display_help_html, name='display_help_html'),
     path('help/edit/', help_views.edit_help_markdown, name='edit_help_markdown'),
     path('download/', help_views.download_help_html, name='download_help_html'),
+    # Module-specific help URLs
+    path('help/<str:module_name>/', help_views.display_help_html, name='display_module_help'),
+    path('help/<str:module_name>/generate/', help_views.generate_module_help, name='generate_module_help'),
+    path('help/<str:module_name>/edit/', help_views.edit_module_help_markdown, name='edit_module_help_markdown'),
     path("admin/", admin.site.urls),
     path('accounts/', include('django.contrib.auth.urls')),
 ]

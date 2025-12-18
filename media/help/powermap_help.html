@@ -1,0 +1,1232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Powermap Module</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 0;
+            background: #f8f9fa;
+            color: #333;
+        }
+        
+        .container {
+            display: flex;
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            min-height: 100vh;
+            box-shadow: 0 0 20px rgba(0,0,0,0.1);
+        }
+        
+        .sidebar {
+            width: 350px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px 25px;
+            position: sticky;
+            top: 0;
+            height: 100vh;
+            overflow-y: auto;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+        }
+        
+        .sidebar h2 {
+            margin-top: 0;
+            color: #ffffff;
+            border-bottom: 2px solid rgba(255,255,255,0.3);
+            padding-bottom: 15px;
+            font-size: 1.4em;
+            font-weight: 600;
+        }
+        
+        .toc-list {
+            list-style: none;
+            padding: 0;
+            margin: 20px 0;
+        }
+        
+        .toc-item {
+            margin: 5px 0;
+        }
+        
+        .toc-link {
+            color: rgba(255,255,255,0.8);
+            text-decoration: none;
+            padding: 12px 15px;
+            display: block;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+            font-weight: 500;
+            border-left: 3px solid transparent;
+        }
+        
+        .toc-link:hover {
+            background: rgba(255,255,255,0.1);
+            color: white;
+            transform: translateX(5px);
+            border-left-color: rgba(255,255,255,0.5);
+        }
+        
+        .toc-link.active {
+            background: rgba(255,255,255,0.2);
+            color: white;
+            border-left-color: #ffd700;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+        }
+        .toc-subsections {
+            list-style: none;
+            padding: 0;
+            margin: 5px 0 0 20px;
+        }
+
+        .toc-subitem {
+            margin: 3px 0;
+        }
+
+        .toc-sublink {
+            color: rgba(255,255,255,0.6);
+            text-decoration: none;
+            padding: 6px 12px;
+            display: block;
+            border-radius: 5px;
+            transition: all 0.3s ease;
+            font-size: 0.9em;
+            border-left: 2px solid transparent;
+        }
+
+        .toc-sublink:hover {
+            background: rgba(255,255,255,0.05);
+            color: rgba(255,255,255,0.8);
+            border-left-color: rgba(255,255,255,0.3);
+        }
+        .content {
+            flex: 1;
+            padding: 40px 50px;
+            position: relative;
+            max-width: none;
+        }
+        
+        .page-section {
+            display: none;
+            animation: fadeIn 0.4s ease-in;
+        }
+        
+        .page-section.active {
+            display: block !important;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .navigation {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            display: flex;
+            gap: 15px;
+            z-index: 1000;
+        }
+        
+        .nav-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px 20px;
+            border-radius: 50px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+            min-width: 120px;
+        }
+        
+        .nav-btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+        }
+        
+        .nav-btn:disabled {
+            background: #cbd5e0;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        
+        .back-to-top {
+            position: fixed;
+            bottom: 120px;
+            right: 30px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px;
+            border-radius: 50%;
+            cursor: pointer;
+            width: 55px;
+            height: 55px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+            font-size: 18px;
+        }
+        
+        .back-to-top:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+        }
+        
+        .page-indicator {
+            position: fixed;
+            top: 30px;
+            right: 30px;
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 10px 15px;
+            border-radius: 25px;
+            font-size: 14px;
+            font-weight: 600;
+            z-index: 1000;
+            backdrop-filter: blur(10px);
+        }
+        
+        /* Content Styling */
+        h1, h2, h3, h4, h5, h6 {
+            color: #2d3748;
+            margin-top: 2em;
+            margin-bottom: 1em;
+        }
+        
+        h1 {
+            font-size: 2.5em;
+            border-bottom: 3px solid #667eea;
+            padding-bottom: 0.5em;
+            margin-top: 0;
+        }
+        
+        h2 {
+            font-size: 2em;
+            color: #4a5568;
+            border-bottom: 2px solid #e2e8f0;
+            padding-bottom: 0.3em;
+        }
+        
+        h3 {
+            font-size: 1.5em;
+            color: #667eea;
+        }
+        
+        p {
+            margin-bottom: 1.2em;
+            text-align: justify;
+        }
+        
+        ul, ol {
+            margin-bottom: 1.2em;
+            padding-left: 2em;
+        }
+        
+        li {
+            margin-bottom: 0.5em;
+        }
+        
+        code {
+            background: #f7fafc;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'Monaco', 'Consolas', monospace;
+            color: #e53e3e;
+            border: 1px solid #e2e8f0;
+        }
+        
+        pre {
+            background: #2d3748;
+            color: #e2e8f0;
+            padding: 20px;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin: 1.5em 0;
+        }
+        
+        pre code {
+            background: none;
+            padding: 0;
+            border: none;
+            color: inherit;
+        }
+        
+        strong {
+            color: #2d3748;
+            font-weight: 600;
+        }
+        
+        /* Mobile Responsive */
+        @media (max-width: 768px) {
+            .container {
+                flex-direction: column;
+            }
+            
+            .sidebar {
+                width: 100%;
+                height: auto;
+                position: relative;
+                padding: 20px;
+            }
+            
+            .content {
+                padding: 30px 20px;
+            }
+            
+            .navigation {
+                position: relative;
+                bottom: auto;
+                right: auto;
+                justify-content: center;
+                margin-top: 30px;
+            }
+            
+            .page-indicator {
+                position: relative;
+                top: auto;
+                right: auto;
+                margin-bottom: 20px;
+                display: inline-block;
+            }
+            
+            .back-to-top {
+                display: none;
+            }
+        }
+        
+        /* Print Styles */
+        @media print {
+            .sidebar, .navigation, .back-to-top, .page-indicator {
+                display: none;
+            }
+            
+            .page-section {
+                display: block !important;
+                page-break-after: always;
+            }
+            
+            .content {
+                width: 100%;
+                padding: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <nav class="sidebar">
+            <h2>📖 Table of Contents</h2>
+            
+            <div style="margin-bottom: 20px; padding-bottom: 15px; border-bottom: 1px solid rgba(255,255,255,0.2);">
+                <a href="/help/" style="color: rgba(255,255,255,0.9); text-decoration: none; padding: 10px 15px; display: block; border-radius: 8px; background: rgba(255,255,255,0.1); transition: all 0.3s ease;">
+                    ← Back to Main Help
+                </a>
+            </div>
+            <ul class="toc-list" id="tocList">
+                
+                <li class="toc-item">
+                    <a href="#" class="toc-link active" data-section="0">Powermap Module</a>
+                </li><ul class="toc-subsections">
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="0" data-subsection="overview">Overview</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="0" data-subsection="scenario-management">Scenario Management</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="0" data-subsection="grid-map">Grid Map</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="0" data-subsection="viewing-facilities">Viewing Facilities</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="0" data-subsection="grid-line-management">Grid Line Management</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="0" data-subsection="adding-new-facilities">Adding New Facilities</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="0" data-subsection="adding-new-grid-lines">Adding New Grid Lines</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="0" data-subsection="starting-the-process">Starting the Process</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="0" data-subsection="advanced-powermap-features">Advanced Powermap Features</a>
+                    </li></ul></li>
+                <li class="toc-item">
+                    <a href="#" class="toc-link " data-section="1">Facilities Management</a>
+                </li><ul class="toc-subsections">
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="1" data-subsection="creating-a-new-installation">Creating a New Installation</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="1" data-subsection="notes-section">Notes Section</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="1" data-subsection="deactivating-an-installation">Deactivating an Installation</a>
+                    </li></ul></li>
+                <li class="toc-item">
+                    <a href="#" class="toc-link " data-section="2">Best Practices</a>
+                </li><ul class="toc-subsections">
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="2" data-subsection="creating-technologies">Creating Technologies</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="2" data-subsection="do">Do:</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="2" data-subsection="dont">Don't:</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="2" data-subsection="creating-installations">Creating Installations</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="2" data-subsection="do">Do:</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="2" data-subsection="dont">Don't:</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="2" data-subsection="signatures-short-codes">Signatures (Short Codes)</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="2" data-subsection="consistency-rules">Consistency Rules</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="2" data-subsection="workflow-best-practices">Workflow Best Practices</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="2" data-subsection="before-creating-installation">Before Creating Installation</a>
+                    </li></ul></li>
+                <li class="toc-item">
+                    <a href="#" class="toc-link " data-section="3">Glossary</a>
+                </li><ul class="toc-subsections">
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="3" data-subsection="facility-installations-list-screen">Facility Installations List Screen</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="3" data-subsection="facility-installation-detail-screen">Facility Installation Detail Screen</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="3" data-subsection="facility-installation-createedit-screen">Facility Installation Create/Edit Screen</a>
+                    </li></ul></li>
+            </ul>
+            <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid rgba(255,255,255,0.2); font-size: 0.9em;">
+                <p><strong>Generated:</strong><br>December 18, 2025</p>
+                <p><strong>Sections:</strong> 4</p>
+            </div>
+        </nav>
+        
+        <main class="content">
+            <div class="page-indicator">
+                Page <span id="currentPage">1</span> of <span id="totalPages">4</span>
+            </div>
+            
+            
+            <div class="page-section active" data-section="0">
+                <h1 id="powermap-module">Powermap Module</h1>
+<h2 id="overview">Overview</h2>
+<hr />
+<h2 id="powermap-is-an-interactive-mapping-tool-for-modeling-renewable-energy-generation-in-the-south-west-interconnected-system-swis-it-integrates-with-the-system-advisor-model-sam-to-provide-comprehensive-energy-planning-capabilities">Powermap is an interactive mapping tool for modeling renewable energy generation in the South West Interconnected System (SWIS). It integrates with the System Advisor Model (SAM) to provide comprehensive energy planning capabilities.</h2>
+<h3 id="scenario-management">Scenario Management</h3>
+<h4 id="selecting-a-scenario">Selecting a Scenario</h4>
+<ol>
+<li>Use the <strong>Demand Year</strong> dropdown to select the planning year</li>
+<li>Choose a <strong>Scenario</strong> from the available options</li>
+<li>Click <strong>Apply Settings</strong> to load the scenario data</li>
+</ol>
+<h4 id="scenario-types">Scenario Types</h4>
+<ul>
+<li><strong>Current</strong>: Existing infrastructure (read-only, no additions allowed)</li>
+<li><strong>Planning Scenarios</strong>: Modifiable scenarios for future planning</li>
+<li><strong>Custom Scenarios</strong>: User-created scenarios for specific studies<blockquote>
+<p><strong>Note</strong>: You cannot add facilities or grid lines to the "Current" scenario. Select a different scenario to add new infrastructure.</p>
+</blockquote>
+</li>
+</ul>
+<h3 id="grid-map">Grid Map</h3>
+<p>The Powermap interface consists of:</p>
+<ul>
+<li><strong>Control Panel</strong>: Top section for scenario selection and facility management</li>
+<li><strong>Interactive Map</strong>: Central map showing facilities, grid lines, and infrastructure</li>
+<li><strong>Layer Controls</strong>: Toggle different map layers (boundaries, zones, facilities, grid lines)</li>
+</ul>
+<h4 id="basic-navigation">Basic Navigation</h4>
+<ul>
+<li><strong>Pan</strong>: Click and drag to move around the map</li>
+<li><strong>Zoom</strong>: Use mouse wheel or zoom controls (+/-) </li>
+<li><strong>Reset View</strong>: Double-click to reset to default zoom level</li>
+</ul>
+<h4 id="map-layers">Map Layers</h4>
+<p>Use the layer control panel (top-right of map) to toggle:</p>
+<ul>
+<li>✅ <strong>SWIS Boundary</strong>: Regional boundary overlay</li>
+<li>✅ <strong>Zones</strong>: Planning zones within SWIS</li>
+<li>✅ <strong>Grid Facilities</strong>: Power generation facilities</li>
+<li>✅ <strong>Grid Lines</strong>: Transmission and distribution infrastructure</li>
+<li>✅ <strong>Terminals</strong>: Terminals and Sub-stations</li>
+</ul>
+<h4 id="visual-elements">Visual Elements</h4>
+<p><strong>Facility Icons</strong>: Different colored icons represent various technologies:</p>
+<ul>
+<li>⚫ Coal (coal.png)</li>
+<li>🌞 Solar PV (solar.png)</li>
+<li>💨 Wind (wind.png) </li>
+<li>🔋 Battery Storage (bess.png)</li>
+<li>🏭 Reciprocating Engine (RECIP.png)</li>
+<li>⚡ Combined Cycle Gas Turbine (CCGT.png)</li>
+<li>🌱 Biomass (biomass.png)</li>
+<li>💧 Pumped Hydro Storage (PHES.png)</li>
+<li>⚙️ Default/Other (power_technology.png)
+<strong>Grid Lines</strong>: Color-coded by voltage level:</li>
+<li><strong>Red</strong>: 330kV+ (High voltage transmission)</li>
+<li><strong>Cyan</strong>: 220kV (Sub-transmission)</li>
+<li><strong>Orange</strong>: 132kV (Distribution)</li>
+<li><strong>Yellow</strong>: &lt;66kV (Local distribution)</li>
+</ul>
+<h3 id="viewing-facilities">Viewing Facilities</h3>
+<h4 id="basic-facility-information">Basic Facility Information</h4>
+<ul>
+<li><strong>Hover</strong> over any facility icon to see basic information in a tooltip</li>
+<li><strong>Click</strong> on a facility icon to open detailed information</li>
+</ul>
+<h4 id="facility-details-modal">Facility Details Modal</h4>
+<p>When you click on a facility, a detailed modal window opens showing:</p>
+<p><strong>Basic Information</strong>
+- Facility name and code
+- Technology type and capacity (MW)
+- Operational status (Active/Inactive)
+- Commission and decommission dates
+- Location coordinates
+<strong>Technical Specifications</strong>
+<em>For Wind Facilities:</em>
+- Turbine model and specifications
+- Hub height and number of turbines
+- Rotor tilt angle and diameter
+- Capacity per turbine
+<em>For Solar Facilities:</em>
+- Panel tilt and azimuth angles
+- Tracking system type
+- Inverter efficiency ratings
+<em>For Battery Storage:</em>
+- Storage capacity (MWh)
+- Round-trip efficiency
+- Charge/discharge rates
+- State of charge limits
+<em>For Thermal Plants:</em>
+- Heat rate and fuel type
+- Emission factors
+- Minimum load factors
+<strong>Grid Connections</strong>
+- Connected transmission lines
+- Connection voltage levels
+- Distance to grid connection points
+- Primary vs. secondary connections
+- Calculated transmission losses
+<strong>Economic Data</strong>
+- Capital expenditure (CAPEX)
+- Operating expenditure (OPEX) 
+- Project lifetime and discount rates
+<strong>Performance Metrics</strong>
+- Capacity factor and annual output
+- System availability
+- Performance ratios</p>
+<h4 id="facility-actions">Facility Actions</h4>
+<p>From the facility details modal, you can:
+- <strong>Show on Map</strong>: Center the map on the facility with highlighting
+- <strong>Calculate Losses</strong>: View detailed transmission loss calculations
+- <strong>Edit Facility</strong>: Modify facility parameters (if permissions allow)</p>
+<h3 id="grid-line-management">Grid Line Management</h3>
+<h4 id="viewing-grid-lines">Viewing Grid Lines</h4>
+<ul>
+<li>Grid lines appear as colored lines based on voltage level</li>
+<li><strong>Click</strong> on any grid line to view detailed information</li>
+<li>Use <strong>Toggle Grid Line Labels</strong> button to show/hide line names</li>
+</ul>
+<h4 id="grid-line-details-modal">Grid Line Details Modal</h4>
+<p>Clicking on a grid line opens a detailed modal showing:
+<strong>Technical Specifications</strong>
+- Line name, code, and voltage level
+- Line type (transmission, sub-transmission, distribution)
+- Length and thermal capacity
+- Electrical characteristics (resistance, reactance, impedance)
+<strong>Connected Facilities</strong>
+- List of all facilities connected to the line
+- Connection distances and capacity allocations
+- Primary vs. secondary connection indicators
+<strong>Performance Data</strong>
+- Current utilization levels
+- Transmission losses at full capacity
+- Emergency capacity ratings
+<strong>Operational Information</strong>
+- Owner and commissioning date
+- Maintenance status and operational history</p>
+<h3 id="adding-new-facilities">Adding New Facilities</h3>
+<blockquote>
+<p><strong>Prerequisites</strong>: Select a modifiable scenario (not "Current")</p>
+</blockquote>
+<h4 id="starting-the-process">Starting the Process</h4>
+<ol>
+<li>Click <strong>Add New Facility</strong> button</li>
+<li>The button changes to "Cancel Add Facility" and the cursor becomes a crosshair</li>
+<li>Click on the map to select the facility location</li>
+</ol>
+<h4 id="facility-configuration">Facility Configuration</h4>
+<p><strong>Basic Settings</strong>
+1. <strong>Facility Name</strong>: Enter a descriptive name
+2. <strong>Technology</strong>: Select from available technology types
+3. <strong>Capacity</strong>: Enter capacity in megawatts (MW)
+<strong>Location Selection</strong>
+- Click anywhere on the map to set facility coordinates
+- Coordinates are displayed and can be verified
+- A temporary marker shows the selected location
+<strong>Grid Connection Options</strong>
+Choose one of three connection methods:
+<em>Auto-connect to nearest grid line</em> (Recommended)
+- System automatically finds the closest suitable grid line
+- Shows nearby grid lines with distances and capacities
+<em>Select existing grid line</em>
+- Choose from a dropdown of available grid lines
+- View technical specifications before selection
+<em>Create new grid line</em>
+- System creates a basic connection line
+- Useful for remote locations without nearby infrastructure
+<strong>Wind Turbine Specific Settings</strong>
+For wind facilities, additional fields appear:
+- <strong>Turbine Model</strong>: Select from available turbine types
+- <strong>Hub Height</strong>: Height from ground to hub (meters)
+- <strong>Number of Turbines</strong>: Total turbine count
+- <strong>Tilt</strong>: Rotor tilt angle (typically 5° onshore, 0° offshore)</p>
+<h4 id="completing-the-process">Completing the Process</h4>
+<ol>
+<li>Fill in all required fields</li>
+<li>Click <strong>Save Facility</strong> to create the facility</li>
+<li>The new facility appears immediately on the map</li>
+<li>Success message confirms creation and grid connection details</li>
+</ol>
+<h4 id="canceling">Canceling</h4>
+<ul>
+<li>Click <strong>Cancel Add Facility</strong> to exit without saving</li>
+<li>This removes temporary markers and resets the form</li>
+</ul>
+<h3 id="adding-new-grid-lines">Adding New Grid Lines</h3>
+<blockquote>
+<p><strong>Prerequisites</strong>: Select a modifiable scenario (not "Current")</p>
+</blockquote>
+<h3 id="starting-the-process_1">Starting the Process</h3>
+<ol>
+<li>Click <strong>Add New Grid Line</strong> button</li>
+<li>The button changes to "Cancel Add Grid Line" and the cursor becomes a crosshair</li>
+<li>Click two points on the map to define the line endpoints</li>
+</ol>
+<h4 id="grid-line-configuration">Grid Line Configuration</h4>
+<p><strong>Basic Information</strong>
+- <strong>Line Name</strong>: Descriptive name for the transmission line
+- <strong>Line Code</strong>: Short code identifier
+- <strong>Line Type</strong>: Choose from transmission, sub-transmission, or distribution
+<strong>Technical Specifications</strong>
+- <strong>Voltage Level</strong>: Operating voltage in kilovolts (kV)
+- <strong>Thermal Capacity</strong>: Maximum power transfer capacity (MW)
+- <strong>Resistance</strong>: Electrical resistance per kilometer (Ω/km)
+<strong>Endpoint Definition</strong>
+1. <strong>First Click</strong>: Sets the starting point of the line
+2. <strong>Second Click</strong>: Sets the ending point of the line
+3. <strong>Automatic Calculation</strong>: System calculates line length and displays coordinates</p>
+<h4 id="visual-feedback">Visual Feedback</h4>
+<ul>
+<li>First endpoint shows a marker labeled "Grid Line Start Point"</li>
+<li>Second endpoint shows a marker labeled "Grid Line End Point"  </li>
+<li>A dashed red line connects the two points</li>
+<li>Length is automatically calculated and displayed</li>
+</ul>
+<h4 id="completing-the-process_1">Completing the Process</h4>
+<ol>
+<li>Define both endpoints by clicking on the map</li>
+<li>Fill in all technical specifications</li>
+<li>Click <strong>Save Grid Line</strong> to create the line</li>
+<li>The new grid line appears on the map with appropriate styling</li>
+<li>Grid line becomes available for facility connections</li>
+</ol>
+<h4 id="canceling_1">Canceling</h4>
+<ul>
+<li>Click <strong>Cancel Add Grid Line</strong> to exit without saving</li>
+<li>This removes all temporary markers and lines</li>
+</ul>
+<h3 id="advanced-powermap-features">Advanced Powermap Features</h3>
+<h4 id="grid-line-labels">Grid Line Labels</h4>
+<ul>
+<li>Click <strong>Toggle Grid Line Labels</strong> to show/hide line names on the map</li>
+<li>Labels appear at the midpoint of each grid line</li>
+<li>Useful for identifying specific transmission corridors</li>
+</ul>
+<h4 id="layer-management">Layer Management</h4>
+<p>Use the layer control to customize the view:
+- Toggle facility visibility to focus on grid infrastructure
+- Hide boundary layers for cleaner facility views
+- Combine different layers for comprehensive planning views</p>
+<h4 id="loss-calculations">Loss Calculations</h4>
+<p>Access detailed transmission loss analysis:
+1. Click on any facility to open details modal
+2. Click <strong>Calculate Losses</strong> button
+3. View breakdown of connection losses vs. line losses
+4. See percentage losses relative to facility capacity</p>
+<h4 id="nearby-infrastructure-analysis">Nearby Infrastructure Analysis</h4>
+<p>When placing new facilities:
+- System automatically identifies nearby grid lines
+- Distance and capacity information helps with siting decisions
+- Transmission constraints are highlighted</p>
+<h4 id="performance-metrics">Performance Metrics</h4>
+<p>For existing facilities, view:
+- Historical capacity factors
+- Annual energy output projections
+- Grid connection utilization rates
+- Environmental impact assessments</p>
+<hr />
+            </div>
+            <div class="page-section " data-section="1">
+                <h2 id="facilities-management">Facilities Management</h2>
+<h4 id="facility-storage-installation">Facility Storage Installation</h4>
+<p><strong>What it is:</strong> A <em>specific deployment</em> of a storage technology at a facility
+<strong>Examples:</strong>
+- "100 MW / 400 MWh BESS at Solar Farm A"
+- "200 MW / 800 MWh BESS at Wind Farm B"
+- Both using the same "Lithium-Ion BESS" technology
+<strong>Contains:</strong>
+- Power capacity (MW)
+- Energy capacity (MWh)
+- Duration (hours)
+- Installation dates
+- Active/inactive status
+- Installation-specific notes</p>
+<h4 id="why-this-separation">Why This Separation?</h4>
+<p><strong>Flexibility:</strong> You can install the same battery technology at different facilities with different capacities
+- Site A might need 100 MW
+- Site B might need 200 MW
+- Both use the same technology with the same efficiency
+<strong>Accuracy:</strong> Technology characteristics (like 85% efficiency) don't change based on installation size
+<strong>Tracking:</strong> You can track when each installation was commissioned, deactivate old installations, and add new ones</p>
+<hr />
+<h3 id="creating-a-new-installation">Creating a New Installation</h3>
+<p><strong>Navigation:</strong> Facility Installations → Add Storage Installation</p>
+<h4 id="step-1-select-facility-and-technology">Step 1: Select Facility and Technology</h4>
+<p><strong>Facility:</strong> Choose where the storage will be located
+- Dropdown shows all available facilities
+- Required field
+<strong>Storage Technology:</strong> Choose the type of storage
+- Dropdown shows all storage technologies
+- Required field
+- Must select technology before entering capacity
+<strong>Installation Name:</strong> Optional identifier for this installation
+- Use if facility has multiple installations of same technology
+- Examples: "Main Battery Bank", "North Array", "Phase 1"
+- Leave blank if facility has only one installation
+<strong>Example:</strong></p>
+<pre class="codehilite"><code>Facility: Solar Farm A
+Technology: Lithium-Ion BESS
+Installation Name: Main Battery Bank
+</code></pre>
+
+<h4 id="step-2-specify-capacity">Step 2: Specify Capacity</h4>
+<p><strong>Important:</strong> This is where you define the actual size of this installation!
+<strong>Power Capacity (MW):</strong> Maximum charge/discharge rate
+- How fast the battery can charge or discharge
+- Example: 100 MW
+<strong>Energy Capacity (MWh):</strong> Total energy storage
+- How much total energy the battery holds
+- Example: 400 MWh
+<strong>Duration (hours):</strong> How long battery can discharge at rated power
+- Optional - automatically calculated if you provide power and energy
+- Formula: Duration = Energy ÷ Power
+- Example: 400 MWh ÷ 100 MW = 4 hours
+<strong>Auto-Calculation:</strong> As you enter power and energy, the form shows calculated duration
+<strong>Example:</strong></p>
+<pre class="codehilite"><code>Power: 100 MW (enter)
+Energy: 400 MWh (enter)
+Duration: 4.0 hours (automatically calculated)
+</code></pre>
+
+<p><strong>At Least One Required:</strong> You must provide at least one capacity value (power, energy, or duration)</p>
+<h4 id="step-3-enter-installation-details">Step 3: Enter Installation Details</h4>
+<p><strong>Installation Date:</strong> When physical installation occurred
+- Optional
+- Format: YYYY-MM-DD
+- Example: 2024-03-15
+<strong>Commissioning Date:</strong> When system began operations
+- Optional
+- Usually after installation date
+- Format: YYYY-MM-DD
+- Example: 2024-04-01
+<strong>Initial State of Charge:</strong> Starting charge level for simulations
+- Optional (uses technology default if not specified)
+- Range: 0.0 to 1.0 (0% to 100%)
+- Example: 0.5 (50%)
+<strong>Notes:</strong> Free-form text field
+- Additional information about this installation
+- Examples:
+  - "Phase 1 of planned expansion"
+  - "Integrated with solar array"
+  - "Primary frequency regulation unit"
+<strong>Example:</strong></p>
+<pre class="codehilite"><code>Installation Date: 2024-03-15
+Commissioning Date: 2024-04-01
+Initial SOC: 0.5
+Notes: Main battery bank integrated with 50 MW solar array
+</code></pre>
+
+<h4 id="step-4-create-installation">Step 4: Create Installation</h4>
+<p>Click <strong>Create Installation</strong>. The system will:
+- Validate all inputs
+- Check for duplicates
+- Auto-calculate duration if possible
+- Create the installation record
+- Redirect to installation detail page
+<strong>Validation Rules:</strong>
+- At least one capacity value required
+- If all three capacities provided, they must be consistent
+- Power and energy must be positive numbers
+- SOC must be between 0.0 and 1.0</p>
+<h4 id="viewing-installation-details">Viewing Installation Details</h4>
+<p><strong>Navigation:</strong> Click any installation name or "View" button
+<strong>What You'll See:</strong></p>
+<h4 id="installation-information">Installation Information</h4>
+<ul>
+<li>Facility name (with link)</li>
+<li>Storage technology (with link to tech details)</li>
+<li>Installation name</li>
+<li>Status (Active/Inactive badge)</li>
+<li>Installation date</li>
+<li>Commissioning date</li>
+<li>Created and last updated timestamps</li>
+</ul>
+<h4 id="capacity-specifications-primary-card">Capacity Specifications (Primary Card)</h4>
+<ul>
+<li><strong>Power Capacity:</strong> MW rating</li>
+<li><strong>Energy Capacity:</strong> MWh capacity</li>
+<li><strong>Duration:</strong> Hours at rated power</li>
+<li><strong>Usable Capacity:</strong> Accounting for SOC limits</li>
+<li><strong>Initial SOC:</strong> For this installation</li>
+<li><strong>Capacity Summary:</strong> One-line description
+<strong>Example:</strong></li>
+</ul>
+<pre class="codehilite"><code>Power Capacity: 100 MW
+Energy Capacity: 400 MWh
+Duration: 4.0 hours
+Usable Capacity: 320 MWh (based on 10-90% SOC limits)
+Initial SOC: 0.5 (50%)
+Capacity Summary: 100 MW / 400 MWh (4.0h)
+</code></pre>
+
+<h4 id="technology-characteristics">Technology Characteristics</h4>
+<ul>
+<li>Inherited from the storage technology</li>
+<li>Efficiency values (round-trip, charge, discharge)</li>
+<li>Operational limits (min/max SOC)</li>
+<li>Degradation data (cycle life, calendar life, self-discharge)</li>
+<li><strong>Link</strong> to view full technology details
+<strong>Why Shown Here:</strong> You can see the technology specs without leaving the installation view</li>
+</ul>
+<h4 id="performance-metrics">Performance Metrics</h4>
+<p>Calculated values specific to this installation:
+<strong>Energy Metrics:</strong>
+- Usable energy after SOC limits
+- Effective delivered energy per cycle (accounting for efficiency)
+- Lifetime energy throughput (capacity × cycle life)
+<strong>Cycling Capability:</strong>
+- Total cycle life
+- Suitability for daily cycling
+- Expected years of operation
+<strong>Example:</strong></p>
+<pre class="codehilite"><code>Usable Energy: 320 MWh (80% of 400 MWh, based on SOC limits)
+Effective Energy per Cycle: ~400 MWh × 85% RTE
+Lifetime Throughput: ~400 MWh × 5,000 cycles
+Cycling Capability: 5,000 full cycles
+  → Suitable for daily cycling (13+ years at 1 cycle/day)
+</code></pre>
+
+<h3 id="notes-section">Notes Section</h3>
+<p>Displays any notes entered for this installation</p>
+<h4 id="action-buttons">Action Buttons</h4>
+<ul>
+<li><strong>Edit Installation:</strong> Modify capacity and settings</li>
+<li><strong>Back to List:</strong> Return to installations list</li>
+<li><strong>Delete Installation:</strong> Remove this installation (with confirmation)</li>
+</ul>
+<h4 id="editing-an-installation">Editing an Installation</h4>
+<p><strong>Navigation:</strong> Installation Detail → Edit Installation
+<strong>What You Can Edit:</strong>
+- Installation name
+- All capacity values (power, energy, duration)
+- Installation dates
+- Initial SOC override
+- Active/inactive status
+- Notes
+<strong>What You CANNOT Edit:</strong>
+- Facility (permanent after creation)
+- Storage technology (permanent after creation)
+<strong>Why Fixed?</strong> Facility and technology define the installation. If you need to change these, create a new installation.</p>
+<h4 id="edit-form-sections">Edit Form Sections</h4>
+<p><strong>Read-Only Fields:</strong>
+- Facility name (shown but grayed out)
+- Storage technology (shown but grayed out)
+<strong>Editable Fields:</strong>
+- Installation name
+- Power capacity (MW)
+- Energy capacity (MWh)
+- Duration (hours)
+- Installation date
+- Commissioning date
+- Initial SOC
+- Active checkbox
+- Notes
+<strong>Auto-Calculation:</strong> Duration updates as you modify power/energy
+<strong>Current Values Sidebar:</strong>
+- Shows current values for reference
+- Links to technology details
+<strong>Saving Changes:</strong>
+1. Modify desired fields
+2. Click <strong>Update Installation</strong>
+3. System validates inputs
+4. Redirects to installation detail page
+<strong>Validation:</strong>
+- At least one capacity value required
+- Capacity values must be consistent if all three provided
+- SOC must be between 0.0 and 1.0</p>
+<h3 id="deactivating-an-installation">Deactivating an Installation</h3>
+<p><strong>Why Deactivate?</strong> When storage is temporarily offline or permanently retired but you want to keep the record.
+<strong>How:</strong>
+1. Navigate to installation edit page
+2. Uncheck "Installation is Active"
+3. Add note explaining why (optional)
+4. Click <strong>Update Installation</strong>
+<strong>Effect:</strong>
+- Installation marked as inactive
+- <strong>Excluded from simulations</strong>
+- Shown with gray background in list view
+- <strong>Not deleted</strong> - data preserved for history
+<strong>Reactivating:</strong> Simply check the "Active" box again</p>
+<h4 id="deleting-an-installation">Deleting an Installation</h4>
+<p><strong>Warning:</strong> This permanently removes the installation record!
+<strong>How:</strong>
+1. Navigate to installation detail page
+2. Click <strong>Delete Installation</strong> button (red)
+3. Confirm deletion in popup dialog
+4. Installation is permanently deleted
+<strong>When to Delete vs. Deactivate:</strong>
+- <strong>Deactivate:</strong> Temporarily offline, might return, want to keep history
+- <strong>Delete:</strong> Data entry error, duplicate entry, no longer needed</p>
+<hr />
+            </div>
+            <div class="page-section " data-section="2">
+                <h2 id="best-practices">Best Practices</h2>
+<h3 id="creating-technologies">Creating Technologies</h3>
+<h3 id="do">Do:</h3>
+<ul>
+<li>✅ Use descriptive, consistent names</li>
+<li>✅ Use manufacturer data sheets for specifications</li>
+<li>✅ Document assumptions in the description field</li>
+<li>✅ Enter all available data - more is better for modeling</li>
+<li>✅ Verify efficiency values with manufacturer</li>
+</ul>
+<h3 id="dont">Don't:</h3>
+<ul>
+<li>❌ Create duplicate technologies with slightly different names</li>
+<li>❌ Put capacity values in technology (they belong in installations!)</li>
+<li>❌ Leave efficiency fields blank if data is available</li>
+<li>❌ Use generic names like "Battery 1", "Battery 2"</li>
+<li>❌ Mix different chemistries in one technology</li>
+</ul>
+<h3 id="creating-installations">Creating Installations</h3>
+<h3 id="do_1">Do:</h3>
+<ul>
+<li>✅ Provide all three capacities (power, energy, duration) when known</li>
+<li>✅ Use descriptive installation names at multi-battery facilities</li>
+<li>✅ Enter installation and commissioning dates</li>
+<li>✅ Add notes about unique characteristics or constraints</li>
+<li>✅ Verify capacity values match purchase orders</li>
+<li>✅ Set initial SOC based on operational practice</li>
+</ul>
+<h3 id="dont_1">Don't:</h3>
+<ul>
+<li>❌ Create installation before creating technology</li>
+<li>❌ Guess at capacity values - verify with facility manager</li>
+<li>❌ Leave installation unnamed at facilities with multiple batteries</li>
+<li>❌ Forget to update status when storage is offline</li>
+</ul>
+<h3 id="signatures-short-codes">Signatures (Short Codes)</h3>
+<p><strong>Technologies:</strong></p>
+<pre class="codehilite"><code>Good: &quot;BESS4&quot; (BESS)
+Good: &quot;PHES&quot; (Pumped Hydro)
+Good: &quot;VRFB&quot; (Vanadium Redox Flow Battery)
+Bad: &quot;B1&quot; (not descriptive)
+Bad: &quot;Battery&quot; (too generic)
+Bad: &quot;StorageTech1&quot; (too long)
+</code></pre>
+
+<h3 id="consistency-rules">Consistency Rules</h3>
+<ul>
+<li>Use same units everywhere (MW, MWh, hours)</li>
+<li>SOC as decimal (0.0-1.0) not percentage</li>
+<li>Efficiency as percentage (85%) not decimal (0.85)</li>
+<li>Dates in ISO format (YYYY-MM-DD)</li>
+</ul>
+<h3 id="workflow-best-practices">Workflow Best Practices</h3>
+<h3 id="before-creating-installation">Before Creating Installation</h3>
+<ol>
+<li>✅ Verify technology exists (or create it first)</li>
+<li>✅ Confirm facility exists in system</li>
+<li>✅ Gather all capacity specifications</li>
+<li>✅ Have installation dates ready</li>
+<li>✅ Know operational constraints</li>
+</ol>
+<hr />
+            </div>
+            <div class="page-section " data-section="3">
+                <h2 id="glossary">Glossary</h2>
+<p><strong>AC/DC Conversion:</strong> Converting alternating current to direct current (or vice versa). Most storage uses DC internally but connects to AC grid, so efficiency includes conversion losses.
+<strong>Active Installation:</strong> Storage installation currently operational and included in simulations.
+<strong>Arbitrage:</strong> Buying electricity when cheap (charging storage) and selling when expensive (discharging storage).
+<strong>Auxiliary Load:</strong> Power consumed by storage system itself (cooling, controls, monitoring).
+<strong>BESS:</strong> Battery Energy Storage System. Usually refers to lithium-ion batteries.
+<strong>Calendar Life:</strong> Expected operational life in years, independent of usage.
+<strong>Capacity (Energy):</strong> Total amount of energy that can be stored, measured in megawatt-hours (MWh).
+<strong>Capacity (Power):</strong> Maximum rate of charging or discharging, measured in megawatts (MW).
+<strong>Commissioning:</strong> Process of testing and activating a newly installed system.
+<strong>Cycle:</strong> One complete charge and discharge sequence.
+<strong>Cycle Life:</strong> Number of full charge-discharge cycles before significant degradation.
+<strong>Degradation:</strong> Gradual loss of capacity over time due to aging and use.
+<strong>Depth of Discharge (DoD):</strong> How much capacity is used. DoD = 1.0 - SOC.
+<strong>Dispatch:</strong> Instruction to charge or discharge storage at specified rate.
+<strong>Duration:</strong> How long storage can discharge at rated power. Duration = Energy ÷ Power.
+<strong>Efficiency:</strong> Ratio of energy out to energy in. Never 100% due to losses.
+<strong>Energy Throughput:</strong> Total amount of energy cycled through storage over its lifetime.
+<strong>Facility:</strong> Physical location where storage is installed.
+<strong>Firming:</strong> Using storage to smooth variable renewable generation.
+<strong>Flow Battery:</strong> Storage technology where energy stored in liquid electrolyte tanks.
+<strong>Frequency Regulation:</strong> Rapid adjustment of power to maintain grid frequency at 50/60 Hz.
+<strong>Installation:</strong> Specific deployment of a storage technology at a facility.
+<strong>Lithium-Ion:</strong> Common battery chemistry used in BESS.
+<strong>MW (Megawatt):</strong> Unit of power. 1 MW = 1,000 kilowatts.
+<strong>MWh (Megawatt-hour):</strong> Unit of energy. 1 MWh = 1 MW for 1 hour.
+<strong>Peak Shaving:</strong> Reducing peak demand by discharging storage.
+<strong>Pumped Hydro Storage (PHES):</strong> Storage by pumping water uphill, then releasing through turbines.
+<strong>Round-Trip Efficiency (RTE):</strong> Energy recovered as percentage of energy stored.
+<strong>Self-Discharge:</strong> Gradual loss of stored energy over time when idle.
+<strong>SOC:</strong> State of Charge. Percentage of capacity currently stored (0-100%).
+<strong>Technology:</strong> Type of storage system with defined characteristics.
+<strong>Time-Shifting:</strong> Moving energy from one time period to another via storage.
+<strong>Usable Capacity:</strong> Energy capacity accounting for SOC limits. = Energy × (Max SOC - Min SOC).</p>
+<hr />
+<h3 id="facility-installations-list-screen">Facility Installations List Screen</h3>
+<p><strong>What you see:</strong>
+- Three summary cards at top (total installations, power, energy)
+- Filter/search panel
+- Table of all installations
+- Columns: Facility, Technology, Name, Power, Energy, Duration, Status
+<strong>What you can do:</strong>
+- Filter by facility, technology, or active status
+- Search installations
+- View installation details
+- Edit installations
+- Create new installation
+- See aggregate statistics</p>
+<h3 id="facility-installation-detail-screen">Facility Installation Detail Screen</h3>
+<p><strong>What you see:</strong>
+- Installation header with facility and technology
+- Four main cards:
+  1. Installation Information
+  2. Capacity Specifications (highlighted)
+  3. Technology Characteristics (inherited)
+  4. Performance Metrics (calculated)
+- Notes section if present
+- Action buttons at bottom
+<strong>What you can do:</strong>
+- View complete installation details
+- See capacity and calculated metrics
+- Check technology characteristics
+- Review performance analysis
+- Edit installation
+- Delete installation (with confirmation)</p>
+<h3 id="facility-installation-createedit-screen">Facility Installation Create/Edit Screen</h3>
+<p><strong>What you see:</strong>
+- Form with sections:
+  1. Facility and Technology selection (or read-only in edit)
+  2. Installation Name
+  3. Capacity Specifications
+  4. Installation Details
+  5. Notes
+- Sidebar with help and current values (in edit mode)
+- Save/Cancel buttons
+<strong>What you can do:</strong>
+- Select facility and technology (create only)
+- Enter installation name
+- Specify capacities (auto-calculates duration)
+- Set dates and initial SOC
+- Toggle active status (edit only)
+- Add notes
+- Save or cancel</p>
+<hr />
+            </div>
+        </main>
+    </div>
+    
+    <div class="navigation">
+        <button class="nav-btn" id="prevBtn" onclick="previousPage()">← Previous</button>
+        <button class="nav-btn" id="nextBtn" onclick="nextPage()">Next →</button>
+    </div>
+    
+    <button class="back-to-top" onclick="scrollToTop()" title="Back to top">↑</button>
+    
+    <script>
+        let currentSection = 0;
+        const totalSections = 4;
+        
+        function showSection(sectionIndex) {
+            // Hide all sections
+            document.querySelectorAll('.page-section').forEach(section => {
+                section.classList.remove('active');
+            });
+            
+            // Show selected section
+            const targetSection = document.querySelector(`.content .page-section[data-section="${sectionIndex}"]`);
+            if (targetSection) {
+                targetSection.classList.add('active');
+            }
+            
+            // Update TOC active state
+            document.querySelectorAll('.toc-link').forEach(link => {
+                link.classList.remove('active');
+            });
+            const activeLink = document.querySelector(`[data-section="${sectionIndex}"]`);
+            if (activeLink) {
+                activeLink.classList.add('active');
+            }
+            
+            // Update current section
+            currentSection = sectionIndex;
+            
+            // Update page indicator
+            document.getElementById('currentPage').textContent = sectionIndex + 1;
+            
+            // Update navigation buttons
+            updateNavigationButtons();
+            
+            // Scroll to top of content
+            document.querySelector('.content').scrollTop = 0;
+            window.scrollTo(0, 0);
+        }
+        
+        function updateNavigationButtons() {
+            const prevBtn = document.getElementById('prevBtn');
+            const nextBtn = document.getElementById('nextBtn');
+            
+            prevBtn.disabled = currentSection === 0;
+            nextBtn.disabled = currentSection === totalSections - 1;
+        }
+        
+        function nextPage() {
+            if (currentSection < totalSections - 1) {
+                showSection(currentSection + 1);
+            }
+        }
+        
+        function previousPage() {
+            if (currentSection > 0) {
+                showSection(currentSection - 1);
+            }
+        }
+        
+        function scrollToTop() {
+            showSection(0);
+        }
+        
+        // Keyboard navigation
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'ArrowRight' || e.key === 'PageDown') {
+                nextPage();
+                e.preventDefault();
+            } else if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
+                previousPage();
+                e.preventDefault();
+            }
+        });
+        
+                // TOC click handlers
+        document.addEventListener("DOMContentLoaded", function () {
+            const tocLinks = document.querySelectorAll(".toc-link");
+            const tocSubLinks = document.querySelectorAll(".toc-sublink");
+            const pageSections = document.querySelectorAll(".page-section");
+            const currentPage = document.getElementById("currentPage");
+
+            // Handle main section navigation
+            tocLinks.forEach(link => {
+                link.addEventListener("click", function (e) {
+                    e.preventDefault();
+
+                    const sectionIndex = this.dataset.section;
+
+                    // Activate the correct section
+                    pageSections.forEach(sec => {
+                        sec.classList.toggle("active", sec.dataset.section === sectionIndex);
+                    });
+
+                    // Update TOC link active state
+                    tocLinks.forEach(l => l.classList.remove("active"));
+                    this.classList.add("active");
+
+                    // Update page number
+                    if (currentPage) currentPage.textContent = parseInt(sectionIndex) + 1;
+
+                    // Scroll to top smoothly
+                    window.scrollTo({ top: 0, behavior: "smooth" });
+                });
+            });
+
+            // Handle subsection navigation
+            tocSubLinks.forEach(link => {
+                link.addEventListener("click", function (e) {
+                    e.preventDefault();
+
+                    const sectionIndex = this.dataset.section;
+                    const subsectionId = this.dataset.subsection;
+
+                    // 1️⃣ Activate correct section first
+                    pageSections.forEach(sec => {
+                        sec.classList.toggle("active", sec.dataset.section === sectionIndex);
+                    });
+
+                    // 2️⃣ Delay scroll until browser has rendered section
+                    setTimeout(() => {
+                        const target = document.getElementById(subsectionId);
+                        if (target) {
+                            target.scrollIntoView({ behavior: "smooth", block: "center" });
+
+                            // 3️⃣ Temporary highlight
+                            target.style.transition = "background-color 0.5s ease";
+                            const originalBg = target.style.backgroundColor;
+                            target.style.backgroundColor = "#fffa9e"; // light yellow
+                            setTimeout(() => {
+                                target.style.backgroundColor = originalBg;
+                            }, 1200);
+                        }
+                    }, 100); // wait a bit to ensure section is visible
+                });
+            });
+        });
+
+    </script>
+</body>
+</html>

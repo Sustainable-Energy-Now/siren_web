@@ -7,8 +7,6 @@
 <nav class="navbar navbar-expand-lg navbar-light bg-light">
   <div class="container-fluid">
 
-    <a class="navbar-brand" href="#">Powermatch menu:</a>
-    
     <button class="navbar-toggler" type="button">
       <span class="navbar-toggler-icon"></span>
     </button>
@@ -16,7 +14,7 @@
     <div class="collapse navbar-collapse" id="navbarNav">
       <ul class="navbar-nav">
         <li class="nav-item">
-          <a href="/powermatchui/">Home</a>
+          <a class="nav-link" href="/powermatchui/">Powermatch Home</a>
         <li class="nav-item dropdown">
           <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
             Demand Projection Management
@@ -34,19 +32,34 @@
 
             <li><h6 class="dropdown-header">Demand Projection</h6></li>
             <li><a class="dropdown-item" href="{% url 'powermatchui:demand_projection' %}">Demand Projection</a></li>
+
+            <li><hr class="dropdown-divider"></li>
+
+            <li class="nav-item">
+                <a class="dropdown-item" href="/help/demand_projection/" target="_blank" rel="noopener noreferrer">Demand Projection Help</a>
+            </li>
+            <li class="nav-item">
+                <a class="dropdown-item" href="/help/demand_projection/edit/" target="_blank" rel="noopener noreferrer">Demand Projection Help Edit</a>
+            </li>
           </ul>
         </li>
         <li class="nav-item">
-          <a href="/merit_order/">Set Merit Order</a>
+          <a class="nav-link" href="/merit_order/">Set Merit Order</a>
         </li>
         <li class="nav-item">
-          <a href="/baseline_scenario/">Baseline Scenario</a>
+          <a class="nav-link" href="/baseline_scenario/">Baseline Scenario</a>
         </li>
         <li class="nav-item">
-            <a href="/variation/">Create Variants</a>
+            <a class="nav-link" href="/variation/">Create Variants</a>
         </li>
         <li class="nav-item">
-            <a href="/optimisation/">Optimisation</a> 
+            <a class="nav-link" href="/optimisation/">Optimisation</a> 
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" href="/help/powermatch/" target="_blank" rel="noopener noreferrer">Powermatch Help</a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" href="/help/powermatch/edit/" target="_blank" rel="noopener noreferrer">Powermatch Help Edit</a>
         </li>
       </ul>
     </div>

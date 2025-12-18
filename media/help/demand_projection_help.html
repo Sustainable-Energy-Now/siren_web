@@ -1,0 +1,919 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Siren Web Help</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 0;
+            background: #f8f9fa;
+            color: #333;
+        }
+        
+        .container {
+            display: flex;
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            min-height: 100vh;
+            box-shadow: 0 0 20px rgba(0,0,0,0.1);
+        }
+        
+        .sidebar {
+            width: 350px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px 25px;
+            position: sticky;
+            top: 0;
+            height: 100vh;
+            overflow-y: auto;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+        }
+        
+        .sidebar h2 {
+            margin-top: 0;
+            color: #ffffff;
+            border-bottom: 2px solid rgba(255,255,255,0.3);
+            padding-bottom: 15px;
+            font-size: 1.4em;
+            font-weight: 600;
+        }
+        
+        .toc-list {
+            list-style: none;
+            padding: 0;
+            margin: 20px 0;
+        }
+        
+        .toc-item {
+            margin: 5px 0;
+        }
+        
+        .toc-link {
+            color: rgba(255,255,255,0.8);
+            text-decoration: none;
+            padding: 12px 15px;
+            display: block;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+            font-weight: 500;
+            border-left: 3px solid transparent;
+        }
+        
+        .toc-link:hover {
+            background: rgba(255,255,255,0.1);
+            color: white;
+            transform: translateX(5px);
+            border-left-color: rgba(255,255,255,0.5);
+        }
+        
+        .toc-link.active {
+            background: rgba(255,255,255,0.2);
+            color: white;
+            border-left-color: #ffd700;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+        }
+        .toc-subsections {
+            list-style: none;
+            padding: 0;
+            margin: 5px 0 0 20px;
+        }
+
+        .toc-subitem {
+            margin: 3px 0;
+        }
+
+        .toc-sublink {
+            color: rgba(255,255,255,0.6);
+            text-decoration: none;
+            padding: 6px 12px;
+            display: block;
+            border-radius: 5px;
+            transition: all 0.3s ease;
+            font-size: 0.9em;
+            border-left: 2px solid transparent;
+        }
+
+        .toc-sublink:hover {
+            background: rgba(255,255,255,0.05);
+            color: rgba(255,255,255,0.8);
+            border-left-color: rgba(255,255,255,0.3);
+        }
+        .content {
+            flex: 1;
+            padding: 40px 50px;
+            position: relative;
+            max-width: none;
+        }
+        
+        .page-section {
+            display: none;
+            animation: fadeIn 0.4s ease-in;
+        }
+        
+        .page-section.active {
+            display: block !important;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .navigation {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            display: flex;
+            gap: 15px;
+            z-index: 1000;
+        }
+        
+        .nav-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px 20px;
+            border-radius: 50px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+            min-width: 120px;
+        }
+        
+        .nav-btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+        }
+        
+        .nav-btn:disabled {
+            background: #cbd5e0;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        
+        .back-to-top {
+            position: fixed;
+            bottom: 120px;
+            right: 30px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px;
+            border-radius: 50%;
+            cursor: pointer;
+            width: 55px;
+            height: 55px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+            font-size: 18px;
+        }
+        
+        .back-to-top:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+        }
+        
+        .page-indicator {
+            position: fixed;
+            top: 30px;
+            right: 30px;
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 10px 15px;
+            border-radius: 25px;
+            font-size: 14px;
+            font-weight: 600;
+            z-index: 1000;
+            backdrop-filter: blur(10px);
+        }
+        
+        /* Content Styling */
+        h1, h2, h3, h4, h5, h6 {
+            color: #2d3748;
+            margin-top: 2em;
+            margin-bottom: 1em;
+        }
+        
+        h1 {
+            font-size: 2.5em;
+            border-bottom: 3px solid #667eea;
+            padding-bottom: 0.5em;
+            margin-top: 0;
+        }
+        
+        h2 {
+            font-size: 2em;
+            color: #4a5568;
+            border-bottom: 2px solid #e2e8f0;
+            padding-bottom: 0.3em;
+        }
+        
+        h3 {
+            font-size: 1.5em;
+            color: #667eea;
+        }
+        
+        p {
+            margin-bottom: 1.2em;
+            text-align: justify;
+        }
+        
+        ul, ol {
+            margin-bottom: 1.2em;
+            padding-left: 2em;
+        }
+        
+        li {
+            margin-bottom: 0.5em;
+        }
+        
+        code {
+            background: #f7fafc;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'Monaco', 'Consolas', monospace;
+            color: #e53e3e;
+            border: 1px solid #e2e8f0;
+        }
+        
+        pre {
+            background: #2d3748;
+            color: #e2e8f0;
+            padding: 20px;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin: 1.5em 0;
+        }
+        
+        pre code {
+            background: none;
+            padding: 0;
+            border: none;
+            color: inherit;
+        }
+        
+        strong {
+            color: #2d3748;
+            font-weight: 600;
+        }
+        
+        /* Mobile Responsive */
+        @media (max-width: 768px) {
+            .container {
+                flex-direction: column;
+            }
+            
+            .sidebar {
+                width: 100%;
+                height: auto;
+                position: relative;
+                padding: 20px;
+            }
+            
+            .content {
+                padding: 30px 20px;
+            }
+            
+            .navigation {
+                position: relative;
+                bottom: auto;
+                right: auto;
+                justify-content: center;
+                margin-top: 30px;
+            }
+            
+            .page-indicator {
+                position: relative;
+                top: auto;
+                right: auto;
+                margin-bottom: 20px;
+                display: inline-block;
+            }
+            
+            .back-to-top {
+                display: none;
+            }
+        }
+        
+        /* Print Styles */
+        @media print {
+            .sidebar, .navigation, .back-to-top, .page-indicator {
+                display: none;
+            }
+            
+            .page-section {
+                display: block !important;
+                page-break-after: always;
+            }
+            
+            .content {
+                width: 100%;
+                padding: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <nav class="sidebar">
+            <h2>📖 Table of Contents</h2>
+            
+            <div style="margin-bottom: 20px; padding-bottom: 15px; border-bottom: 1px solid rgba(255,255,255,0.2);">
+                <a href="/help/" style="color: rgba(255,255,255,0.9); text-decoration: none; padding: 10px 15px; display: block; border-radius: 8px; background: rgba(255,255,255,0.1); transition: all 0.3s ease;">
+                    ← Back to Main Help
+                </a>
+            </div>
+            <ul class="toc-list" id="tocList">
+                
+                <li class="toc-item">
+                    <a href="#" class="toc-link active" data-section="0">Factor-Based Demand Projections - Quick Start Guide</a>
+                </li><ul class="toc-subsections">
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="0" data-subsection="overview">Overview</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="0" data-subsection="1-create-your-first-scenario">1. Create Your First Scenario</a>
+                    </li></ul></li>
+                <li class="toc-item">
+                    <a href="#" class="toc-link " data-section="1">Example Scenario: "High EV Adoption 2025-2050"</a>
+                </li><ul class="toc-subsections">
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="1" data-subsection="step-1-configure-factors">Step 1: Configure Factors</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="1" data-subsection="step-2-advanced-settings-optional">Step 2: Advanced Settings (Optional)</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="1" data-subsection="step-3-generate-projection">Step 3: Generate Projection</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="1" data-subsection="step-4-interpret-results">Step 4: Interpret Results</a>
+                    </li></ul></li>
+                <li class="toc-item">
+                    <a href="#" class="toc-link " data-section="2">Common Use Cases</a>
+                </li><ul class="toc-subsections">
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="2" data-subsection="use-case-1-compare-ev-scenarios">Use Case 1: Compare EV Scenarios</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="2" data-subsection="use-case-2-industrial-electrification-impact">Use Case 2: Industrial Electrification Impact</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="2" data-subsection="use-case-3-timevarying-ev-growth">Use Case 3: Time-Varying EV Growth</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="2" data-subsection="use-case-4-hydrogen-economy-scenario">Use Case 4: Hydrogen Economy Scenario</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="2" data-subsection="use-case-5-net-zero-by-2050">Use Case 5: Net Zero by 2050</a>
+                    </li></ul></li>
+                <li class="toc-item">
+                    <a href="#" class="toc-link " data-section="3">Navigation Quick Reference</a>
+                </li><ul class="toc-subsections">
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="3" data-subsection="main-pages">Main Pages</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="3" data-subsection="workflow">Workflow</a>
+                    </li></ul></li>
+                <li class="toc-item">
+                    <a href="#" class="toc-link " data-section="4">Growth Type Reference</a>
+                </li><ul class="toc-subsections">
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="4" data-subsection="linear-growth">Linear Growth</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="4" data-subsection="exponential-growth">Exponential Growth</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="4" data-subsection="scurve-logistic">S-Curve (Logistic)</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="4" data-subsection="compound-growth">Compound Growth</a>
+                    </li></ul></li>
+                <li class="toc-item">
+                    <a href="#" class="toc-link " data-section="5">Tips for Accurate Projections</a>
+                </li><ul class="toc-subsections">
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="5" data-subsection="-do">✅ DO:</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="5" data-subsection="-dont">❌ DON'T:</a>
+                    </li></ul></li>
+                <li class="toc-item">
+                    <a href="#" class="toc-link " data-section="6">Troubleshooting</a>
+                </li><ul class="toc-subsections">
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="6" data-subsection="problem-chart-doesnt-show-factor-breakdown">Problem: Chart doesn't show factor breakdown</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="6" data-subsection="problem-factors-dont-sum-to-100">Problem: Factors don't sum to 100%</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="6" data-subsection="problem-growth-looks-wrong">Problem: Growth looks wrong</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="6" data-subsection="problem-scenario-has-no-factors-warning">Problem: "Scenario has no factors" warning</a>
+                    </li></ul></li>
+                <li class="toc-item">
+                    <a href="#" class="toc-link " data-section="7">API Integration (Advanced)</a>
+                </li><ul class="toc-subsections">
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="7" data-subsection="calculate-factorbased-projection">Calculate Factor-Based Projection</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="7" data-subsection="export-factor-breakdown-planned">Export Factor Breakdown (Planned)</a>
+                    </li></ul></li>
+                <li class="toc-item">
+                    <a href="#" class="toc-link " data-section="8">Example Factor Configurations by Industry</a>
+                </li><ul class="toc-subsections">
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="8" data-subsection="energyintensive-industries">Energy-Intensive Industries</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="8" data-subsection="transportation-electrification">Transportation Electrification</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="8" data-subsection="building-electrification">Building Electrification</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="8" data-subsection="emerging-technologies">Emerging Technologies</a>
+                    </li></ul></li>
+            </ul>
+            <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid rgba(255,255,255,0.2); font-size: 0.9em;">
+                <p><strong>Generated:</strong><br>December 18, 2025</p>
+                <p><strong>Sections:</strong> 9</p>
+            </div>
+        </nav>
+        
+        <main class="content">
+            <div class="page-indicator">
+                Page <span id="currentPage">1</span> of <span id="totalPages">9</span>
+            </div>
+            
+            
+            <div class="page-section active" data-section="0">
+                <h1 id="factor-based-demand-projections-quick-start-guide">Factor-Based Demand Projections - Quick Start Guide</h1>
+<h2 id="overview">Overview</h2>
+<p>This system allows you to break down electricity demand into multiple independent growth factors (e.g., EV Adoption, Industrial Electrification, Hydrogen Production). Each factor:
+- Starts with a base percentage of total demand
+- Grows independently with its own formula
+- Can use time-varying growth rates
+- Supports multiple growth types (linear, exponential, S-curve, compound)</p>
+<p><strong>Total Demand = Sum of All Factor Demands</strong></p>
+<hr />
+<h3 id="1-create-your-first-scenario">1. Create Your First Scenario</h3>
+<p>Navigate to: <strong>Demand Projection → Manage Factors</strong></p>
+<hr />
+            </div>
+            <div class="page-section " data-section="1">
+                <h2 id="example-scenario-high-ev-adoption-2025-2050">Example Scenario: "High EV Adoption 2025-2050"</h2>
+<h3 id="step-1-configure-factors">Step 1: Configure Factors</h3>
+<table>
+<thead>
+<tr>
+<th>Factor</th>
+<th>Operational %</th>
+<th>Underlying %</th>
+<th>Growth Rate</th>
+<th>Growth Type</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>EV Adoption</td>
+<td>15%</td>
+<td>-</td>
+<td>8%</td>
+<td>S-Curve</td>
+</tr>
+<tr>
+<td>Industrial</td>
+<td>25%</td>
+<td>-</td>
+<td>2%</td>
+<td>Exponential</td>
+</tr>
+<tr>
+<td>Data Centers</td>
+<td>8%</td>
+<td>-</td>
+<td>5%</td>
+<td>Exponential</td>
+</tr>
+<tr>
+<td>HVAC</td>
+<td>10%</td>
+<td>10%</td>
+<td>1.5%</td>
+<td>Linear</td>
+</tr>
+<tr>
+<td>Residential</td>
+<td>-</td>
+<td>20%</td>
+<td>1%</td>
+<td>Linear</td>
+</tr>
+<tr>
+<td>Commercial</td>
+<td>-</td>
+<td>12%</td>
+<td>1.2%</td>
+<td>Linear</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Totals</strong>: 58% Operational, 42% Underlying</p>
+<h3 id="step-2-advanced-settings-optional">Step 2: Advanced Settings (Optional)</h3>
+<p>For EV Adoption (S-Curve):
+- Saturation Multiplier: 3.0 (triples by 2050)
+- Midpoint Year: 2035 (50% saturation point)</p>
+<h3 id="step-3-generate-projection">Step 3: Generate Projection</h3>
+<ol>
+<li>Go to: <strong>Demand Projection</strong></li>
+<li>Select: "High EV Adoption 2025-2050" from <strong>Factor-Based Scenarios</strong></li>
+<li>Base Year: 2024</li>
+<li>Project To: 2050</li>
+<li>View Mode: <strong>breakdown</strong></li>
+<li>Click: <strong>Generate Projection</strong></li>
+</ol>
+<h3 id="step-4-interpret-results">Step 4: Interpret Results</h3>
+<p><strong>Chart Shows</strong>:
+- 6 colored areas stacking to show total demand
+- Bottom to top: Commercial, Residential, HVAC (Und), Data Centers, Industrial, EV
+- Hover over any area to see exact values</p>
+<p><strong>Summary Stats</strong>:
+- Base Year: 15,000 GWh
+- End Year: 25,400 GWh
+- Total Growth: 69.3%
+- Avg Annual Growth: 2.1%</p>
+<p><strong>Factor Breakdown</strong>:
+- EV grows fastest (S-curve from 2,250 to 6,750 GWh)
+- Industrial grows steadily (3,750 to 6,860 GWh)
+- Data Centers grows rapidly (1,200 to 4,280 GWh)</p>
+<hr />
+            </div>
+            <div class="page-section " data-section="2">
+                <h2 id="common-use-cases">Common Use Cases</h2>
+<h3 id="use-case-1-compare-ev-scenarios">Use Case 1: Compare EV Scenarios</h3>
+<p>Create 3 scenarios:
+1. <strong>Low EV</strong>: 5% base, 3% growth
+2. <strong>Medium EV</strong>: 10% base, 5% growth
+3. <strong>High EV</strong>: 15% base, 8% growth (S-curve)</p>
+<p>Generate projections for each and compare total demand in 2040.</p>
+<h3 id="use-case-2-industrial-electrification-impact">Use Case 2: Industrial Electrification Impact</h3>
+<ol>
+<li>Start with baseline scenario (no industrial factor)</li>
+<li>Clone scenario, add Industrial factor at 20% with 3% growth</li>
+<li>Compare 2050 demand difference</li>
+<li>Result shows industrial electrification adds X GWh/year</li>
+</ol>
+<h3 id="use-case-3-time-varying-ev-growth">Use Case 3: Time-Varying EV Growth</h3>
+<p>Create EV factor with time-varying rates:</p>
+<pre class="codehilite"><code class="language-json">{
+  &quot;2025&quot;: 0.03,
+  &quot;2030&quot;: 0.10,
+  &quot;2040&quot;: 0.02,
+  &quot;2050&quot;: 0.01
+}
+</code></pre>
+
+<p>This models:
+- Slow initial adoption (2024-2030: 3%)
+- Rapid acceleration (2030-2040: 10%)
+- Market saturation (2040-2050: 2% then 1%)</p>
+<h3 id="use-case-4-hydrogen-economy-scenario">Use Case 4: Hydrogen Economy Scenario</h3>
+<ol>
+<li>Create "Green Hydrogen Future" scenario</li>
+<li>Hydrogen Production factor: 5% → 30% over 25 years</li>
+<li>Use S-curve with late midpoint (2045)</li>
+<li>Shows slow start, then rapid ramp-up post-2040</li>
+</ol>
+<h3 id="use-case-5-net-zero-by-2050">Use Case 5: Net Zero by 2050</h3>
+<p>Configure factors to achieve specific target:
+1. Set 2050 target: 30,000 GWh
+2. Current demand: 15,000 GWh
+3. Required growth: 100% over 26 years = 2.7% CAGR
+4. Allocate across factors to sum to 2.7% weighted average</p>
+<hr />
+            </div>
+            <div class="page-section " data-section="3">
+                <h2 id="navigation-quick-reference">Navigation Quick Reference</h2>
+<h3 id="main-pages">Main Pages</h3>
+<table>
+<thead>
+<tr>
+<th>Page</th>
+<th>URL</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Demand Projection</strong></td>
+<td><code>/demand-projection/</code></td>
+<td>Generate and visualize projections</td>
+</tr>
+<tr>
+<td><strong>Factor List</strong></td>
+<td><code>/demand-factors/</code></td>
+<td>Browse and manage factors</td>
+</tr>
+<tr>
+<td><strong>Factor Types</strong></td>
+<td><code>/demand-factors/types/</code></td>
+<td>Manage factor categories</td>
+</tr>
+<tr>
+<td><strong>Scenario Assignment</strong></td>
+<td><code>/demand-factors/scenario/&lt;id&gt;/assign/</code></td>
+<td>Bulk configure factors</td>
+</tr>
+</tbody>
+</table>
+<h3 id="workflow">Workflow</h3>
+<pre class="codehilite"><code>Factor Types List → Create/Edit Types
+        ↓
+Factor List → Create Individual Factors
+        ↓
+Scenario Assignment → Bulk Configure for Scenario
+        ↓
+Demand Projection → Visualize Results
+</code></pre>
+
+<hr />
+            </div>
+            <div class="page-section " data-section="4">
+                <h2 id="growth-type-reference">Growth Type Reference</h2>
+<h3 id="linear-growth">Linear Growth</h3>
+<pre class="codehilite"><code>Demand(year) = Base × (1 + rate × years)
+</code></pre>
+
+<p><strong>Use for</strong>: Steady, predictable growth (population, baseline demand)
+<strong>Example</strong>: 2% per year = adds constant 300 GWh each year</p>
+<h3 id="exponential-growth">Exponential Growth</h3>
+<pre class="codehilite"><code>Demand(year) = Base × (1 + rate)^years
+</code></pre>
+
+<p><strong>Use for</strong>: Compounding growth (technology adoption, data centers)
+<strong>Example</strong>: 5% per year = 15,000 → 51,000 GWh over 26 years</p>
+<h3 id="s-curve-logistic">S-Curve (Logistic)</h3>
+<pre class="codehilite"><code>Demand(year) = Base × saturation × sigmoid(years, midpoint)
+</code></pre>
+
+<p><strong>Use for</strong>: Technology adoption with saturation (EVs, heat pumps)
+<strong>Example</strong>: Fast growth 2030-2040, then plateaus at 3× initial</p>
+<h3 id="compound-growth">Compound Growth</h3>
+<pre class="codehilite"><code>Demand(year) = Base × exp(rate × years)
+</code></pre>
+
+<p><strong>Use for</strong>: Continuous compounding (similar to exponential but smoother)
+<strong>Example</strong>: 3% continuous = 15,000 → 32,900 GWh over 26 years</p>
+<hr />
+            </div>
+            <div class="page-section " data-section="5">
+                <h2 id="tips-for-accurate-projections">Tips for Accurate Projections</h2>
+<h3 id="do">✅ DO:</h3>
+<ul>
+<li><strong>Split demand logically</strong>: Separate growing sectors (EV, industrial) from baseline</li>
+<li><strong>Use realistic percentages</strong>: Sum to 90-100% of base demand</li>
+<li><strong>Choose appropriate growth types</strong>: S-curve for tech adoption, linear for population</li>
+<li><strong>Consider saturation</strong>: Use S-curves for factors that can't grow forever</li>
+<li><strong>Test sensitivity</strong>: Try high/medium/low scenarios</li>
+<li><strong>Document assumptions</strong>: Use Notes field to explain choices</li>
+</ul>
+<h3 id="dont">❌ DON'T:</h3>
+<ul>
+<li><strong>Allocate &gt; 100%</strong>: Factors overlap, leading to double-counting</li>
+<li><strong>Use extreme rates</strong>: &gt; 10% annual growth is rarely sustainable</li>
+<li><strong>Ignore efficiency</strong>: Consider adding negative-growth efficiency factor</li>
+<li><strong>Forget inactive factors</strong>: Inactive factors are excluded from projections</li>
+<li><strong>Mix timeframes</strong>: Keep base year consistent across factors</li>
+<li><strong>Ignore data validation</strong>: Check that percentages and rates are reasonable</li>
+</ul>
+<hr />
+            </div>
+            <div class="page-section " data-section="6">
+                <h2 id="troubleshooting">Troubleshooting</h2>
+<h3 id="problem-chart-doesnt-show-factor-breakdown">Problem: Chart doesn't show factor breakdown</h3>
+<p><strong>Solution</strong>:
+1. Check view mode is set to "breakdown"
+2. Verify scenario has active factors (check scenario dropdown shows count)
+3. Open browser console (F12) and check for errors</p>
+<h3 id="problem-factors-dont-sum-to-100">Problem: Factors don't sum to 100%</h3>
+<p><strong>Solution</strong>:
+1. Navigate to scenario assignment page
+2. Check progress bars
+3. Adjust percentages until bars are green (95-100%)</p>
+<h3 id="problem-growth-looks-wrong">Problem: Growth looks wrong</h3>
+<p><strong>Solution</strong>:
+1. Verify growth rate is correct (e.g., 0.05 = 5%, not 5)
+2. Check growth type matches intent (exponential vs linear)
+3. For S-curve, check midpoint year is reasonable</p>
+<h3 id="problem-scenario-has-no-factors-warning">Problem: "Scenario has no factors" warning</h3>
+<p><strong>Solution</strong>:
+1. The selected scenario doesn't have any configured factors
+2. Go to Manage Factors → Create factors for this scenario
+3. Or use Scenario Assignment page for bulk setup
+4. Or switch to a factor-based scenario</p>
+<hr />
+            </div>
+            <div class="page-section " data-section="7">
+                <h2 id="api-integration-advanced">API Integration (Advanced)</h2>
+<h3 id="calculate-factor-based-projection">Calculate Factor-Based Projection</h3>
+<p><strong>Endpoint</strong>: <code>POST /api/demand-projection/calculate/</code></p>
+<h3 id="export-factor-breakdown-planned">Export Factor Breakdown (Planned)</h3>
+<p>Will add CSV/Excel export in future enhancement.</p>
+<hr />
+            </div>
+            <div class="page-section " data-section="8">
+                <h2 id="example-factor-configurations-by-industry">Example Factor Configurations by Industry</h2>
+<h3 id="energy-intensive-industries">Energy-Intensive Industries</h3>
+<ul>
+<li><strong>Aluminum Smelting</strong>: 30% operational, 1% linear</li>
+<li><strong>Steel Production</strong>: 25% operational, 1.5% linear</li>
+<li><strong>Chemical Plants</strong>: 15% operational, 2% exponential</li>
+</ul>
+<h3 id="transportation-electrification">Transportation Electrification</h3>
+<ul>
+<li><strong>Light-Duty EVs</strong>: 10% operational, 8% S-curve (midpoint 2032)</li>
+<li><strong>Heavy-Duty EVs</strong>: 5% operational, 5% S-curve (midpoint 2038)</li>
+<li><strong>Public Transit</strong>: 3% operational, 4% linear</li>
+</ul>
+<h3 id="building-electrification">Building Electrification</h3>
+<ul>
+<li><strong>Residential Heat Pumps</strong>: 8% underlying, 6% S-curve</li>
+<li><strong>Commercial HVAC</strong>: 12% operational, 4% S-curve</li>
+<li><strong>Cooking Electrification</strong>: 2% underlying, 3% linear</li>
+</ul>
+<h3 id="emerging-technologies">Emerging Technologies</h3>
+<ul>
+<li><strong>Green Hydrogen</strong>: 2% operational, 12% exponential (high uncertainty)</li>
+<li><strong>Carbon Capture</strong>: 1% operational, 8% S-curve (post-2030)</li>
+<li><strong>Desalination</strong>: 1% operational, 4% linear</li>
+</ul>
+<hr />
+            </div>
+        </main>
+    </div>
+    
+    <div class="navigation">
+        <button class="nav-btn" id="prevBtn" onclick="previousPage()">← Previous</button>
+        <button class="nav-btn" id="nextBtn" onclick="nextPage()">Next →</button>
+    </div>
+    
+    <button class="back-to-top" onclick="scrollToTop()" title="Back to top">↑</button>
+    
+    <script>
+        let currentSection = 0;
+        const totalSections = 9;
+        
+        function showSection(sectionIndex) {
+            // Hide all sections
+            document.querySelectorAll('.page-section').forEach(section => {
+                section.classList.remove('active');
+            });
+            
+            // Show selected section
+            const targetSection = document.querySelector(`.content .page-section[data-section="${sectionIndex}"]`);
+            if (targetSection) {
+                targetSection.classList.add('active');
+            }
+            
+            // Update TOC active state
+            document.querySelectorAll('.toc-link').forEach(link => {
+                link.classList.remove('active');
+            });
+            const activeLink = document.querySelector(`[data-section="${sectionIndex}"]`);
+            if (activeLink) {
+                activeLink.classList.add('active');
+            }
+            
+            // Update current section
+            currentSection = sectionIndex;
+            
+            // Update page indicator
+            document.getElementById('currentPage').textContent = sectionIndex + 1;
+            
+            // Update navigation buttons
+            updateNavigationButtons();
+            
+            // Scroll to top of content
+            document.querySelector('.content').scrollTop = 0;
+            window.scrollTo(0, 0);
+        }
+        
+        function updateNavigationButtons() {
+            const prevBtn = document.getElementById('prevBtn');
+            const nextBtn = document.getElementById('nextBtn');
+            
+            prevBtn.disabled = currentSection === 0;
+            nextBtn.disabled = currentSection === totalSections - 1;
+        }
+        
+        function nextPage() {
+            if (currentSection < totalSections - 1) {
+                showSection(currentSection + 1);
+            }
+        }
+        
+        function previousPage() {
+            if (currentSection > 0) {
+                showSection(currentSection - 1);
+            }
+        }
+        
+        function scrollToTop() {
+            showSection(0);
+        }
+        
+        // Keyboard navigation
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'ArrowRight' || e.key === 'PageDown') {
+                nextPage();
+                e.preventDefault();
+            } else if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
+                previousPage();
+                e.preventDefault();
+            }
+        });
+        
+                // TOC click handlers
+        document.addEventListener("DOMContentLoaded", function () {
+            const tocLinks = document.querySelectorAll(".toc-link");
+            const tocSubLinks = document.querySelectorAll(".toc-sublink");
+            const pageSections = document.querySelectorAll(".page-section");
+            const currentPage = document.getElementById("currentPage");
+
+            // Handle main section navigation
+            tocLinks.forEach(link => {
+                link.addEventListener("click", function (e) {
+                    e.preventDefault();
+
+                    const sectionIndex = this.dataset.section;
+
+                    // Activate the correct section
+                    pageSections.forEach(sec => {
+                        sec.classList.toggle("active", sec.dataset.section === sectionIndex);
+                    });
+
+                    // Update TOC link active state
+                    tocLinks.forEach(l => l.classList.remove("active"));
+                    this.classList.add("active");
+
+                    // Update page number
+                    if (currentPage) currentPage.textContent = parseInt(sectionIndex) + 1;
+
+                    // Scroll to top smoothly
+                    window.scrollTo({ top: 0, behavior: "smooth" });
+                });
+            });
+
+            // Handle subsection navigation
+            tocSubLinks.forEach(link => {
+                link.addEventListener("click", function (e) {
+                    e.preventDefault();
+
+                    const sectionIndex = this.dataset.section;
+                    const subsectionId = this.dataset.subsection;
+
+                    // 1️⃣ Activate correct section first
+                    pageSections.forEach(sec => {
+                        sec.classList.toggle("active", sec.dataset.section === sectionIndex);
+                    });
+
+                    // 2️⃣ Delay scroll until browser has rendered section
+                    setTimeout(() => {
+                        const target = document.getElementById(subsectionId);
+                        if (target) {
+                            target.scrollIntoView({ behavior: "smooth", block: "center" });
+
+                            // 3️⃣ Temporary highlight
+                            target.style.transition = "background-color 0.5s ease";
+                            const originalBg = target.style.backgroundColor;
+                            target.style.backgroundColor = "#fffa9e"; // light yellow
+                            setTimeout(() => {
+                                target.style.backgroundColor = originalBg;
+                            }, 1200);
+                        }
+                    }, 100); // wait a bit to ensure section is visible
+                });
+            });
+        });
+
+    </script>
+</body>
+</html>

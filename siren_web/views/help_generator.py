@@ -9,11 +9,12 @@ logging.getLogger('MARKDOWN').setLevel(logging.WARNING)
 
 class SirenWebHelpGenerator:
     """Enhanced generator that creates paginated HTML from markdown"""
-    
-    def __init__(self):
+
+    def __init__(self, module_name=None):
         self.markdown_file = None
         self.sections = []
         self.toc_items = []
+        self.module_name = module_name  # Store module name for context
         
     def load_markdown_file(self, file_path: str) -> str:
         """Load markdown content from file"""
@@ -179,19 +180,24 @@ class SirenWebHelpGenerator:
         
         return toc_html
 
-    def generate_paginated_html(self, markdown_file_path: str) -> str:
-        """Generate complete paginated HTML from markdown file"""
+    def generate_paginated_html(self, markdown_file_path: str, show_home_link=False) -> str:
+        """Generate complete paginated HTML from markdown file
+
+        Args:
+            markdown_file_path: Path to the markdown file
+            show_home_link: If True, show link back to main help index
+        """
         markdown_content = self.load_markdown_file(markdown_file_path)
-        
+
         # Parse sections and build dynamic TOC
         sections, toc_items = self.parse_markdown_sections(markdown_content)
-        
+
         # Filter out TOC sections from main content
         filtered_sections = []
         for section in sections:
             section['index'] = len(filtered_sections)  # Reindex
             filtered_sections.append(section)
-        
+
         # Convert to HTML
         html_sections = []
         for section in filtered_sections:
@@ -201,13 +207,19 @@ class SirenWebHelpGenerator:
                 'content': html_content,
                 'id': section['id']
             })
-        
-        # Generate TOC HTML from the dynamic structure       
-        return self.create_complete_html(html_sections, toc_items)
 
-    def create_complete_html(self, sections: List[Dict], toc_items: List[Dict]) -> str:
-        """Create the complete HTML document with pagination"""
-        
+        # Generate TOC HTML from the dynamic structure
+        return self.create_complete_html(html_sections, toc_items, show_home_link)
+
+    def create_complete_html(self, sections: List[Dict], toc_items: List[Dict], show_home_link=False) -> str:
+        """Create the complete HTML document with pagination
+
+        Args:
+            sections: List of section dictionaries
+            toc_items: List of TOC item dictionaries
+            show_home_link: If True, show link back to main help index
+        """
+
         # Generate TOC HTML
         toc_html = ""
         for item in toc_items:
@@ -216,7 +228,7 @@ class SirenWebHelpGenerator:
                 <li class="toc-item">
                     <a href="#" class="toc-link {active_class}" data-section="{item['index']}">{item['title']}</a>
                 </li>'''
-        
+
             # Add subsections if they exist
             if item.get('subsections'):
                 toc_html += '<ul class="toc-subsections">'
@@ -226,7 +238,7 @@ class SirenWebHelpGenerator:
                         <a href="#" class="toc-sublink" data-section="{item['index']}" data-subsection="{subsection['id']}">{subsection['title']}</a>
                     </li>'''
                 toc_html += '</ul>'
-            
+
             toc_html += '</li>'
         
         # Generate sections HTML
@@ -238,13 +250,36 @@ class SirenWebHelpGenerator:
                 {section['content']}
             </div>'''
 
+        # Generate home link if requested
+        home_link_html = ""
+        if show_home_link:
+            home_link_html = '''
+            <div style="margin-bottom: 20px; padding-bottom: 15px; border-bottom: 1px solid rgba(255,255,255,0.2);">
+                <a href="/help/" style="color: rgba(255,255,255,0.9); text-decoration: none; padding: 10px 15px; display: block; border-radius: 8px; background: rgba(255,255,255,0.1); transition: all 0.3s ease;">
+                    ← Back to Main Help
+                </a>
+            </div>'''
+
+        # Determine page title
+        page_title = "Siren Web User Manual"
+        if self.module_name:
+            module_titles = {
+                'powermap': 'Powermap Module',
+                'powermatch': 'Powermatch Module',
+                'powerplot': 'Powerplot Module',
+                'terminal': 'Terminal Management',
+                'aemo_scada': 'AEMO SCADA Data Fetcher',
+                'system_overview': 'System Overview'
+            }
+            page_title = module_titles.get(self.module_name, 'Siren Web Help')
+
         # Complete HTML template
         html_template = f'''<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Siren Web User Manual</title>
+    <title>{page_title}</title>
     <style>
         body {{
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -570,6 +605,7 @@ class SirenWebHelpGenerator:
     <div class="container">
         <nav class="sidebar">
             <h2>📖 Table of Contents</h2>
+            {home_link_html}
             <ul class="toc-list" id="tocList">
                 {toc_html}
             </ul>

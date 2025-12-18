@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Siren Web User Manual</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 0;
+            background: #f8f9fa;
+            color: #333;
+        }
+        
+        .container {
+            display: flex;
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            min-height: 100vh;
+            box-shadow: 0 0 20px rgba(0,0,0,0.1);
+        }
+        
+        .sidebar {
+            width: 350px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px 25px;
+            position: sticky;
+            top: 0;
+            height: 100vh;
+            overflow-y: auto;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+        }
+        
+        .sidebar h2 {
+            margin-top: 0;
+            color: #ffffff;
+            border-bottom: 2px solid rgba(255,255,255,0.3);
+            padding-bottom: 15px;
+            font-size: 1.4em;
+            font-weight: 600;
+        }
+        
+        .toc-list {
+            list-style: none;
+            padding: 0;
+            margin: 20px 0;
+        }
+        
+        .toc-item {
+            margin: 5px 0;
+        }
+        
+        .toc-link {
+            color: rgba(255,255,255,0.8);
+            text-decoration: none;
+            padding: 12px 15px;
+            display: block;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+            font-weight: 500;
+            border-left: 3px solid transparent;
+        }
+        
+        .toc-link:hover {
+            background: rgba(255,255,255,0.1);
+            color: white;
+            transform: translateX(5px);
+            border-left-color: rgba(255,255,255,0.5);
+        }
+        
+        .toc-link.active {
+            background: rgba(255,255,255,0.2);
+            color: white;
+            border-left-color: #ffd700;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+        }
+        .toc-subsections {
+            list-style: none;
+            padding: 0;
+            margin: 5px 0 0 20px;
+        }
+
+        .toc-subitem {
+            margin: 3px 0;
+        }
+
+        .toc-sublink {
+            color: rgba(255,255,255,0.6);
+            text-decoration: none;
+            padding: 6px 12px;
+            display: block;
+            border-radius: 5px;
+            transition: all 0.3s ease;
+            font-size: 0.9em;
+            border-left: 2px solid transparent;
+        }
+
+        .toc-sublink:hover {
+            background: rgba(255,255,255,0.05);
+            color: rgba(255,255,255,0.8);
+            border-left-color: rgba(255,255,255,0.3);
+        }
+        .content {
+            flex: 1;
+            padding: 40px 50px;
+            position: relative;
+            max-width: none;
+        }
+        
+        .page-section {
+            display: none;
+            animation: fadeIn 0.4s ease-in;
+        }
+        
+        .page-section.active {
+            display: block !important;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .navigation {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            display: flex;
+            gap: 15px;
+            z-index: 1000;
+        }
+        
+        .nav-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px 20px;
+            border-radius: 50px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+            min-width: 120px;
+        }
+        
+        .nav-btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+        }
+        
+        .nav-btn:disabled {
+            background: #cbd5e0;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        
+        .back-to-top {
+            position: fixed;
+            bottom: 120px;
+            right: 30px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px;
+            border-radius: 50%;
+            cursor: pointer;
+            width: 55px;
+            height: 55px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+            font-size: 18px;
+        }
+        
+        .back-to-top:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+        }
+        
+        .page-indicator {
+            position: fixed;
+            top: 30px;
+            right: 30px;
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 10px 15px;
+            border-radius: 25px;
+            font-size: 14px;
+            font-weight: 600;
+            z-index: 1000;
+            backdrop-filter: blur(10px);
+        }
+        
+        /* Content Styling */
+        h1, h2, h3, h4, h5, h6 {
+            color: #2d3748;
+            margin-top: 2em;
+            margin-bottom: 1em;
+        }
+        
+        h1 {
+            font-size: 2.5em;
+            border-bottom: 3px solid #667eea;
+            padding-bottom: 0.5em;
+            margin-top: 0;
+        }
+        
+        h2 {
+            font-size: 2em;
+            color: #4a5568;
+            border-bottom: 2px solid #e2e8f0;
+            padding-bottom: 0.3em;
+        }
+        
+        h3 {
+            font-size: 1.5em;
+            color: #667eea;
+        }
+        
+        p {
+            margin-bottom: 1.2em;
+            text-align: justify;
+        }
+        
+        ul, ol {
+            margin-bottom: 1.2em;
+            padding-left: 2em;
+        }
+        
+        li {
+            margin-bottom: 0.5em;
+        }
+        
+        code {
+            background: #f7fafc;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'Monaco', 'Consolas', monospace;
+            color: #e53e3e;
+            border: 1px solid #e2e8f0;
+        }
+        
+        pre {
+            background: #2d3748;
+            color: #e2e8f0;
+            padding: 20px;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin: 1.5em 0;
+        }
+        
+        pre code {
+            background: none;
+            padding: 0;
+            border: none;
+            color: inherit;
+        }
+        
+        strong {
+            color: #2d3748;
+            font-weight: 600;
+        }
+        
+        /* Mobile Responsive */
+        @media (max-width: 768px) {
+            .container {
+                flex-direction: column;
+            }
+            
+            .sidebar {
+                width: 100%;
+                height: auto;
+                position: relative;
+                padding: 20px;
+            }
+            
+            .content {
+                padding: 30px 20px;
+            }
+            
+            .navigation {
+                position: relative;
+                bottom: auto;
+                right: auto;
+                justify-content: center;
+                margin-top: 30px;
+            }
+            
+            .page-indicator {
+                position: relative;
+                top: auto;
+                right: auto;
+                margin-bottom: 20px;
+                display: inline-block;
+            }
+            
+            .back-to-top {
+                display: none;
+            }
+        }
+        
+        /* Print Styles */
+        @media print {
+            .sidebar, .navigation, .back-to-top, .page-indicator {
+                display: none;
+            }
+            
+            .page-section {
+                display: block !important;
+                page-break-after: always;
+            }
+            
+            .content {
+                width: 100%;
+                padding: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <nav class="sidebar">
+            <h2>📖 Table of Contents</h2>
+            
+            <ul class="toc-list" id="tocList">
+                
+                <li class="toc-item">
+                    <a href="#" class="toc-link active" data-section="0">Siren Web User Manual</a>
+                </li><ul class="toc-subsections">
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="0" data-subsection="welcome">Welcome</a>
+                    </li></ul></li>
+                <li class="toc-item">
+                    <a href="#" class="toc-link " data-section="1">Quick Navigation</a>
+                </li><ul class="toc-subsections">
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="1" data-subsection="core-modules">Core Modules</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="1" data-subsection="supporting-documentation">Supporting Documentation</a>
+                    </li></ul></li>
+                <li class="toc-item">
+                    <a href="#" class="toc-link " data-section="2">Getting Started</a>
+                </li></li>
+                <li class="toc-item">
+                    <a href="#" class="toc-link " data-section="3">System Requirements</a>
+                </li></li>
+                <li class="toc-item">
+                    <a href="#" class="toc-link " data-section="4">Need Help?</a>
+                </li></li>
+                <li class="toc-item">
+                    <a href="#" class="toc-link " data-section="5">Release Notes</a>
+                </li></li>
+            </ul>
+            <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid rgba(255,255,255,0.2); font-size: 0.9em;">
+                <p><strong>Generated:</strong><br>December 18, 2025</p>
+                <p><strong>Sections:</strong> 6</p>
+            </div>
+        </nav>
+        
+        <main class="content">
+            <div class="page-indicator">
+                Page <span id="currentPage">1</span> of <span id="totalPages">6</span>
+            </div>
+            
+            
+            <div class="page-section active" data-section="0">
+                <h1 id="siren-web-user-manual">Siren Web User Manual</h1>
+<h2 id="welcome">Welcome</h2>
+<p>Welcome to Siren Web - your comprehensive renewable energy modeling platform for the South West Interconnected System (SWIS).</p>
+            </div>
+            <div class="page-section " data-section="1">
+                <h2 id="quick-navigation">Quick Navigation</h2>
+<h3 id="core-modules">Core Modules</h3>
+<h4 id="powermap-module"><a href="/help/powermap/">Powermap Module</a></h4>
+<p>Visualize and manage facilities on an interactive map. Create, edit, and analyze renewable energy facilities including wind, solar, and battery storage systems.</p>
+<p><strong>Key Features:</strong>
+- Interactive facility mapping
+- Facility creation and editing
+- Power curve management
+- Spatial analysis tools</p>
+<h4 id="powermatch-module"><a href="/help/powermatch/">Powermatch Module</a></h4>
+<p>Perform sophisticated energy modeling and scenario analysis. Model different renewable energy configurations and analyze their performance.</p>
+<p><strong>Key Features:</strong>
+- Scenario creation and management
+- Merit order configuration
+- Demand forecasting and projection
+- Variation analysis
+- Progress tracking</p>
+<h4 id="powerplot-module"><a href="/help/powerplot/">Powerplot Module</a></h4>
+<p>Visualize energy data through comprehensive charts and graphs. Analyze facility performance, correlations, and temporal patterns.</p>
+<p><strong>Key Features:</strong>
+- Multiple chart types (line, bar, scatter, heatmap)
+- Time-based aggregation
+- Correlation analysis
+- Data export functionality
+- Custom visualizations</p>
+<h3 id="supporting-documentation">Supporting Documentation</h3>
+<h4 id="terminal-management"><a href="/help/terminal/">Terminal Management</a></h4>
+<p>Learn about facilities management, including creating, editing, and configuring renewable energy facilities and their technical specifications.</p>
+<h4 id="aemo-scada-data-fetcher"><a href="/help/aemo_scada/">AEMO SCADA Data Fetcher</a></h4>
+<p>Instructions for fetching and managing SCADA data from the Australian Energy Market Operator (AEMO) for analysis and modeling.</p>
+<h4 id="system-overview"><a href="/help/system_overview/">System Overview</a></h4>
+<p>General system navigation, configuration, and best practices for using Siren Web effectively.</p>
+            </div>
+            <div class="page-section " data-section="2">
+                <h2 id="getting-started">Getting Started</h2>
+<ol>
+<li><strong>Login</strong> to your Siren Web account</li>
+<li><strong>Select or create a scenario</strong> to work with</li>
+<li><strong>Choose a module</strong> from the main menu based on your task:</li>
+<li>Use <strong>Powermap</strong> for facility visualization and management</li>
+<li>Use <strong>Powermatch</strong> for energy modeling and scenario analysis</li>
+<li>Use <strong>Powerplot</strong> for data visualization and analysis</li>
+<li><strong>Access module-specific help</strong> from each module's menu</li>
+</ol>
+            </div>
+            <div class="page-section " data-section="3">
+                <h2 id="system-requirements">System Requirements</h2>
+<ul>
+<li>Modern web browser (Chrome, Firefox, Edge, Safari)</li>
+<li>Active internet connection</li>
+<li>Login credentials provided by your administrator</li>
+</ul>
+            </div>
+            <div class="page-section " data-section="4">
+                <h2 id="need-help">Need Help?</h2>
+<ul>
+<li>Each module has its own detailed help documentation accessible from the module menu</li>
+<li>Click on any module link above to access specific documentation</li>
+<li>Contact your system administrator for account or access issues</li>
+</ul>
+            </div>
+            <div class="page-section " data-section="5">
+                <h2 id="release-notes">Release Notes</h2>
+<p>For information about the latest features and updates, visit the <a href="/release-notes/">Release Notes</a> page.</p>
+<hr />
+<p><em>Last Updated: December 2024</em></p>
+            </div>
+        </main>
+    </div>
+    
+    <div class="navigation">
+        <button class="nav-btn" id="prevBtn" onclick="previousPage()">← Previous</button>
+        <button class="nav-btn" id="nextBtn" onclick="nextPage()">Next →</button>
+    </div>
+    
+    <button class="back-to-top" onclick="scrollToTop()" title="Back to top">↑</button>
+    
+    <script>
+        let currentSection = 0;
+        const totalSections = 6;
+        
+        function showSection(sectionIndex) {
+            // Hide all sections
+            document.querySelectorAll('.page-section').forEach(section => {
+                section.classList.remove('active');
+            });
+            
+            // Show selected section
+            const targetSection = document.querySelector(`.content .page-section[data-section="${sectionIndex}"]`);
+            if (targetSection) {
+                targetSection.classList.add('active');
+            }
+            
+            // Update TOC active state
+            document.querySelectorAll('.toc-link').forEach(link => {
+                link.classList.remove('active');
+            });
+            const activeLink = document.querySelector(`[data-section="${sectionIndex}"]`);
+            if (activeLink) {
+                activeLink.classList.add('active');
+            }
+            
+            // Update current section
+            currentSection = sectionIndex;
+            
+            // Update page indicator
+            document.getElementById('currentPage').textContent = sectionIndex + 1;
+            
+            // Update navigation buttons
+            updateNavigationButtons();
+            
+            // Scroll to top of content
+            document.querySelector('.content').scrollTop = 0;
+            window.scrollTo(0, 0);
+        }
+        
+        function updateNavigationButtons() {
+            const prevBtn = document.getElementById('prevBtn');
+            const nextBtn = document.getElementById('nextBtn');
+            
+            prevBtn.disabled = currentSection === 0;
+            nextBtn.disabled = currentSection === totalSections - 1;
+        }
+        
+        function nextPage() {
+            if (currentSection < totalSections - 1) {
+                showSection(currentSection + 1);
+            }
+        }
+        
+        function previousPage() {
+            if (currentSection > 0) {
+                showSection(currentSection - 1);
+            }
+        }
+        
+        function scrollToTop() {
+            showSection(0);
+        }
+        
+        // Keyboard navigation
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'ArrowRight' || e.key === 'PageDown') {
+                nextPage();
+                e.preventDefault();
+            } else if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
+                previousPage();
+                e.preventDefault();
+            }
+        });
+        
+                // TOC click handlers
+        document.addEventListener("DOMContentLoaded", function () {
+            const tocLinks = document.querySelectorAll(".toc-link");
+            const tocSubLinks = document.querySelectorAll(".toc-sublink");
+            const pageSections = document.querySelectorAll(".page-section");
+            const currentPage = document.getElementById("currentPage");
+
+            // Handle main section navigation
+            tocLinks.forEach(link => {
+                link.addEventListener("click", function (e) {
+                    e.preventDefault();
+
+                    const sectionIndex = this.dataset.section;
+
+                    // Activate the correct section
+                    pageSections.forEach(sec => {
+                        sec.classList.toggle("active", sec.dataset.section === sectionIndex);
+                    });
+
+                    // Update TOC link active state
+                    tocLinks.forEach(l => l.classList.remove("active"));
+                    this.classList.add("active");
+
+                    // Update page number
+                    if (currentPage) currentPage.textContent = parseInt(sectionIndex) + 1;
+
+                    // Scroll to top smoothly
+                    window.scrollTo({ top: 0, behavior: "smooth" });
+                });
+            });
+
+            // Handle subsection navigation
+            tocSubLinks.forEach(link => {
+                link.addEventListener("click", function (e) {
+                    e.preventDefault();
+
+                    const sectionIndex = this.dataset.section;
+                    const subsectionId = this.dataset.subsection;
+
+                    // 1️⃣ Activate correct section first
+                    pageSections.forEach(sec => {
+                        sec.classList.toggle("active", sec.dataset.section === sectionIndex);
+                    });
+
+                    // 2️⃣ Delay scroll until browser has rendered section
+                    setTimeout(() => {
+                        const target = document.getElementById(subsectionId);
+                        if (target) {
+                            target.scrollIntoView({ behavior: "smooth", block: "center" });
+
+                            // 3️⃣ Temporary highlight
+                            target.style.transition = "background-color 0.5s ease";
+                            const originalBg = target.style.backgroundColor;
+                            target.style.backgroundColor = "#fffa9e"; // light yellow
+                            setTimeout(() => {
+                                target.style.backgroundColor = originalBg;
+                            }, 1200);
+                        }
+                    }, 100); // wait a bit to ensure section is visible
+                });
+            });
+        });
+
+    </script>
+</body>
+</html>

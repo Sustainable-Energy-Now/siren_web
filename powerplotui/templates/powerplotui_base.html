@@ -6,8 +6,6 @@
 <h2>Powerplot</h2>
 <nav class="navbar navbar-expand-lg navbar-light bg-light">
   <div class="container-fluid">
-
-    <a class="navbar-brand" href="#">Powerplot Menu:</a>
     
     <button class="navbar-toggler" type="button">
       <span class="navbar-toggler-icon"></span>
@@ -16,13 +14,13 @@
     <div class="collapse navbar-collapse" id="navbarNav">
       <ul class="navbar-nav">
         <li class="nav-item">
-          <a href="/powerplotui/">Home</a>
+          <a class="nav-link" href="/powerplotui/">Powerplot Home</a>
         </li>
         <li class="nav-item">
-          <a href="/supply_plot/">Facility Supply</a>
+          <a class="nav-link" href="/supply_plot/">Facility Supply</a>
         </li>
         <li class="nav-item">
-          <a href="/variants/">Variants Statistics</a>
+          <a class="nav-link" href="/variants/">Variants Statistics</a>
         </li>
         <li class="nav-item dropdown">
           <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
@@ -34,11 +32,17 @@
             <li><a class="dropdown-item" href="{% url 'ret_dashboard' %}">RET Dashboard</a></li>
           </ul>
         </li>
-        <li class="nav-item">
+        <li class="nav-link" class="nav-item">
           <a href="/wem_prices/">WEM Prices</a>
         </li>
         <li class="nav-item">
-          <a href="/swis_demand/">SWIS Demand</a>
+          <a class="nav-link" href="/swis_demand/">SWIS Demand</a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" href="/help/powerplot/" target="_blank" rel="noopener noreferrer">Powerplot Help</a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" href="/help/powerplot/edit/" target="_blank" rel="noopener noreferrer">Powerplot Help Edit</a>
         </li>
       </ul>
     </div>
