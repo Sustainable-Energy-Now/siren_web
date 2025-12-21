@@ -64,11 +64,63 @@ General system navigation, configuration, and best practices for using Siren Web
 - Active internet connection
 - Login credentials provided by your administrator
 
-## Need Help?
+# Help System
 
-- Each module has its own detailed help documentation accessible from the module menu
-- Click on any module link above to access specific documentation
-- Contact your system administrator for account or access issues
+## Features
+
+### Navigation
+- Each module help has a "Back to Main Help" link
+- Main help index links to all modules
+- Breadcrumb-style navigation
+
+### Responsive Design
+- Works on desktop and mobile
+- Sidebar navigation
+- Keyboard shortcuts (Arrow keys, Page Up/Down)
+
+### Pagination
+- Sections broken into pages
+- Table of contents sidebar
+- Page indicators
+- Previous/Next buttons
+
+### Accessing Help
+1. **Main Help Index**: Go to `/help/`
+   - Shows overview of all modules
+   - Links to each module's help
+
+2. **Module-Specific Help**: Go to `/help/<module>/`
+   - Example: `/help/powermap/`
+   - Shows only that module's documentation
+   - Includes "Back to Main Help" link
+
+### Editing Help
+
+## Mardown Files
+- Modular markdown files organized by module:
+  - `help_index.md` - Main help index with links to all modules
+  - `system_overview_help.md` - System overview and navigation
+  - `powermap_help.md` - Powermap module documentation
+  - `powermatch_help.md` - Powermatch module documentation
+  - `powerplot_help.md` - Powerplot module documentation
+  - `terminal_help.md` - Terminal/Facilities management
+  - `aemo_scada_help.md` - AEMO SCADA data fetcher
+- Module-specific HTML files auto-generated on demand
+- Each module can link to its specific help
+
+1. **Edit Markdown**: Go to `/help/<module>/edit/`
+   - Edit the markdown content
+   - Preview changes
+   - Save changes
+
+2. **Generate HTML**: After editing
+   - Click "Save & Generate" to automatically generate HTML
+   - Or manually visit `/help/<module>/generate/`
+
+### Auto-Generation
+The system automatically generates HTML from markdown when:
+- You visit a help page and the HTML doesn't exist
+- The markdown file exists for that module
 
 ## Release Notes
 

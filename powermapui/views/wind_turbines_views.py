@@ -671,42 +671,50 @@ def facility_wind_turbines_list(request):
 
     return render(request, 'facility_wind_turbines/list.html', context)
 
-def facility_wind_turbine_create(request):
+def facility_wind_turbine_create(request, facility_id=None):
     """Create a new facility wind turbine installation"""
+    # If facility_id is provided in URL, get the facility object
+    facility = None
+    if facility_id:
+        facility = get_object_or_404(facilities, pk=facility_id)
+
     if request.method == 'POST':
         try:
-            facility_id = request.POST.get('facility')
+            # Get facility_id from POST data (overrides URL parameter)
+            post_facility_id = request.POST.get('facility')
             turbine_id = request.POST.get('turbine')
             no_turbines = request.POST.get('no_turbines')
             tilt = request.POST.get('tilt')
             direction = request.POST.get('direction', '').strip()
             installation_date = request.POST.get('installation_date')
             notes = request.POST.get('notes', '').strip()
-            
+
             # Validation
-            if not facility_id or not turbine_id or not no_turbines:
+            if not post_facility_id or not turbine_id or not no_turbines:
                 messages.error(request, 'Facility, turbine, and number of turbines are required.')
                 return render(request, 'facility_wind_turbines/create.html', {
+                    'facility': facility,
                     'facilities': facilities.objects.all().order_by('facility_name'),
                     'turbines': WindTurbines.objects.all().order_by('manufacturer', 'turbine_model'),
                     'form_data': request.POST
                 })
-            
-            facility = get_object_or_404(facilities, pk=facility_id)
+
+            post_facility = get_object_or_404(facilities, pk=post_facility_id)
             turbine = get_object_or_404(WindTurbines, pk=turbine_id)
-            
+
             # Check for duplicate installation
-            if FacilityWindTurbines.objects.filter(idfacilities=facility, idwindturbines=turbine).exists():
+            if FacilityWindTurbines.objects.filter(idfacilities=post_facility, idwindturbines=turbine).exists():
                 messages.error(request, 'This turbine model is already installed at this facility.')
                 return render(request, 'facility_wind_turbines/create.html', {
+                    'facility': facility,
                     'facilities': facilities.objects.all().order_by('facility_name'),
                     'turbines': WindTurbines.objects.all().order_by('manufacturer', 'turbine_model'),
                     'form_data': request.POST
                 })
-            
+
             # Create the installation
             installation = FacilityWindTurbines.objects.create(
-                idfacilities=facility,
+                idfacilities=post_facility,
                 idwindturbines=turbine,
                 no_turbines=int(no_turbines),
                 tilt=int(tilt) if tilt else None,
@@ -715,23 +723,24 @@ def facility_wind_turbine_create(request):
                 notes=notes if notes else None,
                 is_active=True
             )
-            
-            messages.success(request, f'Wind turbine installation created successfully for {facility.facility_name}.')
-            return redirect('powermapui:facility_wind_turbines_list')
-            
+
+            messages.success(request, f'Wind turbine installation created successfully for {post_facility.facility_name}.')
+            return redirect('powermapui:facility_detail', pk=post_facility.idfacilities)
+
         except ValueError as e:
             messages.error(request, 'Invalid numeric value provided.')
         except Exception as e:
             messages.error(request, f'Error creating installation: {str(e)}')
-    
+
     context = {
+        'facility': facility,
         'facilities': facilities.objects.all().order_by('facility_name'),
         'turbines': WindTurbines.objects.all().order_by('manufacturer', 'turbine_model')
     }
-    
+
     if request.method == 'POST':
         context['form_data'] = request.POST
-    
+
     return render(request, 'facility_wind_turbines/create.html', context)
 
 def facility_wind_turbine_edit(request, pk):

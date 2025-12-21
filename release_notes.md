@@ -1,7 +1,7 @@
 # Release Notes (Latest first)
 ## Version 3.15.0 - December 17, 2025
 ### 🆕 New Features
-- Feature: Demand Projection Factors and Transmitted ([#52](https://github.com/Sustainable-Energy-Now/siren_web/issues/52))
+- Feature: Demand Projection Factors ([#52](https://github.com/Sustainable-Energy-Now/siren_web/issues/52))
 - Feature: Modularise Help ([#53](https://github.com/Sustainable-Energy-Now/siren_web/issues/53))
 
 ## Version 3.14.2 - December 12, 2025
