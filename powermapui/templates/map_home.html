@@ -22,47 +22,48 @@
     </form>
     
     <!-- Add New Facility -->
-    {% if scenario != 'Current' and scenario %}
-        <button id="addFacilityBtn" class="btn btn-primary" type="button">
-            Add New Facility
-        </button>
-        <button id="addTerminalBtn" class="btn btn-warning" type="button">
-            Add New Terminal
-        </button>
-        <button id="addGridLineBtn" class="btn btn-success" type="button">
-            Add New Grid Line
-        </button>
-        <button id="manageConnectionsBtn" class="btn btn-info" type="button">
-            Manage Connections
-        </button>
-    {% else %}
-        {% if scenario == 'Current' %}
+    {% if scenario %}
+        {% if scenario != 'Current' %}
+            <button id="addFacilityBtn" class="btn btn-primary" type="button">
+                Add New Facility
+            </button>
+            <button id="addTerminalBtn" class="btn btn-warning" type="button">
+                Add New Terminal
+            </button>
+            <button id="addGridLineBtn" class="btn btn-success" type="button">
+                Add New Grid Line
+            </button>
+        {% else %}
+            {# Current scenario - allow terminals but not facilities or grid lines #}
             <button class="btn btn-secondary" type="button" disabled title="Cannot add facilities to the 'Current' scenario">
                 Add New Facility (Disabled)
+            </button>
+            <button id="addTerminalBtn" class="btn btn-warning" type="button">
+                Add New Terminal
             </button>
             <button class="btn btn-secondary" type="button" disabled title="Cannot add grid lines to the 'Current' scenario">
                 Add New Grid Line (Disabled)
             </button>
-            <button id="manageConnectionsBtn" class="btn btn-info" type="button">
-                Manage Connections
-            </button>
-            <small class="text-muted d-block mt-1">
-                Select a different scenario to add new facilities and manage connections
-            </small>
-        {% else %}
-            <button class="btn btn-secondary" type="button" disabled title="Please select a scenario first">
-                Add New Facility (Disabled)
-            </button>
-            <button class="btn btn-secondary" type="button" disabled title="Please select a scenario first">
-                Add New Grid Line (Disabled)
-            </button>
-            <button class="btn btn-secondary" type="button" disabled title="Please select a scenario first">
-                Manage Connections (Disabled)
-            </button>
-            <small class="text-muted d-block mt-1">
-                Please select a scenario first
-            </small>
         {% endif %}
+        <button id="manageConnectionsBtn" class="btn btn-info" type="button">
+            Manage Connections
+        </button>
+    {% else %}
+        <button class="btn btn-secondary" type="button" disabled title="Please select a scenario first">
+            Add New Facility (Disabled)
+        </button>
+        <button class="btn btn-secondary" type="button" disabled title="Please select a scenario first">
+            Add New Terminal (Disabled)
+        </button>
+        <button class="btn btn-secondary" type="button" disabled title="Please select a scenario first">
+            Add New Grid Line (Disabled)
+        </button>
+        <button class="btn btn-secondary" type="button" disabled title="Please select a scenario first">
+            Manage Connections (Disabled)
+        </button>
+        <small class="text-muted d-block mt-1">
+            Please select a scenario first
+        </small>
     {% endif %}
     
     <!-- Grid Line Controls -->
@@ -742,6 +743,11 @@ crossorigin=""></script>
 // Initialize the map and set its view to South West of Western Australia
 var map = L.map('map').setView([-33.45, 121.25], 7);
 
+// Create a custom pane for grid lines with higher z-index to ensure they're above KML layers
+map.createPane('gridLinesPane');
+map.getPane('gridLinesPane').style.zIndex = 450; // Higher than default overlayPane (400)
+map.getPane('gridLinesPane').style.pointerEvents = 'auto'; // Ensure mouse events work
+
 // Data passed from view
 var facilities = {{ facilities_json|safe }};
 var gridLines = JSON.parse('{{ grid_lines_json|escapejs }}');
@@ -1108,7 +1114,12 @@ function loadGridLinesOnMap(gridLinesData) {
         
         // Ensure weight is always reasonable
         lineStyle.weight = Math.max(2, Math.min(8, lineStyle.weight));
-        
+
+        // Add interactive option to ensure events work
+        lineStyle.interactive = true;
+        lineStyle.bubblingMouseEvents = false;
+        lineStyle.pane = 'gridLinesPane'; // Use custom pane with higher z-index
+
         var polyline = L.polyline(lineCoords, lineStyle);
         // IMMEDIATELY attach the click handler and grid line ID
         polyline.gridLineId = gridLine.idgridlines;
@@ -1153,10 +1164,12 @@ function loadGridLinesOnMap(gridLinesData) {
         // Add the polyline to the layer group
         gridLinesLayer.addLayer(polyline);
     });
-    
-    // Re-add the layer to the map
-    gridLinesLayer.addTo(map);
-        
+
+    // Re-add the layer to the map if not already added
+    if (!map.hasLayer(gridLinesLayer)) {
+        gridLinesLayer.addTo(map);
+    }
+
     // Ensure the layer is properly rendered
     map.invalidateSize();
 }
@@ -1314,11 +1327,9 @@ document.addEventListener('DOMContentLoaded', function() {
     loadGridLinesOnMap(gridLines);
     loadTechnologies();
     loadGridLinesForSelection();
-    
-    // Add layers to map
-    facilityLayer.addTo(map);
-    terminalsLayer.addTo(map);
-    gridLinesLayer.addTo(map);
+
+    // Note: Layers are added to map within their respective load functions
+    // No need to add them again here
     
     const technologySelect = document.getElementById('technology_id');
     if (technologySelect) {
@@ -2088,30 +2099,75 @@ document.addEventListener('DOMContentLoaded', function() {
     const scenarioForm = document.querySelector('form');
     if (scenarioForm) {
         scenarioForm.addEventListener('submit', function(e) {
+            e.preventDefault(); // Prevent default form submission
+
             const scenarioSelect = document.querySelector('select[name="scenario"]');
+            const demandYearSelect = document.querySelector('select[name="demand_year"]');
+
             if (scenarioSelect) {
                 const selectedScenario = scenarioSelect.value;
-                
+                const selectedDemandYear = demandYearSelect ? demandYearSelect.value : '';
+
                 const button = this.querySelector('button[name="apply_settings"]');
                 const originalText = button.textContent;
                 button.textContent = 'Applying...';
                 button.disabled = true;
-                
-                setTimeout(() => {
-                    refreshFacilities(selectedScenario);
-                    
+
+                // Get CSRF token
+                const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+
+                // Submit form data via AJAX to update session
+                const formData = new FormData();
+                formData.append('csrfmiddlewaretoken', csrfToken);
+                formData.append('scenario', selectedScenario);
+                formData.append('demand_year', selectedDemandYear);
+
+                fetch(window.location.href, {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Failed to update settings');
+                    }
+                    // Refresh facilities with new scenario
+                    return refreshFacilities(selectedScenario);
+                })
+                .then(() => {
+                    button.textContent = originalText;
+                    button.disabled = false;
+
+                    // Show success message
+                    const successMsg = document.createElement('div');
+                    successMsg.className = 'alert alert-success';
+                    successMsg.style.cssText = 'position: fixed; top: 20px; right: 20px; z-index: 10000; padding: 10px 20px;';
+                    successMsg.textContent = 'Settings updated successfully';
+                    document.body.appendChild(successMsg);
+
                     setTimeout(() => {
-                        button.textContent = originalText;
-                        button.disabled = false;
+                        successMsg.remove();
+                    }, 3000);
+
+                    // Reload page to update UI elements that depend on scenario
+                    setTimeout(() => {
+                        location.reload();
                     }, 1000);
-                }, 100);
+                })
+                .catch(error => {
+                    console.error('Error updating settings:', error);
+                    button.textContent = originalText;
+                    button.disabled = false;
+                    alert('Error updating settings. Please try again.');
+                });
             }
         });
     }
     
     // Load KML layers
     function initializeKMLLayers() {
-        boundaryLayer = new L.KML("{% static 'kml//SWIS_Boundary.kml' %}", { async: true });
+        boundaryLayer = new L.KML("{% static 'kml//SWIS_Boundary.kml' %}", {
+            async: true
+        });
         boundaryLayer.on("loaded", function(e) {
             map.fitBounds(e.target.getBounds());
             e.target.eachLayer(function(layer) {
@@ -2127,14 +2183,31 @@ document.addEventListener('DOMContentLoaded', function() {
                     });
                 }
             });
-            
+
             initializeLayerControl();
+
+            // Workaround: Programmatically toggle SWIS Boundary layer to fix grid line interactivity
+            // This resolves the issue where the KML layer blocks mouse events on grid lines
+            setTimeout(function() {
+                if (map.hasLayer(boundaryLayer)) {
+                    map.removeLayer(boundaryLayer);
+                    setTimeout(function() {
+                        map.addLayer(boundaryLayer);
+                        // Ensure grid lines stay on top after re-adding boundary
+                        if (map.hasLayer(gridLinesLayer)) {
+                            gridLinesLayer.bringToFront();
+                        }
+                    }, 100);
+                }
+            }, 500);
         });
         map.addLayer(boundaryLayer);
 
-        zoneLayer = new L.KML("{% static 'kml//SWIS_2023_Zones.kml' %}", { async: true });
-        zoneLayer.on("loaded", function(e) { 
-            map.fitBounds(e.target.getBounds()); 
+        zoneLayer = new L.KML("{% static 'kml//SWIS_2023_Zones.kml' %}", {
+            async: true
+        });
+        zoneLayer.on("loaded", function(e) {
+            map.fitBounds(e.target.getBounds());
         });
         map.addLayer(zoneLayer);
     }
@@ -2149,8 +2222,36 @@ document.addEventListener('DOMContentLoaded', function() {
                 "Terminals": terminalsLayer,
                 "Grid Lines": gridLinesLayer,
             };
-            
+
             var layerControl = L.control.layers(baseLayers, overlays).addTo(map);
+
+            // Ensure interactive layers are above KML layers for proper event handling
+            // Bring grid lines, terminals, and facilities to front so they're clickable
+            if (map.hasLayer(gridLinesLayer)) {
+                gridLinesLayer.bringToFront();
+            }
+            if (map.hasLayer(terminalsLayer)) {
+                terminalsLayer.bringToFront();
+            }
+            if (map.hasLayer(facilityLayer)) {
+                facilityLayer.bringToFront();
+            }
+
+            // Listen for layer add events to maintain proper z-order
+            map.on('overlayadd', function(e) {
+                // When any overlay is added, ensure interactive layers stay on top
+                setTimeout(function() {
+                    if (map.hasLayer(gridLinesLayer)) {
+                        gridLinesLayer.bringToFront();
+                    }
+                    if (map.hasLayer(terminalsLayer)) {
+                        terminalsLayer.bringToFront();
+                    }
+                    if (map.hasLayer(facilityLayer)) {
+                        facilityLayer.bringToFront();
+                    }
+                }, 10);
+            });
         }
     }
 
