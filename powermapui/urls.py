@@ -116,7 +116,6 @@ urlpatterns = [
     path('power-curves/<int:pk>/data-json/', wind_turbines_views.power_curve_data_json, name='power_curve_data_json'),
     
     # Facility Wind Turbine Installations URLs
-    path('facility_wind_turbines/', wind_turbines_views.facility_wind_turbines_list, name='facility_wind_turbines_list'),
     path('facility_wind_turbines/create/', wind_turbines_views.facility_wind_turbine_create, name='facility_wind_turbine_create'),
     path('facility_wind_turbines/<int:pk>/edit/', wind_turbines_views.facility_wind_turbine_edit, name='facility_wind_turbine_edit'),
     path('facility_wind_turbines/<int:pk>/delete/', wind_turbines_views.facility_wind_turbine_delete, name='facility_wind_turbine_delete'),
@@ -129,14 +128,12 @@ urlpatterns = [
     path('api/storage/', storage_views.get_storage_json, name='get_storage_json'),
 
     # Facility Solar Installations (installation-specific capacity)
-    path('facility-solar/', facility_solar_views.facility_solar_list, name='facility_solar_list'),
     path('facility-solar/<int:pk>/', facility_solar_views.facility_solar_detail, name='facility_solar_detail'),
     path('facility-solar/<int:pk>/edit/', facility_solar_views.facility_solar_edit, name='facility_solar_edit'),
     path('facility-solar/<int:pk>/delete/', facility_solar_views.facility_solar_delete, name='facility_solar_delete'),
     path('api/facility-solar/', facility_solar_views.get_facility_solar_json, name='get_facility_solar_json'),
 
     # Facility Storage Installations (installation-specific capacity)
-    path('facility-storage/', facility_storage_views.facility_storage_list, name='facility_storage_list'),
     path('facility-storage/<int:pk>/', facility_storage_views.facility_storage_detail, name='facility_storage_detail'),
     path('facility-storage/<int:pk>/edit/', facility_storage_views.facility_storage_edit, name='facility_storage_edit'),
     path('facility-storage/<int:pk>/delete/', facility_storage_views.facility_storage_delete, name='facility_storage_delete'),

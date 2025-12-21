@@ -611,66 +611,6 @@ def power_curve_data_json(request, pk):
 
 # ========== FACILITY WIND TURBINE VIEWS ==========
 
-def facility_wind_turbines_list(request):
-    """List all facility wind turbine installations"""
-    weather_year = request.session.get('weather_year', '')
-    demand_year = request.session.get('demand_year', '')
-    scenario = request.session.get('scenario', '')
-    config_file = request.session.get('config_file')
-    """List all facility wind turbine installations"""
-    search_query = request.GET.get('search', '')
-    facility_filter = request.GET.get('facility', '')
-    turbine_filter = request.GET.get('turbine', '')
-    active_only = request.GET.get('active_only', 'true') == 'true'
-    
-    installations = FacilityWindTurbines.objects.select_related(
-        'idfacilities', 'idwindturbines'
-    ).order_by('idfacilities__facility_name')
-    
-    # Apply filters
-    if search_query:
-        installations = installations.filter(
-            Q(idfacilities__facility_name__icontains=search_query) |
-            Q(idwindturbines__turbine_model__icontains=search_query) |
-            Q(idwindturbines__manufacturer__icontains=search_query)
-        )
-    
-    if facility_filter:
-        installations = installations.filter(idfacilities__facility_name__icontains=facility_filter)
-    
-    if turbine_filter:
-        installations = installations.filter(idwindturbines__turbine_model__icontains=turbine_filter)
-    
-    if active_only:
-        installations = installations.filter(is_active=True)
-    
-    # Get filter options
-    facilities_list = facilities.objects.values_list('facility_name', flat=True).distinct().order_by('facility_name')
-    turbines_list = WindTurbines.objects.values_list('turbine_model', flat=True).distinct().order_by('turbine_model')
-    
-    # Pagination
-    paginator = Paginator(installations, 25)
-    page_number = request.GET.get('page')
-    page_obj = paginator.get_page(page_number)
-    
-    context = {
-        'weather_year': weather_year,
-        'demand_year': demand_year,
-        'scenario': scenario,
-        'config_file': config_file,
-        'page_obj': page_obj,
-        'search_query': search_query,
-        'facility_filter': facility_filter,
-        'turbine_filter': turbine_filter,
-        'active_only': active_only,
-        'facilities_list': facilities_list,
-        'turbines_list': turbines_list,
-        'total_count': installations.count(),
-        'applications': WindTurbines.APPLICATION_CHOICES
-    }
-
-    return render(request, 'facility_wind_turbines/list.html', context)
-
 def facility_wind_turbine_create(request, facility_id=None):
     """Create a new facility wind turbine installation"""
     # If facility_id is provided in URL, get the facility object

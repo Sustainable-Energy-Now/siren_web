@@ -4,8 +4,7 @@
 {% block powermapui_content %}
   <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
-      <h3>Edit Facility</h3>
-      <small class="text-muted">{{ facility.facility_name }}</small>
+      <h3>Edit Facility - {{ facility.facility_name }}</h3>
     </div>
     <div>
       <a href="{% url 'powermapui:facility_detail' facility.pk %}" class="btn btn-outline-secondary">Back to Details</a>

@@ -14,7 +14,7 @@
     </div>
     <div>
       <a href="{% url 'powermapui:facility_storage_edit' installation.pk %}" class="btn btn-warning">Edit Installation</a>
-      <a href="{% url 'powermapui:facility_storage_list' %}" class="btn btn-outline-secondary">Back to List</a>
+      <a href="{% url 'powermapui:facilities_list' %}?installation_type=storage" class="btn btn-outline-secondary">Back to List</a>
     </div>
   </div>
 
@@ -362,7 +362,7 @@
     <a href="{% url 'powermapui:facility_storage_edit' installation.pk %}" class="btn btn-warning">
       Edit Installation
     </a>
-    <a href="{% url 'powermapui:facility_storage_list' %}" class="btn btn-outline-secondary">
+    <a href="{% url 'powermapui:facilities_list' %}?installation_type=storage" class="btn btn-outline-secondary">
       Back to List
     </a>
     <form method="post" action="{% url 'powermapui:facility_storage_delete' installation.pk %}" 

@@ -11,9 +11,11 @@ def facilities_list(request):
     scenario_filter = request.GET.get('scenario', '')
     technology_filter = request.GET.get('technology', '')
     zone_filter = request.GET.get('zone', '')
-    
+    installation_type_filter = request.GET.get('installation_type', '')
+
     facs = facilities.objects.select_related(
-        'idzones'
+        'idzones',
+        'idtechnologies'
     ).prefetch_related(
         'solar_installations__idtechnologies',
         'storage_installations__idtechnologies',
@@ -29,6 +31,7 @@ def facilities_list(request):
 
         facs = facs.filter(
             Q(facility_name__icontains=search_query) |
+            Q(idtechnologies__technology_name__icontains=search_query) |
             Q(solar_installations__idtechnologies__technology_name__icontains=search_query) |
             Q(storage_installations__idtechnologies__technology_name__icontains=search_query) |
             Q(idfacilities__in=wind_facility_ids) |
@@ -50,6 +53,7 @@ def facilities_list(request):
         ).values_list('idfacilities', flat=True)
 
         facs = facs.filter(
+            Q(idtechnologies__technology_name__icontains=technology_filter) |
             Q(solar_installations__idtechnologies__technology_name__icontains=technology_filter) |
             Q(storage_installations__idtechnologies__technology_name__icontains=technology_filter) |
             Q(idfacilities__in=wind_facility_ids)
@@ -58,13 +62,41 @@ def facilities_list(request):
     # Apply zone filter
     if zone_filter:
         facs = facs.filter(idzones__name__icontains=zone_filter)
-    
+
+    # Apply installation type filter
+    if installation_type_filter:
+        if installation_type_filter == 'wind':
+            wind_facility_ids = FacilityWindTurbines.objects.filter(
+                is_active=True
+            ).values_list('idfacilities', flat=True).distinct()
+            facs = facs.filter(idfacilities__in=wind_facility_ids)
+        elif installation_type_filter == 'solar':
+            from siren_web.models import FacilitySolar
+            solar_facility_ids = FacilitySolar.objects.filter(
+                is_active=True
+            ).values_list('idfacilities', flat=True).distinct()
+            facs = facs.filter(idfacilities__in=solar_facility_ids)
+        elif installation_type_filter == 'storage':
+            from siren_web.models import FacilityStorage
+            storage_facility_ids = FacilityStorage.objects.filter(
+                is_active=True
+            ).values_list('idfacilities', flat=True).distinct()
+            facs = facs.filter(idfacilities__in=storage_facility_ids)
+
     # Get filter options
     scenarios = Scenarios.objects.all().order_by('title')
     technologies = Technologies.objects.values_list('technology_name', flat=True).distinct().order_by('technology_name')
     technologies = [t for t in technologies if t]
     zones = Zones.objects.values_list('name', flat=True).distinct().order_by('name')
     zones = [z for z in zones if z]
+
+    # Installation type choices for filter
+    installation_types = [
+        ('', 'All Installation Types'),
+        ('wind', 'Wind'),
+        ('solar', 'Solar'),
+        ('storage', 'Storage'),
+    ]
     
     # Pagination
     paginator = Paginator(facs, 25)
@@ -83,16 +115,18 @@ def facilities_list(request):
         'scenario_filter': scenario_filter,
         'technology_filter': technology_filter,
         'zone_filter': zone_filter,
+        'installation_type_filter': installation_type_filter,
         'scenarios': scenarios,
         'technologies': technologies,
         'zones': zones,
+        'installation_types': installation_types,
         'total_count': facs.count(),
         'weather_year': weather_year,
         'demand_year': demand_year,
         'scenario': scenario,
         'config_file': config_file,
     }
-    
+
     return render(request, 'facilities/list.html', context)
 
 def facility_detail(request, pk):
