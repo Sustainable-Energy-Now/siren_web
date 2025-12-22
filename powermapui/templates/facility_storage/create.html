@@ -4,7 +4,7 @@
 {% block powermapui_content %}
   <div class="d-flex justify-content-between align-items-center mb-4">
     <h3>Add Storage Installation</h3>
-    <a href="{% url 'powermapui:facility_storage_list' %}" class="btn btn-outline-secondary">Back to List</a>
+    <a href="{% url 'powermapui:facilities_list' %}" class="btn btn-outline-secondary">Back to List</a>
   </div>
 
   <p>Create a new storage system installation at a facility. Select the facility and storage technology, then specify the installation capacity.</p>
@@ -144,7 +144,7 @@
 
             <div class="d-flex gap-2">
               <button type="submit" class="btn btn-primary">Create Installation</button>
-              <a href="{% url 'powermapui:facility_storage_list' %}" class="btn btn-outline-secondary">Cancel</a>
+              <a href="{% url 'powermapui:facilities_list' %}" class="btn btn-outline-secondary">Cancel</a>
             </div>
           </form>
         </div>

@@ -315,7 +315,7 @@ def update_facility_capacity_on_storage_removal(sender, instance, **kwargs):
             idtechnologies=technology,
             is_active=True
         ).aggregate(
-            total=models.Sum('power_capacity')
+            total=Sum('power_capacity')
         )['total'] or 0
         
         # Update facility capacity
@@ -426,7 +426,7 @@ def sync_storage_facility_capacities():
             idtechnologies=technology,
             is_active=True
         ).aggregate(
-            total=models.Sum('power_capacity')
+            total=Sum('power_capacity')
         )['total'] or 0
         
         if total_storage_capacity != facility.capacity:

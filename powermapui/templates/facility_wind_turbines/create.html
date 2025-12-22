@@ -4,7 +4,7 @@
 {% block powermapui_content %}
   <div class="d-flex justify-content-between align-items-center mb-4">
     <h3>Add Wind Turbine Installation</h3>
-    <a href="{% url 'powermapui:facility_wind_turbines_list' %}" class="btn btn-outline-secondary">Back to List</a>
+    <a href="{% url 'powermapui:facilities_list' %}" class="btn btn-outline-secondary">Back to List</a>
   </div>
 
   <p>Install a wind turbine model at a specific facility. This creates the association between a facility and turbine type, with installation-specific parameters like quantity, orientation, and timing.</p>
@@ -106,7 +106,7 @@
 
             <div class="d-flex gap-2">
               <button type="submit" class="btn btn-primary">Create Installation</button>
-              <a href="{% url 'powermapui:facility_wind_turbines_list' %}" class="btn btn-outline-secondary">Cancel</a>
+              <a href="{% url 'powermapui:facilities_list' %}" class="btn btn-outline-secondary">Cancel</a>
             </div>
           </form>
         </div>

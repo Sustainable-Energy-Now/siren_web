@@ -28,6 +28,18 @@
     <div class="container">
         <h2>Generate Power - Choose Processing Mode</h2>
 
+        {% if success_message %}
+        <div style="background: #d4edda; border: 1px solid #c3e6cb; color: #155724; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
+            <strong>✓ Success:</strong> {{ success_message }}
+        </div>
+        {% endif %}
+
+        {% if error_message %}
+        <div style="background: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
+            <strong>✗ Error:</strong> {{ error_message }}
+        </div>
+        {% endif %}
+
         <div class="option-card info">
             <h3>Single Facility Process</h3>
             <p><strong>What it does:</strong></p>
@@ -35,13 +47,14 @@
                 <li>Process one specific renewable facility</li>
                 <li>Always refreshes data for the selected facility</li>
                 <li>Fast execution - ideal for testing or updating individual renewable facilities</li>
+                <li>Supports hybrid facilities with multiple renewable technologies (e.g., wind + solar)</li>
             </ul>
             <p><strong>Use this when:</strong> Testing configurations, troubleshooting a specific facility, or updating one facility</p>
-            
+
             <form method="get" action="{% url 'powermapui:generate_power' %}">
                 <input type="hidden" name="confirm" value="true">
                 <input type="hidden" name="single_facility" value="true">
-                
+
                 <div class="facility-selector">
                     <label for="facility_code">Select Facility:</label>
                     <select name="facility_code" id="facility_code" required>
@@ -53,7 +66,21 @@
                         {% endfor %}
                     </select>
                 </div>
-                
+
+                <div class="facility-selector">
+                    <label for="start_date">Start Date (optional):</label>
+                    <input type="date" name="start_date" id="start_date" style="width: 100%; padding: 10px; font-size: 1em; border-radius: 5px; border: 1px solid #ddd;">
+                </div>
+
+                <div class="facility-selector">
+                    <label for="end_date">End Date (optional):</label>
+                    <input type="date" name="end_date" id="end_date" style="width: 100%; padding: 10px; font-size: 1em; border-radius: 5px; border: 1px solid #ddd;">
+                </div>
+
+                <p style="font-size: 0.9em; color: #666; margin-top: 10px;">
+                    <strong>Note:</strong> Leave dates empty to process the entire year. Date range restricts the hourly generation data stored.
+                </p>
+
                 <button type="submit" class="btn btn-info">
                     Process Single Facility
                 </button>
