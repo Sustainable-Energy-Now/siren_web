@@ -1,0 +1,652 @@
+{% load humanize %}
+{% load math_filters %}
+{% load static %}
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>SWIS Annual Review {{ year }}</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+            color: #333;
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 20px;
+            padding: 20px;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            color: white;
+        }
+
+        header h1 {
+            font-size: 28px;
+            margin: 0 0 10px 0;
+        }
+
+        header h2 {
+            font-size: 20px;
+            margin: 0 0 5px 0;
+        }
+
+        header img {
+            height: 80px;
+            width: auto;
+        }
+
+        .section-header {
+            margin: 30px 0 15px 0;
+            padding-bottom: 8px;
+            border-bottom: 2px solid #3498db;
+        }
+
+        .section-header h2 {
+            color: #2c3e50;
+            margin: 0;
+            font-size: 20px;
+        }
+
+        .metric-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin: 15px 0;
+        }
+
+        .metric-card {
+            flex: 1 1 180px;
+            background: white;
+            padding: 18px;
+            border-radius: 8px;
+            border-left: 4px solid #bdc3c7;
+        }
+
+        .metric-card.positive {
+            border-left-color: #27ae60;
+            background: linear-gradient(135deg, #ffffff 0%, #e8f5e9 100%);
+        }
+
+        .metric-card.neutral {
+            border-left-color: #3498db;
+            background: linear-gradient(135deg, #ffffff 0%, #e3f2fd 100%);
+        }
+
+        .metric-label {
+            font-size: 11px;
+            color: #7f8c8d;
+            font-weight: 600;
+            text-transform: uppercase;
+            margin-bottom: 6px;
+        }
+
+        .metric-value {
+            font-size: 24px;
+            font-weight: 700;
+            color: #2c3e50;
+            margin: 8px 0;
+        }
+
+        .metric-sublabel {
+            font-size: 12px;
+            color: #95a5a6;
+            margin-top: 6px;
+        }
+
+        .stats-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 15px 0;
+            font-size: 13px;
+        }
+
+        .stats-table thead {
+            background: #34495e;
+            color: white;
+        }
+
+        .stats-table th,
+        .stats-table td {
+            padding: 8px 10px;
+            text-align: left;
+        }
+
+        .stats-table th.value,
+        .stats-table td.value {
+            text-align: right;
+        }
+
+        .stats-table tbody tr:nth-child(even) {
+            background: #f8f9fa;
+        }
+
+        .info-box {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 15px 0;
+            border-left: 4px solid #3498db;
+            font-size: 13px;
+        }
+
+        .renewable-row {
+            background: #e8f5e9 !important;
+        }
+
+        .fossil-row {
+            background: #fafafa !important;
+        }
+
+        .highlight-row {
+            background: #e3f2fd !important;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+<header>
+    <div>
+        <h1>SWIS 2040 Renewable Energy Target</h1>
+        <h2>Annual Comprehensive Review {{ year }}</h2>
+        <p style="color: #ecf0f1; font-size: 14px; margin: 5px 0 0 0;">
+            Review Period: Calendar Year {{ year }}
+        </p>
+    </div>
+    <img src="{% static 'img/SEN_LOGO_HERO.png' %}" alt="SEN Logo">
+</header>
+
+<!-- Executive Summary -->
+<div class="info-box" style="background: white; border-left: 4px solid #9b59b6;">
+    <h3 style="margin-top: 0;">Executive Summary</h3>
+    <p style="font-size: 14px; line-height: 1.6;">
+        The South West Interconnected System (SWIS) achieved
+        <strong>{{ annual_summary.re_percentage_operational|floatformat:1 }}%</strong> renewable energy
+        (operational demand basis) and <strong>{{ annual_summary.re_percentage_underlying|floatformat:1 }}%</strong>
+        (underlying demand basis, including rooftop solar) in {{ year }}, representing a significant milestone in
+        Western Australia's energy transition. Total grid emissions were
+        <strong>{{ annual_summary.total_emissions|floatformat:0|intcomma }} tonnes CO₂-e</strong>{% if yoy_changes.emissions %}, a {% if yoy_changes.emissions < 0 %}reduction{% else %}increase{% endif %} of
+        {% with abs_change=yoy_changes.emissions %}
+        <strong>{% if abs_change < 0 %}{{ abs_change|slice:"1:"|floatformat:1 }}{% else %}{{ abs_change|floatformat:1 }}{% endif %}%</strong>
+        {% endwith %} from {{ year|add:"-1" }}{% endif %}.
+        {% if annual_summary.wholesale_price_avg %}
+        The average wholesale electricity price was <strong>${{ annual_summary.wholesale_price_avg|floatformat:2 }}/MWh</strong>.
+        {% endif %}
+    </p>
+    {% if executive_summary and executive_summary.content %}
+    <div style="font-size: 14px; line-height: 1.6; margin-top: 10px;">
+        {{ executive_summary.content|linebreaks }}
+    </div>
+    {% endif %}
+</div>
+
+<!-- Understanding Demand Measures -->
+<div class="info-box" style="background: #e3f2fd; border-left-color: #2196f3;">
+    <h3 style="margin-top: 0;">Understanding Demand Measures</h3>
+    <p style="margin-bottom: 0; font-size: 13px;">
+        <strong>Operational Demand:</strong> Total grid-sent generation. This represents electricity delivered through the grid.<br>
+        <strong>Underlying Demand:</strong> Operational demand plus rooftop solar (DPV). This represents total electricity consumed including behind-the-meter generation.
+    </p>
+</div>
+
+<!-- Key Findings -->
+<div class="section-header">
+    <h2>Key Findings</h2>
+</div>
+
+<div class="metric-grid">
+    <div class="metric-card positive">
+        <div class="metric-label">{{ year }} RE% (Operational)</div>
+        <div class="metric-value">{{ annual_summary.re_percentage_operational|floatformat:1 }}%</div>
+        <div class="metric-sublabel">Grid-sent electricity</div>
+    </div>
+
+    <div class="metric-card positive">
+        <div class="metric-label">{{ year }} RE% (Underlying)</div>
+        <div class="metric-value">{{ annual_summary.re_percentage_underlying|floatformat:1 }}%</div>
+        <div class="metric-sublabel">Including rooftop solar</div>
+    </div>
+
+    <div class="metric-card neutral">
+        <div class="metric-label">Total Consumption</div>
+        <div class="metric-value">{{ annual_summary.underlying_demand|floatformat:0|intcomma }}</div>
+        <div class="metric-sublabel">GWh (underlying)</div>
+    </div>
+
+    <div class="metric-card positive">
+        <div class="metric-label">Total Emissions</div>
+        <div class="metric-value">{{ annual_summary.total_emissions|floatformat:0|intcomma }}</div>
+        <div class="metric-sublabel">tonnes CO₂-e</div>
+    </div>
+
+    <div class="metric-card neutral">
+        <div class="metric-label">New Capacity</div>
+        <div class="metric-value">{{ total_new_capacity|floatformat:0|intcomma }}</div>
+        <div class="metric-sublabel">MW renewable</div>
+    </div>
+</div>
+
+<!-- Annual Performance Summary -->
+<div class="section-header">
+    <h2>{{ year }} Performance Summary</h2>
+</div>
+
+<table class="stats-table">
+    <thead>
+        <tr>
+            <th>Metric</th>
+            <th class="value">{{ year }}</th>
+            {% if prev_annual_summary %}
+            <th class="value">{{ year|add:"-1" }}</th>
+            <th class="value">Change</th>
+            {% endif %}
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td><strong>Operational Demand</strong></td>
+            <td class="value">{{ annual_summary.operational_demand|floatformat:0|intcomma }} GWh</td>
+            {% if prev_annual_summary %}
+            <td class="value">{{ prev_annual_summary.operational_demand|floatformat:0|intcomma }} GWh</td>
+            <td class="value">
+                {% with change=annual_summary.operational_demand|sub:prev_annual_summary.operational_demand|div:prev_annual_summary.operational_demand|mul:100 %}
+                {% if change >= 0 %}+{% endif %}{{ change|floatformat:1 }}%
+                {% endwith %}
+            </td>
+            {% endif %}
+        </tr>
+        <tr>
+            <td><strong>Underlying Demand</strong></td>
+            <td class="value">{{ annual_summary.underlying_demand|floatformat:0|intcomma }} GWh</td>
+            {% if prev_annual_summary %}
+            <td class="value">{{ prev_annual_summary.underlying_demand|floatformat:0|intcomma }} GWh</td>
+            <td class="value">
+                {% if yoy_changes.underlying_demand %}
+                {% if yoy_changes.underlying_demand >= 0 %}+{% endif %}{{ yoy_changes.underlying_demand|floatformat:1 }}%
+                {% else %}—{% endif %}
+            </td>
+            {% endif %}
+        </tr>
+        <tr class="highlight-row">
+            <td><strong>Renewable Generation</strong></td>
+            <td class="value">{{ annual_summary.renewable_generation|floatformat:0|intcomma }} GWh</td>
+            {% if prev_annual_summary %}
+            <td class="value">{{ prev_annual_summary.renewable_generation|floatformat:0|intcomma }} GWh</td>
+            <td class="value">
+                {% with change=annual_summary.renewable_generation|sub:prev_annual_summary.renewable_generation|div:prev_annual_summary.renewable_generation|mul:100 %}
+                +{{ change|floatformat:1 }}%
+                {% endwith %}
+            </td>
+            {% endif %}
+        </tr>
+        <tr class="highlight-row">
+            <td><strong>RE% (Operational)</strong></td>
+            <td class="value"><strong>{{ annual_summary.re_percentage_operational|floatformat:1 }}%</strong></td>
+            {% if prev_annual_summary %}
+            <td class="value">{{ prev_annual_summary.re_percentage_operational|floatformat:1 }}%</td>
+            <td class="value">
+                {% with change=annual_summary.re_percentage_operational|sub:prev_annual_summary.re_percentage_operational %}
+                {% if change >= 0 %}+{% endif %}{{ change|floatformat:1 }} pp
+                {% endwith %}
+            </td>
+            {% endif %}
+        </tr>
+        <tr class="highlight-row">
+            <td><strong>RE% (Underlying)</strong></td>
+            <td class="value"><strong>{{ annual_summary.re_percentage_underlying|floatformat:1 }}%</strong></td>
+            {% if prev_annual_summary %}
+            <td class="value">{{ prev_annual_summary.re_percentage_underlying|floatformat:1 }}%</td>
+            <td class="value">+{{ yoy_changes.re_percentage|floatformat:1 }} pp</td>
+            {% endif %}
+        </tr>
+    </tbody>
+</table>
+
+<!-- Wholesale Price Summary -->
+{% if annual_summary.wholesale_price_avg %}
+<div class="section-header">
+    <h2>Wholesale Price Summary</h2>
+</div>
+
+<table class="stats-table">
+    <thead>
+        <tr>
+            <th>Metric</th>
+            <th class="value">{{ year }}</th>
+            {% if prev_annual_summary.wholesale_price_avg %}
+            <th class="value">{{ year|add:"-1" }}</th>
+            {% endif %}
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>Average Price</td>
+            <td class="value">${{ annual_summary.wholesale_price_avg|floatformat:2 }}/MWh</td>
+            {% if prev_annual_summary.wholesale_price_avg %}
+            <td class="value">${{ prev_annual_summary.wholesale_price_avg|floatformat:2 }}/MWh</td>
+            {% endif %}
+        </tr>
+        {% if annual_summary.wholesale_price_max %}
+        <tr>
+            <td>Maximum Price</td>
+            <td class="value">${{ annual_summary.wholesale_price_max|floatformat:2 }}/MWh</td>
+            <td class="value">—</td>
+        </tr>
+        {% endif %}
+        {% if annual_summary.wholesale_price_min %}
+        <tr>
+            <td>Minimum Price</td>
+            <td class="value">${{ annual_summary.wholesale_price_min|floatformat:2 }}/MWh</td>
+            <td class="value">—</td>
+        </tr>
+        {% endif %}
+        {% if annual_summary.wholesale_negative_count is not None %}
+        <tr>
+            <td>Negative Price Intervals</td>
+            <td class="value">{{ annual_summary.wholesale_negative_count|intcomma }}</td>
+            <td class="value">—</td>
+        </tr>
+        {% endif %}
+        {% if annual_summary.wholesale_spike_count is not None %}
+        <tr>
+            <td>Price Spike Intervals (&gt;$300/MWh)</td>
+            <td class="value">{{ annual_summary.wholesale_spike_count|intcomma }}</td>
+            <td class="value">—</td>
+        </tr>
+        {% endif %}
+    </tbody>
+</table>
+
+<!-- Monthly Wholesale Price Statistics -->
+<h3>Monthly Wholesale Price Statistics</h3>
+<table class="stats-table">
+    <thead>
+        <tr>
+            <th>Month</th>
+            <th class="value">Avg ($/MWh)</th>
+            <th class="value">Max ($/MWh)</th>
+            <th class="value">Min ($/MWh)</th>
+            <th class="value">Std Dev</th>
+            <th class="value">Negative</th>
+            <th class="value">Spikes</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for record in annual_data %}
+        <tr>
+            <td><strong>{{ record.get_month_name }}</strong></td>
+            <td class="value">
+                {% if record.wholesale_price_avg is not None %}
+                ${{ record.wholesale_price_avg|floatformat:2 }}
+                {% else %}—{% endif %}
+            </td>
+            <td class="value">
+                {% if record.wholesale_price_max is not None %}
+                ${{ record.wholesale_price_max|floatformat:2 }}
+                {% else %}—{% endif %}
+            </td>
+            <td class="value">
+                {% if record.wholesale_price_min is not None %}
+                ${{ record.wholesale_price_min|floatformat:2 }}
+                {% else %}—{% endif %}
+            </td>
+            <td class="value">
+                {% if record.wholesale_price_std_dev is not None %}
+                ${{ record.wholesale_price_std_dev|floatformat:2 }}
+                {% else %}—{% endif %}
+            </td>
+            <td class="value">
+                {% if record.wholesale_negative_count is not None %}
+                {{ record.wholesale_negative_count }}
+                {% else %}—{% endif %}
+            </td>
+            <td class="value">
+                {% if record.wholesale_spike_count is not None %}
+                {{ record.wholesale_spike_count }}
+                {% else %}—{% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+    <tfoot>
+        <tr style="background: #34495e; color: white;">
+            <td><strong>{{ year }} Total/Avg</strong></td>
+            <td class="value"><strong>${{ annual_summary.wholesale_price_avg|floatformat:2 }}</strong></td>
+            <td class="value"><strong>${{ annual_summary.wholesale_price_max|floatformat:2 }}</strong></td>
+            <td class="value"><strong>${{ annual_summary.wholesale_price_min|floatformat:2 }}</strong></td>
+            <td class="value">—</td>
+            <td class="value"><strong>{{ annual_summary.wholesale_negative_count|intcomma }}</strong></td>
+            <td class="value"><strong>{{ annual_summary.wholesale_spike_count|intcomma }}</strong></td>
+        </tr>
+    </tfoot>
+</table>
+
+<!-- Wholesale Price Insights -->
+<div class="info-box" style="background: #fff3e0; border-left-color: #ff9800; margin-top: 20px;">
+    <h3 style="margin-top: 0;">Wholesale Price Insights</h3>
+    <ul style="font-size: 12px; list-style: disc; padding-left: 20px; margin: 10px 0;">
+        {% if annual_summary.wholesale_negative_count and annual_summary.wholesale_negative_count > 0 %}
+        <li><strong>Negative pricing:</strong> {{ annual_summary.wholesale_negative_count|intcomma }} intervals of negative prices occurred in {{ year }}, indicating periods when renewable generation exceeded demand and created opportunities for storage charging and demand response.</li>
+        {% endif %}
+        {% if annual_summary.wholesale_spike_count and annual_summary.wholesale_spike_count > 0 %}
+        <li><strong>Price spikes:</strong> {{ annual_summary.wholesale_spike_count|intcomma }} intervals exceeded $300/MWh, typically during periods of high demand or low renewable generation.</li>
+        {% endif %}
+        {% if yoy_changes.wholesale_price_avg %}
+        <li><strong>Year-on-year:</strong> Average wholesale prices {% if yoy_changes.wholesale_price_avg >= 0 %}increased{% else %}decreased{% endif %} by {% if yoy_changes.wholesale_price_avg >= 0 %}{{ yoy_changes.wholesale_price_avg|floatformat:1 }}%{% else %}{{ yoy_changes.wholesale_price_avg|mul:-1|floatformat:1 }}%{% endif %} compared to {{ year|add:"-1" }}.</li>
+        {% endif %}
+    </ul>
+</div>
+{% endif %}
+
+<!-- Generation Mix Analysis -->
+<div class="section-header">
+    <h2>Generation Mix Analysis</h2>
+</div>
+
+<table class="stats-table">
+    <thead>
+        <tr>
+            <th>Technology</th>
+            <th class="value">Gen (GWh)</th>
+            <th class="value">% of Operational</th>
+            <th class="value">% of Underlying</th>
+            <th class="value">Emissions</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr class="renewable-row">
+            <td><strong>Wind</strong></td>
+            <td class="value">{{ annual_summary.wind_generation|floatformat:0|intcomma }}</td>
+            <td class="value">{{ annual_summary.wind_generation|div:annual_summary.operational_demand|mul:100|floatformat:1 }}%</td>
+            <td class="value">{{ annual_summary.wind_generation|div:annual_summary.underlying_demand|mul:100|floatformat:1 }}%</td>
+            <td class="value">0</td>
+        </tr>
+        <tr class="renewable-row">
+            <td><strong>Solar (Utility)</strong></td>
+            <td class="value">{{ annual_summary.solar_generation|floatformat:0|intcomma }}</td>
+            <td class="value">{{ annual_summary.solar_generation|div:annual_summary.operational_demand|mul:100|floatformat:1 }}%</td>
+            <td class="value">{{ annual_summary.solar_generation|div:annual_summary.underlying_demand|mul:100|floatformat:1 }}%</td>
+            <td class="value">0</td>
+        </tr>
+        <tr class="renewable-row">
+            <td><strong>Solar (Rooftop)</strong></td>
+            <td class="value">{{ annual_summary.dpv_generation|floatformat:0|intcomma }}</td>
+            <td class="value">—</td>
+            <td class="value">{{ annual_summary.dpv_generation|div:annual_summary.underlying_demand|mul:100|floatformat:1 }}%</td>
+            <td class="value">0</td>
+        </tr>
+        <tr class="renewable-row">
+            <td><strong>Biomass</strong></td>
+            <td class="value">{{ annual_summary.biomass_generation|floatformat:0|intcomma }}</td>
+            <td class="value">{{ annual_summary.biomass_generation|div:annual_summary.operational_demand|mul:100|floatformat:1 }}%</td>
+            <td class="value">{{ annual_summary.biomass_generation|div:annual_summary.underlying_demand|mul:100|floatformat:1 }}%</td>
+            <td class="value">0</td>
+        </tr>
+        <tr class="fossil-row">
+            <td>Gas</td>
+            <td class="value">{{ annual_summary.gas_generation|floatformat:0|intcomma }}</td>
+            <td class="value">{{ annual_summary.gas_generation|div:annual_summary.operational_demand|mul:100|floatformat:1 }}%</td>
+            <td class="value">{{ annual_summary.gas_generation|div:annual_summary.underlying_demand|mul:100|floatformat:1 }}%</td>
+            <td class="value">{{ annual_summary.gas_generation|mul:380|floatformat:0|intcomma }} t</td>
+        </tr>
+        <tr class="fossil-row">
+            <td>Coal</td>
+            <td class="value">{{ annual_summary.coal_generation|floatformat:1 }}</td>
+            <td class="value">{{ annual_summary.coal_generation|div:annual_summary.operational_demand|mul:100|floatformat:1 }}%</td>
+            <td class="value">{{ annual_summary.coal_generation|div:annual_summary.underlying_demand|mul:100|floatformat:1 }}%</td>
+            <td class="value">—</td>
+        </tr>
+    </tbody>
+    <tfoot>
+        <tr style="background: #34495e; color: white;">
+            <td><strong>Total RE%</strong></td>
+            <td class="value">—</td>
+            <td class="value"><strong>{{ annual_summary.re_percentage_operational|floatformat:1 }}%</strong></td>
+            <td class="value"><strong>{{ annual_summary.re_percentage_underlying|floatformat:1 }}%</strong></td>
+            <td class="value">—</td>
+        </tr>
+    </tfoot>
+</table>
+
+<!-- Annual Trends Charts -->
+<div class="section-header" style="margin-top: 30px;">
+    <h2>Annual Trends</h2>
+</div>
+
+{% if annual_generation_chart_img %}
+<div style="margin: 20px 0; text-align: center;">
+    <img src="{{ annual_generation_chart_img }}" alt="Annual Generation by Technology" style="max-width: 100%; height: auto;">
+</div>
+{% else %}
+<div class="info-box" style="margin-top: 20px;">
+    <p style="margin: 0; font-size: 13px;">
+        <strong>Note:</strong> Annual Generation by Technology chart is available in the online version of this report.
+    </p>
+</div>
+{% endif %}
+
+{% if annual_trends_chart_img %}
+<div style="margin: 20px 0; text-align: center;">
+    <img src="{{ annual_trends_chart_img }}" alt="Multi-Year RE% Trends" style="max-width: 100%; height: auto;">
+</div>
+{% else %}
+<div class="info-box" style="margin-top: 20px;">
+    <p style="margin: 0; font-size: 13px;">
+        <strong>Note:</strong> Multi-Year RE% Trends chart is available in the online version of this report.
+    </p>
+</div>
+{% endif %}
+
+<!-- 2040 Target Achievement Scenarios -->
+{% if scenarios %}
+<div class="section-header" style="margin-top: 30px;">
+    <h2>2040 Target Achievement Scenarios</h2>
+</div>
+
+{% if scenario_comparison_chart_img %}
+<div style="margin: 20px 0; text-align: center;">
+    <img src="{{ scenario_comparison_chart_img }}" alt="2040 Scenario Comparison" style="max-width: 100%; height: auto;">
+</div>
+{% endif %}
+
+<table class="stats-table" style="margin-top: 15px; font-size: 12px;">
+    <thead>
+        <tr>
+            <th>Scenario</th>
+            <th class="value">Projected RE% 2040</th>
+            <th class="value">Projected Emissions</th>
+            <th>Status</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for scenario in scenarios %}
+        <tr>
+            <td><strong>{{ scenario.scenario_name }}</strong></td>
+            <td class="value">{{ scenario.projected_re_percentage_2040|floatformat:1 }}%</td>
+            <td class="value">{{ scenario.projected_emissions_2040_tonnes|floatformat:0|intcomma }} t</td>
+            <td>
+                {% if scenario.projected_re_percentage_2040 >= 75 %}
+                ✓ Meets Target
+                {% else %}
+                ⚠ Below Target
+                {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endif %}
+
+<!-- New Capacity Commissioned -->
+{% if new_capacity %}
+<div class="section-header">
+    <h2>New Capacity Commissioned</h2>
+</div>
+
+<div class="info-box">
+    <h3>Total New Capacity {{ year }}: {{ total_new_capacity|floatformat:0|intcomma }} MW renewable</h3>
+
+    <table class="stats-table" style="margin-top: 15px;">
+        <thead>
+            <tr>
+                <th>Facility</th>
+                <th>Technology</th>
+                <th class="value">Capacity (MW)</th>
+                <th>Commissioned</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for facility in new_capacity %}
+            <tr>
+                <td><strong>{{ facility.facility.facility_name }}</strong></td>
+                <td>{{ facility.technology_type }}</td>
+                <td class="value">{{ facility.capacity_mw|floatformat:0 }}</td>
+                <td>{{ facility.commissioned_date|date:"d M Y" }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+
+<!-- Recommendations -->
+<div class="section-header">
+    <h2>Recommendations</h2>
+</div>
+
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+    <div class="info-box">
+        <h3>Target Confirmation</h3>
+        <p style="font-size: 13px;"><strong>Recommended 2040 Target:</strong> 85% Renewable Energy by 2040 (underlying demand basis)</p>
+        <ul style="font-size: 12px; list-style: disc; padding-left: 20px; margin: 10px 0;">
+            <li>Achievable with Planned + Probable facilities</li>
+            <li>78% probability of achievement based on Monte Carlo analysis</li>
+            <li>Provides buffer above target in base case</li>
+            <li>Aligns with current facility pipeline</li>
+        </ul>
+    </div>
+
+    <div class="info-box">
+        <h3>Priority Actions</h3>
+        <ul style="font-size: 12px; list-style: disc; padding-left: 20px; margin: 10px 0;">
+            <li><strong>Facility Pipeline Management:</strong> Transition 3-4 Probable facilities to Planned status</li>
+            <li><strong>Battery Storage:</strong> Current BESS pipeline needs to increase by ~800 MW by 2028</li>
+            <li><strong>Grid Constraints:</strong> Identify transmission upgrades needed to maintain RE% growth</li>
+            <li><strong>Interim Targets:</strong> Consider establishing 2027 and 2028 milestones</li>
+            {% if annual_summary.wholesale_negative_count and annual_summary.wholesale_negative_count > 500 %}
+            <li><strong>Price Management:</strong> Increasing negative price intervals suggest need for more storage and demand response capacity</li>
+            {% endif %}
+        </ul>
+    </div>
+</div>
+
+<!-- Footer -->
+<div style="margin-top: 30px; padding: 15px; background: #ecf0f1; font-size: 12px;">
+    <p style="margin: 0;"><strong>Report Generated:</strong> {{ now|date:"d F Y, g:i A" }}</p>
+    <p style="margin: 5px 0 0 0;"><strong>Contact:</strong> <a href="mailto:modelling.lead@sen.asn.au">modelling.lead@sen.asn.au</a></p>
+</div>
+</body>
+</html>

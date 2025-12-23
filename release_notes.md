@@ -1,6 +1,16 @@
 # Release Notes (Latest first)
 
+## Version 3.15.2 - December 23, 2025
+### ✨ Enhancements
+- RET Reports: Dual-format publishing - Both annual and quarterly reports now publish as interactive HTML (with Plotly charts) and PDF versions
+- RET Reports: Simplified archive interface - Removed HTML download buttons, keeping only view options for cleaner UX
+- RET Reports: Improved file management - Republishing reports now properly replaces old files in both database and media folder
+- RET Reports: Clean published versions - Removed navigation links, Print/Publish buttons, Add to Summary button, and comments section from published HTML reports
+- Logging: Suppressed verbose font subsetting debug messages from WeasyPrint for cleaner console output
+
 ## Version 3.15.1 - December 21, 2025
+### 🆕 New Features
+- Feature: Hybrid Facility Simulated Power ([#55](https://github.com/Sustainable-Energy-Now/siren_web/issues/55))
 ### 🐛 Bug Fixes
 - Fix and Improve Facilities List ([#54](https://github.com/Sustainable-Energy-Now/siren_web/issues/54))
 

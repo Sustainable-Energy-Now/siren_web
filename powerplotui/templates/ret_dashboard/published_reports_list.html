@@ -1,0 +1,176 @@
+{% extends 'scada/base.html' %}
+{% load humanize %}
+
+{% block title %}Published Reports{% endblock %}
+
+{% block content %}
+<header>
+    <h1>Published Reports Archive</h1>
+    <p style="color: #7f8c8d; font-size: 1.1em;">
+        View and download published PDF reports
+    </p>
+</header>
+
+<!-- Navigation Links -->
+<div style="margin: 20px 0; padding: 15px; background: #ecf0f1; border-radius: 8px; display: flex; gap: 15px; align-items: center;">
+    <strong style="color: #2c3e50;">Quick Links:</strong>
+    <a href="{% url 'ret_dashboard' %}"
+        style="color: #3498db; text-decoration: none; padding: 8px 15px; background: white; border-radius: 4px; font-weight: 500;">
+        Monthly Dashboard</a>
+</div>
+
+<!-- Annual Reports Section -->
+<div style="margin-bottom: 40px;">
+    <h2 style="color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 10px; margin-bottom: 20px;">
+        Annual Reviews
+    </h2>
+
+    {% if annual_reports %}
+    <table style="width: 100%; border-collapse: collapse; background: white; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+        <thead style="background: #34495e; color: white;">
+            <tr>
+                <th style="padding: 12px; text-align: left;">Report</th>
+                <th style="padding: 12px; text-align: left;">Year</th>
+                <th style="padding: 12px; text-align: left;">Published Date</th>
+                <th style="padding: 12px; text-align: left;">Published By</th>
+                <th style="padding: 12px; text-align: right;">PDF Size</th>
+                <th style="padding: 12px; text-align: right;">HTML Size</th>
+                <th style="padding: 12px; text-align: center;">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for report in annual_reports %}
+            <tr style="border-bottom: 1px solid #eee;">
+                <td style="padding: 12px;"><strong>{{ report.year }} Annual Review</strong></td>
+                <td style="padding: 12px;">{{ report.year }}</td>
+                <td style="padding: 12px;">{{ report.published_at|date:"d M Y, g:i A" }}</td>
+                <td style="padding: 12px;">{{ report.published_by_name }}</td>
+                <td style="padding: 12px; text-align: right;">
+                    {% if report.file_size_mb %}
+                    {{ report.file_size_mb }} MB
+                    {% else %}
+                    —
+                    {% endif %}
+                </td>
+                <td style="padding: 12px; text-align: right;">
+                    {% if report.html_file_size_mb %}
+                    {{ report.html_file_size_mb }} MB
+                    {% else %}
+                    —
+                    {% endif %}
+                </td>
+                <td style="padding: 12px; text-align: center;">
+                    <div style="display: flex; gap: 5px; justify-content: center; flex-wrap: wrap;">
+                        {% if report.html_file %}
+                        <a href="{% url 'view_published_html' report.id %}" target="_blank"
+                            style="display: inline-block; padding: 6px 12px; background: #9b59b6; color: white; text-decoration: none; border-radius: 4px; font-size: 13px;">
+                            View HTML
+                        </a>
+                        {% endif %}
+                        <a href="{% url 'view_published_report' report.id %}" target="_blank"
+                            style="display: inline-block; padding: 6px 12px; background: #3498db; color: white; text-decoration: none; border-radius: 4px; font-size: 13px;">
+                            View PDF
+                        </a>
+                        <a href="{% url 'download_published_report' report.id %}"
+                            style="display: inline-block; padding: 6px 12px; background: #27ae60; color: white; text-decoration: none; border-radius: 4px; font-size: 13px;">
+                            Download PDF
+                        </a>
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div style="padding: 30px; background: #f8f9fa; text-align: center; border-radius: 8px;">
+        <p style="color: #7f8c8d; font-size: 16px;">No annual reports have been published yet.</p>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Quarterly Reports Section -->
+<div>
+    <h2 style="color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 10px; margin-bottom: 20px;">
+        Quarterly Reports
+    </h2>
+
+    {% if quarterly_reports %}
+    <table style="width: 100%; border-collapse: collapse; background: white; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+        <thead style="background: #34495e; color: white;">
+            <tr>
+                <th style="padding: 12px; text-align: left;">Report</th>
+                <th style="padding: 12px; text-align: left;">Year</th>
+                <th style="padding: 12px; text-align: center;">Quarter</th>
+                <th style="padding: 12px; text-align: left;">Published Date</th>
+                <th style="padding: 12px; text-align: left;">Published By</th>
+                <th style="padding: 12px; text-align: right;">PDF Size</th>
+                <th style="padding: 12px; text-align: right;">HTML Size</th>
+                <th style="padding: 12px; text-align: center;">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for report in quarterly_reports %}
+            <tr style="border-bottom: 1px solid #eee;">
+                <td style="padding: 12px;"><strong>Q{{ report.quarter }} {{ report.year }} Quarterly Report</strong></td>
+                <td style="padding: 12px;">{{ report.year }}</td>
+                <td style="padding: 12px; text-align: center;">Q{{ report.quarter }}</td>
+                <td style="padding: 12px;">{{ report.published_at|date:"d M Y, g:i A" }}</td>
+                <td style="padding: 12px;">{{ report.published_by_name }}</td>
+                <td style="padding: 12px; text-align: right;">
+                    {% if report.file_size_mb %}
+                    {{ report.file_size_mb }} MB
+                    {% else %}
+                    —
+                    {% endif %}
+                </td>
+                <td style="padding: 12px; text-align: right;">
+                    {% if report.html_file_size_mb %}
+                    {{ report.html_file_size_mb }} MB
+                    {% else %}
+                    —
+                    {% endif %}
+                </td>
+                <td style="padding: 12px; text-align: center;">
+                    <div style="display: flex; gap: 5px; justify-content: center; flex-wrap: wrap;">
+                        {% if report.html_file %}
+                        <a href="{% url 'view_published_html' report.id %}" target="_blank"
+                            style="display: inline-block; padding: 6px 12px; background: #9b59b6; color: white; text-decoration: none; border-radius: 4px; font-size: 13px;">
+                            View HTML
+                        </a>
+                        {% endif %}
+                        <a href="{% url 'view_published_report' report.id %}" target="_blank"
+                            style="display: inline-block; padding: 6px 12px; background: #3498db; color: white; text-decoration: none; border-radius: 4px; font-size: 13px;">
+                            View PDF
+                        </a>
+                        <a href="{% url 'download_published_report' report.id %}"
+                            style="display: inline-block; padding: 6px 12px; background: #27ae60; color: white; text-decoration: none; border-radius: 4px; font-size: 13px;">
+                            Download PDF
+                        </a>
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div style="padding: 30px; background: #f8f9fa; text-align: center; border-radius: 8px;">
+        <p style="color: #7f8c8d; font-size: 16px;">No quarterly reports have been published yet.</p>
+    </div>
+    {% endif %}
+</div>
+
+<style>
+    header {
+        margin-bottom: 30px;
+    }
+
+    header h1 {
+        color: #2c3e50;
+        margin: 0 0 10px 0;
+    }
+
+    table tbody tr:hover {
+        background: #f8f9fa;
+    }
+</style>
+{% endblock %}

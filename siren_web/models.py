@@ -2218,13 +2218,122 @@ class ReportComment(models.Model):
         Retrieve all comments for a specific report.
         """
         queryset = cls.objects.filter(report_type=report_type, year=year)
-        
+
         if report_type == 'monthly' and month:
             queryset = queryset.filter(month=month)
         elif report_type == 'quarterly' and quarter:
             queryset = queryset.filter(quarter=quarter)
-        
+
         return queryset.select_related('author')
+
+
+class PublishedReport(models.Model):
+    """
+    Stores published PDF versions of RET reports (quarterly and annual).
+    """
+    REPORT_TYPE_CHOICES = [
+        ('quarterly', 'Quarterly Report'),
+        ('annual', 'Annual Review'),
+    ]
+
+    # Report identification
+    report_type = models.CharField(max_length=20, choices=REPORT_TYPE_CHOICES)
+    year = models.IntegerField(validators=[MinValueValidator(2000), MaxValueValidator(2100)])
+    quarter = models.IntegerField(
+        null=True, blank=True,
+        validators=[MinValueValidator(1), MaxValueValidator(4)],
+        help_text="Required for quarterly reports"
+    )
+
+    # File storage
+    pdf_file = models.FileField(
+        upload_to='published_reports/',
+        help_text="PDF file of the published report"
+    )
+    html_file = models.FileField(
+        upload_to='published_reports/',
+        null=True,
+        blank=True,
+        help_text="HTML file with interactive Plotly charts"
+    )
+
+    # Metadata
+    published_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='published_reports',
+        db_constraint=False
+    )
+    published_by_name = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text="Stored separately in case user is deleted"
+    )
+    published_at = models.DateTimeField(auto_now_add=True)
+    file_size = models.IntegerField(null=True, blank=True, help_text="PDF file size in bytes")
+    html_file_size = models.IntegerField(null=True, blank=True, help_text="HTML file size in bytes")
+
+    class Meta:
+        ordering = ['-year', '-quarter', '-published_at']
+        indexes = [
+            models.Index(fields=['report_type', 'year', 'quarter']),
+            models.Index(fields=['report_type', 'year']),
+        ]
+        # Ensure only one published report per period (latest one)
+        unique_together = [['report_type', 'year', 'quarter']]
+
+    def save(self, *args, **kwargs):
+        # Store publisher name separately for persistence
+        if self.published_by and not self.published_by_name:
+            self.published_by_name = self.published_by.get_full_name() or self.published_by.username
+
+        # Store file sizes if not already set
+        if self.pdf_file and not self.file_size:
+            self.file_size = self.pdf_file.size
+
+        if self.html_file and not self.html_file_size:
+            self.html_file_size = self.html_file.size
+
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.get_report_type_display()} - {self.get_period_display()}"
+
+    def get_period_display(self):
+        """Return human-readable period string."""
+        if self.report_type == 'quarterly':
+            return f"Q{self.quarter} {self.year}"
+        else:
+            return f"{self.year} Annual Review"
+
+    def get_filename(self):
+        """Return suggested filename for PDF download."""
+        if self.report_type == 'quarterly':
+            return f"SWIS_Quarterly_Report_Q{self.quarter}_{self.year}.pdf"
+        else:
+            return f"SWIS_Annual_Review_{self.year}.pdf"
+
+    def get_html_filename(self):
+        """Return suggested filename for HTML download."""
+        if self.report_type == 'quarterly':
+            return f"SWIS_Quarterly_Report_Q{self.quarter}_{self.year}.html"
+        else:
+            return f"SWIS_Annual_Review_{self.year}.html"
+
+    @property
+    def file_size_mb(self):
+        """Return PDF file size in MB."""
+        if self.file_size:
+            return round(self.file_size / (1024 * 1024), 2)
+        return None
+
+    @property
+    def html_file_size_mb(self):
+        """Return HTML file size in MB."""
+        if self.html_file_size:
+            return round(self.html_file_size / (1024 * 1024), 2)
+        return None
 
 class TargetScenario(models.Model):
     """Store different scenarios for 2040 target achievement"""

@@ -1,6 +1,7 @@
 {% extends 'scada/base.html' %}
 {% load humanize %}
 {% load math_filters %}
+{% load static %}
 
 {% block title %}SWIS Quarterly Report - Q{{ quarter }} {{ year }}{% endblock %}
 
@@ -306,12 +307,18 @@
 <div class="quarterly-report">
     <!-- Report Header -->
     <div class="report-header">
-        <h1>SWIS Quarterly Report</h1>
-        <div class="subtitle">Q{{ quarter }} {{ year }} ({{ quarter_start_month }} - {{ quarter_end_month }})</div>
+        <div style="display: flex; align-items: center; justify-content: space-between;">
+            <div>
+                <h1>SWIS Quarterly Report</h1>
+                <div class="subtitle">Q{{ quarter }} {{ year }} ({{ quarter_start_month }} - {{ quarter_end_month }})</div>
+            </div>
+            <img src="{% static 'img/SEN_LOGO_HERO.png' %}" alt="SEN Logo" style="height: 80px; width: auto;">
+        </div>
     </div>
+    {% if not is_published_version %}
     <!-- Quick Navigation Links -->
     <div
-        style="margin: 20px 0; padding: 15px; background: #ecf0f1; border-radius: 8px; display: flex; gap: 15px; align-items: center;">
+        style="margin: 20px 0; padding: 15px; background: #ecf0f1; border-radius: 8px; display: flex; gap: 15px; align-items: center; flex-wrap: wrap;">
         <strong style="color: #2c3e50;">Other Reports:</strong>
         <a href="{% url 'ret_dashboard' %}"
             style="color: #3498db; text-decoration: none; padding: 8px 15px; background: white; border-radius: 4px; font-weight: 500;">📊
@@ -319,10 +326,23 @@
         <a href="{% url 'annual_review' year %}"
             style="color: #3498db; text-decoration: none; padding: 8px 15px; background: white; border-radius: 4px; font-weight: 500;">📑
             {{ year }} Annual Review</a>
+        <a href="{% url 'published_reports_list' %}"
+            style="color: #3498db; text-decoration: none; padding: 8px 15px; background: white; border-radius: 4px; font-weight: 500;">📚
+            Published Reports</a>
         <button onclick="window.print()"
             style="padding: 8px 15px; background: #95a5a6; color: white; border: none; border-radius: 4px; font-weight: 500; cursor: pointer;">🖨️
             Print</button>
+        {% if user.is_authenticated %}
+        <form method="POST" action="{% url 'publish_quarterly_report' year quarter %}" style="margin: 0;">
+            {% csrf_token %}
+            <button type="submit"
+                style="padding: 8px 15px; background: #27ae60; color: white; border: none; border-radius: 4px; font-weight: 500; cursor: pointer;"
+                onclick="return confirm('This will generate and publish HTML and PDF versions of this report. Continue?');">📄
+                Publish</button>
+        </form>
+        {% endif %}
     </div>
+    {% endif %}
     <!-- Executive Summary -->
     <div class="section">
         <h2>Executive Summary</h2>
@@ -771,12 +791,16 @@
         </div>
     </div>
     <div class="section">
+        {% if not is_published_version %}
         {% include "ret_dashboard/partials/comments_section.html" with report_type="quarterly" year=year quarter=quarter comments=comments %}
+        {% endif %}
     </div>
     <!-- Footer -->
     <div style="margin-top: 40px; padding: 20px; background: #ecf0f1; border-radius: 8px;">
+        {% if not is_published_version %}
         <p style="margin: 0;"><strong>Next Report:</strong> {{ next_report }}</p>
-        <p style="margin: 5px 0 0 0;">
+        {% endif %}
+        <p style="margin: {% if is_published_version %}0{% else %}5px 0 0 0{% endif %};">
         <strong></strong><a href="mailto:modelling.lead@sen.asn.au">Contact SEN Modelling</a></strong>
         </p>
     </div>

@@ -6,14 +6,18 @@
 {% block title %}SWIS Annual Review {{ year }}{% endblock %}
 
 {% block content %}
-<header>
-    <h1>SWIS 2040 Renewable Energy Target</h1>
-    <h2>Annual Comprehensive Review {{ year }}</h2>
-    <p style="color: #7f8c8d; font-size: 1.1em;">
-        Review Period: Calendar Year {{ year }}
-    </p>
+<header style="display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 20px;">
+    <div>
+        <h1>SWIS 2040 Renewable Energy Target</h1>
+        <h2>Annual Comprehensive Review {{ year }}</h2>
+        <p style="color: #7f8c8d; font-size: 1.1em;">
+            Review Period: Calendar Year {{ year }}
+        </p>
+    </div>
+    <img src="{% static 'img/SEN_LOGO_HERO.png' %}" alt="SEN Logo" style="height: 100px; width: auto;">
 </header>
 
+{% if not is_published_version %}
 <!-- Quick Navigation Links -->
 <div
     style="margin: 20px 0; padding: 15px; background: #ecf0f1; border-radius: 8px; display: flex; gap: 15px; align-items: center; flex-wrap: wrap;">
@@ -41,10 +45,23 @@
         style="color: #3498db; text-decoration: none; padding: 8px 15px; background: white; border-radius: 4px; font-weight: 500;">📈
         Q4 Report</a>
     {% endif %}
+    <a href="{% url 'published_reports_list' %}"
+        style="color: #3498db; text-decoration: none; padding: 8px 15px; background: white; border-radius: 4px; font-weight: 500;">📚
+        Published Reports</a>
     <button onclick="window.print()"
         style="padding: 8px 15px; background: #95a5a6; color: white; border: none; border-radius: 4px; font-weight: 500; cursor: pointer;">🖨️
         Print</button>
+    {% if user.is_authenticated %}
+    <form method="POST" action="{% url 'publish_annual_report' year %}" style="margin: 0;">
+        {% csrf_token %}
+        <button type="submit"
+            style="padding: 8px 15px; background: #27ae60; color: white; border: none; border-radius: 4px; font-weight: 500; cursor: pointer;"
+            onclick="return confirm('This will generate and publish HTML and PDF versions of this report. Continue?');">📄
+            Publish</button>
+    </form>
+    {% endif %}
 </div>
+{% endif %}
 
 <!-- Executive Summary -->
 <div class="section-header">
@@ -77,7 +94,7 @@
             {{ executive_summary.content|linebreaks }}
         </div>
         {% endif %}
-        {% if user.is_authenticated %}
+        {% if user.is_authenticated and not is_published_version %}
         <div style="margin-top: 15px;">
             <button onclick="toggleExecSummaryEdit()" class="action-btn primary-btn">Add to Summary</button>
         </div>
@@ -713,11 +730,15 @@
             </ul>
         </div>
     </div>
+    {% if not is_published_version %}
     {% include "ret_dashboard/partials/comments_section.html" with report_type="annual" year=year comments=comments %}
+    {% endif %}
     <!-- Footer -->
     <div style="margin-top: 40px; padding: 20px; background: #ecf0f1; border-radius: 8px;">
+        {% if not is_published_version %}
         <p style="margin: 0;"><strong>Next Report:</strong> {{ next_report }}</p>
-        <p style="margin: 5px 0 0 0;">
+        {% endif %}
+        <p style="margin: {% if is_published_version %}0{% else %}5px 0 0 0{% endif %};">
         <strong></strong><a href="mailto:modelling.lead@sen.asn.au">Contact SEN Modelling</a></strong>
         </p>
     </div>

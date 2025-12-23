@@ -46,6 +46,17 @@ LOGGING = {
             'level': 'DEBUG',
             'propagate': False,
         },
+        # Suppress verbose font subsetting messages from WeasyPrint
+        'fontTools.subset': {
+            'handlers': ['console'],
+            'level': 'WARNING',
+            'propagate': False,
+        },
+        'weasyprint': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
     },
 }
 

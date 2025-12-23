@@ -3,7 +3,7 @@ from django.urls import path
 from .views.variants_views import VariantsView
 from .views.echart_views import eChartView
 from .views import facility_scada_views, plot3D_views, powerplotui_home_views, ret_dashboard_views, \
-    ret_comments_views, ret_targets_views, supplyfactors_views, scada_views
+    ret_comments_views, ret_targets_views, ret_pdf_views, supplyfactors_views, scada_views
 
 urlpatterns = [
     path('powerplotui/', powerplotui_home_views.powerplotui_home, name='powerplotui_home'),
@@ -49,6 +49,14 @@ urlpatterns = [
     path('ret_dashboard/comments/<int:comment_id>/toggle-pin/', ret_comments_views.toggle_pin_comment, name='ret_comment_toggle_pin'),
     path('ret_dashboard/comments/<int:comment_id>/toggle-resolve/', ret_comments_views.toggle_resolve_comment, name='ret_comment_toggle_resolve'),
     path('ret_executive_summary/update/', ret_dashboard_views.update_executive_summary, name='ret_executive_summary_update'),
+
+    # PDF Publishing URLs
+    path('ret_quarterly_report/<int:year>/<int:quarter>/publish/', ret_pdf_views.publish_quarterly_report, name='publish_quarterly_report'),
+    path('ret_annual_review/<int:year>/publish/', ret_pdf_views.publish_annual_report, name='publish_annual_report'),
+    path('published_reports/', ret_pdf_views.published_reports_list, name='published_reports_list'),
+    path('published_reports/<int:report_id>/view/', ret_pdf_views.view_published_report, name='view_published_report'),
+    path('published_reports/<int:report_id>/download/', ret_pdf_views.download_published_report, name='download_published_report'),
+    path('published_reports/<int:report_id>/view_html/', ret_pdf_views.view_published_html, name='view_published_html'),
 
     # Main targets list view
     path('ret_dashboard/targets/', ret_targets_views.ret_targets_list, name='ret_targets_list'),
