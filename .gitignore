@@ -160,3 +160,4 @@ static_collected/
 siren_web/siren_files/
 media/templates/help/backups/
 media/published_reports/
+.claude/

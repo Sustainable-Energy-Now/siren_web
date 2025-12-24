@@ -17,7 +17,7 @@ from datetime import datetime
 from siren_web.models import supplyfactors, DPVGeneration
 from powermatchui.utils.demand_projector import DemandProjector, ScenarioComparator
 
-from siren_web.models import supplyfactors, facilities, Scenarios, DemandFactor
+from siren_web.models import supplyfactors, Scenarios, DemandFactor
 from powermatchui.utils.factor_based_projector import FactorBasedProjector
 
 def load_demand_config(config_file='siren.ini'):
@@ -303,7 +303,6 @@ def test_data_retrieval(year: int = None):
         traceback.print_exc()
 
 @login_required
-@settings_required(redirect_view='powermatchui_home')
 def demand_projection_view(request):
     """Main view for demand projection visualization."""
 

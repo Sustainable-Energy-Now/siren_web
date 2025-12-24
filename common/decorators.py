@@ -12,7 +12,7 @@ def settings_required(redirect_view='home'):
     
     Usage example:
         @login_required
-        @settings_required(redirect_view='powermatchui_home')
+        @settings_required(redirect_view='powermatchui:powermatchui_home')
         def my_processing_view(request):
             # This only executes if settings are configured
             pass

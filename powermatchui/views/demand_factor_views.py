@@ -8,9 +8,9 @@ from django.core.paginator import Paginator
 from django.shortcuts import render, get_object_or_404, redirect
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST, require_http_methods
-from django.db.models import Q, Count, Sum
+from django.db.models import Q, Count
 from siren_web.models import (
-    DemandFactorType, DemandFactor, DemandProjectionScenario,
+    DemandFactorType, DemandFactor,
     Scenarios
 )
 from common.decorators import settings_required
@@ -22,7 +22,6 @@ import json
 # ============================================================================
 
 @login_required
-@settings_required(redirect_view='powermatchui_home')
 def factor_type_list(request):
     """List all demand factor types"""
     search_query = request.GET.get('search', '')
@@ -44,9 +43,7 @@ def factor_type_list(request):
 
     return render(request, 'demand_factors/factor_type_list.html', context)
 
-
 @login_required
-@settings_required(redirect_view='powermatchui_home')
 def factor_type_create(request):
     """Create a new demand factor type"""
     if request.method == 'POST':
@@ -85,9 +82,7 @@ def factor_type_create(request):
     }
     return render(request, 'demand_factors/factor_type_form.html', context)
 
-
 @login_required
-@settings_required(redirect_view='powermatchui_home')
 def factor_type_edit(request, pk):
     """Edit an existing demand factor type"""
     factor_type = get_object_or_404(DemandFactorType, pk=pk)
@@ -128,7 +123,6 @@ def factor_type_edit(request, pk):
     }
     return render(request, 'demand_factors/factor_type_form.html', context)
 
-
 @require_POST
 @login_required
 def factor_type_delete(request, pk):
@@ -151,13 +145,11 @@ def factor_type_delete(request, pk):
     messages.success(request, f'Factor type "{name}" deleted successfully.')
     return redirect('powermatchui:factor_type_list')
 
-
 # ============================================================================
 # DEMAND FACTOR INSTANCE VIEWS
 # ============================================================================
 
 @login_required
-@settings_required(redirect_view='powermatchui_home')
 def factor_list(request):
     """List demand factor instances with filtering"""
     scenario_filter = request.GET.get('scenario', '')
@@ -196,9 +188,7 @@ def factor_list(request):
 
     return render(request, 'demand_factors/factor_list.html', context)
 
-
 @login_required
-@settings_required(redirect_view='powermatchui_home')
 def factor_create(request):
     """Create a new demand factor instance"""
     if request.method == 'POST':
@@ -272,9 +262,7 @@ def factor_create(request):
     }
     return render(request, 'demand_factors/factor_form.html', context)
 
-
 @login_required
-@settings_required(redirect_view='powermatchui_home')
 def factor_edit(request, pk):
     """Edit an existing demand factor instance"""
     factor = get_object_or_404(DemandFactor.objects.select_related('factor_type', 'scenario'), pk=pk)
@@ -325,7 +313,6 @@ def factor_edit(request, pk):
     }
     return render(request, 'demand_factors/factor_form.html', context)
 
-
 @require_POST
 @login_required
 def factor_delete(request, pk):
@@ -339,7 +326,6 @@ def factor_delete(request, pk):
 
     messages.success(request, f'Demand factor "{factor_name}" ({scenario_name}) deleted successfully.')
     return redirect('powermatchui:factor_list')
-
 
 @require_POST
 @login_required
@@ -355,13 +341,11 @@ def factor_toggle_active(request, pk):
 
     return redirect('powermatchui:factor_list')
 
-
 # ============================================================================
 # SCENARIO FACTOR ASSIGNMENT VIEWS
 # ============================================================================
 
 @login_required
-@settings_required(redirect_view='powermatchui_home')
 def scenario_factor_assignment(request, scenario_id):
     """Assign/configure factors for a specific scenario"""
     scenario = get_object_or_404(Scenarios, pk=scenario_id)
@@ -388,7 +372,6 @@ def scenario_factor_assignment(request, scenario_id):
     }
 
     return render(request, 'demand_factors/scenario_assignment.html', context)
-
 
 @require_http_methods(["POST"])
 @login_required

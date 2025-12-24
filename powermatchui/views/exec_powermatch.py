@@ -431,7 +431,7 @@ def fetch_analysis(scenario, variation: str, stage: int) -> Tuple[np.ndarray, Di
     return dispatch_summary, metadata
 
 @login_required
-@settings_required(redirect_view='powermatchui_home')
+@settings_required(redirect_view='powermatchui:powermatchui_home')
 def submit_powermatch_with_progress(request, demand_year, scenario, option, stages, 
                                    variation_inst, save_data, progress_handler) -> Tuple[DispatchResults, Dict[str, Any]]:
     """ Progress reporting if handler supplied"""

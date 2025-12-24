@@ -43,7 +43,7 @@ LOGGING = {
         },
         'powermapui.signals': {
             'handlers': ['console'],
-            'level': 'DEBUG',
+            'level': 'INFO',
             'propagate': False,
         },
         # Suppress verbose font subsetting messages from WeasyPrint

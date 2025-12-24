@@ -29,7 +29,7 @@ progress_storage = {}
 logger = logging.getLogger(__name__)
 
 @login_required
-@settings_required(redirect_view='powermatchui_home')
+@settings_required(redirect_view='powermatchui:powermatchui_home')
 def baseline_scenario(request):
     if request.user.groups.filter(name='modellers').exists():
         pass
@@ -190,7 +190,7 @@ def baseline_scenario(request):
     return render(request, 'baseline_scenario.html', context)
 
 @login_required
-@settings_required(redirect_view='powermatchui_home')
+@settings_required(redirect_view='powermatchui:powermatchui_home')
 def run_baseline_progress(request):
     """Start analysis with SSE progress tracking"""
     demand_year = request.session.get('demand_year')
