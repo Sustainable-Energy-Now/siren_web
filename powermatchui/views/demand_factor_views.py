@@ -269,6 +269,10 @@ def factor_edit(request, pk):
 
     if request.method == 'POST':
         try:
+            # Update scenario (now editable)
+            scenario_id = request.POST.get('scenario')
+            factor.scenario = get_object_or_404(Scenarios, pk=scenario_id) if scenario_id else None
+
             # Update fields
             factor.base_year = int(request.POST.get('base_year', 2024))
             factor.base_percentage_operational = float(request.POST.get('base_percentage_operational', 0.0))
@@ -307,6 +311,7 @@ def factor_edit(request, pk):
 
     context = {
         'factor': factor,
+        'scenarios': Scenarios.objects.all().order_by('title'),
         'growth_types': DemandFactor.GROWTH_TYPE_CHOICES,
         'time_varying_str': time_varying_str,
         'editing': True

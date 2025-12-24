@@ -7,54 +7,14 @@ from django.shortcuts import render
 from django.db.models import Sum
 from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
-from common.decorators import settings_required
-from configparser import ConfigParser
-import os
 import numpy as np
 import json
 from typing import Dict
 from datetime import datetime
 from siren_web.models import supplyfactors, DPVGeneration
-from powermatchui.utils.demand_projector import DemandProjector, ScenarioComparator
 
 from siren_web.models import supplyfactors, Scenarios, DemandFactor
 from powermatchui.utils.factor_based_projector import FactorBasedProjector
-
-def load_demand_config(config_file='siren.ini'):
-    """Load demand projection configuration from INI file."""
-    config_dir = './siren_web/siren_files/preferences/'
-    config_path = os.path.join(config_dir, config_file)
-    
-    config = ConfigParser()
-    config.read(config_path)
-    
-    # Get main demand projection settings
-    if 'Demand Projection' in config.sections():
-        demand_config = dict(config.items('Demand Projection'))
-    else:
-        # Default configuration if section doesn't exist
-        demand_config = {
-            'base_year': '2024',
-            'operational_growth_rate': '0.025',
-            'underlying_growth_rate': '0.04',
-            'operational_growth_type': 'exponential',
-            'underlying_growth_type': 's_curve',
-            'operational_saturation': '2.0',
-            'underlying_saturation': '3.5',
-            'operational_midpoint_year': '2035',
-            'underlying_midpoint_year': '2040',
-            'projection_start_year': '2024',
-            'projection_end_year': '2050'
-        }
-    
-    # Get scenario configurations
-    scenarios = {}
-    for section in config.sections():
-        if section.startswith('Scenario:'):
-            scenario_name = section.replace('Scenario:', '').strip()
-            scenarios[scenario_name] = dict(config.items(section))
-    
-    return demand_config, scenarios
 
 def get_base_year_demand(year: int, config_section: Dict = None) -> Dict[str, np.ndarray]:
     """
@@ -227,9 +187,6 @@ def get_available_years() -> Dict[str, list]:
     )
     
     # Get years with DPV data
-    underlying_years = list(
-        DPVGeneration.objects.dates('trading_date', 'year').values_list('year', flat=True)
-    )
     underlying_years = [d.year for d in DPVGeneration.objects.dates('trading_date', 'year')]
     
     # Years with both
@@ -306,13 +263,15 @@ def test_data_retrieval(year: int = None):
 def demand_projection_view(request):
     """Main view for demand projection visualization."""
 
-    # Load configuration
-    config_file = request.session.get('config_file', 'siren.ini')
-    demand_config, scenarios = load_demand_config(config_file)
-
     # Get available years for base year selection
-    # TODO: Replace with actual years available in your database
-    available_years = list(range(2024, 2025))
+    available_years_data = get_available_years()
+    available_years = available_years_data.get('all', [2024])
+
+    # Determine the minimum base year for projection range calculation
+    min_base_year = min(available_years) if available_years else 2024
+
+    # Projection years range: from (min_base_year + 1) to 2040
+    projection_years = list(range(min_base_year + 1, 2041))
 
     # Get database scenarios with factor configurations
     db_scenarios = Scenarios.objects.all().order_by('title')
@@ -330,11 +289,9 @@ def demand_projection_view(request):
         })
 
     context = {
-        'demand_config': demand_config,
-        'scenarios': scenarios,  # Legacy config-based scenarios
-        'db_scenarios': scenarios_with_factors,  # New factor-based scenarios
+        'db_scenarios': scenarios_with_factors,
         'available_years': available_years,
-        'current_file': config_file
+        'projection_years': projection_years,
     }
 
     return render(request, 'demand_projection.html', context)
@@ -345,7 +302,7 @@ def calculate_demand_projection(request):
     """
     API endpoint to calculate demand projections.
     Returns JSON data for plotting.
-    Supports both legacy (simple rates) and factor-based projections.
+    Uses factor-based projections from database scenarios.
     """
     try:
         data = json.loads(request.body)
@@ -353,98 +310,45 @@ def calculate_demand_projection(request):
         # Get parameters from request
         base_year = int(data.get('base_year', 2024))
         end_year = int(data.get('end_year', 2050))
-        scenario_id = data.get('scenario_id')  # New: DB scenario ID
-        scenario_name = data.get('scenario', 'Current Config')  # Legacy: config name
-        use_factors = data.get('use_factors', False)  # New: explicit factor mode
+        scenario_id = data.get('scenario_id')
+
+        if not scenario_id:
+            return JsonResponse({
+                'error': 'scenario_id is required'
+            }, status=400)
 
         # Get base year demand data
         base_demand = get_base_year_demand(base_year)
         year_range = list(range(base_year, end_year + 1))
 
-        # CHECK 1: Try factor-based projection if scenario_id provided
-        if scenario_id:
-            try:
-                scenario = Scenarios.objects.get(idscenarios=scenario_id)
-                factors = DemandFactor.objects.filter(
-                    scenario=scenario,
-                    is_active=True
-                )
+        # Get scenario and factors from database
+        scenario = Scenarios.objects.get(idscenarios=scenario_id)
+        factors = DemandFactor.objects.filter(
+            scenario=scenario,
+            is_active=True
+        )
 
-                if factors.exists():
-                    # Use factor-based projector
-                    projector = FactorBasedProjector(factors, base_year)
-                    projections = projector.project_multiple_years(
-                        base_demand['operational'],
-                        base_demand['underlying'],
-                        year_range
-                    )
+        if not factors.exists():
+            return JsonResponse({
+                'error': f'No active demand factors found for scenario "{scenario.title}"'
+            }, status=400)
 
-                    # Prepare factor breakdown data
-                    factor_breakdown = {}
-                    for year in year_range:
-                        factor_breakdown[year] = {
-                            'operational': projections[year]['factor_breakdown_operational_gwh'],
-                            'underlying': projections[year]['factor_breakdown_underlying_gwh']
-                        }
-
-                    response_data = {
-                        'years': year_range,
-                        'operational_total_gwh': [projections[y]['operational_total_mwh'] / 1000
-                                                  for y in year_range],
-                        'underlying_total_gwh': [projections[y]['underlying_total_mwh'] / 1000
-                                                 for y in year_range],
-                        'total_gwh': [projections[y]['total_mwh'] / 1000
-                                     for y in year_range],
-                        'operational_peak_mw': [projections[y]['operational_peak_mw']
-                                               for y in year_range],
-                        'underlying_peak_mw': [projections[y]['underlying_peak_mw']
-                                              for y in year_range],
-                        'total_peak_mw': [projections[y]['total_peak_mw']
-                                         for y in year_range],
-                        'projection_type': 'factor_based',
-                        'scenario_id': scenario_id,
-                        'scenario_title': scenario.title,
-                        'factor_count': factors.count(),
-                        'factor_breakdown': factor_breakdown,
-                        'metadata': projections[base_year]['metadata']
-                    }
-
-                    return JsonResponse(response_data)
-            except Scenarios.DoesNotExist:
-                pass  # Fall through to legacy projection
-
-        # CHECK 2: Legacy projection using config file
-        # Optional: custom growth rates from sliders
-        custom_operational_rate = data.get('operational_growth_rate')
-        custom_underlying_rate = data.get('underlying_growth_rate')
-
-        # Load configuration
-        config_file = request.session.get('config_file', 'siren.ini')
-        demand_config, scenarios = load_demand_config(config_file)
-
-        # Use scenario config or custom values
-        if scenario_name in scenarios:
-            projection_config = scenarios[scenario_name]
-            projection_config['base_year'] = str(base_year)
-        else:
-            projection_config = demand_config.copy()
-            projection_config['base_year'] = str(base_year)
-
-        # Override with custom slider values if provided
-        if custom_operational_rate is not None:
-            projection_config['operational_growth_rate'] = str(custom_operational_rate)
-        if custom_underlying_rate is not None:
-            projection_config['underlying_growth_rate'] = str(custom_underlying_rate)
-
-        # Use legacy projector
-        projector = DemandProjector(projection_config)
+        # Use factor-based projector
+        projector = FactorBasedProjector(factors, base_year)
         projections = projector.project_multiple_years(
             base_demand['operational'],
             base_demand['underlying'],
             year_range
         )
 
-        # Prepare response data (legacy format)
+        # Prepare factor breakdown data
+        factor_breakdown = {}
+        for year in year_range:
+            factor_breakdown[year] = {
+                'operational': projections[year]['factor_breakdown_operational_gwh'],
+                'underlying': projections[year]['factor_breakdown_underlying_gwh']
+            }
+
         response_data = {
             'years': year_range,
             'operational_total_gwh': [projections[y]['operational_total_mwh'] / 1000
@@ -459,17 +363,20 @@ def calculate_demand_projection(request):
                                   for y in year_range],
             'total_peak_mw': [projections[y]['total_peak_mw']
                              for y in year_range],
-            'projection_type': 'legacy',
-            'config': {
-                'operational_growth_rate': float(projection_config['operational_growth_rate']),
-                'underlying_growth_rate': float(projection_config['underlying_growth_rate']),
-                'operational_growth_type': projection_config['operational_growth_type'],
-                'underlying_growth_type': projection_config['underlying_growth_type']
-            }
+            'projection_type': 'factor_based',
+            'scenario_id': scenario_id,
+            'scenario_title': scenario.title,
+            'factor_count': factors.count(),
+            'factor_breakdown': factor_breakdown,
+            'metadata': projections[base_year]['metadata']
         }
 
         return JsonResponse(response_data)
 
+    except Scenarios.DoesNotExist:
+        return JsonResponse({
+            'error': f'Scenario with ID {scenario_id} not found'
+        }, status=404)
     except Exception as e:
         import traceback
         return JsonResponse({
@@ -483,58 +390,62 @@ def compare_scenarios(request):
     """
     API endpoint to compare multiple scenarios.
     Returns data for multiple scenarios on same plot.
+    Uses factor-based projections from database scenarios.
     """
     try:
         data = json.loads(request.body)
-        
+
         base_year = int(data.get('base_year', 2024))
         end_year = int(data.get('end_year', 2050))
-        scenario_names = data.get('scenarios', [])
-        
-        if not scenario_names:
+        scenario_ids = data.get('scenario_ids', [])
+
+        if not scenario_ids:
             return JsonResponse({'error': 'No scenarios selected'}, status=400)
-        
-        # Load configuration
-        config_file = request.session.get('config_file', 'siren.ini')
-        demand_config, scenarios = load_demand_config(config_file)
-        
+
         # Get base year demand
         base_demand = get_base_year_demand(base_year)
-        
-        # Import scenario comparator
-        comparator = ScenarioComparator(
-            base_demand['operational'],
-            base_demand['underlying'],
-            base_year
-        )
-        
-        # Prepare scenarios for comparison
-        scenario_configs = {}
-        for name in scenario_names:
-            if name in scenarios:
-                scenario_configs[name] = scenarios[name]
-        
         year_range = list(range(base_year, end_year + 1))
-        results = comparator.compare_scenarios(scenario_configs, year_range)
-        
+
         # Format response
         response_data = {
             'years': year_range,
             'scenarios': {}
         }
-        
-        for scenario_name, projections in results.items():
-            response_data['scenarios'][scenario_name] = {
-                'total_gwh': [projections[y]['total_mwh'] / 1000 for y in year_range],
-                'operational_gwh': [projections[y]['operational_total_mwh'] / 1000 
-                                   for y in year_range],
-                'underlying_gwh': [projections[y]['underlying_total_mwh'] / 1000 
-                                  for y in year_range],
-                'total_peak_mw': [projections[y]['total_peak_mw'] for y in year_range]
-            }
-        
+
+        # Process each scenario
+        for scenario_id in scenario_ids:
+            try:
+                scenario = Scenarios.objects.get(idscenarios=scenario_id)
+                factors = DemandFactor.objects.filter(
+                    scenario=scenario,
+                    is_active=True
+                )
+
+                if not factors.exists():
+                    continue
+
+                # Use factor-based projector
+                projector = FactorBasedProjector(factors, base_year)
+                projections = projector.project_multiple_years(
+                    base_demand['operational'],
+                    base_demand['underlying'],
+                    year_range
+                )
+
+                response_data['scenarios'][scenario.title] = {
+                    'total_gwh': [projections[y]['total_mwh'] / 1000 for y in year_range],
+                    'operational_gwh': [projections[y]['operational_total_mwh'] / 1000
+                                       for y in year_range],
+                    'underlying_gwh': [projections[y]['underlying_total_mwh'] / 1000
+                                      for y in year_range],
+                    'total_peak_mw': [projections[y]['total_peak_mw'] for y in year_range]
+                }
+
+            except Scenarios.DoesNotExist:
+                continue
+
         return JsonResponse(response_data)
-        
+
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=400)
 
@@ -544,41 +455,64 @@ def get_hourly_projection(request):
     """
     Get hourly demand profile for a specific projected year.
     Useful for detailed analysis.
+    Uses factor-based projections from database scenarios.
     """
     try:
         year = int(request.GET.get('year', 2030))
         base_year = int(request.GET.get('base_year', 2024))
-        scenario = request.GET.get('scenario', 'Current Config')
-        
-        # Load config and get base demand
-        config_file = request.session.get('config_file', 'siren.ini')
-        demand_config, scenarios = load_demand_config(config_file)
-        
-        projection_config = scenarios.get(scenario, demand_config)
-        projection_config['base_year'] = str(base_year)
-        
+        scenario_id = request.GET.get('scenario_id')
+
+        if not scenario_id:
+            return JsonResponse({
+                'error': 'scenario_id is required'
+            }, status=400)
+
+        # Get base demand
         base_demand = get_base_year_demand(base_year)
-        
+
+        # Get scenario and factors from database
+        scenario = Scenarios.objects.get(idscenarios=scenario_id)
+        factors = DemandFactor.objects.filter(
+            scenario=scenario,
+            is_active=True
+        )
+
+        if not factors.exists():
+            return JsonResponse({
+                'error': f'No active demand factors found for scenario "{scenario.title}"'
+            }, status=400)
+
+        # Use factor-based projector
+        projector = FactorBasedProjector(factors, base_year)
+
         # Project to target year
-        projector = DemandProjector(projection_config)
-        
-        proj_op, proj_und = projector.project_demand(
+        year_range = [base_year, year] if year != base_year else [base_year]
+        projections = projector.project_multiple_years(
             base_demand['operational'],
             base_demand['underlying'],
-            year
+            year_range
         )
-        
-        # Return hourly data (can sample or return all 8760 hours)
-        # For efficiency, might want to aggregate or sample
+
+        # Get the projected arrays for the target year
+        proj_op = projections[year]['operational_hourly']
+        proj_und = projections[year]['underlying_hourly']
+
+        # Return hourly data
         response_data = {
             'year': year,
+            'scenario_id': scenario_id,
+            'scenario_title': scenario.title,
             'hours': list(range(len(proj_op))),
             'operational': proj_op.tolist(),
             'underlying': proj_und.tolist(),
             'total': (proj_op + proj_und).tolist()
         }
-        
+
         return JsonResponse(response_data)
-        
+
+    except Scenarios.DoesNotExist:
+        return JsonResponse({
+            'error': f'Scenario with ID {scenario_id} not found'
+        }, status=404)
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=400)

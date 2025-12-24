@@ -21,29 +21,30 @@
                                 <label for="factor_type" class="form-label">
                                     Factor Type <span class="text-danger">*</span>
                                 </label>
-                                <select class="form-select" id="factor_type" name="factor_type"
-                                        required {% if editing %}disabled{% endif %}>
+                                {% if editing %}
+                                <input type="text" class="form-control" id="factor_type_display"
+                                       value="{{ factor.factor_type.name }} ({{ factor.factor_type.get_category_display }})"
+                                       disabled readonly>
+                                <div class="form-text text-muted">
+                                    Factor type cannot be changed after creation
+                                </div>
+                                {% else %}
+                                <select class="form-select" id="factor_type" name="factor_type" required>
                                     <option value="">Select a factor type...</option>
                                     {% for ft in factor_types %}
-                                    <option value="{{ ft.iddemandfactortype }}"
-                                            {% if editing and factor.factor_type.iddemandfactortype == ft.iddemandfactortype %}selected{% endif %}>
+                                    <option value="{{ ft.iddemandfactortype }}">
                                         {{ ft.name }} ({{ ft.get_category_display }})
                                     </option>
                                     {% endfor %}
                                 </select>
-                                {% if editing %}
-                                <div class="form-text text-warning">
-                                    Factor type cannot be changed after creation
-                                </div>
                                 {% endif %}
                             </div>
 
                             <div class="col-md-6">
                                 <label for="scenario" class="form-label">
-                                    Scenario {% if not editing %}<span class="text-danger">*</span>{% endif %}
+                                    Scenario <span class="text-danger">*</span>
                                 </label>
-                                <select class="form-select" id="scenario" name="scenario"
-                                        {% if editing %}disabled{% endif %}>
+                                <select class="form-select" id="scenario" name="scenario">
                                     <option value="">Default (Template)</option>
                                     {% for sc in scenarios %}
                                     <option value="{{ sc.idscenarios }}"
@@ -52,11 +53,9 @@
                                     </option>
                                     {% endfor %}
                                 </select>
-                                {% if editing %}
-                                <div class="form-text text-warning">
-                                    Scenario cannot be changed after creation
+                                <div class="form-text">
+                                    Select which scenario this factor belongs to
                                 </div>
-                                {% endif %}
                             </div>
                         </div>
 

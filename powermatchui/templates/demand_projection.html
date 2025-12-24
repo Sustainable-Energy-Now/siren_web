@@ -15,7 +15,7 @@
                             <label for="baseYearSelect" class="form-label">Base Year:</label>
                             <select class="form-select" id="baseYearSelect" name="base_year" required>
                                 {% for year in available_years %}
-                                <option value="{{ year }}" {% if year == demand_config.base_year|add:0 %}selected{% endif %}>
+                                <option value="{{ year }}" {% if forloop.last %}selected{% endif %}>
                                     {{ year }}
                                 </option>
                                 {% endfor %}
@@ -25,13 +25,10 @@
                         <div class="col-md-2">
                             <label for="endYearSelect" class="form-label">Project To Year:</label>
                             <select class="form-select" id="endYearSelect" name="end_year" required>
-                                {% for year in available_years.0|add:10|make_list %}
-                                    {% if forloop.counter0|add:available_years.0|add:10 <= 2060 %}
-                                    <option value="{{ forloop.counter0|add:available_years.0|add:10 }}" 
-                                            {% if forloop.counter0|add:available_years.0|add:10 == 2050 %}selected{% endif %}>
-                                        {{ forloop.counter0|add:available_years.0|add:10 }}
-                                    </option>
-                                    {% endif %}
+                                {% for year in projection_years %}
+                                <option value="{{ year }}" {% if year == 2040 %}selected{% endif %}>
+                                    {{ year }}
+                                </option>
                                 {% endfor %}
                             </select>
                         </div>
@@ -48,27 +45,16 @@
                         <div class="col-md-3" id="scenarioSelectDiv">
                             <label for="scenarioSelect" class="form-label">Scenario:</label>
                             <select class="form-select" id="scenarioSelect" name="scenario">
-                                <optgroup label="Factor-Based Scenarios">
-                                    {% for scenario in db_scenarios %}
+                                {% for scenario in db_scenarios %}
+                                    {% if scenario.has_factors %}
                                     <option value="db_{{ scenario.id }}"
                                             data-scenario-id="{{ scenario.id }}"
-                                            data-has-factors="{{ scenario.has_factors }}"
+                                            data-has-factors="true"
                                             data-factor-count="{{ scenario.factor_count }}">
-                                        {{ scenario.title }}
-                                        {% if scenario.has_factors %}
-                                            ({{ scenario.factor_count }} factors)
-                                        {% else %}
-                                            (no factors)
-                                        {% endif %}
+                                        {{ scenario.title }} ({{ scenario.factor_count }} factors)
                                     </option>
-                                    {% endfor %}
-                                </optgroup>
-                                <optgroup label="Legacy Config-Based">
-                                    <option value="Current Config">Current Config</option>
-                                    {% for scenario_name in scenarios.keys %}
-                                    <option value="{{ scenario_name }}">{{ scenario_name }}</option>
-                                    {% endfor %}
-                                </optgroup>
+                                    {% endif %}
+                                {% endfor %}
                             </select>
                         </div>
 
@@ -79,95 +65,25 @@
                             </button>
                         </div>
                     </form>
-
-                    <!-- Factor Management Link -->
-                    <div class="row mt-2">
-                        <div class="col-md-12">
-                            <div class="alert alert-info alert-dismissible fade show" role="alert">
-                                <strong>New!</strong> Factor-based demand projections allow detailed breakdown by sector (EV, Industrial, etc.).
-                                <a href="{% url 'powermatchui:factor_list' %}" class="alert-link">Manage Factors</a> |
-                                <a href="{% url 'powermatchui:factor_type_list' %}" class="alert-link">Factor Types</a>
-                                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                            </div>
-                        </div>
-                    </div>
                     
                     <!-- Multi-scenario selection (hidden by default) -->
                     <div class="row mt-3" id="multiScenarioDiv" style="display: none;">
                         <div class="col-md-12">
                             <label class="form-label">Select Scenarios to Compare:</label>
                             <div class="btn-group-vertical w-100" role="group">
-                                {% for scenario_name in scenarios.keys %}
-                                <div class="form-check">
-                                    <input class="form-check-input scenario-checkbox" type="checkbox" 
-                                           value="{{ scenario_name }}" id="scenario_{{ forloop.counter }}">
-                                    <label class="form-check-label" for="scenario_{{ forloop.counter }}">
-                                        {{ scenario_name }}
-                                    </label>
-                                </div>
+                                {% for scenario in db_scenarios %}
+                                    {% if scenario.has_factors %}
+                                    <div class="form-check">
+                                        <input class="form-check-input scenario-checkbox" type="checkbox"
+                                               value="{{ scenario.id }}"
+                                               data-scenario-id="{{ scenario.id }}"
+                                               id="compare_scenario_{{ scenario.id }}">
+                                        <label class="form-check-label" for="compare_scenario_{{ scenario.id }}">
+                                            {{ scenario.title }} ({{ scenario.factor_count }} factors)
+                                        </label>
+                                    </div>
+                                    {% endif %}
                                 {% endfor %}
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- Interactive Growth Rate Sliders -->
-                    <div class="accordion mt-3" id="growthRateAccordion">
-                        <div class="accordion-item">
-                            <h2 class="accordion-header">
-                                <button class="accordion-button collapsed" type="button" 
-                                        data-bs-toggle="collapse" data-bs-target="#growthRateCollapse">
-                                    <i class="bi bi-sliders"></i>&nbsp; Adjust Growth Rates (Override Scenario)
-                                </button>
-                            </h2>
-                            <div id="growthRateCollapse" class="accordion-collapse collapse">
-                                <div class="accordion-body">
-                                    <div class="row g-3">
-                                        <!-- Operational Growth Rate -->
-                                        <div class="col-md-6">
-                                            <label for="operationalGrowthRate" class="form-label">
-                                                Operational Demand Growth Rate: 
-                                                <span id="operationalGrowthValue" class="badge bg-primary">
-                                                    {{ demand_config.operational_growth_rate|floatformat:3 }}
-                                                </span>
-                                            </label>
-                                            <input type="range" class="form-range" id="operationalGrowthRate" 
-                                                   min="0" max="0.10" step="0.001" 
-                                                   value="{{ demand_config.operational_growth_rate }}">
-                                            <div class="d-flex justify-content-between">
-                                                <small>0% (No growth)</small>
-                                                <small>10% (High growth)</small>
-                                            </div>
-                                        </div>
-                                        
-                                        <!-- Underlying Growth Rate -->
-                                        <div class="col-md-6">
-                                            <label for="underlyingGrowthRate" class="form-label">
-                                                Underlying Demand Growth Rate: 
-                                                <span id="underlyingGrowthValue" class="badge bg-success">
-                                                    {{ demand_config.underlying_growth_rate|floatformat:3 }}
-                                                </span>
-                                            </label>
-                                            <input type="range" class="form-range" id="underlyingGrowthRate" 
-                                                   min="0" max="0.15" step="0.001" 
-                                                   value="{{ demand_config.underlying_growth_rate }}">
-                                            <div class="d-flex justify-content-between">
-                                                <small>0% (No growth)</small>
-                                                <small>15% (Very high growth)</small>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    
-                                    <div class="row mt-3">
-                                        <div class="col-md-12">
-                                            <button type="button" class="btn btn-sm btn-secondary" id="resetSliders">
-                                                <i class="bi bi-arrow-counterclockwise"></i> Reset to Scenario Defaults
-                                            </button>
-                                            <button type="button" class="btn btn-sm btn-primary" id="applySliders">
-                                                <i class="bi bi-check-lg"></i> Apply Custom Rates
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
                             </div>
                         </div>
                     </div>
@@ -273,42 +189,6 @@ document.addEventListener('DOMContentLoaded', function() {
     const loadingIndicator = document.getElementById('loadingIndicator');
     const errorMessage = document.getElementById('errorMessage');
     
-    // Slider elements
-    const operationalSlider = document.getElementById('operationalGrowthRate');
-    const underlyingSlider = document.getElementById('underlyingGrowthRate');
-    const operationalValue = document.getElementById('operationalGrowthValue');
-    const underlyingValue = document.getElementById('underlyingGrowthValue');
-    const resetSliders = document.getElementById('resetSliders');
-    const applySliders = document.getElementById('applySliders');
-    
-    // Store original scenario values
-    let scenarioDefaults = {
-        operational: parseFloat('{{ demand_config.operational_growth_rate }}'),
-        underlying: parseFloat('{{ demand_config.underlying_growth_rate }}')
-    };
-    
-    // Update slider display values
-    operationalSlider.addEventListener('input', function() {
-        operationalValue.textContent = parseFloat(this.value).toFixed(3);
-    });
-    
-    underlyingSlider.addEventListener('input', function() {
-        underlyingValue.textContent = parseFloat(this.value).toFixed(3);
-    });
-    
-    // Reset sliders to scenario defaults
-    resetSliders.addEventListener('click', function() {
-        operationalSlider.value = scenarioDefaults.operational;
-        underlyingSlider.value = scenarioDefaults.underlying;
-        operationalValue.textContent = scenarioDefaults.operational.toFixed(3);
-        underlyingValue.textContent = scenarioDefaults.underlying.toFixed(3);
-    });
-    
-    // Apply custom slider values
-    applySliders.addEventListener('click', function() {
-        form.dispatchEvent(new Event('submit'));
-    });
-    
     // Handle view mode changes
     viewModeSelect.addEventListener('change', function() {
         const scenarioSelect = document.getElementById('scenarioSelect');
@@ -332,14 +212,6 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
     
-    // Handle scenario selection - update slider defaults
-    document.getElementById('scenarioSelect').addEventListener('change', function() {
-        const scenario = this.value;
-        // In a real implementation, you'd fetch the scenario config via AJAX
-        // For now, we'll just reset to config defaults
-        resetSliders.click();
-    });
-    
     // Form submission handler
     form.addEventListener('submit', function(e) {
         e.preventDefault();
@@ -352,27 +224,23 @@ document.addEventListener('DOMContentLoaded', function() {
             // Multi-scenario comparison
             const selectedScenarios = Array.from(
                 document.querySelectorAll('.scenario-checkbox:checked')
-            ).map(cb => cb.value);
-            
+            ).map(cb => parseInt(cb.value));
+
             if (selectedScenarios.length === 0) {
                 showError('Please select at least one scenario to compare');
                 return;
             }
-            
+
             compareScenarios(baseYear, endYear, selectedScenarios);
         } else {
             // Single projection
             const scenario = document.getElementById('scenarioSelect').value;
-            const customOpRate = parseFloat(operationalSlider.value);
-            const customUndRate = parseFloat(underlyingSlider.value);
-            
-            calculateProjection(baseYear, endYear, scenario, viewMode, 
-                               customOpRate, customUndRate);
+
+            calculateProjection(baseYear, endYear, scenario, viewMode);
         }
     });
     
-    function calculateProjection(baseYear, endYear, scenario, viewMode,
-                                 customOpRate, customUndRate) {
+    function calculateProjection(baseYear, endYear, scenario, viewMode) {
         showLoading();
         hideError();
 
@@ -385,15 +253,8 @@ document.addEventListener('DOMContentLoaded', function() {
         const requestData = {
             base_year: baseYear,
             end_year: endYear,
-            scenario: scenario,
-            operational_growth_rate: customOpRate,
-            underlying_growth_rate: customUndRate
+            scenario_id: parseInt(scenarioId)
         };
-
-        // Add scenario_id if it's a database scenario
-        if (scenarioId) {
-            requestData.scenario_id = parseInt(scenarioId);
-        }
 
         fetch('{% url "powermatchui:calculate_demand_projection" %}', {
             method: 'POST',
@@ -424,14 +285,14 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
-    function compareScenarios(baseYear, endYear, scenarios) {
+    function compareScenarios(baseYear, endYear, scenarioIds) {
         showLoading();
         hideError();
-        
+
         const requestData = {
             base_year: baseYear,
             end_year: endYear,
-            scenarios: scenarios
+            scenario_ids: scenarioIds
         };
         
         fetch('{% url "powermatchui:compare_scenarios" %}', {
