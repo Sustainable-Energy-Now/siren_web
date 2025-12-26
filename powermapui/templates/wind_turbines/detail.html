@@ -156,32 +156,32 @@
                       <td>{{ curve.notes|default:"-"|truncatechars:30 }}</td>
                       <td>
                         <div class="btn-group btn-group-sm" role="group">
-                          <button type="button" 
-                                  class="btn btn-outline-info" 
+                          <button type="button"
+                                  class="btn btn-outline-info"
                                   onclick="viewCurveData({{ curve.pk }})"
                                   title="View Data">
-                            <i class="bi bi-graph-up"></i>
+                            👁️
                           </button>
-                          <a href="{% url 'powermapui:power_curve_edit' curve.pk %}" 
+                          <a href="{% url 'powermapui:power_curve_edit' curve.pk %}"
                              class="btn btn-outline-warning"
                              title="Edit">
-                            <i class="bi bi-pencil"></i>
+                            ✏️
                           </a>
-                          <form method="post" 
-                                action="{% url 'powermapui:power_curve_toggle_active' curve.pk %}" 
+                          <form method="post"
+                                action="{% url 'powermapui:power_curve_toggle_active' curve.pk %}"
                                 style="display: inline;">
                             {% csrf_token %}
-                            <button type="submit" 
-                                    class="btn btn-outline-primary"
-                                    title="{% if curve.is_active %}Deactivate{% else %}Set as Active{% endif %}">
-                              <i class="bi bi-{% if curve.is_active %}pause-circle{% else %}play-circle{% endif %}"></i>
+                            <button type="submit"
+                                    class="btn {% if curve.is_active %}btn-outline-warning{% else %}btn-outline-success{% endif %}"
+                                    title="{% if curve.is_active %}Deactivate{% else %}Activate{% endif %}">
+                              {% if curve.is_active %}⏸️{% else %}▶️{% endif %}
                             </button>
                           </form>
-                          <button type="button" 
-                                  class="btn btn-outline-danger" 
+                          <button type="button"
+                                  class="btn btn-outline-danger"
                                   onclick="confirmDeleteCurve({{ curve.pk }}, '{{ curve.power_file_name }}')"
                                   title="Delete">
-                            <i class="bi bi-trash"></i>
+                            🗑️
                           </button>
                         </div>
                       </td>

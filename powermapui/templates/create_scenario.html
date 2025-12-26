@@ -49,15 +49,13 @@
                                 <div class="scenario-actions mt-1">
                                     <a href="{% url 'powermapui:edit_scenario' scenario.idscenarios %}" 
                                        class="btn btn-sm btn-outline-primary" 
-                                       title="Edit Scenario">
-                                        <i class="fas fa-edit"></i>
+                                       title="Edit Scenario">✏️
                                     </a>
                                     <button type="button" 
                                             class="btn btn-sm btn-outline-danger delete-scenario-btn" 
                                             data-scenario-id="{{ scenario.idscenarios }}"
                                             data-scenario-title="{{ scenario.title }}"
-                                            title="Delete Scenario">
-                                        <i class="fas fa-trash"></i>
+                                            title="Delete Scenario">🗑️
                                     </button>
                                 </div>
                             {% endif %}
