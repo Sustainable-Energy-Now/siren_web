@@ -154,6 +154,11 @@
         border-top: 2px solid #2196F3;
     }
 
+    .info-row {
+        background: #e3f2fd !important;
+        font-style: italic;
+    }
+
     /* Status Indicators */
     .status-indicator {
         display: inline-block;
@@ -935,14 +940,104 @@
 
     <p style="margin-top: 20px;">
         {% if ytd_summary.re_percentage_underlying >= target.target_percentage %}
-        ✓ YTD performance is <strong>{{
-            ytd_summary.re_percentage_underlying|sub:target.target_percentage|floatformat:1 }} percentage points
+        {% with diff=ytd_summary.re_percentage_underlying|sub:target.target_percentage %}
+        ✓ YTD performance is <strong>{{ diff|floatformat:1 }} percentage points
             ahead</strong> of the {{ year }} annual target.
+        {% endwith %}
         {% else %}
-        ⚠ YTD performance is <strong>{{ target.target_percentage|sub:ytd_summary.re_percentage_underlying|floatformat:1 }} percentage points
+        {% with diff=target.target_percentage|sub:ytd_summary.re_percentage_underlying %}
+        ⚠ YTD performance is <strong>{{ diff|floatformat:1 }} percentage points
             behind</strong> the {{ year }} annual target. Acceleration needed in remaining quarters.
+        {% endwith %}
         {% endif %}
     </p>
+</div>
+
+<!-- Generation Mix Analysis -->
+<div class="section-header">
+    <h2>Generation Mix Analysis</h2>
+
+    <h3>Quarterly Generation by Technology (Q{{ quarter }})</h3>
+
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Technology</th>
+                <th class="value">Gen (GWh)</th>
+                <th class="value">% of Operational</th>
+                <th class="value">% of Underlying</th>
+                <th class="value">Emissions</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr class="renewable-row">
+                <td><strong>Wind</strong></td>
+                <td class="value">{{ quarterly_summary.wind_generation|floatformat:0|intcomma }}</td>
+                <td class="value">{{ quarterly_summary.wind_generation|div:quarterly_summary.operational_demand|mul:100|floatformat:1 }}%</td>
+                <td class="value">{{ quarterly_summary.wind_generation|div:quarterly_summary.underlying_demand|mul:100|floatformat:1 }}%</td>
+                <td class="value">0</td>
+            </tr>
+            <tr class="renewable-row">
+                <td><strong>Solar (Utility)</strong></td>
+                <td class="value">{{ quarterly_summary.solar_generation|floatformat:0|intcomma }}</td>
+                <td class="value">{{ quarterly_summary.solar_generation|div:quarterly_summary.operational_demand|mul:100|floatformat:1 }}%</td>
+                <td class="value">{{ quarterly_summary.solar_generation|div:quarterly_summary.underlying_demand|mul:100|floatformat:1 }}%</td>
+                <td class="value">0</td>
+            </tr>
+            <tr class="renewable-row">
+                <td><strong>Solar (Rooftop)</strong></td>
+                <td class="value">{{ quarterly_summary.dpv_generation|floatformat:0|intcomma }}</td>
+                <td class="value">—</td>
+                <td class="value">{{ quarterly_summary.dpv_generation|div:quarterly_summary.underlying_demand|mul:100|floatformat:1 }}%</td>
+                <td class="value">0</td>
+            </tr>
+            <tr class="renewable-row">
+                <td><strong>Biomass</strong></td>
+                <td class="value">{{ quarterly_summary.biomass_generation|floatformat:0|intcomma }}</td>
+                <td class="value">{{ quarterly_summary.biomass_generation|div:quarterly_summary.operational_demand|mul:100|floatformat:1 }}%
+                </td>
+                <td class="value">{{ quarterly_summary.biomass_generation|div:quarterly_summary.underlying_demand|mul:100|floatformat:1 }}%
+                </td>
+                <td class="value">0</td>
+            </tr>
+            <tr class="fossil-row">
+                <td>Gas</td>
+                <td class="value">{{ quarterly_summary.gas_generation|floatformat:0|intcomma }}</td>
+                <td class="value">{{ quarterly_summary.gas_generation|div:quarterly_summary.operational_demand|mul:100|floatformat:1 }}%</td>
+                <td class="value">{{ quarterly_summary.gas_generation|div:quarterly_summary.underlying_demand|mul:100|floatformat:1 }}%</td>
+                <td class="value">{{ quarterly_summary.gas_generation|mul:380|floatformat:0|intcomma }} t</td>
+            </tr>
+            <tr class="fossil-row">
+                <td>Coal</td>
+                <td class="value">{{ quarterly_summary.coal_generation|floatformat:1 }}</td>
+                <td class="value">{{ quarterly_summary.coal_generation|div:quarterly_summary.operational_demand|mul:100|floatformat:1 }}%</td>
+                <td class="value">{{ quarterly_summary.coal_generation|div:quarterly_summary.underlying_demand|mul:100|floatformat:1 }}%</td>
+            </tr>
+            {% if quarterly_summary.storage_charge > 0 %}
+            <tr class="info-row">
+                <td><em>Storage Charge</em></td>
+                <td class="value"><em>{{ quarterly_summary.storage_charge|floatformat:1 }}</em></td>
+                <td class="value" colspan="2"></td>
+            </tr>
+            {% endif %}
+            {% if quarterly_summary.storage_discharge > 0 %}
+            <tr class="info-row">
+                <td><em>Storage Discharge</em></td>
+                <td class="value"><em>{{ quarterly_summary.storage_discharge|floatformat:0|intcomma }}</em></td>
+                <td class="value"><em>0</em></td>
+            </tr>
+            {% endif %}
+        </tbody>
+        <tfoot>
+            <tr class="total-row">
+                <td><strong>Total RE%</strong></td>
+                <td class="value">—</td>
+                <td class="value"><strong>{{ quarterly_summary.re_percentage_operational|floatformat:1 }}%</strong></td>
+                <td class="value"><strong>{{ quarterly_summary.re_percentage_underlying|floatformat:1 }}%</strong></td>
+                <td class="value">—</td>
+            </tr>
+        </tfoot>
+    </table>
 </div>
 
 <!-- Charts -->
