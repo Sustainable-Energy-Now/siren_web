@@ -282,6 +282,70 @@
         border-left-color: #f44336;
     }
 
+    /* Metric Grid and Cards (for Key Findings section) */
+    .metric-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 20px;
+        margin: 20px 0;
+    }
+
+    .metric-card {
+        background: white;
+        padding: 25px;
+        border-radius: 12px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        border-left: 4px solid #bdc3c7;
+    }
+
+    .metric-card.positive {
+        border-left-color: #27ae60;
+        background: linear-gradient(135deg, #ffffff 0%, #e8f5e9 100%);
+    }
+
+    .metric-card.negative {
+        border-left-color: #e74c3c;
+        background: linear-gradient(135deg, #ffffff 0%, #ffebee 100%);
+    }
+
+    .metric-card.warning {
+        border-left-color: #f39c12;
+        background: linear-gradient(135deg, #ffffff 0%, #fff8e1 100%);
+    }
+
+    .metric-card.neutral {
+        border-left-color: #3498db;
+        background: linear-gradient(135deg, #ffffff 0%, #e3f2fd 100%);
+    }
+
+    .metric-label {
+        font-size: 0.9em;
+        color: #7f8c8d;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 8px;
+    }
+
+    .metric-value {
+        font-size: 2.5em;
+        font-weight: 700;
+        color: #2c3e50;
+        margin: 10px 0;
+    }
+
+    .metric-sublabel {
+        font-size: 0.85em;
+        color: #95a5a6;
+        margin-top: 8px;
+    }
+
+    .metric-change {
+        font-size: 0.9em;
+        color: #7f8c8d;
+        margin-top: 8px;
+    }
+
     /* Print Styles */
     @media print {
         .report-header {
@@ -298,6 +362,11 @@
         .summary-card {
             -webkit-print-color-adjust: exact;
             print-color-adjust: exact;
+        }
+
+        .metric-card {
+            break-inside: avoid;
+            page-break-inside: avoid;
         }
     }
 </style>
@@ -347,79 +416,138 @@
     <div class="section">
         <h2>Executive Summary</h2>
 
-        <div class="summary-cards">
-            <div class="summary-card success">
-                <div class="label">Q{{ quarter }} RE% (Operational)</div>
-                <div class="value">{{ quarterly_summary.re_percentage_operational|floatformat:1 }}%</div>
-                <div class="change">Grid-sent electricity</div>
-            </div>
-
-            <div class="summary-card success">
-                <div class="label">Q{{ quarter }} RE% (Underlying)</div>
-                <div class="value">{{ quarterly_summary.re_percentage_underlying|floatformat:1 }}%</div>
-                <div class="change">Including rooftop solar</div>
-            </div>
-
-            <div class="summary-card info">
-                <div class="label">YTD RE% (Operational)</div>
-                <div class="value">{{ ytd_summary.re_percentage_operational|floatformat:1 }}%</div>
-                <div class="change">
-                    {% if prev_ytd_summary %}
-                    vs {{ prev_ytd_summary.re_percentage_operational|floatformat:1 }}% in {{ year|add:"-1" }}
-                    {% endif %}
-                </div>
-            </div>
-
-            <div class="summary-card info">
-                <div class="label">YTD RE% (Underlying)</div>
-                <div class="value">{{ ytd_summary.re_percentage_underlying|floatformat:1 }}%</div>
-                <div class="change">
-                    {% if prev_ytd_summary %}
-                    vs {{ prev_ytd_summary.re_percentage_underlying|floatformat:1 }}% in {{ year|add:"-1" }}
-                    {% endif %}
-                </div>
-            </div>
-
-            <div class="summary-card">
-                <div class="label">{{ year }} Target</div>
-                <div class="value">{{ target.target_percentage|floatformat:1 }}%</div>
-                <div class="change">
-                    {% if ytd_summary.re_percentage_underlying >= target.target_percentage %}
-                    ✓ On track
-                    {% else %}
-                    ⚠ {{ target.target_percentage|sub:ytd_summary.re_percentage_underlying|floatformat:1 }} pp behind
-                    {% endif %}
-                </div>
-            </div>
-
-            <div class="summary-card warning">
-                <div class="label">Q{{ quarter }} Emissions</div>
-                <div class="value">{{ quarterly_summary.total_emissions|floatformat:0|intcomma }}</div>
-                <div class="change">tonnes CO₂-e</div>
-            </div>
-
-            <div class="summary-card warning">
-                <div class="label">YTD Emissions</div>
-                <div class="value">{{ ytd_summary.total_emissions|floatformat:0|intcomma }}</div>
-                <div class="change">
-                    {% if prev_ytd_summary %}
-                    {% with change=ytd_summary.total_emissions|sub:prev_ytd_summary.total_emissions %}
-                    {% with pct=change|div:prev_ytd_summary.total_emissions|mul:100 %}
-                    {% if pct >= 0 %}+{% endif %}{{ pct|floatformat:1 }}% vs {{ year|add:"-1" }}
+        <div class="info-box" id="exec-summary-container" style="background: white; border-left: 4px solid #9b59b6;">
+            <div id="exec-summary-display">
+                <!-- Default dynamic text -->
+                <p style="font-size: 1.1em; line-height: 1.8;">
+                    The South West Interconnected System (SWIS) achieved
+                    <strong>{{ quarterly_summary.re_percentage_operational|floatformat:1 }}%</strong> renewable energy
+                    (operational demand basis) and <strong>{{ quarterly_summary.re_percentage_underlying|floatformat:1 }}%</strong>
+                    (underlying demand basis, including rooftop solar) in Q{{ quarter }} {{ year }}.
+                    Year-to-date renewable energy performance stands at
+                    <strong>{{ ytd_summary.re_percentage_operational|floatformat:1 }}%</strong> (operational) and
+                    <strong>{{ ytd_summary.re_percentage_underlying|floatformat:1 }}%</strong> (underlying).
+                    Total quarterly emissions were
+                    <strong>{{ quarterly_summary.total_emissions|floatformat:0|intcomma }} tonnes CO₂-e</strong>{% if prev_quarter_summary %},
+                    {% with change=quarterly_summary.total_emissions|sub:prev_quarter_summary.total_emissions|div:prev_quarter_summary.total_emissions|mul:100 %}
+                    {% if change < 0 %}a reduction of <strong>{{ change|mul:-1|floatformat:1 }}%</strong>{% else %}an increase of <strong>{{ change|floatformat:1 }}%</strong>{% endif %} from Q{{ quarter }} {{ year|add:"-1" }}.
                     {% endwith %}
-                    {% endwith %}
-                    {% else %}
-                    tonnes CO₂-e
+                    {% else %}.{% endif %}
+                    {% if quarterly_summary.wholesale_price_avg %}
+                    The average wholesale electricity price was <strong>${{ quarterly_summary.wholesale_price_avg|floatformat:2 }}/MWh</strong>.
                     {% endif %}
+                </p>
+                {% if executive_summary and executive_summary.content %}
+                <div style="font-size: 1.1em; line-height: 1.6; color: #2c3e50; margin-top: 15px;">
+                    {{ executive_summary.content|linebreaks }}
+                </div>
+                {% endif %}
+                {% if user.is_authenticated and not is_published_version %}
+                <div style="margin-top: 15px;">
+                    <button onclick="toggleExecSummaryEdit()" class="action-btn primary-btn">Add to Summary</button>
+                    {% if executive_summary and executive_summary.updated_at %}
+                    <small style="color: #7f8c8d; margin-left: 10px;">
+                        Last updated: {{ executive_summary.updated_at|date:"d M Y" }} by {{ executive_summary.updated_by.get_full_name|default:executive_summary.updated_by.username }}
+                    </small>
+                    {% endif %}
+                </div>
+                {% endif %}
+            </div>
+
+            {% if user.is_authenticated and not is_published_version %}
+            <div id="exec-summary-edit" style="display: none;">
+                {% csrf_token %}
+                <p style="margin-top: 0; color: #7f8c8d; font-size: 0.9em;">Enter additional commentary for this quarterly report.
+                You can include key highlights, trends, and insights for the quarter.
+                </p>
+                <textarea id="exec-summary-content"
+                    style="width: 100%; min-height: 200px; padding: 15px; margin-bottom: 15px; border-radius: 6px; border: 1px solid #bdc3c7; font-family: inherit; font-size: 1em; line-height: 1.5; resize: vertical;">{% if executive_summary and executive_summary.content %}{{ executive_summary.content }}{% endif %}</textarea>
+                <div style="display: flex; gap: 10px;">
+                    <button onclick="saveExecSummary()" class="action-btn primary-btn">Save Summary</button>
+                    <button onclick="toggleExecSummaryEdit()" class="action-btn">Cancel</button>
                 </div>
             </div>
 
-            {% if quarterly_summary.wholesale_price_avg %}
-            <div class="summary-card price">
-                <div class="label">Q{{ quarter }} Avg Price</div>
-                <div class="value">${{ quarterly_summary.wholesale_price_avg|floatformat:2 }}</div>
-                <div class="change">$/MWh wholesale</div>
-            </div>
+            <script>
+                function toggleExecSummaryEdit() {
+                    var displayDiv = document.getElementById('exec-summary-display');
+                    var editDiv = document.getElementById('exec-summary-edit');
+
+                    if (editDiv.style.display === 'none') {
+                        editDiv.style.display = 'block';
+                        displayDiv.style.display = 'none';
+                    } else {
+                        editDiv.style.display = 'none';
+                        displayDiv.style.display = 'block';
+                    }
+                }
+
+                function saveExecSummary() {
+                    var content = document.getElementById('exec-summary-content').value;
+                    var csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+                    var btn = document.querySelector('#exec-summary-edit button.primary-btn');
+                    var originalText = btn.textContent;
+
+                    btn.textContent = 'Saving...';
+                    btn.disabled = true;
+
+                    fetch("{% url 'ret_executive_summary_update' %}", {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': csrfToken
+                        },
+                        body: JSON.stringify({
+                            report_type: 'quarterly',
+                            year: {{ year }},
+                            quarter: {{ quarter }},
+                            content: content
+                        })
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            location.reload();
+                        } else {
+                            alert('Error saving summary: ' + (data.error || 'Unknown error'));
+                            btn.textContent = originalText;
+                            btn.disabled = false;
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        alert('Error saving summary');
+                        btn.textContent = originalText;
+                        btn.disabled = false;
+                    });
+                }
+            </script>
+            <style>
+                .action-btn {
+                    padding: 8px 15px;
+                    border: 1px solid #bdc3c7;
+                    border-radius: 4px;
+                    background: white;
+                    cursor: pointer;
+                    font-size: 0.9em;
+                    color: #2c3e50;
+                    transition: all 0.2s;
+                }
+
+                .action-btn:hover {
+                    background: #ecf0f1;
+                }
+
+                .primary-btn {
+                    background: #3498db;
+                    border-color: #3498db;
+                    color: white;
+                }
+
+                .primary-btn:hover {
+                    background: #2980b9;
+                }
+            </style>
             {% endif %}
         </div>
 
@@ -428,6 +556,91 @@
             <strong>Note:</strong>
             <strong>Operational Demand</strong> = Grid-sent generation.
             <strong>Underlying Demand</strong> = Operational + rooftop solar (DPV).
+        </div>
+    </div>
+
+    <!-- Key Findings -->
+    <div class="section">
+        <h2>Key Findings</h2>
+
+        <div class="metric-grid">
+            <div class="metric-card positive">
+                <div class="metric-label">Q{{ quarter }} RE% (Operational)</div>
+                <div class="metric-value">{{ quarterly_summary.re_percentage_operational|floatformat:1 }}%</div>
+                <div class="metric-sublabel">Grid-sent electricity</div>
+            </div>
+
+            <div class="metric-card positive">
+                <div class="metric-label">Q{{ quarter }} RE% (Underlying)</div>
+                <div class="metric-value">{{ quarterly_summary.re_percentage_underlying|floatformat:1 }}%</div>
+                <div class="metric-sublabel">Including rooftop solar</div>
+            </div>
+
+            <div class="metric-card {% if ytd_summary.re_percentage_operational >= target.target_percentage %}positive{% else %}warning{% endif %}">
+                <div class="metric-label">YTD RE% (Operational)</div>
+                <div class="metric-value">{{ ytd_summary.re_percentage_operational|floatformat:1 }}%</div>
+                <div class="metric-change">
+                    {% if prev_ytd_summary %}
+                    vs {{ prev_ytd_summary.re_percentage_operational|floatformat:1 }}% in {{ year|add:"-1" }}
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="metric-card {% if ytd_summary.re_percentage_underlying >= target.target_percentage %}positive{% else %}warning{% endif %}">
+                <div class="metric-label">YTD RE% (Underlying)</div>
+                <div class="metric-value">{{ ytd_summary.re_percentage_underlying|floatformat:1 }}%</div>
+                <div class="metric-change">
+                    {% if prev_ytd_summary %}
+                    vs {{ prev_ytd_summary.re_percentage_underlying|floatformat:1 }}% in {{ year|add:"-1" }}
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="metric-card {% if ytd_summary.re_percentage_underlying >= target.target_percentage %}positive{% elif ytd_summary.re_percentage_underlying >= target.target_percentage|mul:0.95 %}warning{% else %}negative{% endif %}">
+                <div class="metric-label">{{ year }} Target</div>
+                <div class="metric-value">{{ target.target_percentage|floatformat:1 }}%</div>
+                <div class="metric-change">
+                    {% if ytd_summary.re_percentage_underlying >= target.target_percentage %}
+                    ✓ On track
+                    {% else %}
+                    ⚠ {{ target.target_percentage|sub:ytd_summary.re_percentage_underlying|floatformat:1 }} pp behind
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="metric-card neutral">
+                <div class="metric-label">Q{{ quarter }} Emissions</div>
+                <div class="metric-value">{{ quarterly_summary.total_emissions|floatformat:0|intcomma }}</div>
+                <div class="metric-sublabel">tonnes CO₂-e</div>
+                {% if prev_quarter_summary %}
+                <div class="metric-change">
+                    {% with change=quarterly_summary.total_emissions|sub:prev_quarter_summary.total_emissions|div:prev_quarter_summary.total_emissions|mul:100 %}
+                    {% if change >= 0 %}+{% endif %}{{ change|floatformat:1 }}% vs {{ year|add:"-1" }}
+                    {% endwith %}
+                </div>
+                {% endif %}
+            </div>
+
+            <div class="metric-card neutral">
+                <div class="metric-label">YTD Emissions</div>
+                <div class="metric-value">{{ ytd_summary.total_emissions|floatformat:0|intcomma }}</div>
+                <div class="metric-sublabel">tonnes CO₂-e</div>
+                {% if prev_ytd_summary %}
+                <div class="metric-change">
+                    {% with change=ytd_summary.total_emissions|sub:prev_ytd_summary.total_emissions|div:prev_ytd_summary.total_emissions|mul:100 %}
+                    {% if change >= 0 %}+{% endif %}{{ change|floatformat:1 }}% vs {{ year|add:"-1" }}
+                    {% endwith %}
+                </div>
+                {% endif %}
+            </div>
+
+            {% if quarterly_summary.wholesale_price_avg %}
+            <div class="metric-card neutral">
+                <div class="metric-label">Q{{ quarter }} Avg Price</div>
+                <div class="metric-value">${{ quarterly_summary.wholesale_price_avg|floatformat:2 }}</div>
+                <div class="metric-sublabel">$/MWh wholesale</div>
+            </div>
+            {% endif %}
         </div>
     </div>
 
