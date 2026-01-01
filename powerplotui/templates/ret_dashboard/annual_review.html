@@ -70,7 +70,7 @@
 
 <div class="info-box" id="exec-summary-container" style="background: white; border-left: 4px solid #9b59b6;">
     <div id="exec-summary-display">
-                <!-- Default dynamic text if no custom summary exists -->
+        <!-- Default dynamic text -->
         <p style="font-size: 1.1em; line-height: 1.8;">
             The South West Interconnected System (SWIS) achieved
             <strong>{{ annual_summary.re_percentage_operational|floatformat:1 }}%</strong> renewable energy
@@ -199,7 +199,6 @@
 
 <!-- Demand Definitions -->
 <div class="info-box" style="background: #e3f2fd; border-left-color: #2196f3;">
-    <h3 style="margin-top: 0;">Understanding Demand Measures</h3>
     <p style="margin-bottom: 0;">
         <strong>Operational Demand:</strong> Total grid-sent generation. This
         represents electricity delivered through the grid.<br>
@@ -340,7 +339,7 @@
     </div>
 
     <!-- Monthly Wholesale Price Table -->
-    <h3>Monthly Wholesale Price Statistics</h3>
+    <h3>Monthly Wholesale Price Breakdown</h3>
     <table class="stats-table">
         <thead>
             <tr>
@@ -745,16 +744,27 @@
 
     <style>
         .section-header {
-            margin: 40px 0 20px 0;
-            padding-bottom: 10px;
-            border-bottom: 2px solid #3498db;
+            background: white;
+            padding: 30px;
+            margin-bottom: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
         }
 
         .section-header h2 {
-            color: #2c3e50;
-            margin: 0;
+            color: #1e3c72;
+            border-bottom: 3px solid #4CAF50;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+            font-size: 1.8em;
         }
 
+        .section-header h3 {
+            color: #2a5298;
+            margin-top: 25px;
+            margin-bottom: 15px;
+            font-size: 1.4em;
+        }
         .metric-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));

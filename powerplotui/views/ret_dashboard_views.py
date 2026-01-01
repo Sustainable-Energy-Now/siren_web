@@ -58,13 +58,9 @@ def ret_dashboard(request, year=None, month=None):
     year = int(year)
     month = int(month)
     quarter = (month - 1) // 3 + 1
-    # Calculate last complete quarter (previous quarter)
-    if quarter == 1:
-        last_complete_quarter = 4
-        last_complete_quarter_year = year - 1
-    else:
-        last_complete_quarter = quarter - 1
-        last_complete_quarter_year = year
+
+    # Calculate completed quarters for the report year
+    completed_quarters = get_completed_quarters(year)
     
     # Get selected month's performance
     try:
@@ -129,16 +125,11 @@ def ret_dashboard(request, year=None, month=None):
                               prev_ytd_summary['total_emissions'] * 100)
 
     comments = ReportComment.get_comments_for_report('monthly', year, month=month)
-    
-    # Get Executive Summary from comments
-    executive_summary = comments.filter(category='executive_summary').first()
 
     context = {
         'year': year,
         'month': month,
         'quarter': quarter,
-        'last_complete_quarter': last_complete_quarter,
-        'last_complete_quarter_year': last_complete_quarter_year,
         'month_name': month_name[month],
         'performance': performance,
         'target': target,
@@ -157,8 +148,8 @@ def ret_dashboard(request, year=None, month=None):
         'pathway_chart': pathway_chart,
         'available_months': get_available_months(),
         'available_years': get_available_years(),
+        'completed_quarters': completed_quarters,
         'comments': comments,
-        'executive_summary': executive_summary,
         'report_type': 'monthly',
     }
 
@@ -741,7 +732,9 @@ def quarterly_report(request, year, quarter):
 
     # Get Executive Summary from comments
     executive_summary = comments.filter(category='executive_summary').first()
-
+    # Calculate completed quarters for the report year
+    completed_quarters = get_completed_quarters(year)
+    
     context = {
         'year': year,
         'quarter': quarter,
@@ -754,6 +747,7 @@ def quarterly_report(request, year, quarter):
         'ytd_summary': ytd_summary,
         'prev_ytd_summary': prev_ytd_summary,
         'target': target,
+        'completed_quarters': completed_quarters,
         'comments': comments,
         'executive_summary': executive_summary,
         'report_type': 'quarterly',
@@ -769,21 +763,10 @@ def annual_review(request, year):
     """
     Generate annual review view.
     """
-    from datetime import date
-    
     year = int(year)
     
     # Calculate completed quarters for the report year
-    today = date.today()
-    current_year = today.year
-    current_quarter = (today.month - 1) // 3 + 1
-    
-    if year < current_year:
-        completed_quarters = [1, 2, 3, 4]
-    elif year == current_year:
-        completed_quarters = list(range(1, current_quarter))
-    else:
-        completed_quarters = []
+    completed_quarters = get_completed_quarters(year)
     next_report = f"Q1 {year + 1} Quarterly Report"
     # Get all monthly data for this year
     annual_data = MonthlyREPerformance.objects.filter(
@@ -954,7 +937,7 @@ def annual_review(request, year):
         'scenario_chart': scenario_chart,
         'scenarios': scenarios,
         'available_years': get_available_years(),
-        'completed_quarters': completed_quarters,  # Add this line
+        'completed_quarters': completed_quarters,
         'comments': comments,
         'executive_summary': executive_summary,
         'report_type': 'annual',
@@ -1052,3 +1035,18 @@ def update_executive_summary(request):
     except Exception as e:
         logger.error(f"Error updating executive summary: {str(e)}")
         return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+def get_completed_quarters(year):
+    """Get list of completed quarters for a given year"""
+    from datetime import date
+    
+    today = date.today()
+    current_year = today.year
+    current_quarter = (today.month - 1) // 3 + 1
+    
+    if year < current_year:
+        return [1, 2, 3, 4]
+    elif year == current_year:
+        return list(range(1, current_quarter))
+    else:
+        return []

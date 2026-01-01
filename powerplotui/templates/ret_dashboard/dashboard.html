@@ -19,7 +19,26 @@
 <!-- Quick Navigation Links -->
 <div style="margin: 20px 0; padding: 15px; background: #ecf0f1; border-radius: 8px; display: flex; gap: 15px; align-items: center;">
     <strong style="color: #2c3e50;">Other Reports:</strong>
-    <a href="{% url 'quarterly_report' last_complete_quarter_year last_complete_quarter %}" style="color: #3498db; text-decoration: none; padding: 8px 15px; background: white; border-radius: 4px; font-weight: 500;">📈 Q{{ last_complete_quarter }} Quarterly Report</a>
+    {% if 1 in completed_quarters %}
+    <a href="{% url 'quarterly_report' year 1 %}"
+        style="color: #3498db; text-decoration: none; padding: 8px 15px; background: white; border-radius: 4px; font-weight: 500;">📈
+        Q1 Report</a>
+    {% endif %}
+    {% if 2 in completed_quarters %}
+    <a href="{% url 'quarterly_report' year 2 %}"
+        style="color: #3498db; text-decoration: none; padding: 8px 15px; background: white; border-radius: 4px; font-weight: 500;">📈
+        Q2 Report</a>
+    {% endif %}
+    {% if 3 in completed_quarters %}
+    <a href="{% url 'quarterly_report' year 3 %}"
+        style="color: #3498db; text-decoration: none; padding: 8px 15px; background: white; border-radius: 4px; font-weight: 500;">📈
+        Q3 Report</a>
+    {% endif %}
+    {% if 4 in completed_quarters %}
+    <a href="{% url 'quarterly_report' year 4 %}"
+        style="color: #3498db; text-decoration: none; padding: 8px 15px; background: white; border-radius: 4px; font-weight: 500;">📈
+        Q4 Report</a>
+    {% endif %}
     <a href="{% url 'annual_review' year %}" style="color: #3498db; text-decoration: none; padding: 8px 15px; background: white; border-radius: 4px; font-weight: 500;">📑 {{ year }} Annual Review</a>
     <a href="{% url 'ret_targets_list' %}" style="color: #27ae60; text-decoration: none; padding: 8px 15px; background: white; border-radius: 4px; font-weight: 500;">🎯 Manage Targets</a>
 </div>
@@ -36,125 +55,6 @@
     </select>
     <button onclick="loadDashboard()">View</button>
     <button onclick="window.print()" style="background: #95a5a6;">Print Report</button>
-</div>
-
-
-<!-- Executive Summary -->
-<div class="section-header">
-    <h2>Executive Summary</h2>
-</div>
-
-<div class="info-box" id="exec-summary-container" style="background: white; border-left: 4px solid #9b59b6;">
-    <div id="exec-summary-display">
-        {% if executive_summary and executive_summary.content %}
-            <div style="font-size: 1.1em; line-height: 1.6; color: #2c3e50;">
-                {{ executive_summary.content|linebreaks }}
-            </div>
-            {% if user.is_authenticated %}
-                <div style="margin-top: 15px; border-top: 1px solid #eee; padding-top: 10px;">
-                    <button onclick="toggleExecSummaryEdit()" class="action-btn">Edit Summary</button>
-                    <small style="color: #7f8c8d; margin-left: 10px;">
-                        Last updated: {{ executive_summary.updated_at|date:"d M Y" }} by {{ executive_summary.updated_by.get_full_name|default:executive_summary.updated_by.username }}
-                    </small>
-                </div>
-            {% endif %}
-        {% else %}
-            <p style="color: #7f8c8d; font-style: italic;">No executive summary provided for this month.</p>
-            {% if user.is_authenticated %}
-                <button onclick="toggleExecSummaryEdit()" class="action-btn primary-btn">Add Summary</button>
-            {% endif %}
-        {% endif %}
-    </div>
-    
-    {% if user.is_authenticated %}
-    <div id="exec-summary-edit" style="display: none;">
-        {% csrf_token %}
-        <p style="margin-top: 0; color: #7f8c8d; font-size: 0.9em;">Enter the executive summary for this report. You can use this to highlight key trends that may not be obvious from the data.</p>
-        <textarea id="exec-summary-content" style="width: 100%; min-height: 200px; padding: 15px; margin-bottom: 15px; border-radius: 6px; border: 1px solid #bdc3c7; font-family: inherit; font-size: 1em; line-height: 1.5; resize: vertical;">{{ executive_summary.content|default:"" }}</textarea>
-        <div style="display: flex; gap: 10px;">
-            <button onclick="saveExecSummary()" class="action-btn primary-btn">Save Summary</button>
-            <button onclick="toggleExecSummaryEdit()" class="action-btn">Cancel</button>
-        </div>
-    </div>
-    
-    <script>
-    function toggleExecSummaryEdit() {
-        var displayDiv = document.getElementById('exec-summary-display');
-        var editDiv = document.getElementById('exec-summary-edit');
-        
-        if (editDiv.style.display === 'none') {
-            editDiv.style.display = 'block';
-            displayDiv.style.display = 'none';
-        } else {
-            editDiv.style.display = 'none';
-            displayDiv.style.display = 'block';
-        }
-    }
-    
-    function saveExecSummary() {
-        var content = document.getElementById('exec-summary-content').value;
-        var csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
-        var btn = document.querySelector('#exec-summary-edit button.primary-btn');
-        var originalText = btn.textContent;
-        
-        btn.textContent = 'Saving...';
-        btn.disabled = true;
-        
-        fetch("{% url 'ret_executive_summary_update' %}", {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': csrfToken
-            },
-            body: JSON.stringify({
-                report_type: 'monthly',
-                year: {{ year }},
-                month: {{ month }},
-                content: content
-            })
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                location.reload();
-            } else {
-                alert('Error saving summary: ' + (data.error || 'Unknown error'));
-                btn.textContent = originalText;
-                btn.disabled = false;
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            alert('Error saving summary');
-            btn.textContent = originalText;
-            btn.disabled = false;
-        });
-    }
-    </script>
-    <style>
-        .action-btn {
-            padding: 8px 15px;
-            border: 1px solid #bdc3c7;
-            border-radius: 4px;
-            background: white;
-            cursor: pointer;
-            font-size: 0.9em;
-            color: #2c3e50;
-            transition: all 0.2s;
-        }
-        .action-btn:hover {
-            background: #ecf0f1;
-        }
-        .primary-btn {
-            background: #3498db;
-            border-color: #3498db;
-            color: white;
-        }
-        .primary-btn:hover {
-            background: #2980b9;
-        }
-    </style>
-    {% endif %}
 </div>
 
 <!-- Monthly RE Performance -->
