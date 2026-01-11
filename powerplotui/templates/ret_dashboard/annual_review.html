@@ -643,16 +643,25 @@
             <tr>
                 <td><strong>{{ scenario.scenario_name }}</strong></td>
                 <td
-                    class="value {% if scenario.projected_re_percentage_2040 >= 75 %}positive{% else %}negative{% endif %}">
-                    {{ scenario.projected_re_percentage_2040|floatformat:1 }}%
+                    class="value {% if scenario.target_re_percentage >= 75 %}positive{% else %}negative{% endif %}">
+                    {{ scenario.target_re_percentage|floatformat:1 }}%
                 </td>
                 <td class="value">{{ scenario.projected_emissions_2040_tonnes|floatformat:0|intcomma }} t</td>
                 <td class="value">
-                    {% if scenario.probability_percentage %}{{ scenario.probability_percentage|floatformat:0 }}%{% else
-                    %}N/A{% endif %}
+                    {% with latest_mc=scenario.monte_carlo_runs.first %}
+                    {% if latest_mc %}
+                        <span title="Monte Carlo simulation: {{latest_mc.num_iterations|intcomma}} iterations, {{latest_mc.run_date|date:'Y-m-d'}}">
+                            {{ latest_mc.probability_85_percent|floatformat:0 }}%
+                        </span>
+                    {% elif scenario.probability_percentage %}
+                        {{ scenario.probability_percentage|floatformat:0 }}%
+                    {% else %}
+                        N/A
+                    {% endif %}
+                    {% endwith %}
                 </td>
                 <td>
-                    {% if scenario.projected_re_percentage_2040 >= 75 %}
+                    {% if scenario.target_re_percentage >= 75 %}
                     <span style="color: #27ae60;">✓ Meets Target</span>
                     {% else %}
                     <span style="color: #e74c3c;">⚠ Below Target</span>

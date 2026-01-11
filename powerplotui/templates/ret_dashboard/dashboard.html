@@ -474,7 +474,7 @@
             <li><strong>Including rooftop:</strong> {{ performance.re_percentage_underlying|floatformat:0 }}% 
                 of total electricity (grid + rooftop solar) was renewable</li>
             <li><strong>On track:</strong> Current trajectory will 
-                {% if base_case_scenario.projected_re_percentage_2040 >= 75 %}exceed{% else %}fall short of{% endif %} 
+                {% if base_case_scenario.target_re_percentage >= 75 %}exceed{% else %}fall short of{% endif %} 
                 75% renewable energy by 2040</li>
         </ul>
     </div>

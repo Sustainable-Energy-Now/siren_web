@@ -565,10 +565,10 @@
         {% for scenario in scenarios %}
         <tr>
             <td><strong>{{ scenario.scenario_name }}</strong></td>
-            <td class="value">{{ scenario.projected_re_percentage_2040|floatformat:1 }}%</td>
+            <td class="value">{{ scenario.target_re_percentage|floatformat:1 }}%</td>
             <td class="value">{{ scenario.projected_emissions_2040_tonnes|floatformat:0|intcomma }} t</td>
             <td>
-                {% if scenario.projected_re_percentage_2040 >= 75 %}
+                {% if scenario.target_re_percentage >= 75 %}
                 ✓ Meets Target
                 {% else %}
                 ⚠ Below Target

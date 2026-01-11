@@ -1,11 +1,10 @@
 """
 SWIS Renewable Energy Target Management Views
 
-This module provides views for managing:
-- RenewableEnergyTarget: Annual RE percentage targets
-- TargetScenario: 2040 projection scenarios
+This module provides views for managing the unified TargetScenario model,
+which combines renewable energy targets and projection scenarios.
 
-Views include list, create, update, and delete operations for both models.
+Views include list, create, update, and delete operations.
 """
 
 from django.shortcuts import render, redirect, get_object_or_404
@@ -16,229 +15,198 @@ from django.core.paginator import Paginator
 from django.db import IntegrityError
 from django.utils import timezone
 
-from siren_web.models import RenewableEnergyTarget, TargetScenario
+from siren_web.models import TargetScenario, Scenarios
 import logging
 
 logger = logging.getLogger(__name__)
 
 
 # =============================================================================
-# Renewable Energy Targets List View
+# Unified Targets and Scenarios List View
 # =============================================================================
 
 def ret_targets_list(request):
     """
     Main view for displaying and managing RE targets and scenarios.
-    Shows all targets chronologically and active scenarios.
+    Shows all target scenarios grouped by year and scenario type.
     """
-    # Get all targets ordered by year
-    targets = RenewableEnergyTarget.objects.all().order_by('target_year')
-    
-    # Get all scenarios
-    scenarios = TargetScenario.objects.all().order_by('scenario_type', 'scenario_name')
-    active_scenarios = scenarios.filter(is_active=True)
-    
-    # Calculate scenario status vs 2040 target
-    target_2040 = targets.filter(target_year=2040).first()
+    # Get all scenarios ordered by year and type
+    all_scenarios = TargetScenario.objects.all().order_by('year', 'scenario_type')
+
+    # Separate targets (major/interim) from ordinary projections
+    targets = all_scenarios.filter(target_type__in=['major', 'interim']).order_by('year')
+    projections = all_scenarios.filter(target_type='ordinary').order_by('year', 'scenario_type')
+    active_scenarios = all_scenarios.filter(is_active=True)
+
+    # Calculate scenario status vs targets
     scenarios_with_status = []
-    for scenario in scenarios:
-        status = scenario.get_status_vs_target(2040)
+    for scenario in projections:
+        status = scenario.get_status_vs_target()
         scenarios_with_status.append({
             'scenario': scenario,
             'status': status,
-            'total_generation': scenario.total_generation_2040
+            'total_generation': scenario.total_generation
         })
-    
+
     # Get key milestone targets
     milestone_years = [2030, 2035, 2040]
-    milestones = targets.filter(target_year__in=milestone_years)
-    
+    milestones = targets.filter(year__in=milestone_years)
+
+    # Get all SIREN scenarios for the dropdown
+    siren_scenarios = Scenarios.objects.all().order_by('title')
+
+    # Get years that have targets defined
+    years_with_targets = list(targets.values_list('year', flat=True).distinct())
+
     context = {
         'targets': targets,
-        'scenarios': scenarios,
+        'projections': projections,
         'scenarios_with_status': scenarios_with_status,
         'active_scenarios': active_scenarios,
-        'target_2040': target_2040,
         'milestones': milestones,
+        'years_with_targets': years_with_targets,
         'scenario_type_choices': TargetScenario._meta.get_field('scenario_type').choices,
+        'target_type_choices': TargetScenario._meta.get_field('target_type').choices,
+        'siren_scenarios': siren_scenarios,
         'now': timezone.now(),
     }
-    
+
     return render(request, 'ret_dashboard/targets.html', context)
 
 
 # =============================================================================
-# Renewable Energy Target CRUD
-# =============================================================================
-
-@require_http_methods(["GET", "POST"])
-def ret_target_create(request):
-    """Create a new Renewable Energy Target."""
-    if request.method == 'POST':
-        try:
-            target_year = int(request.POST.get('target_year'))
-            target_percentage = float(request.POST.get('target_percentage'))
-            target_emissions = request.POST.get('target_emissions_tonnes')
-            description = request.POST.get('description', '').strip()
-            is_interim = request.POST.get('is_interim_target') == 'on'
-            
-            # Validate
-            if target_year < 2020 or target_year > 2100:
-                messages.error(request, 'Target year must be between 2020 and 2100.')
-                return redirect('ret_targets_list')
-            
-            if target_percentage < 0 or target_percentage > 100:
-                messages.error(request, 'Target percentage must be between 0 and 100.')
-                return redirect('ret_targets_list')
-            
-            # Create target
-            target = RenewableEnergyTarget.objects.create(
-                target_year=target_year,
-                target_percentage=target_percentage,
-                target_emissions_tonnes=float(target_emissions) if target_emissions else None,
-                description=description if description else None,
-                is_interim_target=is_interim
-            )
-            
-            messages.success(request, f'Successfully created target for {target_year}.')
-            logger.info(f"Created RE target for {target_year}: {target_percentage}%")
-            
-        except IntegrityError:
-            messages.error(request, f'A target for year {target_year} already exists.')
-        except ValueError as e:
-            messages.error(request, f'Invalid value: {str(e)}')
-        except Exception as e:
-            logger.error(f"Error creating RE target: {str(e)}", exc_info=True)
-            messages.error(request, f'Error creating target: {str(e)}')
-    
-    return redirect('ret_targets_list')
-
-@require_http_methods(["GET", "POST"])
-def ret_target_update(request, target_id):
-    """Update an existing Renewable Energy Target."""
-    target = get_object_or_404(RenewableEnergyTarget, id=target_id)
-    
-    if request.method == 'POST':
-        try:
-            target.target_percentage = float(request.POST.get('target_percentage'))
-            target_emissions = request.POST.get('target_emissions_tonnes')
-            target.target_emissions_tonnes = float(target_emissions) if target_emissions else None
-            target.description = request.POST.get('description', '').strip() or None
-            target.is_interim_target = request.POST.get('is_interim_target') == 'on'
-            
-            # Validate
-            if target.target_percentage < 0 or target.target_percentage > 100:
-                messages.error(request, 'Target percentage must be between 0 and 100.')
-                return redirect('ret_targets_list')
-            
-            target.save()
-            messages.success(request, f'Successfully updated target for {target.target_year}.')
-            logger.info(f"Updated RE target for {target.target_year}: {target.target_percentage}%")
-            
-        except ValueError as e:
-            messages.error(request, f'Invalid value: {str(e)}')
-        except Exception as e:
-            logger.error(f"Error updating RE target: {str(e)}", exc_info=True)
-            messages.error(request, f'Error updating target: {str(e)}')
-    
-    return redirect('ret_targets_list')
-
-@require_POST
-def ret_target_delete(request, target_id):
-    """Delete a Renewable Energy Target."""
-    target = get_object_or_404(RenewableEnergyTarget, id=target_id)
-    year = target.target_year
-    
-    try:
-        target.delete()
-        messages.success(request, f'Successfully deleted target for {year}.')
-        logger.info(f"Deleted RE target for {year}")
-    except Exception as e:
-        logger.error(f"Error deleting RE target: {str(e)}", exc_info=True)
-        messages.error(request, f'Error deleting target: {str(e)}')
-    
-    return redirect('ret_targets_list')
-
-# =============================================================================
-# Target Scenario CRUD
+# Unified Target/Scenario CRUD
 # =============================================================================
 
 @require_http_methods(["GET", "POST"])
 def scenario_create(request):
-    """Create a new Target Scenario."""
+    """Create a new target or projection scenario."""
     if request.method == 'POST':
         try:
             scenario_name = request.POST.get('scenario_name', '').strip()
             scenario_type = request.POST.get('scenario_type')
-            
+            year = int(request.POST.get('year', 2040))
+            target_type = request.POST.get('target_type', 'ordinary')
+
             if not scenario_name:
                 messages.error(request, 'Scenario name is required.')
                 return redirect('ret_targets_list')
-            
+
+            # Validate year
+            if year < 2020 or year > 2100:
+                messages.error(request, 'Year must be between 2020 and 2100.')
+                return redirect('ret_targets_list')
+
+            # Get scenario FK if provided
+            scenario_id = request.POST.get('scenario')
+            scenario_obj = None
+            if scenario_id:
+                try:
+                    scenario_obj = Scenarios.objects.get(idscenarios=scenario_id)
+                except Scenarios.DoesNotExist:
+                    pass
+
+            # Get RE percentage
+            target_re_percentage = float(request.POST.get('target_re_percentage', 0))
+            if target_re_percentage < 0 or target_re_percentage > 100:
+                messages.error(request, 'RE percentage must be between 0 and 100.')
+                return redirect('ret_targets_list')
+
             # Create scenario with all fields
             scenario = TargetScenario.objects.create(
                 scenario_name=scenario_name,
                 scenario_type=scenario_type,
+                scenario=scenario_obj,
                 description=request.POST.get('description', '').strip(),
-                projected_re_percentage_2040=float(request.POST.get('projected_re_percentage_2040', 0)),
-                projected_emissions_2040_tonnes=float(request.POST.get('projected_emissions_2040_tonnes', 0)),
-                wind_generation_2040=float(request.POST.get('wind_generation_2040', 0)),
-                solar_generation_2040=float(request.POST.get('solar_generation_2040', 0)),
-                dpv_generation_2040=float(request.POST.get('dpv_generation_2040', 0)),
-                biomass_generation_2040=float(request.POST.get('biomass_generation_2040', 0)),
-                gas_generation_2040=float(request.POST.get('gas_generation_2040', 0)),
+                year=year,
+                target_type=target_type,
+                operational_demand=float(request.POST.get('operational_demand')) if request.POST.get('operational_demand') else None,
+                underlying_demand=float(request.POST.get('underlying_demand')) if request.POST.get('underlying_demand') else None,
+                storage=float(request.POST.get('storage')) if request.POST.get('storage') else None,
+                target_re_percentage=target_re_percentage,
+                target_emissions_tonnes=float(request.POST.get('target_emissions_tonnes')) if request.POST.get('target_emissions_tonnes') else None,
+                wind_generation=float(request.POST.get('wind_generation', 0)),
+                solar_generation=float(request.POST.get('solar_generation', 0)),
+                dpv_generation=float(request.POST.get('dpv_generation', 0)),
+                biomass_generation=float(request.POST.get('biomass_generation', 0)),
+                gas_generation=float(request.POST.get('gas_generation', 0)),
                 probability_percentage=float(request.POST.get('probability_percentage')) if request.POST.get('probability_percentage') else None,
                 is_active=request.POST.get('is_active') == 'on'
             )
-            
-            messages.success(request, f'Successfully created scenario: {scenario_name}')
-            logger.info(f"Created scenario: {scenario_name}")
-            
-        except IntegrityError:
-            messages.error(request, f'A scenario named "{scenario_name}" already exists.')
+
+            target_label = 'target' if target_type in ['major', 'interim'] else 'scenario'
+            messages.success(request, f'Successfully created {target_label}: {scenario_name} ({year})')
+            logger.info(f"Created {target_label}: {scenario_name} for {year}")
+
+        except IntegrityError as e:
+            messages.error(request, f'A scenario of type "{scenario_type}" for year {year} already exists.')
         except ValueError as e:
             messages.error(request, f'Invalid value: {str(e)}')
         except Exception as e:
             logger.error(f"Error creating scenario: {str(e)}", exc_info=True)
             messages.error(request, f'Error creating scenario: {str(e)}')
-    
+
     return redirect('ret_targets_list')
 
 
 @require_http_methods(["GET", "POST"])
 def scenario_update(request, scenario_id):
-    """Update an existing Target Scenario."""
+    """Update an existing target or projection scenario."""
     scenario = get_object_or_404(TargetScenario, id=scenario_id)
-    
+
     if request.method == 'POST':
         try:
             scenario.scenario_name = request.POST.get('scenario_name', '').strip()
             scenario.scenario_type = request.POST.get('scenario_type')
-            scenario.description = request.POST.get('description', '').strip()
-            scenario.projected_re_percentage_2040 = float(request.POST.get('projected_re_percentage_2040', 0))
-            scenario.projected_emissions_2040_tonnes = float(request.POST.get('projected_emissions_2040_tonnes', 0))
-            scenario.wind_generation_2040 = float(request.POST.get('wind_generation_2040', 0))
-            scenario.solar_generation_2040 = float(request.POST.get('solar_generation_2040', 0))
-            scenario.dpv_generation_2040 = float(request.POST.get('dpv_generation_2040', 0))
-            scenario.biomass_generation_2040 = float(request.POST.get('biomass_generation_2040', 0))
-            scenario.gas_generation_2040 = float(request.POST.get('gas_generation_2040', 0))
-            scenario.probability_percentage = float(request.POST.get('probability_percentage')) if request.POST.get('probability_percentage') else None
-            scenario.is_active = request.POST.get('is_active') == 'on'
-            
+
             if not scenario.scenario_name:
                 messages.error(request, 'Scenario name is required.')
                 return redirect('ret_targets_list')
-            
+
+            # Update scenario FK if provided
+            siren_scenario_id = request.POST.get('scenario')
+            if siren_scenario_id:
+                try:
+                    scenario.scenario = Scenarios.objects.get(idscenarios=siren_scenario_id)
+                except Scenarios.DoesNotExist:
+                    scenario.scenario = None
+            else:
+                scenario.scenario = None
+
+            scenario.description = request.POST.get('description', '').strip()
+            scenario.year = int(request.POST.get('year', 2040))
+            scenario.target_type = request.POST.get('target_type', 'ordinary')
+            scenario.operational_demand = float(request.POST.get('operational_demand')) if request.POST.get('operational_demand') else None
+            scenario.underlying_demand = float(request.POST.get('underlying_demand')) if request.POST.get('underlying_demand') else None
+            scenario.storage = float(request.POST.get('storage')) if request.POST.get('storage') else None
+
+            # Validate and set RE percentage
+            target_re_percentage = float(request.POST.get('target_re_percentage', 0))
+            if target_re_percentage < 0 or target_re_percentage > 100:
+                messages.error(request, 'RE percentage must be between 0 and 100.')
+                return redirect('ret_targets_list')
+            scenario.target_re_percentage = target_re_percentage
+
+            scenario.target_emissions_tonnes = float(request.POST.get('target_emissions_tonnes')) if request.POST.get('target_emissions_tonnes') else None
+            scenario.wind_generation = float(request.POST.get('wind_generation', 0))
+            scenario.solar_generation = float(request.POST.get('solar_generation', 0))
+            scenario.dpv_generation = float(request.POST.get('dpv_generation', 0))
+            scenario.biomass_generation = float(request.POST.get('biomass_generation', 0))
+            scenario.gas_generation = float(request.POST.get('gas_generation', 0))
+            scenario.probability_percentage = float(request.POST.get('probability_percentage')) if request.POST.get('probability_percentage') else None
+            scenario.is_active = request.POST.get('is_active') == 'on'
+
             scenario.save()
-            messages.success(request, f'Successfully updated scenario: {scenario.scenario_name}')
-            logger.info(f"Updated scenario: {scenario.scenario_name}")
-            
+            target_label = 'target' if scenario.target_type in ['major', 'interim'] else 'scenario'
+            messages.success(request, f'Successfully updated {target_label}: {scenario.scenario_name}')
+            logger.info(f"Updated {target_label}: {scenario.scenario_name}")
+
         except ValueError as e:
             messages.error(request, f'Invalid value: {str(e)}')
         except Exception as e:
             logger.error(f"Error updating scenario: {str(e)}", exc_info=True)
             messages.error(request, f'Error updating scenario: {str(e)}')
-    
+
     return redirect('ret_targets_list')
 
 @require_POST
@@ -277,84 +245,70 @@ def scenario_toggle_active(request, scenario_id):
 # API Endpoints (JSON)
 # =============================================================================
 
-def api_targets_list(request):
-    """API endpoint to get all targets as JSON."""
-    targets = RenewableEnergyTarget.objects.all().order_by('target_year')
-    
-    data = [{
-        'id': t.id,
-        'target_year': t.target_year,
-        'target_percentage': t.target_percentage,
-        'target_emissions_tonnes': t.target_emissions_tonnes,
-        'description': t.description,
-        'is_interim_target': t.is_interim_target,
-        'created_at': t.created_at.isoformat() if t.created_at else None,
-        'updated_at': t.updated_at.isoformat() if t.updated_at else None,
-    } for t in targets]
-    
-    return JsonResponse({'targets': data})
-
 def api_scenarios_list(request):
     """API endpoint to get all scenarios as JSON."""
-    scenarios = TargetScenario.objects.all().order_by('scenario_type')
-    
+    scenarios = TargetScenario.objects.all().order_by('year', 'scenario_type')
+
     data = [{
         'id': s.id,
         'scenario_name': s.scenario_name,
         'scenario_type': s.scenario_type,
+        'scenario_id': s.scenario.idscenarios if s.scenario else None,
+        'scenario_title': s.scenario.title if s.scenario else None,
         'description': s.description,
-        'projected_re_percentage_2040': s.projected_re_percentage_2040,
-        'projected_emissions_2040_tonnes': s.projected_emissions_2040_tonnes,
-        'wind_generation_2040': s.wind_generation_2040,
-        'solar_generation_2040': s.solar_generation_2040,
-        'dpv_generation_2040': s.dpv_generation_2040,
-        'biomass_generation_2040': s.biomass_generation_2040,
-        'gas_generation_2040': s.gas_generation_2040,
-        'total_generation_2040': s.total_generation_2040,
+        'year': s.year,
+        'target_type': s.target_type,
+        'operational_demand': s.operational_demand,
+        'underlying_demand': s.underlying_demand,
+        'storage': s.storage,
+        'target_re_percentage': s.target_re_percentage,
+        'target_emissions_tonnes': s.target_emissions_tonnes,
+        'wind_generation': s.wind_generation,
+        'solar_generation': s.solar_generation,
+        'dpv_generation': s.dpv_generation,
+        'biomass_generation': s.biomass_generation,
+        'gas_generation': s.gas_generation,
+        'total_generation': s.total_generation,
         'probability_percentage': s.probability_percentage,
         'is_active': s.is_active,
-        'status_vs_target': s.get_status_vs_target(2040),
+        'is_major_target': s.is_major_target,
+        'is_interim_target': s.is_interim_target,
+        'status_vs_target': s.get_status_vs_target(),
         'created_at': s.created_at.isoformat() if s.created_at else None,
         'updated_at': s.updated_at.isoformat() if s.updated_at else None,
     } for s in scenarios]
-    
-    return JsonResponse({'scenarios': data})
 
-def api_target_detail(request, target_id):
-    """API endpoint to get a single target."""
-    target = get_object_or_404(RenewableEnergyTarget, id=target_id)
-    
-    return JsonResponse({
-        'id': target.id,
-        'target_year': target.target_year,
-        'target_percentage': target.target_percentage,
-        'target_emissions_tonnes': target.target_emissions_tonnes,
-        'description': target.description,
-        'is_interim_target': target.is_interim_target,
-        'created_at': target.created_at.isoformat() if target.created_at else None,
-        'updated_at': target.updated_at.isoformat() if target.updated_at else None,
-    })
+    return JsonResponse({'scenarios': data})
 
 def api_scenario_detail(request, scenario_id):
     """API endpoint to get a single scenario."""
     scenario = get_object_or_404(TargetScenario, id=scenario_id)
-    
+
     return JsonResponse({
         'id': scenario.id,
         'scenario_name': scenario.scenario_name,
         'scenario_type': scenario.scenario_type,
+        'scenario_id': scenario.scenario.idscenarios if scenario.scenario else None,
+        'scenario_title': scenario.scenario.title if scenario.scenario else None,
         'description': scenario.description,
-        'projected_re_percentage_2040': scenario.projected_re_percentage_2040,
-        'projected_emissions_2040_tonnes': scenario.projected_emissions_2040_tonnes,
-        'wind_generation_2040': scenario.wind_generation_2040,
-        'solar_generation_2040': scenario.solar_generation_2040,
-        'dpv_generation_2040': scenario.dpv_generation_2040,
-        'biomass_generation_2040': scenario.biomass_generation_2040,
-        'gas_generation_2040': scenario.gas_generation_2040,
-        'total_generation_2040': scenario.total_generation_2040,
+        'year': scenario.year,
+        'target_type': scenario.target_type,
+        'operational_demand': scenario.operational_demand,
+        'underlying_demand': scenario.underlying_demand,
+        'storage': scenario.storage,
+        'target_re_percentage': scenario.target_re_percentage,
+        'target_emissions_tonnes': scenario.target_emissions_tonnes,
+        'wind_generation': scenario.wind_generation,
+        'solar_generation': scenario.solar_generation,
+        'dpv_generation': scenario.dpv_generation,
+        'biomass_generation': scenario.biomass_generation,
+        'gas_generation': scenario.gas_generation,
+        'total_generation': scenario.total_generation,
         'probability_percentage': scenario.probability_percentage,
         'is_active': scenario.is_active,
-        'status_vs_target': scenario.get_status_vs_target(2040),
+        'is_major_target': scenario.is_major_target,
+        'is_interim_target': scenario.is_interim_target,
+        'status_vs_target': scenario.get_status_vs_target(),
         'created_at': scenario.created_at.isoformat() if scenario.created_at else None,
         'updated_at': scenario.updated_at.isoformat() if scenario.updated_at else None,
     })

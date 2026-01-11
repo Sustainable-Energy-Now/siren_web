@@ -60,23 +60,16 @@ urlpatterns = [
 
     # Main targets list view
     path('ret_dashboard/targets/', ret_targets_views.ret_targets_list, name='ret_targets_list'),
-    
-    # Target CRUD operations
-    path('ret_dashboard/targets/create/', ret_targets_views.ret_target_create, name='ret_target_create'),
-    path('ret_dashboard/targets/<int:target_id>/update/', ret_targets_views.ret_target_update, name='ret_target_update'),
-    path('ret_dashboard/targets/<int:target_id>/delete/', ret_targets_views.ret_target_delete, name='ret_target_delete'),
-    
-    # Scenario CRUD operations
+
+    # Unified Target/Scenario CRUD operations
     path('ret_dashboard/scenarios/create/', ret_targets_views.scenario_create, name='scenario_create'),
     path('ret_dashboard/scenarios/<int:scenario_id>/update/', ret_targets_views.scenario_update, name='scenario_update'),
     path('ret_dashboard/scenarios/<int:scenario_id>/delete/', ret_targets_views.scenario_delete, name='scenario_delete'),
     path('ret_dashboard/scenarios/<int:scenario_id>/toggle/', ret_targets_views.scenario_toggle_active, name='scenario_toggle_active'),
-    
+
     # =========================================================================
     # API Endpoints (JSON responses)
     # =========================================================================
-    path('api/ret_dashboard/targets/', ret_targets_views.api_targets_list, name='api_targets_list'),
-    path('api/ret_dashboard/targets/<int:target_id>/', ret_targets_views.api_target_detail, name='api_target_detail'),
     path('api/ret_dashboard/scenarios/', ret_targets_views.api_scenarios_list, name='api_scenarios_list'),
     path('api/ret_dashboard/scenarios/<int:scenario_id>/', ret_targets_views.api_scenario_detail, name='api_scenario_detail'),
 

@@ -23,7 +23,6 @@ import base64
 
 from siren_web.models import (
     MonthlyREPerformance,
-    RenewableEnergyTarget,
     PublishedReport,
     ReportComment,
     NewCapacityCommissioned,
@@ -159,16 +158,20 @@ def generate_annual_trends_chart_image(year):
 
     # Add target line if available
     try:
-        target = RenewableEnergyTarget.objects.get(target_year=year)
-        fig.add_trace(go.Scatter(
-            name=f'{year} Target',
+        target = TargetScenario.objects.filter(
+            year=year,
+            target_type__in=['major', 'interim']
+        ).first()
+        if target:
+            fig.add_trace(go.Scatter(
+                name=f'{year} Target',
             x=list(range(1, 13)),
-            y=[target.target_percentage] * 12,
+                y=[target.target_re_percentage] * 12,
             mode='lines',
             line=dict(color='red', width=2, dash='dash'),
             showlegend=True
         ))
-    except RenewableEnergyTarget.DoesNotExist:
+    except Exception:
         pass
 
     fig.update_layout(
@@ -200,7 +203,7 @@ def generate_scenario_comparison_chart_image(scenarios):
         return None
 
     scenario_names = [s.scenario_name for s in scenarios]
-    re_percentages = [s.projected_re_percentage_2040 for s in scenarios]
+    re_percentages = [s.target_re_percentage for s in scenarios]
 
     # Color code based on meeting 75% target
     colors = ['#27ae60' if pct >= 75 else '#e74c3c' for pct in re_percentages]
@@ -395,8 +398,11 @@ def publish_quarterly_report(request, year, quarter):
 
         # Get target
         try:
-            target = RenewableEnergyTarget.objects.get(target_year=year)
-        except RenewableEnergyTarget.DoesNotExist:
+            target = TargetScenario.objects.filter(
+                year=year,
+                target_type__in=['major', 'interim']
+            ).first()
+        except Exception:
             target = None
 
         # Get new capacity for this quarter
@@ -537,8 +543,11 @@ def publish_annual_report(request, year):
 
         # Get target
         try:
-            target = RenewableEnergyTarget.objects.get(target_year=year)
-        except RenewableEnergyTarget.DoesNotExist:
+            target = TargetScenario.objects.filter(
+                year=year,
+                target_type__in=['major', 'interim']
+            ).first()
+        except Exception:
             target = None
 
         # Calculate target status

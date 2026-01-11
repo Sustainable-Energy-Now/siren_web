@@ -2336,64 +2336,167 @@ class PublishedReport(models.Model):
         return None
 
 class TargetScenario(models.Model):
-    """Store different scenarios for 2040 target achievement"""
-    scenario_name = models.CharField(max_length=100, unique=True)
+    """
+    Unified model for renewable energy targets and projection scenarios.
+    Combines what was previously RenewableEnergyTarget and TargetScenario.
+    """
+    scenario_name = models.CharField(max_length=100, db_index=True)
     scenario_type = models.CharField(max_length=30, choices=[
         ('base_case', 'Base Case'),
         ('delayed_pipeline', 'Delayed Pipeline'),
         ('accelerated_pipeline', 'Accelerated Pipeline'),
     ])
-    
-    description = models.TextField()
-    
-    # 2040 Projections
-    projected_re_percentage_2040 = models.FloatField()
-    projected_emissions_2040_tonnes = models.FloatField()
-    
-    # Generation mix projections for 2040 (GWh)
-    wind_generation_2040 = models.FloatField()
-    solar_generation_2040 = models.FloatField()
-    dpv_generation_2040 = models.FloatField()
-    biomass_generation_2040 = models.FloatField()
-    gas_generation_2040 = models.FloatField()
-    
-    # Probability of achievement
-    probability_percentage = models.FloatField(null=True, blank=True,
-                                              help_text="Monte Carlo probability (%)")
-    
+
+    # Link to SIREN Scenarios model
+    scenario = models.ForeignKey(
+        'Scenarios',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='target_scenarios',
+        help_text="Associated SIREN scenario"
+    )
+
+    description = models.TextField(blank=True, default='')
+
+    # Year for this scenario/target
+    year = models.IntegerField(
+        db_index=True,
+        help_text="Target or projection year"
+    )
+
+    # Target type: distinguishes between major targets, interim milestones, and ordinary years
+    target_type = models.CharField(
+        max_length=20,
+        choices=[
+            ('major', 'Major Target'),
+            ('interim', 'Interim Target'),
+            ('ordinary', 'Ordinary Year'),
+        ],
+        default='ordinary',
+        help_text="Type of year: major target, interim milestone, or ordinary projection"
+    )
+
+    # Demand projections (GWh)
+    operational_demand = models.FloatField(
+        null=True,
+        blank=True,
+        help_text="Operational demand (GWh)"
+    )
+    underlying_demand = models.FloatField(
+        null=True,
+        blank=True,
+        help_text="Underlying demand (GWh)"
+    )
+
+    # Storage capacity (MWh)
+    storage = models.FloatField(
+        null=True,
+        blank=True,
+        help_text="Storage capacity (MWh)"
+    )
+
+    # Target/Projected values (year-agnostic)
+    target_re_percentage = models.FloatField(
+        help_text="Target or projected RE percentage for this year"
+    )
+    target_emissions_tonnes = models.FloatField(
+        null=True,
+        blank=True,
+        help_text="Target or projected emissions (tonnes CO2-e)"
+    )
+
+    # Generation mix projections (GWh)
+    wind_generation = models.FloatField(
+        default=0,
+        help_text="Wind generation (GWh)"
+    )
+    solar_generation = models.FloatField(
+        default=0,
+        help_text="Utility-scale solar generation (GWh)"
+    )
+    dpv_generation = models.FloatField(
+        default=0,
+        help_text="Distributed rooftop solar generation (GWh)"
+    )
+    biomass_generation = models.FloatField(
+        default=0,
+        help_text="Biomass generation (GWh)"
+    )
+    gas_generation = models.FloatField(
+        default=0,
+        help_text="Gas generation (GWh)"
+    )
+
+    # Probability of achievement (for projection scenarios)
+    probability_percentage = models.FloatField(
+        null=True,
+        blank=True,
+        help_text="Monte Carlo probability of achieving this scenario (%)"
+    )
+
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    
+
     class Meta:
         db_table = 'target_scenarios'
-        ordering = ['scenario_type']
-    
+        ordering = ['year', 'scenario_type']
+        unique_together = [['scenario_type', 'year']]
+        indexes = [
+            models.Index(fields=['year', 'target_type']),
+            models.Index(fields=['scenario_type', 'year']),
+        ]
+
     def __str__(self):
-        return f"{self.scenario_name}: {self.projected_re_percentage_2040}% by 2040"
-    
+        return f"{self.scenario_name}: {self.target_re_percentage}% by {self.year}"
+
     @property
-    def total_generation_2040(self):
-        """Calculate total generation for 2040"""
-        return (self.wind_generation_2040 + 
-                self.solar_generation_2040 + 
-                self.dpv_generation_2040 + 
-                self.biomass_generation_2040 + 
-                self.gas_generation_2040)
-    
-    def get_status_vs_target(self, target_year=2040):
-        """Check if scenario meets target"""
+    def total_generation(self):
+        """Calculate total generation"""
+        return (self.wind_generation +
+                self.solar_generation +
+                self.dpv_generation +
+                self.biomass_generation +
+                self.gas_generation)
+
+    @property
+    def is_major_target(self):
+        """Check if this is a major target year"""
+        return self.target_type == 'major'
+
+    @property
+    def is_interim_target(self):
+        """Check if this is an interim target"""
+        return self.target_type == 'interim'
+
+    def get_status_vs_target(self, comparison_year=None):
+        """
+        Check if scenario meets a specific target.
+        If comparison_year is None, compares against major/interim targets for the same year.
+        """
+        if comparison_year is None:
+            comparison_year = self.year
+
         try:
-            target = RenewableEnergyTarget.objects.get(target_year=target_year)
-            gap = self.projected_re_percentage_2040 - target.target_percentage
-            
+            # Find major or interim target for the comparison year
+            target = TargetScenario.objects.filter(
+                year=comparison_year,
+                target_type__in=['major', 'interim']
+            ).first()
+
+            if not target:
+                return {'meets_target': None, 'gap': 0, 'message': 'No target set'}
+
+            gap = self.target_re_percentage - target.target_re_percentage
+
             return {
                 'meets_target': gap >= 0,
                 'gap': gap,
                 'message': f"{'✓ Exceeds' if gap >= 0 else '✗ Below'} target by {abs(gap):.1f}pp"
             }
-        except RenewableEnergyTarget.DoesNotExist:
-            return {'meets_target': None, 'gap': 0, 'message': 'No target set'}
+        except Exception:
+            return {'meets_target': None, 'gap': 0, 'message': 'Error comparing to target'}
 
 class ScenariosFacilities(models.Model):
     idscenariosfacilities = models.AutoField(primary_key=True)  
@@ -3363,6 +3466,237 @@ class DemandProjectionScenario(models.Model):
         super().clean()
         if self.use_factor_breakdown:
             self.validate_factor_percentages()
+
+
+class MonteCarloSimulation(models.Model):
+    """
+    Track Monte Carlo simulation runs for renewable energy target probability analysis.
+    Each simulation calculates probability of achieving targets by 2040.
+    """
+    # Run identification
+    simulation_id = models.AutoField(primary_key=True)
+    run_date = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    # Scenario linkage
+    target_scenario = models.ForeignKey(
+        'TargetScenario',
+        on_delete=models.CASCADE,
+        related_name='monte_carlo_runs',
+        help_text="Scenario this simulation evaluates"
+    )
+
+    # Simulation parameters
+    num_iterations = models.IntegerField(
+        default=100000,
+        help_text="Number of Monte Carlo iterations"
+    )
+    target_year = models.IntegerField(
+        default=2040,
+        help_text="Year to project to"
+    )
+
+    # Probability levels used
+    probability_profile = models.CharField(
+        max_length=20,
+        choices=[
+            ('optimistic', 'Optimistic'),
+            ('balanced', 'Balanced'),
+            ('conservative', 'Conservative'),
+        ],
+        default='optimistic',
+        help_text="Commissioning probability profile"
+    )
+
+    # Results summary
+    mean_re_percentage = models.FloatField(
+        null=True,
+        help_text="Mean RE% across all iterations"
+    )
+    median_re_percentage = models.FloatField(
+        null=True,
+        help_text="Median RE% (50th percentile)"
+    )
+    p10_re_percentage = models.FloatField(
+        null=True,
+        help_text="P10 RE% (pessimistic - 10th percentile)"
+    )
+    p90_re_percentage = models.FloatField(
+        null=True,
+        help_text="P90 RE% (optimistic - 90th percentile)"
+    )
+    std_dev_re_percentage = models.FloatField(
+        null=True,
+        help_text="Standard deviation of RE%"
+    )
+
+    # Target achievement probabilities
+    probability_75_percent = models.FloatField(
+        null=True,
+        help_text="Probability of achieving 75% RE target"
+    )
+    probability_85_percent = models.FloatField(
+        null=True,
+        help_text="Probability of achieving 85% RE target"
+    )
+
+    # Execution metadata
+    execution_time_seconds = models.FloatField(
+        null=True,
+        help_text="Total execution time in seconds"
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=[
+            ('pending', 'Pending'),
+            ('running', 'Running'),
+            ('completed', 'Completed'),
+            ('failed', 'Failed'),
+        ],
+        default='pending',
+        db_index=True
+    )
+    error_message = models.TextField(
+        null=True,
+        blank=True,
+        help_text="Error details if failed"
+    )
+
+    # Audit fields
+    created_by = models.CharField(
+        max_length=100,
+        default='system',
+        help_text="User or system that triggered run"
+    )
+    notes = models.TextField(
+        blank=True,
+        null=True
+    )
+
+    class Meta:
+        db_table = 'monte_carlo_simulations'
+        ordering = ['-run_date']
+        indexes = [
+            models.Index(fields=['-run_date', 'status']),
+            models.Index(fields=['target_scenario', '-run_date']),
+        ]
+
+    def __str__(self):
+        return f"MC Run {self.simulation_id}: {self.target_scenario.scenario_name} ({self.run_date.strftime('%Y-%m-%d')})"
+
+    @property
+    def confidence_interval_90(self):
+        """Return 90% confidence interval (P10 to P90)"""
+        if self.p10_re_percentage and self.p90_re_percentage:
+            return (self.p10_re_percentage, self.p90_re_percentage)
+        return None
+
+
+class MonteCarloParameter(models.Model):
+    """
+    Store input parameters and assumptions for each Monte Carlo simulation run.
+    Tracks what assumptions were used for reproducibility and auditing.
+    """
+    parameter_id = models.AutoField(primary_key=True)
+    simulation = models.ForeignKey(
+        'MonteCarloSimulation',
+        on_delete=models.CASCADE,
+        related_name='parameters'
+    )
+
+    # Parameter identification
+    parameter_category = models.CharField(
+        max_length=50,
+        choices=[
+            ('commissioning_probability', 'Commissioning Probability'),
+            ('delay_distribution', 'Delay Distribution'),
+            ('capacity_factor', 'Capacity Factor'),
+            ('demand_growth', 'Demand Growth'),
+            ('general', 'General'),
+        ],
+        db_index=True
+    )
+    parameter_name = models.CharField(
+        max_length=100,
+        help_text="e.g., 'commissioned_probability', 'wind_cf_mean'"
+    )
+
+    # Parameter values (stored as JSON for flexibility)
+    parameter_value = models.JSONField(
+        help_text="Parameter value (can be scalar, array, or object)"
+    )
+
+    # Metadata
+    description = models.CharField(
+        max_length=500,
+        blank=True,
+        null=True
+    )
+    source = models.CharField(
+        max_length=200,
+        blank=True,
+        null=True,
+        help_text="Data source or methodology"
+    )
+
+    class Meta:
+        db_table = 'monte_carlo_parameters'
+        unique_together = ['simulation', 'parameter_name']
+        indexes = [
+            models.Index(fields=['simulation', 'parameter_category']),
+        ]
+
+    def __str__(self):
+        return f"{self.parameter_name}: {self.parameter_value}"
+
+
+class MonteCarloResult(models.Model):
+    """
+    Store detailed distribution results from Monte Carlo simulation.
+    Stores histogram bins and percentile data for visualization.
+    """
+    result_id = models.AutoField(primary_key=True)
+    simulation = models.OneToOneField(
+        'MonteCarloSimulation',
+        on_delete=models.CASCADE,
+        related_name='detailed_results'
+    )
+
+    # Distribution data (stored as JSON)
+    re_percentage_distribution = models.JSONField(
+        help_text="Histogram of RE% results: {bins: [...], counts: [...]}"
+    )
+
+    # Percentile data for plotting
+    percentiles = models.JSONField(
+        help_text="Percentile values: {p1: X, p5: Y, p10: Z, ..., p99: W}"
+    )
+
+    # Component contributions (mean across iterations)
+    mean_wind_generation_2040 = models.FloatField(null=True)
+    mean_solar_generation_2040 = models.FloatField(null=True)
+    mean_dpv_generation_2040 = models.FloatField(null=True)
+    mean_biomass_generation_2040 = models.FloatField(null=True)
+    mean_total_demand_2040 = models.FloatField(null=True)
+
+    # Uncertainty contributions (variance decomposition)
+    variance_contribution = models.JSONField(
+        null=True,
+        blank=True,
+        help_text="Variance contribution by factor: {commissioning: 0.4, cf: 0.3, demand: 0.2, delay: 0.1}"
+    )
+
+    # Raw iteration results (sample for debugging - store first 1000)
+    sample_iterations = models.JSONField(
+        null=True,
+        blank=True,
+        help_text="First 1000 iteration results for debugging"
+    )
+
+    class Meta:
+        db_table = 'monte_carlo_results'
+
+    def __str__(self):
+        return f"Results for {self.simulation}"
 
 
 class DjangoMigrations(models.Model):

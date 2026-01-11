@@ -41,11 +41,11 @@
 
 <div class="metric-grid">
     {% for milestone in milestones %}
-    <div class="metric-card {% if milestone.is_interim_target %}neutral{% else %}positive{% endif %}">
-        <div class="metric-label">{{ milestone.target_year }} Target</div>
-        <div class="metric-value">{{ milestone.target_percentage|floatformat:0 }}%</div>
+    <div class="metric-card {% if milestone.target_type == 'interim' %}neutral{% else %}positive{% endif %}">
+        <div class="metric-label">{{ milestone.year }} Target</div>
+        <div class="metric-value">{{ milestone.target_re_percentage|floatformat:0 }}%</div>
         <div class="metric-sublabel">
-            {% if milestone.is_interim_target %}Interim Target{% else %}Major Target{% endif %}
+            {{ milestone.get_target_type_display }}
         </div>
         {% if milestone.target_emissions_tonnes %}
         <div class="metric-change">{{ milestone.target_emissions_tonnes|floatformat:0|intcomma }} t CO₂-e</div>
@@ -66,10 +66,10 @@
     <h2>RE Percentage Targets by Year</h2>
 </div>
 
-<!-- Add New Target Button -->
+<!-- Add New Target/Scenario Button -->
 <div style="margin-bottom: 20px;">
-    <button onclick="toggleModal('add-target-modal')" class="btn btn-primary">
-        + Add New Target
+    <button onclick="toggleModal('add-scenario-modal')" class="btn btn-primary">
+        + Add New Target/Scenario
     </button>
 </div>
 
@@ -79,8 +79,9 @@
         <thead>
             <tr>
                 <th>Year</th>
+                <th>Scenario</th>
                 <th class="value">RE Target (%)</th>
-                <th class="value">Emissions Target (t)</th>
+                <th class="value">Emissions (t)</th>
                 <th>Description</th>
                 <th class="value">Type</th>
                 <th class="value">Actions</th>
@@ -88,9 +89,10 @@
         </thead>
         <tbody>
             {% for target in targets %}
-            <tr class="{% if target.target_year == 2030 or target.target_year == 2040 %}renewable-row{% endif %}">
-                <td><strong>{{ target.target_year }}</strong></td>
-                <td class="value">{{ target.target_percentage|floatformat:1 }}%</td>
+            <tr class="{% if target.year == 2030 or target.year == 2040 %}renewable-row{% endif %}">
+                <td><strong>{{ target.year }}</strong></td>
+                <td>{{ target.scenario_name }}</td>
+                <td class="value">{{ target.target_re_percentage|floatformat:1 }}%</td>
                 <td class="value">
                     {% if target.target_emissions_tonnes %}
                         {{ target.target_emissions_tonnes|floatformat:0|intcomma }}
@@ -98,25 +100,27 @@
                         —
                     {% endif %}
                 </td>
-                <td>{{ target.description|default:"—" }}</td>
+                <td>{{ target.description|default:"—"|truncatewords:10 }}</td>
                 <td class="value">
-                    {% if target.is_interim_target %}
+                    {% if target.target_type == 'major' %}
+                        <span class="badge badge-success">Major</span>
+                    {% elif target.target_type == 'interim' %}
                         <span class="badge badge-info">Interim</span>
                     {% else %}
-                        <span class="badge badge-success">Major</span>
+                        <span class="badge badge-secondary">Ordinary</span>
                     {% endif %}
                 </td>
                 <td class="value">
-                    <button onclick="editTarget({{ target.id }}, {{ target.target_year }}, {{ target.target_percentage }}, '{{ target.target_emissions_tonnes|default_if_none:"" }}', '{{ target.description|default:""|escapejs }}', {{ target.is_interim_target|yesno:'true,false' }})" 
+                    <button onclick="editScenario({{ target.id }})"
                             class="btn btn-small btn-edit" title="Edit">✏️</button>
-                    <button onclick="confirmDeleteTarget({{ target.id }}, {{ target.target_year }})" 
+                    <button onclick="confirmDeleteScenario({{ target.id }}, '{{ target.scenario_name|escapejs }}')"
                             class="btn btn-small btn-delete" title="Delete">🗑️</button>
                 </td>
             </tr>
             {% empty %}
             <tr>
-                <td colspan="6" style="text-align: center; padding: 30px; color: #7f8c8d;">
-                    No targets defined yet. Click "Add New Target" to create one.
+                <td colspan="7" style="text-align: center; padding: 30px; color: #7f8c8d;">
+                    No targets defined yet. Click "Add New Target/Scenario" to create one.
                 </td>
             </tr>
             {% endfor %}
@@ -129,14 +133,7 @@
 <!-- =================================================================== -->
 
 <div class="section-header" id="scenarios-section">
-    <h2>2040 Demand Projections</h2>
-</div>
-
-<!-- Add New Scenario Button -->
-<div style="margin-bottom: 20px;">
-    <button onclick="toggleModal('add-scenario-modal')" class="btn btn-primary">
-        + Add New Projection
-    </button>
+    <h2>Projection Scenarios</h2>
 </div>
 
 <!-- Scenarios Cards -->
@@ -146,48 +143,68 @@
         <div class="scenario-header">
             <h3>{{ item.scenario.scenario_name }}</h3>
             <span class="scenario-type-badge {{ item.scenario.scenario_type }}">
-                {{ item.scenario.get_scenario_type_display }}
+                {{ item.scenario.get_scenario_type_display }} - {{ item.scenario.year }}
             </span>
         </div>
-        
+
         <div class="scenario-main-stat">
-            <span class="stat-value">{{ item.scenario.projected_re_percentage_2040|floatformat:1 }}%</span>
-            <span class="stat-label">Projected RE% by 2040</span>
+            <span class="stat-value">{{ item.scenario.target_re_percentage|floatformat:1 }}%</span>
+            <span class="stat-label">Projected RE% by {{ item.scenario.year }}</span>
         </div>
-        
+
         <div class="scenario-status">
             {{ item.status.message }}
         </div>
-        
+
         <div class="scenario-details">
+            {% if item.scenario.operational_demand %}
+            <div class="detail-row">
+                <span class="detail-label">Operational Demand:</span>
+                <span class="detail-value">{{ item.scenario.operational_demand|floatformat:0|intcomma }} GWh</span>
+            </div>
+            {% endif %}
+            {% if item.scenario.underlying_demand %}
+            <div class="detail-row">
+                <span class="detail-label">Underlying Demand:</span>
+                <span class="detail-value">{{ item.scenario.underlying_demand|floatformat:0|intcomma }} GWh</span>
+            </div>
+            {% endif %}
+            {% if item.scenario.storage %}
+            <div class="detail-row">
+                <span class="detail-label">Storage:</span>
+                <span class="detail-value">{{ item.scenario.storage|floatformat:0|intcomma }} MWh</span>
+            </div>
+            {% endif %}
             <div class="detail-row">
                 <span class="detail-label">Wind:</span>
-                <span class="detail-value">{{ item.scenario.wind_generation_2040|floatformat:0|intcomma }} GWh</span>
+                <span class="detail-value">{{ item.scenario.wind_generation|floatformat:0|intcomma }} GWh</span>
             </div>
             <div class="detail-row">
                 <span class="detail-label">Solar (Utility):</span>
-                <span class="detail-value">{{ item.scenario.solar_generation_2040|floatformat:0|intcomma }} GWh</span>
+                <span class="detail-value">{{ item.scenario.solar_generation|floatformat:0|intcomma }} GWh</span>
             </div>
             <div class="detail-row">
                 <span class="detail-label">Solar (Rooftop):</span>
-                <span class="detail-value">{{ item.scenario.dpv_generation_2040|floatformat:0|intcomma }} GWh</span>
+                <span class="detail-value">{{ item.scenario.dpv_generation|floatformat:0|intcomma }} GWh</span>
             </div>
             <div class="detail-row">
                 <span class="detail-label">Biomass:</span>
-                <span class="detail-value">{{ item.scenario.biomass_generation_2040|floatformat:0|intcomma }} GWh</span>
+                <span class="detail-value">{{ item.scenario.biomass_generation|floatformat:0|intcomma }} GWh</span>
             </div>
             <div class="detail-row">
                 <span class="detail-label">Gas:</span>
-                <span class="detail-value">{{ item.scenario.gas_generation_2040|floatformat:0|intcomma }} GWh</span>
+                <span class="detail-value">{{ item.scenario.gas_generation|floatformat:0|intcomma }} GWh</span>
             </div>
             <div class="detail-row total">
                 <span class="detail-label">Total Generation:</span>
                 <span class="detail-value">{{ item.total_generation|floatformat:0|intcomma }} GWh</span>
             </div>
+            {% if item.scenario.target_emissions_tonnes %}
             <div class="detail-row">
                 <span class="detail-label">Emissions:</span>
-                <span class="detail-value">{{ item.scenario.projected_emissions_2040_tonnes|floatformat:0|intcomma }} t</span>
+                <span class="detail-value">{{ item.scenario.target_emissions_tonnes|floatformat:0|intcomma }} t</span>
             </div>
+            {% endif %}
             {% if item.scenario.probability_percentage %}
             <div class="detail-row">
                 <span class="detail-label">Probability:</span>
@@ -195,13 +212,13 @@
             </div>
             {% endif %}
         </div>
-        
+
         {% if item.scenario.description %}
         <div class="scenario-description">
             {{ item.scenario.description }}
         </div>
         {% endif %}
-        
+
         <div class="scenario-actions">
             <button onclick="editScenario({{ item.scenario.id }})" class="btn btn-small btn-edit" title="Edit">✏️ Edit</button>
             <form action="{% url 'scenario_toggle_active' item.scenario.id %}" method="post" style="display: inline;">
@@ -210,10 +227,10 @@
                     {% if item.scenario.is_active %}⏸️ Deactivate{% else %}▶️ Activate{% endif %}
                 </button>
             </form>
-            <button onclick="confirmDeleteScenario({{ item.scenario.id }}, '{{ item.scenario.scenario_name|escapejs }}')" 
+            <button onclick="confirmDeleteScenario({{ item.scenario.id }}, '{{ item.scenario.scenario_name|escapejs }}')"
                     class="btn btn-small btn-delete" title="Delete">🗑️ Delete</button>
         </div>
-        
+
         <div class="scenario-meta">
             Last updated: {{ item.scenario.updated_at|date:"d M Y H:i" }}
         </div>
@@ -221,7 +238,7 @@
     {% empty %}
     <div class="info-box" style="grid-column: 1 / -1;">
         <p style="text-align: center; padding: 20px; color: #7f8c8d;">
-            No scenarios defined yet. Click "Add New Scenario" to create one.
+            No projection scenarios defined yet. Click "Add New Target/Scenario" above to create one.
         </p>
     </div>
     {% endfor %}
@@ -231,106 +248,7 @@
 <!-- Modals -->
 <!-- =================================================================== -->
 
-<!-- Add Target Modal -->
-<div id="add-target-modal" class="modal" style="display: none;">
-    <div class="modal-content">
-        <div class="modal-header">
-            <h3>Add New RE Target</h3>
-            <button onclick="toggleModal('add-target-modal')" class="modal-close">&times;</button>
-        </div>
-        <form action="{% url 'ret_target_create' %}" method="post">
-            {% csrf_token %}
-            <div class="form-group">
-                <label for="target_year">Target Year *</label>
-                <input type="number" name="target_year" id="target_year" required 
-                       min="2020" max="2100" placeholder="e.g., 2030">
-            </div>
-            <div class="form-group">
-                <label for="target_percentage">Target RE Percentage (%) *</label>
-                <input type="number" name="target_percentage" id="target_percentage" required 
-                       min="0" max="100" step="0.1" placeholder="e.g., 80">
-            </div>
-            <div class="form-group">
-                <label for="target_emissions_tonnes">Target Emissions (tonnes CO₂-e)</label>
-                <input type="number" name="target_emissions_tonnes" id="target_emissions_tonnes" 
-                       min="0" step="1" placeholder="Optional">
-            </div>
-            <div class="form-group">
-                <label for="description">Description</label>
-                <textarea name="description" id="description" rows="3" 
-                          placeholder="Optional description of this target"></textarea>
-            </div>
-            <div class="form-group checkbox-group">
-                <label>
-                    <input type="checkbox" name="is_interim_target">
-                    This is an interim milestone target
-                </label>
-            </div>
-            <div class="modal-actions">
-                <button type="button" onclick="toggleModal('add-target-modal')" class="btn btn-secondary">Cancel</button>
-                <button type="submit" class="btn btn-primary">Create Target</button>
-            </div>
-        </form>
-    </div>
-</div>
-
-<!-- Edit Target Modal -->
-<div id="edit-target-modal" class="modal" style="display: none;">
-    <div class="modal-content">
-        <div class="modal-header">
-            <h3>Edit RE Target - <span id="edit-target-year-display"></span></h3>
-            <button onclick="toggleModal('edit-target-modal')" class="modal-close">&times;</button>
-        </div>
-        <form id="edit-target-form" method="post">
-            {% csrf_token %}
-            <div class="form-group">
-                <label for="edit_target_percentage">Target RE Percentage (%) *</label>
-                <input type="number" name="target_percentage" id="edit_target_percentage" required 
-                       min="0" max="100" step="0.1">
-            </div>
-            <div class="form-group">
-                <label for="edit_target_emissions_tonnes">Target Emissions (tonnes CO₂-e)</label>
-                <input type="number" name="target_emissions_tonnes" id="edit_target_emissions_tonnes" 
-                       min="0" step="1">
-            </div>
-            <div class="form-group">
-                <label for="edit_description">Description</label>
-                <textarea name="description" id="edit_description" rows="3"></textarea>
-            </div>
-            <div class="form-group checkbox-group">
-                <label>
-                    <input type="checkbox" name="is_interim_target" id="edit_is_interim">
-                    This is an interim milestone target
-                </label>
-            </div>
-            <div class="modal-actions">
-                <button type="button" onclick="toggleModal('edit-target-modal')" class="btn btn-secondary">Cancel</button>
-                <button type="submit" class="btn btn-primary">Save Changes</button>
-            </div>
-        </form>
-    </div>
-</div>
-
-<!-- Delete Target Confirmation Modal -->
-<div id="delete-target-modal" class="modal" style="display: none;">
-    <div class="modal-content modal-small">
-        <div class="modal-header">
-            <h3>Confirm Delete</h3>
-            <button onclick="toggleModal('delete-target-modal')" class="modal-close">&times;</button>
-        </div>
-        <p>Are you sure you want to delete the target for year <strong id="delete-target-year"></strong>?</p>
-        <p style="color: #e74c3c; font-size: 0.9em;">This action cannot be undone.</p>
-        <form id="delete-target-form" method="post">
-            {% csrf_token %}
-            <div class="modal-actions">
-                <button type="button" onclick="toggleModal('delete-target-modal')" class="btn btn-secondary">Cancel</button>
-                <button type="submit" class="btn btn-danger">Delete Target</button>
-            </div>
-        </form>
-    </div>
-</div>
-
-<!-- Add Scenario Modal -->
+<!-- Add/Edit Scenario Modal -->
 <div id="add-scenario-modal" class="modal" style="display: none;">
     <div class="modal-content modal-large">
         <div class="modal-header">
@@ -342,7 +260,7 @@
             <div class="form-row">
                 <div class="form-group">
                     <label for="scenario_name">Scenario Name *</label>
-                    <input type="text" name="scenario_name" id="scenario_name" required 
+                    <input type="text" name="scenario_name" id="scenario_name" required
                            placeholder="e.g., Base Case 2024">
                 </div>
                 <div class="form-group">
@@ -354,27 +272,76 @@
                     </select>
                 </div>
             </div>
-            
-            <div class="form-group">
-                <label for="scenario_description">Description</label>
-                <textarea name="description" id="scenario_description" rows="2" 
-                          placeholder="Describe the assumptions for this scenario"></textarea>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="year">Target Year *</label>
+                    <input type="number" name="year" id="year" required
+                           min="2020" max="2100" value="2040" placeholder="e.g., 2040">
+                </div>
+                <div class="form-group">
+                    <label for="target_type">Target Type *</label>
+                    <select name="target_type" id="target_type" required>
+                        {% for value, label in target_type_choices %}
+                        <option value="{{ value }}" {% if value == 'ordinary' %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="scenario">SIREN Scenario</label>
+                    <select name="scenario" id="scenario">
+                        <option value="">-- Not linked --</option>
+                        {% for s in siren_scenarios %}
+                        <option value="{{ s.idscenarios }}">{{ s.title }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="scenario_description">Description</label>
+                    <textarea name="description" id="scenario_description" rows="2"
+                              placeholder="Describe the assumptions for this scenario"></textarea>
+                </div>
             </div>
             
             <h4 style="margin: 20px 0 15px; color: #2c3e50; border-bottom: 1px solid #ecf0f1; padding-bottom: 10px;">
-                2040 Projections
+                Demand & Storage
             </h4>
-            
+
+            <div class="form-row form-row-3">
+                <div class="form-group">
+                    <label for="operational_demand">Operational Demand (GWh)</label>
+                    <input type="number" name="operational_demand" id="operational_demand"
+                           min="0" step="0.1" placeholder="Optional">
+                </div>
+                <div class="form-group">
+                    <label for="underlying_demand">Underlying Demand (GWh)</label>
+                    <input type="number" name="underlying_demand" id="underlying_demand"
+                           min="0" step="0.1" placeholder="Optional">
+                </div>
+                <div class="form-group">
+                    <label for="storage">Storage (MWh)</label>
+                    <input type="number" name="storage" id="storage"
+                           min="0" step="0.1" placeholder="Optional">
+                </div>
+            </div>
+
+            <h4 style="margin: 20px 0 15px; color: #2c3e50; border-bottom: 1px solid #ecf0f1; padding-bottom: 10px;">
+                RE Target & Emissions
+            </h4>
+
             <div class="form-row">
                 <div class="form-group">
-                    <label for="projected_re_percentage_2040">Projected RE% *</label>
-                    <input type="number" name="projected_re_percentage_2040" id="projected_re_percentage_2040" 
+                    <label for="target_re_percentage">Target/Projected RE% *</label>
+                    <input type="number" name="target_re_percentage" id="target_re_percentage"
                            required min="0" max="100" step="0.1" placeholder="e.g., 85">
                 </div>
                 <div class="form-group">
-                    <label for="projected_emissions_2040_tonnes">Projected Emissions (t) *</label>
-                    <input type="number" name="projected_emissions_2040_tonnes" id="projected_emissions_2040_tonnes" 
-                           required min="0" step="1" placeholder="e.g., 5000000">
+                    <label for="target_emissions_tonnes">Target/Projected Emissions (t)</label>
+                    <input type="number" name="target_emissions_tonnes" id="target_emissions_tonnes"
+                           min="0" step="1" placeholder="Optional">
                 </div>
             </div>
             
@@ -384,30 +351,30 @@
             
             <div class="form-row form-row-3">
                 <div class="form-group">
-                    <label for="wind_generation_2040">Wind</label>
-                    <input type="number" name="wind_generation_2040" id="wind_generation_2040" 
+                    <label for="wind_generation">Wind</label>
+                    <input type="number" name="wind_generation" id="wind_generation" 
                            min="0" step="1" value="0">
                 </div>
                 <div class="form-group">
-                    <label for="solar_generation_2040">Solar (Utility)</label>
-                    <input type="number" name="solar_generation_2040" id="solar_generation_2040" 
+                    <label for="solar_generation">Solar (Utility)</label>
+                    <input type="number" name="solar_generation" id="solar_generation" 
                            min="0" step="1" value="0">
                 </div>
                 <div class="form-group">
-                    <label for="dpv_generation_2040">Solar (Rooftop)</label>
-                    <input type="number" name="dpv_generation_2040" id="dpv_generation_2040" 
+                    <label for="dpv_generation">Solar (Rooftop)</label>
+                    <input type="number" name="dpv_generation" id="dpv_generation" 
                            min="0" step="1" value="0">
                 </div>
             </div>
             <div class="form-row form-row-3">
                 <div class="form-group">
-                    <label for="biomass_generation_2040">Biomass</label>
-                    <input type="number" name="biomass_generation_2040" id="biomass_generation_2040" 
+                    <label for="biomass_generation">Biomass</label>
+                    <input type="number" name="biomass_generation" id="biomass_generation" 
                            min="0" step="1" value="0">
                 </div>
                 <div class="form-group">
-                    <label for="gas_generation_2040">Gas</label>
-                    <input type="number" name="gas_generation_2040" id="gas_generation_2040" 
+                    <label for="gas_generation">Gas</label>
+                    <input type="number" name="gas_generation" id="gas_generation" 
                            min="0" step="1" value="0">
                 </div>
                 <div class="form-group">
@@ -455,26 +422,76 @@
                     </select>
                 </div>
             </div>
-            
-            <div class="form-group">
-                <label for="edit_scenario_description">Description</label>
-                <textarea name="description" id="edit_scenario_description" rows="2"></textarea>
-            </div>
-            
-            <h4 style="margin: 20px 0 15px; color: #2c3e50; border-bottom: 1px solid #ecf0f1; padding-bottom: 10px;">
-                2040 Projections
-            </h4>
-            
+
             <div class="form-row">
                 <div class="form-group">
-                    <label for="edit_projected_re_percentage_2040">Projected RE% *</label>
-                    <input type="number" name="projected_re_percentage_2040" id="edit_projected_re_percentage_2040" 
+                    <label for="edit_year">Target Year *</label>
+                    <input type="number" name="year" id="edit_year" required
+                           min="2020" max="2100" placeholder="e.g., 2040">
+                </div>
+                <div class="form-group">
+                    <label for="edit_target_type">Target Type *</label>
+                    <select name="target_type" id="edit_target_type" required>
+                        {% for value, label in target_type_choices %}
+                        <option value="{{ value }}">{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="edit_scenario">SIREN Scenario</label>
+                    <select name="scenario" id="edit_scenario">
+                        <option value="">-- Not linked --</option>
+                        {% for s in siren_scenarios %}
+                        <option value="{{ s.idscenarios }}">{{ s.title }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="edit_scenario_description">Description</label>
+                    <textarea name="description" id="edit_scenario_description" rows="2"></textarea>
+                </div>
+            </div>
+
+            <h4 style="margin: 20px 0 15px; color: #2c3e50; border-bottom: 1px solid #ecf0f1; padding-bottom: 10px;">
+                Demand & Storage
+            </h4>
+
+            <div class="form-row form-row-3">
+                <div class="form-group">
+                    <label for="edit_operational_demand">Operational Demand (GWh)</label>
+                    <input type="number" name="operational_demand" id="edit_operational_demand"
+                           min="0" step="0.1">
+                </div>
+                <div class="form-group">
+                    <label for="edit_underlying_demand">Underlying Demand (GWh)</label>
+                    <input type="number" name="underlying_demand" id="edit_underlying_demand"
+                           min="0" step="0.1">
+                </div>
+                <div class="form-group">
+                    <label for="edit_storage">Storage (MWh)</label>
+                    <input type="number" name="storage" id="edit_storage"
+                           min="0" step="0.1">
+                </div>
+            </div>
+
+
+            <h4 style="margin: 20px 0 15px; color: #2c3e50; border-bottom: 1px solid #ecf0f1; padding-bottom: 10px;">
+                RE Target & Emissions
+            </h4>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="edit_target_re_percentage">Target/Projected RE% *</label>
+                    <input type="number" name="target_re_percentage" id="edit_target_re_percentage"
                            required min="0" max="100" step="0.1">
                 </div>
                 <div class="form-group">
-                    <label for="edit_projected_emissions_2040_tonnes">Projected Emissions (t) *</label>
-                    <input type="number" name="projected_emissions_2040_tonnes" id="edit_projected_emissions_2040_tonnes" 
-                           required min="0" step="1">
+                    <label for="edit_target_emissions_tonnes">Target/Projected Emissions (t)</label>
+                    <input type="number" name="target_emissions_tonnes" id="edit_target_emissions_tonnes"
+                           min="0" step="1">
                 </div>
             </div>
             
@@ -484,26 +501,26 @@
             
             <div class="form-row form-row-3">
                 <div class="form-group">
-                    <label for="edit_wind_generation_2040">Wind</label>
-                    <input type="number" name="wind_generation_2040" id="edit_wind_generation_2040" min="0" step="1">
+                    <label for="edit_wind_generation">Wind</label>
+                    <input type="number" name="wind_generation" id="edit_wind_generation" min="0" step="1">
                 </div>
                 <div class="form-group">
-                    <label for="edit_solar_generation_2040">Solar (Utility)</label>
-                    <input type="number" name="solar_generation_2040" id="edit_solar_generation_2040" min="0" step="1">
+                    <label for="edit_solar_generation">Solar (Utility)</label>
+                    <input type="number" name="solar_generation" id="edit_solar_generation" min="0" step="1">
                 </div>
                 <div class="form-group">
-                    <label for="edit_dpv_generation_2040">Solar (Rooftop)</label>
-                    <input type="number" name="dpv_generation_2040" id="edit_dpv_generation_2040" min="0" step="1">
+                    <label for="edit_dpv_generation">Solar (Rooftop)</label>
+                    <input type="number" name="dpv_generation" id="edit_dpv_generation" min="0" step="1">
                 </div>
             </div>
             <div class="form-row form-row-3">
                 <div class="form-group">
-                    <label for="edit_biomass_generation_2040">Biomass</label>
-                    <input type="number" name="biomass_generation_2040" id="edit_biomass_generation_2040" min="0" step="1">
+                    <label for="edit_biomass_generation">Biomass</label>
+                    <input type="number" name="biomass_generation" id="edit_biomass_generation" min="0" step="1">
                 </div>
                 <div class="form-group">
-                    <label for="edit_gas_generation_2040">Gas</label>
-                    <input type="number" name="gas_generation_2040" id="edit_gas_generation_2040" min="0" step="1">
+                    <label for="edit_gas_generation">Gas</label>
+                    <input type="number" name="gas_generation" id="edit_gas_generation" min="0" step="1">
                 </div>
                 <div class="form-group">
                     <label for="edit_probability_percentage">Probability (%)</label>
@@ -1079,24 +1096,6 @@ document.addEventListener('click', function(e) {
     }
 });
 
-// Edit Target function
-function editTarget(id, year, percentage, emissions, description, isInterim) {
-    document.getElementById('edit-target-year-display').textContent = year;
-    document.getElementById('edit_target_percentage').value = percentage;
-    document.getElementById('edit_target_emissions_tonnes').value = emissions;
-    document.getElementById('edit_description').value = description;
-    document.getElementById('edit_is_interim').checked = isInterim;
-    document.getElementById('edit-target-form').action = '/ret_dashboard/targets/' + id + '/update/';
-    toggleModal('edit-target-modal');
-}
-
-// Delete Target confirmation
-function confirmDeleteTarget(id, year) {
-    document.getElementById('delete-target-year').textContent = year;
-    document.getElementById('delete-target-form').action = '/ret_dashboard/targets/' + id + '/delete/';
-    toggleModal('delete-target-modal');
-}
-
 // Edit Scenario function
 function editScenario(id) {
     // Fetch scenario data via API
@@ -1105,14 +1104,20 @@ function editScenario(id) {
         .then(data => {
             document.getElementById('edit_scenario_name').value = data.scenario_name;
             document.getElementById('edit_scenario_type').value = data.scenario_type;
+            document.getElementById('edit_year').value = data.year || 2040;
+            document.getElementById('edit_target_type').value = data.target_type || 'ordinary';
+            document.getElementById('edit_scenario').value = data.scenario_id || '';
             document.getElementById('edit_scenario_description').value = data.description || '';
-            document.getElementById('edit_projected_re_percentage_2040').value = data.projected_re_percentage_2040;
-            document.getElementById('edit_projected_emissions_2040_tonnes').value = data.projected_emissions_2040_tonnes;
-            document.getElementById('edit_wind_generation_2040').value = data.wind_generation_2040;
-            document.getElementById('edit_solar_generation_2040').value = data.solar_generation_2040;
-            document.getElementById('edit_dpv_generation_2040').value = data.dpv_generation_2040;
-            document.getElementById('edit_biomass_generation_2040').value = data.biomass_generation_2040;
-            document.getElementById('edit_gas_generation_2040').value = data.gas_generation_2040;
+            document.getElementById('edit_operational_demand').value = data.operational_demand || '';
+            document.getElementById('edit_underlying_demand').value = data.underlying_demand || '';
+            document.getElementById('edit_storage').value = data.storage || '';
+            document.getElementById('edit_target_re_percentage').value = data.target_re_percentage;
+            document.getElementById('edit_target_emissions_tonnes').value = data.target_emissions_tonnes || '';
+            document.getElementById('edit_wind_generation').value = data.wind_generation;
+            document.getElementById('edit_solar_generation').value = data.solar_generation;
+            document.getElementById('edit_dpv_generation').value = data.dpv_generation;
+            document.getElementById('edit_biomass_generation').value = data.biomass_generation;
+            document.getElementById('edit_gas_generation').value = data.gas_generation;
             document.getElementById('edit_probability_percentage').value = data.probability_percentage || '';
             document.getElementById('edit_is_active').checked = data.is_active;
             document.getElementById('edit-scenario-form').action = '/ret_dashboard/scenarios/' + id + '/update/';

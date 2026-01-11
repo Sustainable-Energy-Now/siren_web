@@ -26,9 +26,8 @@ from django.http import JsonResponse
 from siren_web.models import (
     DPVGeneration, 
     MonthlyREPerformance, 
-    RenewableEnergyTarget,
     ReportComment,
-    NewCapacityCommissioned, 
+    NewCapacityCommissioned,
     TargetScenario
 )
 import logging
@@ -309,8 +308,10 @@ def generate_pathway_chart(current_year, current_month):
         year__gte=2023
     ).order_by('year', 'month')
     
-    # Get targets
-    targets = RenewableEnergyTarget.objects.all().order_by('target_year')
+    # Get targets (major and interim only)
+    targets = TargetScenario.objects.filter(
+        target_type__in=['major', 'interim']
+    ).order_by('year')
     
     # Prepare data for plotting - USE OPERATIONAL RE%
     hist_years = []
@@ -351,8 +352,8 @@ def generate_pathway_chart(current_year, current_month):
                 ytd_re_pcts.append(ytd_pct)
     
     # Target trajectory
-    target_years = [t.target_year for t in targets]
-    target_pcts = [t.target_percentage for t in targets]
+    target_years = [t.year for t in targets]
+    target_pcts = [t.target_re_percentage for t in targets]
     
     # Create figure
     fig = go.Figure()
@@ -496,16 +497,20 @@ def generate_annual_trends_chart(year):
     
     # Add target line if available
     try:
-        target = RenewableEnergyTarget.objects.get(target_year=year)
-        fig.add_trace(go.Scatter(
-            name=f'{year} Target',
-            x=list(range(1, 13)),
-            y=[target.target_percentage] * 12,
-            mode='lines',
-            line=dict(color='red', width=2, dash='dash'),
-            showlegend=True
-        ))
-    except RenewableEnergyTarget.DoesNotExist:
+        target = TargetScenario.objects.filter(
+            year=year,
+            target_type__in=['major', 'interim']
+        ).first()
+        if target:
+            fig.add_trace(go.Scatter(
+                name=f'{year} Target',
+                x=list(range(1, 13)),
+                y=[target.target_re_percentage] * 12,
+                mode='lines',
+                line=dict(color='red', width=2, dash='dash'),
+                showlegend=True
+            ))
+    except Exception:
         pass
     
     fig.update_layout(
@@ -531,7 +536,7 @@ def generate_scenario_comparison_chart(scenarios):
         return ""
     
     scenario_names = [s.scenario_name for s in scenarios]
-    re_percentages = [s.projected_re_percentage_2040 for s in scenarios]
+    re_percentages = [s.target_re_percentage for s in scenarios]
     
     # Color code based on meeting 75% target
     colors = ['#27ae60' if pct >= 75 else '#e74c3c' for pct in re_percentages]
@@ -724,8 +729,11 @@ def quarterly_report(request, year, quarter):
     
     # Get target
     try:
-        target = RenewableEnergyTarget.objects.get(target_year=year)
-    except RenewableEnergyTarget.DoesNotExist:
+        target = TargetScenario.objects.filter(
+            year=year,
+            target_type__in=['major', 'interim']
+        ).first()
+    except Exception:
         target = None
     
     comments = ReportComment.get_comments_for_report('quarterly', year, quarter=quarter)
@@ -820,14 +828,17 @@ def annual_review(request, year):
     
     # Get target
     try:
-        target = RenewableEnergyTarget.objects.get(target_year=year)
-    except RenewableEnergyTarget.DoesNotExist:
+        target = TargetScenario.objects.filter(
+            year=year,
+            target_type__in=['major', 'interim']
+        ).first()
+    except Exception:
         target = None
     
     # Calculate target status
     target_status = None
     if target:
-        diff = re_pct_underlying - target.target_percentage
+        diff = re_pct_underlying - target.target_re_percentage
         if diff >= 0:
             target_status = {
                 'status': 'ahead',
