@@ -617,7 +617,7 @@ def update_target_scenario_with_projection(request):
     Update TargetScenario records with demand values from projection.
 
     Rules:
-    - scenario_name is derived from the Scenario FK (scenario.title)
+    - Display name comes from Scenario FK (scenario.title)
     - Only operational_demand and underlying_demand are updated by this function
     - For 'base_case': Must exist first (created in Manage Targets)
     - For other scenario_types: Clone from base_case if doesn't exist
@@ -642,9 +642,8 @@ def update_target_scenario_with_projection(request):
                 'error': f'Invalid scenario_type. Must be one of: {", ".join(valid_scenario_types)}'
             }, status=400)
 
-        # Get scenario and use its title as the scenario_name
+        # Get scenario
         scenario = Scenarios.objects.get(idscenarios=scenario_id)
-        scenario_name = scenario.title
 
         # Get base year demand data
         base_demand = get_base_year_demand(base_year)
@@ -702,7 +701,6 @@ def update_target_scenario_with_projection(request):
                 existing.operational_demand = operational_gwh
                 existing.underlying_demand = underlying_gwh
                 existing.scenario = scenario
-                existing.scenario_name = scenario_name
                 existing.save()
                 updated_years.append(year)
 
@@ -726,7 +724,6 @@ def update_target_scenario_with_projection(request):
 
                 # Clone from base_case
                 cloned_scenario = TargetScenario.objects.create(
-                    scenario_name=scenario_name,
                     scenario_type=scenario_type,
                     scenario=scenario,
                     description=base_case.description,
@@ -750,7 +747,7 @@ def update_target_scenario_with_projection(request):
         return JsonResponse({
             'success': True,
             'message': f'Successfully updated TargetScenario records for {len(year_range)} years',
-            'scenario_name': scenario_name,
+            'scenario_title': scenario.title,
             'scenario_type': scenario_type,
             'years_updated': updated_years,
             'years_created': created_years,

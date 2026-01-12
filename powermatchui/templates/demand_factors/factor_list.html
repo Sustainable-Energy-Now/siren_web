@@ -142,8 +142,7 @@
                                 <td>
                                     <div class="btn-group btn-group-sm" role="group">
                                         <a href="{% url 'powermatchui:factor_edit' factor.pk %}"
-                                           class="btn btn-outline-primary" title="Edit">
-                                            <i class="bi bi-pencil">✏️</i>
+                                           class="btn btn-outline-primary bi bi-pencil" title="Edit">✏️
                                         </a>
                                         <form method="post"
                                               action="{% url 'powermatchui:factor_toggle_active' factor.pk %}"
@@ -163,8 +162,7 @@
                                               style="display: inline;"
                                               onsubmit="return confirm('Delete this factor?');">
                                             {% csrf_token %}
-                                            <button type="submit" class="btn btn-outline-danger" title="Delete">
-                                                <i class="bi bi-trash">🗑️</i>
+                                            <button type="submit" class="btn btn-outline-danger bi bi-trash" title="Delete">🗑️
                                             </button>
                                         </form>
                                     </div>

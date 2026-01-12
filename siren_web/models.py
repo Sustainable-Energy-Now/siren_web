@@ -2333,7 +2333,6 @@ class TargetScenario(models.Model):
     Unified model for renewable energy targets and projection scenarios.
     Combines what was previously RenewableEnergyTarget and TargetScenario.
     """
-    scenario_name = models.CharField(max_length=100, db_index=True)
     scenario_type = models.CharField(max_length=30, choices=[
         ('base_case', 'Base Case'),
         ('delayed_pipeline', 'Delayed Pipeline'),
@@ -2441,8 +2440,15 @@ class TargetScenario(models.Model):
             models.Index(fields=['scenario_type', 'year']),
         ]
 
+    @property
+    def display_name(self):
+        """Get display name from scenario FK or generate from type+year"""
+        if self.scenario:
+            return self.scenario.title
+        return f"{self.get_scenario_type_display()} - {self.year}"
+
     def __str__(self):
-        return f"{self.scenario_name}: {self.target_re_percentage}% by {self.year}"
+        return f"{self.display_name}: {self.target_re_percentage}% by {self.year}"
 
     @property
     def total_generation(self):

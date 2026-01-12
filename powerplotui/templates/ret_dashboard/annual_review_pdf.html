@@ -564,7 +564,7 @@
     <tbody>
         {% for scenario in scenarios %}
         <tr>
-            <td><strong>{{ scenario.scenario_name }}</strong></td>
+            <td><strong>{{ scenario.display_name }}</strong></td>
             <td class="value">{{ scenario.target_re_percentage|floatformat:1 }}%</td>
             <td class="value">{{ scenario.projected_emissions_2040_tonnes|floatformat:0|intcomma }} t</td>
             <td>

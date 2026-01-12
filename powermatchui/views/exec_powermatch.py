@@ -600,6 +600,6 @@ def create_summary_totals(scenario, dispatch_results: DispatchResults) -> Dict[s
         'environmental_summary': environmental_summary,
         'processing_metadata': {
             'simulation_year': metadata['year'],
-            'scenario_name': scenario
+            'scenario_name': scenario  # scenario is the string name passed to this function
         }
     }

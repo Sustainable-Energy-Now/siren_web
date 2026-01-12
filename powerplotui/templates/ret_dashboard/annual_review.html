@@ -641,7 +641,7 @@
         <tbody>
             {% for scenario in scenarios %}
             <tr>
-                <td><strong>{{ scenario.scenario_name }}</strong></td>
+                <td><strong>{{ scenario.display_name }}</strong></td>
                 <td
                     class="value {% if scenario.target_re_percentage >= 75 %}positive{% else %}negative{% endif %}">
                     {{ scenario.target_re_percentage|floatformat:1 }}%

@@ -34,24 +34,29 @@ def ret_targets_list(request):
     # Get selected scenario_type from query param, default to 'base_case'
     selected_scenario_type = request.GET.get('scenario_type', 'base_case')
 
+    # Get selected SIREN scenario from query param (if provided)
+    selected_scenario_id = request.GET.get('scenario')
+    selected_scenario = None
+    if selected_scenario_id:
+        try:
+            selected_scenario = Scenarios.objects.get(idscenarios=selected_scenario_id)
+        except Scenarios.DoesNotExist:
+            pass
+
     # Get all scenarios ordered by year and type
     all_scenarios = TargetScenario.objects.all().order_by('year', 'scenario_type')
 
     # Filter by selected scenario_type for the main table
     filtered_scenarios = all_scenarios.filter(scenario_type=selected_scenario_type).order_by('year')
 
+    # Further filter by SIREN scenario if one is selected
+    if selected_scenario:
+        filtered_scenarios = filtered_scenarios.filter(scenario=selected_scenario)
+
     # Separate targets (major/interim) from ordinary projections
     # targets = filtered_scenarios.filter(target_type__in=['major', 'interim'])
     targets = filtered_scenarios
     active_scenarios = filtered_scenarios.filter(is_active=True)
-
-    # Get key milestone targets for base_case
-    milestone_years = [2030, 2035, 2040]
-    base_case_milestones = TargetScenario.objects.filter(
-        scenario_type='base_case',
-        target_type__in=['major', 'interim'],
-        year__in=milestone_years
-    ).order_by('year')
 
     # Get all SIREN scenarios for the dropdown
     siren_scenarios = Scenarios.objects.all().order_by('title')
@@ -70,7 +75,6 @@ def ret_targets_list(request):
     context = {
         'targets': targets,
         'active_scenarios': active_scenarios,
-        'milestones': base_case_milestones,
         'years_with_targets': years_with_targets,
         'scenario_type_choices': TargetScenario._meta.get_field('scenario_type').choices,
         'target_type_choices': TargetScenario._meta.get_field('target_type').choices,
@@ -79,6 +83,8 @@ def ret_targets_list(request):
         'selected_scenario_type': selected_scenario_type,
         'selected_scenario_type_display': selected_scenario_type_display,
         'available_scenario_types': available_scenario_types,
+        'selected_scenario': selected_scenario,
+        'selected_scenario_id': selected_scenario_id,
     }
 
     return render(request, 'ret_dashboard/targets.html', context)
@@ -92,14 +98,9 @@ def scenario_create(request):
     """Create a new target or projection scenario."""
     if request.method == 'POST':
         try:
-            scenario_name = request.POST.get('scenario_name', '').strip()
             scenario_type = request.POST.get('scenario_type')
             year = int(request.POST.get('year', 2040))
             target_type = request.POST.get('target_type', 'ordinary')
-
-            if not scenario_name:
-                messages.error(request, 'Scenario name is required.')
-                return redirect('ret_targets_list')
 
             # Validate year
             if year < 2020 or year > 2100:
@@ -123,7 +124,6 @@ def scenario_create(request):
 
             # Create scenario with all fields
             scenario = TargetScenario.objects.create(
-                scenario_name=scenario_name,
                 scenario_type=scenario_type,
                 scenario=scenario_obj,
                 description=request.POST.get('description', '').strip(),
@@ -144,8 +144,8 @@ def scenario_create(request):
             )
 
             target_label = 'target' if target_type in ['major', 'interim'] else 'scenario'
-            messages.success(request, f'Successfully created {target_label}: {scenario_name} ({year})')
-            logger.info(f"Created {target_label}: {scenario_name} for {year}")
+            messages.success(request, f'Successfully created {target_label}: {scenario.display_name} ({year})')
+            logger.info(f"Created {target_label}: {scenario.display_name} for {year}")
 
         except IntegrityError as e:
             messages.error(request, f'A scenario of type "{scenario_type}" for year {year} already exists.')
@@ -164,12 +164,7 @@ def scenario_update(request, scenario_id):
 
     if request.method == 'POST':
         try:
-            scenario.scenario_name = request.POST.get('scenario_name', '').strip()
             scenario.scenario_type = request.POST.get('scenario_type')
-
-            if not scenario.scenario_name:
-                messages.error(request, 'Scenario name is required.')
-                return redirect('ret_targets_list')
 
             # Update scenario FK if provided
             siren_scenario_id = request.POST.get('scenario')
@@ -206,8 +201,8 @@ def scenario_update(request, scenario_id):
 
             scenario.save()
             target_label = 'target' if scenario.target_type in ['major', 'interim'] else 'scenario'
-            messages.success(request, f'Successfully updated {target_label}: {scenario.scenario_name}')
-            logger.info(f"Updated {target_label}: {scenario.scenario_name}")
+            messages.success(request, f'Successfully updated {target_label}: {scenario.display_name}')
+            logger.info(f"Updated {target_label}: {scenario.display_name}")
 
         except ValueError as e:
             messages.error(request, f'Invalid value: {str(e)}')
@@ -221,8 +216,8 @@ def scenario_update(request, scenario_id):
 def scenario_delete(request, scenario_id):
     """Delete a Target Scenario."""
     scenario = get_object_or_404(TargetScenario, id=scenario_id)
-    name = scenario.scenario_name
-    
+    name = scenario.display_name
+
     try:
         scenario.delete()
         messages.success(request, f'Successfully deleted scenario: {name}')
@@ -230,23 +225,23 @@ def scenario_delete(request, scenario_id):
     except Exception as e:
         logger.error(f"Error deleting scenario: {str(e)}", exc_info=True)
         messages.error(request, f'Error deleting scenario: {str(e)}')
-    
+
     return redirect('ret_targets_list')
 
 @require_POST
 def scenario_toggle_active(request, scenario_id):
     """Toggle active status of a scenario."""
     scenario = get_object_or_404(TargetScenario, id=scenario_id)
-    
+
     try:
         scenario.is_active = not scenario.is_active
         scenario.save()
         status = 'activated' if scenario.is_active else 'deactivated'
-        messages.success(request, f'Successfully {status} scenario: {scenario.scenario_name}')
+        messages.success(request, f'Successfully {status} scenario: {scenario.display_name}')
     except Exception as e:
         logger.error(f"Error toggling scenario: {str(e)}", exc_info=True)
         messages.error(request, f'Error toggling scenario: {str(e)}')
-    
+
     return redirect('ret_targets_list')
 
 # =============================================================================
@@ -259,7 +254,7 @@ def api_scenarios_list(request):
 
     data = [{
         'id': s.id,
-        'scenario_name': s.scenario_name,
+        'scenario_name': s.display_name,
         'scenario_type': s.scenario_type,
         'scenario_id': s.scenario.idscenarios if s.scenario else None,
         'scenario_title': s.scenario.title if s.scenario else None,
@@ -294,7 +289,7 @@ def api_scenario_detail(request, scenario_id):
 
     return JsonResponse({
         'id': scenario.id,
-        'scenario_name': scenario.scenario_name,
+        'scenario_name': scenario.display_name,
         'scenario_type': scenario.scenario_type,
         'scenario_type_display': scenario.get_scenario_type_display(),
         'scenario_id': scenario.scenario.idscenarios if scenario.scenario else None,

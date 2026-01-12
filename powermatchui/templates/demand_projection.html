@@ -222,12 +222,12 @@
                         placeholder="e.g., Base Case 2024"
                         required>
                     <small class="form-text text-muted">
-                        Enter the scenario_name for the TargetScenario records. Existing records with this name will be updated.
+                        Display name for the TargetScenario records (derived from the linked SIREN scenario).
                     </small>
                 </div>
 
                 <p class="text-danger">
-                    <strong>Note:</strong> This will overwrite any existing TargetScenario records with the same scenario_name and year.
+                    <strong>Note:</strong> This will overwrite any existing TargetScenario records with the same scenario type and year.
                 </p>
             </div>
             <div class="modal-footer">
@@ -758,7 +758,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 base_year: baseYear,
                 end_year: endYear,
                 scenario_id: scenarioId,
-                target_scenario_name: targetScenarioName
+                scenario_type: document.getElementById('scenarioTypeSelect').value
             };
 
             fetch('{% url "powermatchui:update_target_scenario_with_projection" %}', {
@@ -779,7 +779,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 } else if (data.success) {
                     // Show success message
                     const message = `Successfully updated TargetScenario!\n\n` +
-                                  `Scenario Name: ${data.scenario_name}\n` +
+                                  `Scenario: ${data.scenario_title}\n` +
+                                  `Type: ${data.scenario_type}\n` +
                                   `Total Years: ${data.total_years}\n` +
                                   `Created: ${data.years_created.length} records\n` +
                                   `Updated: ${data.years_updated.length} records\n` +

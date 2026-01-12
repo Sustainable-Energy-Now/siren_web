@@ -30,14 +30,21 @@ class Command(BaseCommand):
             help='Run simulation for specific scenario ID'
         )
         scenario_group.add_argument(
-            '--scenario-name',
-            type=str,
-            help='Run simulation for scenario by name'
-        )
-        scenario_group.add_argument(
             '--all',
             action='store_true',
             help='Run simulation for all active scenarios'
+        )
+
+        # Scenario selection by type and year
+        parser.add_argument(
+            '--scenario-type',
+            type=str,
+            help='Scenario type (base_case, delayed_pipeline, accelerated_pipeline)'
+        )
+        parser.add_argument(
+            '--year',
+            type=int,
+            help='Target year for the scenario'
         )
 
         # Simulation parameters
@@ -75,7 +82,8 @@ class Command(BaseCommand):
 
         # Extract options
         scenario_id = options.get('scenario_id')
-        scenario_name = options.get('scenario_name')
+        scenario_type = options.get('scenario_type')
+        year = options.get('year')
         run_all = options.get('all')
         iterations = options['iterations']
         profile = options['profile']
@@ -91,20 +99,20 @@ class Command(BaseCommand):
         self.stdout.write('')
 
         # Get scenarios to process
-        scenarios = self._get_scenarios(scenario_id, scenario_name, run_all)
+        scenarios = self._get_scenarios(scenario_id, scenario_type, year, run_all)
 
         if not scenarios:
             raise CommandError("No scenarios found to process")
 
         self.stdout.write(f"Found {len(scenarios)} scenario(s) to process:")
         for scenario in scenarios:
-            self.stdout.write(f"  - {scenario.scenario_name}")
+            self.stdout.write(f"  - {scenario.display_name}")
         self.stdout.write('')
 
         # Process each scenario
         results = []
         for idx, scenario in enumerate(scenarios, 1):
-            self.stdout.write(self.style.HTTP_INFO(f"[{idx}/{len(scenarios)}] Processing: {scenario.scenario_name}"))
+            self.stdout.write(self.style.HTTP_INFO(f"[{idx}/{len(scenarios)}] Processing: {scenario.display_name}"))
 
             try:
                 # Check if recent simulation exists
@@ -153,7 +161,7 @@ class Command(BaseCommand):
                 self.stdout.write(f"    P(85% target): {simulation.probability_85_percent:.1f}%")
 
                 results.append({
-                    'scenario': scenario.scenario_name,
+                    'scenario': scenario.display_name,
                     'simulation_id': simulation.simulation_id,
                     'status': 'success',
                     'prob_85': simulation.probability_85_percent,
@@ -164,7 +172,7 @@ class Command(BaseCommand):
                 logger.error(f"Monte Carlo failed for scenario {scenario.id}: {e}", exc_info=True)
 
                 results.append({
-                    'scenario': scenario.scenario_name,
+                    'scenario': scenario.display_name,
                     'status': 'failed',
                     'error': str(e),
                 })
@@ -199,17 +207,18 @@ class Command(BaseCommand):
         self.stdout.write('')
         self.stdout.write(self.style.SUCCESS('Done!'))
 
-    def _get_scenarios(self, scenario_id, scenario_name, run_all):
+    def _get_scenarios(self, scenario_id, scenario_type, year, run_all):
         """
         Get list of scenarios to process based on arguments.
 
         Args:
             scenario_id: int or None
-            scenario_name: str or None
+            scenario_type: str or None
+            year: int or None
             run_all: bool
 
         Returns:
-            QuerySet of TargetScenario instances
+            List of TargetScenario instances
         """
         from siren_web.models import TargetScenario
 
@@ -226,14 +235,17 @@ class Command(BaseCommand):
             except TargetScenario.DoesNotExist:
                 raise CommandError(f"Scenario with ID {scenario_id} not found")
 
-        elif scenario_name:
-            # Get scenario by name (case-insensitive)
+        elif scenario_type and year:
+            # Get scenario by type and year (unique_together constraint)
             try:
-                scenario = TargetScenario.objects.get(scenario_name__iexact=scenario_name)
+                scenario = TargetScenario.objects.get(
+                    scenario_type=scenario_type,
+                    year=year
+                )
                 return [scenario]
             except TargetScenario.DoesNotExist:
-                raise CommandError(f"Scenario '{scenario_name}' not found")
-            except TargetScenario.MultipleObjectsReturned:
-                raise CommandError(f"Multiple scenarios found matching '{scenario_name}'")
+                raise CommandError(
+                    f"Scenario with type '{scenario_type}' and year {year} not found"
+                )
 
         return []

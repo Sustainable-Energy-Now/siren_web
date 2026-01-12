@@ -202,7 +202,7 @@ def generate_scenario_comparison_chart_image(scenarios):
     if not PLOTLY_AVAILABLE or not scenarios:
         return None
 
-    scenario_names = [s.scenario_name for s in scenarios]
+    scenario_names = [s.display_name for s in scenarios]
     re_percentages = [s.target_re_percentage for s in scenarios]
 
     # Color code based on meeting 75% target

@@ -530,11 +530,11 @@ def generate_annual_trends_chart(year):
 def generate_scenario_comparison_chart(scenarios):
     """Generate chart comparing different 2040 scenarios"""
     import plotly.graph_objects as go
-    
+
     if not scenarios:
         return ""
-    
-    scenario_names = [s.scenario_name for s in scenarios]
+
+    scenario_names = [s.display_name for s in scenarios]
     re_percentages = [s.target_re_percentage for s in scenarios]
     
     # Color code based on meeting 75% target

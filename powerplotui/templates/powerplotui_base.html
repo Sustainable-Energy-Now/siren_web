@@ -24,12 +24,20 @@
         </li>
         <li class="nav-item dropdown">
           <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+            Renewable Energy Target
+          </a>
+          <ul class="dropdown-menu">
+            <li><a class="dropdown-item" href="{% url 'ret_dashboard' %}">RET Dashboard</a></li>
+            <li><a class="dropdown-item" href="{% url 'ret_targets_list' %}">Manage Targets</a></li>
+          </ul>
+        </li>
+        <li class="nav-item dropdown">
+          <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
             Scada Data
           </a>
           <ul class="dropdown-menu">
             <li><a class="dropdown-item" href="{% url 'scada_plot' %}">Facility Scada</a></li>
             <li><a class="dropdown-item" href="{% url 'scada_analysis' %}">Scada Analysis</a></li>
-            <li><a class="dropdown-item" href="{% url 'ret_dashboard' %}">RET Dashboard</a></li>
           </ul>
         </li>
         <li class="nav-link" class="nav-item">
