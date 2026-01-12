@@ -65,6 +65,16 @@
                             </button>
                         </div>
                     </form>
+
+                    <!-- Update Target Scenario Button -->
+                    <div class="row mt-3" id="updateTargetScenarioDiv">
+                        <div class="col-md-12">
+                            <button type="button" class="btn btn-warning" id="updateTargetScenarioBtn">
+                                <i class="bi bi-database-fill-up"></i> Update TargetScenario with Projection
+                            </button>
+                            <small class="text-muted ms-2">Updates the TargetScenario table with demand values from the generated projection</small>
+                        </div>
+                    </div>
                     
                     <!-- Multi-scenario selection (hidden by default) -->
                     <div class="row mt-3" id="multiScenarioDiv" style="display: none;">
@@ -173,6 +183,58 @@
                         </div>
                     </div>
                 </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal for Update Target Scenario Confirmation -->
+<div class="modal fade" id="updateTargetScenarioModal" tabindex="-1" aria-labelledby="updateTargetScenarioModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-warning">
+                <h5 class="modal-title" id="updateTargetScenarioModalLabel">
+                    <i class="bi bi-exclamation-triangle"></i> Update TargetScenario - Confirmation Required
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-warning">
+                    <strong>Warning:</strong> This action will update or create TargetScenario records in the database.
+                </div>
+
+                <p><strong>Projection Details:</strong></p>
+                <ul>
+                    <li>Base Year: <span id="modalBaseYear"></span></li>
+                    <li>End Year: <span id="modalEndYear"></span></li>
+                    <li>Scenario: <span id="modalScenario"></span></li>
+                    <li>Years to Update: <span id="modalYearRange"></span></li>
+                </ul>
+
+                <div class="mb-3">
+                    <label for="targetScenarioNameInput" class="form-label">
+                        <strong>Target Scenario Name:</strong>
+                    </label>
+                    <input
+                        type="text"
+                        class="form-control"
+                        id="targetScenarioNameInput"
+                        placeholder="e.g., Base Case 2024"
+                        required>
+                    <small class="form-text text-muted">
+                        Enter the scenario_name for the TargetScenario records. Existing records with this name will be updated.
+                    </small>
+                </div>
+
+                <p class="text-danger">
+                    <strong>Note:</strong> This will overwrite any existing TargetScenario records with the same scenario_name and year.
+                </p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-warning" id="confirmUpdateBtn">
+                    <i class="bi bi-check-circle"></i> Confirm Update
+                </button>
             </div>
         </div>
     </div>
@@ -615,6 +677,148 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         return cookieValue;
     }
+
+    // ========================================================================
+    // UPDATE TARGET SCENARIO FUNCTIONALITY
+    // ========================================================================
+
+    const updateTargetScenarioBtn = document.getElementById('updateTargetScenarioBtn');
+    const updateTargetScenarioModal = new bootstrap.Modal(document.getElementById('updateTargetScenarioModal'));
+    const confirmUpdateBtn = document.getElementById('confirmUpdateBtn');
+    let currentProjectionData = null;
+
+    // Initially hide the update button until a projection is generated
+    if (updateTargetScenarioBtn) {
+        updateTargetScenarioBtn.style.display = 'none';
+    }
+
+    // Show update button after successful projection generation
+    function enableUpdateTargetScenario(data) {
+        currentProjectionData = data;
+        if (updateTargetScenarioBtn && data.projection_type === 'factor_based') {
+            updateTargetScenarioBtn.style.display = 'inline-block';
+        }
+    }
+
+    // Handle update button click - show modal with warning
+    if (updateTargetScenarioBtn) {
+        updateTargetScenarioBtn.addEventListener('click', function() {
+            if (!currentProjectionData) {
+                showError('Please generate a projection first');
+                return;
+            }
+
+            const baseYear = parseInt(document.getElementById('baseYearSelect').value);
+            const endYear = parseInt(document.getElementById('endYearSelect').value);
+            const scenarioSelect = document.getElementById('scenarioSelect');
+            const selectedOption = scenarioSelect.options[scenarioSelect.selectedIndex];
+            const scenarioTitle = selectedOption.textContent;
+
+            // Populate modal with projection details
+            document.getElementById('modalBaseYear').textContent = baseYear;
+            document.getElementById('modalEndYear').textContent = endYear;
+            document.getElementById('modalScenario').textContent = scenarioTitle;
+            document.getElementById('modalYearRange').textContent = `${baseYear} - ${endYear} (${endYear - baseYear + 1} years)`;
+
+            // Pre-populate the target scenario name with the scenario title
+            document.getElementById('targetScenarioNameInput').value = scenarioTitle;
+
+            // Show the modal
+            updateTargetScenarioModal.show();
+        });
+    }
+
+    // Handle confirm update button in modal
+    if (confirmUpdateBtn) {
+        confirmUpdateBtn.addEventListener('click', function() {
+            const targetScenarioName = document.getElementById('targetScenarioNameInput').value.trim();
+
+            if (!targetScenarioName) {
+                alert('Please enter a Target Scenario Name');
+                return;
+            }
+
+            if (!currentProjectionData) {
+                alert('No projection data available');
+                updateTargetScenarioModal.hide();
+                return;
+            }
+
+            // Disable button during update
+            confirmUpdateBtn.disabled = true;
+            confirmUpdateBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Updating...';
+
+            const baseYear = parseInt(document.getElementById('baseYearSelect').value);
+            const endYear = parseInt(document.getElementById('endYearSelect').value);
+            const scenarioSelect = document.getElementById('scenarioSelect');
+            const selectedOption = scenarioSelect.options[scenarioSelect.selectedIndex];
+            const scenarioId = parseInt(selectedOption.dataset.scenarioId);
+
+            const requestData = {
+                base_year: baseYear,
+                end_year: endYear,
+                scenario_id: scenarioId,
+                target_scenario_name: targetScenarioName
+            };
+
+            fetch('{% url "powermatchui:update_target_scenario_with_projection" %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken')
+                },
+                body: JSON.stringify(requestData)
+            })
+            .then(response => response.json())
+            .then(data => {
+                confirmUpdateBtn.disabled = false;
+                confirmUpdateBtn.innerHTML = '<i class="bi bi-check-circle"></i> Confirm Update';
+
+                if (data.error) {
+                    alert('Error: ' + data.error);
+                } else if (data.success) {
+                    // Show success message
+                    const message = `Successfully updated TargetScenario!\n\n` +
+                                  `Scenario Name: ${data.scenario_name}\n` +
+                                  `Total Years: ${data.total_years}\n` +
+                                  `Created: ${data.years_created.length} records\n` +
+                                  `Updated: ${data.years_updated.length} records\n` +
+                                  `Year Range: ${data.year_range[0]} - ${data.year_range[1]}`;
+                    alert(message);
+
+                    // Hide modal
+                    updateTargetScenarioModal.hide();
+
+                    // Show success indicator on button
+                    updateTargetScenarioBtn.classList.remove('btn-warning');
+                    updateTargetScenarioBtn.classList.add('btn-success');
+                    setTimeout(() => {
+                        updateTargetScenarioBtn.classList.remove('btn-success');
+                        updateTargetScenarioBtn.classList.add('btn-warning');
+                    }, 3000);
+                }
+            })
+            .catch(error => {
+                confirmUpdateBtn.disabled = false;
+                confirmUpdateBtn.innerHTML = '<i class="bi bi-check-circle"></i> Confirm Update';
+                alert('Error updating TargetScenario: ' + error.message);
+            });
+        });
+    }
+
+    // Modify the existing plotProjection and plotFactorBreakdown functions
+    // to enable the update button after successful projection
+    const originalPlotProjection = plotProjection;
+    plotProjection = function(data, viewMode) {
+        originalPlotProjection(data, viewMode);
+        enableUpdateTargetScenario(data);
+    };
+
+    const originalPlotFactorBreakdown = plotFactorBreakdown;
+    plotFactorBreakdown = function(data) {
+        originalPlotFactorBreakdown(data);
+        enableUpdateTargetScenario(data);
+    };
 });
 </script>
 

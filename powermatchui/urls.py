@@ -30,6 +30,7 @@ urlpatterns = [
     path('api/demand-projection/calculate/', demand_projection_views.calculate_demand_projection, name='calculate_demand_projection'),
     path('api/demand-projection/compare/', demand_projection_views.compare_scenarios, name='compare_scenarios'),
     path('api/demand-projection/hourly/', demand_projection_views.get_hourly_projection, name='get_hourly_projection'),
+    path('api/demand-projection/update-target-scenario/', demand_projection_views.update_target_scenario_with_projection, name='update_target_scenario_with_projection'),
 
     # Demand Factor Type Management
     path('demand-factors/types/', demand_factor_views.factor_type_list, name='factor_type_list'),

@@ -20,6 +20,22 @@
     <a href="#scenarios-section" style="color: #9b59b6; text-decoration: none; padding: 8px 15px; background: white; border-radius: 4px; font-weight: 500;">📈 Scenarios</a>
 </div>
 
+<!-- Scenario Type Selector -->
+<div style="margin: 20px 0; padding: 15px; background: #f8f9fa; border-radius: 8px; border: 1px solid #dee2e6;">
+    <strong style="color: #2c3e50;">View Scenario Type:</strong>
+    <select id="scenario-type-selector" onchange="window.location.href='?scenario_type=' + this.value"
+            style="padding: 8px 15px; margin-left: 10px; border-radius: 4px; border: 1px solid #ced4da; font-size: 1em; cursor: pointer;">
+        {% for type_value, type_label in scenario_type_choices %}
+        <option value="{{ type_value }}" {% if type_value == selected_scenario_type %}selected{% endif %}>
+            {{ type_label }}
+        </option>
+        {% endfor %}
+    </select>
+    <span style="margin-left: 15px; color: #6c757d; font-style: italic;">
+        Currently showing: <strong style="color: #2c3e50;">{{ selected_scenario_type_display }}</strong>
+    </span>
+</div>
+
 <!-- Messages -->
 {% if messages %}
 <div style="margin: 20px 0;">
@@ -80,8 +96,10 @@
             <tr>
                 <th>Year</th>
                 <th>Scenario</th>
-                <th class="value">RE Target (%)</th>
-                <th class="value">Emissions (t)</th>
+                <th class="value">Operational<br>(GWh)</th>
+                <th class="value">Underlying<br>(GWh)</th>
+                <th class="value">RE Target<br>(%)</th>
+                <th class="value">Emissions<br>(t CO₂-e)</th>
                 <th>Description</th>
                 <th class="value">Type</th>
                 <th class="value">Actions</th>
@@ -92,15 +110,29 @@
             <tr class="{% if target.year == 2030 or target.year == 2040 %}renewable-row{% endif %}">
                 <td><strong>{{ target.year }}</strong></td>
                 <td>{{ target.scenario_name }}</td>
-                <td class="value">{{ target.target_re_percentage|floatformat:1 }}%</td>
+                <td class="value">
+                    {% if target.operational_demand %}
+                        {{ target.operational_demand|floatformat:0|intcomma }}
+                    {% else %}
+                        <span style="color: #adb5bd;">—</span>
+                    {% endif %}
+                </td>
+                <td class="value">
+                    {% if target.underlying_demand %}
+                        {{ target.underlying_demand|floatformat:0|intcomma }}
+                    {% else %}
+                        <span style="color: #adb5bd;">—</span>
+                    {% endif %}
+                </td>
+                <td class="value"><strong>{{ target.target_re_percentage|floatformat:1 }}%</strong></td>
                 <td class="value">
                     {% if target.target_emissions_tonnes %}
                         {{ target.target_emissions_tonnes|floatformat:0|intcomma }}
                     {% else %}
-                        —
+                        <span style="color: #adb5bd;">—</span>
                     {% endif %}
                 </td>
-                <td>{{ target.description|default:"—"|truncatewords:10 }}</td>
+                <td style="max-width: 200px;">{{ target.description|default:"—"|truncatewords:10 }}</td>
                 <td class="value">
                     {% if target.target_type == 'major' %}
                         <span class="badge badge-success">Major</span>
@@ -110,138 +142,27 @@
                         <span class="badge badge-secondary">Ordinary</span>
                     {% endif %}
                 </td>
-                <td class="value">
+                <td class="value" style="white-space: nowrap;">
+                    <button onclick="viewScenarioDetail({{ target.id }})"
+                            class="btn btn-small btn-view" title="View Details"
+                            style="background: #17a2b8; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; margin-right: 3px;">👁️</button>
                     <button onclick="editScenario({{ target.id }})"
                             class="btn btn-small btn-edit" title="Edit">✏️</button>
+                    {% if target.scenario_type != 'base_case' %}
                     <button onclick="confirmDeleteScenario({{ target.id }}, '{{ target.scenario_name|escapejs }}')"
                             class="btn btn-small btn-delete" title="Delete">🗑️</button>
+                    {% endif %}
                 </td>
             </tr>
             {% empty %}
             <tr>
-                <td colspan="7" style="text-align: center; padding: 30px; color: #7f8c8d;">
+                <td colspan="9" style="text-align: center; padding: 30px; color: #7f8c8d;">
                     No targets defined yet. Click "Add New Target/Scenario" to create one.
                 </td>
             </tr>
             {% endfor %}
         </tbody>
     </table>
-</div>
-
-<!-- =================================================================== -->
-<!-- Target Scenarios Section -->
-<!-- =================================================================== -->
-
-<div class="section-header" id="scenarios-section">
-    <h2>Projection Scenarios</h2>
-</div>
-
-<!-- Scenarios Cards -->
-<div class="scenario-grid">
-    {% for item in scenarios_with_status %}
-    <div class="scenario-card {% if item.scenario.is_active %}active{% else %}inactive{% endif %} {% if item.status.meets_target %}meets-target{% else %}below-target{% endif %}">
-        <div class="scenario-header">
-            <h3>{{ item.scenario.scenario_name }}</h3>
-            <span class="scenario-type-badge {{ item.scenario.scenario_type }}">
-                {{ item.scenario.get_scenario_type_display }} - {{ item.scenario.year }}
-            </span>
-        </div>
-
-        <div class="scenario-main-stat">
-            <span class="stat-value">{{ item.scenario.target_re_percentage|floatformat:1 }}%</span>
-            <span class="stat-label">Projected RE% by {{ item.scenario.year }}</span>
-        </div>
-
-        <div class="scenario-status">
-            {{ item.status.message }}
-        </div>
-
-        <div class="scenario-details">
-            {% if item.scenario.operational_demand %}
-            <div class="detail-row">
-                <span class="detail-label">Operational Demand:</span>
-                <span class="detail-value">{{ item.scenario.operational_demand|floatformat:0|intcomma }} GWh</span>
-            </div>
-            {% endif %}
-            {% if item.scenario.underlying_demand %}
-            <div class="detail-row">
-                <span class="detail-label">Underlying Demand:</span>
-                <span class="detail-value">{{ item.scenario.underlying_demand|floatformat:0|intcomma }} GWh</span>
-            </div>
-            {% endif %}
-            {% if item.scenario.storage %}
-            <div class="detail-row">
-                <span class="detail-label">Storage:</span>
-                <span class="detail-value">{{ item.scenario.storage|floatformat:0|intcomma }} MWh</span>
-            </div>
-            {% endif %}
-            <div class="detail-row">
-                <span class="detail-label">Wind:</span>
-                <span class="detail-value">{{ item.scenario.wind_generation|floatformat:0|intcomma }} GWh</span>
-            </div>
-            <div class="detail-row">
-                <span class="detail-label">Solar (Utility):</span>
-                <span class="detail-value">{{ item.scenario.solar_generation|floatformat:0|intcomma }} GWh</span>
-            </div>
-            <div class="detail-row">
-                <span class="detail-label">Solar (Rooftop):</span>
-                <span class="detail-value">{{ item.scenario.dpv_generation|floatformat:0|intcomma }} GWh</span>
-            </div>
-            <div class="detail-row">
-                <span class="detail-label">Biomass:</span>
-                <span class="detail-value">{{ item.scenario.biomass_generation|floatformat:0|intcomma }} GWh</span>
-            </div>
-            <div class="detail-row">
-                <span class="detail-label">Gas:</span>
-                <span class="detail-value">{{ item.scenario.gas_generation|floatformat:0|intcomma }} GWh</span>
-            </div>
-            <div class="detail-row total">
-                <span class="detail-label">Total Generation:</span>
-                <span class="detail-value">{{ item.total_generation|floatformat:0|intcomma }} GWh</span>
-            </div>
-            {% if item.scenario.target_emissions_tonnes %}
-            <div class="detail-row">
-                <span class="detail-label">Emissions:</span>
-                <span class="detail-value">{{ item.scenario.target_emissions_tonnes|floatformat:0|intcomma }} t</span>
-            </div>
-            {% endif %}
-            {% if item.scenario.probability_percentage %}
-            <div class="detail-row">
-                <span class="detail-label">Probability:</span>
-                <span class="detail-value">{{ item.scenario.probability_percentage|floatformat:0 }}%</span>
-            </div>
-            {% endif %}
-        </div>
-
-        {% if item.scenario.description %}
-        <div class="scenario-description">
-            {{ item.scenario.description }}
-        </div>
-        {% endif %}
-
-        <div class="scenario-actions">
-            <button onclick="editScenario({{ item.scenario.id }})" class="btn btn-small btn-edit" title="Edit">✏️ Edit</button>
-            <form action="{% url 'scenario_toggle_active' item.scenario.id %}" method="post" style="display: inline;">
-                {% csrf_token %}
-                <button type="submit" class="btn btn-small {% if item.scenario.is_active %}btn-warning{% else %}btn-success{% endif %}" title="Toggle Active">
-                    {% if item.scenario.is_active %}⏸️ Deactivate{% else %}▶️ Activate{% endif %}
-                </button>
-            </form>
-            <button onclick="confirmDeleteScenario({{ item.scenario.id }}, '{{ item.scenario.scenario_name|escapejs }}')"
-                    class="btn btn-small btn-delete" title="Delete">🗑️ Delete</button>
-        </div>
-
-        <div class="scenario-meta">
-            Last updated: {{ item.scenario.updated_at|date:"d M Y H:i" }}
-        </div>
-    </div>
-    {% empty %}
-    <div class="info-box" style="grid-column: 1 / -1;">
-        <p style="text-align: center; padding: 20px; color: #7f8c8d;">
-            No projection scenarios defined yet. Click "Add New Target/Scenario" above to create one.
-        </p>
-    </div>
-    {% endfor %}
 </div>
 
 <!-- =================================================================== -->
@@ -1135,6 +1056,166 @@ function confirmDeleteScenario(id, name) {
     document.getElementById('delete-scenario-form').action = '/ret_dashboard/scenarios/' + id + '/delete/';
     toggleModal('delete-scenario-modal');
 }
+
+// View Scenario Detail
+function viewScenarioDetail(scenarioId) {
+    toggleModal('scenario-detail-modal');
+    document.getElementById('detail-modal-body').innerHTML = '<div class="loading">Loading scenario details...</div>';
+
+    fetch('/api/ret_dashboard/scenarios/' + scenarioId + '/')
+        .then(response => response.json())
+        .then(data => {
+            const html = `
+                <div class="detail-grid">
+                    <div class="detail-section">
+                        <h3>Basic Information</h3>
+                        <table class="detail-table">
+                            <tr><th>Scenario Name:</th><td>${data.scenario_name || '—'}</td></tr>
+                            <tr><th>Scenario Type:</th><td>${data.scenario_type_display}</td></tr>
+                            <tr><th>SIREN Scenario:</th><td>${data.scenario_title || 'None'}</td></tr>
+                            <tr><th>Year:</th><td><strong>${data.year}</strong></td></tr>
+                            <tr><th>Target Type:</th><td>${data.target_type_display}</td></tr>
+                            <tr><th>Description:</th><td>${data.description || '—'}</td></tr>
+                            <tr><th>Active:</th><td><span class="${data.is_active ? 'badge badge-success' : 'badge badge-secondary'}">${data.is_active ? 'Yes' : 'No'}</span></td></tr>
+                        </table>
+                    </div>
+
+                    <div class="detail-section">
+                        <h3>Demand & Targets</h3>
+                        <table class="detail-table">
+                            <tr><th>Operational Demand:</th><td>${data.operational_demand ? data.operational_demand.toFixed(1).replace(/\B(?=(\d{3})+(?!\d))/g, ',') + ' GWh' : '—'}</td></tr>
+                            <tr><th>Underlying Demand:</th><td>${data.underlying_demand ? data.underlying_demand.toFixed(1).replace(/\B(?=(\d{3})+(?!\d))/g, ',') + ' GWh' : '—'}</td></tr>
+                            <tr class="highlight-row"><th>Target RE %:</th><td><strong style="font-size: 1.2em; color: #27ae60;">${data.target_re_percentage.toFixed(1)}%</strong></td></tr>
+                            <tr><th>Target Emissions:</th><td>${data.target_emissions_tonnes ? data.target_emissions_tonnes.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ',') + ' t CO₂-e' : '—'}</td></tr>
+                            <tr><th>Storage:</th><td>${data.storage ? data.storage.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ',') + ' MWh' : '—'}</td></tr>
+                            <tr><th>Probability:</th><td>${data.probability_percentage ? data.probability_percentage.toFixed(1) + '%' : '—'}</td></tr>
+                        </table>
+                    </div>
+
+                    <div class="detail-section">
+                        <h3>Generation Mix (GWh)</h3>
+                        <table class="detail-table">
+                            <tr><th>Wind:</th><td>${data.wind_generation.toFixed(1).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}</td></tr>
+                            <tr><th>Solar (Utility):</th><td>${data.solar_generation.toFixed(1).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}</td></tr>
+                            <tr><th>Solar (Rooftop/DPV):</th><td>${data.dpv_generation.toFixed(1).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}</td></tr>
+                            <tr><th>Biomass:</th><td>${data.biomass_generation.toFixed(1).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}</td></tr>
+                            <tr><th>Gas:</th><td>${data.gas_generation.toFixed(1).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}</td></tr>
+                            <tr class="total-row"><th>Total Generation:</th><td><strong>${data.total_generation.toFixed(1).replace(/\B(?=(\d{3})+(?!\d))/g, ',')} GWh</strong></td></tr>
+                        </table>
+                    </div>
+
+                    <div class="detail-section">
+                        <h3>Metadata</h3>
+                        <table class="detail-table">
+                            <tr><th>Created:</th><td>${data.created_at ? new Date(data.created_at).toLocaleString() : '—'}</td></tr>
+                            <tr><th>Updated:</th><td>${data.updated_at ? new Date(data.updated_at).toLocaleString() : '—'}</td></tr>
+                            <tr><th>Record ID:</th><td>${data.id}</td></tr>
+                        </table>
+                    </div>
+                </div>
+            `;
+            document.getElementById('detail-modal-body').innerHTML = html;
+            document.getElementById('detail-modal-title').textContent = data.scenario_name + ' - ' + data.year;
+        })
+        .catch(error => {
+            document.getElementById('detail-modal-body').innerHTML = `
+                <div class="error-box" style="padding: 20px; background: #f8d7da; border-left: 4px solid #e74c3c; border-radius: 4px; color: #721c24;">
+                    <strong>Error loading scenario details:</strong> ${error.message}
+                </div>
+            `;
+        });
+}
 </script>
+
+<!-- Scenario Detail Modal -->
+<div id="scenario-detail-modal" class="modal" style="display: none;">
+    <div class="modal-content" style="max-width: 900px; max-height: 90vh; overflow-y: auto;">
+        <div class="modal-header">
+            <h2 id="detail-modal-title">Scenario Details</h2>
+            <button onclick="toggleModal('scenario-detail-modal')" class="close-btn" style="background: none; border: none; font-size: 2em; cursor: pointer; color: #999;">&times;</button>
+        </div>
+        <div class="modal-body" id="detail-modal-body">
+            <div class="loading">Loading...</div>
+        </div>
+    </div>
+</div>
+
+<style>
+.detail-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+    gap: 20px;
+    padding: 20px;
+}
+.detail-section {
+    background: #f8f9fa;
+    padding: 20px;
+    border-radius: 8px;
+    border: 1px solid #dee2e6;
+}
+.detail-section h3 {
+    margin-top: 0;
+    margin-bottom: 15px;
+    color: #2c3e50;
+    border-bottom: 2px solid #3498db;
+    padding-bottom: 8px;
+    font-size: 1.1em;
+}
+.detail-table {
+    width: 100%;
+    margin-top: 10px;
+    border-collapse: collapse;
+}
+.detail-table tr {
+    border-bottom: 1px solid #dee2e6;
+}
+.detail-table tr:last-child {
+    border-bottom: none;
+}
+.detail-table th {
+    text-align: left;
+    padding: 10px 12px;
+    width: 50%;
+    color: #6c757d;
+    font-weight: 600;
+    font-size: 0.95em;
+}
+.detail-table td {
+    padding: 10px 12px;
+    font-weight: 500;
+    color: #2c3e50;
+}
+.total-row {
+    background: #e8f4f8;
+    font-weight: bold;
+}
+.total-row th, .total-row td {
+    padding-top: 12px;
+    padding-bottom: 12px;
+    font-size: 1.05em;
+}
+.highlight-row {
+    background: #d4edda;
+}
+.loading {
+    text-align: center;
+    padding: 40px;
+    color: #7f8c8d;
+    font-style: italic;
+}
+#scenario-detail-modal .modal-content {
+    animation: slideDown 0.3s ease-out;
+}
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+</style>
 
 {% endblock %}

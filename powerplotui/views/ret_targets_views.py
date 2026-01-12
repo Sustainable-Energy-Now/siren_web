@@ -29,28 +29,29 @@ def ret_targets_list(request):
     """
     Main view for displaying and managing RE targets and scenarios.
     Shows all target scenarios grouped by year and scenario type.
+    Defaults to showing 'base_case' scenarios with option to select others.
     """
+    # Get selected scenario_type from query param, default to 'base_case'
+    selected_scenario_type = request.GET.get('scenario_type', 'base_case')
+
     # Get all scenarios ordered by year and type
     all_scenarios = TargetScenario.objects.all().order_by('year', 'scenario_type')
 
+    # Filter by selected scenario_type for the main table
+    filtered_scenarios = all_scenarios.filter(scenario_type=selected_scenario_type).order_by('year')
+
     # Separate targets (major/interim) from ordinary projections
-    targets = all_scenarios.filter(target_type__in=['major', 'interim']).order_by('year')
-    projections = all_scenarios.filter(target_type='ordinary').order_by('year', 'scenario_type')
-    active_scenarios = all_scenarios.filter(is_active=True)
+    # targets = filtered_scenarios.filter(target_type__in=['major', 'interim'])
+    targets = filtered_scenarios
+    active_scenarios = filtered_scenarios.filter(is_active=True)
 
-    # Calculate scenario status vs targets
-    scenarios_with_status = []
-    for scenario in projections:
-        status = scenario.get_status_vs_target()
-        scenarios_with_status.append({
-            'scenario': scenario,
-            'status': status,
-            'total_generation': scenario.total_generation
-        })
-
-    # Get key milestone targets
+    # Get key milestone targets for base_case
     milestone_years = [2030, 2035, 2040]
-    milestones = targets.filter(year__in=milestone_years)
+    base_case_milestones = TargetScenario.objects.filter(
+        scenario_type='base_case',
+        target_type__in=['major', 'interim'],
+        year__in=milestone_years
+    ).order_by('year')
 
     # Get all SIREN scenarios for the dropdown
     siren_scenarios = Scenarios.objects.all().order_by('title')
@@ -58,21 +59,29 @@ def ret_targets_list(request):
     # Get years that have targets defined
     years_with_targets = list(targets.values_list('year', flat=True).distinct())
 
+    # Get available scenario types for the selector
+    available_scenario_types = list(
+        all_scenarios.values_list('scenario_type', flat=True).distinct()
+    )
+
+    # Format scenario type for display (replace underscores with spaces)
+    selected_scenario_type_display = selected_scenario_type.upper().replace('_', ' ')
+
     context = {
         'targets': targets,
-        'projections': projections,
-        'scenarios_with_status': scenarios_with_status,
         'active_scenarios': active_scenarios,
-        'milestones': milestones,
+        'milestones': base_case_milestones,
         'years_with_targets': years_with_targets,
         'scenario_type_choices': TargetScenario._meta.get_field('scenario_type').choices,
         'target_type_choices': TargetScenario._meta.get_field('target_type').choices,
         'siren_scenarios': siren_scenarios,
         'now': timezone.now(),
+        'selected_scenario_type': selected_scenario_type,
+        'selected_scenario_type_display': selected_scenario_type_display,
+        'available_scenario_types': available_scenario_types,
     }
 
     return render(request, 'ret_dashboard/targets.html', context)
-
 
 # =============================================================================
 # Unified Target/Scenario CRUD
@@ -147,7 +156,6 @@ def scenario_create(request):
             messages.error(request, f'Error creating scenario: {str(e)}')
 
     return redirect('ret_targets_list')
-
 
 @require_http_methods(["GET", "POST"])
 def scenario_update(request, scenario_id):
@@ -281,18 +289,20 @@ def api_scenarios_list(request):
     return JsonResponse({'scenarios': data})
 
 def api_scenario_detail(request, scenario_id):
-    """API endpoint to get a single scenario."""
+    """API endpoint to get a single scenario with full details."""
     scenario = get_object_or_404(TargetScenario, id=scenario_id)
 
     return JsonResponse({
         'id': scenario.id,
         'scenario_name': scenario.scenario_name,
         'scenario_type': scenario.scenario_type,
+        'scenario_type_display': scenario.get_scenario_type_display(),
         'scenario_id': scenario.scenario.idscenarios if scenario.scenario else None,
         'scenario_title': scenario.scenario.title if scenario.scenario else None,
         'description': scenario.description,
         'year': scenario.year,
         'target_type': scenario.target_type,
+        'target_type_display': scenario.get_target_type_display(),
         'operational_demand': scenario.operational_demand,
         'underlying_demand': scenario.underlying_demand,
         'storage': scenario.storage,

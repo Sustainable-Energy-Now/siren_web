@@ -1632,30 +1632,6 @@ class Reference(models.Model):
         """Check if this is a web-based source"""
         return self.reference_type == 'web' or (self.location and self.location.startswith('http'))
 
-class RenewableEnergyTarget(models.Model):
-    """Store renewable energy targets for different years"""
-    target_year = models.IntegerField(unique=True, db_index=True)
-    target_percentage = models.FloatField(help_text="Target RE% for this year")
-    target_emissions_tonnes = models.FloatField(null=True, blank=True, 
-                                                help_text="Target emissions in tonnes CO2-e")
-    description = models.CharField(max_length=500, blank=True, null=True)
-    is_interim_target = models.BooleanField(default=False, 
-                                           help_text="Is this an interim milestone?")
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-    
-    class Meta:
-        db_table = 'renewable_energy_targets'
-        ordering = ['target_year']
-    
-    def __str__(self):
-        return f"{self.target_year}: {self.target_percentage}% RE Target"
-    
-    def get_monthly_target(self, month):
-        """Calculate monthly target based on linear interpolation"""
-        # Simplified - could be enhanced with seasonal adjustments
-        return self.target_percentage
-
 class MonthlyREPerformance(models.Model):
     """Store monthly renewable energy performance data"""
     year = models.IntegerField(db_index=True)
@@ -1887,37 +1863,53 @@ class MonthlyREPerformance(models.Model):
     def get_target_for_period(self):
         """Get the renewable energy target for this period"""
         try:
-            target = RenewableEnergyTarget.objects.get(target_year=self.year)
-            return target
-        except RenewableEnergyTarget.DoesNotExist:
+            # Get major or interim target for this year
+            target = TargetScenario.objects.filter(
+                year=self.year,
+                target_type__in=['major', 'interim']
+            ).first()
+            if target:
+                return target
+            # Interpolate if exact year not found
+            return self.interpolate_target()
+        except Exception:
             # Interpolate if exact year not found
             return self.interpolate_target()
     
     def interpolate_target(self):
         """Interpolate target between known target years"""
-        targets = RenewableEnergyTarget.objects.all().order_by('target_year')
-        
+        # Get all major and interim targets ordered by year
+        targets = TargetScenario.objects.filter(
+            target_type__in=['major', 'interim']
+        ).order_by('year')
+
         # Find surrounding targets
-        before = targets.filter(target_year__lt=self.year).last()
-        after = targets.filter(target_year__gt=self.year).first()
-        
+        before = targets.filter(year__lt=self.year).last()
+        after = targets.filter(year__gt=self.year).first()
+
         if before and after:
             # Linear interpolation
-            year_diff = after.target_year - before.target_year
-            year_progress = self.year - before.target_year
-            target_diff = after.target_percentage - before.target_percentage
-            
-            interpolated_percentage = before.target_percentage + (target_diff * year_progress / year_diff)
-            
+            year_diff = after.year - before.year
+            year_progress = self.year - before.year
+            target_diff = after.target_re_percentage - before.target_re_percentage
+
+            interpolated_percentage = before.target_re_percentage + (target_diff * year_progress / year_diff)
+
             # Create a temporary target object (not saved)
             from collections import namedtuple
             Target = namedtuple('Target', ['target_year', 'target_percentage'])
             return Target(self.year, interpolated_percentage)
         elif before:
-            return before
+            # Create namedtuple for consistency
+            from collections import namedtuple
+            Target = namedtuple('Target', ['target_year', 'target_percentage'])
+            return Target(before.year, before.target_re_percentage)
         elif after:
-            return after
-        
+            # Create namedtuple for consistency
+            from collections import namedtuple
+            Target = namedtuple('Target', ['target_year', 'target_percentage'])
+            return Target(after.year, after.target_re_percentage)
+
         return None
     
     def get_status_vs_target(self):
@@ -1925,9 +1917,10 @@ class MonthlyREPerformance(models.Model):
         target = self.get_target_for_period()
         if not target:
             return {'status': 'unknown', 'gap': 0, 'message': 'No target set'}
-        
+
+        # The target is a namedtuple with 'target_percentage' field
         gap = self.re_percentage_underlying - target.target_percentage
-        
+
         if gap >= 0:
             return {
                 'status': 'ahead',

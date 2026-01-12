@@ -7,101 +7,182 @@ from django.shortcuts import render
 from django.db.models import Sum
 from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
+from django.utils import timezone
 import numpy as np
 import json
 from typing import Dict
 from datetime import datetime
-from siren_web.models import supplyfactors, DPVGeneration
+from calendar import monthrange
+from siren_web.models import MonthlyREPerformance, FacilityScada, facilities, DPVGeneration
 
-from siren_web.models import supplyfactors, Scenarios, DemandFactor
+from siren_web.models import Scenarios, DemandFactor, TargetScenario
 from powermatchui.utils.factor_based_projector import FactorBasedProjector
 
 def get_base_year_demand(year: int, config_section: Dict = None) -> Dict[str, np.ndarray]:
     """
-    Retrieve hourly demand data for base year from supplyfactors (operational)
-    and DPVGeneration (underlying) tables.
-    
+    Retrieve hourly demand data for base year from MonthlyREPerformance model.
+    Converts monthly GWh totals to hourly MW arrays using FacilityScada for hourly shape.
+
     Args:
         year: Base year to retrieve
-        config_section: Config dict (can specify facility_id, default is 144)
-        
+        config_section: Config dict (currently unused, kept for compatibility)
+
     Returns:
-        Dictionary with 'operational' and 'underlying' numpy arrays (8760 hours)
+        Dictionary with 'operational' and 'underlying' numpy arrays (8760 or 8784 hours in MW)
     """
-    
-    # Get operational facility ID from config, default to 144
-    if config_section:
-        operational_facility_id = int(config_section.get('operational_facility_id', 144))
-    else:
-        operational_facility_id = 144
-    
+
     # ===================================================================
-    # 1. Get Operational Demand from supplyfactors (facility 144)
+    # 1. Get monthly totals from MonthlyREPerformance
     # ===================================================================
-    
-    operational_data = supplyfactors.objects.filter(
-        idfacilities=operational_facility_id,
+
+    monthly_data = MonthlyREPerformance.objects.filter(
         year=year
-    ).order_by('hour').values_list('hour', 'quantum')
-    
-    operational_array = np.zeros(8760)
-    for hour, quantum in operational_data:
-        if hour is not None and 0 <= hour < 8760:
-            operational_array[hour] = quantum or 0.0
-    
-    if operational_array.sum() == 0:
+    ).order_by('month').values('month', 'operational_demand', 'underlying_demand')
+
+    if not monthly_data:
         raise ValueError(
-            f"No operational demand data found for facility {operational_facility_id}, year {year}"
+            f"No MonthlyREPerformance data found for year {year}"
         )
-    
+
+    # Store monthly totals (in GWh)
+    monthly_operational = {}
+    monthly_underlying = {}
+
+    for month_record in monthly_data:
+        month = month_record['month']
+        monthly_operational[month] = month_record['operational_demand']  # GWh
+        monthly_underlying[month] = month_record['underlying_demand']     # GWh
+
+    # Check if we have 12 months of data
+    if len(monthly_operational) != 12:
+        raise ValueError(
+            f"Incomplete data for year {year}: only {len(monthly_operational)} months available"
+        )
+
     # ===================================================================
-    # 2. Get Underlying Demand from DPVGeneration table
+    # 2. Determine array size (8760 for normal years, 8784 for leap years)
     # ===================================================================
-    
-    # AEMO data has 48 intervals per day (30-minute intervals)
-    # We need to convert to hourly by averaging pairs of intervals
-    
-    start_date = datetime(year, 1, 1)
-    end_date = datetime(year, 12, 31, 23, 59, 59)
-    
-    dpv_data = DPVGeneration.objects.filter(
-        trading_date__year=year
-    ).order_by('trading_date', 'interval_number').values(
-        'trading_date', 'interval_number', 'estimated_generation'
-    )
-    
-    # Create a temporary dict to hold interval data
-    # Key: (day_of_year, hour), Value: list of interval values
-    hourly_intervals = {}
-    
-    for item in dpv_data:
-        trading_date = item['trading_date']
-        interval_num = item['interval_number']
-        generation = float(item['estimated_generation'])
-        
-        # Calculate day of year (0-364 or 0-365 for leap year)
-        day_of_year = (trading_date - start_date.date()).days
-        
-        # AEMO intervals are 30 minutes, numbered 1-48
-        # Intervals 1-2 = hour 0, 3-4 = hour 1, etc.
-        hour_of_day = (interval_num - 1) // 2
-        
-        # Calculate hour of year
-        hour_of_year = day_of_year * 24 + hour_of_day
-        
-        if 0 <= hour_of_year < 8760:
-            if hour_of_year not in hourly_intervals:
-                hourly_intervals[hour_of_year] = []
-            hourly_intervals[hour_of_year].append(generation)
-    
-    # Average the intervals to get hourly values
-    underlying_array = np.zeros(8760)
-    for hour, values in hourly_intervals.items():
-        underlying_array[hour] = np.mean(values)
-    
-    # Note: DPV generation is already a demand (consumption offset)
-    # If sum is 0, it's okay - means no DPV data for this year
-    
+
+    is_leap_year = (year % 4 == 0 and year % 100 != 0) or (year % 400 == 0)
+    total_hours = 8784 if is_leap_year else 8760
+
+    # Initialize hourly arrays
+    operational_array = np.zeros(total_hours)
+    underlying_array = np.zeros(total_hours)
+
+    # ===================================================================
+    # 3. Process each month - get shape from FacilityScada and scale
+    # ===================================================================
+
+    for month in range(1, 13):
+        # Get date range for the month
+        _, last_day = monthrange(year, month)
+        start_datetime = timezone.make_aware(datetime(year, month, 1, 0, 0, 0))
+        end_datetime = timezone.make_aware(datetime(year, month, last_day, 23, 59, 59))
+
+        # Calculate hour range for this month
+        if month == 1:
+            start_hour = 0
+        else:
+            # Sum hours from previous months
+            start_hour = sum(monthrange(year, m)[1] * 24 for m in range(1, month))
+
+        hours_in_month = monthrange(year, month)[1] * 24
+        end_hour = start_hour + hours_in_month
+
+        # ---------------------------------------------------------------
+        # OPERATIONAL DEMAND - Get hourly shape from FacilityScada
+        # ---------------------------------------------------------------
+
+        # Query FacilityScada for all generation facilities (grid-sent)
+        # Sum all facilities - we'll use MonthlyREPerformance total to scale
+        scada_operational = FacilityScada.objects.filter(
+            dispatch_interval__gte=start_datetime,
+            dispatch_interval__lte=end_datetime
+        ).exclude(
+            facility__idtechnologies__technology_signature='rooftop_pv'
+        ).values('dispatch_interval').annotate(
+            total_mw=Sum('quantity')
+        ).order_by('dispatch_interval')
+
+        # Build hourly shape array
+        hourly_operational_shape = np.zeros(hours_in_month)
+        for record in scada_operational:
+            dt = record['dispatch_interval']
+            # Calculate hour index within the month (0-indexed)
+            hour_in_month = (dt.day - 1) * 24 + dt.hour
+            if 0 <= hour_in_month < hours_in_month:
+                hourly_operational_shape[hour_in_month] = float(record['total_mw'])
+
+        # Normalize shape and scale to monthly total
+        if hourly_operational_shape.sum() > 0:
+            # Normalize to sum = 1
+            hourly_operational_shape = hourly_operational_shape / hourly_operational_shape.sum()
+            # Scale by monthly total (convert GWh to MW average)
+            monthly_total_mwh = monthly_operational[month] * 1000  # GWh to MWh
+            scaled_operational = monthly_total_mwh * hourly_operational_shape
+        else:
+            # Fallback: distribute evenly across hours
+            monthly_total_mwh = monthly_operational[month] * 1000
+            scaled_operational = np.ones(hours_in_month) * (monthly_total_mwh / hours_in_month)
+
+        operational_array[start_hour:end_hour] = scaled_operational
+
+        # ---------------------------------------------------------------
+        # UNDERLYING DEMAND - Use DPV from DPVGeneration
+        # ---------------------------------------------------------------
+
+        # Query DPVGeneration for rooftop solar (30-minute intervals)
+        dpv_data = DPVGeneration.objects.filter(
+            trading_date__year=year,
+            trading_date__month=month
+        ).order_by('trading_date', 'interval_number').values(
+            'trading_date', 'interval_number', 'estimated_generation'
+        )
+
+        # Build hourly DPV shape
+        hourly_dpv_dict = {}
+        for item in dpv_data:
+            trading_date = item['trading_date']
+            interval_num = item['interval_number']
+            generation = float(item['estimated_generation'])
+
+            # AEMO intervals are 30 minutes, numbered 1-48
+            # Intervals 1-2 = hour 0, 3-4 = hour 1, etc.
+            hour_of_day = (interval_num - 1) // 2
+            hour_in_month = (trading_date.day - 1) * 24 + hour_of_day
+
+            if 0 <= hour_in_month < hours_in_month:
+                if hour_in_month not in hourly_dpv_dict:
+                    hourly_dpv_dict[hour_in_month] = []
+                hourly_dpv_dict[hour_in_month].append(generation)
+
+        # Average intervals to hourly
+        hourly_dpv_shape = np.zeros(hours_in_month)
+        for hour_idx, values in hourly_dpv_dict.items():
+            hourly_dpv_shape[hour_idx] = np.mean(values)
+
+        # Calculate underlying demand for this month
+        # Underlying = Operational + DPV
+        # We need to scale DPV to match: monthly_underlying - monthly_operational
+        dpv_monthly_total_gwh = monthly_underlying[month] - monthly_operational[month]
+
+        if hourly_dpv_shape.sum() > 0 and dpv_monthly_total_gwh > 0:
+            # Normalize and scale DPV shape
+            hourly_dpv_shape = hourly_dpv_shape / hourly_dpv_shape.sum()
+            dpv_total_mwh = dpv_monthly_total_gwh * 1000  # GWh to MWh
+            scaled_dpv = dpv_total_mwh * hourly_dpv_shape
+        else:
+            # Fallback: distribute DPV evenly or use zero
+            if dpv_monthly_total_gwh > 0:
+                dpv_total_mwh = dpv_monthly_total_gwh * 1000
+                scaled_dpv = np.ones(hours_in_month) * (dpv_total_mwh / hours_in_month)
+            else:
+                scaled_dpv = np.zeros(hours_in_month)
+
+        # Underlying = Operational + DPV (for this month)
+        underlying_array[start_hour:end_hour] = scaled_operational + scaled_dpv
+
     return {
         'operational': operational_array,
         'underlying': underlying_array
@@ -124,7 +205,7 @@ def validate_data_availability(year: int) -> Dict[str, bool]:
     """
     Check what data is available for a given year.
     Useful for debugging and configuration.
-    
+
     Returns:
         Dictionary with availability flags and counts
     """
@@ -132,72 +213,78 @@ def validate_data_availability(year: int) -> Dict[str, bool]:
         'year': year,
         'operational_available': False,
         'underlying_available': False,
-        'operational_hours': 0,
-        'underlying_intervals': 0,
-        'operational_total_mwh': 0,
-        'underlying_total_mwh': 0
+        'months_available': 0,
+        'operational_total_gwh': 0,
+        'underlying_total_gwh': 0,
+        'scada_records': 0,
+        'dpv_records': 0
     }
-    
-    # Check operational data (facility 144)
-    operational_count = supplyfactors.objects.filter(
-        idfacilities=144,
-        year=year
-    ).count()
-    
-    if operational_count > 0:
+
+    # Check MonthlyREPerformance data
+    monthly_data = MonthlyREPerformance.objects.filter(year=year)
+    months_count = monthly_data.count()
+
+    if months_count > 0:
+        result['months_available'] = months_count
         result['operational_available'] = True
-        result['operational_hours'] = operational_count
-        
-        operational_total = supplyfactors.objects.filter(
-            idfacilities=144,
-            year=year
-        ).aggregate(total=Sum('quantum'))['total']
-        result['operational_total_mwh'] = float(operational_total or 0)
-    
-    # Check DPV data
+        result['underlying_available'] = True
+
+        # Sum up all months
+        operational_total = monthly_data.aggregate(
+            total=Sum('operational_demand')
+        )['total']
+        underlying_total = monthly_data.aggregate(
+            total=Sum('underlying_demand')
+        )['total']
+
+        result['operational_total_gwh'] = float(operational_total or 0)
+        result['underlying_total_gwh'] = float(underlying_total or 0)
+
+    # Check FacilityScada data availability for hourly shape
+    scada_count = FacilityScada.objects.filter(
+        dispatch_interval__year=year
+    ).count()
+    result['scada_records'] = scada_count
+
+    # Check DPV data availability
     dpv_count = DPVGeneration.objects.filter(
         trading_date__year=year
     ).count()
-    
-    if dpv_count > 0:
-        result['underlying_available'] = True
-        result['underlying_intervals'] = dpv_count
-        
-        dpv_total = DPVGeneration.objects.filter(
-            trading_date__year=year
-        ).aggregate(total=Sum('estimated_generation'))['total']
-        # Convert from interval sum to hourly equivalent
-        # 48 intervals per day, so divide by 2 to get hourly average * hours
-        result['underlying_total_mwh'] = float(dpv_total or 0) / 2
-    
+    result['dpv_records'] = dpv_count
+
     return result
 
 def get_available_years() -> Dict[str, list]:
     """
-    Get list of years with data available.
-    
+    Get list of years with data available from MonthlyREPerformance.
+
     Returns:
-        Dictionary with 'operational', 'underlying', and 'both' year lists
+        Dictionary with available years and completeness information
     """
-    # Get years with operational data
-    operational_years = list(
-        supplyfactors.objects.filter(
-            idfacilities=144
-        ).values_list('year', flat=True).distinct().order_by('year')
-    )
-    
-    # Get years with DPV data
-    underlying_years = [d.year for d in DPVGeneration.objects.dates('trading_date', 'year')]
-    
-    # Years with both
-    both_years = list(set(operational_years) & set(underlying_years))
-    both_years.sort()
-    
+    from django.db.models import Count
+
+    # Get years with any MonthlyREPerformance data
+    years_with_data = MonthlyREPerformance.objects.values('year').annotate(
+        month_count=Count('month')
+    ).order_by('year')
+
+    all_years = []
+    complete_years = []  # Years with all 12 months
+
+    for item in years_with_data:
+        year = item['year']
+        month_count = item['month_count']
+
+        all_years.append(year)
+        if month_count == 12:
+            complete_years.append(year)
+
     return {
-        'operational': operational_years,
-        'underlying': underlying_years,
-        'both': both_years,
-        'all': sorted(list(set(operational_years + underlying_years)))
+        'all': all_years,
+        'complete': complete_years,
+        'operational': complete_years,  # For backward compatibility
+        'underlying': complete_years,   # For backward compatibility
+        'both': complete_years          # For backward compatibility
     }
 
 def test_data_retrieval(year: int = None):
@@ -228,16 +315,17 @@ def test_data_retrieval(year: int = None):
     availability = validate_data_availability(year)
     print(f"\nData Availability:")
     print(f"  Operational: {availability['operational_available']} "
-          f"({availability['operational_hours']} hours, "
-          f"{availability['operational_total_mwh']/1000:.1f} GWh)")
+          f"({availability['months_available']} months, "
+          f"{availability['operational_total_gwh']:.1f} GWh)")
     print(f"  Underlying:  {availability['underlying_available']} "
-          f"({availability['underlying_intervals']} intervals, "
-          f"{availability['underlying_total_mwh']/1000:.1f} GWh)")
-    
+          f"({availability['months_available']} months, "
+          f"{availability['underlying_total_gwh']:.1f} GWh)")
+    print(f"  SCADA records: {availability['scada_records']:,}")
+    print(f"  DPV records: {availability['dpv_records']:,}")
+
     # Try to retrieve data
     try:
-        config = {'operational_facility_id': 144}
-        demand = get_base_year_demand(year, config)
+        demand = get_base_year_demand(year)
         
         print(f"\nRetrieved Data:")
         print(f"  Operational array shape: {demand['operational'].shape}")
@@ -249,13 +337,18 @@ def test_data_retrieval(year: int = None):
         print(f"  Underlying sum: {demand['underlying'].sum()/1000:.1f} GWh")
         print(f"  Underlying peak: {demand['underlying'].max():.1f} MW")
         print(f"  Underlying average: {demand['underlying'].mean():.1f} MW")
+
+        # Verify totals match MonthlyREPerformance
+        print(f"\nValidation:")
+        print(f"  Expected operational total: {availability['operational_total_gwh']:.1f} GWh")
+        print(f"  Actual operational total:   {demand['operational'].sum()/1000:.1f} GWh")
+        print(f"  Expected underlying total:  {availability['underlying_total_gwh']:.1f} GWh")
+        print(f"  Actual underlying total:    {demand['underlying'].sum()/1000:.1f} GWh")
         
-        print(f"\n  Total demand: {(demand['operational'].sum() + demand['underlying'].sum())/1000:.1f} GWh")
-        
-        print("\n✓ Data retrieval successful!")
-        
+        print("\n[SUCCESS] Data retrieval successful!")
+
     except Exception as e:
-        print(f"\n✗ Error retrieving data: {str(e)}")
+        print(f"\n[ERROR] Error retrieving data: {str(e)}")
         import traceback
         traceback.print_exc()
 
@@ -516,3 +609,163 @@ def get_hourly_projection(request):
         }, status=404)
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=400)
+
+@require_http_methods(["POST"])
+@login_required
+def update_target_scenario_with_projection(request):
+    """
+    Update TargetScenario records with demand values from projection.
+
+    Rules:
+    - scenario_name is derived from the Scenario FK (scenario.title)
+    - Only operational_demand and underlying_demand are updated by this function
+    - For 'base_case': Must exist first (created in Manage Targets)
+    - For other scenario_types: Clone from base_case if doesn't exist
+    """
+    try:
+        data = json.loads(request.body)
+
+        base_year = int(data.get('base_year', 2024))
+        end_year = int(data.get('end_year', 2050))
+        scenario_id = data.get('scenario_id')
+        scenario_type = data.get('scenario_type', 'base_case')
+
+        if not scenario_id:
+            return JsonResponse({
+                'error': 'scenario_id is required'
+            }, status=400)
+
+        # Validate scenario_type
+        valid_scenario_types = ['base_case', 'delayed_pipeline', 'accelerated_pipeline']
+        if scenario_type not in valid_scenario_types:
+            return JsonResponse({
+                'error': f'Invalid scenario_type. Must be one of: {", ".join(valid_scenario_types)}'
+            }, status=400)
+
+        # Get scenario and use its title as the scenario_name
+        scenario = Scenarios.objects.get(idscenarios=scenario_id)
+        scenario_name = scenario.title
+
+        # Get base year demand data
+        base_demand = get_base_year_demand(base_year)
+        year_range = list(range(base_year, end_year + 1))
+
+        # Get scenario factors from database
+        factors = DemandFactor.objects.filter(
+            scenario=scenario,
+            is_active=True
+        )
+
+        if not factors.exists():
+            return JsonResponse({
+                'error': f'No active demand factors found for scenario "{scenario.title}"'
+            }, status=400)
+
+        # Use factor-based projector
+        projector = FactorBasedProjector(factors, base_year)
+        projections = projector.project_multiple_years(
+            base_demand['operational'],
+            base_demand['underlying'],
+            year_range
+        )
+
+        # Check if base_case exists (required for non-base_case scenarios)
+        if scenario_type != 'base_case':
+            base_case_count = TargetScenario.objects.filter(
+                scenario_type='base_case',
+                year__in=year_range
+            ).count()
+
+            if base_case_count == 0:
+                return JsonResponse({
+                    'error': 'base_case scenario must be created first in Manage Targets before creating other scenario types.'
+                }, status=400)
+
+        # Update or create TargetScenario records
+        updated_years = []
+        created_years = []
+        cloned_years = []
+
+        for year in year_range:
+            # Convert from MWh to GWh
+            operational_gwh = projections[year]['operational_total_mwh'] / 1000
+            underlying_gwh = projections[year]['underlying_total_mwh'] / 1000
+
+            # Check if TargetScenario exists
+            existing = TargetScenario.objects.filter(
+                scenario_type=scenario_type,
+                year=year
+            ).first()
+
+            if existing:
+                # Update existing record - ONLY update demand fields
+                existing.operational_demand = operational_gwh
+                existing.underlying_demand = underlying_gwh
+                existing.scenario = scenario
+                existing.scenario_name = scenario_name
+                existing.save()
+                updated_years.append(year)
+
+            elif scenario_type == 'base_case':
+                # base_case doesn't exist - return error
+                return JsonResponse({
+                    'error': f'base_case for year {year} does not exist. Please create it manually in Manage Targets first.'
+                }, status=400)
+
+            else:
+                # Non-base_case doesn't exist - clone from base_case
+                base_case = TargetScenario.objects.filter(
+                    scenario_type='base_case',
+                    year=year
+                ).first()
+
+                if not base_case:
+                    return JsonResponse({
+                        'error': f'Cannot clone: base_case for year {year} does not exist.'
+                    }, status=400)
+
+                # Clone from base_case
+                cloned_scenario = TargetScenario.objects.create(
+                    scenario_name=scenario_name,
+                    scenario_type=scenario_type,
+                    scenario=scenario,
+                    description=base_case.description,
+                    year=year,
+                    target_type=base_case.target_type,
+                    operational_demand=operational_gwh,  # Use projected demand
+                    underlying_demand=underlying_gwh,    # Use projected demand
+                    storage=base_case.storage,
+                    target_re_percentage=base_case.target_re_percentage,
+                    target_emissions_tonnes=base_case.target_emissions_tonnes,
+                    wind_generation=base_case.wind_generation,
+                    solar_generation=base_case.solar_generation,
+                    dpv_generation=base_case.dpv_generation,
+                    biomass_generation=base_case.biomass_generation,
+                    gas_generation=base_case.gas_generation,
+                    probability_percentage=base_case.probability_percentage,
+                    is_active=base_case.is_active
+                )
+                cloned_years.append(year)
+
+        return JsonResponse({
+            'success': True,
+            'message': f'Successfully updated TargetScenario records for {len(year_range)} years',
+            'scenario_name': scenario_name,
+            'scenario_type': scenario_type,
+            'years_updated': updated_years,
+            'years_created': created_years,
+            'years_cloned': cloned_years,
+            'total_years': len(year_range),
+            'year_range': [year_range[0], year_range[-1]]
+        })
+
+    except Scenarios.DoesNotExist:
+        return JsonResponse({
+            'error': f'Scenario with ID {scenario_id} not found'
+        }, status=404)
+    except Exception as e:
+        import traceback
+        return JsonResponse({
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        }, status=400)

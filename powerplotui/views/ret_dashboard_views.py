@@ -8,10 +8,9 @@ This module provides views for the renewable energy dashboard, including:
 - API endpoints for data updates
 
 RE% Calculation Policy:
-- Storage (BESS and Hydro pumped storage) is EXCLUDED from RE% calculations
 - Operational demand = grid-sent generation minus storage charging
 - Underlying demand = operational demand + rooftop solar (DPV)
-- RE% (operational) = (wind + utility solar + biomass) / operational demand
+- RE% (operational) = (wind + utility solar + biomass+ BESS) / operational demand
 - RE% (underlying) = (wind + utility solar + biomass + DPV) / underlying demand
 """
 from django.shortcuts import render

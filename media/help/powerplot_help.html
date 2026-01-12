@@ -1,0 +1,1127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Powerplot Module</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 0;
+            background: #f8f9fa;
+            color: #333;
+        }
+        
+        .container {
+            display: flex;
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            min-height: 100vh;
+            box-shadow: 0 0 20px rgba(0,0,0,0.1);
+        }
+        
+        .sidebar {
+            width: 350px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px 25px;
+            position: sticky;
+            top: 0;
+            height: 100vh;
+            overflow-y: auto;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+        }
+        
+        .sidebar h2 {
+            margin-top: 0;
+            color: #ffffff;
+            border-bottom: 2px solid rgba(255,255,255,0.3);
+            padding-bottom: 15px;
+            font-size: 1.4em;
+            font-weight: 600;
+        }
+        
+        .toc-list {
+            list-style: none;
+            padding: 0;
+            margin: 20px 0;
+        }
+        
+        .toc-item {
+            margin: 5px 0;
+        }
+        
+        .toc-link {
+            color: rgba(255,255,255,0.8);
+            text-decoration: none;
+            padding: 12px 15px;
+            display: block;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+            font-weight: 500;
+            border-left: 3px solid transparent;
+        }
+        
+        .toc-link:hover {
+            background: rgba(255,255,255,0.1);
+            color: white;
+            transform: translateX(5px);
+            border-left-color: rgba(255,255,255,0.5);
+        }
+        
+        .toc-link.active {
+            background: rgba(255,255,255,0.2);
+            color: white;
+            border-left-color: #ffd700;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+        }
+        .toc-subsections {
+            list-style: none;
+            padding: 0;
+            margin: 5px 0 0 20px;
+        }
+
+        .toc-subitem {
+            margin: 3px 0;
+        }
+
+        .toc-sublink {
+            color: rgba(255,255,255,0.6);
+            text-decoration: none;
+            padding: 6px 12px;
+            display: block;
+            border-radius: 5px;
+            transition: all 0.3s ease;
+            font-size: 0.9em;
+            border-left: 2px solid transparent;
+        }
+
+        .toc-sublink:hover {
+            background: rgba(255,255,255,0.05);
+            color: rgba(255,255,255,0.8);
+            border-left-color: rgba(255,255,255,0.3);
+        }
+        .content {
+            flex: 1;
+            padding: 40px 50px;
+            position: relative;
+            max-width: none;
+        }
+        
+        .page-section {
+            display: none;
+            animation: fadeIn 0.4s ease-in;
+        }
+        
+        .page-section.active {
+            display: block !important;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .navigation {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            display: flex;
+            gap: 15px;
+            z-index: 1000;
+        }
+        
+        .nav-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px 20px;
+            border-radius: 50px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+            min-width: 120px;
+        }
+        
+        .nav-btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+        }
+        
+        .nav-btn:disabled {
+            background: #cbd5e0;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        
+        .back-to-top {
+            position: fixed;
+            bottom: 120px;
+            right: 30px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px;
+            border-radius: 50%;
+            cursor: pointer;
+            width: 55px;
+            height: 55px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+            font-size: 18px;
+        }
+        
+        .back-to-top:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+        }
+        
+        .page-indicator {
+            position: fixed;
+            top: 30px;
+            right: 30px;
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 10px 15px;
+            border-radius: 25px;
+            font-size: 14px;
+            font-weight: 600;
+            z-index: 1000;
+            backdrop-filter: blur(10px);
+        }
+        
+        /* Content Styling */
+        h1, h2, h3, h4, h5, h6 {
+            color: #2d3748;
+            margin-top: 2em;
+            margin-bottom: 1em;
+        }
+        
+        h1 {
+            font-size: 2.5em;
+            border-bottom: 3px solid #667eea;
+            padding-bottom: 0.5em;
+            margin-top: 0;
+        }
+        
+        h2 {
+            font-size: 2em;
+            color: #4a5568;
+            border-bottom: 2px solid #e2e8f0;
+            padding-bottom: 0.3em;
+        }
+        
+        h3 {
+            font-size: 1.5em;
+            color: #667eea;
+        }
+        
+        p {
+            margin-bottom: 1.2em;
+            text-align: justify;
+        }
+        
+        ul, ol {
+            margin-bottom: 1.2em;
+            padding-left: 2em;
+        }
+        
+        li {
+            margin-bottom: 0.5em;
+        }
+        
+        code {
+            background: #f7fafc;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'Monaco', 'Consolas', monospace;
+            color: #e53e3e;
+            border: 1px solid #e2e8f0;
+        }
+        
+        pre {
+            background: #2d3748;
+            color: #e2e8f0;
+            padding: 20px;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin: 1.5em 0;
+        }
+        
+        pre code {
+            background: none;
+            padding: 0;
+            border: none;
+            color: inherit;
+        }
+        
+        strong {
+            color: #2d3748;
+            font-weight: 600;
+        }
+        
+        /* Mobile Responsive */
+        @media (max-width: 768px) {
+            .container {
+                flex-direction: column;
+            }
+            
+            .sidebar {
+                width: 100%;
+                height: auto;
+                position: relative;
+                padding: 20px;
+            }
+            
+            .content {
+                padding: 30px 20px;
+            }
+            
+            .navigation {
+                position: relative;
+                bottom: auto;
+                right: auto;
+                justify-content: center;
+                margin-top: 30px;
+            }
+            
+            .page-indicator {
+                position: relative;
+                top: auto;
+                right: auto;
+                margin-bottom: 20px;
+                display: inline-block;
+            }
+            
+            .back-to-top {
+                display: none;
+            }
+        }
+        
+        /* Print Styles */
+        @media print {
+            .sidebar, .navigation, .back-to-top, .page-indicator {
+                display: none;
+            }
+            
+            .page-section {
+                display: block !important;
+                page-break-after: always;
+            }
+            
+            .content {
+                width: 100%;
+                padding: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <nav class="sidebar">
+            <h2>📖 Table of Contents</h2>
+            
+            <div style="margin-bottom: 20px; padding-bottom: 15px; border-bottom: 1px solid rgba(255,255,255,0.2);">
+                <a href="/help/" style="color: rgba(255,255,255,0.9); text-decoration: none; padding: 10px 15px; display: block; border-radius: 8px; background: rgba(255,255,255,0.1); transition: all 0.3s ease;">
+                    ← Back to Main Help
+                </a>
+            </div>
+            <ul class="toc-list" id="tocList">
+                
+                <li class="toc-item">
+                    <a href="#" class="toc-link active" data-section="0">Powerplot Module</a>
+                </li><ul class="toc-subsections">
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="0" data-subsection="overview">Overview</a>
+                    </li></ul></li>
+                <li class="toc-item">
+                    <a href="#" class="toc-link " data-section="1">Main Features</a>
+                </li></li>
+                <li class="toc-item">
+                    <a href="#" class="toc-link " data-section="2">Accessing PowerPlot</a>
+                </li></li>
+                <li class="toc-item">
+                    <a href="#" class="toc-link " data-section="3">Overview Facility Supply Factors</a>
+                </li><ul class="toc-subsections">
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="3" data-subsection="key-features">Key Features</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="3" data-subsection="basic-workflow">Basic Workflow</a>
+                    </li></ul></li>
+                <li class="toc-item">
+                    <a href="#" class="toc-link " data-section="4">Visualization Modes</a>
+                </li><ul class="toc-subsections">
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="4" data-subsection="1-single-facility-mode">1. Single Facility Mode</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="4" data-subsection="2-compare-two-facilities-mode">2. Compare Two Facilities Mode</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="4" data-subsection="3-technology-aggregated-mode">3. Technology Aggregated Mode</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="4" data-subsection="4-compare-technologies-mode">4. Compare Technologies Mode</a>
+                    </li></ul></li>
+                <li class="toc-item">
+                    <a href="#" class="toc-link " data-section="5">Chart Types</a>
+                </li><ul class="toc-subsections">
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="5" data-subsection="line-chart">Line Chart</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="5" data-subsection="scatter-plot">Scatter Plot</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="5" data-subsection="bar-chart">Bar Chart</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="5" data-subsection="area-chart">Area Chart</a>
+                    </li></ul></li>
+                <li class="toc-item">
+                    <a href="#" class="toc-link " data-section="6">Time Aggregation</a>
+                </li><ul class="toc-subsections">
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="6" data-subsection="hourly-aggregation">Hourly Aggregation</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="6" data-subsection="weekly-aggregation">Weekly Aggregation</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="6" data-subsection="monthly-aggregation">Monthly Aggregation</a>
+                    </li></ul></li>
+                <li class="toc-item">
+                    <a href="#" class="toc-link " data-section="7">Date Range Filtering</a>
+                </li><ul class="toc-subsections">
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="7" data-subsection="quick-select-presets">Quick Select Presets</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="7" data-subsection="custom-date-ranges">Custom Date Ranges</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="7" data-subsection="use-cases-for-date-filtering">Use Cases for Date Filtering</a>
+                    </li></ul></li>
+                <li class="toc-item">
+                    <a href="#" class="toc-link " data-section="8">Correlation & Complementarity Analysis</a>
+                </li><ul class="toc-subsections">
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="8" data-subsection="understanding-the-metrics">Understanding the Metrics</a>
+                    </li></ul></li>
+                <li class="toc-item">
+                    <a href="#" class="toc-link " data-section="9">Interpretation Guide</a>
+                </li></li>
+                <li class="toc-item">
+                    <a href="#" class="toc-link " data-section="10">Using Metrics for Decision-Making</a>
+                </li></li>
+                <li class="toc-item">
+                    <a href="#" class="toc-link " data-section="11">Best Practices</a>
+                </li><ul class="toc-subsections">
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="11" data-subsection="data-analysis-workflow">Data Analysis Workflow</a>
+                    </li></ul></li>
+                <li class="toc-item">
+                    <a href="#" class="toc-link " data-section="12">Chart Selection Guide</a>
+                </li></li>
+                <li class="toc-item">
+                    <a href="#" class="toc-link " data-section="13">Performance Tips</a>
+                </li></li>
+                <li class="toc-item">
+                    <a href="#" class="toc-link " data-section="14">Interpretation Tips</a>
+                </li></li>
+                <li class="toc-item">
+                    <a href="#" class="toc-link " data-section="15">Frequently Asked Questions</a>
+                </li><ul class="toc-subsections">
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="15" data-subsection="general">General</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="15" data-subsection="metrics-and-calculations">Metrics and Calculations</a>
+                    </li></ul></li>
+                <li class="toc-item">
+                    <a href="#" class="toc-link " data-section="16">Date Ranges</a>
+                </li><ul class="toc-subsections">
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="16" data-subsection="technology-aggregation">Technology Aggregation</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="16" data-subsection="performance">Performance</a>
+                    </li></ul></li>
+                <li class="toc-item">
+                    <a href="#" class="toc-link " data-section="17">Tips for Advanced Users</a>
+                </li></li>
+            </ul>
+            <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid rgba(255,255,255,0.2); font-size: 0.9em;">
+                <p><strong>Generated:</strong><br>January 12, 2026</p>
+                <p><strong>Sections:</strong> 18</p>
+            </div>
+        </nav>
+        
+        <main class="content">
+            <div class="page-indicator">
+                Page <span id="currentPage">1</span> of <span id="totalPages">18</span>
+            </div>
+            
+            
+            <div class="page-section active" data-section="0">
+                <h1 id="powerplot-module">Powerplot Module</h1>
+<h2 id="overview">Overview</h2>
+<p>PowerPlot UI is a Django-based data visualization module that enables users to generate various plots and charts to visualize analysis data. The system provides an interactive interface for selecting scenarios, variants, and data series to create customized visualizations and export data to Excel spreadsheets.</p>
+            </div>
+            <div class="page-section " data-section="1">
+                <h2 id="main-features">Main Features</h2>
+<ul>
+<li><strong>Supply Factors Visualization</strong>: Generate various types of plots and charts for the generated output by facility and technology</li>
+<li><strong>Variant Visualization</strong>: Generate various types of plots and charts for the selected statistics for variantsto a selected scenario baseline</li>
+</ul>
+            </div>
+            <div class="page-section " data-section="2">
+                <h2 id="accessing-powerplot">Accessing PowerPlot</h2>
+<p>Navigate to the PowerPlot landing page where you'll see selection fields the demand year and scenario.</p>
+            </div>
+            <div class="page-section " data-section="3">
+                <h2 id="overview-facility-supply-factors">Overview Facility Supply Factors</h2>
+<p>The Renewable Facility Supply Factor Visualization tool allows you to analyze and compare renewable energy generation patterns from facilities in the portfolio. This tool helps you:
+- Visualize hourly, weekly, or monthly supply patterns
+- Compare facilities to identify complementary generation profiles
+- Analyze technology-level aggregated performance
+- Assess portfolio diversification through correlation metrics
+- Filter data by seasonal periods or custom date ranges</p>
+<h3 id="key-features">Key Features</h3>
+<ul>
+<li><strong>Four visualization modes</strong>: Single facility, facility comparison, technology aggregation, technology comparison</li>
+<li><strong>Four chart types</strong>: Line, scatter, bar, and area charts</li>
+<li><strong>Three time aggregations</strong>: Hourly, weekly, and monthly</li>
+<li><strong>Seasonal filtering</strong>: Pre-defined seasonal ranges and custom date selections</li>
+<li><strong>Statistical analysis</strong>: Correlation, complementarity, and variability metrics</li>
+<li><strong>Interactive charts</strong>: Zoom, pan, hover for detailed values</li>
+</ul>
+<h3 id="basic-workflow">Basic Workflow</h3>
+<ol>
+<li><strong>Select a visualization mode</strong> (Single Facility, Compare Two Facilities, Technology Aggregated, or Compare Technologies)</li>
+<li><strong>Choose a facility or technology</strong> from the dropdown menus</li>
+<li><strong>Select a year</strong> for analysis</li>
+<li><strong>Choose time aggregation</strong> (Hourly, Weekly, or Monthly)</li>
+<li><strong>Select chart type</strong> (Line, Scatter, Bar, or Area)</li>
+<li><strong>(Optional)</strong> Apply date range filters</li>
+<li><strong>Click the Plot/Compare button</strong> to generate a visualization</li>
+</ol>
+<hr />
+            </div>
+            <div class="page-section " data-section="4">
+                <h2 id="visualization-modes">Visualization Modes</h2>
+<h3 id="1-single-facility-mode">1. Single Facility Mode</h3>
+<p><strong>Purpose</strong>: Analyze supply patterns for an individual renewable energy facility.
+<strong>Use Cases</strong>:
+- Understand seasonal generation patterns
+- Identify typical daily/weekly cycles
+- Detect anomalies or maintenance periods
+- Assess capacity factor variations
+<strong>How to Use</strong>:
+1. Select "Single Facility" mode
+2. Choose a renewable facility from the dropdown
+3. Select year, aggregation, and chart type
+4. Click "Plot Supply"
+<strong>What You'll See</strong>:
+- Supply factor data over time
+- Info panel showing facility name, technology, year, aggregation level, and data point count
+- Interactive Plotly chart with zoom and pan capabilities
+<strong>Tip</strong>: Use hourly aggregation for detailed analysis of short periods, and monthly aggregation for annual trends.</p>
+<hr />
+<h3 id="2-compare-two-facilities-mode">2. Compare Two Facilities Mode</h3>
+<p><strong>Purpose</strong>: Compare generation patterns between two renewable facilities to identify complementarity.
+<strong>Use Cases</strong>:
+- Assess portfolio diversification
+- Identify complementary generation profiles (e.g., solar + wind)
+- Compare facilities of the same technology type
+- Understand correlation between facilities
+<strong>How to Use</strong>:
+1. Select "Compare Two Facilities" mode
+2. Choose Facility 1 and Facility 2 from dropdowns
+3. Select year, aggregation, and chart type
+4. Click "Compare"
+<strong>What You'll See</strong>:
+- Three traces: Facility 1, Facility 2, and Combined Total
+- Correlation &amp; Complementarity Analysis panel with key metrics:
+  - <strong>Correlation Coefficient</strong>: -1 to +1 (how outputs move together)
+  - <strong>Complementarity Score</strong>: 0 to 1 (portfolio diversification potential)
+  - <strong>Variability Reduction</strong>: Percentage reduction in output variability when combined
+  - <strong>Complementary Periods</strong>: Percentage of time when one is high and other is low
+  - <strong>Interpretation</strong>: Plain-language explanation of metrics
+<strong>Understanding the Metrics</strong>:
+| Metric | Good Range | What It Means |
+|--------|------------|---------------|
+| Correlation | -0.3 to +0.3 | Outputs are independent (good for diversification) |
+| Correlation | &gt; 0.7 | Outputs move together (similar patterns) |
+| Correlation | &lt; -0.7 | Anti-correlated (opposite patterns) |
+| Complementarity | &gt; 0.7 | Excellent diversification potential |
+| Complementarity | 0.4 - 0.7 | Moderate complementarity |
+| Complementarity | &lt; 0.4 | Similar patterns, limited diversification |
+| Variability Reduction | &gt; 10% | Combining significantly stabilizes output |
+<strong>Color Coding</strong>:
+- 🟢 Green badge: Good complementarity / low correlation
+- 🟡 Yellow badge: Moderate values
+- 🔴 Red badge: High correlation / poor complementarity</p>
+<hr />
+<h3 id="3-technology-aggregated-mode">3. Technology Aggregated Mode</h3>
+<p><strong>Purpose</strong>: View the combined output of all facilities using a specific technology.
+<strong>Use Cases</strong>:
+- Understand total technology capacity
+- Analyze seasonal patterns at the portfolio level
+- Compare technology performance across time periods
+- Assess total renewable contribution by technology type
+<strong>How to Use</strong>:
+1. Select "Technology Aggregated" mode
+2. Choose one or more technologies (e.g., Solar, Wind, Hydro)
+3. Select year, aggregation, and chart type
+4. Click "Plot Technology"
+<strong>What You'll See</strong>:
+- Aggregated supply (sum of all facilities with that technology)
+- Info panel showing technology name, number of facilities included
+- Combined total output over the selected time period
+<strong>Note</strong>: The system automatically sums the output from all facilities using the selected technology. The chart title shows how many facilities are included in the aggregation.</p>
+<hr />
+<h3 id="4-compare-technologies-mode">4. Compare Technologies Mode</h3>
+<p><strong>Purpose</strong>: Compare aggregated outputs between two technology types.
+<strong>Use Cases</strong>:
+- Compare solar vs wind generation patterns
+- Assess complementarity between technology types
+- Understand seasonal variations by technology
+- Optimize technology mix for portfolio stability
+<strong>How to Use</strong>:
+1. Select "Compare Technologies" mode
+2. Choose one or more Technologies for Group 1 and one or more Technologies for Group 2
+3. Select year, aggregation, and chart type
+4. Click "Compare"
+<strong>What You'll See</strong>:
+- Three traces: Technology 1 total, Technology 2 total, Combined Total
+- Correlation &amp; Complementarity Analysis panel
+- Number of facilities included for each technology
+- Statistical analysis of how the technologies complement each other
+<strong>Example Use Case</strong>: 
+Compare "Solar" vs "Wind" to see how well they complement each other seasonally. Typically, solar peaks during summer days while wind may be stronger at night or during winter, resulting in good complementarity scores.</p>
+<hr />
+            </div>
+            <div class="page-section " data-section="5">
+                <h2 id="chart-types">Chart Types</h2>
+<h3 id="line-chart">Line Chart</h3>
+<p><strong>Best for</strong>: Continuous data, time series analysis, identifying trends
+<strong>Features</strong>:
+- Smooth lines connecting data points
+- Easy to see trends and patterns
+- Works well for all aggregation levels
+- Default chart type
+<strong>When to Use</strong>: Hourly or weekly data where you want to see continuous patterns.</p>
+<hr />
+<h3 id="scatter-plot">Scatter Plot</h3>
+<p><strong>Best for</strong>: Identifying outliers, seeing individual data points, correlation analysis
+<strong>Features</strong>:
+- Individual points without connecting lines
+- Makes each data point visible
+- Good for spotting anomalies
+<strong>When to Use</strong>: When you need to see exact values or identify unusual data points.</p>
+<hr />
+<h3 id="bar-chart">Bar Chart</h3>
+<p><strong>Best for</strong>: Discrete time periods, comparing categories, monthly summaries
+<strong>Features</strong>:
+- Vertical bars for each time period
+- Clear comparison between periods
+- Good for discrete data
+<strong>When to Use</strong>: Monthly or weekly aggregations where you're comparing distinct periods.</p>
+<hr />
+<h3 id="area-chart">Area Chart</h3>
+<p><strong>Best for</strong>: Showing magnitude and volume, cumulative effects, emphasizing totals
+<strong>Features</strong>:
+- Filled area under the line
+- Emphasizes the magnitude of values
+- Good for stacked comparisons
+<strong>When to Use</strong>: When you want to emphasize the volume or magnitude of generation, or when comparing cumulative totals.</p>
+<hr />
+            </div>
+            <div class="page-section " data-section="6">
+                <h2 id="time-aggregation">Time Aggregation</h2>
+<h3 id="hourly-aggregation">Hourly Aggregation</h3>
+<ul>
+<li><strong>Data Points</strong>: 8,760 per year (365 days × 24 hours)</li>
+<li><strong>Best for</strong>: Detailed analysis, short time periods (days to weeks)</li>
+<li><strong>Use when</strong>: You need to see diurnal patterns, identify hourly variations</li>
+<li><strong>Performance</strong>: May be slower with large datasets</li>
+<li><strong>Note</strong>: Consider using date range filters for specific months when viewing hourly data</li>
+</ul>
+<h3 id="weekly-aggregation">Weekly Aggregation</h3>
+<ul>
+<li><strong>Data Points</strong>: 52 per year</li>
+<li><strong>Best for</strong>: Medium-term trends, monthly to quarterly analysis</li>
+<li><strong>Use when</strong>: You want to see weekly patterns without hourly detail</li>
+<li><strong>Performance</strong>: Good balance between detail and performance</li>
+<li><strong>Calculation</strong>: Averages all hours within each week</li>
+</ul>
+<h3 id="monthly-aggregation">Monthly Aggregation</h3>
+<ul>
+<li><strong>Data Points</strong>: 12 per year</li>
+<li><strong>Best for</strong>: Annual trends, seasonal comparisons, long-term analysis</li>
+<li><strong>Use when</strong>: Comparing across full years or multiple years</li>
+<li><strong>Performance</strong>: Fast, handles large datasets well</li>
+<li><strong>Calculation</strong>: Averages all hours within each month</li>
+</ul>
+<hr />
+            </div>
+            <div class="page-section " data-section="7">
+                <h2 id="date-range-filtering">Date Range Filtering</h2>
+<p>Date range filtering allows you to focus on specific time periods without changing the base dataset.</p>
+<h3 id="quick-select-presets">Quick Select Presets</h3>
+<p><strong>Southern Hemisphere Seasons</strong>:
+- <strong>Summer</strong> (Dec-Feb): Peak solar generation period
+- <strong>Autumn</strong> (Mar-May): Transitional period
+- <strong>Winter</strong> (Jun-Aug): Lower solar, potentially higher wind
+- <strong>Spring</strong> (Sep-Nov): Transitional period
+<strong>Quarters</strong>:
+- <strong>Q1</strong> (Jan-Mar): First quarter
+- <strong>Q2</strong> (Apr-Jun): Second quarter
+- <strong>Q3</strong> (Jul-Sep): Third quarter
+- <strong>Q4</strong> (Oct-Dec): Fourth quarter</p>
+<h3 id="custom-date-ranges">Custom Date Ranges</h3>
+<ol>
+<li>Click "Optional: Select Date Range" to expand the accordion</li>
+<li>Use the <strong>Quick Select</strong> dropdown for preset ranges, OR</li>
+<li>Manually select <strong>Start Month</strong> and <strong>End Month</strong></li>
+<li>Click "Plot Supply" or "Compare" to apply the filter</li>
+<li>Use <strong>Clear Range</strong> button to reset to full year</li>
+</ol>
+<h3 id="use-cases-for-date-filtering">Use Cases for Date Filtering</h3>
+<table>
+<thead>
+<tr>
+<th>Scenario</th>
+<th>Recommended Range</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Compare summer solar performance</td>
+<td>Summer (Dec-Feb)</td>
+</tr>
+<tr>
+<td>Analyze winter wind patterns</td>
+<td>Winter (Jun-Aug)</td>
+</tr>
+<tr>
+<td>Review Q4 performance</td>
+<td>Q4 (Oct-Dec)</td>
+</tr>
+<tr>
+<td>Growing season analysis</td>
+<td>Spring + Summer (Sep-Feb)</td>
+</tr>
+<tr>
+<td>Year-end reporting</td>
+<td>Full Year (no filter)</td>
+</tr>
+<tr>
+<td><strong>Note</strong>: Date ranges work with all visualization modes and chart types. The system automatically filters the data to the selected months and adjusts aggregations accordingly.</td>
+<td></td>
+</tr>
+<tr>
+<td>---</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+            </div>
+            <div class="page-section " data-section="8">
+                <h2 id="correlation-complementarity-analysis">Correlation &amp; Complementarity Analysis</h2>
+<p>This section appears when comparing two facilities or technologies and provides statistical insights into their relationship.</p>
+<h3 id="understanding-the-metrics">Understanding the Metrics</h3>
+<h4 id="correlation-coefficient">Correlation Coefficient</h4>
+<p><strong>Range</strong>: -1.0 to +1.0
+- <strong>+1.0</strong>: Perfect positive correlation (outputs always move together)
+- <strong>+0.7 to +1.0</strong>: Strong positive correlation
+- <strong>+0.3 to +0.7</strong>: Moderate positive correlation
+- <strong>-0.3 to +0.3</strong>: Weak or no correlation (independent outputs) ← <strong>Best for diversification</strong>
+- <strong>-0.7 to -0.3</strong>: Moderate negative correlation
+- <strong>-1.0 to -0.7</strong>: Strong negative correlation (anti-correlated)
+- <strong>-1.0</strong>: Perfect negative correlation (outputs move in opposite directions)</p>
+<h4 id="complementarity-score">Complementarity Score</h4>
+<p><strong>Range</strong>: 0.0 to 1.0
+Calculated as: <code>1 - |correlation|</code>
+- <strong>0.9 to 1.0</strong>: Excellent complementarity (perfect for portfolio diversification)
+- <strong>0.7 to 0.9</strong>: High complementarity (very good for diversification)
+- <strong>0.4 to 0.7</strong>: Moderate complementarity (some diversification benefit)
+- <strong>0.0 to 0.4</strong>: Low complementarity (limited diversification benefit)</p>
+<h4 id="variability-reduction">Variability Reduction</h4>
+<p><strong>Range</strong>: Can be negative or positive (expressed as percentage)
+- <strong>Positive values</strong>: Combining the sources reduces output variability (desirable)
+- <strong>&gt; 20%</strong>: Significant reduction in variability
+- <strong>10-20%</strong>: Moderate reduction
+- <strong>0-10%</strong>: Small reduction
+- <strong>Negative values</strong>: Combining actually increases variability (undesirable)</p>
+<h4 id="complementary-periods-percentage">Complementary Periods Percentage</h4>
+<p><strong>Range</strong>: 0% to 100%
+Percentage of time when one facility is producing above 30% while the other is below 30%.
+- <strong>&gt; 40%</strong>: Frequently complementary
+- <strong>20-40%</strong>: Sometimes complementary
+- <strong>&lt; 20%</strong>: Rarely complementary</p>
+            </div>
+            <div class="page-section " data-section="9">
+                <h2 id="interpretation-guide">Interpretation Guide</h2>
+<p>The system provides an automatic interpretation combining all metrics. Here are some common patterns:
+<strong>Pattern 1: Ideal Complementarity (Solar + Wind)</strong>
+- Correlation: -0.2 to +0.2
+- Complementarity: 0.8+
+- Variability Reduction: 15%+
+- Interpretation: "Weak correlation - outputs are largely independent | High complementarity - excellent for portfolio diversification | Combining reduces variability by 18%"
+<strong>Pattern 2: Similar Sources (Two Solar Farms)</strong>
+- Correlation: +0.8
+- Complementarity: 0.2
+- Variability Reduction: 2%
+- Interpretation: "Strong positive correlation | Low complementarity - outputs follow similar patterns | Combining provides minimal variability reduction"
+<strong>Pattern 3: Anti-Correlated (Day Solar + Night Wind)</strong>
+- Correlation: -0.6
+- Complementarity: 0.6
+- Variability Reduction: 25%
+- Interpretation: "Moderate negative correlation (anti-correlated - when one is high, other tends to be low) | Moderate complementarity | Combining significantly reduces output variability"</p>
+            </div>
+            <div class="page-section " data-section="10">
+                <h2 id="using-metrics-for-decision-making">Using Metrics for Decision-Making</h2>
+<p><strong>Portfolio Optimization</strong>:
+- Look for complementarity scores &gt; 0.7
+- Prefer negative correlations or near-zero correlations
+- Prioritize combinations with high variability reduction
+<strong>Risk Management</strong>:
+- Avoid portfolios with all facilities showing correlation &gt; 0.7
+- Diversify across technologies with low correlation
+- Use seasonal filtering to understand time-varying correlations
+<strong>Capacity Planning</strong>:
+- High complementarity suggests you need less total capacity
+- Low complementarity means you need more backup capacity
+- Variability reduction indicates firming requirements</p>
+<hr />
+            </div>
+            <div class="page-section " data-section="11">
+                <h2 id="best-practices">Best Practices</h2>
+<h3 id="data-analysis-workflow">Data Analysis Workflow</h3>
+<ol>
+<li><strong>Start with Overview</strong>:</li>
+<li>Use Technology Aggregated mode to see total capacity by type</li>
+<li>Monthly aggregation for annual patterns</li>
+<li>Full year (no date filter)</li>
+<li><strong>Identify Patterns</strong>:</li>
+<li>Switch to Single Facility mode</li>
+<li>Use hourly or weekly aggregation</li>
+<li>Look for seasonal variations</li>
+<li><strong>Deep Dive Analysis</strong>:</li>
+<li>Use date range filters for specific periods</li>
+<li>Compare similar facilities to find best performers</li>
+<li>Analyze complementarity for portfolio optimization</li>
+<li><strong>Portfolio Optimization</strong>:</li>
+<li>Use Technology Comparison mode</li>
+<li>Focus on complementarity scores</li>
+<li>Apply seasonal filters to understand time-varying patterns</li>
+</ol>
+            </div>
+            <div class="page-section " data-section="12">
+                <h2 id="chart-selection-guide">Chart Selection Guide</h2>
+<table>
+<thead>
+<tr>
+<th>Analysis Type</th>
+<th>Recommended Chart</th>
+<th>Aggregation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Daily patterns</td>
+<td>Line</td>
+<td>Hourly</td>
+</tr>
+<tr>
+<td>Weekly trends</td>
+<td>Line or Area</td>
+<td>Weekly</td>
+</tr>
+<tr>
+<td>Monthly comparison</td>
+<td>Bar</td>
+<td>Monthly</td>
+</tr>
+<tr>
+<td>Outlier detection</td>
+<td>Scatter</td>
+<td>Hourly</td>
+</tr>
+<tr>
+<td>Magnitude emphasis</td>
+<td>Area</td>
+<td>Any</td>
+</tr>
+<tr>
+<td>Categorical comparison</td>
+<td>Bar</td>
+<td>Weekly/Monthly</td>
+</tr>
+</tbody>
+</table>
+            </div>
+            <div class="page-section " data-section="13">
+                <h2 id="performance-tips">Performance Tips</h2>
+<ol>
+<li><strong>For Large Datasets</strong> (hourly, full year):</li>
+<li>Apply date range filters to reduce data points</li>
+<li>Use weekly or monthly aggregation</li>
+<li>Consider scatter plots only for smaller datasets</li>
+<li><strong>For Quick Analysis</strong>:</li>
+<li>Start with monthly aggregation</li>
+<li>Use bar charts for clear comparisons</li>
+<li>Apply quick select presets for seasons</li>
+<li><strong>For Detailed Analysis</strong>:</li>
+<li>Use hourly aggregation with date ranges</li>
+<li>Line or area charts work best</li>
+<li>Focus on specific months or quarters</li>
+</ol>
+            </div>
+            <div class="page-section " data-section="14">
+                <h2 id="interpretation-tips">Interpretation Tips</h2>
+<ol>
+<li><strong>Seasonal Patterns</strong>:</li>
+<li>Solar typically peaks in summer (Dec-Feb in Southern Hemisphere)</li>
+<li>Wind patterns vary by location and season</li>
+<li>Use date range filters to isolate seasons</li>
+<li><strong>Complementarity</strong>:</li>
+<li>Solar + Wind often show good complementarity</li>
+<li>Similar technologies (two solar farms) show high correlation</li>
+<li>Geographic diversity can improve complementarity</li>
+<li><strong>Variability</strong>:</li>
+<li>Higher variability reduction = better portfolio stability</li>
+<li>Target &gt; 10% for meaningful improvement</li>
+<li>Seasonal analysis may show time-varying benefits</li>
+</ol>
+<hr />
+            </div>
+            <div class="page-section " data-section="15">
+                <h2 id="frequently-asked-questions">Frequently Asked Questions</h2>
+<h3 id="general">General</h3>
+<p><strong>Q: What data sources are used?</strong><br />
+A: The tool uses supply factor data from the <code>supplyfactors</code> table in the database, which contains hourly quantum and supply values for each facility.
+<strong>Q: Can I export the charts?</strong><br />
+A: Yes, use Plotly's built-in download button in the chart toolbar to save as PNG or SVG.
+<strong>Q: Can I view multiple years?</strong><br />
+A: Currently, you can select one year at a time. To compare years, you'll need to generate separate charts.
+<strong>Q: Why do some facilities not appear in the dropdown?</strong><br />
+A: Only facilities with renewable technology (renewable flag = 1) are shown.</p>
+<h3 id="metrics-and-calculations">Metrics and Calculations</h3>
+<p><strong>Q: How is the Combined Total calculated?</strong><br />
+A: Combined Total = Facility 1 quantum + Facility 2 quantum at each time point.
+<strong>Q: What's the difference between Quantum and Supply?</strong><br />
+A: Both are plotted if they differ. Quantum typically represents theoretical output, while Supply represents actual delivered output. If they're identical, only one trace is shown.
+<strong>Q: How is weekly aggregation calculated?</strong><br />
+A: The year is divided into 52 weeks (168 hours each), and values are averaged within each week.
+<strong>Q: How is monthly aggregation calculated?</strong><br />
+A: Data is grouped by calendar month, and values are averaged within each month.
+<strong>Q: What does "Complementary Periods" mean?</strong><br />
+A: The percentage of time when one facility is producing above 30% of its maximum while the other is below 30%. Higher percentages indicate better complementarity.</p>
+            </div>
+            <div class="page-section " data-section="16">
+                <h2 id="date-ranges">Date Ranges</h2>
+<p><strong>Q: Why do the seasons seem backwards?</strong><br />
+A: The system uses Southern Hemisphere seasons (e.g., Summer = Dec-Feb). This is appropriate for Australian data.
+<strong>Q: Can I select non-contiguous months?</strong><br />
+A: No, the system requires a continuous range from start month to end month.
+<strong>Q: Does date filtering affect correlation calculations?</strong><br />
+A: Yes, all metrics are calculated only on the filtered data range.</p>
+<h3 id="technology-aggregation">Technology Aggregation</h3>
+<p><strong>Q: How many facilities are included in technology aggregation?</strong><br />
+A: The info panel shows the count. All facilities with the selected technology are automatically included.
+<strong>Q: Can I exclude specific facilities from technology aggregation?</strong><br />
+A: Not currently. All facilities with the selected technology are included.
+<strong>Q: Why is my technology total different from my expectations?</strong><br />
+A: Verify that all expected facilities are tagged with the correct technology in the database.</p>
+<h3 id="performance">Performance</h3>
+<p><strong>Q: Why is hourly data slow?</strong><br />
+A: Hourly data for a full year contains 8,760 data points per facility. Use date range filters or switch to weekly/monthly aggregation for better performance.
+<strong>Q: Can I improve chart responsiveness?</strong><br />
+A: Use modern browsers (Chrome, Firefox), close unnecessary tabs, and use lower aggregation levels (weekly/monthly) for faster rendering.</p>
+<hr />
+            </div>
+            <div class="page-section " data-section="17">
+                <h2 id="tips-for-advanced-users">Tips for Advanced Users</h2>
+<ol>
+<li><strong>Seasonal Complementarity Analysis</strong>:</li>
+<li>Run comparisons for each season separately</li>
+<li>Compare correlation metrics across seasons</li>
+<li>Identify which season shows best complementarity</li>
+<li><strong>Portfolio Composition</strong>:</li>
+<li>Compare all technology pairs to create a correlation matrix</li>
+<li>Target portfolio with average complementarity &gt; 0.6</li>
+<li>Balance high and low correlation pairs</li>
+<li><strong>Capacity Factor Analysis</strong>:</li>
+<li>Use single facility mode with hourly data</li>
+<li>Apply seasonal filters to understand seasonal capacity factors</li>
+<li>Compare actual vs expected using scatter plots</li>
+<li><strong>Custom Analysis</strong>:</li>
+<li>Export chart data (future feature)</li>
+<li>Use scatter plots to identify outliers</li>
+<li>Apply multiple date ranges to understand time-varying patterns</li>
+</ol>
+<hr />
+            </div>
+        </main>
+    </div>
+    
+    <div class="navigation">
+        <button class="nav-btn" id="prevBtn" onclick="previousPage()">← Previous</button>
+        <button class="nav-btn" id="nextBtn" onclick="nextPage()">Next →</button>
+    </div>
+    
+    <button class="back-to-top" onclick="scrollToTop()" title="Back to top">↑</button>
+    
+    <script>
+        let currentSection = 0;
+        const totalSections = 18;
+        
+        function showSection(sectionIndex) {
+            // Hide all sections
+            document.querySelectorAll('.page-section').forEach(section => {
+                section.classList.remove('active');
+            });
+            
+            // Show selected section
+            const targetSection = document.querySelector(`.content .page-section[data-section="${sectionIndex}"]`);
+            if (targetSection) {
+                targetSection.classList.add('active');
+            }
+            
+            // Update TOC active state
+            document.querySelectorAll('.toc-link').forEach(link => {
+                link.classList.remove('active');
+            });
+            const activeLink = document.querySelector(`[data-section="${sectionIndex}"]`);
+            if (activeLink) {
+                activeLink.classList.add('active');
+            }
+            
+            // Update current section
+            currentSection = sectionIndex;
+            
+            // Update page indicator
+            document.getElementById('currentPage').textContent = sectionIndex + 1;
+            
+            // Update navigation buttons
+            updateNavigationButtons();
+            
+            // Scroll to top of content
+            document.querySelector('.content').scrollTop = 0;
+            window.scrollTo(0, 0);
+        }
+        
+        function updateNavigationButtons() {
+            const prevBtn = document.getElementById('prevBtn');
+            const nextBtn = document.getElementById('nextBtn');
+            
+            prevBtn.disabled = currentSection === 0;
+            nextBtn.disabled = currentSection === totalSections - 1;
+        }
+        
+        function nextPage() {
+            if (currentSection < totalSections - 1) {
+                showSection(currentSection + 1);
+            }
+        }
+        
+        function previousPage() {
+            if (currentSection > 0) {
+                showSection(currentSection - 1);
+            }
+        }
+        
+        function scrollToTop() {
+            showSection(0);
+        }
+        
+        // Keyboard navigation
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'ArrowRight' || e.key === 'PageDown') {
+                nextPage();
+                e.preventDefault();
+            } else if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
+                previousPage();
+                e.preventDefault();
+            }
+        });
+        
+                // TOC click handlers
+        document.addEventListener("DOMContentLoaded", function () {
+            const tocLinks = document.querySelectorAll(".toc-link");
+            const tocSubLinks = document.querySelectorAll(".toc-sublink");
+            const pageSections = document.querySelectorAll(".page-section");
+            const currentPage = document.getElementById("currentPage");
+
+            // Handle main section navigation
+            tocLinks.forEach(link => {
+                link.addEventListener("click", function (e) {
+                    e.preventDefault();
+
+                    const sectionIndex = this.dataset.section;
+
+                    // Activate the correct section
+                    pageSections.forEach(sec => {
+                        sec.classList.toggle("active", sec.dataset.section === sectionIndex);
+                    });
+
+                    // Update TOC link active state
+                    tocLinks.forEach(l => l.classList.remove("active"));
+                    this.classList.add("active");
+
+                    // Update page number
+                    if (currentPage) currentPage.textContent = parseInt(sectionIndex) + 1;
+
+                    // Scroll to top smoothly
+                    window.scrollTo({ top: 0, behavior: "smooth" });
+                });
+            });
+
+            // Handle subsection navigation
+            tocSubLinks.forEach(link => {
+                link.addEventListener("click", function (e) {
+                    e.preventDefault();
+
+                    const sectionIndex = this.dataset.section;
+                    const subsectionId = this.dataset.subsection;
+
+                    // 1️⃣ Activate correct section first
+                    pageSections.forEach(sec => {
+                        sec.classList.toggle("active", sec.dataset.section === sectionIndex);
+                    });
+
+                    // 2️⃣ Delay scroll until browser has rendered section
+                    setTimeout(() => {
+                        const target = document.getElementById(subsectionId);
+                        if (target) {
+                            target.scrollIntoView({ behavior: "smooth", block: "center" });
+
+                            // 3️⃣ Temporary highlight
+                            target.style.transition = "background-color 0.5s ease";
+                            const originalBg = target.style.backgroundColor;
+                            target.style.backgroundColor = "#fffa9e"; // light yellow
+                            setTimeout(() => {
+                                target.style.backgroundColor = originalBg;
+                            }, 1200);
+                        }
+                    }, 100); // wait a bit to ensure section is visible
+                });
+            });
+        });
+
+    </script>
+</body>
+</html>
