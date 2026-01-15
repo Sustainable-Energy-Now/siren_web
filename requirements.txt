@@ -41,6 +41,7 @@ multiurl==0.3.7
 mysqlclient==2.2.7
 narwhals==2.10.0
 numpy==2.2.6
+NREL-PySAM==7.1.0
 openpyxl==3.1.5
 packaging==25.0
 pandas==2.2.3

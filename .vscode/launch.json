@@ -115,12 +115,12 @@
             "autoStartBrowser": false
         },
         {
-            "name": "Python Debugger: fetch_ERA5",
+            "name": "Python Debugger: retrieve_ERA5",
             "type": "debugpy",
             "request": "launch",
             "program": "${workspaceFolder}\\manage.py",
             "args": [
-                "retrieve_era5_data", "--start-year=2024", "--end-year=2024", "--existing"
+                "retrieve_era5_data", "--start-year", "2025", "--start-month", "01", "--end-year",  "2025", "--end-month", "01"
             ],
             "django": true,
             "autoStartBrowser": false

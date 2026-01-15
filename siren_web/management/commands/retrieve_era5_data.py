@@ -78,7 +78,11 @@ class Command(BaseCommand):
             action='store_true',
             help='Only validate CDS API credentials without downloading data'
         )
-        
+        parser.add_argument(
+            '--test-era-request',
+            action='store_true',
+            help='Test a small data era request to verify API connectivity'
+        )
         parser.add_argument(
             '--test-request',
             action='store_true',
@@ -96,7 +100,7 @@ class Command(BaseCommand):
         self.boundaries = {
             'north': -28.0,   # Northern boundary (around Geraldton)
             'south': -35.0,   # Southern boundary (around Albany)
-            'west': 114.0,    # Western boundary (Indian Ocean coast)
+            'west': 113.0,    # Western boundary (Extended for offshore wind zones)
             'east': 120.0     # Eastern boundary (inland)
         }
         
@@ -112,10 +116,14 @@ class Command(BaseCommand):
             self.stdout.write(self.style.SUCCESS('CDS API credentials are valid!'))
             return
             
+        if options['test_era_request']:
+            self.test_era_request()
+            return
+        
         if options['test_request']:
             self.test_small_request()
             return
-            
+        
         # Check data availability before attempting download
         start_year = options['start_year']
         end_year = options['end_year']
@@ -155,7 +163,7 @@ class Command(BaseCommand):
             raise CommandError(
                 f'CDS API credentials file not found at {cdsapirc_path}\n'
                 'Please create this file with your CDS API credentials:\n'
-                'url: https://cds.climate.copernicus.eu/api/v2\n'
+                'url: https://cds.climate.copernicus.eu/api\n'
                 'key: <your-uid>:<your-api-key>\n'
                 'Get your credentials from: https://cds.climate.copernicus.eu/api-how-to'
             )
@@ -178,21 +186,13 @@ class Command(BaseCommand):
                     key_found = True
                     # Extract the key part and validate format
                     key_value = line.split('key:', 1)[1].strip()
-                    if ':' in key_value:
-                        parts = key_value.split(':', 1)  # Split only on first colon
-                        if len(parts) == 2 and parts[0].strip() and parts[1].strip():
-                            # Check if both UID and API key are present and reasonable length
-                            uid = parts[0].strip()
-                            api_key = parts[1].strip()
-                            # UID can be numeric or UUID format, API key should be substantial
-                            if len(uid) >= 4 and len(api_key) >= 30:
-                                key_format_valid = True
+                    key_format_valid = True
             
             if not url_found:
                 raise CommandError(
                     f'Invalid .cdsapirc file: missing "url" line.\n'
                     f'Your file should contain:\n'
-                    f'url: https://cds.climate.copernicus.eu/api/v2\n'
+                    f'url: https://cds.climate.copernicus.eu/api\n'
                     f'key: <your-uid>:<your-api-key>'
                 )
             
@@ -200,20 +200,18 @@ class Command(BaseCommand):
                 raise CommandError(
                     f'Invalid .cdsapirc file: missing "key" line.\n'
                     f'Your file should contain:\n'
-                    f'url: https://cds.climate.copernicus.eu/api/v2\n'
+                    f'url: https://cds.climate.copernicus.eu/api\n'
                     f'key: <your-uid>:<your-api-key>'
                 )
             
             if not key_format_valid:
                 raise CommandError(
                     f'Invalid API key format in .cdsapirc file.\n'
-                    f'The key should be in format: <UID>:<APIKEY>\n'
+                    f'The key should be in format: <APIKEY>\n'
                     f'Where:\n'
-                    f'  - UID is your user ID (numeric like 12345 or UUID like 930a50b9-9f8a-4c3f-a9f8-4bae22f64152)\n'
                     f'  - APIKEY is your long API key string\n'
                     f'Examples:\n'
-                    f'  key: 12345:abcd1234-ef56-7890-abcd-1234567890ab\n'
-                    f'  key: 930a50b9-9f8a-4c3f-a9f8-4bae22f64152:abcd1234-ef56-7890-abcd-1234567890ab\n\n'
+                    f'  key: abcd1234-ef56-7890-abcd-1234567890ab\n'
                     f'To get your credentials:\n'
                     f'1. Go to https://cds.climate.copernicus.eu/user/login\n'
                     f'2. Log in to your account\n'
@@ -234,17 +232,17 @@ class Command(BaseCommand):
                 'surface_solar_radiation_downwards',  # GHI - Global Horizontal Irradiance
                 'surface_net_solar_radiation',        # Net solar radiation
                 'total_cloud_cover',                   # Cloud cover (affects radiation)
-                '2m_temperature'                       # Air temperature (affects PV efficiency)
+                '2m_temperature',                      # Air temperature (affects PV efficiency)
+                '2m_dewpoint_temperature'              # Dewpoint for RH calculation
             ],
             'wind_variables': [
                 '10m_u_component_of_wind',            # 10m wind U-component
-                '10m_v_component_of_wind',            # 10m wind V-component  
+                '10m_v_component_of_wind',            # 10m wind V-component
                 '100m_u_component_of_wind',           # 100m wind U-component (closer to hub height)
                 '100m_v_component_of_wind',           # 100m wind V-component
                 'surface_pressure'                    # Surface pressure (for air density)
             ],
             'additional_variables': [
-                '2m_relative_humidity',               # For air density and comfort calculations
                 'surface_solar_radiation_downward_clear_sky',  # Clear sky radiation for cloud index
             ]
         }
@@ -254,47 +252,45 @@ class Command(BaseCommand):
         if variables is None:
             var_dict = self.get_era5_variables()
             # Combine all variable types for comprehensive energy analysis
-            variables = (var_dict['solar_variables'] + 
-                        var_dict['wind_variables'] + 
+            variables = (var_dict['solar_variables'] +
+                        var_dict['wind_variables'] +
                         var_dict['additional_variables'])
-        
-        # Request structure based on working CDS-generated code
+
+        # Get actual number of days in the month to avoid requesting invalid dates
+        import calendar
+        if month:
+            num_days = calendar.monthrange(year, month)[1]
+            days = [f'{d:02d}' for d in range(1, num_days + 1)]
+        else:
+            # For full year, include all possible days (API handles invalid dates like Feb 30)
+            days = [f'{d:02d}' for d in range(1, 32)]
+
+        # Request structure matching working CDS Beta API format
         request = {
-            'product_type': ['reanalysis'],
+            'product_type': 'reanalysis',  # String, not list (CDS Beta format)
             'variable': variables,
-            'data_format': 'netcdf',
+            'year': str(year),  # String, not list
+            'month': f'{month:02d}' if month else [f'{m:02d}' for m in range(1, 13)],
+            'day': days,
+            'time': [f'{h:02d}:00' for h in range(24)],
+            'data_format': 'grib',  # GRIB format (default, proven to work)
             'download_format': 'unarchived',
             'area': [
                 self.boundaries['north'],
-                self.boundaries['west'], 
+                self.boundaries['west'],
                 self.boundaries['south'],
                 self.boundaries['east']
             ]
         }
-        
-        # Set time parameters
-        if month:
-            request['year'] = [str(year)]
-            request['month'] = [f'{month:02d}']
-            # All days of the month
-            request['day'] = [f'{d:02d}' for d in range(1, 32)]
-        else:
-            request['year'] = [str(year)]
-            # All months
-            request['month'] = [f'{m:02d}' for m in range(1, 13)]
-            request['day'] = [f'{d:02d}' for d in range(1, 32)]
-            
-        # All hours
-        request['time'] = [f'{h:02d}:00' for h in range(24)]
-        
+
         return request
 
     def generate_filename(self, year, month=None):
         """Generate filename for ERA5 data"""
         if month:
-            return f'era5_swwa_{year}{month:02d}.nc'
+            return f'era5_data_{year}_{month:02d}.grib'
         else:
-            return f'era5_swwa_{year}.nc'
+            return f'era5_data_{year}.grib'
 
     def retrieve_data(self):
         """Main data retrieval function"""
@@ -356,7 +352,7 @@ class Command(BaseCommand):
                     "100m_v_component_of_wind",
                     "surface_solar_radiation_downwards"
                 ],
-                "year": ["2024"],
+                "year": ["2025"],
                 "month": [
                     "01", "02", "03",
                     "04", "05", "06",
@@ -429,19 +425,20 @@ class Command(BaseCommand):
             )
             # Try to provide helpful error messages
             error_msg = str(e).lower()
-            if 'not found' in error_msg:
+            if 'endpoint not found' in error_msg or 'api endpoint' in error_msg:
                 self.stdout.write(
                     self.style.WARNING(
-                        f'Data not found error - possible causes:\n'
-                        f'  - ERA5 data for {year}/{month:02d} may not be available yet (2-3 month delay)\n'
-                        f'  - Some variables may not be available for the requested period\n'
-                        f'  - Temporary CDS system issues\n'
-                        f'Try using --test-request to test with a smaller request'
+                        f'\n'
+                        f'API Endpoint Error - This usually means:\n'
+                        f'  1. You need to accept the dataset Terms of Use first:\n'
+                        f'     - Visit: https://cds.climate.copernicus.eu/datasets/reanalysis-era5-single-levels\n'
+                        f'     - Click "Download data" tab\n'
+                        f'     - Accept the Terms of Use if prompted\n'
+                        f'  2. Or the CDS API may be undergoing maintenance\n'
+                        f'  3. Check CDS status: https://cds.climate.copernicus.eu/live/status\n'
                     )
                 )
-            # Try to provide helpful error messages
-            error_msg = str(e).lower()
-            if 'not found' in error_msg:
+            elif 'not found' in error_msg:
                 self.stdout.write(
                     self.style.WARNING(
                         f'Data not found error - possible causes:\n'
@@ -484,22 +481,47 @@ class Command(BaseCommand):
             )
 
     def validate_downloaded_file(self, filepath):
-        """Validate downloaded NetCDF file"""
+        """Validate downloaded GRIB or NetCDF file"""
         try:
-            with Dataset(filepath, 'r') as nc:
-                self.stdout.write(f'  File validation: {os.path.basename(filepath)}')
-                self.stdout.write(f'    Format: {getattr(nc, "data_model", "Unknown")}')
-                self.stdout.write(f'    Dimensions: {dict(nc.dimensions)}')
-                self.stdout.write(f'    Variables: {len(nc.variables)} variables')
-                
-                # Check coordinate ranges
-                if 'latitude' in nc.variables:
-                    lat = nc.variables['latitude'][:]
-                    self.stdout.write(f'    Latitude range: {lat.min():.3f} to {lat.max():.3f}')
-                if 'longitude' in nc.variables:
-                    lon = nc.variables['longitude'][:]
-                    self.stdout.write(f'    Longitude range: {lon.min():.3f} to {lon.max():.3f}')
-                    
+            file_size = os.path.getsize(filepath)
+            self.stdout.write(f'  File validation: {os.path.basename(filepath)}')
+            self.stdout.write(f'    File size: {file_size / (1024*1024):.1f} MB')
+
+            # For GRIB files, we can do basic validation
+            if filepath.endswith('.grib'):
+                try:
+                    import pygrib
+                    grbs = pygrib.open(filepath)
+                    num_messages = grbs.messages
+                    self.stdout.write(f'    GRIB messages: {num_messages}')
+
+                    # Read first message to check coordinates
+                    if num_messages > 0:
+                        grb = grbs.message(1)
+                        lats, lons = grb.latlons()
+                        self.stdout.write(f'    Latitude range: {lats.min():.3f} to {lats.max():.3f}')
+                        self.stdout.write(f'    Longitude range: {lons.min():.3f} to {lons.max():.3f}')
+                    grbs.close()
+                except ImportError:
+                    self.stdout.write('    (Install pygrib for detailed GRIB validation)')
+                except Exception as e:
+                    self.stdout.write(f'    GRIB validation skipped: {str(e)}')
+
+            # For NetCDF files
+            elif filepath.endswith('.nc'):
+                with Dataset(filepath, 'r') as nc:
+                    self.stdout.write(f'    Format: {getattr(nc, "data_model", "Unknown")}')
+                    self.stdout.write(f'    Dimensions: {dict(nc.dimensions)}')
+                    self.stdout.write(f'    Variables: {len(nc.variables)} variables')
+
+                    # Check coordinate ranges
+                    if 'latitude' in nc.variables:
+                        lat = nc.variables['latitude'][:]
+                        self.stdout.write(f'    Latitude range: {lat.min():.3f} to {lat.max():.3f}')
+                    if 'longitude' in nc.variables:
+                        lon = nc.variables['longitude'][:]
+                        self.stdout.write(f'    Longitude range: {lon.min():.3f} to {lon.max():.3f}')
+
         except Exception as e:
             self.stdout.write(
                 self.style.WARNING(f'  Validation warning for {filepath}: {str(e)}')
@@ -553,7 +575,7 @@ class Command(BaseCommand):
             self.stdout.write(f'\nSample file validation ({files[0]}):')
             self.validate_downloaded_file(sample_file)
 
-    def test_small_request(self):
+    def test_era_request(self):
         """Test API connectivity with a small data request"""
         self.validate_cdsapi_credentials()
         
@@ -607,3 +629,60 @@ class Command(BaseCommand):
                 '  - Network connectivity\n'
                 '  - Data request format'
             )
+
+    def test_small_request(self):
+        """Test API connectivity with a small data request"""
+        
+        test_year = 2025
+        test_filename = f'small_test_{test_year}_01.grib'
+        test_filepath = os.path.join(self.output_dir, test_filename)
+        
+        # Remove test file if it exists
+        if os.path.exists(test_filepath):
+            os.remove(test_filepath)
+        
+        self.stdout.write(f'Testing CDS API with small request for {test_year}-01-01...')
+        
+        try:
+            cds = cdsapi.Client()
+            dataset = "reanalysis-era5-single-levels"
+            request = {
+                "product_type": ["reanalysis"],
+                "variable": [
+                    "10m_u_component_of_wind",
+                    "10m_v_component_of_wind",
+                    "2m_dewpoint_temperature",
+                    "2m_temperature",
+                    "sea_surface_temperature",
+                    "surface_net_solar_radiation"
+                    ],
+                "year": [test_year],
+                "month": ["01"],
+                "day": ["01"],
+                "time": [
+                    "00:00", "01:00", "02:00",
+                    "03:00", "04:00", "05:00",
+                    "06:00", "07:00", "08:00",
+                    "09:00", "10:00", "11:00",
+                    "12:00", "13:00", "14:00",
+                    "15:00", "16:00", "17:00",
+                    "18:00", "19:00", "20:00",
+                    "21:00", "22:00", "23:00"
+                ],
+                "data_format": "grib",
+                "download_format": "unarchived",
+                "area": [
+                    self.boundaries['north'],
+                    self.boundaries['west'], 
+                    self.boundaries['south'],
+                    self.boundaries['east']
+                ],
+            }
+
+            cds.retrieve(dataset, request, test_filepath)
+            self.stdout.write(self.style.SUCCESS('✓ Test request successful!'))
+            self.validate_downloaded_file(test_filepath)
+                
+        except Exception as e:
+            self.stdout.write(self.style.ERROR(f'✗ Test request failed: {str(e)}'))
+

@@ -9,12 +9,16 @@ from dataclasses import dataclass
 import math
 from pathlib import Path
 import re
-from siren_web.siren.utilities.ssc import Entry
-
-# Import SAM SSC module
-from siren_web.siren.utilities.ssc import Data, Module, API
 
 logger = logging.getLogger(__name__)
+
+# Try to import PySAM-based wrapper first, fall back to original ctypes wrapper
+try:
+    from siren_web.siren.utilities.ssc_pysam import Entry, Data, Module, API
+    logger.info("Using PySAM-based SAM integration")
+except ImportError:
+    from siren_web.siren.utilities.ssc import Entry, Data, Module, API
+    logger.info("Using ctypes-based SAM integration (legacy)")
 
 @dataclass
 class WeatherData:
@@ -30,50 +34,62 @@ class WeatherData:
 
 class WeatherFileFinder:
     """Helper class for finding nearest weather files"""
-    
+
+    # Supported file formats for each technology type
+    # Format: (file_prefix, file_extension)
+    WIND_FORMATS = [
+        ('wind_weather', '.srz'),  # Legacy compressed format
+        ('wind_weather', '.srw'),  # Legacy uncompressed format
+        ('wind', '.csv'),          # New CSV format from ERA5
+    ]
+
+    SOLAR_FORMATS = [
+        ('solar_weather', '.smz'),  # Legacy compressed format
+        ('solar_weather', '.smw'),  # Legacy uncompressed format
+        ('solar', '.csv'),          # New CSV format from ERA5
+    ]
+
     def __init__(self, weather_data_dir: Path):
         self.weather_data_dir = Path(weather_data_dir)
         self._file_cache = {}  # Cache for parsed file coordinates
-        
-    def get_weather_file_path(self, latitude: float, longitude: float, 
+
+    def get_weather_file_path(self, latitude: float, longitude: float,
                             technology: str, weather_year: str) -> Optional[Path]:
         """
         Find the nearest weather file for given coordinates, technology and year
-        
+
         Args:
             latitude: Facility latitude
-            longitude: Facility longitude  
+            longitude: Facility longitude
             technology: 'wind' or 'solar'
             weather_year: Year string (e.g. '2024')
-            
+
         Returns:
             Path to nearest weather file or None if not found
         """
-        # Determine weather subdirectory and file extension
+        # Determine weather subdirectory and supported formats
         if technology.lower() in ['onshore wind', 'offshore wind', 'offshore wind floating']:
             weather_subdir = 'wind_weather'
-            file_extension = '.srz'
-            file_prefix = 'wind_weather'
+            file_formats = self.WIND_FORMATS
         elif technology.lower() in ['fixed pv', 'single axis pv', 'rooftop pv']:
             weather_subdir = 'solar_weather'
-            file_extension = '.smz'
-            file_prefix = 'solar_weather'
+            file_formats = self.SOLAR_FORMATS
         else:
             logger.warning(f"Unknown technology type: {technology}")
             return None
-        
+
         # Build path to weather files
         weather_dir = self.weather_data_dir / weather_subdir / weather_year
-        
+
         if not weather_dir.exists():
             logger.warning(f"Weather directory does not exist: {weather_dir}")
             return None
-        
-        # Find nearest weather file
+
+        # Find nearest weather file, trying all supported formats
         nearest_file = self._find_nearest_weather_file(
-            weather_dir, latitude, longitude, file_prefix, file_extension, weather_year
+            weather_dir, latitude, longitude, file_formats, weather_year
         )
-        
+
         if nearest_file:
             logger.info(f"Found weather file for {technology} at ({latitude}, {longitude}): {nearest_file}")
             return nearest_file
@@ -81,80 +97,90 @@ class WeatherFileFinder:
             logger.warning(f"No weather file found for {technology} at ({latitude}, {longitude}) for year {weather_year}")
             return None
 
-    def _find_nearest_weather_file(self, weather_dir: Path, target_lat: float, 
-                                 target_lon: float, file_prefix: str, 
-                                 file_extension: str, weather_year: str) -> Optional[Path]:
+    def _find_nearest_weather_file(self, weather_dir: Path, target_lat: float,
+                                 target_lon: float, file_formats: List[Tuple[str, str]],
+                                 weather_year: str) -> Optional[Path]:
         """
         Find the weather file with coordinates nearest to target coordinates
-        
+
         Args:
             weather_dir: Directory containing weather files
             target_lat: Target latitude
             target_lon: Target longitude
-            file_prefix: File prefix ('wind_weather' or 'solar_weather')
-            file_extension: File extension ('.srz' or '.smz')
+            file_formats: List of (file_prefix, file_extension) tuples to search
             weather_year: Year string
-            
+
         Returns:
             Path to nearest file or None
         """
         # Cache key for this directory
-        cache_key = f"{weather_dir}_{file_prefix}_{file_extension}_{weather_year}"
-        
+        cache_key = f"{weather_dir}_{weather_year}"
+
         if cache_key not in self._file_cache:
-            # Parse all weather files in directory
+            # Parse all weather files in directory (all supported formats)
             self._file_cache[cache_key] = self._parse_weather_files(
-                weather_dir, file_prefix, file_extension, weather_year
+                weather_dir, file_formats, weather_year
             )
-        
+
         weather_files = self._file_cache[cache_key]
-        
+
         if not weather_files:
             return None
-        
+
         # Find nearest file by calculating distances
         nearest_file = None
         min_distance = float('inf')
-        
+
         for file_path, (file_lat, file_lon) in weather_files.items():
             distance = self._calculate_distance(target_lat, target_lon, file_lat, file_lon)
-            
+
             if distance < min_distance:
                 min_distance = distance
                 nearest_file = file_path
-        
+
         logger.debug(f"Nearest weather file distance: {min_distance:.2f} km")
         return nearest_file
 
-    def _parse_weather_files(self, weather_dir: Path, file_prefix: str, 
-                           file_extension: str, weather_year: str) -> Dict[Path, Tuple[float, float]]:
+    def _parse_weather_files(self, weather_dir: Path, file_formats: List[Tuple[str, str]],
+                           weather_year: str) -> Dict[Path, Tuple[float, float]]:
         """
         Parse all weather files in directory and extract coordinates
-        
+
+        Supports multiple file formats:
+        - Legacy: solar_weather_-27.7500_114.0000_2024.smz
+        - New CSV: solar_-27.7500_114.0000_2024.csv
+
         Returns:
             Dictionary mapping file paths to (latitude, longitude) tuples
         """
         weather_files = {}
-        
-        # Pattern to match weather files: solar_weather_-27.7500_114.0000_2024.smz
-        pattern = rf"{re.escape(file_prefix)}_(-?\d+\.?\d*)_(-?\d+\.?\d*)_{re.escape(weather_year)}{re.escape(file_extension)}"
-        
+
         try:
             for file_path in weather_dir.iterdir():
-                if file_path.is_file():
+                if not file_path.is_file():
+                    continue
+
+                # Try each supported format
+                for file_prefix, file_extension in file_formats:
+                    if not file_path.name.endswith(file_extension):
+                        continue
+
+                    # Pattern to match: prefix_lat_lon_year.ext
+                    pattern = rf"{re.escape(file_prefix)}_(-?\d+\.?\d*)_(-?\d+\.?\d*)_{re.escape(weather_year)}{re.escape(file_extension)}"
                     match = re.match(pattern, file_path.name)
+
                     if match:
                         try:
                             latitude = float(match.group(1))
                             longitude = float(match.group(2))
                             weather_files[file_path] = (latitude, longitude)
-                            # logger.debug(f"Parsed weather file: {file_path.name} -> ({latitude}, {longitude})")
+                            break  # Found a match, no need to try other formats
                         except ValueError as e:
                             logger.warning(f"Could not parse coordinates from {file_path.name}: {e}")
-                            
+
         except Exception as e:
             logger.error(f"Error reading weather directory {weather_dir}: {e}")
-        
+
         logger.info(f"Found {len(weather_files)} weather files in {weather_dir}")
         return weather_files
     
@@ -349,13 +375,24 @@ class SAMResourceProcessor:
     
     def load_weather_data(self, weather_file_path: Path) -> WeatherData:
         """
-        Load weather data from .smz/.srz files
+        Load weather data from various file formats:
+        - .smz/.smw: Legacy solar weather files
+        - .srz/.srw: Legacy wind weather files
+        - .csv: New SAM CSV format from ERA5
         """
         if not weather_file_path.exists():
             raise WeatherFileError(f"Weather file not found: {weather_file_path}")
-            
+
         try:
-            weather_data = self._parse_smz_file(weather_file_path)  # This will now work
+            file_ext = weather_file_path.suffix.lower()
+
+            if file_ext == '.csv':
+                # New CSV format from ERA5 conversion
+                weather_data = self._parse_sam_csv_file(weather_file_path)
+            else:
+                # Legacy .smz/.srz/.smw/.srw formats
+                weather_data = self._parse_smz_file(weather_file_path)
+
             logger.info(f"Loaded weather data from {weather_file_path}")
             return weather_data
         except Exception as e:
@@ -1065,7 +1102,162 @@ class SAMResourceProcessor:
             
         except Exception as e:
             raise WeatherFileError(f"Error parsing weather file {file_path}: {e}")
-            
+
+        return weather_data
+
+    def _parse_sam_csv_file(self, file_path: Path) -> WeatherData:
+        """
+        Parse SAM CSV weather files (new format from ERA5 conversion)
+
+        Solar CSV format (3 header rows):
+        Row 1: Latitude,Longitude,Time Zone,Elevation
+        Row 2: -29.0000,115.0000,8,0
+        Row 3: Year,Month,Day,Hour,Minute,GHI,DNI,DHI,Tdry,Tdew,RH,Pres,Wspd,Wdir
+        Row 4+: Data rows
+
+        Wind CSV format (2 header rows):
+        Row 1: SiteID,Grid_-29.00_115.00,Site Timezone,8,...
+        Row 2: Temperature,Pressure,Speed,Direction,Speed,Direction
+        Row 3+: Data rows
+        """
+        weather_data = WeatherData()
+
+        try:
+            content = self._read_weather_file(file_path)
+            lines = content.strip().split('\n')
+
+            if len(lines) < 4:
+                raise WeatherFileError(f"CSV file too short: {len(lines)} lines")
+
+            # Determine if this is a solar or wind file based on filename or header
+            file_name = file_path.name.lower()
+            is_solar = 'solar' in file_name or lines[2].startswith('Year,')
+            is_wind = 'wind' in file_name or lines[1].startswith('Temperature,')
+
+            if is_solar:
+                # Parse solar CSV format
+                weather_data.ghi = []
+                weather_data.dni = []
+                weather_data.dhi = []
+                weather_data.temperature = []
+                weather_data.wind_speed = []
+                weather_data.wind_direction = []
+                weather_data.pressure = []
+                weather_data.humidity = []
+
+                # Data starts at row 4 (index 3)
+                data_lines = lines[3:]
+
+                logger.info(f"Parsing {len(data_lines)} solar data lines from {file_path}")
+
+                for line_num, line in enumerate(data_lines, 1):
+                    line = line.strip()
+                    if not line:
+                        continue
+
+                    try:
+                        parts = [part.strip() for part in line.split(',')]
+
+                        # Expected columns: Year,Month,Day,Hour,Minute,GHI,DNI,DHI,Tdry,Tdew,RH,Pres,Wspd,Wdir
+                        if len(parts) < 14:
+                            logger.debug(f"Line {line_num}: insufficient columns ({len(parts)})")
+                            continue
+
+                        # Parse values (indices: 5=GHI, 6=DNI, 7=DHI, 8=Tdry, 9=Tdew, 10=RH, 11=Pres, 12=Wspd, 13=Wdir)
+                        ghi = float(parts[5])
+                        dni = float(parts[6])
+                        dhi = float(parts[7])
+                        temperature = float(parts[8])
+                        # tdew = float(parts[9])  # Available if needed
+                        humidity = float(parts[10])
+                        pressure = float(parts[11])
+                        wind_speed = float(parts[12])
+                        wind_direction = float(parts[13])
+
+                        # Ensure non-negative irradiance
+                        ghi = max(0.0, ghi)
+                        dni = max(0.0, dni)
+                        dhi = max(0.0, dhi)
+
+                        weather_data.ghi.append(ghi)
+                        weather_data.dni.append(dni)
+                        weather_data.dhi.append(dhi)
+                        weather_data.temperature.append(temperature)
+                        weather_data.humidity.append(humidity)
+                        weather_data.pressure.append(pressure)
+                        weather_data.wind_speed.append(wind_speed)
+                        weather_data.wind_direction.append(wind_direction)
+
+                    except (ValueError, IndexError) as e:
+                        logger.debug(f"Line {line_num}: error parsing - {e}")
+                        continue
+
+                total_records = len(weather_data.ghi)
+                logger.info(f"Successfully parsed solar CSV: {total_records} records")
+
+                if total_records > 0:
+                    avg_ghi = sum(weather_data.ghi) / total_records
+                    max_ghi = max(weather_data.ghi)
+                    avg_temp = sum(weather_data.temperature) / total_records
+                    logger.info(f"Solar data summary - Avg GHI: {avg_ghi:.1f} W/m2, Max GHI: {max_ghi:.1f} W/m2, Avg Temp: {avg_temp:.1f}°C")
+
+            elif is_wind:
+                # Parse wind CSV format
+                weather_data.wind_speed = []
+                weather_data.wind_direction = []
+                weather_data.temperature = []
+                weather_data.pressure = []
+
+                # Data starts at row 3 (index 2)
+                data_lines = lines[2:]
+
+                logger.info(f"Parsing {len(data_lines)} wind data lines from {file_path}")
+
+                for line_num, line in enumerate(data_lines, 1):
+                    line = line.strip()
+                    if not line:
+                        continue
+
+                    try:
+                        parts = [part.strip() for part in line.split(',')]
+
+                        # Expected columns: Temperature,Pressure,Speed,Direction,Speed,Direction
+                        # (10m and 100m wind data)
+                        if len(parts) < 6:
+                            logger.debug(f"Line {line_num}: insufficient columns ({len(parts)})")
+                            continue
+
+                        temperature = float(parts[0])
+                        pressure = float(parts[1])
+                        # wind_speed_10m = float(parts[2])
+                        # wind_direction_10m = float(parts[3])
+                        wind_speed_100m = float(parts[4])
+                        wind_direction_100m = float(parts[5])
+
+                        # Use 100m wind data (closer to turbine hub height)
+                        weather_data.temperature.append(temperature)
+                        weather_data.pressure.append(pressure)
+                        weather_data.wind_speed.append(wind_speed_100m)
+                        weather_data.wind_direction.append(wind_direction_100m)
+
+                    except (ValueError, IndexError) as e:
+                        logger.debug(f"Line {line_num}: error parsing - {e}")
+                        continue
+
+                total_records = len(weather_data.wind_speed)
+                logger.info(f"Successfully parsed wind CSV: {total_records} records")
+
+                if total_records > 0:
+                    avg_speed = sum(weather_data.wind_speed) / total_records
+                    max_speed = max(weather_data.wind_speed)
+                    logger.info(f"Wind data summary - Avg Speed: {avg_speed:.1f} m/s, Max Speed: {max_speed:.1f} m/s")
+
+            else:
+                raise WeatherFileError(f"Could not determine CSV file type (solar/wind) for {file_path}")
+
+        except Exception as e:
+            raise WeatherFileError(f"Error parsing CSV weather file {file_path}: {e}")
+
         return weather_data
 
     def _set_wind_turbine_parameters(self, data: Data, facility, power_curve: Dict[float, float]):

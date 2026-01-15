@@ -1,11 +1,29 @@
 # forms.py
+import os
 from django import forms
+from django.conf import settings
 from django.forms.widgets import DateTimeInput
 from siren_web.models import Scenarios, TechnologyYears
 from crispy_forms.helper import FormHelper
 from crispy_forms.layout import Layout, Div, Field, Submit
 from crispy_forms.bootstrap import FormActions
 from .models import Reference
+
+
+def get_weather_year_choices():
+    """Get weather year choices from folder names in the solar_weather directory."""
+    weather_path = os.path.join(
+        settings.BASE_DIR, 'siren_web', 'siren_files', 'SWIS',
+        'siren_data', 'weather_files', 'solar_weather'
+    )
+    years = []
+    if os.path.exists(weather_path):
+        for item in os.listdir(weather_path):
+            item_path = os.path.join(weather_path, item)
+            if os.path.isdir(item_path) and item.isdigit():
+                years.append(item)
+    years.sort(reverse=True)  # Most recent first
+    return [(year, year) for year in years]
 
 class ScenarioForm(forms.ModelForm):
     class Meta:
@@ -45,9 +63,9 @@ class DemandScenarioSettings(forms.Form):
     
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        
+
         year_choices = [(year, year) for year in TechnologyYears.objects.values_list('year', flat=True).distinct()]
-        self.fields['weather_year'].choices = [('2024', '2024')]
+        self.fields['weather_year'].choices = get_weather_year_choices()
         self.fields['demand_year'].choices = year_choices
 
 class DemandYearForm(forms.Form):
