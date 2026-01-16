@@ -42,7 +42,7 @@
                             </select>
                         </div>
                         
-                        <div class="col-md-3" id="scenarioSelectDiv">
+                        <div class="col-md-2" id="scenarioSelectDiv">
                             <label for="scenarioSelect" class="form-label">Scenario:</label>
                             <select class="form-select" id="scenarioSelect" name="scenario">
                                 {% for scenario in db_scenarios %}
@@ -55,6 +55,15 @@
                                     </option>
                                     {% endif %}
                                 {% endfor %}
+                            </select>
+                        </div>
+
+                        <div class="col-md-2" id="scenarioTypeSelectDiv">
+                            <label for="scenarioTypeSelect" class="form-label">Target Type:</label>
+                            <select class="form-select" id="scenarioTypeSelect" name="scenario_type">
+                                <option value="base_case" selected>Base Case</option>
+                                <option value="accelerated_pipeline">Accelerated Pipeline</option>
+                                <option value="delayed_pipeline">Delayed Pipeline</option>
                             </select>
                         </div>
 

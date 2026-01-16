@@ -599,7 +599,7 @@
             <div class="metric-sublabel">Including rooftop solar</div>
         </div>
 
-        <div class="metric-card {% if ytd_summary.re_percentage_operational >= target.target_percentage %}positive{% else %}warning{% endif %}">
+        <div class="metric-card {% if target and ytd_summary.re_percentage_operational >= target.target_re_percentage %}positive{% else %}warning{% endif %}">
             <div class="metric-label">YTD RE% (Operational)</div>
             <div class="metric-value">{{ ytd_summary.re_percentage_operational|floatformat:1 }}%</div>
             <div class="metric-change">
@@ -609,7 +609,7 @@
             </div>
         </div>
 
-        <div class="metric-card {% if ytd_summary.re_percentage_underlying >= target.target_percentage %}positive{% else %}warning{% endif %}">
+        <div class="metric-card {% if target and ytd_summary.re_percentage_underlying >= target.target_re_percentage %}positive{% else %}warning{% endif %}">
             <div class="metric-label">YTD RE% (Underlying)</div>
             <div class="metric-value">{{ ytd_summary.re_percentage_underlying|floatformat:1 }}%</div>
             <div class="metric-change">
@@ -619,17 +619,19 @@
             </div>
         </div>
 
-        <div class="metric-card {% if ytd_summary.re_percentage_underlying >= target.target_percentage %}positive{% elif ytd_summary.re_percentage_underlying >= target.target_percentage|mul:0.95 %}warning{% else %}negative{% endif %}">
+        {% if target %}
+        <div class="metric-card {% if ytd_summary.re_percentage_underlying >= target.target_re_percentage %}positive{% elif ytd_summary.re_percentage_underlying >= target.target_re_percentage|mul:0.95 %}warning{% else %}negative{% endif %}">
             <div class="metric-label">{{ year }} Target</div>
-            <div class="metric-value">{{ target.target_percentage|floatformat:1 }}%</div>
+            <div class="metric-value">{{ target.target_re_percentage|floatformat:1 }}%</div>
             <div class="metric-change">
-                {% if ytd_summary.re_percentage_underlying >= target.target_percentage %}
+                {% if ytd_summary.re_percentage_underlying >= target.target_re_percentage %}
                 ✓ On track
                 {% else %}
-                ⚠ {{ target.target_percentage|sub:ytd_summary.re_percentage_underlying|floatformat:1 }} pp behind
+                ⚠ {{ target.target_re_percentage|sub:ytd_summary.re_percentage_underlying|floatformat:1 }} pp behind
                 {% endif %}
             </div>
         </div>
+        {% endif %}
 
         <div class="metric-card neutral">
             <div class="metric-label">Q{{ quarter }} Emissions</div>
@@ -814,10 +816,14 @@
                 <td class="value">{{ monthly.re_percentage_underlying|floatformat:1 }}%</td>
                 <td class="value">{{ monthly.total_emissions_tonnes|floatformat:0|intcomma }}</td>
                 <td class="value">
-                    {% if monthly.re_percentage_underlying >= target.target_percentage %}
-                    <span style="color: #27ae60;">✓ +{{ monthly.re_percentage_underlying|sub:target.target_percentage|floatformat:1 }}</span>
+                    {% if target %}
+                        {% if monthly.re_percentage_underlying >= target.target_re_percentage %}
+                        <span style="color: #27ae60;">✓ +{{ monthly.re_percentage_underlying|sub:target.target_re_percentage|floatformat:1 }}</span>
+                        {% else %}
+                        <span style="color: #e74c3c;">{{ monthly.re_percentage_underlying|sub:target.target_re_percentage|floatformat:1 }}</span>
+                        {% endif %}
                     {% else %}
-                    <span style="color: #e74c3c;">{{ monthly.re_percentage_underlying|sub:target.target_percentage|floatformat:1 }}</span>
+                    -
                     {% endif %}
                 </td>
             </tr>
@@ -938,19 +944,21 @@
         </tbody>
     </table>
 
+    {% if target %}
     <p style="margin-top: 20px;">
-        {% if ytd_summary.re_percentage_underlying >= target.target_percentage %}
-        {% with diff=ytd_summary.re_percentage_underlying|sub:target.target_percentage %}
+        {% if ytd_summary.re_percentage_underlying >= target.target_re_percentage %}
+        {% with diff=ytd_summary.re_percentage_underlying|sub:target.target_re_percentage %}
         ✓ YTD performance is <strong>{{ diff|floatformat:1 }} percentage points
             ahead</strong> of the {{ year }} annual target.
         {% endwith %}
         {% else %}
-        {% with diff=target.target_percentage|sub:ytd_summary.re_percentage_underlying %}
+        {% with diff=target.target_re_percentage|sub:ytd_summary.re_percentage_underlying %}
         ⚠ YTD performance is <strong>{{ diff|floatformat:1 }} percentage points
             behind</strong> the {{ year }} annual target. Acceleration needed in remaining quarters.
         {% endwith %}
         {% endif %}
     </p>
+    {% endif %}
 </div>
 
 <!-- Generation Mix Analysis -->
@@ -1106,7 +1114,7 @@
     <div class="observations" style="background: #fce4ec; border-left-color: #e91e63;">
         <h3>Challenges and Risks</h3>
         <ul>
-            {% if quarterly_summary.re_percentage_underlying < target.target_percentage %} <li>Quarterly RE% ({{ quarterly_summary.re_percentage_underlying|floatformat:1 }}%) is below annual target ({{ target.target_percentage }}%)</li>
+            {% if target and quarterly_summary.re_percentage_underlying < target.target_re_percentage %} <li>Quarterly RE% ({{ quarterly_summary.re_percentage_underlying|floatformat:1 }}%) is below annual target ({{ target.target_re_percentage }}%)</li>
                 {% endif %}
                 {% if quarterly_summary.wholesale_spike_count and quarterly_summary.wholesale_spike_count > 0 %}
                 <li>{{ quarterly_summary.wholesale_spike_count|intcomma }} price spike intervals (&gt;$300/MWh)

@@ -2331,7 +2331,6 @@ class PublishedReport(models.Model):
 class TargetScenario(models.Model):
     """
     Unified model for renewable energy targets and projection scenarios.
-    Combines what was previously RenewableEnergyTarget and TargetScenario.
     """
     scenario_type = models.CharField(max_length=30, choices=[
         ('base_case', 'Base Case'),
@@ -3209,7 +3208,6 @@ class DemandFactorType(models.Model):
     def __str__(self):
         return self.name
 
-
 class DemandFactor(models.Model):
     """
     Specific instance of a demand factor with growth parameters.
@@ -3359,11 +3357,9 @@ class DemandFactor(models.Model):
         super().clean()
         self.validate_percentages()
 
-
 class DemandProjectionScenario(models.Model):
     """
-    Enhanced scenario model specifically for demand projections.
-    Links to Scenarios model for integration with existing system.
+    Links to Scenarios model.
     """
     iddemandprojectionscenario = models.AutoField(db_column='iddemandprojectionscenario', primary_key=True)
 

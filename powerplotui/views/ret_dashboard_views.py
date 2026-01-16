@@ -726,15 +726,17 @@ def quarterly_report(request, year, quarter):
         prev_ytd_data = MonthlyREPerformance.objects.filter(year=year-1, month__lte=end_month)
         prev_ytd_summary = MonthlyREPerformance.aggregate_summary(prev_ytd_data)
     
-    # Get target
+    # Get target - include ordinary years if no major/interim target exists
     try:
         target = TargetScenario.objects.filter(
             year=year,
             target_type__in=['major', 'interim']
         ).first()
+        if not target:
+            target = TargetScenario.objects.filter(year=year).first()
     except Exception:
         target = None
-    
+
     comments = ReportComment.get_comments_for_report('quarterly', year, quarter=quarter)
 
     # Get Executive Summary from comments

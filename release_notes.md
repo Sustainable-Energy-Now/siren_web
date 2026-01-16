@@ -1,5 +1,10 @@
 # Release Notes (Latest first)
 
+## Version 3.16.0 - January 16, 2026
+### ✨ Enhancements
+- Feature: Update Target Demand from Demand Projections ([#56](https://github.com/Sustainable-Energy-Now/siren_web/issues/56))
+- Feature: Update SAM and convert to Python package ([#57](https://github.com/Sustainable-Energy-Now/siren_web/issues/57))
+
 ## Version 3.15.2 - December 23, 2025
 ### ✨ Enhancements
 - RET Reports: Dual-format publishing - Both annual and quarterly reports now publish as interactive HTML (with Plotly charts) and PDF versions
