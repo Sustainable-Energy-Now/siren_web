@@ -618,10 +618,9 @@
         {{ annual_trends_chart|safe }}
     </div>
 
-    <!-- 2040 Target Achievement Scenarios -->
     {% if scenarios %}
     <div class="section-header">
-        <h2>2040 Target Achievement Scenarios</h2>
+        <h2>2040 Step Change Target Progress</h2>
     </div>
 
     <div class="chart-container">
@@ -631,7 +630,7 @@
     <table class="stats-table">
         <thead>
             <tr>
-                <th>Scenario</th>
+                <th>Year</th>
                 <th class="value">Projected RE% 2040</th>
                 <th class="value">Projected Emissions</th>
                 <th class="value">Probability</th>
@@ -641,12 +640,18 @@
         <tbody>
             {% for scenario in scenarios %}
             <tr>
-                <td><strong>{{ scenario.display_name }}</strong></td>
+                <td><strong>{{ scenario.year }}</strong></td>
                 <td
                     class="value {% if scenario.target_re_percentage >= 75 %}positive{% else %}negative{% endif %}">
                     {{ scenario.target_re_percentage|floatformat:1 }}%
                 </td>
-                <td class="value">{{ scenario.projected_emissions_2040_tonnes|floatformat:0|intcomma }} t</td>
+                <td class="value">
+                    {% if scenario.target_emissions_tonnes %}
+                    {{ scenario.target_emissions_tonnes|floatformat:0|intcomma }} t
+                    {% else %}
+                    N/A
+                    {% endif %}
+                </td>
                 <td class="value">
                     {% with latest_mc=scenario.monte_carlo_runs.first %}
                     {% if latest_mc %}

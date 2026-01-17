@@ -918,8 +918,8 @@ def annual_review(request, year):
     annual_generation_chart = generate_annual_generation_chart(annual_data)
     annual_trends_chart = generate_annual_trends_chart(year)
     
-    # Get scenarios for projection
-    scenarios = TargetScenario.objects.filter(is_active=True)
+    # Get scenarios for projection - only show base case scenario
+    scenarios = TargetScenario.objects.filter(is_active=True, scenario_type='base_case')
     scenario_chart = generate_scenario_comparison_chart(scenarios)
     
     # New capacity this year
