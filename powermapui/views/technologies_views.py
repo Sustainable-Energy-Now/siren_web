@@ -280,58 +280,6 @@ def technology_search_api(request):
 # ============================================================================
 
 @login_required
-def technology_years_list(request):
-    """List all technology year data with search and filtering"""
-    weather_year = request.session.get('weather_year', '')
-    demand_year = request.session.get('demand_year', '')
-    scenario = request.session.get('scenario', '')
-    config_file = request.session.get('config_file')
-
-    technology_years = TechnologyYears.objects.select_related('idtechnologies').all()
-
-    # Search functionality
-    search_query = request.GET.get('search', '')
-    if search_query:
-        technology_years = technology_years.filter(
-            Q(idtechnologies__technology_name__icontains=search_query) |
-            Q(idtechnologies__technology_signature__icontains=search_query)
-        )
-
-    # Filter by technology
-    tech_id = request.GET.get('technology', '')
-    if tech_id:
-        technology_years = technology_years.filter(idtechnologies_id=tech_id)
-
-    # Filter by year
-    year_filter = request.GET.get('year', '')
-    if year_filter:
-        technology_years = technology_years.filter(year=year_filter)
-
-    # Get distinct technologies and years for filters
-    technologies_list = Technologies.objects.all().order_by('technology_name')
-    years = TechnologyYears.objects.values_list('year', flat=True).distinct().order_by('year')
-
-    # Pagination
-    paginator = Paginator(technology_years.order_by('idtechnologies__technology_name', 'year'), 25)
-    page_number = request.GET.get('page')
-    page_obj = paginator.get_page(page_number)
-
-    context = {
-        'page_obj': page_obj,
-        'search_query': search_query,
-        'tech_id': tech_id,
-        'year': year_filter,
-        'technologies': technologies_list,
-        'years': years,
-        'weather_year': weather_year,
-        'demand_year': demand_year,
-        'scenario': scenario,
-        'config_file': config_file,
-    }
-    return render(request, 'technologies/years_list.html', context)
-
-
-@login_required
 def technology_years_create(request, technology_pk=None):
     """Create a new technology year record"""
     weather_year = request.session.get('weather_year', '')

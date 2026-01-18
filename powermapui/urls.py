@@ -104,7 +104,6 @@ urlpatterns = [
     path('technologies/<int:pk>/delete/', technologies_views.technology_delete, name='technology_delete'),
     path('technologies/api/search/', technologies_views.technology_search_api, name='technology_search_api'),
     # TechnologyYears CRUD
-    path('technology-years/', technologies_views.technology_years_list, name='technology_years_list'),
     path('technology-years/create/', technologies_views.technology_years_create, name='technology_years_create'),
     path('technologies/<int:technology_pk>/years/create/', technologies_views.technology_years_create, name='technology_years_create_for_tech'),
     path('technology-years/<int:pk>/edit/', technologies_views.technology_years_edit, name='technology_years_edit'),
