@@ -27,12 +27,15 @@
             Technologies
           </a>
           <ul class="dropdown-menu">
-            <li><a class="dropdown-item" href="{% url 'powermapui:technologies' %}">All Technologies</a></li>
+            <li><a class="dropdown-item" href="{% url 'powermapui:technologies' %}">All Technologies (Table)</a></li>
+            <li><a class="dropdown-item" href="{% url 'powermapui:technology_list' %}">Manage Technologies</a></li>
+            <li><a class="dropdown-item" href="{% url 'powermapui:technology_create' %}">Add Technology</a></li>
+            <li><a class="dropdown-item" href="{% url 'powermapui:technology_years_list' %}">Technology Year Data</a></li>
+            <li><hr class="dropdown-divider"></li>
             <li><a class="dropdown-item" href="{% url 'powermapui:wind_turbines_list' %}">Wind Turbines Types</a></li>
             <li><a class="dropdown-item" href="{% url 'powermapui:wind_turbine_create' %}">Add Wind Turbine Type</a></li>
             <li><a class="dropdown-item" href="{% url 'powermapui:storage_list' %}">Storage Types</a></li>
             <li><a class="dropdown-item" href="{% url 'powermapui:storage_create' %}">Add Storage Type</a></li>
-
           </ul>
         </li>
         <li class="nav-item dropdown">

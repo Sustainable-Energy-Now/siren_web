@@ -1,0 +1,387 @@
+<!-- powermapui/templates/technologies/form.html -->
+{% extends 'powermapui_base.html' %}
+
+{% block powermapui_content %}
+<div class="row justify-content-center">
+    <div class="col-md-10">
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title mb-0">{{ title }}</h3>
+            </div>
+            <div class="card-body">
+                <form method="post" novalidate>
+                    {% csrf_token %}
+
+                    <!-- Technology Name Field (Required) -->
+                    <div class="mb-3">
+                        <label for="{{ form.technology_name.id_for_label }}" class="form-label">
+                            {{ form.technology_name.label }} <span class="text-danger">*</span>
+                        </label>
+                        {{ form.technology_name }}
+                        {% if form.technology_name.help_text %}
+                            <div class="form-text">{{ form.technology_name.help_text }}</div>
+                        {% endif %}
+                        {% if form.technology_name.errors %}
+                            <div class="text-danger">
+                                {% for error in form.technology_name.errors %}
+                                    <small>{{ error }}</small>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Technology Signature Field (Required) -->
+                    <div class="mb-3">
+                        <label for="{{ form.technology_signature.id_for_label }}" class="form-label">
+                            {{ form.technology_signature.label }} <span class="text-danger">*</span>
+                        </label>
+                        {{ form.technology_signature }}
+                        {% if form.technology_signature.help_text %}
+                            <div class="form-text">{{ form.technology_signature.help_text }}</div>
+                        {% endif %}
+                        {% if form.technology_signature.errors %}
+                            <div class="text-danger">
+                                {% for error in form.technology_signature.errors %}
+                                    <small>{{ error }}</small>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Category and Fuel Type Row -->
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="{{ form.category.id_for_label }}" class="form-label">{{ form.category.label }}</label>
+                                {{ form.category }}
+                                {% if form.category.help_text %}
+                                    <div class="form-text">{{ form.category.help_text }}</div>
+                                {% endif %}
+                                {% if form.category.errors %}
+                                    <div class="text-danger">
+                                        {% for error in form.category.errors %}
+                                            <small>{{ error }}</small>
+                                        {% endfor %}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="{{ form.fuel_type.id_for_label }}" class="form-label">{{ form.fuel_type.label }}</label>
+                                {{ form.fuel_type }}
+                                {% if form.fuel_type.help_text %}
+                                    <div class="form-text">{{ form.fuel_type.help_text }}</div>
+                                {% endif %}
+                                {% if form.fuel_type.errors %}
+                                    <div class="text-danger">
+                                        {% for error in form.fuel_type.errors %}
+                                            <small>{{ error }}</small>
+                                        {% endfor %}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Renewable and Dispatchable Row -->
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="{{ form.renewable.id_for_label }}" class="form-label">{{ form.renewable.label }}</label>
+                                {{ form.renewable }}
+                                {% if form.renewable.help_text %}
+                                    <div class="form-text">{{ form.renewable.help_text }}</div>
+                                {% endif %}
+                                {% if form.renewable.errors %}
+                                    <div class="text-danger">
+                                        {% for error in form.renewable.errors %}
+                                            <small>{{ error }}</small>
+                                        {% endfor %}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="{{ form.dispatchable.id_for_label }}" class="form-label">{{ form.dispatchable.label }}</label>
+                                {{ form.dispatchable }}
+                                {% if form.dispatchable.help_text %}
+                                    <div class="form-text">{{ form.dispatchable.help_text }}</div>
+                                {% endif %}
+                                {% if form.dispatchable.errors %}
+                                    <div class="text-danger">
+                                        {% for error in form.dispatchable.errors %}
+                                            <small>{{ error }}</small>
+                                        {% endfor %}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Lifetime and Discount Rate Row -->
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="{{ form.lifetime.id_for_label }}" class="form-label">{{ form.lifetime.label }}</label>
+                                {{ form.lifetime }}
+                                {% if form.lifetime.help_text %}
+                                    <div class="form-text">{{ form.lifetime.help_text }}</div>
+                                {% endif %}
+                                {% if form.lifetime.errors %}
+                                    <div class="text-danger">
+                                        {% for error in form.lifetime.errors %}
+                                            <small>{{ error }}</small>
+                                        {% endfor %}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="{{ form.discount_rate.id_for_label }}" class="form-label">{{ form.discount_rate.label }}</label>
+                                {{ form.discount_rate }}
+                                {% if form.discount_rate.help_text %}
+                                    <div class="form-text">{{ form.discount_rate.help_text }}</div>
+                                {% endif %}
+                                {% if form.discount_rate.errors %}
+                                    <div class="text-danger">
+                                        {% for error in form.discount_rate.errors %}
+                                            <small>{{ error }}</small>
+                                        {% endfor %}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Emissions, Area, Water Usage Row -->
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label for="{{ form.emissions.id_for_label }}" class="form-label">{{ form.emissions.label }}</label>
+                                {{ form.emissions }}
+                                {% if form.emissions.help_text %}
+                                    <div class="form-text">{{ form.emissions.help_text }}</div>
+                                {% endif %}
+                                {% if form.emissions.errors %}
+                                    <div class="text-danger">
+                                        {% for error in form.emissions.errors %}
+                                            <small>{{ error }}</small>
+                                        {% endfor %}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label for="{{ form.area.id_for_label }}" class="form-label">{{ form.area.label }}</label>
+                                {{ form.area }}
+                                {% if form.area.help_text %}
+                                    <div class="form-text">{{ form.area.help_text }}</div>
+                                {% endif %}
+                                {% if form.area.errors %}
+                                    <div class="text-danger">
+                                        {% for error in form.area.errors %}
+                                            <small>{{ error }}</small>
+                                        {% endfor %}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label for="{{ form.water_usage.id_for_label }}" class="form-label">{{ form.water_usage.label }}</label>
+                                {{ form.water_usage }}
+                                {% if form.water_usage.help_text %}
+                                    <div class="form-text">{{ form.water_usage.help_text }}</div>
+                                {% endif %}
+                                {% if form.water_usage.errors %}
+                                    <div class="text-danger">
+                                        {% for error in form.water_usage.errors %}
+                                            <small>{{ error }}</small>
+                                        {% endfor %}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Image and Caption Row -->
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="{{ form.image.id_for_label }}" class="form-label">{{ form.image.label }}</label>
+                                {{ form.image }}
+                                {% if form.image.help_text %}
+                                    <div class="form-text">{{ form.image.help_text }}</div>
+                                {% endif %}
+                                {% if form.image.errors %}
+                                    <div class="text-danger">
+                                        {% for error in form.image.errors %}
+                                            <small>{{ error }}</small>
+                                        {% endfor %}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="{{ form.caption.id_for_label }}" class="form-label">{{ form.caption.label }}</label>
+                                {{ form.caption }}
+                                {% if form.caption.help_text %}
+                                    <div class="form-text">{{ form.caption.help_text }}</div>
+                                {% endif %}
+                                {% if form.caption.errors %}
+                                    <div class="text-danger">
+                                        {% for error in form.caption.errors %}
+                                            <small>{{ error }}</small>
+                                        {% endfor %}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Description Field -->
+                    <div class="mb-3">
+                        <label for="{{ form.description.id_for_label }}" class="form-label">{{ form.description.label }}</label>
+                        {{ form.description }}
+                        {% if form.description.help_text %}
+                            <div class="form-text">{{ form.description.help_text }}</div>
+                        {% endif %}
+                        {% if form.description.errors %}
+                            <div class="text-danger">
+                                {% for error in form.description.errors %}
+                                    <small>{{ error }}</small>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Form Actions -->
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-check-circle"></i>
+                                {% if technology %}Update Technology{% else %}Create Technology{% endif %}
+                            </button>
+                            <a href="{% url 'powermapui:technology_list' %}" class="btn btn-outline-secondary">
+                                <i class="bi bi-x-circle"></i> Cancel
+                            </a>
+                        </div>
+                        {% if technology %}
+                            <a href="{% url 'powermapui:technology_detail' technology.pk %}" class="btn btn-outline-info">
+                                <i class="bi bi-eye"></i> View Technology
+                            </a>
+                        {% endif %}
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Quick Tips Card -->
+        <div class="card mt-4">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-lightbulb"></i> Technology Field Guide
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6>Categories</h6>
+                        <ul class="small">
+                            <li><strong>Wind</strong> - Wind turbine technologies</li>
+                            <li><strong>Solar</strong> - Photovoltaic systems</li>
+                            <li><strong>Storage</strong> - Battery and storage systems</li>
+                            <li><strong>Generator</strong> - Thermal generators</li>
+                            <li><strong>Load</strong> - Demand/load technologies</li>
+                        </ul>
+                    </div>
+                    <div class="col-md-6">
+                        <h6>Key Fields</h6>
+                        <ul class="small">
+                            <li><strong>Signature</strong> - Short code (e.g., WIND, SOLAR)</li>
+                            <li><strong>Renewable</strong> - 1 for renewable, 0 for non-renewable</li>
+                            <li><strong>Dispatchable</strong> - 1 if output can be controlled</li>
+                            <li><strong>Emissions</strong> - In tonnes CO2 per MWh</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Auto-suggest signature based on technology name
+    const nameField = document.getElementById('{{ form.technology_name.id_for_label }}');
+    const sigField = document.getElementById('{{ form.technology_signature.id_for_label }}');
+
+    if (nameField && sigField && !sigField.value) {
+        nameField.addEventListener('blur', function() {
+            if (!sigField.value && this.value) {
+                const signature = this.value
+                    .toUpperCase()
+                    .replace(/[^A-Z0-9]/g, '')
+                    .substring(0, 10);
+                sigField.value = signature;
+            }
+        });
+    }
+
+    // Auto-set renewable based on fuel type
+    const fuelTypeField = document.getElementById('{{ form.fuel_type.id_for_label }}');
+    const renewableField = document.getElementById('{{ form.renewable.id_for_label }}');
+
+    if (fuelTypeField && renewableField) {
+        fuelTypeField.addEventListener('change', function() {
+            const renewableFuels = ['WIND', 'SOLAR', 'HYDRO', 'BIOMASS'];
+            if (renewableFuels.includes(this.value)) {
+                renewableField.value = '1';
+            } else if (this.value && !renewableFuels.includes(this.value)) {
+                renewableField.value = '0';
+            }
+        });
+    }
+
+    // Form validation
+    const form = document.querySelector('form');
+    if (form) {
+        form.addEventListener('submit', function(e) {
+            const requiredFields = [
+                { field: nameField, name: 'Technology Name' },
+                { field: sigField, name: 'Signature' }
+            ];
+
+            for (const { field, name } of requiredFields) {
+                if (field && !field.value.trim()) {
+                    e.preventDefault();
+                    field.focus();
+                    field.classList.add('is-invalid');
+
+                    const existingError = field.parentNode.querySelector('.invalid-feedback');
+                    if (existingError) existingError.remove();
+
+                    const errorDiv = document.createElement('div');
+                    errorDiv.className = 'invalid-feedback';
+                    errorDiv.textContent = `${name} is required.`;
+                    field.parentNode.appendChild(errorDiv);
+
+                    field.addEventListener('input', function() {
+                        this.classList.remove('is-invalid');
+                        const errorMsg = this.parentNode.querySelector('.invalid-feedback');
+                        if (errorMsg) errorMsg.remove();
+                    }, { once: true });
+
+                    return;
+                }
+            }
+        });
+    }
+});
+</script>
+{% endblock %}

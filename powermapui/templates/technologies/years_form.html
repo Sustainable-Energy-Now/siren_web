@@ -1,0 +1,230 @@
+<!-- powermapui/templates/technologies/years_form.html -->
+{% extends 'powermapui_base.html' %}
+
+{% block powermapui_content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title mb-0">{{ title }}</h3>
+            </div>
+            <div class="card-body">
+                <form method="post" novalidate>
+                    {% csrf_token %}
+
+                    <!-- Technology Field (Required) -->
+                    <div class="mb-3">
+                        <label for="{{ form.idtechnologies.id_for_label }}" class="form-label">
+                            {{ form.idtechnologies.label }} <span class="text-danger">*</span>
+                        </label>
+                        {{ form.idtechnologies }}
+                        {% if form.idtechnologies.help_text %}
+                            <div class="form-text">{{ form.idtechnologies.help_text }}</div>
+                        {% endif %}
+                        {% if form.idtechnologies.errors %}
+                            <div class="text-danger">
+                                {% for error in form.idtechnologies.errors %}
+                                    <small>{{ error }}</small>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Year Field (Required) -->
+                    <div class="mb-3">
+                        <label for="{{ form.year.id_for_label }}" class="form-label">
+                            {{ form.year.label }} <span class="text-danger">*</span>
+                        </label>
+                        {{ form.year }}
+                        {% if form.year.help_text %}
+                            <div class="form-text">{{ form.year.help_text }}</div>
+                        {% endif %}
+                        {% if form.year.errors %}
+                            <div class="text-danger">
+                                {% for error in form.year.errors %}
+                                    <small>{{ error }}</small>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    <!-- CAPEX and FOM Row -->
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="{{ form.capex.id_for_label }}" class="form-label">{{ form.capex.label }}</label>
+                                {{ form.capex }}
+                                {% if form.capex.help_text %}
+                                    <div class="form-text">{{ form.capex.help_text }}</div>
+                                {% endif %}
+                                {% if form.capex.errors %}
+                                    <div class="text-danger">
+                                        {% for error in form.capex.errors %}
+                                            <small>{{ error }}</small>
+                                        {% endfor %}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="{{ form.fom.id_for_label }}" class="form-label">{{ form.fom.label }}</label>
+                                {{ form.fom }}
+                                {% if form.fom.help_text %}
+                                    <div class="form-text">{{ form.fom.help_text }}</div>
+                                {% endif %}
+                                {% if form.fom.errors %}
+                                    <div class="text-danger">
+                                        {% for error in form.fom.errors %}
+                                            <small>{{ error }}</small>
+                                        {% endfor %}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- VOM and Fuel Row -->
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="{{ form.vom.id_for_label }}" class="form-label">{{ form.vom.label }}</label>
+                                {{ form.vom }}
+                                {% if form.vom.help_text %}
+                                    <div class="form-text">{{ form.vom.help_text }}</div>
+                                {% endif %}
+                                {% if form.vom.errors %}
+                                    <div class="text-danger">
+                                        {% for error in form.vom.errors %}
+                                            <small>{{ error }}</small>
+                                        {% endfor %}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="{{ form.fuel.id_for_label }}" class="form-label">{{ form.fuel.label }}</label>
+                                {{ form.fuel }}
+                                {% if form.fuel.help_text %}
+                                    <div class="form-text">{{ form.fuel.help_text }}</div>
+                                {% endif %}
+                                {% if form.fuel.errors %}
+                                    <div class="text-danger">
+                                        {% for error in form.fuel.errors %}
+                                            <small>{{ error }}</small>
+                                        {% endfor %}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Form Actions -->
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-check-circle"></i>
+                                {% if tech_year %}Update Year Data{% else %}Create Year Data{% endif %}
+                            </button>
+                            <a href="{% url 'powermapui:technology_years_list' %}" class="btn btn-outline-secondary">
+                                <i class="bi bi-x-circle"></i> Cancel
+                            </a>
+                        </div>
+                        {% if tech_year %}
+                            <a href="{% url 'powermapui:technology_detail' tech_year.idtechnologies.pk %}" class="btn btn-outline-info">
+                                <i class="bi bi-eye"></i> View Technology
+                            </a>
+                        {% elif technology %}
+                            <a href="{% url 'powermapui:technology_detail' technology.pk %}" class="btn btn-outline-info">
+                                <i class="bi bi-eye"></i> View Technology
+                            </a>
+                        {% endif %}
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Quick Tips Card -->
+        <div class="card mt-4">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-lightbulb"></i> Cost Data Guide
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6>Capital Costs</h6>
+                        <ul class="small">
+                            <li><strong>CAPEX</strong> - Capital expenditure per kW of installed capacity</li>
+                            <li>Includes equipment, installation, and commissioning</li>
+                            <li>Typically decreases over time as technology matures</li>
+                        </ul>
+                    </div>
+                    <div class="col-md-6">
+                        <h6>Operating Costs</h6>
+                        <ul class="small">
+                            <li><strong>FOM</strong> - Fixed O&M, paid regardless of generation</li>
+                            <li><strong>VOM</strong> - Variable O&M, per MWh generated</li>
+                            <li><strong>Fuel</strong> - Fuel cost per MWh (if applicable)</li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="alert alert-info small mt-3 mb-0">
+                    <i class="bi bi-info-circle"></i>
+                    All monetary values should be in consistent currency units (e.g., USD or AUD) across all technologies.
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Form validation
+    const form = document.querySelector('form');
+    const techField = document.getElementById('{{ form.idtechnologies.id_for_label }}');
+    const yearField = document.getElementById('{{ form.year.id_for_label }}');
+
+    if (form) {
+        form.addEventListener('submit', function(e) {
+            const requiredFields = [
+                { field: techField, name: 'Technology' },
+                { field: yearField, name: 'Year' }
+            ];
+
+            for (const { field, name } of requiredFields) {
+                if (field && !field.value) {
+                    e.preventDefault();
+                    field.focus();
+                    field.classList.add('is-invalid');
+
+                    const existingError = field.parentNode.querySelector('.invalid-feedback');
+                    if (existingError) existingError.remove();
+
+                    const errorDiv = document.createElement('div');
+                    errorDiv.className = 'invalid-feedback';
+                    errorDiv.textContent = `${name} is required.`;
+                    field.parentNode.appendChild(errorDiv);
+
+                    field.addEventListener('change', function() {
+                        this.classList.remove('is-invalid');
+                        const errorMsg = this.parentNode.querySelector('.invalid-feedback');
+                        if (errorMsg) errorMsg.remove();
+                    }, { once: true });
+
+                    return;
+                }
+            }
+        });
+    }
+
+    // Auto-suggest current year for new entries
+    if (yearField && !yearField.value) {
+        const currentYear = new Date().getFullYear();
+        yearField.placeholder = `e.g., ${currentYear}`;
+    }
+});
+</script>
+{% endblock %}

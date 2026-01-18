@@ -94,8 +94,21 @@ urlpatterns = [
     path('scenarios/delete/<int:scenario_id>/', crud_scenario_views.delete_scenario, name='delete_scenario'),
     path('delete-scenario-ajax/<int:scenario_id>/', crud_scenario_views.delete_scenario_ajax, name='delete_scenario_ajax'),
     
-    # Technology Management
+    # Technology Management (Original read-only view)
     path('technologies/', technologies_views.technologies, name='technologies'),
+    # Technologies CRUD
+    path('technologies/list/', technologies_views.technology_list, name='technology_list'),
+    path('technologies/create/', technologies_views.technology_create, name='technology_create'),
+    path('technologies/<int:pk>/', technologies_views.technology_detail, name='technology_detail'),
+    path('technologies/<int:pk>/edit/', technologies_views.technology_edit, name='technology_edit'),
+    path('technologies/<int:pk>/delete/', technologies_views.technology_delete, name='technology_delete'),
+    path('technologies/api/search/', technologies_views.technology_search_api, name='technology_search_api'),
+    # TechnologyYears CRUD
+    path('technology-years/', technologies_views.technology_years_list, name='technology_years_list'),
+    path('technology-years/create/', technologies_views.technology_years_create, name='technology_years_create'),
+    path('technologies/<int:technology_pk>/years/create/', technologies_views.technology_years_create, name='technology_years_create_for_tech'),
+    path('technology-years/<int:pk>/edit/', technologies_views.technology_years_edit, name='technology_years_edit'),
+    path('technology-years/<int:pk>/delete/', technologies_views.technology_years_delete, name='technology_years_delete'),
     path('tableupdate/', table_update_views.select_table, name='table_update'),
     path('tableupdate/process/', table_update_views.update_table, name='table_update_process'),
     path('power/', power_views.generate_power, name='generate_power'),

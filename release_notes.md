@@ -1,5 +1,9 @@
 # Release Notes (Latest first)
 
+## Version 3.16.1 - January 18, 2026
+### ✨ Enhancements
+- Feature: Technolgies CRUD ([#58](https://github.com/Sustainable-Energy-Now/siren_web/issues/58))
+
 ## Version 3.16.0 - January 16, 2026
 ### ✨ Enhancements
 - Feature: Update Target Demand from Demand Projections ([#56](https://github.com/Sustainable-Energy-Now/siren_web/issues/56))
