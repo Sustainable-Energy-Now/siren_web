@@ -33,15 +33,24 @@ class Scenarios(models.Model):
     class Meta:
         db_table = 'Scenarios'
 
+# Facility lifecycle status choices
+FACILITY_STATUS_CHOICES = [
+    ('proposed', 'Proposed'),
+    ('planned', 'Planned'),
+    ('under_construction', 'Under Construction'),
+    ('commissioned', 'Commissioned'),
+    ('decommissioned', 'Decommissioned'),
+]
+
 class facilities(models.Model):
     """
     Energy facility that can contain multiple technology installations.
-    
+
     RESTRUCTURED: A facility can now have:
     - Multiple wind turbine installations (different models, phases)
     - Multiple solar installations (fixed, tracking, different phases)
     - Multiple storage installations (batteries, PHES)
-    
+
     The facility's total capacity and technology mix is computed from its installations.
     """
     idfacilities = models.AutoField(db_column='idfacilities', primary_key=True)
@@ -51,6 +60,30 @@ class facilities(models.Model):
     registered_from = models.DateField(null=True)
     active = models.BooleanField(null=False)
     existing = models.BooleanField(null=False)
+
+    # Lifecycle status fields
+    status = models.CharField(
+        max_length=20,
+        choices=FACILITY_STATUS_CHOICES,
+        default='commissioned',
+        help_text="Current lifecycle status of the facility"
+    )
+    commissioning_date = models.DateField(
+        null=True,
+        blank=True,
+        help_text="Actual or expected commissioning date"
+    )
+    decommissioning_date = models.DateField(
+        null=True,
+        blank=True,
+        help_text="Actual or expected decommissioning date"
+    )
+    commissioning_probability = models.FloatField(
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(0.0), MaxValueValidator(1.0)],
+        help_text="Probability of commissioning (0-1), relevant for proposed/planned facilities"
+    )
 
     # For backward compatibility during migration, keep as nullable
     idtechnologies = models.ForeignKey(

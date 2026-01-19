@@ -88,14 +88,64 @@
             <div class="row mb-3">
               <div class="col-md-6">
                 <label for="emission_intensity" class="form-label">Emission Intensity</label>
-                <input type="number" 
-                       class="form-control non-negative"  
-                       id="emission_intensity" 
-                       name="emission_intensity" 
-                       step="0.001" 
+                <input type="number"
+                       class="form-control non-negative"
+                       id="emission_intensity"
+                       name="emission_intensity"
+                       step="0.001"
                        min="0"
                        value="{{ form_data.emission_intensity|default:facility.emission_intensity|default:'' }}">
                 <div class="form-text">CO₂ emissions per unit of energy (t CO₂-e/MWh)</div>
+              </div>
+            </div>
+
+            <hr class="my-4">
+            <h5 class="mb-3">Lifecycle Status</h5>
+
+            <div class="row mb-3">
+              <div class="col-md-6">
+                <label for="status" class="form-label">Status <span class="text-danger">*</span></label>
+                <select class="form-select" id="status" name="status" required>
+                  <option value="proposed" {% if form_data.status|default:facility.status == 'proposed' %}selected{% endif %}>Proposed</option>
+                  <option value="planned" {% if form_data.status|default:facility.status == 'planned' %}selected{% endif %}>Planned</option>
+                  <option value="under_construction" {% if form_data.status|default:facility.status == 'under_construction' %}selected{% endif %}>Under Construction</option>
+                  <option value="commissioned" {% if form_data.status|default:facility.status == 'commissioned' %}selected{% endif %}>Commissioned</option>
+                  <option value="decommissioned" {% if form_data.status|default:facility.status == 'decommissioned' %}selected{% endif %}>Decommissioned</option>
+                </select>
+                <div class="form-text">Current lifecycle stage of the facility</div>
+              </div>
+              <div class="col-md-6">
+                <label for="commissioning_probability" class="form-label">Commissioning Probability</label>
+                <input type="number"
+                       class="form-control"
+                       id="commissioning_probability"
+                       name="commissioning_probability"
+                       step="0.01"
+                       min="0"
+                       max="1"
+                       value="{{ form_data.commissioning_probability|default:facility.commissioning_probability|default:'' }}">
+                <div class="form-text">Likelihood of commissioning (0-1), for proposed/planned facilities</div>
+              </div>
+            </div>
+
+            <div class="row mb-3">
+              <div class="col-md-6">
+                <label for="commissioning_date" class="form-label">Commissioning Date</label>
+                <input type="date"
+                       class="form-control"
+                       id="commissioning_date"
+                       name="commissioning_date"
+                       value="{{ form_data.commissioning_date|default:facility.commissioning_date|date:'Y-m-d'|default:'' }}">
+                <div class="form-text">Actual or expected date when facility becomes operational</div>
+              </div>
+              <div class="col-md-6">
+                <label for="decommissioning_date" class="form-label">Decommissioning Date</label>
+                <input type="date"
+                       class="form-control"
+                       id="decommissioning_date"
+                       name="decommissioning_date"
+                       value="{{ form_data.decommissioning_date|default:facility.decommissioning_date|date:'Y-m-d'|default:'' }}">
+                <div class="form-text">Actual or expected date when facility will be retired</div>
               </div>
             </div>
 

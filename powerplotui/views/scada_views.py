@@ -878,7 +878,7 @@ class FacilityManager:
     
     def get_facility_statistics(self):
         """Calculate aggregate statistics across all facilities"""
-        
+
         # Get all active facilities
         facilities_qs = facilities.objects.filter(active=True)
         

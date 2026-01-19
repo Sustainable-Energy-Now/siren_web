@@ -186,6 +186,11 @@ def facility_create(request):
             latitude = request.POST.get('latitude')
             longitude = request.POST.get('longitude')
             scenario_ids = request.POST.getlist('scenarios')
+            # Lifecycle fields
+            status = request.POST.get('status', 'commissioned')
+            commissioning_date = request.POST.get('commissioning_date')
+            decommissioning_date = request.POST.get('decommissioning_date')
+            commissioning_probability = request.POST.get('commissioning_probability')
             
             # Validation
             if not facility_name:
@@ -211,6 +216,27 @@ def facility_create(request):
             technology = get_object_or_404(Technologies, pk=technology_id) if technology_id else None
             zone = get_object_or_404(Zones, pk=zone_id) if zone_id else None
             
+            # Parse dates
+            parsed_commissioning_date = None
+            parsed_decommissioning_date = None
+            if commissioning_date:
+                from datetime import datetime
+                parsed_commissioning_date = datetime.strptime(commissioning_date, '%Y-%m-%d').date()
+            if decommissioning_date:
+                from datetime import datetime
+                parsed_decommissioning_date = datetime.strptime(decommissioning_date, '%Y-%m-%d').date()
+
+            # Validate dates
+            if parsed_commissioning_date and parsed_decommissioning_date:
+                if parsed_decommissioning_date < parsed_commissioning_date:
+                    messages.error(request, 'Decommissioning date must be after commissioning date.')
+                    return render(request, 'facilities/create.html', {
+                        'form_data': request.POST,
+                        'technologies': Technologies.objects.all().order_by('technology_name'),
+                        'zones': Zones.objects.all().order_by('name'),
+                        'scenarios': Scenarios.objects.all().order_by('title')
+                    })
+
             # Create the facility
             facility = facilities.objects.create(
                 facility_name=facility_name,
@@ -219,8 +245,10 @@ def facility_create(request):
                 capacity=float(capacity) if capacity else None,
                 capacityfactor=float(capacity_factor) if capacity_factor else None,
                 emission_intensity=float(emission_intensity) if emission_intensity else None,
-                active=1,
-                existing=1,
+                status=status,
+                commissioning_date=parsed_commissioning_date,
+                decommissioning_date=parsed_decommissioning_date,
+                commissioning_probability=float(commissioning_probability) if commissioning_probability else None,
                 latitude=float(latitude) if latitude else None,
                 longitude=float(longitude) if longitude else None,
             )
@@ -264,12 +292,12 @@ def facility_create(request):
 def facility_edit(request, pk):
     """Edit an existing facility"""
     facility = get_object_or_404(facilities, pk=pk)
-    
+
     # Get current scenarios
     current_scenario_ids = list(ScenariosFacilities.objects.filter(
         idfacilities=facility
     ).values_list('idscenarios__idscenarios', flat=True))
-    
+
     if request.method == 'POST':
         try:
             # Extract form data
@@ -284,6 +312,11 @@ def facility_edit(request, pk):
             latitude = request.POST.get('latitude')
             longitude = request.POST.get('longitude')
             scenario_ids = request.POST.getlist('scenarios')
+            # Lifecycle fields
+            status = request.POST.get('status', 'commissioned')
+            commissioning_date = request.POST.get('commissioning_date')
+            decommissioning_date = request.POST.get('decommissioning_date')
+            commissioning_probability = request.POST.get('commissioning_probability')
             
             # Validation
             if not facility_name:
@@ -311,7 +344,30 @@ def facility_edit(request, pk):
             # Get technology and zone objects
             technology = get_object_or_404(Technologies, pk=technology_id) if technology_id else None
             zone = get_object_or_404(Zones, pk=zone_id) if zone_id else None
-            
+
+            # Parse dates
+            parsed_commissioning_date = None
+            parsed_decommissioning_date = None
+            if commissioning_date:
+                from datetime import datetime
+                parsed_commissioning_date = datetime.strptime(commissioning_date, '%Y-%m-%d').date()
+            if decommissioning_date:
+                from datetime import datetime
+                parsed_decommissioning_date = datetime.strptime(decommissioning_date, '%Y-%m-%d').date()
+
+            # Validate dates
+            if parsed_commissioning_date and parsed_decommissioning_date:
+                if parsed_decommissioning_date < parsed_commissioning_date:
+                    messages.error(request, 'Decommissioning date must be after commissioning date.')
+                    return render(request, 'facilities/edit.html', {
+                        'facility': facility,
+                        'form_data': request.POST,
+                        'technologies': Technologies.objects.all().order_by('technology_name'),
+                        'zones': Zones.objects.all().order_by('name'),
+                        'scenarios': Scenarios.objects.all().order_by('title'),
+                        'current_scenario_ids': current_scenario_ids
+                    })
+
             # Update the facility
             facility.facility_name = facility_name
             facility.idtechnologies = technology
@@ -323,6 +379,10 @@ def facility_edit(request, pk):
             facility.emission_intensity = float(emission_intensity) if emission_intensity else None
             facility.latitude = float(latitude) if latitude else None
             facility.longitude = float(longitude) if longitude else None
+            facility.status = status
+            facility.commissioning_date = parsed_commissioning_date
+            facility.decommissioning_date = parsed_decommissioning_date
+            facility.commissioning_probability = float(commissioning_probability) if commissioning_probability else None
             facility.save()
             
             # Update scenarios - remove old, add new

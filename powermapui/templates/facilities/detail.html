@@ -96,6 +96,42 @@
                     {% endif %}
                   </td>
                 </tr>
+                <tr>
+                  <td><strong>Status:</strong></td>
+                  <td>
+                    {% if facility.status == 'proposed' %}
+                      <span class="badge bg-secondary">Proposed</span>
+                    {% elif facility.status == 'planned' %}
+                      <span class="badge bg-info">Planned</span>
+                    {% elif facility.status == 'under_construction' %}
+                      <span class="badge bg-warning text-dark">Under Construction</span>
+                    {% elif facility.status == 'commissioned' %}
+                      <span class="badge bg-success">Commissioned</span>
+                    {% elif facility.status == 'decommissioned' %}
+                      <span class="badge bg-dark">Decommissioned</span>
+                    {% else %}
+                      <span class="text-muted">Not specified</span>
+                    {% endif %}
+                  </td>
+                </tr>
+                <tr>
+                  <td><strong>Commissioning Date:</strong></td>
+                  <td>{{ facility.commissioning_date|date:"d M Y"|default:"Not specified" }}</td>
+                </tr>
+                <tr>
+                  <td><strong>Decommissioning Date:</strong></td>
+                  <td>{{ facility.decommissioning_date|date:"d M Y"|default:"Not specified" }}</td>
+                </tr>
+                <tr>
+                  <td><strong>Commissioning Probability:</strong></td>
+                  <td>
+                    {% if facility.commissioning_probability != None %}
+                      {{ facility.commissioning_probability|floatformat:2 }}
+                    {% else %}
+                      Not specified
+                    {% endif %}
+                  </td>
+                </tr>
               </table>
             </div>
           </div>

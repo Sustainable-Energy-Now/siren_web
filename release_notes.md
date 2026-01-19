@@ -1,5 +1,9 @@
 # Release Notes (Latest first)
 
+## Version 3.16.2 - January 19, 2026
+### ✨ Enhancements
+- Feature: Facilities Lifecycle ([#59](https://github.com/Sustainable-Energy-Now/siren_web/issues/59))
+
 ## Version 3.16.1 - January 18, 2026
 ### ✨ Enhancements
 - Feature: Technologies CRUD ([#58](https://github.com/Sustainable-Energy-Now/siren_web/issues/58))
