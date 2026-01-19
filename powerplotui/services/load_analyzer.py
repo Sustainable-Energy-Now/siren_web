@@ -1,196 +1,21 @@
 # powerplot/services/load_analyzer.py
 from django.db.models import Avg, F, Q
 from datetime import datetime
-from decimal import Decimal
-from siren_web.models import FacilityScada, LoadAnalysisSummary, DPVGeneration
+from siren_web.models import FacilityScada, DPVGeneration
 from django.db.models.functions import ExtractHour, ExtractMinute
-import pandas as pd
 import logging
 
 logger = logging.getLogger(__name__)
 
+
 class LoadAnalyzer:
-    
-    def calculate_monthly_summary(self, year, month):
-        """Calculate monthly load analysis including DPV data"""
-        start_date = datetime(year, month, 1)
-        if month == 12:
-            end_date = datetime(year + 1, 1, 1)
-        else:
-            end_date = datetime(year, month + 1, 1)
-        
-        # Get all SCADA data for the month with facility information
-        scada_data = FacilityScada.objects.filter(
-            dispatch_interval__gte=start_date,
-            dispatch_interval__lt=end_date
-        ).select_related('facility', 'facility__idtechnologies')
-        
-        # Get DPV data for the month
-        dpv_data = DPVGeneration.objects.filter(
-            trading_date__gte=start_date.date(),
-            trading_date__lt=end_date.date()
-        )
-        
-        if not scada_data.exists():
-            logger.warning(f"No SCADA data found for {year}-{month:02d}")
-            return None
-        
-        # Convert to DataFrame with corrected field names
-        scada_df = pd.DataFrame(scada_data.values(
-            'dispatch_interval',
-            'facility__facility_code',
-            'facility__idtechnologies__technology_name',  # Corrected field name
-            'quantity'
-        ))
-        
-        # Rename columns for easier access
-        scada_df.rename(columns={
-            'facility__facility_code': 'facility_code',
-            'facility__idtechnologies__technology_name': 'technology_name'  # Corrected
-        }, inplace=True)
-        
-        dpv_df = pd.DataFrame(dpv_data.values(
-            'trading_interval', 'estimated_generation'
-        )) if dpv_data.exists() else pd.DataFrame()
-        
-        # Categorize generation by fuel type
-        scada_df['fuel_type'] = scada_df['technology_name'].apply(self._categorize_technology)
-        scada_df['is_renewable'] = scada_df['fuel_type'].isin(['WIND', 'SOLAR', 'HYDRO', 'BIOMASS'])
-        scada_df['is_storage'] = scada_df['fuel_type'] == 'BATTERY' or scada_df['fuel_type'] == 'HYDRO'
-        
-        # Convert 5-min intervals to energy (MWh)
-        scada_df['energy_mwh'] = scada_df['quantity']
-        
-        # Process DPV data
-        if not dpv_df.empty:
-            dpv_df['trading_interval'] = pd.to_datetime(dpv_df['trading_interval'])
-            dpv_df['energy_mwh'] = dpv_df['estimated_generation']
-            total_dpv_generation = float(dpv_df['energy_mwh'].sum())
-        else:
-            logger.warning(f"No DPV data found for {year}-{month:02d}")
-            total_dpv_generation = 0
-        
-        # Calculate key metrics
-        total_re_generation = float(scada_df[scada_df['is_renewable']]['energy_mwh'].sum())
-        total_wind = float(scada_df[scada_df['fuel_type'] == 'WIND']['energy_mwh'].sum())
-        total_solar = float(scada_df[scada_df['fuel_type'] == 'SOLAR']['energy_mwh'].sum())
-        
-        total_storage_discharge = float(scada_df[
-            (scada_df['is_storage']) & (scada_df['quantity'] > 0)
-        ]['energy_mwh'].sum())
-        
-        total_storage_charge = abs(float(scada_df[
-            (scada_df['is_storage']) & (scada_df['quantity'] < 0)
-        ]['energy_mwh'].sum()))
-        
-        total_fossil = float(scada_df[
-            ~scada_df['is_renewable'] & ~scada_df['is_storage']
-        ]['energy_mwh'].sum())
-        
-        # Operational demand = total generation - battery charging
-        total_generation = float(scada_df['energy_mwh'].sum())
-        operational_demand_mwh = total_generation - total_storage_charge
-        operational_demand_gwh = operational_demand_mwh / 1000
-        
-        # Underlying demand = operational + DPV
-        underlying_demand_mwh = operational_demand_mwh + total_dpv_generation
-        underlying_demand_gwh = underlying_demand_mwh / 1000
-        
-        # Total RE including DPV
-        total_re_with_dpv = total_re_generation + total_dpv_generation
-        
-        # Calculate percentages
-        re_pct_operational = (
-            (total_re_generation / operational_demand_mwh) * 100 
-            if operational_demand_mwh > 0 else 0
-        )
-        
-        re_pct_underlying = (
-            (total_re_with_dpv / underlying_demand_mwh) * 100
-            if underlying_demand_mwh > 0 else 0
-        )
-        
-        dpv_pct_underlying = (
-            (total_dpv_generation / underlying_demand_mwh) * 100
-            if underlying_demand_mwh > 0 else 0
-        )
-        
-        bess_pct_operational = (
-            (total_storage_discharge / operational_demand_mwh) * 100
-            if operational_demand_mwh > 0 else 0
-        )
-        
-        # Create or update summary
-        summary, created = LoadAnalysisSummary.objects.update_or_create(
-            period_date=start_date.date(),
-            period_type='MONTHLY',
-            defaults={
-                'operational_demand': Decimal(str(operational_demand_gwh)),
-                'underlying_demand': Decimal(str(underlying_demand_gwh)),
-                'dpv_generation': Decimal(str(total_dpv_generation / 1000)),
-                'wind_generation': Decimal(str(total_wind / 1000)),
-                'solar_generation': Decimal(str(total_solar / 1000)),
-                'storage_discharge': Decimal(str(total_storage_discharge / 1000)),
-                'storage_charge': Decimal(str(total_storage_charge / 1000)),
-                'fossil_generation': Decimal(str(total_fossil / 1000)),
-                're_percentage_operational': Decimal(str(round(re_pct_operational, 2))),
-                're_percentage_underlying': Decimal(str(round(re_pct_underlying, 2))),
-                'dpv_percentage_underlying': Decimal(str(round(dpv_pct_underlying, 2))),
-            }
-        )
-        
-        action = "Created" if created else "Updated"
-        return summary
-    
-    def _categorize_technology(self, tech_name):
-        """
-        Categorize technology name into fuel type
-        
-        Args:
-            tech_name: technology_name from Technologies model
-        
-        Returns:
-            str: fuel type category
-        """
-        if not tech_name:
-            return 'OTHER'
-        
-        tech_lower = str(tech_name).lower()
-        
-        # Wind
-        if 'wind' in tech_lower:
-            return 'WIND'
-        
-        # Solar
-        if 'solar' in tech_lower or 'pv' in tech_lower or 'photovoltaic' in tech_lower:
-            return 'SOLAR'
-        
-        # Battery
-        if 'battery' in tech_lower or 'bess' in tech_lower or 'storage' in tech_lower:
-            return 'BATTERY'
-        
-        # Gas
-        if any(term in tech_lower for term in ['gas', 'ccgt', 'ocgt', 'cogen', 'lng']):
-            return 'GAS'
-        
-        # Coal
-        if 'coal' in tech_lower:
-            return 'COAL'
-        
-        # Hydro
-        if 'hydro' in tech_lower:
-            return 'HYDRO'
-        
-        # Biomass
-        if 'biomass' in tech_lower or 'biogas' in tech_lower or 'landfill' in tech_lower:
-            return 'BIOMASS'
-        
-        # Diesel
-        if 'diesel' in tech_lower:
-            return 'DIESEL'
-        
-        return 'OTHER'
-    
+    """
+    Service for analyzing load/demand data and calculating diurnal profiles.
+
+    Note: Monthly summary data is now stored in MonthlyREPerformance model,
+    populated by the update_ret_dashboard management command.
+    """
+
     def get_diurnal_profile(self, year, month):
         """Calculate average diurnal profile including DPV - memory efficient"""
         start_date = datetime(year, month, 1)

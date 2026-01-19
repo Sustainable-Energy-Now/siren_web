@@ -1497,37 +1497,6 @@ class FacilityScada(models.Model):
     def __str__(self):
         return f"{self.facility.facility_code} @ {self.dispatch_interval}: {self.quantity}MW"
 
-class LoadAnalysisSummary(models.Model):
-    """Store pre-calculated monthly/daily summaries"""
-    period_date = models.DateField(unique=True, db_index=True)
-    period_type = models.CharField(max_length=20, choices=[
-        ('DAILY', 'Daily'),
-        ('MONTHLY', 'Monthly'),
-    ])
-    
-    # Demand metrics (GWh for monthly, MWh for daily)
-    operational_demand = models.DecimalField(max_digits=12, decimal_places=3)
-    underlying_demand = models.DecimalField(max_digits=12, decimal_places=3)
-    dpv_generation = models.DecimalField(max_digits=12, decimal_places=3)
-    
-    # Generation by type (GWh/MWh)
-    wind_generation = models.DecimalField(max_digits=12, decimal_places=3)
-    solar_generation = models.DecimalField(max_digits=12, decimal_places=3)
-    storage_discharge = models.DecimalField(max_digits=12, decimal_places=3)
-    storage_charge = models.DecimalField(max_digits=12, decimal_places=3)
-    fossil_generation = models.DecimalField(max_digits=12, decimal_places=3)
-    
-    # Percentages
-    re_percentage_operational = models.DecimalField(max_digits=5, decimal_places=2)
-    re_percentage_underlying = models.DecimalField(max_digits=5, decimal_places=2)
-    dpv_percentage_underlying = models.DecimalField(max_digits=5, decimal_places=2)
-    
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-    
-    class Meta:
-        db_table = 'load_analysis_summary'
-        ordering = ['-period_date']
 
 class TurbinePowerCurves(models.Model):
     idturbinepowercurves = models.AutoField(db_column='idturbinepowercurves', primary_key=True)
@@ -1822,7 +1791,12 @@ class MonthlyREPerformance(models.Model):
     def storage_net_discharge(self):
         """Net storage discharge (positive = net discharge)"""
         return self.storage_discharge - self.storage_charge
-    
+
+    @property
+    def fossil_generation(self):
+        """Combined fossil fuel generation (gas + coal) for backward compatibility"""
+        return (self.gas_generation or 0) + (self.coal_generation or 0)
+
     @property
     def wholesale_price_range(self):
         """Return the spread between max and min wholesale prices"""

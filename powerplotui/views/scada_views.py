@@ -3,7 +3,7 @@ from django.db.models import Case, Count, FloatField, Sum, Q, When
 from django.db.models.functions import Coalesce
 from django.shortcuts import render
 from django.http import HttpResponse
-from siren_web.models import LoadAnalysisSummary, facilities, Technologies
+from siren_web.models import MonthlyREPerformance, facilities, Technologies
 from powerplotui.services.load_analyzer import LoadAnalyzer
 from datetime import datetime, date
 import calendar
@@ -18,53 +18,45 @@ def scada_analysis_report(request, year=None, month=None):
     """Display monthly load analysis report"""
     if year is None or month is None:
         # Default to latest available
-        latest = LoadAnalysisSummary.objects.filter(
-            period_type='MONTHLY'
-        ).first()
+        latest = MonthlyREPerformance.objects.first()
         if latest:
-            year = latest.period_date.year
-            month = latest.period_date.month
+            year = latest.year
+            month = latest.month
         else:
             return render(request, 'scada/no_data.html', {
                 'month_name': 'Unknown',
                 'year': datetime.now().year,
                 'latest_available': None
             })
-    
-    summary = LoadAnalysisSummary.objects.filter(
-        period_date=date(year, month, 1),
-        period_type='MONTHLY'
+
+    summary = MonthlyREPerformance.objects.filter(
+        year=year, month=month
     ).first()
-    
+
     if not summary:
-        latest_available = LoadAnalysisSummary.objects.filter(
-            period_type='MONTHLY'
-        ).first()
+        latest_available = MonthlyREPerformance.objects.first()
         return render(request, 'scada/no_data.html', {
             'month_name': calendar.month_name[month],
             'year': year,
             'latest_available': latest_available
         })
-    
+
     # Get previous year same month for comparison
-    prev_summary = LoadAnalysisSummary.objects.filter(
-        period_date=date(year-1, month, 1),
-        period_type='MONTHLY'
+    prev_summary = MonthlyREPerformance.objects.filter(
+        year=year-1, month=month
     ).first()
-    
+
     # Get YTD summaries
-    ytd_summaries = LoadAnalysisSummary.objects.filter(
-        period_date__year=year,
-        period_date__month__lte=month,
-        period_type='MONTHLY'
+    ytd_summaries = MonthlyREPerformance.objects.filter(
+        year=year,
+        month__lte=month
     )
-    
-    ytd_prev_summaries = LoadAnalysisSummary.objects.filter(
-        period_date__year=year-1,
-        period_date__month__lte=month,
-        period_type='MONTHLY'
+
+    ytd_prev_summaries = MonthlyREPerformance.objects.filter(
+        year=year-1,
+        month__lte=month
     )
-    
+
     # Aggregate YTD data
     ytd_summary = aggregate_summaries(ytd_summaries)
     ytd_prev_summary = aggregate_summaries(ytd_prev_summaries)
@@ -191,31 +183,33 @@ def get_historical_data(current_year, current_month, years_back=3):
     Returns a list of dictionaries with monthly summaries
     """
     start_year = current_year - years_back
-    
-    summaries = LoadAnalysisSummary.objects.filter(
-        period_type='MONTHLY',
-        period_date__gte=date(start_year, 1, 1),
-        period_date__lte=date(current_year, current_month, 1)
-    ).order_by('period_date')
-    
+
+    # Query MonthlyREPerformance with year/month filtering
+    summaries = MonthlyREPerformance.objects.filter(
+        year__gte=start_year
+    ).filter(
+        Q(year__lt=current_year) |
+        Q(year=current_year, month__lte=current_month)
+    ).order_by('year', 'month')
+
     historical_records = []
     for summary in summaries:
         historical_records.append({
-            'period_date': summary.period_date,
-            'period_label': f"{calendar.month_name[summary.period_date.month]} {summary.period_date.year}",
+            'period_date': date(summary.year, summary.month, 1),
+            'period_label': f"{calendar.month_name[summary.month]} {summary.year}",
             'operational_demand': float(summary.operational_demand),
             'underlying_demand': float(summary.underlying_demand),
             'wind_generation': float(summary.wind_generation),
             'solar_generation': float(summary.solar_generation),
             'dpv_generation': float(summary.dpv_generation),
-            'fossil_generation': float(summary.fossil_generation),
+            'fossil_generation': float(summary.fossil_generation),  # Uses computed property
             'storage_discharge': float(summary.storage_discharge),
             'storage_charge': float(summary.storage_charge),
-            're_percentage_operational': float(summary.re_percentage_operational),
-            're_percentage_underlying': float(summary.re_percentage_underlying),
-            'dpv_percentage_underlying': float(summary.dpv_percentage_underlying),
+            're_percentage_operational': float(summary.re_percentage_operational),  # Uses computed property
+            're_percentage_underlying': float(summary.re_percentage_underlying),  # Uses computed property
+            'dpv_percentage_underlying': float(summary.dpv_percentage_underlying),  # Uses computed property
         })
-    
+
     return historical_records
 
 
@@ -264,22 +258,19 @@ def get_yearly_comparison():
     Get year-over-year comparison of annual totals
     """
     # Get all available years
-    years = LoadAnalysisSummary.objects.filter(
-        period_type='MONTHLY'
-    ).values_list('period_date__year', flat=True).distinct().order_by('period_date__year')
-    
+    years = MonthlyREPerformance.objects.values_list(
+        'year', flat=True
+    ).distinct().order_by('year')
+
     yearly_data = []
     prev_year_data = None
-    
+
     for year in years:
-        year_summaries = LoadAnalysisSummary.objects.filter(
-            period_type='MONTHLY',
-            period_date__year=year
-        )
-        
+        year_summaries = MonthlyREPerformance.objects.filter(year=year)
+
         if not year_summaries:
             continue
-        
+
         # Aggregate annual data
         year_total = {
             'year': year,
@@ -288,13 +279,13 @@ def get_yearly_comparison():
             'total_wind': sum(s.wind_generation for s in year_summaries),
             'total_solar': sum(s.solar_generation for s in year_summaries),
             'total_dpv': sum(s.dpv_generation for s in year_summaries),
-            'total_fossil': sum(s.fossil_generation for s in year_summaries),
+            'total_fossil': sum(s.fossil_generation for s in year_summaries),  # Uses computed property
         }
-        
+
         # Calculate average RE percentage for the year
-        re_percentages = [s.re_percentage_operational for s in year_summaries]
+        re_percentages = [s.re_percentage_operational for s in year_summaries]  # Uses computed property
         year_total['avg_re_percentage'] = sum(re_percentages) / len(re_percentages) if re_percentages else 0
-        
+
         # Calculate YoY changes
         if prev_year_data:
             year_total['yoy_demand_change'] = (
@@ -307,10 +298,10 @@ def get_yearly_comparison():
         else:
             year_total['yoy_demand_change'] = None
             year_total['yoy_re_change'] = None
-        
+
         yearly_data.append(year_total)
         prev_year_data = year_total
-    
+
     return yearly_data
 
 
@@ -318,16 +309,15 @@ def export_historical_data(request):
     """Export historical data as CSV"""
     start_year = int(request.GET.get('start', 2023))
     end_year = int(request.GET.get('end', datetime.now().year))
-    
-    summaries = LoadAnalysisSummary.objects.filter(
-        period_type='MONTHLY',
-        period_date__year__gte=start_year,
-        period_date__year__lte=end_year
-    ).order_by('period_date')
-    
+
+    summaries = MonthlyREPerformance.objects.filter(
+        year__gte=start_year,
+        year__lte=end_year
+    ).order_by('year', 'month')
+
     response = HttpResponse(content_type='text/csv')
     response['Content-Disposition'] = f'attachment; filename="swis_historical_data_{start_year}_{end_year}.csv"'
-    
+
     writer = csv.writer(response)
     writer.writerow([
         'Period', 'Operational Demand (GWh)', 'Underlying Demand (GWh)',
@@ -335,10 +325,10 @@ def export_historical_data(request):
         'Battery Discharge (GWh)', 'Battery Charge (GWh)', 'Fossil Generation (GWh)',
         'RE % Operational', 'RE % Underlying', 'DPV % Underlying'
     ])
-    
+
     for summary in summaries:
         writer.writerow([
-            f"{calendar.month_name[summary.period_date.month]} {summary.period_date.year}",
+            f"{calendar.month_name[summary.month]} {summary.year}",
             float(summary.operational_demand),
             float(summary.underlying_demand),
             float(summary.wind_generation),
@@ -346,12 +336,12 @@ def export_historical_data(request):
             float(summary.dpv_generation),
             float(summary.storage_discharge),
             float(summary.storage_charge),
-            float(summary.fossil_generation),
-            float(summary.re_percentage_operational),
-            float(summary.re_percentage_underlying),
-            float(summary.dpv_percentage_underlying),
+            float(summary.fossil_generation),  # Uses computed property
+            float(summary.re_percentage_operational),  # Uses computed property
+            float(summary.re_percentage_underlying),  # Uses computed property
+            float(summary.dpv_percentage_underlying),  # Uses computed property
         ])
-    
+
     return response
 
 
