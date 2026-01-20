@@ -1,0 +1,249 @@
+{% extends 'risk_analysis/base.html' %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item active">Risk Dashboard</li>
+{% endblock %}
+
+{% block risk_content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h3>SWIS Risk Analysis Dashboard</h3>
+    <div>
+        <a href="{% url 'risk_scenario_create' %}" class="btn btn-primary">
+            <i class="bi bi-plus-lg"></i> New Scenario
+        </a>
+        <a href="{% url 'risk_comparison' %}" class="btn btn-outline-secondary">
+            <i class="bi bi-bar-chart"></i> Compare Scenarios
+        </a>
+    </div>
+</div>
+
+<!-- Summary Cards -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h5 class="card-title text-muted">Active Scenarios</h5>
+                <h2 class="mb-0" id="active-scenarios-count">-</h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h5 class="card-title text-muted">Total Risk Events</h5>
+                <h2 class="mb-0" id="total-events-count">-</h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h5 class="card-title text-muted">Severe Risks</h5>
+                <h2 class="mb-0 text-danger" id="severe-risks-count">-</h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h5 class="card-title text-muted">Average Risk Reduction</h5>
+                <h2 class="mb-0 text-success" id="avg-reduction">-</h2>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Scenarios Overview -->
+<div class="row">
+    <div class="col-md-8">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">Scenario Risk Comparison</h5>
+            </div>
+            <div class="card-body">
+                <div id="scenario-comparison-chart" style="height: 400px;"></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">Risk Distribution</h5>
+            </div>
+            <div class="card-body">
+                <div id="risk-distribution-chart" style="height: 400px;"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Scenario Cards -->
+<h4 class="mb-3">Active Scenarios</h4>
+<div class="row" id="scenarios-container">
+    {% for scenario in scenarios %}
+    <div class="col-md-4 mb-4">
+        <div class="card h-100">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">{{ scenario.name }}</h5>
+                <span class="badge bg-{% if scenario.status == 'active' %}success{% elif scenario.status == 'draft' %}warning{% else %}secondary{% endif %}">
+                    {{ scenario.status|title }}
+                </span>
+            </div>
+            <div class="card-body">
+                <p class="card-text text-muted small">{{ scenario.description|truncatewords:30 }}</p>
+
+                <div class="mb-3">
+                    <strong>Target Year:</strong> {{ scenario.target_year }}
+                </div>
+
+                <!-- Energy Mix Preview -->
+                <div class="mb-3">
+                    <small class="text-muted">Energy Mix:</small>
+                    <div class="progress" style="height: 20px;">
+                        {% if scenario.wind_pct > 0 %}
+                        <div class="progress-bar bg-info" style="width: {{ scenario.wind_pct }}%;" title="Wind: {{ scenario.wind_pct }}%"></div>
+                        {% endif %}
+                        {% if scenario.solar_pct > 0 %}
+                        <div class="progress-bar bg-warning" style="width: {{ scenario.solar_pct }}%;" title="Solar: {{ scenario.solar_pct }}%"></div>
+                        {% endif %}
+                        {% if scenario.storage_pct > 0 %}
+                        <div class="progress-bar bg-primary" style="width: {{ scenario.storage_pct }}%;" title="Storage: {{ scenario.storage_pct }}%"></div>
+                        {% endif %}
+                        {% if scenario.gas_pct > 0 %}
+                        <div class="progress-bar bg-secondary" style="width: {{ scenario.gas_pct }}%;" title="Gas: {{ scenario.gas_pct }}%"></div>
+                        {% endif %}
+                        {% if scenario.nuclear_pct > 0 %}
+                        <div class="progress-bar bg-danger" style="width: {{ scenario.nuclear_pct }}%;" title="Nuclear: {{ scenario.nuclear_pct }}%"></div>
+                        {% endif %}
+                        {% if scenario.hydrogen_pct > 0 %}
+                        <div class="progress-bar bg-success" style="width: {{ scenario.hydrogen_pct }}%;" title="Hydrogen: {{ scenario.hydrogen_pct }}%"></div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Risk Summary -->
+                <div class="d-flex justify-content-between mb-2">
+                    <span>Risk Events:</span>
+                    <strong>{{ scenario.risk_events.count }}</strong>
+                </div>
+                <div class="d-flex justify-content-between">
+                    <span>Avg Inherent Score:</span>
+                    <strong>{{ scenario.get_inherent_risk_score|floatformat:1 }}</strong>
+                </div>
+            </div>
+            <div class="card-footer">
+                <a href="{% url 'risk_scenario_detail' scenario.id %}" class="btn btn-sm btn-outline-primary">View Details</a>
+                <a href="{% url 'risk_scenario_update' scenario.id %}" class="btn btn-sm btn-outline-secondary">Edit</a>
+            </div>
+        </div>
+    </div>
+    {% empty %}
+    <div class="col-12">
+        <div class="alert alert-info">
+            No scenarios found. <a href="{% url 'risk_scenario_create' %}">Create your first scenario</a>.
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Risk Level Legend -->
+<div class="card mt-4">
+    <div class="card-header">
+        <h5 class="mb-0">Risk Level Legend (6x6 Matrix)</h5>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-3">
+                <span class="badge" style="background-color: #27ae60; color: white;">Low (1-6)</span>
+                <small class="text-muted d-block">Acceptable risk, routine monitoring</small>
+            </div>
+            <div class="col-md-3">
+                <span class="badge" style="background-color: #f1c40f; color: black;">Moderate (7-12)</span>
+                <small class="text-muted d-block">Management attention required</small>
+            </div>
+            <div class="col-md-3">
+                <span class="badge" style="background-color: #e67e22; color: white;">High (13-24)</span>
+                <small class="text-muted d-block">Senior management attention required</small>
+            </div>
+            <div class="col-md-3">
+                <span class="badge" style="background-color: #e74c3c; color: white;">Severe (25-36)</span>
+                <small class="text-muted d-block">Immediate action required</small>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block risk_scripts %}
+<script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Fetch summary data
+    fetch('{% url "api_risk_summary" %}')
+        .then(response => response.json())
+        .then(data => {
+            document.getElementById('active-scenarios-count').textContent = data.active_scenarios;
+            document.getElementById('total-events-count').textContent = data.total_events;
+            document.getElementById('severe-risks-count').textContent = data.severe_risks;
+            document.getElementById('avg-reduction').textContent = data.avg_risk_reduction.toFixed(1) + '%';
+
+            // Render risk distribution pie chart
+            if (data.risk_distribution) {
+                const distData = [{
+                    values: [
+                        data.risk_distribution.low || 0,
+                        data.risk_distribution.moderate || 0,
+                        data.risk_distribution.high || 0,
+                        data.risk_distribution.severe || 0
+                    ],
+                    labels: ['Low', 'Moderate', 'High', 'Severe'],
+                    type: 'pie',
+                    marker: {
+                        colors: ['#27ae60', '#f1c40f', '#e67e22', '#e74c3c']
+                    },
+                    hole: 0.4
+                }];
+                const distLayout = {
+                    showlegend: true,
+                    legend: { orientation: 'h', y: -0.1 },
+                    margin: { t: 20, b: 50, l: 20, r: 20 }
+                };
+                Plotly.newPlot('risk-distribution-chart', distData, distLayout, {responsive: true});
+            }
+
+            // Render scenario comparison chart
+            if (data.scenarios && data.scenarios.length > 0) {
+                const scenarioNames = data.scenarios.map(s => s.short_name);
+                const inherentScores = data.scenarios.map(s => s.inherent_score);
+                const residualScores = data.scenarios.map(s => s.residual_score);
+
+                const compData = [
+                    {
+                        x: scenarioNames,
+                        y: inherentScores,
+                        name: 'Inherent Risk',
+                        type: 'bar',
+                        marker: { color: '#e74c3c' }
+                    },
+                    {
+                        x: scenarioNames,
+                        y: residualScores,
+                        name: 'Residual Risk',
+                        type: 'bar',
+                        marker: { color: '#27ae60' }
+                    }
+                ];
+                const compLayout = {
+                    barmode: 'group',
+                    xaxis: { title: 'Scenario' },
+                    yaxis: { title: 'Average Risk Score' },
+                    legend: { orientation: 'h', y: 1.1 },
+                    margin: { t: 40, b: 80, l: 60, r: 20 }
+                };
+                Plotly.newPlot('scenario-comparison-chart', compData, compLayout, {responsive: true});
+            }
+        })
+        .catch(error => console.error('Error fetching summary:', error));
+});
+</script>
+{% endblock %}

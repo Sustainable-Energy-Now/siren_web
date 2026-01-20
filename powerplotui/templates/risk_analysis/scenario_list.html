@@ -1,0 +1,147 @@
+{% extends 'risk_analysis/base.html' %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{% url 'risk_dashboard' %}">Risk Dashboard</a></li>
+<li class="breadcrumb-item active">Manage Scenarios</li>
+{% endblock %}
+
+{% block risk_content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h3>Risk Scenarios</h3>
+    <a href="{% url 'risk_scenario_create' %}" class="btn btn-primary">
+        <i class="bi bi-plus-lg"></i> New Scenario
+    </a>
+</div>
+
+<!-- Filters -->
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="get" class="row g-3">
+            <div class="col-md-3">
+                <label class="form-label">Status</label>
+                <select name="status" class="form-select">
+                    <option value="">All Statuses</option>
+                    <option value="draft" {% if request.GET.status == 'draft' %}selected{% endif %}>Draft</option>
+                    <option value="active" {% if request.GET.status == 'active' %}selected{% endif %}>Active</option>
+                    <option value="archived" {% if request.GET.status == 'archived' %}selected{% endif %}>Archived</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Target Year</label>
+                <select name="year" class="form-select">
+                    <option value="">All Years</option>
+                    {% for year in years %}
+                    <option value="{{ year }}" {% if request.GET.year == year|stringformat:"s" %}selected{% endif %}>{{ year }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Search</label>
+                <input type="text" name="q" class="form-control" placeholder="Search scenarios..." value="{{ request.GET.q }}">
+            </div>
+            <div class="col-md-2 d-flex align-items-end">
+                <button type="submit" class="btn btn-outline-primary w-100">Filter</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Scenarios Table -->
+<div class="card">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Short Name</th>
+                        <th>Target Year</th>
+                        <th>Status</th>
+                        <th>Risk Events</th>
+                        <th>Avg Inherent</th>
+                        <th>Avg Residual</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for scenario in scenarios %}
+                    <tr>
+                        <td>
+                            <a href="{% url 'risk_scenario_detail' scenario.id %}">{{ scenario.name }}</a>
+                            {% if scenario.is_baseline %}
+                            <span class="badge bg-info ms-1">Baseline</span>
+                            {% endif %}
+                        </td>
+                        <td><code>{{ scenario.short_name }}</code></td>
+                        <td>{{ scenario.target_year }}</td>
+                        <td>
+                            <span class="badge bg-{% if scenario.status == 'active' %}success{% elif scenario.status == 'draft' %}warning{% else %}secondary{% endif %}">
+                                {{ scenario.status|title }}
+                            </span>
+                        </td>
+                        <td>{{ scenario.risk_events.count }}</td>
+                        <td>
+                            {% with score=scenario.get_inherent_risk_score %}
+                            <span class="badge" style="background-color: {% if score >= 25 %}#e74c3c{% elif score >= 13 %}#e67e22{% elif score >= 7 %}#f1c40f{% else %}#27ae60{% endif %}; color: {% if score >= 7 and score < 13 %}black{% else %}white{% endif %};">
+                                {{ score|floatformat:1 }}
+                            </span>
+                            {% endwith %}
+                        </td>
+                        <td>
+                            {% with score=scenario.get_residual_risk_score %}
+                            <span class="badge" style="background-color: {% if score >= 25 %}#e74c3c{% elif score >= 13 %}#e67e22{% elif score >= 7 %}#f1c40f{% else %}#27ae60{% endif %}; color: {% if score >= 7 and score < 13 %}black{% else %}white{% endif %};">
+                                {{ score|floatformat:1 }}
+                            </span>
+                            {% endwith %}
+                        </td>
+                        <td>
+                            <div class="btn-group btn-group-sm">
+                                <a href="{% url 'risk_scenario_detail' scenario.id %}" class="btn btn-outline-primary" title="View">
+                                    <i class="bi bi-eye"></i>
+                                </a>
+                                <a href="{% url 'risk_scenario_update' scenario.id %}" class="btn btn-outline-secondary" title="Edit">
+                                    <i class="bi bi-pencil"></i>
+                                </a>
+                                <button type="button" class="btn btn-outline-danger" title="Delete"
+                                        data-bs-toggle="modal" data-bs-target="#deleteModal{{ scenario.id }}">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </div>
+
+                            <!-- Delete Modal -->
+                            <div class="modal fade" id="deleteModal{{ scenario.id }}" tabindex="-1">
+                                <div class="modal-dialog">
+                                    <div class="modal-content">
+                                        <div class="modal-header">
+                                            <h5 class="modal-title">Delete Scenario</h5>
+                                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                        </div>
+                                        <div class="modal-body">
+                                            <p>Are you sure you want to delete <strong>{{ scenario.name }}</strong>?</p>
+                                            <p class="text-danger">This will also delete all {{ scenario.risk_events.count }} associated risk events.</p>
+                                        </div>
+                                        <div class="modal-footer">
+                                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                            <form method="post" action="{% url 'risk_scenario_delete' scenario.id %}" class="d-inline">
+                                                {% csrf_token %}
+                                                <button type="submit" class="btn btn-danger">Delete</button>
+                                            </form>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="8" class="text-center text-muted py-4">
+                            No scenarios found. <a href="{% url 'risk_scenario_create' %}">Create your first scenario</a>.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

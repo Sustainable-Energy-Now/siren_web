@@ -1,0 +1,267 @@
+{% extends 'risk_analysis/base.html' %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{% url 'risk_dashboard' %}">Risk Dashboard</a></li>
+<li class="breadcrumb-item"><a href="{% url 'risk_scenario_list' %}">Scenarios</a></li>
+<li class="breadcrumb-item active">{% if scenario %}Edit{% else %}Create{% endif %} Scenario</li>
+{% endblock %}
+
+{% block risk_content %}
+<div class="row justify-content-center">
+    <div class="col-md-10">
+        <div class="card">
+            <div class="card-header">
+                <h4 class="mb-0">{% if scenario %}Edit Scenario: {{ scenario.name }}{% else %}Create New Risk Scenario{% endif %}</h4>
+            </div>
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+
+                    <div class="row">
+                        <!-- Basic Information -->
+                        <div class="col-md-6">
+                            <h5 class="mb-3">Basic Information</h5>
+
+                            <div class="mb-3">
+                                <label for="name" class="form-label">Scenario Name *</label>
+                                <input type="text" class="form-control" id="name" name="name"
+                                       value="{{ scenario.name|default:'' }}" required maxlength="100"
+                                       placeholder="e.g., VRE + Battery + Gas">
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="short_name" class="form-label">Short Name *</label>
+                                <input type="text" class="form-control" id="short_name" name="short_name"
+                                       value="{{ scenario.short_name|default:'' }}" required maxlength="30"
+                                       placeholder="e.g., VRE_BESS_GAS">
+                                <small class="text-muted">Unique identifier (no spaces, use underscores)</small>
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="description" class="form-label">Description *</label>
+                                <textarea class="form-control" id="description" name="description" rows="4"
+                                          required placeholder="Describe this energy scenario...">{{ scenario.description|default:'' }}</textarea>
+                            </div>
+
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="target_year" class="form-label">Target Year</label>
+                                        <input type="number" class="form-control" id="target_year" name="target_year"
+                                               value="{{ scenario.target_year|default:2040 }}" min="2025" max="2100">
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="status" class="form-label">Status</label>
+                                        <select class="form-select" id="status" name="status">
+                                            <option value="draft" {% if scenario.status == 'draft' %}selected{% endif %}>Draft</option>
+                                            <option value="active" {% if scenario.status == 'active' %}selected{% endif %}>Active</option>
+                                            <option value="archived" {% if scenario.status == 'archived' %}selected{% endif %}>Archived</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="mb-3 form-check">
+                                <input type="checkbox" class="form-check-input" id="is_baseline" name="is_baseline"
+                                       {% if scenario.is_baseline %}checked{% endif %}>
+                                <label class="form-check-label" for="is_baseline">Mark as Baseline Scenario</label>
+                            </div>
+                        </div>
+
+                        <!-- Energy Mix -->
+                        <div class="col-md-6">
+                            <h5 class="mb-3">Energy Mix (% of Total Generation)</h5>
+                            <p class="text-muted small">Specify the percentage contribution of each energy source. Total should equal 100%.</p>
+
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="wind_pct" class="form-label">
+                                            <span class="badge bg-info me-1">Wind</span>
+                                        </label>
+                                        <input type="number" class="form-control energy-input" id="wind_pct" name="wind_pct"
+                                               value="{{ scenario.wind_pct|default:0 }}" min="0" max="100" step="0.1">
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="solar_pct" class="form-label">
+                                            <span class="badge bg-warning text-dark me-1">Solar</span>
+                                        </label>
+                                        <input type="number" class="form-control energy-input" id="solar_pct" name="solar_pct"
+                                               value="{{ scenario.solar_pct|default:0 }}" min="0" max="100" step="0.1">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="storage_pct" class="form-label">
+                                            <span class="badge bg-primary me-1">Storage (BESS/PHES)</span>
+                                        </label>
+                                        <input type="number" class="form-control energy-input" id="storage_pct" name="storage_pct"
+                                               value="{{ scenario.storage_pct|default:0 }}" min="0" max="100" step="0.1">
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="gas_pct" class="form-label">
+                                            <span class="badge bg-secondary me-1">Gas</span>
+                                        </label>
+                                        <input type="number" class="form-control energy-input" id="gas_pct" name="gas_pct"
+                                               value="{{ scenario.gas_pct|default:0 }}" min="0" max="100" step="0.1">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="coal_pct" class="form-label">
+                                            <span class="badge bg-dark me-1">Coal</span>
+                                        </label>
+                                        <input type="number" class="form-control energy-input" id="coal_pct" name="coal_pct"
+                                               value="{{ scenario.coal_pct|default:0 }}" min="0" max="100" step="0.1">
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="hydro_pct" class="form-label">
+                                            <span class="badge" style="background-color: #3498db;" class="me-1">Hydro</span>
+                                        </label>
+                                        <input type="number" class="form-control energy-input" id="hydro_pct" name="hydro_pct"
+                                               value="{{ scenario.hydro_pct|default:0 }}" min="0" max="100" step="0.1">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="hydrogen_pct" class="form-label">
+                                            <span class="badge bg-success me-1">Hydrogen</span>
+                                        </label>
+                                        <input type="number" class="form-control energy-input" id="hydrogen_pct" name="hydrogen_pct"
+                                               value="{{ scenario.hydrogen_pct|default:0 }}" min="0" max="100" step="0.1">
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="nuclear_pct" class="form-label">
+                                            <span class="badge bg-danger me-1">Nuclear</span>
+                                        </label>
+                                        <input type="number" class="form-control energy-input" id="nuclear_pct" name="nuclear_pct"
+                                               value="{{ scenario.nuclear_pct|default:0 }}" min="0" max="100" step="0.1">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="biomass_pct" class="form-label">
+                                            <span class="badge" style="background-color: #8b4513;" class="me-1">Biomass</span>
+                                        </label>
+                                        <input type="number" class="form-control energy-input" id="biomass_pct" name="biomass_pct"
+                                               value="{{ scenario.biomass_pct|default:0 }}" min="0" max="100" step="0.1">
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="other_pct" class="form-label">
+                                            <span class="badge" style="background-color: #95a5a6;" class="me-1">Other</span>
+                                        </label>
+                                        <input type="number" class="form-control energy-input" id="other_pct" name="other_pct"
+                                               value="{{ scenario.other_pct|default:0 }}" min="0" max="100" step="0.1">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Total Display -->
+                            <div class="alert" id="total-alert">
+                                <strong>Total: <span id="total-pct">0</span>%</strong>
+                                <span id="total-message"></span>
+                            </div>
+
+                            <!-- Energy Mix Preview -->
+                            <div class="progress mb-3" style="height: 30px;" id="energy-preview">
+                            </div>
+                        </div>
+                    </div>
+
+                    <hr>
+
+                    <div class="d-flex justify-content-between">
+                        <a href="{% if scenario %}{% url 'risk_scenario_detail' scenario.id %}{% else %}{% url 'risk_scenario_list' %}{% endif %}" class="btn btn-secondary">Cancel</a>
+                        <button type="submit" class="btn btn-primary">{% if scenario %}Update{% else %}Create{% endif %} Scenario</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block risk_scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const energyInputs = document.querySelectorAll('.energy-input');
+    const totalPctSpan = document.getElementById('total-pct');
+    const totalAlert = document.getElementById('total-alert');
+    const totalMessage = document.getElementById('total-message');
+    const energyPreview = document.getElementById('energy-preview');
+
+    const colors = {
+        'wind_pct': '#17a2b8',
+        'solar_pct': '#ffc107',
+        'storage_pct': '#007bff',
+        'gas_pct': '#6c757d',
+        'coal_pct': '#343a40',
+        'hydro_pct': '#3498db',
+        'hydrogen_pct': '#28a745',
+        'nuclear_pct': '#dc3545',
+        'biomass_pct': '#8b4513',
+        'other_pct': '#95a5a6'
+    };
+
+    function updateTotal() {
+        let total = 0;
+        let previewHTML = '';
+
+        energyInputs.forEach(input => {
+            const val = parseFloat(input.value) || 0;
+            total += val;
+
+            if (val > 0) {
+                const id = input.id;
+                const color = colors[id] || '#ccc';
+                previewHTML += `<div class="progress-bar" style="width: ${val}%; background-color: ${color};" title="${id.replace('_pct', '')}: ${val}%"></div>`;
+            }
+        });
+
+        totalPctSpan.textContent = total.toFixed(1);
+        energyPreview.innerHTML = previewHTML;
+
+        if (Math.abs(total - 100) < 0.1) {
+            totalAlert.className = 'alert alert-success';
+            totalMessage.textContent = ' - Perfect!';
+        } else if (total > 100) {
+            totalAlert.className = 'alert alert-danger';
+            totalMessage.textContent = ' - Exceeds 100%';
+        } else {
+            totalAlert.className = 'alert alert-warning';
+            totalMessage.textContent = ` - ${(100 - total).toFixed(1)}% remaining`;
+        }
+    }
+
+    energyInputs.forEach(input => {
+        input.addEventListener('input', updateTotal);
+    });
+
+    updateTotal();
+});
+</script>
+{% endblock %}

@@ -1,0 +1,332 @@
+{% extends 'risk_analysis/base.html' %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{% url 'risk_dashboard' %}">Risk Dashboard</a></li>
+<li class="breadcrumb-item"><a href="{% url 'risk_scenario_detail' scenario.id %}">{{ scenario.name }}</a></li>
+<li class="breadcrumb-item active">{% if event %}Edit{% else %}Add{% endif %} Risk Event</li>
+{% endblock %}
+
+{% block risk_content %}
+<div class="row justify-content-center">
+    <div class="col-md-10">
+        <div class="card">
+            <div class="card-header">
+                <h4 class="mb-0">{% if event %}Edit Risk Event{% else %}Add Risk Event to {{ scenario.name }}{% endif %}</h4>
+            </div>
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+
+                    <div class="row">
+                        <!-- Risk Details -->
+                        <div class="col-md-6">
+                            <h5 class="mb-3">Risk Details</h5>
+
+                            <div class="mb-3">
+                                <label for="category" class="form-label">Risk Category *</label>
+                                <select class="form-select" id="category" name="category" required>
+                                    <option value="">Select Category...</option>
+                                    {% for cat in categories %}
+                                    <option value="{{ cat.id }}" {% if event.category_id == cat.id %}selected{% endif %}
+                                            data-color="{{ cat.color_code }}">
+                                        {{ cat.name }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="risk_title" class="form-label">Risk Title *</label>
+                                <input type="text" class="form-control" id="risk_title" name="risk_title"
+                                       value="{{ event.risk_title|default:'' }}" required maxlength="200"
+                                       placeholder="e.g., Battery thermal runaway">
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="risk_description" class="form-label">Risk Description *</label>
+                                <textarea class="form-control" id="risk_description" name="risk_description" rows="3"
+                                          required placeholder="Describe the risk event...">{{ event.risk_description|default:'' }}</textarea>
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="risk_cause" class="form-label">Risk Cause</label>
+                                <textarea class="form-control" id="risk_cause" name="risk_cause" rows="2"
+                                          placeholder="What causes this risk?">{{ event.risk_cause|default:'' }}</textarea>
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="risk_source" class="form-label">Risk Source</label>
+                                <input type="text" class="form-control" id="risk_source" name="risk_source"
+                                       value="{{ event.risk_source|default:'' }}" maxlength="100"
+                                       placeholder="e.g., AEMO, Industry report">
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="mitigation_strategies" class="form-label">Mitigation Strategies</label>
+                                <textarea class="form-control" id="mitigation_strategies" name="mitigation_strategies" rows="3"
+                                          placeholder="How can this risk be mitigated?">{{ event.mitigation_strategies|default:'' }}</textarea>
+                            </div>
+                        </div>
+
+                        <!-- Risk Assessment -->
+                        <div class="col-md-6">
+                            <h5 class="mb-3">Inherent Risk Assessment</h5>
+                            <p class="text-muted small">Rate the risk before any mitigation measures are applied.</p>
+
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="inherent_likelihood" class="form-label">Likelihood *</label>
+                                        <select class="form-select risk-input" id="inherent_likelihood" name="inherent_likelihood" required>
+                                            <option value="">Select...</option>
+                                            <option value="1" {% if event.inherent_likelihood == 1 %}selected{% endif %}>1 - Rare</option>
+                                            <option value="2" {% if event.inherent_likelihood == 2 %}selected{% endif %}>2 - Unlikely</option>
+                                            <option value="3" {% if event.inherent_likelihood == 3 %}selected{% endif %}>3 - Possible</option>
+                                            <option value="4" {% if event.inherent_likelihood == 4 %}selected{% endif %}>4 - Likely</option>
+                                            <option value="5" {% if event.inherent_likelihood == 5 %}selected{% endif %}>5 - Almost Certain</option>
+                                            <option value="6" {% if event.inherent_likelihood == 6 %}selected{% endif %}>6 - Expected</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="inherent_consequence" class="form-label">Consequence *</label>
+                                        <select class="form-select risk-input" id="inherent_consequence" name="inherent_consequence" required>
+                                            <option value="">Select...</option>
+                                            <option value="1" {% if event.inherent_consequence == 1 %}selected{% endif %}>1 - Insignificant</option>
+                                            <option value="2" {% if event.inherent_consequence == 2 %}selected{% endif %}>2 - Minor</option>
+                                            <option value="3" {% if event.inherent_consequence == 3 %}selected{% endif %}>3 - Moderate</option>
+                                            <option value="4" {% if event.inherent_consequence == 4 %}selected{% endif %}>4 - Major</option>
+                                            <option value="5" {% if event.inherent_consequence == 5 %}selected{% endif %}>5 - Severe</option>
+                                            <option value="6" {% if event.inherent_consequence == 6 %}selected{% endif %}>6 - Catastrophic</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="alert" id="inherent-score-alert">
+                                <strong>Inherent Risk Score: <span id="inherent-score">-</span></strong>
+                                <span id="inherent-level"></span>
+                            </div>
+
+                            <hr>
+
+                            <h5 class="mb-3">Residual Risk Assessment</h5>
+                            <p class="text-muted small">Rate the risk after mitigation measures are applied (optional).</p>
+
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="residual_likelihood" class="form-label">Likelihood</label>
+                                        <select class="form-select risk-input" id="residual_likelihood" name="residual_likelihood">
+                                            <option value="">Not assessed</option>
+                                            <option value="1" {% if event.residual_likelihood == 1 %}selected{% endif %}>1 - Rare</option>
+                                            <option value="2" {% if event.residual_likelihood == 2 %}selected{% endif %}>2 - Unlikely</option>
+                                            <option value="3" {% if event.residual_likelihood == 3 %}selected{% endif %}>3 - Possible</option>
+                                            <option value="4" {% if event.residual_likelihood == 4 %}selected{% endif %}>4 - Likely</option>
+                                            <option value="5" {% if event.residual_likelihood == 5 %}selected{% endif %}>5 - Almost Certain</option>
+                                            <option value="6" {% if event.residual_likelihood == 6 %}selected{% endif %}>6 - Expected</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="residual_consequence" class="form-label">Consequence</label>
+                                        <select class="form-select risk-input" id="residual_consequence" name="residual_consequence">
+                                            <option value="">Not assessed</option>
+                                            <option value="1" {% if event.residual_consequence == 1 %}selected{% endif %}>1 - Insignificant</option>
+                                            <option value="2" {% if event.residual_consequence == 2 %}selected{% endif %}>2 - Minor</option>
+                                            <option value="3" {% if event.residual_consequence == 3 %}selected{% endif %}>3 - Moderate</option>
+                                            <option value="4" {% if event.residual_consequence == 4 %}selected{% endif %}>4 - Major</option>
+                                            <option value="5" {% if event.residual_consequence == 5 %}selected{% endif %}>5 - Severe</option>
+                                            <option value="6" {% if event.residual_consequence == 6 %}selected{% endif %}>6 - Catastrophic</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="alert" id="residual-score-alert">
+                                <strong>Residual Risk Score: <span id="residual-score">-</span></strong>
+                                <span id="residual-level"></span>
+                            </div>
+
+                            <hr>
+
+                            <h5 class="mb-3">Supporting Information</h5>
+
+                            <div class="mb-3">
+                                <label for="assumptions" class="form-label">Assumptions</label>
+                                <textarea class="form-control" id="assumptions" name="assumptions" rows="2"
+                                          placeholder="Key assumptions made in this assessment...">{{ event.assumptions|default:'' }}</textarea>
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="data_sources" class="form-label">Data Sources</label>
+                                <textarea class="form-control" id="data_sources" name="data_sources" rows="2"
+                                          placeholder="References and data sources...">{{ event.data_sources|default:'' }}</textarea>
+                            </div>
+                        </div>
+                    </div>
+
+                    <hr>
+
+                    <div class="d-flex justify-content-between">
+                        <a href="{% url 'risk_scenario_detail' scenario.id %}" class="btn btn-secondary">Cancel</a>
+                        <button type="submit" class="btn btn-primary">{% if event %}Update{% else %}Add{% endif %} Risk Event</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Risk Matrix Reference -->
+<div class="row justify-content-center mt-4">
+    <div class="col-md-10">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Risk Matrix Reference (6x6)</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-bordered text-center">
+                        <thead>
+                            <tr>
+                                <th></th>
+                                <th>1 - Insignificant</th>
+                                <th>2 - Minor</th>
+                                <th>3 - Moderate</th>
+                                <th>4 - Major</th>
+                                <th>5 - Severe</th>
+                                <th>6 - Catastrophic</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <th>6 - Expected</th>
+                                <td style="background-color: #f1c40f;">6</td>
+                                <td style="background-color: #f1c40f;">12</td>
+                                <td style="background-color: #e67e22; color: white;">18</td>
+                                <td style="background-color: #e67e22; color: white;">24</td>
+                                <td style="background-color: #e74c3c; color: white;">30</td>
+                                <td style="background-color: #e74c3c; color: white;">36</td>
+                            </tr>
+                            <tr>
+                                <th>5 - Almost Certain</th>
+                                <td style="background-color: #27ae60; color: white;">5</td>
+                                <td style="background-color: #f1c40f;">10</td>
+                                <td style="background-color: #e67e22; color: white;">15</td>
+                                <td style="background-color: #e67e22; color: white;">20</td>
+                                <td style="background-color: #e74c3c; color: white;">25</td>
+                                <td style="background-color: #e74c3c; color: white;">30</td>
+                            </tr>
+                            <tr>
+                                <th>4 - Likely</th>
+                                <td style="background-color: #27ae60; color: white;">4</td>
+                                <td style="background-color: #f1c40f;">8</td>
+                                <td style="background-color: #f1c40f;">12</td>
+                                <td style="background-color: #e67e22; color: white;">16</td>
+                                <td style="background-color: #e67e22; color: white;">20</td>
+                                <td style="background-color: #e67e22; color: white;">24</td>
+                            </tr>
+                            <tr>
+                                <th>3 - Possible</th>
+                                <td style="background-color: #27ae60; color: white;">3</td>
+                                <td style="background-color: #27ae60; color: white;">6</td>
+                                <td style="background-color: #f1c40f;">9</td>
+                                <td style="background-color: #f1c40f;">12</td>
+                                <td style="background-color: #e67e22; color: white;">15</td>
+                                <td style="background-color: #e67e22; color: white;">18</td>
+                            </tr>
+                            <tr>
+                                <th>2 - Unlikely</th>
+                                <td style="background-color: #27ae60; color: white;">2</td>
+                                <td style="background-color: #27ae60; color: white;">4</td>
+                                <td style="background-color: #27ae60; color: white;">6</td>
+                                <td style="background-color: #f1c40f;">8</td>
+                                <td style="background-color: #f1c40f;">10</td>
+                                <td style="background-color: #f1c40f;">12</td>
+                            </tr>
+                            <tr>
+                                <th>1 - Rare</th>
+                                <td style="background-color: #27ae60; color: white;">1</td>
+                                <td style="background-color: #27ae60; color: white;">2</td>
+                                <td style="background-color: #27ae60; color: white;">3</td>
+                                <td style="background-color: #27ae60; color: white;">4</td>
+                                <td style="background-color: #27ae60; color: white;">5</td>
+                                <td style="background-color: #27ae60; color: white;">6</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block risk_scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const riskInputs = document.querySelectorAll('.risk-input');
+
+    function getRiskLevel(score) {
+        if (score >= 25) return { level: 'Severe', color: '#e74c3c' };
+        if (score >= 13) return { level: 'High', color: '#e67e22' };
+        if (score >= 7) return { level: 'Moderate', color: '#f1c40f' };
+        return { level: 'Low', color: '#27ae60' };
+    }
+
+    function updateScores() {
+        const inhLikelihood = parseInt(document.getElementById('inherent_likelihood').value) || 0;
+        const inhConsequence = parseInt(document.getElementById('inherent_consequence').value) || 0;
+        const resLikelihood = parseInt(document.getElementById('residual_likelihood').value) || 0;
+        const resConsequence = parseInt(document.getElementById('residual_consequence').value) || 0;
+
+        // Inherent score
+        const inhScoreSpan = document.getElementById('inherent-score');
+        const inhLevelSpan = document.getElementById('inherent-level');
+        const inhAlert = document.getElementById('inherent-score-alert');
+
+        if (inhLikelihood && inhConsequence) {
+            const inhScore = inhLikelihood * inhConsequence;
+            const inhRisk = getRiskLevel(inhScore);
+            inhScoreSpan.textContent = inhScore;
+            inhLevelSpan.textContent = ` (${inhRisk.level})`;
+            inhAlert.style.backgroundColor = inhRisk.color;
+            inhAlert.style.color = inhScore >= 7 && inhScore < 13 ? 'black' : 'white';
+        } else {
+            inhScoreSpan.textContent = '-';
+            inhLevelSpan.textContent = '';
+            inhAlert.style.backgroundColor = '#f8f9fa';
+            inhAlert.style.color = 'black';
+        }
+
+        // Residual score
+        const resScoreSpan = document.getElementById('residual-score');
+        const resLevelSpan = document.getElementById('residual-level');
+        const resAlert = document.getElementById('residual-score-alert');
+
+        if (resLikelihood && resConsequence) {
+            const resScore = resLikelihood * resConsequence;
+            const resRisk = getRiskLevel(resScore);
+            resScoreSpan.textContent = resScore;
+            resLevelSpan.textContent = ` (${resRisk.level})`;
+            resAlert.style.backgroundColor = resRisk.color;
+            resAlert.style.color = resScore >= 7 && resScore < 13 ? 'black' : 'white';
+        } else {
+            resScoreSpan.textContent = '-';
+            resLevelSpan.textContent = '';
+            resAlert.style.backgroundColor = '#f8f9fa';
+            resAlert.style.color = 'black';
+        }
+    }
+
+    riskInputs.forEach(input => {
+        input.addEventListener('change', updateScores);
+    });
+
+    updateScores();
+});
+</script>
+{% endblock %}

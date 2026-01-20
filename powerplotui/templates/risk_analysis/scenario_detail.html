@@ -1,0 +1,422 @@
+{% extends 'risk_analysis/base.html' %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{% url 'risk_dashboard' %}">Risk Dashboard</a></li>
+<li class="breadcrumb-item"><a href="{% url 'risk_scenario_list' %}">Scenarios</a></li>
+<li class="breadcrumb-item active">{{ scenario.name }}</li>
+{% endblock %}
+
+{% block risk_content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h3>{{ scenario.name }}
+            <span class="badge bg-{% if scenario.status == 'active' %}success{% elif scenario.status == 'draft' %}warning{% else %}secondary{% endif %} ms-2">
+                {{ scenario.status|title }}
+            </span>
+            {% if scenario.is_baseline %}
+            <span class="badge bg-info ms-1">Baseline</span>
+            {% endif %}
+        </h3>
+        <p class="text-muted mb-0">{{ scenario.description }}</p>
+    </div>
+    <div>
+        <a href="{% url 'risk_event_create' scenario.id %}" class="btn btn-primary">
+            <i class="bi bi-plus-lg"></i> Add Risk Event
+        </a>
+        <a href="{% url 'risk_scenario_update' scenario.id %}" class="btn btn-outline-secondary">
+            <i class="bi bi-pencil"></i> Edit Scenario
+        </a>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Scenario Info Card -->
+    <div class="col-md-4">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">Scenario Details</h5>
+            </div>
+            <div class="card-body">
+                <table class="table table-sm">
+                    <tr><th>Short Name</th><td><code>{{ scenario.short_name }}</code></td></tr>
+                    <tr><th>Target Year</th><td>{{ scenario.target_year }}</td></tr>
+                    <tr><th>Risk Events</th><td>{{ scenario.risk_events.count }}</td></tr>
+                    <tr><th>Avg Inherent Risk</th><td>{{ scenario.get_inherent_risk_score|floatformat:1 }}</td></tr>
+                    <tr><th>Avg Residual Risk</th><td>{{ scenario.get_residual_risk_score|floatformat:1 }}</td></tr>
+                </table>
+
+                <h6 class="mt-3">Energy Mix</h6>
+                <div class="progress mb-2" style="height: 25px;">
+                    {% if scenario.wind_pct > 0 %}
+                    <div class="progress-bar bg-info" style="width: {{ scenario.wind_pct }}%;">{{ scenario.wind_pct|floatformat:0 }}%</div>
+                    {% endif %}
+                    {% if scenario.solar_pct > 0 %}
+                    <div class="progress-bar bg-warning" style="width: {{ scenario.solar_pct }}%;">{{ scenario.solar_pct|floatformat:0 }}%</div>
+                    {% endif %}
+                    {% if scenario.storage_pct > 0 %}
+                    <div class="progress-bar bg-primary" style="width: {{ scenario.storage_pct }}%;">{{ scenario.storage_pct|floatformat:0 }}%</div>
+                    {% endif %}
+                    {% if scenario.gas_pct > 0 %}
+                    <div class="progress-bar bg-secondary" style="width: {{ scenario.gas_pct }}%;">{{ scenario.gas_pct|floatformat:0 }}%</div>
+                    {% endif %}
+                    {% if scenario.nuclear_pct > 0 %}
+                    <div class="progress-bar bg-danger" style="width: {{ scenario.nuclear_pct }}%;">{{ scenario.nuclear_pct|floatformat:0 }}%</div>
+                    {% endif %}
+                    {% if scenario.hydrogen_pct > 0 %}
+                    <div class="progress-bar bg-success" style="width: {{ scenario.hydrogen_pct }}%;">{{ scenario.hydrogen_pct|floatformat:0 }}%</div>
+                    {% endif %}
+                </div>
+                <small class="text-muted">
+                    <span class="badge bg-info">Wind</span>
+                    <span class="badge bg-warning text-dark">Solar</span>
+                    <span class="badge bg-primary">Storage</span>
+                    <span class="badge bg-secondary">Gas</span>
+                    <span class="badge bg-danger">Nuclear</span>
+                    <span class="badge bg-success">Hydrogen</span>
+                </small>
+            </div>
+        </div>
+
+        <!-- Risk Summary by Level -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">Risk Summary</h5>
+            </div>
+            <div class="card-body">
+                {% with counts=scenario.get_risk_counts_by_level %}
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span class="badge" style="background-color: #e74c3c;">Severe</span>
+                    <strong>{{ counts.severe }}</strong>
+                </div>
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span class="badge" style="background-color: #e67e22;">High</span>
+                    <strong>{{ counts.high }}</strong>
+                </div>
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span class="badge" style="background-color: #f1c40f; color: black;">Moderate</span>
+                    <strong>{{ counts.moderate }}</strong>
+                </div>
+                <div class="d-flex justify-content-between align-items-center">
+                    <span class="badge" style="background-color: #27ae60;">Low</span>
+                    <strong>{{ counts.low }}</strong>
+                </div>
+                {% endwith %}
+            </div>
+        </div>
+
+        <!-- Category Risk Profile (Radar Chart) -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">Risk Profile by Category</h5>
+            </div>
+            <div class="card-body">
+                <div id="radar-chart" style="height: 300px;"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Risk Matrix and Events -->
+    <div class="col-md-8">
+        <!-- Risk Matrix Heatmap -->
+        <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Risk Matrix (6x6)</h5>
+                <div class="btn-group btn-group-sm">
+                    <button class="btn btn-outline-primary active" id="btn-inherent">Inherent</button>
+                    <button class="btn btn-outline-primary" id="btn-residual">Residual</button>
+                </div>
+            </div>
+            <div class="card-body">
+                <div id="risk-matrix-chart" style="height: 400px;"></div>
+            </div>
+        </div>
+
+        <!-- Risk Events Table -->
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Risk Events ({{ risk_events|length }})</h5>
+                <a href="{% url 'risk_event_create' scenario.id %}" class="btn btn-sm btn-primary">
+                    <i class="bi bi-plus-lg"></i> Add Event
+                </a>
+            </div>
+            <div class="card-body">
+                {% if risk_events %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Category</th>
+                                <th>Risk Title</th>
+                                <th>Inherent</th>
+                                <th>Residual</th>
+                                <th>Reduction</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for event in risk_events %}
+                            <tr>
+                                <td>
+                                    <span class="badge" style="background-color: {{ event.category.color_code }};">
+                                        {{ event.category.name }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <strong>{{ event.risk_title }}</strong>
+                                    <br><small class="text-muted">{{ event.risk_description|truncatewords:15 }}</small>
+                                </td>
+                                <td>
+                                    <span class="badge" style="background-color: {% if event.inherent_risk_score >= 25 %}#e74c3c{% elif event.inherent_risk_score >= 13 %}#e67e22{% elif event.inherent_risk_score >= 7 %}#f1c40f{% else %}#27ae60{% endif %}; color: {% if event.inherent_risk_score >= 7 and event.inherent_risk_score < 13 %}black{% else %}white{% endif %};">
+                                        {{ event.inherent_risk_score }} ({{ event.inherent_risk_level }})
+                                    </span>
+                                </td>
+                                <td>
+                                    {% if event.residual_risk_score %}
+                                    <span class="badge" style="background-color: {% if event.residual_risk_score >= 25 %}#e74c3c{% elif event.residual_risk_score >= 13 %}#e67e22{% elif event.residual_risk_score >= 7 %}#f1c40f{% else %}#27ae60{% endif %}; color: {% if event.residual_risk_score >= 7 and event.residual_risk_score < 13 %}black{% else %}white{% endif %};">
+                                        {{ event.residual_risk_score }} ({{ event.residual_risk_level }})
+                                    </span>
+                                    {% else %}
+                                    <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if event.risk_reduction_percentage %}
+                                    <span class="text-success">{{ event.risk_reduction_percentage|floatformat:0 }}%</span>
+                                    {% else %}
+                                    <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <div class="btn-group btn-group-sm">
+                                        <button type="button" class="btn btn-outline-info" data-bs-toggle="modal" data-bs-target="#eventModal{{ event.id }}">
+                                            <i class="bi bi-eye"></i>
+                                        </button>
+                                        <a href="{% url 'risk_event_update' event.id %}" class="btn btn-outline-secondary">
+                                            <i class="bi bi-pencil"></i>
+                                        </a>
+                                        <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteEventModal{{ event.id }}">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </div>
+
+                                    <!-- Event Details Modal -->
+                                    <div class="modal fade" id="eventModal{{ event.id }}" tabindex="-1">
+                                        <div class="modal-dialog modal-lg">
+                                            <div class="modal-content">
+                                                <div class="modal-header">
+                                                    <h5 class="modal-title">{{ event.risk_title }}</h5>
+                                                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                                </div>
+                                                <div class="modal-body">
+                                                    <div class="row">
+                                                        <div class="col-md-6">
+                                                            <h6>Risk Description</h6>
+                                                            <p>{{ event.risk_description }}</p>
+
+                                                            {% if event.risk_cause %}
+                                                            <h6>Risk Cause</h6>
+                                                            <p>{{ event.risk_cause }}</p>
+                                                            {% endif %}
+
+                                                            {% if event.mitigation_strategies %}
+                                                            <h6>Mitigation Strategies</h6>
+                                                            <p>{{ event.mitigation_strategies }}</p>
+                                                            {% endif %}
+                                                        </div>
+                                                        <div class="col-md-6">
+                                                            <h6>Risk Assessment</h6>
+                                                            <table class="table table-sm">
+                                                                <tr>
+                                                                    <th>Inherent Likelihood</th>
+                                                                    <td>{{ event.inherent_likelihood }}/6</td>
+                                                                </tr>
+                                                                <tr>
+                                                                    <th>Inherent Consequence</th>
+                                                                    <td>{{ event.inherent_consequence }}/6</td>
+                                                                </tr>
+                                                                <tr>
+                                                                    <th>Inherent Score</th>
+                                                                    <td>{{ event.inherent_risk_score }} ({{ event.inherent_risk_level }})</td>
+                                                                </tr>
+                                                                {% if event.residual_likelihood %}
+                                                                <tr>
+                                                                    <th>Residual Likelihood</th>
+                                                                    <td>{{ event.residual_likelihood }}/6</td>
+                                                                </tr>
+                                                                <tr>
+                                                                    <th>Residual Consequence</th>
+                                                                    <td>{{ event.residual_consequence }}/6</td>
+                                                                </tr>
+                                                                <tr>
+                                                                    <th>Residual Score</th>
+                                                                    <td>{{ event.residual_risk_score }} ({{ event.residual_risk_level }})</td>
+                                                                </tr>
+                                                                {% endif %}
+                                                            </table>
+
+                                                            {% if event.assumptions %}
+                                                            <h6>Assumptions</h6>
+                                                            <p class="small">{{ event.assumptions }}</p>
+                                                            {% endif %}
+
+                                                            {% if event.data_sources %}
+                                                            <h6>Data Sources</h6>
+                                                            <p class="small">{{ event.data_sources }}</p>
+                                                            {% endif %}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Delete Event Modal -->
+                                    <div class="modal fade" id="deleteEventModal{{ event.id }}" tabindex="-1">
+                                        <div class="modal-dialog">
+                                            <div class="modal-content">
+                                                <div class="modal-header">
+                                                    <h5 class="modal-title">Delete Risk Event</h5>
+                                                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                                </div>
+                                                <div class="modal-body">
+                                                    <p>Are you sure you want to delete <strong>{{ event.risk_title }}</strong>?</p>
+                                                </div>
+                                                <div class="modal-footer">
+                                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                                    <form method="post" action="{% url 'risk_event_delete' event.id %}" class="d-inline">
+                                                        {% csrf_token %}
+                                                        <button type="submit" class="btn btn-danger">Delete</button>
+                                                    </form>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center text-muted py-4">
+                    No risk events yet. <a href="{% url 'risk_event_create' scenario.id %}">Add your first risk event</a>.
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block risk_scripts %}
+<script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+<script>
+const scenarioId = {{ scenario.id }};
+let currentView = 'inherent';
+
+function loadMatrixData() {
+    fetch(`/api/risk/scenarios/${scenarioId}/matrix/?type=${currentView}`)
+        .then(response => response.json())
+        .then(data => {
+            renderRiskMatrix(data);
+        });
+}
+
+function renderRiskMatrix(data) {
+    // 6x6 matrix with count of risks at each position
+    const z = data.matrix; // 6x6 array
+    const text = data.labels; // Cell labels with risk titles
+
+    // Color scale based on risk score (likelihood * consequence)
+    const colorscale = [
+        [0, '#ffffff'],
+        [0.167, '#27ae60'],  // Low (1-6)
+        [0.333, '#f1c40f'],  // Moderate (7-12)
+        [0.667, '#e67e22'],  // High (13-24)
+        [1, '#e74c3c']       // Severe (25-36)
+    ];
+
+    const trace = {
+        z: z,
+        x: ['Insignificant', 'Minor', 'Moderate', 'Major', 'Severe', 'Catastrophic'],
+        y: ['Rare', 'Unlikely', 'Possible', 'Likely', 'Almost Certain', 'Expected'],
+        type: 'heatmap',
+        colorscale: colorscale,
+        showscale: true,
+        text: text,
+        texttemplate: '%{text}',
+        hovertemplate: 'Likelihood: %{y}<br>Consequence: %{x}<br>Count: %{z}<extra></extra>'
+    };
+
+    const layout = {
+        title: currentView.charAt(0).toUpperCase() + currentView.slice(1) + ' Risk Matrix',
+        xaxis: { title: 'Consequence', side: 'bottom' },
+        yaxis: { title: 'Likelihood' },
+        margin: { t: 50, b: 80, l: 100, r: 50 }
+    };
+
+    Plotly.newPlot('risk-matrix-chart', [trace], layout, {responsive: true});
+}
+
+function loadRadarData() {
+    fetch(`/api/risk/scenarios/${scenarioId}/profile/`)
+        .then(response => response.json())
+        .then(data => {
+            renderRadarChart(data);
+        });
+}
+
+function renderRadarChart(data) {
+    const trace = {
+        type: 'scatterpolar',
+        r: data.inherent_scores.concat([data.inherent_scores[0]]),
+        theta: data.categories.concat([data.categories[0]]),
+        fill: 'toself',
+        name: 'Inherent',
+        line: { color: '#e74c3c' }
+    };
+
+    const trace2 = {
+        type: 'scatterpolar',
+        r: data.residual_scores.concat([data.residual_scores[0]]),
+        theta: data.categories.concat([data.categories[0]]),
+        fill: 'toself',
+        name: 'Residual',
+        line: { color: '#27ae60' }
+    };
+
+    const layout = {
+        polar: {
+            radialaxis: {
+                visible: true,
+                range: [0, 36]
+            }
+        },
+        showlegend: true,
+        legend: { orientation: 'h', y: -0.1 },
+        margin: { t: 30, b: 50, l: 50, r: 50 }
+    };
+
+    Plotly.newPlot('radar-chart', [trace, trace2], layout, {responsive: true});
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    loadMatrixData();
+    loadRadarData();
+
+    document.getElementById('btn-inherent').addEventListener('click', function() {
+        currentView = 'inherent';
+        this.classList.add('active');
+        document.getElementById('btn-residual').classList.remove('active');
+        loadMatrixData();
+    });
+
+    document.getElementById('btn-residual').addEventListener('click', function() {
+        currentView = 'residual';
+        this.classList.add('active');
+        document.getElementById('btn-inherent').classList.remove('active');
+        loadMatrixData();
+    });
+});
+</script>
+{% endblock %}

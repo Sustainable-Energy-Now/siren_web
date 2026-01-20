@@ -1,0 +1,387 @@
+{% extends 'risk_analysis/base.html' %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{% url 'risk_dashboard' %}">Risk Dashboard</a></li>
+<li class="breadcrumb-item active">Compare Scenarios</li>
+{% endblock %}
+
+{% block risk_content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h3>Scenario Comparison</h3>
+</div>
+
+<!-- Scenario Selection -->
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0">Select Scenarios to Compare</h5>
+    </div>
+    <div class="card-body">
+        <form id="comparison-form">
+            <div class="row">
+                {% for scenario in scenarios %}
+                <div class="col-md-3 mb-2">
+                    <div class="form-check">
+                        <input class="form-check-input scenario-checkbox" type="checkbox"
+                               id="scenario_{{ scenario.id }}" value="{{ scenario.id }}"
+                               {% if scenario.id in selected_ids %}checked{% endif %}>
+                        <label class="form-check-label" for="scenario_{{ scenario.id }}">
+                            {{ scenario.name }}
+                            {% if scenario.is_baseline %}
+                            <span class="badge bg-info">Baseline</span>
+                            {% endif %}
+                        </label>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            <button type="button" class="btn btn-primary mt-3" id="compare-btn">
+                <i class="bi bi-bar-chart"></i> Compare Selected
+            </button>
+        </form>
+    </div>
+</div>
+
+<!-- Comparison Charts -->
+<div class="row">
+    <div class="col-md-6">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">Risk Score Comparison</h5>
+            </div>
+            <div class="card-body">
+                <div id="score-comparison-chart" style="height: 400px;"></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">Risk Level Distribution</h5>
+            </div>
+            <div class="card-body">
+                <div id="level-distribution-chart" style="height: 400px;"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-6">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">Category Risk Profiles</h5>
+            </div>
+            <div class="card-body">
+                <div id="category-radar-chart" style="height: 450px;"></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">Risk Reduction Effectiveness</h5>
+            </div>
+            <div class="card-body">
+                <div id="reduction-chart" style="height: 450px;"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Detailed Comparison Table -->
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0">Detailed Comparison</h5>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover" id="comparison-table">
+                <thead>
+                    <tr>
+                        <th>Metric</th>
+                        <!-- Scenario columns added dynamically -->
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- Rows added dynamically -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Energy Mix Comparison -->
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0">Energy Mix Comparison</h5>
+    </div>
+    <div class="card-body">
+        <div id="energy-mix-chart" style="height: 400px;"></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block risk_scripts %}
+<script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+<script>
+const colors = {
+    low: '#27ae60',
+    moderate: '#f1c40f',
+    high: '#e67e22',
+    severe: '#e74c3c'
+};
+
+const energyColors = {
+    wind: '#17a2b8',
+    solar: '#ffc107',
+    storage: '#007bff',
+    gas: '#6c757d',
+    coal: '#343a40',
+    hydro: '#3498db',
+    hydrogen: '#28a745',
+    nuclear: '#dc3545',
+    biomass: '#8b4513',
+    other: '#95a5a6'
+};
+
+function getSelectedScenarios() {
+    const checkboxes = document.querySelectorAll('.scenario-checkbox:checked');
+    return Array.from(checkboxes).map(cb => cb.value);
+}
+
+function loadComparison() {
+    const scenarioIds = getSelectedScenarios();
+
+    if (scenarioIds.length < 2) {
+        alert('Please select at least 2 scenarios to compare.');
+        return;
+    }
+
+    const params = new URLSearchParams();
+    scenarioIds.forEach(id => params.append('scenarios', id));
+
+    fetch('/api/risk/comparison/?' + params.toString())
+        .then(response => response.json())
+        .then(data => {
+            renderScoreComparison(data);
+            renderLevelDistribution(data);
+            renderCategoryRadar(data);
+            renderReductionChart(data);
+            renderComparisonTable(data);
+            renderEnergyMixChart(data);
+        })
+        .catch(error => console.error('Error loading comparison:', error));
+}
+
+function renderScoreComparison(data) {
+    const scenarios = data.scenarios;
+
+    const trace1 = {
+        x: scenarios.map(s => s.name),
+        y: scenarios.map(s => s.avg_inherent_score),
+        name: 'Avg Inherent Risk',
+        type: 'bar',
+        marker: { color: '#e74c3c' }
+    };
+
+    const trace2 = {
+        x: scenarios.map(s => s.name),
+        y: scenarios.map(s => s.avg_residual_score),
+        name: 'Avg Residual Risk',
+        type: 'bar',
+        marker: { color: '#27ae60' }
+    };
+
+    const layout = {
+        barmode: 'group',
+        xaxis: { title: 'Scenario' },
+        yaxis: { title: 'Average Risk Score', range: [0, 36] },
+        legend: { orientation: 'h', y: 1.12 },
+        margin: { t: 50, b: 100, l: 60, r: 20 }
+    };
+
+    Plotly.newPlot('score-comparison-chart', [trace1, trace2], layout, {responsive: true});
+}
+
+function renderLevelDistribution(data) {
+    const scenarios = data.scenarios;
+    const traces = [];
+
+    ['severe', 'high', 'moderate', 'low'].forEach(level => {
+        traces.push({
+            x: scenarios.map(s => s.name),
+            y: scenarios.map(s => s.risk_counts[level] || 0),
+            name: level.charAt(0).toUpperCase() + level.slice(1),
+            type: 'bar',
+            marker: { color: colors[level] }
+        });
+    });
+
+    const layout = {
+        barmode: 'stack',
+        xaxis: { title: 'Scenario' },
+        yaxis: { title: 'Number of Risks' },
+        legend: { orientation: 'h', y: 1.12 },
+        margin: { t: 50, b: 100, l: 60, r: 20 }
+    };
+
+    Plotly.newPlot('level-distribution-chart', traces, layout, {responsive: true});
+}
+
+function renderCategoryRadar(data) {
+    const scenarios = data.scenarios;
+    const categories = data.categories;
+    const traces = [];
+
+    const plotColors = ['#e74c3c', '#3498db', '#2ecc71', '#9b59b6', '#f39c12', '#1abc9c', '#e91e63'];
+
+    scenarios.forEach((scenario, idx) => {
+        const r = categories.map(cat => {
+            const catData = scenario.category_scores.find(c => c.category === cat);
+            return catData ? catData.avg_inherent : 0;
+        });
+        r.push(r[0]); // Close the polygon
+
+        traces.push({
+            type: 'scatterpolar',
+            r: r,
+            theta: categories.concat([categories[0]]),
+            fill: 'toself',
+            name: scenario.name,
+            opacity: 0.7,
+            line: { color: plotColors[idx % plotColors.length] }
+        });
+    });
+
+    const layout = {
+        polar: {
+            radialaxis: {
+                visible: true,
+                range: [0, 36]
+            }
+        },
+        showlegend: true,
+        legend: { orientation: 'h', y: -0.15 },
+        margin: { t: 30, b: 80, l: 60, r: 60 }
+    };
+
+    Plotly.newPlot('category-radar-chart', traces, layout, {responsive: true});
+}
+
+function renderReductionChart(data) {
+    const scenarios = data.scenarios;
+
+    const trace = {
+        x: scenarios.map(s => s.name),
+        y: scenarios.map(s => s.avg_reduction_pct || 0),
+        type: 'bar',
+        marker: {
+            color: scenarios.map(s => {
+                const pct = s.avg_reduction_pct || 0;
+                if (pct >= 50) return '#27ae60';
+                if (pct >= 25) return '#f1c40f';
+                return '#e74c3c';
+            })
+        },
+        text: scenarios.map(s => (s.avg_reduction_pct || 0).toFixed(1) + '%'),
+        textposition: 'outside'
+    };
+
+    const layout = {
+        xaxis: { title: 'Scenario' },
+        yaxis: { title: 'Average Risk Reduction (%)', range: [0, 100] },
+        margin: { t: 30, b: 100, l: 60, r: 20 }
+    };
+
+    Plotly.newPlot('reduction-chart', [trace], layout, {responsive: true});
+}
+
+function renderComparisonTable(data) {
+    const scenarios = data.scenarios;
+    const thead = document.querySelector('#comparison-table thead tr');
+    const tbody = document.querySelector('#comparison-table tbody');
+
+    // Clear existing content
+    thead.innerHTML = '<th>Metric</th>';
+    tbody.innerHTML = '';
+
+    // Add scenario columns
+    scenarios.forEach(s => {
+        thead.innerHTML += `<th>${s.name}</th>`;
+    });
+
+    // Add rows
+    const metrics = [
+        { label: 'Total Risk Events', key: 'total_events' },
+        { label: 'Avg Inherent Score', key: 'avg_inherent_score', format: v => v.toFixed(1) },
+        { label: 'Avg Residual Score', key: 'avg_residual_score', format: v => v.toFixed(1) },
+        { label: 'Avg Reduction %', key: 'avg_reduction_pct', format: v => (v || 0).toFixed(1) + '%' },
+        { label: 'Severe Risks', key: 'risk_counts.severe', getValue: s => s.risk_counts.severe || 0 },
+        { label: 'High Risks', key: 'risk_counts.high', getValue: s => s.risk_counts.high || 0 },
+        { label: 'Moderate Risks', key: 'risk_counts.moderate', getValue: s => s.risk_counts.moderate || 0 },
+        { label: 'Low Risks', key: 'risk_counts.low', getValue: s => s.risk_counts.low || 0 },
+        { label: 'Target Year', key: 'target_year' }
+    ];
+
+    metrics.forEach(metric => {
+        let row = `<tr><td><strong>${metric.label}</strong></td>`;
+        scenarios.forEach(s => {
+            let value;
+            if (metric.getValue) {
+                value = metric.getValue(s);
+            } else {
+                value = s[metric.key];
+            }
+            if (metric.format) {
+                value = metric.format(value);
+            }
+            row += `<td>${value}</td>`;
+        });
+        row += '</tr>';
+        tbody.innerHTML += row;
+    });
+}
+
+function renderEnergyMixChart(data) {
+    const scenarios = data.scenarios;
+    const traces = [];
+
+    const energyTypes = ['wind', 'solar', 'storage', 'gas', 'coal', 'hydro', 'hydrogen', 'nuclear', 'biomass', 'other'];
+
+    energyTypes.forEach(type => {
+        const pctKey = type + '_pct';
+        const values = scenarios.map(s => s.energy_mix[pctKey] || 0);
+
+        if (values.some(v => v > 0)) {
+            traces.push({
+                x: scenarios.map(s => s.name),
+                y: values,
+                name: type.charAt(0).toUpperCase() + type.slice(1),
+                type: 'bar',
+                marker: { color: energyColors[type] }
+            });
+        }
+    });
+
+    const layout = {
+        barmode: 'stack',
+        xaxis: { title: 'Scenario' },
+        yaxis: { title: 'Percentage (%)', range: [0, 100] },
+        legend: { orientation: 'h', y: 1.12 },
+        margin: { t: 50, b: 100, l: 60, r: 20 }
+    };
+
+    Plotly.newPlot('energy-mix-chart', traces, layout, {responsive: true});
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    document.getElementById('compare-btn').addEventListener('click', loadComparison);
+
+    // Auto-load if scenarios are pre-selected
+    const selectedCount = document.querySelectorAll('.scenario-checkbox:checked').length;
+    if (selectedCount >= 2) {
+        loadComparison();
+    }
+});
+</script>
+{% endblock %}

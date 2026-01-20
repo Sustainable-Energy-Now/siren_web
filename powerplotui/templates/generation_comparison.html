@@ -1,0 +1,931 @@
+{% extends 'powerplotui_base.html' %}
+{% load static %}
+
+{% block powerplotui_content %}
+
+<div class="container-fluid mt-4">
+    <h2>Facility Actual (SCADA) vs Simulated (SAM) Generation Comparison</h2>
+    <!-- Mode selector -->
+    <div class="row mt-3">
+        <div class="col-md-12">
+            <div class="btn-group" role="group">
+                <input type="radio" class="btn-check" name="viewMode" id="singleMode" value="single" checked>
+                <label class="btn btn-outline-primary" for="singleMode">Single Facility</label>
+
+                <input type="radio" class="btn-check" name="viewMode" id="groupMode" value="group">
+                <label class="btn btn-outline-primary" for="groupMode">Facility Group</label>
+
+                <input type="radio" class="btn-check" name="viewMode" id="technologyMode" value="technology">
+                <label class="btn btn-outline-primary" for="technologyMode">Technology Aggregated</label>
+
+                <input type="radio" class="btn-check" name="viewMode" id="techCompareMode" value="techcompare">
+                <label class="btn btn-outline-primary" for="techCompareMode">Compare Technology Groups</label>
+            </div>
+        </div>
+    </div>
+
+    <!-- Data Source Legend -->
+    <div class="row mt-3">
+        <div class="col-md-12">
+            <div class="alert alert-info py-2">
+                <span class="badge bg-success me-2">SCADA</span> Actual generation from AEMO SCADA data
+                <span class="ms-3 badge bg-warning text-dark me-2">Simulated</span> Modeled generation from SupplyFactors
+            </div>
+        </div>
+    </div>
+
+    <!-- Single facility form -->
+    <div class="row mt-3" id="singleFacilityForm">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-body">
+                    <form id="singleComparisonForm" class="row g-3">
+                        <div class="col-md-4">
+                            <label for="facilitySelect" class="form-label">Select Facility:</label>
+                            <select class="form-select" id="facilitySelect" name="facility" required>
+                                <option value="">Choose a facility...</option>
+                                {% for facility in facilities %}
+                                <option value="{{ facility.idfacilities }}"
+                                        data-technology="{{ facility.idtechnologies.technology_name }}">
+                                    {{ facility.facility_name }}
+                                    {% if facility.facility_code %}({{ facility.facility_code }}){% endif %}
+                                    - {{ facility.idtechnologies.technology_name }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div class="col-md-2">
+                            <label for="yearSelect" class="form-label">Select Year:</label>
+                            <select class="form-select" id="yearSelect" name="year" required>
+                                <option value="">Choose a year...</option>
+                                {% for year in years %}
+                                <option value="{{ year }}">{{ year }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div class="col-md-2">
+                            <label for="aggregationSelect" class="form-label">Time Period:</label>
+                            <select class="form-select" id="aggregationSelect" name="aggregation">
+                                <option value="hour">Hourly</option>
+                                <option value="week">Weekly</option>
+                                <option value="month">Monthly</option>
+                            </select>
+                        </div>
+
+                        <div class="col-md-2">
+                            <label for="chartTypeSelect" class="form-label">Chart Type:</label>
+                            <select class="form-select" id="chartTypeSelect" name="chartType">
+                                <option value="line">Line Chart</option>
+                                <option value="scatter">Scatter Plot</option>
+                                <option value="bar">Bar Chart</option>
+                                <option value="area">Area Chart</option>
+                            </select>
+                        </div>
+
+                        <div class="col-md-2">
+                            <label class="form-label">&nbsp;</label>
+                            <button type="submit" class="btn btn-primary w-100">
+                                <i class="bi bi-graph-up"></i> Compare
+                            </button>
+                        </div>
+                    </form>
+
+                    <!-- Date Range Selection -->
+                    <div class="row mt-3">
+                        <div class="col-md-12">
+                            <div class="accordion" id="dateRangeAccordionSingle">
+                                <div class="accordion-item">
+                                    <h2 class="accordion-header">
+                                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#dateRangeCollapseSingle">
+                                            Optional: Select Date Range
+                                        </button>
+                                    </h2>
+                                    <div id="dateRangeCollapseSingle" class="accordion-collapse collapse">
+                                        <div class="accordion-body">
+                                            <div class="row g-3">
+                                                <div class="col-md-3">
+                                                    <label class="form-label">Quick Select:</label>
+                                                    <select class="form-select" id="quickSelectSingle">
+                                                        <option value="">Full Year</option>
+                                                        <option value="summer">Summer (Dec-Feb)</option>
+                                                        <option value="autumn">Autumn (Mar-May)</option>
+                                                        <option value="winter">Winter (Jun-Aug)</option>
+                                                        <option value="spring">Spring (Sep-Nov)</option>
+                                                        <option value="q1">Q1 (Jan-Mar)</option>
+                                                        <option value="q2">Q2 (Apr-Jun)</option>
+                                                        <option value="q3">Q3 (Jul-Sep)</option>
+                                                        <option value="q4">Q4 (Oct-Dec)</option>
+                                                    </select>
+                                                </div>
+                                                <div class="col-md-3">
+                                                    <label class="form-label">Start Month:</label>
+                                                    <select class="form-select" id="startMonthSingle">
+                                                        <option value="">Select...</option>
+                                                        <option value="1">January</option>
+                                                        <option value="2">February</option>
+                                                        <option value="3">March</option>
+                                                        <option value="4">April</option>
+                                                        <option value="5">May</option>
+                                                        <option value="6">June</option>
+                                                        <option value="7">July</option>
+                                                        <option value="8">August</option>
+                                                        <option value="9">September</option>
+                                                        <option value="10">October</option>
+                                                        <option value="11">November</option>
+                                                        <option value="12">December</option>
+                                                    </select>
+                                                </div>
+                                                <div class="col-md-3">
+                                                    <label class="form-label">End Month:</label>
+                                                    <select class="form-select" id="endMonthSingle">
+                                                        <option value="">Select...</option>
+                                                        <option value="1">January</option>
+                                                        <option value="2">February</option>
+                                                        <option value="3">March</option>
+                                                        <option value="4">April</option>
+                                                        <option value="5">May</option>
+                                                        <option value="6">June</option>
+                                                        <option value="7">July</option>
+                                                        <option value="8">August</option>
+                                                        <option value="9">September</option>
+                                                        <option value="10">October</option>
+                                                        <option value="11">November</option>
+                                                        <option value="12">December</option>
+                                                    </select>
+                                                </div>
+                                                <div class="col-md-3">
+                                                    <label class="form-label">&nbsp;</label>
+                                                    <button type="button" class="btn btn-secondary w-100" id="clearDateRangeSingle">
+                                                        Clear Range
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            <div class="row mt-2">
+                                                <div class="col-md-12">
+                                                    <small class="text-muted">
+                                                        <strong>Note:</strong> Months are for Southern Hemisphere seasons. Leave blank for full year.
+                                                    </small>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Facility Group form -->
+    <div class="row mt-3" id="groupForm" style="display: none;">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-body">
+                    <form id="groupComparisonForm" class="row g-3">
+                        <div class="col-md-5">
+                            <label for="facilityGroupSelect" class="form-label">Select Facilities (multiple):</label>
+                            <select class="form-select" id="facilityGroupSelect" name="facilities" multiple required style="height: 150px;">
+                                {% for facility in facilities %}
+                                <option value="{{ facility.idfacilities }}"
+                                        data-technology="{{ facility.idtechnologies.technology_name }}">
+                                    {{ facility.facility_name }} - {{ facility.idtechnologies.technology_name }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                            <small class="text-muted">Hold Ctrl/Cmd to select multiple</small>
+                        </div>
+
+                        <div class="col-md-2">
+                            <label for="yearSelectGroup" class="form-label">Select Year:</label>
+                            <select class="form-select" id="yearSelectGroup" name="year" required>
+                                <option value="">Choose a year...</option>
+                                {% for year in years %}
+                                <option value="{{ year }}">{{ year }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div class="col-md-2">
+                            <label for="aggregationSelectGroup" class="form-label">Time Period:</label>
+                            <select class="form-select" id="aggregationSelectGroup" name="aggregation">
+                                <option value="hour">Hourly</option>
+                                <option value="week">Weekly</option>
+                                <option value="month">Monthly</option>
+                            </select>
+                        </div>
+
+                        <div class="col-md-2">
+                            <label for="chartTypeSelectGroup" class="form-label">Chart Type:</label>
+                            <select class="form-select" id="chartTypeSelectGroup" name="chartType">
+                                <option value="line">Line Chart</option>
+                                <option value="scatter">Scatter Plot</option>
+                                <option value="bar">Bar Chart</option>
+                                <option value="area">Area Chart</option>
+                            </select>
+                        </div>
+
+                        <div class="col-md-1">
+                            <label class="form-label">&nbsp;</label>
+                            <button type="submit" class="btn btn-primary w-100">
+                                Compare
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Technology Aggregated form -->
+    <div class="row mt-3" id="technologyForm" style="display: none;">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-body">
+                    <form id="techComparisonForm" class="row g-3">
+                        <div class="col-md-4">
+                            <label for="technologySelect" class="form-label">Select Technologies (multiple):</label>
+                            <select class="form-select" id="technologySelect" name="technologies" multiple required style="height: 120px;">
+                                {% for tech in technologies %}
+                                <option value="{{ tech.idtechnologies }}">{{ tech.technology_name }}</option>
+                                {% endfor %}
+                            </select>
+                            <small class="text-muted">Hold Ctrl/Cmd to select multiple</small>
+                        </div>
+
+                        <div class="col-md-2">
+                            <label for="yearSelectTech" class="form-label">Select Year:</label>
+                            <select class="form-select" id="yearSelectTech" name="year" required>
+                                <option value="">Choose a year...</option>
+                                {% for year in years %}
+                                <option value="{{ year }}">{{ year }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div class="col-md-2">
+                            <label for="aggregationSelectTech" class="form-label">Time Period:</label>
+                            <select class="form-select" id="aggregationSelectTech" name="aggregation">
+                                <option value="hour">Hourly</option>
+                                <option value="week">Weekly</option>
+                                <option value="month">Monthly</option>
+                            </select>
+                        </div>
+
+                        <div class="col-md-2">
+                            <label for="chartTypeSelectTech" class="form-label">Chart Type:</label>
+                            <select class="form-select" id="chartTypeSelectTech" name="chartType">
+                                <option value="line">Line Chart</option>
+                                <option value="scatter">Scatter Plot</option>
+                                <option value="bar">Bar Chart</option>
+                                <option value="area">Area Chart</option>
+                            </select>
+                        </div>
+
+                        <div class="col-md-2">
+                            <label class="form-label">&nbsp;</label>
+                            <button type="submit" class="btn btn-primary w-100">
+                                Compare
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Technology Groups Comparison form -->
+    <div class="row mt-3" id="techCompareForm" style="display: none;">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-body">
+                    <form id="techGroupComparisonForm" class="row g-3">
+                        <div class="col-md-3">
+                            <label for="technology1Select" class="form-label">Technology Group 1:</label>
+                            <select class="form-select" id="technology1Select" name="technologies1" multiple required style="height: 100px;">
+                                {% for tech in technologies %}
+                                <option value="{{ tech.idtechnologies }}">{{ tech.technology_name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div class="col-md-3">
+                            <label for="technology2Select" class="form-label">Technology Group 2:</label>
+                            <select class="form-select" id="technology2Select" name="technologies2" multiple required style="height: 100px;">
+                                {% for tech in technologies %}
+                                <option value="{{ tech.idtechnologies }}">{{ tech.technology_name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div class="col-md-2">
+                            <label for="yearSelectTechCompare" class="form-label">Select Year:</label>
+                            <select class="form-select" id="yearSelectTechCompare" name="year" required>
+                                <option value="">Choose a year...</option>
+                                {% for year in years %}
+                                <option value="{{ year }}">{{ year }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div class="col-md-2">
+                            <label for="aggregationSelectTechCompare" class="form-label">Time Period:</label>
+                            <select class="form-select" id="aggregationSelectTechCompare" name="aggregation">
+                                <option value="hour">Hourly</option>
+                                <option value="week">Weekly</option>
+                                <option value="month">Monthly</option>
+                            </select>
+                        </div>
+
+                        <div class="col-md-2">
+                            <label class="form-label">&nbsp;</label>
+                            <button type="submit" class="btn btn-primary w-100">
+                                Compare
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading indicator -->
+    <div class="row mt-4" id="loadingIndicator" style="display: none;">
+        <div class="col-md-12 text-center">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="mt-2">Loading comparison data...</p>
+        </div>
+    </div>
+
+    <!-- Results section -->
+    <div id="resultsSection" style="display: none;">
+        <!-- Info box -->
+        <div class="row mt-4">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header bg-secondary text-white">
+                        <h5 class="mb-0" id="infoTitle">Comparison Info</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-4">
+                                <strong>Selection:</strong> <span id="infoSelection"></span>
+                            </div>
+                            <div class="col-md-2">
+                                <strong>Year:</strong> <span id="infoYear"></span>
+                            </div>
+                            <div class="col-md-2">
+                                <strong>Aggregation:</strong> <span id="infoAggregation"></span>
+                            </div>
+                            <div class="col-md-2">
+                                <strong>Data Points:</strong> <span id="infoDataPoints"></span>
+                            </div>
+                            <div class="col-md-2">
+                                <strong>Overlap:</strong> <span id="infoOverlap"></span>%
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Error Metrics -->
+        <div class="row mt-3">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header bg-info text-white">
+                        <h5 class="mb-0">Simulation Accuracy Metrics</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-2">
+                                <div class="text-center">
+                                    <h6>MAE</h6>
+                                    <span class="fs-4" id="metricMAE">-</span>
+                                    <small class="d-block text-muted">MW</small>
+                                </div>
+                            </div>
+                            <div class="col-md-2">
+                                <div class="text-center">
+                                    <h6>RMSE</h6>
+                                    <span class="fs-4" id="metricRMSE">-</span>
+                                    <small class="d-block text-muted">MW</small>
+                                </div>
+                            </div>
+                            <div class="col-md-2">
+                                <div class="text-center">
+                                    <h6>Bias (MBE)</h6>
+                                    <span class="fs-4" id="metricMBE">-</span>
+                                    <small class="d-block text-muted">MW (+ve = over)</small>
+                                </div>
+                            </div>
+                            <div class="col-md-2">
+                                <div class="text-center">
+                                    <h6>MAPE</h6>
+                                    <span class="fs-4" id="metricMAPE">-</span>
+                                    <small class="d-block text-muted">%</small>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="text-center">
+                                    <h6>Interpretation</h6>
+                                    <span id="metricInterpretation" class="text-muted">-</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Correlation Metrics -->
+        <div class="row mt-3">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0">Correlation Analysis</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-3">
+                                <div class="text-center">
+                                    <h6>Correlation</h6>
+                                    <span class="badge fs-5" id="corrBadge">-</span>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="text-center">
+                                    <h6>Complementarity</h6>
+                                    <span class="badge fs-5" id="compBadge">-</span>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="text-center">
+                                    <h6>Variability Reduction</h6>
+                                    <span class="fs-4" id="varReduction">-</span>%
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="text-center">
+                                    <h6>Complementary Periods</h6>
+                                    <span class="fs-4" id="compPeriods">-</span>%
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row mt-3">
+                            <div class="col-md-12">
+                                <div class="alert alert-secondary mb-0" id="corrInterpretation">
+                                    -
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Chart -->
+        <div class="row mt-3">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-body">
+                        <div id="comparisonChart" style="width: 100%; height: 500px;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- No data message -->
+    <div class="row mt-4" id="noDataMessage" style="display: none;">
+        <div class="col-md-12">
+            <div class="alert alert-warning">
+                <h5 class="alert-heading">No Comparable Data</h5>
+                <p id="noDataText">No facilities have both SCADA and SupplyFactors data for the selected criteria.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Plotly.js -->
+<script src="https://cdn.plot.ly/plotly-3.1.1.min.js"></script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Mode switching
+    const modeRadios = document.querySelectorAll('input[name="viewMode"]');
+    const singleForm = document.getElementById('singleFacilityForm');
+    const groupForm = document.getElementById('groupForm');
+    const technologyForm = document.getElementById('technologyForm');
+    const techCompareForm = document.getElementById('techCompareForm');
+
+    modeRadios.forEach(radio => {
+        radio.addEventListener('change', function() {
+            // Hide all forms
+            singleForm.style.display = 'none';
+            groupForm.style.display = 'none';
+            technologyForm.style.display = 'none';
+            techCompareForm.style.display = 'none';
+
+            // Show selected form
+            switch(this.value) {
+                case 'single':
+                    singleForm.style.display = 'block';
+                    break;
+                case 'group':
+                    groupForm.style.display = 'block';
+                    break;
+                case 'technology':
+                    technologyForm.style.display = 'block';
+                    break;
+                case 'techcompare':
+                    techCompareForm.style.display = 'block';
+                    break;
+            }
+        });
+    });
+
+    // Quick select date range
+    const quickSelectSingle = document.getElementById('quickSelectSingle');
+    const startMonthSingle = document.getElementById('startMonthSingle');
+    const endMonthSingle = document.getElementById('endMonthSingle');
+
+    quickSelectSingle.addEventListener('change', function() {
+        const ranges = {
+            'summer': [12, 2],
+            'autumn': [3, 5],
+            'winter': [6, 8],
+            'spring': [9, 11],
+            'q1': [1, 3],
+            'q2': [4, 6],
+            'q3': [7, 9],
+            'q4': [10, 12]
+        };
+
+        if (this.value && ranges[this.value]) {
+            startMonthSingle.value = ranges[this.value][0];
+            endMonthSingle.value = ranges[this.value][1];
+        } else {
+            startMonthSingle.value = '';
+            endMonthSingle.value = '';
+        }
+    });
+
+    document.getElementById('clearDateRangeSingle').addEventListener('click', function() {
+        quickSelectSingle.value = '';
+        startMonthSingle.value = '';
+        endMonthSingle.value = '';
+    });
+
+    // Helper function to get hour range from months
+    function getHourRangeFromMonths(startMonth, endMonth) {
+        const daysPerMonth = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+        let startHour = 1;
+        let endHour = 8760;
+
+        if (startMonth) {
+            startHour = daysPerMonth.slice(0, startMonth - 1).reduce((a, b) => a + b, 0) * 24 + 1;
+        }
+        if (endMonth) {
+            endHour = daysPerMonth.slice(0, endMonth).reduce((a, b) => a + b, 0) * 24;
+        }
+
+        return { startHour, endHour };
+    }
+
+    // Form submission - Single Facility
+    document.getElementById('singleComparisonForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+
+        const facilityId = document.getElementById('facilitySelect').value;
+        const year = document.getElementById('yearSelect').value;
+        const aggregation = document.getElementById('aggregationSelect').value;
+        const chartType = document.getElementById('chartTypeSelect').value;
+
+        const startMonth = parseInt(startMonthSingle.value) || null;
+        const endMonth = parseInt(endMonthSingle.value) || null;
+        const hourRange = getHourRangeFromMonths(startMonth, endMonth);
+
+        let url = `/get_facility_scada_vs_supply/?facility_id=${facilityId}&year=${year}&aggregation=${aggregation}`;
+        if (startMonth && endMonth) {
+            url += `&start_hour=${hourRange.startHour}&end_hour=${hourRange.endHour}`;
+        }
+
+        fetchAndDisplayData(url, chartType, 'single');
+    });
+
+    // Form submission - Facility Group
+    document.getElementById('groupComparisonForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+
+        const facilityIds = Array.from(document.getElementById('facilityGroupSelect').selectedOptions).map(opt => opt.value);
+        const year = document.getElementById('yearSelectGroup').value;
+        const aggregation = document.getElementById('aggregationSelectGroup').value;
+        const chartType = document.getElementById('chartTypeSelectGroup').value;
+
+        let url = `/get_facility_group_scada_vs_supply/?year=${year}&aggregation=${aggregation}`;
+        facilityIds.forEach(id => url += `&facility_id[]=${id}`);
+
+        fetchAndDisplayData(url, chartType, 'group');
+    });
+
+    // Form submission - Technology
+    document.getElementById('techComparisonForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+
+        const techIds = Array.from(document.getElementById('technologySelect').selectedOptions).map(opt => opt.value);
+        const year = document.getElementById('yearSelectTech').value;
+        const aggregation = document.getElementById('aggregationSelectTech').value;
+        const chartType = document.getElementById('chartTypeSelectTech').value;
+
+        let url = `/get_technology_scada_vs_supply/?year=${year}&aggregation=${aggregation}`;
+        techIds.forEach(id => url += `&technology_id[]=${id}`);
+
+        fetchAndDisplayData(url, chartType, 'technology');
+    });
+
+    // Form submission - Technology Groups
+    document.getElementById('techGroupComparisonForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+
+        const tech1Ids = Array.from(document.getElementById('technology1Select').selectedOptions).map(opt => opt.value);
+        const tech2Ids = Array.from(document.getElementById('technology2Select').selectedOptions).map(opt => opt.value);
+        const year = document.getElementById('yearSelectTechCompare').value;
+        const aggregation = document.getElementById('aggregationSelectTechCompare').value;
+
+        let url = `/get_technology_group_scada_vs_supply/?year=${year}&aggregation=${aggregation}`;
+        tech1Ids.forEach(id => url += `&technology1_id[]=${id}`);
+        tech2Ids.forEach(id => url += `&technology2_id[]=${id}`);
+
+        fetchAndDisplayData(url, 'line', 'techcompare');
+    });
+
+    // Fetch and display data
+    function fetchAndDisplayData(url, chartType, mode) {
+        const loadingIndicator = document.getElementById('loadingIndicator');
+        const resultsSection = document.getElementById('resultsSection');
+        const noDataMessage = document.getElementById('noDataMessage');
+
+        loadingIndicator.style.display = 'block';
+        resultsSection.style.display = 'none';
+        noDataMessage.style.display = 'none';
+
+        fetch(url)
+            .then(response => response.json())
+            .then(data => {
+                loadingIndicator.style.display = 'none';
+
+                if (data.error) {
+                    document.getElementById('noDataText').textContent = data.error;
+                    noDataMessage.style.display = 'block';
+                    return;
+                }
+
+                resultsSection.style.display = 'block';
+
+                if (mode === 'techcompare') {
+                    displayTechCompareResults(data, chartType);
+                } else {
+                    displayResults(data, chartType, mode);
+                }
+            })
+            .catch(error => {
+                loadingIndicator.style.display = 'none';
+                document.getElementById('noDataText').textContent = 'Error loading data: ' + error.message;
+                noDataMessage.style.display = 'block';
+            });
+    }
+
+    // Display results for single/group/technology modes
+    function displayResults(data, chartType, mode) {
+        // Info section
+        let selectionText = '';
+        if (mode === 'single') {
+            selectionText = data.facility_name + (data.facility_code ? ` (${data.facility_code})` : '');
+        } else if (mode === 'group') {
+            selectionText = `${data.facility_count} facilities`;
+        } else if (mode === 'technology') {
+            selectionText = data.technology_names.join(', ');
+        }
+
+        document.getElementById('infoSelection').textContent = selectionText;
+        document.getElementById('infoYear').textContent = data.year;
+        document.getElementById('infoAggregation').textContent = data.aggregation;
+        document.getElementById('infoDataPoints').textContent = data.data_points;
+        document.getElementById('infoOverlap').textContent = data.overlap_percentage || '-';
+
+        // Error metrics
+        if (data.error_metrics) {
+            document.getElementById('metricMAE').textContent = data.error_metrics.mae || '-';
+            document.getElementById('metricRMSE').textContent = data.error_metrics.rmse || '-';
+            document.getElementById('metricMBE').textContent = data.error_metrics.mbe || '-';
+            document.getElementById('metricMAPE').textContent = data.error_metrics.mape || '-';
+            document.getElementById('metricInterpretation').textContent = data.error_metrics.interpretation || '-';
+        }
+
+        // Correlation metrics
+        if (data.correlation_metrics) {
+            const corr = data.correlation_metrics.correlation;
+            const corrBadge = document.getElementById('corrBadge');
+            corrBadge.textContent = corr;
+            corrBadge.className = 'badge fs-5 ' + getCorrelationBadgeClass(corr);
+
+            const comp = data.correlation_metrics.complementarity_score;
+            const compBadge = document.getElementById('compBadge');
+            compBadge.textContent = comp;
+            compBadge.className = 'badge fs-5 ' + getComplementarityBadgeClass(comp);
+
+            document.getElementById('varReduction').textContent = data.correlation_metrics.variability_reduction || '-';
+            document.getElementById('compPeriods').textContent = data.correlation_metrics.complementary_periods_pct || '-';
+            document.getElementById('corrInterpretation').textContent = data.correlation_metrics.interpretation || '-';
+        }
+
+        // Chart
+        createChart(data, chartType, mode);
+    }
+
+    // Display results for technology group comparison
+    function displayTechCompareResults(data, chartType) {
+        // Info section
+        const tech1Names = data.technology_group1.names.join(', ');
+        const tech2Names = data.technology_group2.names.join(', ');
+        document.getElementById('infoSelection').textContent = `${tech1Names} vs ${tech2Names}`;
+        document.getElementById('infoYear').textContent = data.year;
+        document.getElementById('infoAggregation').textContent = data.aggregation;
+        document.getElementById('infoDataPoints').textContent = data.data_points;
+        document.getElementById('infoOverlap').textContent = '-';
+
+        // Use Group 1's metrics for display (or average)
+        if (data.technology_group1.error_metrics) {
+            const em = data.technology_group1.error_metrics;
+            document.getElementById('metricMAE').textContent = em.mae || '-';
+            document.getElementById('metricRMSE').textContent = em.rmse || '-';
+            document.getElementById('metricMBE').textContent = em.mbe || '-';
+            document.getElementById('metricMAPE').textContent = em.mape || '-';
+            document.getElementById('metricInterpretation').textContent = 'Group 1: ' + (em.interpretation || '-');
+        }
+
+        if (data.technology_group1.correlation_metrics) {
+            const cm = data.technology_group1.correlation_metrics;
+            const corrBadge = document.getElementById('corrBadge');
+            corrBadge.textContent = cm.correlation;
+            corrBadge.className = 'badge fs-5 ' + getCorrelationBadgeClass(cm.correlation);
+
+            const compBadge = document.getElementById('compBadge');
+            compBadge.textContent = cm.complementarity_score;
+            compBadge.className = 'badge fs-5 ' + getComplementarityBadgeClass(cm.complementarity_score);
+
+            document.getElementById('varReduction').textContent = cm.variability_reduction || '-';
+            document.getElementById('compPeriods').textContent = cm.complementary_periods_pct || '-';
+            document.getElementById('corrInterpretation').textContent = 'Group 1: ' + (cm.interpretation || '-');
+        }
+
+        // Chart with 4 traces
+        createTechCompareChart(data);
+    }
+
+    // Helper functions for badge colors
+    function getCorrelationBadgeClass(corr) {
+        const absCorr = Math.abs(corr);
+        if (absCorr >= 0.8) return 'bg-success';
+        if (absCorr >= 0.5) return 'bg-warning text-dark';
+        return 'bg-secondary';
+    }
+
+    function getComplementarityBadgeClass(comp) {
+        if (comp >= 0.7) return 'bg-success';
+        if (comp >= 0.4) return 'bg-warning text-dark';
+        return 'bg-secondary';
+    }
+
+    // Create main chart
+    function createChart(data, chartType, mode) {
+        const traces = [];
+
+        // SCADA trace
+        const scadaTrace = {
+            x: data.periods,
+            y: data.scada_values,
+            name: 'SCADA (Actual)',
+            line: { color: '#28a745' }
+        };
+
+        // Supply trace
+        const supplyTrace = {
+            x: data.periods,
+            y: data.supply_values,
+            name: 'Simulated',
+            line: { color: '#ffc107', dash: 'dash' }
+        };
+
+        // Apply chart type
+        if (chartType === 'scatter') {
+            scadaTrace.mode = 'markers';
+            supplyTrace.mode = 'markers';
+            scadaTrace.type = 'scatter';
+            supplyTrace.type = 'scatter';
+        } else if (chartType === 'bar') {
+            scadaTrace.type = 'bar';
+            supplyTrace.type = 'bar';
+        } else if (chartType === 'area') {
+            scadaTrace.fill = 'tozeroy';
+            supplyTrace.fill = 'tozeroy';
+            scadaTrace.type = 'scatter';
+            supplyTrace.type = 'scatter';
+        } else {
+            scadaTrace.mode = 'lines';
+            supplyTrace.mode = 'lines';
+            scadaTrace.type = 'scatter';
+            supplyTrace.type = 'scatter';
+        }
+
+        traces.push(scadaTrace, supplyTrace);
+
+        // Title
+        let title = 'SCADA vs Simulated Generation';
+        if (mode === 'single') {
+            title = `${data.facility_name} - ${data.year}`;
+        } else if (mode === 'group') {
+            title = `${data.facility_count} Facilities - ${data.year}`;
+        } else if (mode === 'technology') {
+            title = `${data.technology_names.join(', ')} - ${data.year}`;
+        }
+
+        const layout = {
+            title: title,
+            xaxis: { title: data.x_label || 'Period' },
+            yaxis: { title: 'Generation (MW)' },
+            hovermode: 'x unified',
+            legend: { orientation: 'h', y: -0.2 },
+            barmode: chartType === 'bar' ? 'group' : undefined
+        };
+
+        Plotly.newPlot('comparisonChart', traces, layout, {
+            responsive: true,
+            displayModeBar: true,
+            displaylogo: false
+        });
+    }
+
+    // Create chart for technology group comparison (4 traces)
+    function createTechCompareChart(data) {
+        const g1 = data.technology_group1;
+        const g2 = data.technology_group2;
+
+        const traces = [
+            {
+                x: data.periods,
+                y: g1.scada_values,
+                name: `${g1.names.join('/')} SCADA`,
+                mode: 'lines',
+                type: 'scatter',
+                line: { color: '#28a745' }
+            },
+            {
+                x: data.periods,
+                y: g1.supply_values,
+                name: `${g1.names.join('/')} Simulated`,
+                mode: 'lines',
+                type: 'scatter',
+                line: { color: '#28a745', dash: 'dash' }
+            },
+            {
+                x: data.periods,
+                y: g2.scada_values,
+                name: `${g2.names.join('/')} SCADA`,
+                mode: 'lines',
+                type: 'scatter',
+                line: { color: '#007bff' }
+            },
+            {
+                x: data.periods,
+                y: g2.supply_values,
+                name: `${g2.names.join('/')} Simulated`,
+                mode: 'lines',
+                type: 'scatter',
+                line: { color: '#007bff', dash: 'dash' }
+            }
+        ];
+
+        const layout = {
+            title: `Technology Group Comparison - ${data.year}`,
+            xaxis: { title: data.x_label || 'Period' },
+            yaxis: { title: 'Generation (MW)' },
+            hovermode: 'x unified',
+            legend: { orientation: 'h', y: -0.2 }
+        };
+
+        Plotly.newPlot('comparisonChart', traces, layout, {
+            responsive: true,
+            displayModeBar: true,
+            displaylogo: false
+        });
+    }
+});
+</script>
+{% endblock %}
