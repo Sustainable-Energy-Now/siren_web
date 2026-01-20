@@ -16,9 +16,7 @@
         <li class="nav-item">
           <a class="nav-link" href="/powerplotui/">Powerplot Home</a>
         </li>
-        <li class="nav-item">
-          <a class="nav-link" href="/supply_plot/">Facility Supply</a>
-        </li>
+
         <li class="nav-item">
           <a class="nav-link" href="/variants/">Variants Statistics</a>
         </li>
@@ -33,11 +31,23 @@
         </li>
         <li class="nav-item dropdown">
           <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
-            Scada Data
+            Facility Generation
           </a>
           <ul class="dropdown-menu">
-            <li><a class="dropdown-item" href="{% url 'scada_plot' %}">Facility Scada</a></li>
+            <li><a class="dropdown-item" href="{% url 'scada_plot' %}">Actual (Scada)</a></li>
             <li><a class="dropdown-item" href="{% url 'scada_analysis' %}">Scada Analysis</a></li>
+            <li><a class="dropdown-item" href="{% url 'supply_plot' %}">Simulated (SAM)</a></li>
+            <li><a class="dropdown-item" href="{% url 'generation_comparison' %}">Comparison</a></li>
+          </ul>
+        </li>
+        <li class="nav-item dropdown">
+          <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+            Risk Analysis
+          </a>
+          <ul class="dropdown-menu">
+            <li><a class="dropdown-item" href="{% url 'risk_dashboard' %}">Risk Dashboard</a></li>
+            <li><a class="dropdown-item" href="{% url 'risk_scenario_list' %}">Manage Scenarios</a></li>
+            <li><a class="dropdown-item" href="{% url 'risk_comparison' %}">Compare Scenarios</a></li>
           </ul>
         </li>
         <li class="nav-link" class="nav-item">

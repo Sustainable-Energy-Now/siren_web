@@ -3701,6 +3701,377 @@ class MonteCarloResult(models.Model):
         return f"Results for {self.simulation}"
 
 
+# =============================================================================
+# SWIS Risk Analysis Models
+# =============================================================================
+
+class RiskCategory(models.Model):
+    """
+    Categories of risk for SWIS energy scenarios.
+    Based on 2016 framework: Safety, Cost, Environment, Production
+    Extended for 2026 with additional categories.
+    """
+    name = models.CharField(max_length=50, unique=True)
+    description = models.TextField(blank=True)
+    display_order = models.IntegerField(default=0)
+    icon = models.CharField(max_length=50, blank=True, null=True, help_text="Icon class for UI display")
+    color_code = models.CharField(max_length=7, default='#6c757d', help_text="Hex color code")
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'risk_categories'
+        ordering = ['display_order', 'name']
+        verbose_name = 'Risk Category'
+        verbose_name_plural = 'Risk Categories'
+
+    def __str__(self):
+        return self.name
+
+
+RISK_SCENARIO_STATUS_CHOICES = [
+    ('draft', 'Draft'),
+    ('active', 'Active'),
+    ('archived', 'Archived'),
+]
+
+
+class RiskScenario(models.Model):
+    """
+    Energy mix scenarios for SWIS risk assessment.
+    Can optionally link to existing TargetScenario for generation projections.
+    """
+    name = models.CharField(max_length=100)
+    short_name = models.CharField(max_length=30, unique=True, help_text="Short identifier for charts")
+    description = models.TextField()
+
+    # Link to existing energy scenario projections
+    target_scenario = models.ForeignKey(
+        'TargetScenario',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='risk_scenarios',
+        help_text="Associated generation scenario for capacity/mix data",
+        db_constraint=False  # Avoids FK constraint issues
+    )
+
+    # Energy mix percentages (used if not linked to TargetScenario)
+    wind_percentage = models.FloatField(
+        default=0,
+        validators=[MinValueValidator(0), MaxValueValidator(100)],
+        help_text="Wind generation percentage"
+    )
+    solar_percentage = models.FloatField(
+        default=0,
+        validators=[MinValueValidator(0), MaxValueValidator(100)],
+        help_text="Solar PV generation percentage"
+    )
+    storage_percentage = models.FloatField(
+        default=0,
+        validators=[MinValueValidator(0), MaxValueValidator(100)],
+        help_text="Battery/storage percentage"
+    )
+    gas_percentage = models.FloatField(
+        default=0,
+        validators=[MinValueValidator(0), MaxValueValidator(100)],
+        help_text="Gas generation percentage"
+    )
+    coal_percentage = models.FloatField(
+        default=0,
+        validators=[MinValueValidator(0), MaxValueValidator(100)],
+        help_text="Coal generation percentage"
+    )
+    hydro_percentage = models.FloatField(
+        default=0,
+        validators=[MinValueValidator(0), MaxValueValidator(100)],
+        help_text="Pumped hydro storage percentage"
+    )
+    hydrogen_percentage = models.FloatField(
+        default=0,
+        validators=[MinValueValidator(0), MaxValueValidator(100)],
+        help_text="Green hydrogen percentage"
+    )
+    nuclear_percentage = models.FloatField(
+        default=0,
+        validators=[MinValueValidator(0), MaxValueValidator(100)],
+        help_text="Nuclear generation percentage"
+    )
+    biomass_percentage = models.FloatField(
+        default=0,
+        validators=[MinValueValidator(0), MaxValueValidator(100)],
+        help_text="Biomass generation percentage"
+    )
+    other_percentage = models.FloatField(
+        default=0,
+        validators=[MinValueValidator(0), MaxValueValidator(100)],
+        help_text="Other generation percentage"
+    )
+
+    # Scenario metadata
+    target_year = models.IntegerField(default=2040)
+    status = models.CharField(max_length=20, choices=RISK_SCENARIO_STATUS_CHOICES, default='draft', db_index=True)
+    is_baseline = models.BooleanField(default=False, help_text="Is this the baseline/BAU scenario?")
+    display_order = models.IntegerField(default=0)
+
+    # Audit fields
+    created_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='created_risk_scenarios',
+        db_constraint=False  # Avoids FK constraint issues with unmanaged auth_user table
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'risk_scenarios'
+        ordering = ['display_order', 'name']
+        verbose_name = 'Risk Scenario'
+        verbose_name_plural = 'Risk Scenarios'
+
+    def __str__(self):
+        return f"{self.name} ({self.target_year})"
+
+    @property
+    def total_percentage(self):
+        """Sum of all energy mix percentages (should equal ~100%)"""
+        return sum([
+            self.wind_percentage, self.solar_percentage, self.storage_percentage,
+            self.gas_percentage, self.coal_percentage, self.hydro_percentage,
+            self.hydrogen_percentage, self.nuclear_percentage, self.biomass_percentage,
+            self.other_percentage
+        ])
+
+    @property
+    def energy_mix_dict(self):
+        """Return energy mix as dictionary for charts"""
+        return {
+            'Wind': self.wind_percentage,
+            'Solar': self.solar_percentage,
+            'Storage': self.storage_percentage,
+            'Gas': self.gas_percentage,
+            'Coal': self.coal_percentage,
+            'Hydro': self.hydro_percentage,
+            'Hydrogen': self.hydrogen_percentage,
+            'Nuclear': self.nuclear_percentage,
+            'Biomass': self.biomass_percentage,
+            'Other': self.other_percentage,
+        }
+
+    def get_inherent_risk_score(self, category=None):
+        """Calculate average inherent risk score for this scenario"""
+        events = self.risk_events.all()
+        if category:
+            events = events.filter(category=category)
+        if not events.exists():
+            return None
+        from django.db.models import Avg, F
+        result = events.annotate(
+            score=F('inherent_likelihood') * F('inherent_consequence')
+        ).aggregate(avg=Avg('score'))
+        return round(result['avg'], 2) if result['avg'] else None
+
+    def get_residual_risk_score(self, category=None):
+        """Calculate average residual risk score for this scenario"""
+        events = self.risk_events.exclude(
+            residual_likelihood__isnull=True
+        ).exclude(
+            residual_consequence__isnull=True
+        )
+        if category:
+            events = events.filter(category=category)
+        if not events.exists():
+            return self.get_inherent_risk_score(category)
+        from django.db.models import Avg, F
+        result = events.annotate(
+            score=F('residual_likelihood') * F('residual_consequence')
+        ).aggregate(avg=Avg('score'))
+        return round(result['avg'], 2) if result['avg'] else None
+
+    def get_risk_counts_by_level(self):
+        """Count risks by severity level"""
+        events = self.risk_events.all()
+        counts = {'low': 0, 'moderate': 0, 'high': 0, 'severe': 0}
+        for event in events:
+            level = event.inherent_risk_level['level']
+            counts[level] = counts.get(level, 0) + 1
+        return counts
+
+
+RISK_LIKELIHOOD_CHOICES = [
+    (1, 'Remote - Once every 10,000 to 100,000 years'),
+    (2, 'Highly Unlikely - Once every 1,000 to 10,000 years'),
+    (3, 'Unlikely - Once every 100 to 1,000 years'),
+    (4, 'Possible - Once every 10 to 100 years'),
+    (5, 'Quite Likely - Once every 1 to 10 years'),
+    (6, 'Likely - More than once a year'),
+]
+
+RISK_CONSEQUENCE_CHOICES = [
+    (1, 'Slight - Minor injury, >A$100K, localised temporary impact'),
+    (2, 'Minor - Lost work case, A$100K-A$1M, localised short-term impact'),
+    (3, 'Moderate - Partial disability, A$1-10M, medium scale years impact'),
+    (4, 'Major - 1-20 fatalities, A$10-100M, medium scale decades impact'),
+    (5, 'Massive - 20-200 fatalities, A$100M-1B, large scale decades impact'),
+    (6, 'Catastrophic - >200 fatalities, >A$1B, regional permanent impact'),
+]
+
+
+class RiskEvent(models.Model):
+    """
+    Individual risk events within a scenario.
+    Captures inherent and residual risk assessments using 6x6 matrix.
+    Based on 2016 SWIS Risk Matrix methodology.
+    """
+    scenario = models.ForeignKey(
+        RiskScenario,
+        on_delete=models.CASCADE,
+        related_name='risk_events'
+    )
+    category = models.ForeignKey(
+        RiskCategory,
+        on_delete=models.PROTECT,
+        related_name='risk_events'
+    )
+
+    # Risk identification
+    risk_title = models.CharField(max_length=200)
+    risk_description = models.TextField(help_text="Detailed description of the risk")
+    risk_cause = models.TextField(blank=True, help_text="What causes this risk")
+    risk_source = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text="Technology or factor causing this risk (e.g., 'Wind turbines', 'Gas supply')"
+    )
+
+    # Inherent risk assessment (before mitigations) - 6x6 matrix
+    inherent_likelihood = models.IntegerField(
+        choices=RISK_LIKELIHOOD_CHOICES,
+        help_text="Likelihood before mitigations (1-6)"
+    )
+    inherent_consequence = models.IntegerField(
+        choices=RISK_CONSEQUENCE_CHOICES,
+        help_text="Consequence severity before mitigations (1-6)"
+    )
+    inherent_consequence_description = models.TextField(
+        blank=True,
+        help_text="Description of consequences if risk occurs"
+    )
+    inherent_likelihood_description = models.TextField(
+        blank=True,
+        help_text="Basis for likelihood assessment"
+    )
+
+    # Mitigations
+    mitigation_strategies = models.TextField(
+        blank=True,
+        help_text="Strategies to reduce risk likelihood or consequence"
+    )
+
+    # Residual risk assessment (after mitigations)
+    residual_likelihood = models.IntegerField(
+        choices=RISK_LIKELIHOOD_CHOICES,
+        null=True,
+        blank=True,
+        help_text="Likelihood after mitigations (1-6)"
+    )
+    residual_consequence = models.IntegerField(
+        choices=RISK_CONSEQUENCE_CHOICES,
+        null=True,
+        blank=True,
+        help_text="Consequence severity after mitigations (1-6)"
+    )
+
+    # Additional metadata
+    assumptions = models.TextField(blank=True, help_text="Key assumptions underlying this assessment")
+    data_sources = models.TextField(blank=True, help_text="References and data sources")
+    comments = models.TextField(blank=True, help_text="Additional notes and comments")
+    review_date = models.DateField(null=True, blank=True, help_text="Next review date")
+
+    # Audit
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'risk_events'
+        ordering = ['category', '-inherent_likelihood', '-inherent_consequence']
+        verbose_name = 'Risk Event'
+        verbose_name_plural = 'Risk Events'
+
+    def __str__(self):
+        return f"{self.risk_title} ({self.scenario.short_name})"
+
+    @property
+    def inherent_risk_score(self):
+        """Calculate inherent risk score using matrix formula"""
+        # Based on 2016 matrix: base 100 + (11 * consequence) + likelihood
+        # This gives scores from 121 (1,1) to 256 (6,6)
+        return 100 + (11 * self.inherent_consequence) + self.inherent_likelihood
+
+    @property
+    def residual_risk_score(self):
+        """Calculate residual risk score"""
+        if self.residual_likelihood and self.residual_consequence:
+            return 100 + (11 * self.residual_consequence) + self.residual_likelihood
+        return self.inherent_risk_score
+
+    @property
+    def simple_inherent_score(self):
+        """Simple multiplication score (1-36 range)"""
+        return self.inherent_likelihood * self.inherent_consequence
+
+    @property
+    def simple_residual_score(self):
+        """Simple multiplication residual score (1-36 range)"""
+        if self.residual_likelihood and self.residual_consequence:
+            return self.residual_likelihood * self.residual_consequence
+        return self.simple_inherent_score
+
+    @property
+    def inherent_risk_level(self):
+        """Get risk level classification based on score"""
+        return self._get_risk_level(self.simple_inherent_score)
+
+    @property
+    def residual_risk_level(self):
+        """Get residual risk level classification"""
+        return self._get_risk_level(self.simple_residual_score)
+
+    @staticmethod
+    def _get_risk_level(score):
+        """
+        Convert numeric score to risk level.
+        Based on 2016 SWIS matrix color coding.
+        Score range: 1-36 (6x6 matrix)
+        """
+        if score >= 20:  # Severe (red)
+            return {'level': 'severe', 'label': 'Severe', 'color': '#e74c3c'}
+        elif score >= 12:  # High (orange)
+            return {'level': 'high', 'label': 'High', 'color': '#e67e22'}
+        elif score >= 6:  # Moderate (yellow)
+            return {'level': 'moderate', 'label': 'Moderate', 'color': '#f1c40f'}
+        else:  # Low (green)
+            return {'level': 'low', 'label': 'Low', 'color': '#27ae60'}
+
+    @property
+    def risk_reduction_percentage(self):
+        """Calculate percentage reduction from inherent to residual"""
+        if self.simple_residual_score and self.simple_inherent_score:
+            reduction = ((self.simple_inherent_score - self.simple_residual_score) /
+                        self.simple_inherent_score * 100)
+            return round(reduction, 1)
+        return 0
+
+    @property
+    def has_mitigation(self):
+        """Check if mitigation has been applied"""
+        return bool(self.residual_likelihood and self.residual_consequence)
+
+
 class DjangoMigrations(models.Model):
     id = models.BigAutoField(primary_key=True)
     app = models.CharField(max_length=255)

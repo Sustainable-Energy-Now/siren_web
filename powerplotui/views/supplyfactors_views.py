@@ -3,18 +3,11 @@ from django.http import JsonResponse
 from siren_web.models import facilities, supplyfactors, Technologies
 import math
 
-def get_hour_range_from_months(start_month, end_month):
-    """Convert month numbers to hour ranges (1-based months and hours)"""
-    # Days in each month for a non-leap year
-    days_per_month = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
-    
-    # Calculate start hour (beginning of start_month)
-    start_hour = sum(days_per_month[:start_month-1]) * 24 + 1
-    
-    # Calculate end hour (end of end_month)
-    end_hour = sum(days_per_month[:end_month]) * 24
-    
-    return start_hour, end_hour
+from ..services.generation_utils import (
+    get_week_from_hour,
+    get_month_from_hour,
+    interpret_correlation
+)
 
 def supply_plot_view(request):
     """Main view to render the supply plot page"""
@@ -285,40 +278,7 @@ def calculate_correlation_metrics(data1, data2):
         'interpretation': interpret_correlation(correlation, complementarity, variability_reduction)
     }
 
-def interpret_correlation(correlation, complementarity, variability_reduction):
-    """Provide human-readable interpretation of correlation metrics"""
-    interpretation = []
-    
-    # Correlation interpretation
-    if abs(correlation) < 0.3:
-        interpretation.append("Weak correlation - outputs are largely independent")
-    elif abs(correlation) < 0.7:
-        interpretation.append("Moderate correlation")
-    else:
-        interpretation.append("Strong correlation")
-    
-    if correlation < 0:
-        interpretation.append("negative (anti-correlated - when one is high, other tends to be low)")
-    elif correlation > 0:
-        interpretation.append("positive (when one is high, other tends to be high)")
-    
-    # Complementarity interpretation
-    if complementarity > 0.7:
-        interpretation.append("High complementarity - excellent for portfolio diversification")
-    elif complementarity > 0.4:
-        interpretation.append("Moderate complementarity - good for portfolio balance")
-    else:
-        interpretation.append("Low complementarity - outputs follow similar patterns")
-    
-    # Variability reduction interpretation
-    if variability_reduction > 10:
-        interpretation.append(f"Combining these sources significantly reduces output variability ({variability_reduction:.1f}% reduction)")
-    elif variability_reduction > 0:
-        interpretation.append(f"Combining these sources moderately reduces variability ({variability_reduction:.1f}% reduction)")
-    else:
-        interpretation.append("Combining these sources does not reduce variability")
-    
-    return " | ".join(interpretation)
+# Note: interpret_correlation is now imported from generation_utils
 
 def aggregate_by_hour(queryset):
     """Return hourly data (no aggregation)"""
@@ -340,35 +300,32 @@ def aggregate_by_hour(queryset):
     }
 
 def aggregate_by_week(queryset):
-    """Aggregate data by week (assuming 8760 hours in year)"""
+    """Aggregate data by week using shared utilities"""
     periods = []
     quantum_values = []
     supply_values = []
-    
-    # Group by week (168 hours per week)
-    hours_per_week = 168
+
     week_data = {}
-    
+
     for entry in queryset.values('hour', 'quantum', 'supply'):
-        week = (entry['hour'] - 1) // hours_per_week + 1  # Week 1-52
-        
+        week = get_week_from_hour(entry['hour'])
+
         if week not in week_data:
             week_data[week] = {
                 'quantum_sum': 0,
                 'supply_sum': 0,
                 'count': 0
             }
-        
+
         week_data[week]['quantum_sum'] += entry['quantum'] if entry['quantum'] is not None else 0
         week_data[week]['supply_sum'] += entry['supply'] if entry['supply'] is not None else 0
         week_data[week]['count'] += 1
-    
-    # Calculate averages for each week
+
     for week in sorted(week_data.keys()):
         periods.append(week)
         quantum_values.append(week_data[week]['quantum_sum'] / week_data[week]['count'])
         supply_values.append(week_data[week]['supply_sum'] / week_data[week]['count'])
-    
+
     return {
         'periods': periods,
         'quantum': quantum_values,
@@ -376,46 +333,32 @@ def aggregate_by_week(queryset):
     }
 
 def aggregate_by_month(queryset):
-    """Aggregate data by month (assuming 8760 hours in year)"""
+    """Aggregate data by month using shared utilities"""
     periods = []
     quantum_values = []
     supply_values = []
-    
-    # Approximate hours per month (730 hours average)
-    hours_per_month = [744, 672, 744, 720, 744, 720, 744, 744, 720, 744, 720, 744]  # Days * 24
-    cumulative_hours = [0]
-    for hours in hours_per_month:
-        cumulative_hours.append(cumulative_hours[-1] + hours)
-    
+
     month_data = {}
-    
+
     for entry in queryset.values('hour', 'quantum', 'supply'):
-        hour = entry['hour']
-        
-        # Determine which month this hour belongs to
-        month = 12  # Default to December
-        for i in range(12):
-            if cumulative_hours[i] < hour <= cumulative_hours[i + 1]:
-                month = i + 1
-                break
-        
+        month = get_month_from_hour(entry['hour'])
+
         if month not in month_data:
             month_data[month] = {
                 'quantum_sum': 0,
                 'supply_sum': 0,
                 'count': 0
             }
-        
+
         month_data[month]['quantum_sum'] += entry['quantum'] if entry['quantum'] is not None else 0
         month_data[month]['supply_sum'] += entry['supply'] if entry['supply'] is not None else 0
         month_data[month]['count'] += 1
-    
-    # Calculate averages for each month
+
     for month in sorted(month_data.keys()):
         periods.append(month)
         quantum_values.append(month_data[month]['quantum_sum'] / month_data[month]['count'])
         supply_values.append(month_data[month]['supply_sum'] / month_data[month]['count'])
-    
+
     return {
         'periods': periods,
         'quantum': quantum_values,

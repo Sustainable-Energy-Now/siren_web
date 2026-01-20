@@ -3,7 +3,8 @@ from django.urls import path
 from .views.variants_views import VariantsView
 from .views.echart_views import eChartView
 from .views import facility_scada_views, plot3D_views, powerplotui_home_views, ret_dashboard_views, \
-    ret_comments_views, ret_targets_views, ret_pdf_views, supplyfactors_views, scada_views
+    ret_comments_views, ret_targets_views, ret_pdf_views, supplyfactors_views, scada_views, \
+    generation_comparison_views, risk_analysis_views
 
 urlpatterns = [
     path('powerplotui/', powerplotui_home_views.powerplotui_home, name='powerplotui_home'),
@@ -12,10 +13,9 @@ urlpatterns = [
     path('supply_plot/', supplyfactors_views.supply_plot_view, name='supply_plot'),
     path('get_supply_data/', supplyfactors_views.get_supply_data, name='get_supply_data'),
     path('get_comparison_data/', supplyfactors_views.get_comparison_data, name='get_comparison_data'),
-    path('supply_plot_view/', supplyfactors_views.supply_plot_view, name='supply_plot_view'),
     path('get_facility_years/', supplyfactors_views.get_facility_years, name='get_facility_years'),
     path('get_technology_data/', supplyfactors_views.get_technology_data, name='get_technology_data'),
-    path('get_technology_comparison_data/', supplyfactors_views.get_technology_comparison_data, name='get_technology_comparison_data'),  # Fixed the missing comma and added name for
+    path('get_technology_comparison_data/', supplyfactors_views.get_technology_comparison_data, name='get_technology_comparison_data'),
  
     # Variant-related URLs
     path('variants/', VariantsView.as_view(), name='variants'),
@@ -73,7 +73,37 @@ urlpatterns = [
     path('api/ret_dashboard/scenarios/', ret_targets_views.api_scenarios_list, name='api_scenarios_list'),
     path('api/ret_dashboard/scenarios/<int:scenario_id>/', ret_targets_views.api_scenario_detail, name='api_scenario_detail'),
 
+    # SCADA vs SupplyFactors Comparison URLs
+    path('generation-comparison/', generation_comparison_views.generation_comparison_view, name='generation_comparison'),
+    path('get_facility_scada_vs_supply/', generation_comparison_views.get_facility_scada_vs_supply, name='scada_vs_supply_facility'),
+    path('get_facility_group_scada_vs_supply/', generation_comparison_views.get_facility_group_scada_vs_supply, name='scada_vs_supply_facility_group'),
+    path('get_technology_scada_vs_supply/', generation_comparison_views.get_technology_scada_vs_supply, name='scada_vs_supply_technology'),
+    path('get_technology_group_scada_vs_supply/', generation_comparison_views.get_technology_group_scada_vs_supply, name='scada_vs_supply_technology_group'),
+
     # Miscellaneous URLs
     path('wem_prices/', plot3D_views.wem_price_history, name='wem_price_history'),
     path('swis_demand/', plot3D_views.swis_demand_history, name='swis_demand_history'),
+
+    # ==========================================================================
+    # SWIS Risk Analysis URLs
+    # ==========================================================================
+    path('risk/', risk_analysis_views.risk_dashboard, name='risk_dashboard'),
+    path('risk/scenarios/', risk_analysis_views.scenario_list, name='risk_scenario_list'),
+    path('risk/scenarios/create/', risk_analysis_views.scenario_create, name='risk_scenario_create'),
+    path('risk/scenarios/<int:scenario_id>/', risk_analysis_views.risk_scenario_detail, name='risk_scenario_detail'),
+    path('risk/scenarios/<int:scenario_id>/update/', risk_analysis_views.scenario_update, name='risk_scenario_update'),
+    path('risk/scenarios/<int:scenario_id>/delete/', risk_analysis_views.scenario_delete, name='risk_scenario_delete'),
+    path('risk/scenarios/<int:scenario_id>/events/add/', risk_analysis_views.risk_event_create, name='risk_event_create'),
+    path('risk/compare/', risk_analysis_views.risk_comparison_view, name='risk_comparison'),
+
+    # Risk Event URLs
+    path('risk/events/<int:event_id>/update/', risk_analysis_views.risk_event_update, name='risk_event_update'),
+    path('risk/events/<int:event_id>/delete/', risk_analysis_views.risk_event_delete, name='risk_event_delete'),
+
+    # Risk Analysis API Endpoints
+    path('api/risk/scenarios/<int:scenario_id>/matrix/', risk_analysis_views.api_risk_matrix_data, name='api_risk_matrix'),
+    path('api/risk/comparison/', risk_analysis_views.api_scenario_comparison_data, name='api_risk_comparison'),
+    path('api/risk/summary/', risk_analysis_views.api_risk_summary, name='api_risk_summary'),
+    path('api/risk/scenarios/<int:scenario_id>/profile/', risk_analysis_views.api_category_risk_profile, name='api_risk_profile'),
+    path('api/risk/scenarios/<int:scenario_id>/', risk_analysis_views.api_scenario_detail, name='api_risk_scenario_detail'),
 ]

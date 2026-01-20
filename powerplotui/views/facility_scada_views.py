@@ -3,23 +3,15 @@ from django.http import JsonResponse
 from siren_web.models import facilities, FacilityScada, Technologies
 from django.db.models import Min, Max
 from datetime import datetime, timedelta
-import math
 
-
-def get_hour_of_year(dt):
-    """Calculate hour of year from datetime (1-based)"""
-    start_of_year = datetime(dt.year, 1, 1, tzinfo=dt.tzinfo)
-    delta = dt - start_of_year
-    # Convert to hours and add 1 for 1-based indexing
-    return int(delta.total_seconds() / 3600) + 1
-
-
-def get_hour_range_from_months(start_month, end_month):
-    """Convert month numbers to hour ranges (1-based months and hours)"""
-    days_per_month = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
-    start_hour = sum(days_per_month[:start_month-1]) * 24 + 1
-    end_hour = sum(days_per_month[:end_month]) * 24
-    return start_hour, end_hour
+from ..services.generation_utils import (
+    get_hour_of_year,
+    get_hour_range_from_months,
+    get_week_from_hour,
+    get_month_from_hour,
+    calculate_correlation_metrics,
+    get_x_label
+)
 
 
 def scada_plot_view(request):
@@ -587,21 +579,19 @@ def get_scada_technology_comparison_data(request):
     })
 
 
-# Aggregation helper functions
+# Aggregation helper functions - using shared utilities
 def aggregate_scada_by_hour(hour_data):
     """Aggregate SCADA data by hour (no aggregation needed, just format)"""
-    # Group by hour in case there are duplicates
     hour_dict = {}
     for entry in hour_data:
         hour = entry['hour']
         if hour not in hour_dict:
             hour_dict[hour] = []
         hour_dict[hour].append(entry['quantity'])
-    
-    # Average if multiple entries per hour
+
     hours = sorted(hour_dict.keys())
     quantities = [sum(hour_dict[h]) / len(hour_dict[h]) for h in hours]
-    
+
     return {
         'periods': hours,
         'quantity': quantities
@@ -609,20 +599,20 @@ def aggregate_scada_by_hour(hour_data):
 
 
 def aggregate_scada_by_week(hour_data):
-    """Aggregate SCADA data by week"""
+    """Aggregate SCADA data by week using shared utilities"""
     week_dict = {}
-    
+
     for entry in hour_data:
         hour = entry['hour']
-        week = ((hour - 1) // 168) + 1  # 168 hours per week
-        
+        week = get_week_from_hour(hour)
+
         if week not in week_dict:
             week_dict[week] = []
         week_dict[week].append(entry['quantity'])
-    
+
     weeks = sorted(week_dict.keys())
     quantities = [sum(week_dict[w]) / len(week_dict[w]) for w in weeks]
-    
+
     return {
         'periods': weeks,
         'quantity': quantities
@@ -630,99 +620,24 @@ def aggregate_scada_by_week(hour_data):
 
 
 def aggregate_scada_by_month(hour_data):
-    """Aggregate SCADA data by month"""
+    """Aggregate SCADA data by month using shared utilities"""
     month_dict = {}
-    days_per_month = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
-    
-    # Calculate cumulative hours for month boundaries
-    cumulative_hours = [0]
-    for days in days_per_month:
-        cumulative_hours.append(cumulative_hours[-1] + days * 24)
-    
+
     for entry in hour_data:
         hour = entry['hour']
-        
-        # Find which month this hour belongs to
-        month = 1
-        for i in range(12):
-            if hour <= cumulative_hours[i + 1]:
-                month = i + 1
-                break
-        
+        month = get_month_from_hour(hour)
+
         if month not in month_dict:
             month_dict[month] = []
         month_dict[month].append(entry['quantity'])
-    
+
     months = sorted(month_dict.keys())
     quantities = [sum(month_dict[m]) / len(month_dict[m]) for m in months]
-    
+
     return {
         'periods': months,
         'quantity': quantities
     }
 
 
-def calculate_correlation_metrics(data1, data2):
-    """Calculate correlation and complementarity metrics between two datasets"""
-    if len(data1) != len(data2):
-        # Pad shorter array with zeros
-        max_len = max(len(data1), len(data2))
-        data1 = list(data1) + [0] * (max_len - len(data1))
-        data2 = list(data2) + [0] * (max_len - len(data2))
-    
-    n = len(data1)
-    
-    # Calculate means
-    mean1 = sum(data1) / n
-    mean2 = sum(data2) / n
-    
-    # Calculate correlation coefficient
-    numerator = sum((data1[i] - mean1) * (data2[i] - mean2) for i in range(n))
-    denom1 = math.sqrt(sum((data1[i] - mean1) ** 2 for i in range(n)))
-    denom2 = math.sqrt(sum((data2[i] - mean2) ** 2 for i in range(n)))
-    
-    if denom1 == 0 or denom2 == 0:
-        correlation = 0
-    else:
-        correlation = numerator / (denom1 * denom2)
-    
-    # Calculate complementarity score (inverse of correlation for generation)
-    complementarity_score = 1 - abs(correlation)
-    
-    # Calculate percentage of complementary periods (one high when other is low)
-    complementary_periods = 0
-    for i in range(n):
-        if (data1[i] > mean1 and data2[i] < mean2) or (data1[i] < mean1 and data2[i] > mean2):
-            complementary_periods += 1
-    
-    complementary_pct = (complementary_periods / n) * 100
-    
-    # Calculate combined variability reduction
-    combined = [(data1[i] + data2[i]) / 2 for i in range(n)]
-    combined_mean = sum(combined) / n
-    
-    var1 = sum((data1[i] - mean1) ** 2 for i in range(n)) / n
-    var2 = sum((data2[i] - mean2) ** 2 for i in range(n)) / n
-    var_combined = sum((combined[i] - combined_mean) ** 2 for i in range(n)) / n
-    
-    avg_var = (var1 + var2) / 2
-    if avg_var > 0:
-        variability_reduction = ((avg_var - var_combined) / avg_var) * 100
-    else:
-        variability_reduction = 0
-    
-    # Interpretation
-    if abs(correlation) < 0.3:
-        interpretation = "Low correlation - sources are relatively independent"
-    elif abs(correlation) < 0.7:
-        interpretation = "Moderate correlation - sources show some relationship"
-    else:
-        interpretation = "High correlation - sources are highly related"
-    
-    return {
-        'correlation': round(correlation, 3),
-        'complementarity_score': round(complementarity_score, 3),
-        'complementary_periods_pct': round(complementary_pct, 1),
-        'variability_reduction': round(variability_reduction, 1),
-        'interpretation': interpretation
-    }
+# Note: calculate_correlation_metrics is now imported from generation_utils
