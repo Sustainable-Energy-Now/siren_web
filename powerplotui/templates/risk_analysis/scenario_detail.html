@@ -3,28 +3,21 @@
 {% block breadcrumb %}
 <li class="breadcrumb-item"><a href="{% url 'risk_dashboard' %}">Risk Dashboard</a></li>
 <li class="breadcrumb-item"><a href="{% url 'risk_scenario_list' %}">Scenarios</a></li>
-<li class="breadcrumb-item active">{{ scenario.name }}</li>
+<li class="breadcrumb-item active">{{ scenario.title }}</li>
 {% endblock %}
 
 {% block risk_content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
-        <h3>{{ scenario.name }}
-            <span class="badge bg-{% if scenario.status == 'active' %}success{% elif scenario.status == 'draft' %}warning{% else %}secondary{% endif %} ms-2">
-                {{ scenario.status|title }}
-            </span>
-            {% if scenario.is_baseline %}
-            <span class="badge bg-info ms-1">Baseline</span>
-            {% endif %}
-        </h3>
-        <p class="text-muted mb-0">{{ scenario.description }}</p>
+        <h3>{{ scenario.title }}</h3>
+        <p class="text-muted mb-0">{{ scenario.description|default:"No description available" }}</p>
     </div>
     <div>
-        <a href="{% url 'risk_event_create' scenario.id %}" class="btn btn-primary">
+        <a href="{% url 'risk_event_create' scenario.idscenarios %}" class="btn btn-primary">
             <i class="bi bi-plus-lg"></i> Add Risk Event
         </a>
-        <a href="{% url 'risk_scenario_update' scenario.id %}" class="btn btn-outline-secondary">
-            <i class="bi bi-pencil"></i> Edit Scenario
+        <a href="{% url 'powermapui:display_scenarios' %}" class="btn btn-outline-secondary">
+            <i class="bi bi-gear"></i> Manage Scenarios
         </a>
     </div>
 </div>
@@ -38,42 +31,65 @@
             </div>
             <div class="card-body">
                 <table class="table table-sm">
-                    <tr><th>Short Name</th><td><code>{{ scenario.short_name }}</code></td></tr>
-                    <tr><th>Target Year</th><td>{{ scenario.target_year }}</td></tr>
+                    <tr><th>Scenario Name</th><td>{{ scenario.title }}</td></tr>
                     <tr><th>Risk Events</th><td>{{ scenario.risk_events.count }}</td></tr>
-                    <tr><th>Avg Inherent Risk</th><td>{{ scenario.get_inherent_risk_score|floatformat:1 }}</td></tr>
-                    <tr><th>Avg Residual Risk</th><td>{{ scenario.get_residual_risk_score|floatformat:1 }}</td></tr>
                 </table>
 
-                <h6 class="mt-3">Energy Mix</h6>
-                <div class="progress mb-2" style="height: 25px;">
-                    {% if scenario.wind_pct > 0 %}
-                    <div class="progress-bar bg-info" style="width: {{ scenario.wind_pct }}%;">{{ scenario.wind_pct|floatformat:0 }}%</div>
-                    {% endif %}
-                    {% if scenario.solar_pct > 0 %}
-                    <div class="progress-bar bg-warning" style="width: {{ scenario.solar_pct }}%;">{{ scenario.solar_pct|floatformat:0 }}%</div>
-                    {% endif %}
-                    {% if scenario.storage_pct > 0 %}
-                    <div class="progress-bar bg-primary" style="width: {{ scenario.storage_pct }}%;">{{ scenario.storage_pct|floatformat:0 }}%</div>
-                    {% endif %}
-                    {% if scenario.gas_pct > 0 %}
-                    <div class="progress-bar bg-secondary" style="width: {{ scenario.gas_pct }}%;">{{ scenario.gas_pct|floatformat:0 }}%</div>
-                    {% endif %}
-                    {% if scenario.nuclear_pct > 0 %}
-                    <div class="progress-bar bg-danger" style="width: {{ scenario.nuclear_pct }}%;">{{ scenario.nuclear_pct|floatformat:0 }}%</div>
-                    {% endif %}
-                    {% if scenario.hydrogen_pct > 0 %}
-                    <div class="progress-bar bg-success" style="width: {{ scenario.hydrogen_pct }}%;">{{ scenario.hydrogen_pct|floatformat:0 }}%</div>
+                {% if energy_mix %}
+                <hr>
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h6 class="mb-0">Generation Mix ({{ energy_mix.year }})</h6>
+                    {% if available_years|length > 1 %}
+                    <select class="form-select form-select-sm" style="width: auto;" onchange="window.location.href='?year=' + this.value">
+                        {% for year in available_years %}
+                        <option value="{{ year }}" {% if year == energy_mix.year %}selected{% endif %}>{{ year }}</option>
+                        {% endfor %}
+                    </select>
                     {% endif %}
                 </div>
-                <small class="text-muted">
+                <p class="text-muted small mb-2">{{ energy_mix.scenario_type }} - RE Target: {{ energy_mix.target_re_percentage|floatformat:1 }}%</p>
+
+                <div class="progress mb-2" style="height: 25px;">
+                    {% if energy_mix.wind_pct > 0 %}
+                    <div class="progress-bar bg-info" style="width: {{ energy_mix.wind_pct }}%;" title="Wind: {{ energy_mix.wind_pct|floatformat:0 }}%">
+                        {% if energy_mix.wind_pct > 8 %}{{ energy_mix.wind_pct|floatformat:0 }}%{% endif %}
+                    </div>
+                    {% endif %}
+                    {% if energy_mix.solar_pct > 0 %}
+                    <div class="progress-bar bg-warning" style="width: {{ energy_mix.solar_pct }}%;" title="Solar: {{ energy_mix.solar_pct|floatformat:0 }}%">
+                        {% if energy_mix.solar_pct > 8 %}{{ energy_mix.solar_pct|floatformat:0 }}%{% endif %}
+                    </div>
+                    {% endif %}
+                    {% if energy_mix.dpv_pct > 0 %}
+                    <div class="progress-bar" style="width: {{ energy_mix.dpv_pct }}%; background-color: #f39c12;" title="Rooftop Solar: {{ energy_mix.dpv_pct|floatformat:0 }}%">
+                        {% if energy_mix.dpv_pct > 8 %}{{ energy_mix.dpv_pct|floatformat:0 }}%{% endif %}
+                    </div>
+                    {% endif %}
+                    {% if energy_mix.biomass_pct > 0 %}
+                    <div class="progress-bar bg-success" style="width: {{ energy_mix.biomass_pct }}%;" title="Biomass: {{ energy_mix.biomass_pct|floatformat:0 }}%">
+                        {% if energy_mix.biomass_pct > 8 %}{{ energy_mix.biomass_pct|floatformat:0 }}%{% endif %}
+                    </div>
+                    {% endif %}
+                    {% if energy_mix.gas_pct > 0 %}
+                    <div class="progress-bar bg-secondary" style="width: {{ energy_mix.gas_pct }}%;" title="Gas: {{ energy_mix.gas_pct|floatformat:0 }}%">
+                        {% if energy_mix.gas_pct > 8 %}{{ energy_mix.gas_pct|floatformat:0 }}%{% endif %}
+                    </div>
+                    {% endif %}
+                </div>
+                <div class="small">
                     <span class="badge bg-info">Wind</span>
                     <span class="badge bg-warning text-dark">Solar</span>
-                    <span class="badge bg-primary">Storage</span>
+                    <span class="badge" style="background-color: #f39c12;">DPV</span>
+                    <span class="badge bg-success">Biomass</span>
                     <span class="badge bg-secondary">Gas</span>
-                    <span class="badge bg-danger">Nuclear</span>
-                    <span class="badge bg-success">Hydrogen</span>
-                </small>
+                </div>
+                <p class="text-muted small mt-2 mb-0">Total: {{ energy_mix.total_gwh|floatformat:0 }} GWh</p>
+                {% if energy_mix.storage_mwh %}
+                <p class="text-muted small mb-0">Storage: {{ energy_mix.storage_mwh|floatformat:0 }} MWh</p>
+                {% endif %}
+                {% else %}
+                <p class="text-muted small mt-2 mb-0">No generation projections available for this scenario.</p>
+                {% endif %}
             </div>
         </div>
 
@@ -83,24 +99,22 @@
                 <h5 class="mb-0">Risk Summary</h5>
             </div>
             <div class="card-body">
-                {% with counts=scenario.get_risk_counts_by_level %}
                 <div class="d-flex justify-content-between align-items-center mb-2">
                     <span class="badge" style="background-color: #e74c3c;">Severe</span>
-                    <strong>{{ counts.severe }}</strong>
+                    <strong>{{ risk_counts.severe }}</strong>
                 </div>
                 <div class="d-flex justify-content-between align-items-center mb-2">
                     <span class="badge" style="background-color: #e67e22;">High</span>
-                    <strong>{{ counts.high }}</strong>
+                    <strong>{{ risk_counts.high }}</strong>
                 </div>
                 <div class="d-flex justify-content-between align-items-center mb-2">
-                    <span class="badge" style="background-color: #f1c40f; color: black;">Moderate</span>
-                    <strong>{{ counts.moderate }}</strong>
+                    <span class="badge" style="background-color: #f1c40f; color: black;">Medium</span>
+                    <strong>{{ risk_counts.medium }}</strong>
                 </div>
                 <div class="d-flex justify-content-between align-items-center">
                     <span class="badge" style="background-color: #27ae60;">Low</span>
-                    <strong>{{ counts.low }}</strong>
+                    <strong>{{ risk_counts.low }}</strong>
                 </div>
-                {% endwith %}
             </div>
         </div>
 
@@ -134,13 +148,13 @@
         <!-- Risk Events Table -->
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center">
-                <h5 class="mb-0">Risk Events ({{ risk_events|length }})</h5>
-                <a href="{% url 'risk_event_create' scenario.id %}" class="btn btn-sm btn-primary">
+                <h5 class="mb-0">Risk Events ({{ events|length }})</h5>
+                <a href="{% url 'risk_event_create' scenario.idscenarios %}" class="btn btn-sm btn-primary">
                     <i class="bi bi-plus-lg"></i> Add Event
                 </a>
             </div>
             <div class="card-body">
-                {% if risk_events %}
+                {% if events %}
                 <div class="table-responsive">
                     <table class="table table-hover">
                         <thead>
@@ -154,7 +168,7 @@
                             </tr>
                         </thead>
                         <tbody>
-                            {% for event in risk_events %}
+                            {% for event in events %}
                             <tr>
                                 <td>
                                     <span class="badge" style="background-color: {{ event.category.color_code }};">
@@ -166,15 +180,19 @@
                                     <br><small class="text-muted">{{ event.risk_description|truncatewords:15 }}</small>
                                 </td>
                                 <td>
-                                    <span class="badge" style="background-color: {% if event.inherent_risk_score >= 25 %}#e74c3c{% elif event.inherent_risk_score >= 13 %}#e67e22{% elif event.inherent_risk_score >= 7 %}#f1c40f{% else %}#27ae60{% endif %}; color: {% if event.inherent_risk_score >= 7 and event.inherent_risk_score < 13 %}black{% else %}white{% endif %};">
-                                        {{ event.inherent_risk_score }} ({{ event.inherent_risk_level }})
+                                    {% with score=event.simple_inherent_score %}
+                                    <span class="badge" style="background-color: {% if score >= 25 %}#e74c3c{% elif score >= 13 %}#e67e22{% elif score >= 7 %}#f1c40f{% else %}#27ae60{% endif %}; color: {% if score >= 7 and score < 13 %}black{% else %}white{% endif %};">
+                                        {{ score }} ({{ event.inherent_risk_level }})
                                     </span>
+                                    {% endwith %}
                                 </td>
                                 <td>
-                                    {% if event.residual_risk_score %}
-                                    <span class="badge" style="background-color: {% if event.residual_risk_score >= 25 %}#e74c3c{% elif event.residual_risk_score >= 13 %}#e67e22{% elif event.residual_risk_score >= 7 %}#f1c40f{% else %}#27ae60{% endif %}; color: {% if event.residual_risk_score >= 7 and event.residual_risk_score < 13 %}black{% else %}white{% endif %};">
-                                        {{ event.residual_risk_score }} ({{ event.residual_risk_level }})
+                                    {% if event.simple_residual_score %}
+                                    {% with score=event.simple_residual_score %}
+                                    <span class="badge" style="background-color: {% if score >= 25 %}#e74c3c{% elif score >= 13 %}#e67e22{% elif score >= 7 %}#f1c40f{% else %}#27ae60{% endif %}; color: {% if score >= 7 and score < 13 %}black{% else %}white{% endif %};">
+                                        {{ score }} ({{ event.residual_risk_level }})
                                     </span>
+                                    {% endwith %}
                                     {% else %}
                                     <span class="text-muted">-</span>
                                     {% endif %}
@@ -236,7 +254,7 @@
                                                                 </tr>
                                                                 <tr>
                                                                     <th>Inherent Score</th>
-                                                                    <td>{{ event.inherent_risk_score }} ({{ event.inherent_risk_level }})</td>
+                                                                    <td>{{ event.simple_inherent_score }} ({{ event.inherent_risk_level }})</td>
                                                                 </tr>
                                                                 {% if event.residual_likelihood %}
                                                                 <tr>
@@ -249,7 +267,7 @@
                                                                 </tr>
                                                                 <tr>
                                                                     <th>Residual Score</th>
-                                                                    <td>{{ event.residual_risk_score }} ({{ event.residual_risk_level }})</td>
+                                                                    <td>{{ event.simple_residual_score }} ({{ event.residual_risk_level }})</td>
                                                                 </tr>
                                                                 {% endif %}
                                                             </table>
@@ -299,7 +317,7 @@
                 </div>
                 {% else %}
                 <div class="text-center text-muted py-4">
-                    No risk events yet. <a href="{% url 'risk_event_create' scenario.id %}">Add your first risk event</a>.
+                    No risk events yet. <a href="{% url 'risk_event_create' scenario.idscenarios %}">Add your first risk event</a>.
                 </div>
                 {% endif %}
             </div>
@@ -311,7 +329,7 @@
 {% block risk_scripts %}
 <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
 <script>
-const scenarioId = {{ scenario.id }};
+const scenarioId = {{ scenario.idscenarios }};
 let currentView = 'inherent';
 
 function loadMatrixData() {
@@ -324,8 +342,7 @@ function loadMatrixData() {
 
 function renderRiskMatrix(data) {
     // 6x6 matrix with count of risks at each position
-    const z = data.matrix; // 6x6 array
-    const text = data.labels; // Cell labels with risk titles
+    const z = currentView === 'inherent' ? data.inherent : data.residual;
 
     // Color scale based on risk score (likelihood * consequence)
     const colorscale = [
@@ -343,8 +360,6 @@ function renderRiskMatrix(data) {
         type: 'heatmap',
         colorscale: colorscale,
         showscale: true,
-        text: text,
-        texttemplate: '%{text}',
         hovertemplate: 'Likelihood: %{y}<br>Consequence: %{x}<br>Count: %{z}<extra></extra>'
     };
 

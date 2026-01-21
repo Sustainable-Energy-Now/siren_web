@@ -86,13 +86,11 @@ urlpatterns = [
 
     # ==========================================================================
     # SWIS Risk Analysis URLs
+    # Note: Scenarios are managed via powermapui - this uses existing scenarios
     # ==========================================================================
     path('risk/', risk_analysis_views.risk_dashboard, name='risk_dashboard'),
     path('risk/scenarios/', risk_analysis_views.scenario_list, name='risk_scenario_list'),
-    path('risk/scenarios/create/', risk_analysis_views.scenario_create, name='risk_scenario_create'),
     path('risk/scenarios/<int:scenario_id>/', risk_analysis_views.risk_scenario_detail, name='risk_scenario_detail'),
-    path('risk/scenarios/<int:scenario_id>/update/', risk_analysis_views.scenario_update, name='risk_scenario_update'),
-    path('risk/scenarios/<int:scenario_id>/delete/', risk_analysis_views.scenario_delete, name='risk_scenario_delete'),
     path('risk/scenarios/<int:scenario_id>/events/add/', risk_analysis_views.risk_event_create, name='risk_event_create'),
     path('risk/compare/', risk_analysis_views.risk_comparison_view, name='risk_comparison'),
 

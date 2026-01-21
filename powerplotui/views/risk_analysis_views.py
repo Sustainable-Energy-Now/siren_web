@@ -2,11 +2,13 @@
 SWIS Risk Analysis Views
 
 This module provides views for:
-- Risk scenario management (CRUD)
 - Risk event assessment interface
-- Scenario comparison
+- Scenario comparison (using existing Scenarios)
 - Dashboard and summary views
 - API endpoints for AJAX operations
+
+Note: Scenarios are managed separately via the powermapui app.
+This module uses existing Scenarios for risk analysis.
 """
 
 from django.shortcuts import render, redirect, get_object_or_404
@@ -20,11 +22,100 @@ import json
 import logging
 
 from siren_web.models import (
-    RiskCategory, RiskScenario, RiskEvent,
+    RiskCategory, Scenarios, RiskEvent, TargetScenario,
     RISK_LIKELIHOOD_CHOICES, RISK_CONSEQUENCE_CHOICES
 )
 
 logger = logging.getLogger(__name__)
+
+
+# =============================================================================
+# Helper functions for risk calculations on Scenarios
+# =============================================================================
+
+def get_scenario_inherent_risk_score(scenario, category=None):
+    """Calculate average inherent risk score for a scenario."""
+    events = scenario.risk_events.all()
+    if category:
+        events = events.filter(category=category)
+    if not events.exists():
+        return None
+    scores = [e.inherent_likelihood * e.inherent_consequence for e in events]
+    return sum(scores) / len(scores) if scores else None
+
+
+def get_scenario_residual_risk_score(scenario, category=None):
+    """Calculate average residual risk score for a scenario."""
+    events = scenario.risk_events.filter(
+        residual_likelihood__isnull=False,
+        residual_consequence__isnull=False
+    )
+    if category:
+        events = events.filter(category=category)
+    if not events.exists():
+        return None
+    scores = [e.residual_likelihood * e.residual_consequence for e in events]
+    return sum(scores) / len(scores) if scores else None
+
+
+def get_scenario_risk_counts_by_level(scenario):
+    """Get count of risks by level for a scenario."""
+    events = scenario.risk_events.all()
+    counts = {'severe': 0, 'high': 0, 'medium': 0, 'low': 0}
+    for event in events:
+        score = event.inherent_likelihood * event.inherent_consequence
+        if score >= 20:
+            counts['severe'] += 1
+        elif score >= 12:
+            counts['high'] += 1
+        elif score >= 6:
+            counts['medium'] += 1
+        else:
+            counts['low'] += 1
+    return counts
+
+
+def get_scenario_energy_mix(scenario, target_year=None):
+    """
+    Get the energy mix from associated TargetScenario records.
+    Returns the generation mix as percentages for a given year (or latest available).
+    """
+    target_scenarios = scenario.target_scenarios.filter(is_active=True)
+
+    if not target_scenarios.exists():
+        return None
+
+    # If target_year specified, try to get that year
+    if target_year:
+        target = target_scenarios.filter(year=target_year).first()
+    else:
+        # Get the latest year's data
+        target = target_scenarios.order_by('-year').first()
+
+    if not target:
+        return None
+
+    total = target.total_generation
+    if total == 0:
+        return None
+
+    return {
+        'year': target.year,
+        'scenario_type': target.get_scenario_type_display(),
+        'target_re_percentage': target.target_re_percentage,
+        'wind_pct': (target.wind_generation / total * 100) if total else 0,
+        'solar_pct': (target.solar_generation / total * 100) if total else 0,
+        'dpv_pct': (target.dpv_generation / total * 100) if total else 0,
+        'biomass_pct': (target.biomass_generation / total * 100) if total else 0,
+        'gas_pct': (target.gas_generation / total * 100) if total else 0,
+        'wind_gwh': target.wind_generation,
+        'solar_gwh': target.solar_generation,
+        'dpv_gwh': target.dpv_generation,
+        'biomass_gwh': target.biomass_generation,
+        'gas_gwh': target.gas_generation,
+        'total_gwh': total,
+        'storage_mwh': target.storage,
+    }
 
 
 # =============================================================================
@@ -36,32 +127,31 @@ def risk_dashboard(request):
     Main dashboard view for SWIS risk analysis.
     Shows overview of all scenarios with risk profiles.
     """
-    scenarios = RiskScenario.objects.filter(status='active').prefetch_related('risk_events')
+    # Get scenarios that have risk events
+    scenarios = Scenarios.objects.prefetch_related('risk_events').filter(
+        risk_events__isnull=False
+    ).distinct()
     categories = RiskCategory.objects.filter(is_active=True)
 
     # Calculate summary statistics
     total_scenarios = scenarios.count()
-    total_events = RiskEvent.objects.filter(scenario__status='active').count()
+    total_events = RiskEvent.objects.count()
 
     # Get highest risk scenario
     highest_risk_scenario = None
     highest_score = 0
     for scenario in scenarios:
-        score = scenario.get_inherent_risk_score()
+        score = get_scenario_inherent_risk_score(scenario)
         if score and score > highest_score:
             highest_score = score
             highest_risk_scenario = scenario
 
     # Count severe/high risks
-    severe_count = RiskEvent.objects.filter(
-        scenario__status='active'
-    ).annotate(
+    severe_count = RiskEvent.objects.annotate(
         score=F('inherent_likelihood') * F('inherent_consequence')
     ).filter(score__gte=20).count()
 
-    high_count = RiskEvent.objects.filter(
-        scenario__status='active'
-    ).annotate(
+    high_count = RiskEvent.objects.annotate(
         score=F('inherent_likelihood') * F('inherent_consequence')
     ).filter(score__gte=12, score__lt=20).count()
 
@@ -85,7 +175,7 @@ def risk_scenario_detail(request, scenario_id):
     Detailed view of a single risk scenario.
     Shows all risk events by category with heatmap.
     """
-    scenario = get_object_or_404(RiskScenario, id=scenario_id)
+    scenario = get_object_or_404(Scenarios, idscenarios=scenario_id)
     categories = RiskCategory.objects.filter(is_active=True)
     events = scenario.risk_events.select_related('category').all()
 
@@ -97,7 +187,19 @@ def risk_scenario_detail(request, scenario_id):
             events_by_category[category] = category_events
 
     # Calculate risk counts
-    risk_counts = scenario.get_risk_counts_by_level()
+    risk_counts = get_scenario_risk_counts_by_level(scenario)
+
+    # Get energy mix from associated TargetScenario
+    target_year = request.GET.get('year')
+    energy_mix = get_scenario_energy_mix(scenario, target_year)
+
+    # Get available years for this scenario
+    available_years = list(
+        scenario.target_scenarios.filter(is_active=True)
+        .values_list('year', flat=True)
+        .distinct()
+        .order_by('year')
+    )
 
     context = {
         'scenario': scenario,
@@ -105,6 +207,8 @@ def risk_scenario_detail(request, scenario_id):
         'events': events,
         'events_by_category': events_by_category,
         'risk_counts': risk_counts,
+        'energy_mix': energy_mix,
+        'available_years': available_years,
         'likelihood_choices': RISK_LIKELIHOOD_CHOICES,
         'consequence_choices': RISK_CONSEQUENCE_CHOICES,
     }
@@ -118,13 +222,13 @@ def risk_comparison_view(request):
     Accepts scenario_ids as GET parameters.
     """
     scenario_ids = request.GET.getlist('scenarios')
-    all_scenarios = RiskScenario.objects.filter(status__in=['active', 'draft'])
+    all_scenarios = Scenarios.objects.all()
     categories = RiskCategory.objects.filter(is_active=True)
 
     selected_scenarios = []
     if scenario_ids:
-        selected_scenarios = RiskScenario.objects.filter(
-            id__in=scenario_ids
+        selected_scenarios = Scenarios.objects.filter(
+            idscenarios__in=scenario_ids
         ).prefetch_related('risk_events')
 
     context = {
@@ -138,144 +242,36 @@ def risk_comparison_view(request):
 
 
 # =============================================================================
-# Scenario CRUD Views
+# Scenario List View (Read-only - scenarios are managed elsewhere)
 # =============================================================================
 
 def scenario_list(request):
-    """List all risk scenarios with filtering options."""
-    status_filter = request.GET.get('status', '')
-
-    scenarios = RiskScenario.objects.all().prefetch_related('risk_events')
-
-    if status_filter:
-        scenarios = scenarios.filter(status=status_filter)
-
+    """List all scenarios with their risk analysis status."""
+    scenarios = Scenarios.objects.all().prefetch_related('risk_events')
     categories = RiskCategory.objects.filter(is_active=True)
 
+    # Add risk event counts to each scenario for display
+    scenario_data = []
+    for scenario in scenarios:
+        event_count = scenario.risk_events.count()
+        inherent_score = get_scenario_inherent_risk_score(scenario)
+        residual_score = get_scenario_residual_risk_score(scenario)
+        scenario_data.append({
+            'scenario': scenario,
+            'event_count': event_count,
+            'inherent_score': inherent_score,
+            'residual_score': residual_score,
+        })
+
     context = {
+        'scenario_data': scenario_data,
         'scenarios': scenarios,
         'categories': categories,
-        'status_filter': status_filter,
         'likelihood_choices': RISK_LIKELIHOOD_CHOICES,
         'consequence_choices': RISK_CONSEQUENCE_CHOICES,
     }
 
     return render(request, 'risk_analysis/scenario_list.html', context)
-
-
-@require_http_methods(["GET", "POST"])
-def scenario_create(request):
-    """Create a new risk scenario."""
-    categories = RiskCategory.objects.filter(is_active=True)
-
-    if request.method == 'POST':
-        try:
-            name = request.POST.get('name', '').strip()
-            short_name = request.POST.get('short_name', '').strip()
-            description = request.POST.get('description', '').strip()
-
-            if not name or not short_name:
-                messages.error(request, 'Name and short name are required.')
-                return redirect('risk_scenario_list')
-
-            # Check for duplicate short_name
-            if RiskScenario.objects.filter(short_name=short_name).exists():
-                messages.error(request, f'A scenario with short name "{short_name}" already exists.')
-                return redirect('risk_scenario_list')
-
-            scenario = RiskScenario.objects.create(
-                name=name,
-                short_name=short_name,
-                description=description,
-                target_year=int(request.POST.get('target_year', 2040)),
-                status=request.POST.get('status', 'draft'),
-                is_baseline=request.POST.get('is_baseline') == 'on',
-                wind_percentage=float(request.POST.get('wind_percentage', 0)),
-                solar_percentage=float(request.POST.get('solar_percentage', 0)),
-                storage_percentage=float(request.POST.get('storage_percentage', 0)),
-                gas_percentage=float(request.POST.get('gas_percentage', 0)),
-                coal_percentage=float(request.POST.get('coal_percentage', 0)),
-                hydro_percentage=float(request.POST.get('hydro_percentage', 0)),
-                hydrogen_percentage=float(request.POST.get('hydrogen_percentage', 0)),
-                nuclear_percentage=float(request.POST.get('nuclear_percentage', 0)),
-                biomass_percentage=float(request.POST.get('biomass_percentage', 0)),
-                other_percentage=float(request.POST.get('other_percentage', 0)),
-                created_by=request.user if request.user.is_authenticated else None,
-            )
-
-            messages.success(request, f'Scenario "{name}" created successfully.')
-            return redirect('risk_scenario_detail', scenario_id=scenario.id)
-
-        except ValueError as e:
-            messages.error(request, f'Invalid value: {str(e)}')
-        except Exception as e:
-            logger.error(f"Error creating scenario: {str(e)}")
-            messages.error(request, f'Error creating scenario: {str(e)}')
-
-    context = {
-        'categories': categories,
-        'action': 'create',
-    }
-    return render(request, 'risk_analysis/scenario_form.html', context)
-
-
-@require_http_methods(["GET", "POST"])
-def scenario_update(request, scenario_id):
-    """Update an existing risk scenario."""
-    scenario = get_object_or_404(RiskScenario, id=scenario_id)
-    categories = RiskCategory.objects.filter(is_active=True)
-
-    if request.method == 'POST':
-        try:
-            scenario.name = request.POST.get('name', scenario.name).strip()
-            scenario.short_name = request.POST.get('short_name', scenario.short_name).strip()
-            scenario.description = request.POST.get('description', scenario.description).strip()
-            scenario.target_year = int(request.POST.get('target_year', scenario.target_year))
-            scenario.status = request.POST.get('status', scenario.status)
-            scenario.is_baseline = request.POST.get('is_baseline') == 'on'
-            scenario.wind_percentage = float(request.POST.get('wind_percentage', 0))
-            scenario.solar_percentage = float(request.POST.get('solar_percentage', 0))
-            scenario.storage_percentage = float(request.POST.get('storage_percentage', 0))
-            scenario.gas_percentage = float(request.POST.get('gas_percentage', 0))
-            scenario.coal_percentage = float(request.POST.get('coal_percentage', 0))
-            scenario.hydro_percentage = float(request.POST.get('hydro_percentage', 0))
-            scenario.hydrogen_percentage = float(request.POST.get('hydrogen_percentage', 0))
-            scenario.nuclear_percentage = float(request.POST.get('nuclear_percentage', 0))
-            scenario.biomass_percentage = float(request.POST.get('biomass_percentage', 0))
-            scenario.other_percentage = float(request.POST.get('other_percentage', 0))
-            scenario.save()
-
-            messages.success(request, f'Scenario "{scenario.name}" updated successfully.')
-            return redirect('risk_scenario_detail', scenario_id=scenario.id)
-
-        except ValueError as e:
-            messages.error(request, f'Invalid value: {str(e)}')
-        except Exception as e:
-            logger.error(f"Error updating scenario: {str(e)}")
-            messages.error(request, f'Error updating scenario: {str(e)}')
-
-    context = {
-        'scenario': scenario,
-        'categories': categories,
-        'action': 'update',
-    }
-    return render(request, 'risk_analysis/scenario_form.html', context)
-
-
-@require_POST
-def scenario_delete(request, scenario_id):
-    """Delete a risk scenario."""
-    scenario = get_object_or_404(RiskScenario, id=scenario_id)
-    name = scenario.name
-
-    try:
-        scenario.delete()
-        messages.success(request, f'Scenario "{name}" deleted successfully.')
-    except Exception as e:
-        logger.error(f"Error deleting scenario: {str(e)}")
-        messages.error(request, f'Error deleting scenario: {str(e)}')
-
-    return redirect('risk_scenario_list')
 
 
 # =============================================================================
@@ -285,7 +281,7 @@ def scenario_delete(request, scenario_id):
 @require_http_methods(["GET", "POST"])
 def risk_event_create(request, scenario_id):
     """Add a new risk event to a scenario."""
-    scenario = get_object_or_404(RiskScenario, id=scenario_id)
+    scenario = get_object_or_404(Scenarios, idscenarios=scenario_id)
     categories = RiskCategory.objects.filter(is_active=True)
 
     if request.method == 'POST':
@@ -321,7 +317,7 @@ def risk_event_create(request, scenario_id):
                 })
 
             messages.success(request, f'Risk event "{event.risk_title}" created successfully.')
-            return redirect('risk_scenario_detail', scenario_id=scenario.id)
+            return redirect('risk_scenario_detail', scenario_id=scenario.idscenarios)
 
         except Exception as e:
             logger.error(f"Error creating risk event: {str(e)}")
@@ -336,7 +332,7 @@ def risk_event_create(request, scenario_id):
         'consequence_choices': RISK_CONSEQUENCE_CHOICES,
         'action': 'create',
     }
-    return render(request, 'risk_analysis/risk_event_form.html', context)
+    return render(request, 'risk_analysis/event_form.html', context)
 
 
 @require_http_methods(["GET", "POST"])
@@ -376,7 +372,7 @@ def risk_event_update(request, event_id):
                 })
 
             messages.success(request, f'Risk event "{event.risk_title}" updated successfully.')
-            return redirect('risk_scenario_detail', scenario_id=event.scenario.id)
+            return redirect('risk_scenario_detail', scenario_id=event.scenario.idscenarios)
 
         except Exception as e:
             logger.error(f"Error updating risk event: {str(e)}")
@@ -392,14 +388,14 @@ def risk_event_update(request, event_id):
         'consequence_choices': RISK_CONSEQUENCE_CHOICES,
         'action': 'update',
     }
-    return render(request, 'risk_analysis/risk_event_form.html', context)
+    return render(request, 'risk_analysis/event_form.html', context)
 
 
 @require_POST
 def risk_event_delete(request, event_id):
     """Delete a risk event."""
     event = get_object_or_404(RiskEvent, id=event_id)
-    scenario_id = event.scenario.id
+    scenario_id = event.scenario.idscenarios
     title = event.risk_title
 
     try:
@@ -432,13 +428,13 @@ def api_risk_matrix_data(request, scenario_id):
     Returns JSON for Plotly.js visualization.
     Uses 6x6 matrix based on 2016 SWIS methodology.
     """
-    scenario = get_object_or_404(RiskScenario, id=scenario_id)
+    scenario = get_object_or_404(Scenarios, idscenarios=scenario_id)
     events = scenario.risk_events.select_related('category').all()
 
     # Build 6x6 matrix data (likelihood x consequence)
     matrix_data = {
-        'scenario_id': scenario.id,
-        'scenario_name': scenario.name,
+        'scenario_id': scenario.idscenarios,
+        'scenario_name': scenario.title,
         'inherent': [[0 for _ in range(6)] for _ in range(6)],
         'residual': [[0 for _ in range(6)] for _ in range(6)],
         'events': []
@@ -484,7 +480,7 @@ def api_scenario_comparison_data(request):
     if not scenario_ids:
         return JsonResponse({'error': 'No scenarios specified'}, status=400)
 
-    scenarios = RiskScenario.objects.filter(id__in=scenario_ids).prefetch_related('risk_events')
+    scenarios = Scenarios.objects.filter(idscenarios__in=scenario_ids).prefetch_related('risk_events')
     categories = RiskCategory.objects.filter(is_active=True).order_by('display_order')
 
     comparison_data = {
@@ -495,19 +491,17 @@ def api_scenario_comparison_data(request):
 
     for scenario in scenarios:
         scenario_data = {
-            'id': scenario.id,
-            'name': scenario.name,
-            'short_name': scenario.short_name,
-            'target_year': scenario.target_year,
-            'is_baseline': scenario.is_baseline,
+            'id': scenario.idscenarios,
+            'name': scenario.title,
+            'description': scenario.description or '',
             'inherent_scores': [],
             'residual_scores': [],
             'event_counts': [],
         }
 
         for category in categories:
-            inherent = scenario.get_inherent_risk_score(category)
-            residual = scenario.get_residual_risk_score(category)
+            inherent = get_scenario_inherent_risk_score(scenario, category)
+            residual = get_scenario_residual_risk_score(scenario, category)
             count = scenario.risk_events.filter(category=category).count()
 
             scenario_data['inherent_scores'].append(inherent if inherent else 0)
@@ -515,10 +509,10 @@ def api_scenario_comparison_data(request):
             scenario_data['event_counts'].append(count)
 
         # Overall scores
-        scenario_data['overall_inherent'] = scenario.get_inherent_risk_score()
-        scenario_data['overall_residual'] = scenario.get_residual_risk_score()
+        scenario_data['overall_inherent'] = get_scenario_inherent_risk_score(scenario)
+        scenario_data['overall_residual'] = get_scenario_residual_risk_score(scenario)
         scenario_data['total_events'] = scenario.risk_events.count()
-        scenario_data['risk_counts'] = scenario.get_risk_counts_by_level()
+        scenario_data['risk_counts'] = get_scenario_risk_counts_by_level(scenario)
 
         comparison_data['scenarios'].append(scenario_data)
 
@@ -527,13 +521,15 @@ def api_scenario_comparison_data(request):
 
 def api_risk_summary(request):
     """
-    API endpoint for overall risk summary across all active scenarios.
+    API endpoint for overall risk summary across all scenarios with risk events.
     """
-    scenarios = RiskScenario.objects.filter(status='active').prefetch_related('risk_events')
+    scenarios = Scenarios.objects.prefetch_related('risk_events').filter(
+        risk_events__isnull=False
+    ).distinct()
 
     summary = {
         'total_scenarios': scenarios.count(),
-        'total_risk_events': RiskEvent.objects.filter(scenario__status='active').count(),
+        'total_risk_events': RiskEvent.objects.count(),
         'scenarios': []
     }
 
@@ -541,19 +537,16 @@ def api_risk_summary(request):
         events = scenario.risk_events.all()
 
         # Count by risk level
-        risk_counts = scenario.get_risk_counts_by_level()
+        risk_counts = get_scenario_risk_counts_by_level(scenario)
 
         summary['scenarios'].append({
-            'id': scenario.id,
-            'name': scenario.name,
-            'short_name': scenario.short_name,
-            'status': scenario.status,
-            'target_year': scenario.target_year,
+            'id': scenario.idscenarios,
+            'name': scenario.title,
+            'description': scenario.description or '',
             'event_count': events.count(),
-            'avg_inherent_score': scenario.get_inherent_risk_score(),
-            'avg_residual_score': scenario.get_residual_risk_score(),
+            'avg_inherent_score': get_scenario_inherent_risk_score(scenario),
+            'avg_residual_score': get_scenario_residual_risk_score(scenario),
             'risk_counts': risk_counts,
-            'energy_mix': scenario.energy_mix_dict,
         })
 
     return JsonResponse(summary)
@@ -563,12 +556,12 @@ def api_category_risk_profile(request, scenario_id):
     """
     API endpoint for risk profile by category (for radar chart).
     """
-    scenario = get_object_or_404(RiskScenario, id=scenario_id)
+    scenario = get_object_or_404(Scenarios, idscenarios=scenario_id)
     categories = RiskCategory.objects.filter(is_active=True).order_by('display_order')
 
     profile = {
-        'scenario_id': scenario.id,
-        'scenario_name': scenario.name,
+        'scenario_id': scenario.idscenarios,
+        'scenario_name': scenario.title,
         'categories': [],
         'inherent_scores': [],
         'residual_scores': [],
@@ -579,8 +572,8 @@ def api_category_risk_profile(request, scenario_id):
     for category in categories:
         profile['categories'].append(category.name)
 
-        inherent = scenario.get_inherent_risk_score(category)
-        residual = scenario.get_residual_risk_score(category)
+        inherent = get_scenario_inherent_risk_score(scenario, category)
+        residual = get_scenario_residual_risk_score(scenario, category)
         count = scenario.risk_events.filter(category=category).count()
 
         profile['inherent_scores'].append(inherent if inherent else 0)
@@ -594,28 +587,12 @@ def api_scenario_detail(request, scenario_id):
     """
     API endpoint for single scenario detail.
     """
-    scenario = get_object_or_404(RiskScenario, id=scenario_id)
+    scenario = get_object_or_404(Scenarios, idscenarios=scenario_id)
 
     data = {
-        'id': scenario.id,
-        'name': scenario.name,
-        'short_name': scenario.short_name,
-        'description': scenario.description,
-        'target_year': scenario.target_year,
-        'status': scenario.status,
-        'is_baseline': scenario.is_baseline,
-        'energy_mix': scenario.energy_mix_dict,
-        'total_percentage': scenario.total_percentage,
-        'wind_percentage': scenario.wind_percentage,
-        'solar_percentage': scenario.solar_percentage,
-        'storage_percentage': scenario.storage_percentage,
-        'gas_percentage': scenario.gas_percentage,
-        'coal_percentage': scenario.coal_percentage,
-        'hydro_percentage': scenario.hydro_percentage,
-        'hydrogen_percentage': scenario.hydrogen_percentage,
-        'nuclear_percentage': scenario.nuclear_percentage,
-        'biomass_percentage': scenario.biomass_percentage,
-        'other_percentage': scenario.other_percentage,
+        'id': scenario.idscenarios,
+        'name': scenario.title,
+        'description': scenario.description or '',
     }
 
     return JsonResponse(data)

@@ -3928,9 +3928,10 @@ class RiskEvent(models.Model):
     Based on 2016 SWIS Risk Matrix methodology.
     """
     scenario = models.ForeignKey(
-        RiskScenario,
+        Scenarios,
         on_delete=models.CASCADE,
-        related_name='risk_events'
+        related_name='risk_events',
+        db_column='idscenarios'
     )
     category = models.ForeignKey(
         RiskCategory,
@@ -4003,7 +4004,7 @@ class RiskEvent(models.Model):
         verbose_name_plural = 'Risk Events'
 
     def __str__(self):
-        return f"{self.risk_title} ({self.scenario.short_name})"
+        return f"{self.risk_title} ({self.scenario.title})"
 
     @property
     def inherent_risk_score(self):

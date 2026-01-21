@@ -2,7 +2,7 @@
 
 {% block breadcrumb %}
 <li class="breadcrumb-item"><a href="{% url 'risk_dashboard' %}">Risk Dashboard</a></li>
-<li class="breadcrumb-item"><a href="{% url 'risk_scenario_detail' scenario.id %}">{{ scenario.name }}</a></li>
+<li class="breadcrumb-item"><a href="{% url 'risk_scenario_detail' scenario.idscenarios %}">{{ scenario.title }}</a></li>
 <li class="breadcrumb-item active">{% if event %}Edit{% else %}Add{% endif %} Risk Event</li>
 {% endblock %}
 
@@ -11,7 +11,7 @@
     <div class="col-md-10">
         <div class="card">
             <div class="card-header">
-                <h4 class="mb-0">{% if event %}Edit Risk Event{% else %}Add Risk Event to {{ scenario.name }}{% endif %}</h4>
+                <h4 class="mb-0">{% if event %}Edit Risk Event{% else %}Add Risk Event to {{ scenario.title }}{% endif %}</h4>
             </div>
             <div class="card-body">
                 <form method="post">
@@ -171,7 +171,7 @@
                     <hr>
 
                     <div class="d-flex justify-content-between">
-                        <a href="{% url 'risk_scenario_detail' scenario.id %}" class="btn btn-secondary">Cancel</a>
+                        <a href="{% url 'risk_scenario_detail' scenario.idscenarios %}" class="btn btn-secondary">Cancel</a>
                         <button type="submit" class="btn btn-primary">{% if event %}Update{% else %}Add{% endif %} Risk Event</button>
                     </div>
                 </form>

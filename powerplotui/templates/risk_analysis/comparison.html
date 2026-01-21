@@ -18,17 +18,14 @@
     <div class="card-body">
         <form id="comparison-form">
             <div class="row">
-                {% for scenario in scenarios %}
+                {% for scenario in all_scenarios %}
                 <div class="col-md-3 mb-2">
                     <div class="form-check">
                         <input class="form-check-input scenario-checkbox" type="checkbox"
-                               id="scenario_{{ scenario.id }}" value="{{ scenario.id }}"
-                               {% if scenario.id in selected_ids %}checked{% endif %}>
-                        <label class="form-check-label" for="scenario_{{ scenario.id }}">
-                            {{ scenario.name }}
-                            {% if scenario.is_baseline %}
-                            <span class="badge bg-info">Baseline</span>
-                            {% endif %}
+                               id="scenario_{{ scenario.idscenarios }}" value="{{ scenario.idscenarios }}"
+                               {% if scenario.idscenarios in selected_ids %}checked{% endif %}>
+                        <label class="form-check-label" for="scenario_{{ scenario.idscenarios }}">
+                            {{ scenario.title }}
                         </label>
                     </div>
                 </div>
@@ -126,7 +123,7 @@
 <script>
 const colors = {
     low: '#27ae60',
-    moderate: '#f1c40f',
+    medium: '#f1c40f',
     high: '#e67e22',
     severe: '#e74c3c'
 };
@@ -207,7 +204,7 @@ function renderLevelDistribution(data) {
     const scenarios = data.scenarios;
     const traces = [];
 
-    ['severe', 'high', 'moderate', 'low'].forEach(level => {
+    ['severe', 'high', 'medium', 'low'].forEach(level => {
         traces.push({
             x: scenarios.map(s => s.name),
             y: scenarios.map(s => s.risk_counts[level] || 0),
@@ -318,7 +315,7 @@ function renderComparisonTable(data) {
         { label: 'Avg Reduction %', key: 'avg_reduction_pct', format: v => (v || 0).toFixed(1) + '%' },
         { label: 'Severe Risks', key: 'risk_counts.severe', getValue: s => s.risk_counts.severe || 0 },
         { label: 'High Risks', key: 'risk_counts.high', getValue: s => s.risk_counts.high || 0 },
-        { label: 'Moderate Risks', key: 'risk_counts.moderate', getValue: s => s.risk_counts.moderate || 0 },
+        { label: 'Medium Risks', key: 'risk_counts.medium', getValue: s => s.risk_counts.medium || 0 },
         { label: 'Low Risks', key: 'risk_counts.low', getValue: s => s.risk_counts.low || 0 },
         { label: 'Target Year', key: 'target_year' }
     ];
