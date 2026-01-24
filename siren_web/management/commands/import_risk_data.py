@@ -245,10 +245,7 @@ class Command(BaseCommand):
             {'name': 'Cost', 'description': 'Financial and economic risks', 'display_order': 2, 'color_code': '#f39c12', 'icon': 'bi-currency-dollar'},
             {'name': 'Environment', 'description': 'Environmental impact and sustainability risks', 'display_order': 3, 'color_code': '#27ae60', 'icon': 'bi-tree'},
             {'name': 'Production', 'description': 'Energy production and reliability risks', 'display_order': 4, 'color_code': '#3498db', 'icon': 'bi-lightning'},
-            {'name': 'Grid Stability', 'description': 'System inertia, frequency control, and voltage stability', 'display_order': 5, 'color_code': '#9b59b6', 'icon': 'bi-diagram-3'},
-            {'name': 'Supply Chain', 'description': 'Critical minerals, manufacturing, and logistics risks', 'display_order': 6, 'color_code': '#1abc9c', 'icon': 'bi-truck'},
-            {'name': 'Cyber Security', 'description': 'SCADA vulnerabilities and DER coordination risks', 'display_order': 7, 'color_code': '#34495e', 'icon': 'bi-shield-lock'},
-            {'name': 'Climate Adaptation', 'description': 'Extreme weather, bushfire, flooding, and heat wave risks', 'display_order': 8, 'color_code': '#e67e22', 'icon': 'bi-cloud-sun'},
+            {'name': 'Reputation', 'description': 'Social license and public support', 'display_order': 5, 'color_code': '#9b59b6', 'icon': 'bi-diagram-3'},
         ]
 
         for cat_data in categories:

@@ -12,7 +12,7 @@ from datetime import datetime
 from typing import Optional
 from django.db.models import QuerySet
 
-from .generation_utils import get_hour_of_year
+from .generation_utils import get_hour_of_year, get_hour_of_day, PEAK_HOUR_PRESETS
 
 
 class TimeSeriesAligner:
@@ -136,7 +136,7 @@ class TimeSeriesAligner:
             end_hour: Optional end hour filter
 
         Returns:
-            Dict with 'hours' and 'quantum' lists
+            Dict with 'hours' and 'quantum' lists (quantum converted from kW to MW)
         """
         hours = []
         quantum_values = []
@@ -150,7 +150,9 @@ class TimeSeriesAligner:
                 continue
 
             hours.append(hour)
-            quantum_values.append(record.quantum if record.quantum is not None else 0)
+            # Convert quantum from kW to MW to match SCADA units
+            quantum_kw = record.quantum if record.quantum is not None else 0
+            quantum_values.append(quantum_kw / 1000)
 
         return {
             'hours': hours,
@@ -169,7 +171,7 @@ class TimeSeriesAligner:
             end_hour: Optional end hour filter
 
         Returns:
-            Dict with 'hours' and 'quantum' lists (summed across facilities)
+            Dict with 'hours' and 'quantum' lists (summed across facilities, converted from kW to MW)
         """
         hour_totals = {}
 
@@ -186,7 +188,8 @@ class TimeSeriesAligner:
             hour_totals[hour] += record.quantum if record.quantum is not None else 0
 
         hours = sorted(hour_totals.keys())
-        quantum_values = [hour_totals[h] for h in hours]
+        # Convert quantum from kW to MW to match SCADA units
+        quantum_values = [hour_totals[h] / 1000 for h in hours]
 
         return {
             'hours': hours,
@@ -233,6 +236,75 @@ class TimeSeriesAligner:
             'scada_only_hours': scada_only,
             'supply_only_hours': supply_only,
             'total_unique_hours': total_hours
+        }
+
+    def filter_aligned_to_peak_hours(self, aligned_data: dict,
+                                      peak_preset: str = 'peak') -> Optional[dict]:
+        """Filter aligned data to only include peak hours.
+
+        This helps reduce the impact of curtailment on the comparison,
+        as curtailment is less likely during peak demand hours.
+
+        Args:
+            aligned_data: Dict from align_scada_and_supply()
+            peak_preset: Key from PEAK_HOUR_PRESETS ('all', 'peak', 'shoulder',
+                        'off_peak', 'daytime', 'solar_peak')
+
+        Returns:
+            Filtered aligned data dict, or None if no data after filtering
+        """
+        if aligned_data is None:
+            return None
+
+        preset = PEAK_HOUR_PRESETS.get(peak_preset, PEAK_HOUR_PRESETS['peak'])
+        peak_start = preset['start']
+        peak_end = preset['end']
+
+        # Handle 'all' case - return original data
+        if peak_preset == 'all':
+            return aligned_data
+
+        # Handle wrap-around for off-peak (e.g., 21:00 to 07:00)
+        if peak_start > peak_end:
+            # Off-peak spans midnight
+            def is_in_range(hour_of_day):
+                return hour_of_day >= peak_start or hour_of_day < peak_end
+        else:
+            def is_in_range(hour_of_day):
+                return peak_start <= hour_of_day < peak_end
+
+        filtered_hours = []
+        filtered_scada = []
+        filtered_supply = []
+
+        for i, hour in enumerate(aligned_data['hours']):
+            hour_of_day = get_hour_of_day(hour)
+            if is_in_range(hour_of_day):
+                filtered_hours.append(hour)
+                filtered_scada.append(aligned_data['scada_values'][i])
+                filtered_supply.append(aligned_data['supply_values'][i])
+
+        if not filtered_hours:
+            return None
+
+        # Calculate new overlap statistics for filtered data
+        total_filtered = len(filtered_hours)
+        original_total = len(aligned_data['hours'])
+        filter_pct = (total_filtered / original_total * 100) if original_total > 0 else 0
+
+        return {
+            'hours': filtered_hours,
+            'scada_values': filtered_scada,
+            'supply_values': filtered_supply,
+            'overlap_percentage': aligned_data['overlap_percentage'],
+            'common_hours': total_filtered,
+            'scada_only_hours': aligned_data['scada_only_hours'],
+            'supply_only_hours': aligned_data['supply_only_hours'],
+            'total_unique_hours': aligned_data['total_unique_hours'],
+            'peak_filter_applied': peak_preset,
+            'peak_filter_label': preset['label'],
+            'hours_after_filter': total_filtered,
+            'filter_retention_pct': round(filter_pct, 1)
         }
 
     def get_comparable_years(self, scada_model, supply_model) -> list[int]:

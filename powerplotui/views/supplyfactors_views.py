@@ -1,7 +1,9 @@
 from django.shortcuts import render
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpResponse
 from siren_web.models import facilities, supplyfactors, Technologies
 import math
+import openpyxl
+from openpyxl.utils import get_column_letter
 
 from ..services.generation_utils import (
     get_week_from_hour,
@@ -699,3 +701,290 @@ def get_technology_comparison_data(request):
         'correlation_metrics': correlation_metrics,
         'total_periods': len(data1['periods']),
     })
+
+
+def export_supply_to_excel(request):
+    """Export supply factors data to Excel based on current view mode."""
+    export_type = request.GET.get('type', 'single')  # single, compare, technology, techcompare
+    year = request.GET.get('year')
+    aggregation = request.GET.get('aggregation', 'hour')
+    start_hour = request.GET.get('start_hour')
+    end_hour = request.GET.get('end_hour')
+
+    if not year:
+        return JsonResponse({'error': 'Year is required'}, status=400)
+
+    try:
+        year = int(year)
+    except ValueError:
+        return JsonResponse({'error': 'Invalid year format'}, status=400)
+
+    workbook = openpyxl.Workbook()
+    worksheet = workbook.active
+
+    if export_type == 'single':
+        facility_id = request.GET.get('facility_id')
+        if not facility_id:
+            return JsonResponse({'error': 'Facility ID is required'}, status=400)
+
+        try:
+            facility = facilities.objects.select_related('idtechnologies').get(idfacilities=facility_id)
+        except facilities.DoesNotExist:
+            return JsonResponse({'error': 'Facility not found'}, status=404)
+
+        supply_queryset = supplyfactors.objects.filter(
+            idfacilities=facility,
+            year=year
+        )
+
+        if start_hour and end_hour:
+            try:
+                supply_queryset = supply_queryset.filter(
+                    hour__gte=int(start_hour),
+                    hour__lte=int(end_hour)
+                )
+            except ValueError:
+                pass
+
+        supply_queryset = supply_queryset.order_by('hour')
+
+        if not supply_queryset.exists():
+            return JsonResponse({'error': 'No data found'}, status=404)
+
+        if aggregation == 'hour':
+            data = aggregate_by_hour(supply_queryset)
+        elif aggregation == 'week':
+            data = aggregate_by_week(supply_queryset)
+        elif aggregation == 'month':
+            data = aggregate_by_month(supply_queryset)
+        else:
+            data = aggregate_by_hour(supply_queryset)
+
+        worksheet.title = 'Supply Data'
+        x_label = 'Hour of Year' if aggregation == 'hour' else ('Week of Year' if aggregation == 'week' else 'Month of Year')
+        headers = [x_label, 'Generation (MW)', 'Supply (MW)']
+        worksheet.append(headers)
+
+        for i, period in enumerate(data['periods']):
+            worksheet.append([period, data['quantum'][i], data['supply'][i]])
+
+        filename = f"supply_{facility.facility_code or facility.facility_name}_{year}_{aggregation}"
+
+    elif export_type == 'compare':
+        facility1_id = request.GET.get('facility1_id')
+        facility2_id = request.GET.get('facility2_id')
+
+        if not facility1_id or not facility2_id:
+            return JsonResponse({'error': 'Both facility IDs are required'}, status=400)
+
+        try:
+            facility1 = facilities.objects.select_related('idtechnologies').get(idfacilities=facility1_id)
+            facility2 = facilities.objects.select_related('idtechnologies').get(idfacilities=facility2_id)
+        except facilities.DoesNotExist:
+            return JsonResponse({'error': 'Facility not found'}, status=404)
+
+        def get_facility_data(facility):
+            supply_qs = supplyfactors.objects.filter(idfacilities=facility, year=year)
+            if start_hour and end_hour:
+                try:
+                    supply_qs = supply_qs.filter(hour__gte=int(start_hour), hour__lte=int(end_hour))
+                except ValueError:
+                    pass
+            supply_qs = supply_qs.order_by('hour')
+
+            if aggregation == 'hour':
+                return aggregate_by_hour(supply_qs)
+            elif aggregation == 'week':
+                return aggregate_by_week(supply_qs)
+            elif aggregation == 'month':
+                return aggregate_by_month(supply_qs)
+            return aggregate_by_hour(supply_qs)
+
+        data1 = get_facility_data(facility1)
+        data2 = get_facility_data(facility2)
+
+        worksheet.title = 'Facility Comparison'
+        x_label = 'Hour of Year' if aggregation == 'hour' else ('Week of Year' if aggregation == 'week' else 'Month of Year')
+        headers = [x_label, f'{facility1.facility_name} (MW)', f'{facility2.facility_name} (MW)']
+        worksheet.append(headers)
+
+        for i, period in enumerate(data1['periods']):
+            row = [period]
+            row.append(data1['quantum'][i] if i < len(data1['quantum']) else '')
+            row.append(data2['quantum'][i] if i < len(data2['quantum']) else '')
+            worksheet.append(row)
+
+        filename = f"supply_comparison_{year}_{aggregation}"
+
+    elif export_type == 'technology':
+        technology_ids = request.GET.getlist('technology_id[]')
+        if not technology_ids:
+            return JsonResponse({'error': 'At least one technology must be selected'}, status=400)
+
+        technologies_qs = Technologies.objects.filter(idtechnologies__in=technology_ids)
+
+        supply_queryset = supplyfactors.objects.filter(
+            idfacilities__idtechnologies__in=technologies_qs,
+            year=year
+        )
+
+        if start_hour and end_hour:
+            try:
+                supply_queryset = supply_queryset.filter(
+                    hour__gte=int(start_hour),
+                    hour__lte=int(end_hour)
+                )
+            except ValueError:
+                pass
+
+        supply_queryset = supply_queryset.order_by('hour')
+
+        # Aggregate by hour first
+        hour_aggregated = {}
+        for entry in supply_queryset.values('hour', 'quantum', 'supply'):
+            hour = entry['hour']
+            if hour not in hour_aggregated:
+                hour_aggregated[hour] = {'quantum': 0, 'supply': 0}
+            hour_aggregated[hour]['quantum'] += entry['quantum'] if entry['quantum'] is not None else 0
+            hour_aggregated[hour]['supply'] += entry['supply'] if entry['supply'] is not None else 0
+
+        hours = sorted(hour_aggregated.keys())
+        quantum = [hour_aggregated[h]['quantum'] for h in hours]
+        supply = [hour_aggregated[h]['supply'] for h in hours]
+
+        if aggregation == 'week':
+            week_dict = {}
+            for h, q, s in zip(hours, quantum, supply):
+                week = get_week_from_hour(h)
+                if week not in week_dict:
+                    week_dict[week] = {'quantum': [], 'supply': []}
+                week_dict[week]['quantum'].append(q)
+                week_dict[week]['supply'].append(s)
+            weeks = sorted(week_dict.keys())
+            data = {
+                'periods': weeks,
+                'quantum': [sum(week_dict[w]['quantum']) / len(week_dict[w]['quantum']) for w in weeks],
+                'supply': [sum(week_dict[w]['supply']) / len(week_dict[w]['supply']) for w in weeks]
+            }
+        elif aggregation == 'month':
+            month_dict = {}
+            for h, q, s in zip(hours, quantum, supply):
+                month = get_month_from_hour(h)
+                if month not in month_dict:
+                    month_dict[month] = {'quantum': [], 'supply': []}
+                month_dict[month]['quantum'].append(q)
+                month_dict[month]['supply'].append(s)
+            months = sorted(month_dict.keys())
+            data = {
+                'periods': months,
+                'quantum': [sum(month_dict[m]['quantum']) / len(month_dict[m]['quantum']) for m in months],
+                'supply': [sum(month_dict[m]['supply']) / len(month_dict[m]['supply']) for m in months]
+            }
+        else:
+            data = {'periods': hours, 'quantum': quantum, 'supply': supply}
+
+        worksheet.title = 'Technology Supply'
+        tech_names = ', '.join(list(technologies_qs.values_list('technology_name', flat=True)))
+        x_label = 'Hour of Year' if aggregation == 'hour' else ('Week of Year' if aggregation == 'week' else 'Month of Year')
+        headers = [x_label, f'{tech_names} Generation (MW)', f'{tech_names} Supply (MW)']
+        worksheet.append(headers)
+
+        for i, period in enumerate(data['periods']):
+            worksheet.append([period, data['quantum'][i], data['supply'][i]])
+
+        filename = f"supply_technology_{year}_{aggregation}"
+
+    elif export_type == 'techcompare':
+        technology1_ids = request.GET.getlist('technology1_id[]')
+        technology2_ids = request.GET.getlist('technology2_id[]')
+
+        if not technology1_ids or not technology2_ids:
+            return JsonResponse({'error': 'Both technology groups are required'}, status=400)
+
+        technologies1_qs = Technologies.objects.filter(idtechnologies__in=technology1_ids)
+        technologies2_qs = Technologies.objects.filter(idtechnologies__in=technology2_ids)
+
+        def get_tech_data(technologies_list):
+            supply_qs = supplyfactors.objects.filter(
+                idfacilities__idtechnologies__in=technologies_list,
+                year=year
+            )
+            if start_hour and end_hour:
+                try:
+                    supply_qs = supply_qs.filter(hour__gte=int(start_hour), hour__lte=int(end_hour))
+                except ValueError:
+                    pass
+            supply_qs = supply_qs.order_by('hour')
+
+            hour_aggregated = {}
+            for entry in supply_qs.values('hour', 'quantum'):
+                hour = entry['hour']
+                if hour not in hour_aggregated:
+                    hour_aggregated[hour] = 0
+                hour_aggregated[hour] += entry['quantum'] if entry['quantum'] is not None else 0
+
+            hours = sorted(hour_aggregated.keys())
+            quantum = [hour_aggregated[h] for h in hours]
+
+            if aggregation == 'week':
+                week_dict = {}
+                for h, q in zip(hours, quantum):
+                    week = get_week_from_hour(h)
+                    if week not in week_dict:
+                        week_dict[week] = []
+                    week_dict[week].append(q)
+                weeks = sorted(week_dict.keys())
+                return {'periods': weeks, 'quantum': [sum(week_dict[w]) / len(week_dict[w]) for w in weeks]}
+            elif aggregation == 'month':
+                month_dict = {}
+                for h, q in zip(hours, quantum):
+                    month = get_month_from_hour(h)
+                    if month not in month_dict:
+                        month_dict[month] = []
+                    month_dict[month].append(q)
+                months = sorted(month_dict.keys())
+                return {'periods': months, 'quantum': [sum(month_dict[m]) / len(month_dict[m]) for m in months]}
+            return {'periods': hours, 'quantum': quantum}
+
+        data1 = get_tech_data(technologies1_qs)
+        data2 = get_tech_data(technologies2_qs)
+
+        worksheet.title = 'Technology Comparison'
+        tech1_names = ', '.join(list(technologies1_qs.values_list('technology_name', flat=True)))
+        tech2_names = ', '.join(list(technologies2_qs.values_list('technology_name', flat=True)))
+        x_label = 'Hour of Year' if aggregation == 'hour' else ('Week of Year' if aggregation == 'week' else 'Month of Year')
+        headers = [x_label, f'Group 1: {tech1_names} (MW)', f'Group 2: {tech2_names} (MW)']
+        worksheet.append(headers)
+
+        for i, period in enumerate(data1['periods']):
+            row = [period]
+            row.append(data1['quantum'][i] if i < len(data1['quantum']) else '')
+            row.append(data2['quantum'][i] if i < len(data2['quantum']) else '')
+            worksheet.append(row)
+
+        filename = f"supply_tech_comparison_{year}_{aggregation}"
+
+    else:
+        return JsonResponse({'error': 'Invalid export type'}, status=400)
+
+    # Auto-size columns
+    for column_cells in worksheet.columns:
+        max_length = 0
+        column = column_cells[0].column_letter
+        for cell in column_cells:
+            try:
+                if len(str(cell.value)) > max_length:
+                    max_length = len(str(cell.value))
+            except:
+                pass
+        adjusted_width = min(max_length + 2, 50)
+        worksheet.column_dimensions[column].width = adjusted_width
+
+    # Create response
+    response = HttpResponse(
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+    response['Content-Disposition'] = f'attachment; filename="{filename}.xlsx"'
+    workbook.save(response)
+
+    return response

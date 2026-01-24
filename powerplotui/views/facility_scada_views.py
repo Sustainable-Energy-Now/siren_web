@@ -1,8 +1,10 @@
 from django.shortcuts import render
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpResponse
 from siren_web.models import facilities, FacilityScada, Technologies
 from django.db.models import Min, Max
 from datetime import datetime, timedelta
+import openpyxl
+from openpyxl.utils import get_column_letter
 
 from ..services.generation_utils import (
     get_hour_of_year,
@@ -641,3 +643,293 @@ def aggregate_scada_by_month(hour_data):
 
 
 # Note: calculate_correlation_metrics is now imported from generation_utils
+
+
+def export_scada_to_excel(request):
+    """Export SCADA data to Excel based on current view mode."""
+    export_type = request.GET.get('type', 'single')  # single, compare, technology, techcompare
+    year = request.GET.get('year')
+    aggregation = request.GET.get('aggregation', 'hour')
+    start_hour = request.GET.get('start_hour')
+    end_hour = request.GET.get('end_hour')
+
+    if not year:
+        return JsonResponse({'error': 'Year is required'}, status=400)
+
+    try:
+        year = int(year)
+    except ValueError:
+        return JsonResponse({'error': 'Invalid year format'}, status=400)
+
+    # Parse hour range
+    start_hour_int = None
+    end_hour_int = None
+    if start_hour and end_hour:
+        try:
+            start_hour_int = int(start_hour)
+            end_hour_int = int(end_hour)
+        except ValueError:
+            pass
+
+    workbook = openpyxl.Workbook()
+    worksheet = workbook.active
+
+    if export_type == 'single':
+        facility_ids = request.GET.getlist('facility_id[]')
+        if not facility_ids:
+            return JsonResponse({'error': 'At least one facility must be selected'}, status=400)
+
+        selected_facilities = facilities.objects.filter(
+            idfacilities__in=facility_ids
+        ).select_related('idtechnologies')
+
+        if not selected_facilities.exists():
+            return JsonResponse({'error': 'No valid facilities found'}, status=404)
+
+        # Build data for each facility
+        all_facility_data = []
+        for facility in selected_facilities:
+            scada_queryset = FacilityScada.objects.filter(
+                facility=facility,
+                dispatch_interval__year=year
+            ).order_by('dispatch_interval')
+
+            if not scada_queryset.exists():
+                continue
+
+            hour_data = []
+            for record in scada_queryset:
+                hour = get_hour_of_year(record.dispatch_interval)
+                if start_hour_int and end_hour_int:
+                    if hour < start_hour_int or hour > end_hour_int:
+                        continue
+                hour_data.append({
+                    'hour': hour,
+                    'quantity': float(record.quantity) if record.quantity else 0
+                })
+
+            if not hour_data:
+                continue
+
+            if aggregation == 'hour':
+                data = aggregate_scada_by_hour(hour_data)
+            elif aggregation == 'week':
+                data = aggregate_scada_by_week(hour_data)
+            elif aggregation == 'month':
+                data = aggregate_scada_by_month(hour_data)
+            else:
+                data = aggregate_scada_by_hour(hour_data)
+
+            all_facility_data.append({
+                'facility_name': facility.facility_name,
+                'technology': facility.idtechnologies.technology_name,
+                'periods': data['periods'],
+                'quantity': data['quantity']
+            })
+
+        if not all_facility_data:
+            return JsonResponse({'error': 'No data found'}, status=404)
+
+        # Create worksheet
+        worksheet.title = 'SCADA Data'
+
+        # Headers
+        headers = [get_x_label(aggregation)]
+        for fd in all_facility_data:
+            headers.append(f"{fd['facility_name']} ({fd['technology']})")
+        worksheet.append(headers)
+
+        # Data rows - use periods from first facility as reference
+        periods = all_facility_data[0]['periods']
+        for i, period in enumerate(periods):
+            row = [period]
+            for fd in all_facility_data:
+                if i < len(fd['quantity']):
+                    row.append(fd['quantity'][i])
+                else:
+                    row.append('')
+            worksheet.append(row)
+
+        filename = f"scada_data_{year}_{aggregation}"
+
+    elif export_type == 'compare':
+        facility1_ids = request.GET.getlist('facility1_id[]')
+        facility2_ids = request.GET.getlist('facility2_id[]')
+
+        if not facility1_ids or not facility2_ids:
+            return JsonResponse({'error': 'Both facility groups are required'}, status=400)
+
+        facilities1 = facilities.objects.filter(idfacilities__in=facility1_ids).select_related('idtechnologies')
+        facilities2 = facilities.objects.filter(idfacilities__in=facility2_ids).select_related('idtechnologies')
+
+        def get_group_data(facility_list):
+            scada_queryset = FacilityScada.objects.filter(
+                facility__in=facility_list,
+                dispatch_interval__year=year
+            ).order_by('dispatch_interval')
+
+            hour_aggregated = {}
+            for record in scada_queryset:
+                hour = get_hour_of_year(record.dispatch_interval)
+                if start_hour_int and end_hour_int:
+                    if hour < start_hour_int or hour > end_hour_int:
+                        continue
+                if hour not in hour_aggregated:
+                    hour_aggregated[hour] = 0
+                hour_aggregated[hour] += float(record.quantity) if record.quantity else 0
+
+            hours = sorted(hour_aggregated.keys())
+            quantity = [hour_aggregated[h] for h in hours]
+            hour_data = [{'hour': h, 'quantity': q} for h, q in zip(hours, quantity)]
+
+            if aggregation == 'week':
+                return aggregate_scada_by_week(hour_data)
+            elif aggregation == 'month':
+                return aggregate_scada_by_month(hour_data)
+            return {'periods': hours, 'quantity': quantity}
+
+        data1 = get_group_data(facilities1)
+        data2 = get_group_data(facilities2)
+
+        worksheet.title = 'SCADA Comparison'
+
+        group1_names = ', '.join(facilities1.values_list('facility_name', flat=True)[:3])
+        group2_names = ', '.join(facilities2.values_list('facility_name', flat=True)[:3])
+
+        headers = [get_x_label(aggregation), f'Group 1: {group1_names}', f'Group 2: {group2_names}']
+        worksheet.append(headers)
+
+        for i, period in enumerate(data1['periods']):
+            row = [period]
+            row.append(data1['quantity'][i] if i < len(data1['quantity']) else '')
+            row.append(data2['quantity'][i] if i < len(data2['quantity']) else '')
+            worksheet.append(row)
+
+        filename = f"scada_comparison_{year}_{aggregation}"
+
+    elif export_type == 'technology':
+        technology_ids = request.GET.getlist('technology_id[]')
+
+        if not technology_ids:
+            return JsonResponse({'error': 'At least one technology must be selected'}, status=400)
+
+        technologies = Technologies.objects.filter(idtechnologies__in=technology_ids)
+        tech_facilities = facilities.objects.filter(idtechnologies__in=technologies)
+
+        scada_queryset = FacilityScada.objects.filter(
+            facility__in=tech_facilities,
+            dispatch_interval__year=year
+        ).order_by('dispatch_interval')
+
+        hour_aggregated = {}
+        for record in scada_queryset:
+            hour = get_hour_of_year(record.dispatch_interval)
+            if start_hour_int and end_hour_int:
+                if hour < start_hour_int or hour > end_hour_int:
+                    continue
+            if hour not in hour_aggregated:
+                hour_aggregated[hour] = 0
+            hour_aggregated[hour] += float(record.quantity) if record.quantity else 0
+
+        hours = sorted(hour_aggregated.keys())
+        quantity = [hour_aggregated[h] for h in hours]
+        hour_data = [{'hour': h, 'quantity': q} for h, q in zip(hours, quantity)]
+
+        if aggregation == 'week':
+            data = aggregate_scada_by_week(hour_data)
+        elif aggregation == 'month':
+            data = aggregate_scada_by_month(hour_data)
+        else:
+            data = {'periods': hours, 'quantity': quantity}
+
+        worksheet.title = 'Technology SCADA'
+
+        tech_names = ', '.join(technologies.values_list('technology_name', flat=True))
+        headers = [get_x_label(aggregation), f'{tech_names} Generation (MW)']
+        worksheet.append(headers)
+
+        for i, period in enumerate(data['periods']):
+            worksheet.append([period, data['quantity'][i]])
+
+        filename = f"scada_technology_{year}_{aggregation}"
+
+    elif export_type == 'techcompare':
+        technology1_ids = request.GET.getlist('technology1_id[]')
+        technology2_ids = request.GET.getlist('technology2_id[]')
+
+        if not technology1_ids or not technology2_ids:
+            return JsonResponse({'error': 'Both technology groups are required'}, status=400)
+
+        technologies1 = Technologies.objects.filter(idtechnologies__in=technology1_ids)
+        technologies2 = Technologies.objects.filter(idtechnologies__in=technology2_ids)
+
+        def get_tech_data(technologies):
+            tech_facilities = facilities.objects.filter(idtechnologies__in=technologies)
+            scada_queryset = FacilityScada.objects.filter(
+                facility__in=tech_facilities,
+                dispatch_interval__year=year
+            ).order_by('dispatch_interval')
+
+            hour_aggregated = {}
+            for record in scada_queryset:
+                hour = get_hour_of_year(record.dispatch_interval)
+                if start_hour_int and end_hour_int:
+                    if hour < start_hour_int or hour > end_hour_int:
+                        continue
+                if hour not in hour_aggregated:
+                    hour_aggregated[hour] = 0
+                hour_aggregated[hour] += float(record.quantity) if record.quantity else 0
+
+            hours = sorted(hour_aggregated.keys())
+            quantity = [hour_aggregated[h] for h in hours]
+            hour_data = [{'hour': h, 'quantity': q} for h, q in zip(hours, quantity)]
+
+            if aggregation == 'week':
+                return aggregate_scada_by_week(hour_data)
+            elif aggregation == 'month':
+                return aggregate_scada_by_month(hour_data)
+            return {'periods': hours, 'quantity': quantity}
+
+        data1 = get_tech_data(technologies1)
+        data2 = get_tech_data(technologies2)
+
+        worksheet.title = 'Technology Comparison'
+
+        tech1_names = ', '.join(technologies1.values_list('technology_name', flat=True))
+        tech2_names = ', '.join(technologies2.values_list('technology_name', flat=True))
+
+        headers = [get_x_label(aggregation), f'Group 1: {tech1_names}', f'Group 2: {tech2_names}']
+        worksheet.append(headers)
+
+        for i, period in enumerate(data1['periods']):
+            row = [period]
+            row.append(data1['quantity'][i] if i < len(data1['quantity']) else '')
+            row.append(data2['quantity'][i] if i < len(data2['quantity']) else '')
+            worksheet.append(row)
+
+        filename = f"scada_tech_comparison_{year}_{aggregation}"
+
+    else:
+        return JsonResponse({'error': 'Invalid export type'}, status=400)
+
+    # Auto-size columns
+    for column_cells in worksheet.columns:
+        max_length = 0
+        column = column_cells[0].column_letter
+        for cell in column_cells:
+            try:
+                if len(str(cell.value)) > max_length:
+                    max_length = len(str(cell.value))
+            except:
+                pass
+        adjusted_width = min(max_length + 2, 50)
+        worksheet.column_dimensions[column].width = adjusted_width
+
+    # Create response
+    response = HttpResponse(
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+    response['Content-Disposition'] = f'attachment; filename="{filename}.xlsx"'
+    workbook.save(response)
+
+    return response

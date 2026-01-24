@@ -724,6 +724,12 @@
     <div class="row mt-4">
         <div class="col-md-12">
             <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span>Chart</span>
+                    <button type="button" class="btn btn-success btn-sm" id="exportExcelBtn" style="display: none;">
+                        <i class="bi bi-file-earmark-excel"></i> Export to Excel
+                    </button>
+                </div>
                 <div class="card-body">
                     <div id="supplyChart" style="width: 100%; height: 600px;"></div>
                 </div>
@@ -1641,10 +1647,140 @@ document.addEventListener('DOMContentLoaded', function() {
         errorMessage.textContent = message;
         errorMessage.style.display = 'block';
     }
-    
+
     function hideError() {
         errorMessage.style.display = 'none';
     }
+
+    // Export to Excel functionality
+    let currentExportParams = null;
+    const exportExcelBtn = document.getElementById('exportExcelBtn');
+
+    function updateExportParams(type, params) {
+        currentExportParams = { type, ...params };
+        exportExcelBtn.style.display = 'inline-block';
+    }
+
+    exportExcelBtn.addEventListener('click', function() {
+        if (!currentExportParams) {
+            showError('No data to export. Please generate a chart first.');
+            return;
+        }
+
+        let url = '/export_supply_to_excel/?type=' + currentExportParams.type;
+        url += '&year=' + currentExportParams.year;
+        url += '&aggregation=' + currentExportParams.aggregation;
+
+        if (currentExportParams.start_hour) {
+            url += '&start_hour=' + currentExportParams.start_hour;
+        }
+        if (currentExportParams.end_hour) {
+            url += '&end_hour=' + currentExportParams.end_hour;
+        }
+
+        if (currentExportParams.type === 'single') {
+            url += '&facility_id=' + currentExportParams.facility_id;
+        } else if (currentExportParams.type === 'compare') {
+            url += '&facility1_id=' + currentExportParams.facility1_id;
+            url += '&facility2_id=' + currentExportParams.facility2_id;
+        } else if (currentExportParams.type === 'technology') {
+            currentExportParams.technology_ids.forEach(id => {
+                url += '&technology_id[]=' + id;
+            });
+        } else if (currentExportParams.type === 'techcompare') {
+            currentExportParams.technology1_ids.forEach(id => {
+                url += '&technology1_id[]=' + id;
+            });
+            currentExportParams.technology2_ids.forEach(id => {
+                url += '&technology2_id[]=' + id;
+            });
+        }
+
+        window.location.href = url;
+    });
+
+    // Override fetch functions to capture export params
+    const originalFetchAndPlotData = fetchAndPlotData;
+    fetchAndPlotData = function(facilityId, year, aggregation, chartType) {
+        const startMonth = startMonthSingle.value;
+        const endMonth = endMonthSingle.value;
+        let startHour = null, endHour = null;
+        if (startMonth && endMonth) {
+            const hourRange = getHourRangeFromMonths(parseInt(startMonth), parseInt(endMonth));
+            startHour = hourRange.start;
+            endHour = hourRange.end;
+        }
+        updateExportParams('single', {
+            facility_id: facilityId,
+            year: year,
+            aggregation: aggregation,
+            start_hour: startHour,
+            end_hour: endHour
+        });
+        return originalFetchAndPlotData(facilityId, year, aggregation, chartType);
+    };
+
+    const originalFetchAndPlotComparison = fetchAndPlotComparison;
+    fetchAndPlotComparison = function(facility1Id, facility2Id, year, aggregation, chartType) {
+        const startMonth = startMonthCompare.value;
+        const endMonth = endMonthCompare.value;
+        let startHour = null, endHour = null;
+        if (startMonth && endMonth) {
+            const hourRange = getHourRangeFromMonths(parseInt(startMonth), parseInt(endMonth));
+            startHour = hourRange.start;
+            endHour = hourRange.end;
+        }
+        updateExportParams('compare', {
+            facility1_id: facility1Id,
+            facility2_id: facility2Id,
+            year: year,
+            aggregation: aggregation,
+            start_hour: startHour,
+            end_hour: endHour
+        });
+        return originalFetchAndPlotComparison(facility1Id, facility2Id, year, aggregation, chartType);
+    };
+
+    const originalFetchAndPlotTechnology = fetchAndPlotTechnology;
+    fetchAndPlotTechnology = function(technologyIds, year, aggregation, chartType) {
+        const startMonth = startMonthTech.value;
+        const endMonth = endMonthTech.value;
+        let startHour = null, endHour = null;
+        if (startMonth && endMonth) {
+            const hourRange = getHourRangeFromMonths(parseInt(startMonth), parseInt(endMonth));
+            startHour = hourRange.start;
+            endHour = hourRange.end;
+        }
+        updateExportParams('technology', {
+            technology_ids: technologyIds,
+            year: year,
+            aggregation: aggregation,
+            start_hour: startHour,
+            end_hour: endHour
+        });
+        return originalFetchAndPlotTechnology(technologyIds, year, aggregation, chartType);
+    };
+
+    const originalFetchAndPlotTechnologyComparison = fetchAndPlotTechnologyComparison;
+    fetchAndPlotTechnologyComparison = function(technology1Ids, technology2Ids, year, aggregation, chartType) {
+        const startMonth = startMonthTechComp.value;
+        const endMonth = endMonthTechComp.value;
+        let startHour = null, endHour = null;
+        if (startMonth && endMonth) {
+            const hourRange = getHourRangeFromMonths(parseInt(startMonth), parseInt(endMonth));
+            startHour = hourRange.start;
+            endHour = hourRange.end;
+        }
+        updateExportParams('techcompare', {
+            technology1_ids: technology1Ids,
+            technology2_ids: technology2Ids,
+            year: year,
+            aggregation: aggregation,
+            start_hour: startHour,
+            end_hour: endHour
+        });
+        return originalFetchAndPlotTechnologyComparison(technology1Ids, technology2Ids, year, aggregation, chartType);
+    };
 });
 </script>
 {% endblock %}

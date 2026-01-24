@@ -312,50 +312,31 @@ def calculate_correlation_metrics(data1: list, data2: list,
 
 def interpret_correlation(correlation: float, complementarity: float,
                           variability_reduction: float) -> str:
-    """Provide human-readable interpretation of correlation metrics.
+    """Provide human-readable interpretation of correlation metrics for SCADA vs Simulated comparison.
 
     Args:
         correlation: Pearson correlation coefficient (-1 to 1)
-        complementarity: Complementarity score (0 to 1)
-        variability_reduction: Percentage variability reduction
+        complementarity: Complementarity score (0 to 1) - not used for SCADA comparison
+        variability_reduction: Percentage variability reduction - not used for SCADA comparison
 
     Returns:
-        Human-readable interpretation string
+        Human-readable interpretation string focused on simulation accuracy
     """
-    interpretation = []
-
-    # Correlation strength interpretation
-    abs_corr = abs(correlation)
-    if abs_corr < 0.3:
-        interpretation.append("Weak correlation - outputs are largely independent")
-    elif abs_corr < 0.7:
-        interpretation.append("Moderate correlation")
+    # For SCADA vs Simulated comparison, focus on how well simulation tracks actual generation
+    if correlation >= 0.95:
+        return "Excellent - Simulation closely tracks actual SCADA generation patterns"
+    elif correlation >= 0.9:
+        return "Very good - Simulation captures most variation in actual generation"
+    elif correlation >= 0.8:
+        return "Good - Simulation generally follows actual generation trends"
+    elif correlation >= 0.7:
+        return "Moderate - Simulation captures overall trends but misses some variations"
+    elif correlation >= 0.5:
+        return "Fair - Simulation only partially captures actual generation patterns. Consider reviewing resource data or model parameters"
+    elif correlation >= 0.3:
+        return "Weak - Significant differences between simulated and actual generation. May indicate curtailment, outages, or model issues"
     else:
-        interpretation.append("Strong correlation")
-
-    # Correlation direction
-    if correlation < -0.1:
-        interpretation.append("negative (anti-correlated - when one is high, other tends to be low)")
-    elif correlation > 0.1:
-        interpretation.append("positive (when one is high, other tends to be high)")
-
-    # Complementarity interpretation
-    if complementarity > 0.7:
-        interpretation.append("High complementarity - excellent for portfolio diversification")
-    elif complementarity > 0.4:
-        interpretation.append("Moderate complementarity - good for portfolio balance")
-    else:
-        interpretation.append("Low complementarity - outputs follow similar patterns")
-
-    # Variability reduction interpretation
-    if variability_reduction > 10:
-        interpretation.append(f"Combining these sources significantly reduces output variability ({variability_reduction:.1f}% reduction)")
-    elif variability_reduction > 0:
-        interpretation.append(f"Combining these sources moderately reduces variability ({variability_reduction:.1f}% reduction)")
-    else:
-        interpretation.append("Combining these sources does not reduce variability")
-
-    return " | ".join(interpretation)
+        return "Poor - Simulation does not match actual generation. Check for data issues, curtailment periods, or incorrect facility mapping"
 
 
 def calculate_error_metrics(actual: list, predicted: list) -> Optional[dict]:
@@ -461,3 +442,70 @@ def get_x_label(aggregation: str) -> str:
         'month': 'Month of Year'
     }
     return labels.get(aggregation, 'Period')
+
+
+def get_hour_of_day(hour_of_year: int) -> int:
+    """Get the hour of day (0-23) from hour of year.
+
+    Args:
+        hour_of_year: Hour of year (1-based, 1-8760)
+
+    Returns:
+        Hour of day (0-23)
+    """
+    return (hour_of_year - 1) % 24
+
+
+def is_peak_hour(hour_of_year: int, peak_start: int = 16, peak_end: int = 21) -> bool:
+    """Check if an hour of year falls within peak demand hours.
+
+    Peak hours are typically late afternoon/evening when demand is highest
+    and curtailment is least likely for renewable generation.
+
+    Default peak hours are 4pm-9pm (16:00-21:00) for SWIS/WEM.
+
+    Args:
+        hour_of_year: Hour of year (1-based, 1-8760)
+        peak_start: Start of peak period (hour of day, 0-23). Default 16 (4pm).
+        peak_end: End of peak period (hour of day, 0-23). Default 21 (9pm).
+
+    Returns:
+        True if the hour falls within peak hours
+    """
+    hour_of_day = get_hour_of_day(hour_of_year)
+    return peak_start <= hour_of_day < peak_end
+
+
+def filter_to_peak_hours(hours: list, values: list,
+                          peak_start: int = 16, peak_end: int = 21) -> tuple[list, list]:
+    """Filter hour/value pairs to only include peak hours.
+
+    Args:
+        hours: List of hours of year (1-based)
+        values: List of corresponding values
+        peak_start: Start of peak period (hour of day, 0-23). Default 16 (4pm).
+        peak_end: End of peak period (hour of day, 0-23). Default 21 (9pm).
+
+    Returns:
+        Tuple of (filtered_hours, filtered_values)
+    """
+    filtered_hours = []
+    filtered_values = []
+
+    for hour, value in zip(hours, values):
+        if is_peak_hour(hour, peak_start, peak_end):
+            filtered_hours.append(hour)
+            filtered_values.append(value)
+
+    return filtered_hours, filtered_values
+
+
+# Peak hour presets for SWIS (Western Australia)
+PEAK_HOUR_PRESETS = {
+    'all': {'start': 0, 'end': 24, 'label': 'All Hours'},
+    'peak': {'start': 16, 'end': 21, 'label': 'Peak (4pm-9pm)'},
+    'shoulder': {'start': 7, 'end': 16, 'label': 'Shoulder (7am-4pm)'},
+    'off_peak': {'start': 21, 'end': 7, 'label': 'Off-Peak (9pm-7am)'},
+    'daytime': {'start': 6, 'end': 20, 'label': 'Daytime (6am-8pm)'},
+    'solar_peak': {'start': 10, 'end': 15, 'label': 'Solar Peak (10am-3pm)'},
+}

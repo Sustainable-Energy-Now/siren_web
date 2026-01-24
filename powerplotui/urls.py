@@ -16,6 +16,7 @@ urlpatterns = [
     path('get_facility_years/', supplyfactors_views.get_facility_years, name='get_facility_years'),
     path('get_technology_data/', supplyfactors_views.get_technology_data, name='get_technology_data'),
     path('get_technology_comparison_data/', supplyfactors_views.get_technology_comparison_data, name='get_technology_comparison_data'),
+    path('export_supply_to_excel/', supplyfactors_views.export_supply_to_excel, name='export_supply_to_excel'),
  
     # Variant-related URLs
     path('variants/', VariantsView.as_view(), name='variants'),
@@ -31,6 +32,7 @@ urlpatterns = [
     path('get_scada_comparison/', facility_scada_views.get_scada_comparison_data, name='get_scada_comparison'),
     path('get_scada_technology/', facility_scada_views.get_scada_technology_data, name='get_scada_technology'),
     path('get_scada_technology_comparison/', facility_scada_views.get_scada_technology_comparison_data, name='get_scada_technology_comparison'),
+    path('export_scada_to_excel/', facility_scada_views.export_scada_to_excel, name='export_scada_to_excel'),
     
     # Scada-related URLs
     path('scada_analysis/', scada_views.scada_analysis_report, name='scada_analysis'),
@@ -79,6 +81,7 @@ urlpatterns = [
     path('get_facility_group_scada_vs_supply/', generation_comparison_views.get_facility_group_scada_vs_supply, name='scada_vs_supply_facility_group'),
     path('get_technology_scada_vs_supply/', generation_comparison_views.get_technology_scada_vs_supply, name='scada_vs_supply_technology'),
     path('get_technology_group_scada_vs_supply/', generation_comparison_views.get_technology_group_scada_vs_supply, name='scada_vs_supply_technology_group'),
+    path('export_generation_comparison_to_excel/', generation_comparison_views.export_generation_comparison_to_excel, name='export_generation_comparison_to_excel'),
 
     # Miscellaneous URLs
     path('wem_prices/', plot3D_views.wem_price_history, name='wem_price_history'),
