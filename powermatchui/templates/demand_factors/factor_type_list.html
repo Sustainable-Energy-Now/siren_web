@@ -78,7 +78,7 @@
                                     <div class="btn-group btn-group-sm" role="group">
                                         <a href="{% url 'powermatchui:factor_type_edit' factor_type.pk %}"
                                            class="btn btn-outline-primary" title="Edit">
-                                            <i class="bi bi-pencil"></i>
+                                            Edit
                                         </a>
                                         {% if factor_type.instance_count == 0 %}
                                         <form method="post"
@@ -87,7 +87,7 @@
                                               onsubmit="return confirm('Delete factor type \'{{ factor_type.name }}\'?');">
                                             {% csrf_token %}
                                             <button type="submit" class="btn btn-outline-danger" title="Delete">
-                                                <i class="bi bi-trash"></i>
+                                                Delete
                                             </button>
                                         </form>
                                         {% else %}

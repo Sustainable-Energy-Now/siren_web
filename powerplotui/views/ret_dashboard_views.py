@@ -8,8 +8,8 @@ This module provides views for the renewable energy dashboard, including:
 - API endpoints for data updates
 
 RE% Calculation Policy:
-- Operational demand = grid-sent generation minus storage charging
-- Underlying demand = operational demand + rooftop solar (DPV)
+- Operational demand = grid connected load
+- Underlying demand = operational demand + that proportion rooftop solar (DPV) consumed behind the meter.
 - RE% (operational) = (wind + utility solar + biomass+ BESS) / operational demand
 - RE% (underlying) = (wind + utility solar + biomass + DPV) / underlying demand
 """

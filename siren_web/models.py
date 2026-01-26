@@ -1868,61 +1868,39 @@ class MonthlyREPerformance(models.Model):
     # -------------------------------------------------------------------------
     
     def get_target_for_period(self):
-        """Get the renewable energy target for this period"""
-        try:
-            # Get major or interim target for this year
-            target = TargetScenario.objects.filter(
-                year=self.year,
-                target_type__in=['major', 'interim']
-            ).first()
-            if target:
-                return target
-            # Interpolate if exact year not found
-            return self.interpolate_target()
-        except Exception:
-            # Interpolate if exact year not found
-            return self.interpolate_target()
-    
-    def interpolate_target(self):
-        """Interpolate target between known target years"""
-        # Get all major and interim targets ordered by year
-        targets = TargetScenario.objects.filter(
+        """Get the renewable energy target for this period and the next milestone year"""
+        from collections import namedtuple
+
+        # Get target for this year (targets exist for all years including 'ordinary')
+        target = TargetScenario.objects.filter(year=self.year).first()
+        if not target:
+            raise ValueError(f"No target found for year {self.year}")
+
+        # Find the next milestone year (major or interim) after this year
+        next_milestone = TargetScenario.objects.filter(
+            year__gt=self.year,
             target_type__in=['major', 'interim']
-        ).order_by('year')
+        ).order_by('year').first()
 
-        # Find surrounding targets
-        before = targets.filter(year__lt=self.year).last()
-        after = targets.filter(year__gt=self.year).first()
+        Target = namedtuple('Target', [
+            'target_year',
+            'target_percentage',
+            'next_milestone_year',
+            'next_milestone_percentage'
+        ])
 
-        if before and after:
-            # Linear interpolation
-            year_diff = after.year - before.year
-            year_progress = self.year - before.year
-            target_diff = after.target_re_percentage - before.target_re_percentage
-
-            interpolated_percentage = before.target_re_percentage + (target_diff * year_progress / year_diff)
-
-            # Create a temporary target object (not saved)
-            from collections import namedtuple
-            Target = namedtuple('Target', ['target_year', 'target_percentage'])
-            return Target(self.year, interpolated_percentage)
-        elif before:
-            # Create namedtuple for consistency
-            from collections import namedtuple
-            Target = namedtuple('Target', ['target_year', 'target_percentage'])
-            return Target(before.year, before.target_re_percentage)
-        elif after:
-            # Create namedtuple for consistency
-            from collections import namedtuple
-            Target = namedtuple('Target', ['target_year', 'target_percentage'])
-            return Target(after.year, after.target_re_percentage)
-
-        return None
+        return Target(
+            self.year,
+            target.target_re_percentage,
+            next_milestone.year if next_milestone else None,
+            next_milestone.target_re_percentage if next_milestone else None
+        )
     
     def get_status_vs_target(self):
         """Determine if performance is ahead/behind target"""
-        target = self.get_target_for_period()
-        if not target:
+        try:
+            target = self.get_target_for_period()
+        except ValueError:
             return {'status': 'unknown', 'gap': 0, 'message': 'No target set'}
 
         # The target is a namedtuple with 'target_percentage' field

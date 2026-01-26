@@ -142,7 +142,8 @@
                                 <td>
                                     <div class="btn-group btn-group-sm" role="group">
                                         <a href="{% url 'powermatchui:factor_edit' factor.pk %}"
-                                           class="btn btn-outline-primary bi bi-pencil" title="Edit">✏️
+                                           class="btn btn-outline-primary" title="Edit">
+                                           Edit
                                         </a>
                                         <form method="post"
                                               action="{% url 'powermatchui:factor_toggle_active' factor.pk %}"
@@ -151,9 +152,9 @@
                                             <button type="submit" class="btn btn-outline-secondary"
                                                     title="Toggle Active/Inactive">
                                                 {% if factor.is_active %}
-                                                    <i class="bi bi-toggle-on"></i>
+                                                    Toggle Off
                                                 {% else %}
-                                                    <i class="bi bi-toggle-off"></i>
+                                                    Toggle On
                                                 {% endif %}
                                             </button>
                                         </form>
@@ -162,7 +163,8 @@
                                               style="display: inline;"
                                               onsubmit="return confirm('Delete this factor?');">
                                             {% csrf_token %}
-                                            <button type="submit" class="btn btn-outline-danger bi bi-trash" title="Delete">🗑️
+                                            <button type="submit" class="btn btn-outline-danger" title="Delete">
+                                                Delete
                                             </button>
                                         </form>
                                     </div>
