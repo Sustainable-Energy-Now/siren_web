@@ -343,7 +343,6 @@ def publish_quarterly_report(request, year, quarter):
         # Get the report context (reuse the same logic as the view)
         from powerplotui.views.ret_dashboard_views import (
             quarterly_report,
-            get_available_years,
             aggregate_wholesale_price_stats
         )
 

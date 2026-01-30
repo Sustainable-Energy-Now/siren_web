@@ -48,7 +48,7 @@
     <label for="month-select"><strong>Select Period:</strong></label>
     <select id="month-select" name="month">
         {% for m in available_months %}
-        <option value="{{ m.value }}" {% if m.value == year|stringformat:"04d"|add:"-"|add:month|stringformat:"02d" %}selected{% endif %}>
+        <option value="{{ m.value }}" {% if m.value == selected_period %}selected{% endif %}>
             {{ m.label }}
         </option>
         {% endfor %}

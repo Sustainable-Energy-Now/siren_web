@@ -145,7 +145,7 @@ def ret_dashboard(request, year=None, month=None):
         'generation_mix_underlying_chart': generation_mix_underlying_chart,
         'pathway_chart': pathway_chart,
         'available_months': get_available_months(),
-        'available_years': get_available_years(),
+        'selected_period': f"{year}-{month:02d}",
         'completed_quarters': completed_quarters,
         'comments': comments,
         'report_type': 'monthly',
@@ -215,9 +215,11 @@ def generate_generation_mix_operational_chart(performance):
         textinfo='label+percent',
         hovertemplate='<b>%{label}</b><br>%{value:.1f} GWh<br>%{percent}<extra></extra>',
         hole=0,
+        direction='clockwise',
+        sort=False,
         domain=dict(x=[0.1, 0.9], y=[0.15, 0.85])
     )])
-    
+
     fig.update_layout(
         title=dict(
             text=f"Operational Demand - RE: {performance.re_percentage_operational:.1f}%",
@@ -272,9 +274,11 @@ def generate_generation_mix_underlying_chart(performance):
         textinfo='label+percent',
         hovertemplate='<b>%{label}</b><br>%{value:.1f} GWh<br>%{percent}<extra></extra>',
         hole=0,
+        direction='clockwise',
+        sort=False,
         domain=dict(x=[0.1, 0.9], y=[0.15, 0.85])
     )])
-    
+
     fig.update_layout(
         title=dict(
             text=f"Underlying Demand - RE: {performance.re_percentage_underlying:.1f}%",
@@ -577,7 +581,7 @@ def generate_scenario_comparison_chart(scenarios):
 
 def get_available_months():
     """Get list of months with available data for dropdown"""
-    records = MonthlyREPerformance.objects.all().order_by('-year', '-month')
+    records = MonthlyREPerformance.objects.filter(year__gte=2025).order_by('-year', '-month')
     
     months = []
     for record in records:
@@ -587,14 +591,6 @@ def get_available_months():
         })
     
     return months
-
-def get_available_years():
-    """Get list of years with available data"""
-    years = MonthlyREPerformance.objects.values_list(
-        'year', flat=True
-    ).distinct().order_by('-year')
-    
-    return list(years)
 
 def aggregate_wholesale_price_stats(queryset):
     """
@@ -976,7 +972,6 @@ def annual_review(request, year):
         'annual_trends_chart': annual_trends_chart,
         'scenario_chart': scenario_chart,
         'scenarios': scenarios,
-        'available_years': get_available_years(),
         'completed_quarters': completed_quarters,
         'comments': comments,
         'executive_summary': executive_summary,

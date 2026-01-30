@@ -8,8 +8,8 @@
 {% block content %}
 <header style="display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 20px;">
     <div>
-        <h1>SWIS 2040 Renewable Energy Target</h1>
-        <h2>Annual Comprehensive Review {{ year }}</h2>
+        <h1>Annual Progress Review {{ year }}</h2>
+        <h2>Towards a SWIS 2040 Renewable Energy Target</h2>
         <p style="color: #7f8c8d; font-size: 1.1em;">
             Review Period: Calendar Year {{ year }}
         </p>
@@ -75,8 +75,7 @@
             The South West Interconnected System (SWIS) achieved
             <strong>{{ annual_summary.re_percentage_operational|floatformat:1 }}%</strong> renewable energy
             (operational demand basis) and <strong>{{ annual_summary.re_percentage_underlying|floatformat:1 }}%</strong>
-            (underlying demand basis, including rooftop solar) in {{ year }}, representing a significant milestone in
-            Western Australia's energy transition. Total grid emissions were
+            (underlying demand basis, including rooftop solar) in {{ year }}. Total grid emissions were
             <strong>{{ annual_summary.total_emissions|floatformat:0|intcomma }} tonnes CO₂-e</strong>
             {% if yoy_changes.emissions %}, a reduction of
             {% if yoy_changes.emissions < 0 %} <strong>{{ yoy_changes.emissions|mul:-1|floatformat:1 }}%</strong> from
@@ -578,6 +577,7 @@
                 <td class="value">{{ annual_summary.coal_generation|floatformat:1 }}</td>
                 <td class="value">{{ annual_summary.coal_generation|div:annual_summary.operational_demand|mul:100|floatformat:1 }}%</td>
                 <td class="value">{{ annual_summary.coal_generation|div:annual_summary.underlying_demand|mul:100|floatformat:1 }}%</td>
+                <td class="value">{{ annual_summary.coal_generation|mul:900|floatformat:0|intcomma }} t</td>
             </tr>
             {% if annual_summary.storage_charge > 0 %}
             <tr class="info-row">

@@ -166,8 +166,7 @@
         The South West Interconnected System (SWIS) achieved
         <strong>{{ annual_summary.re_percentage_operational|floatformat:1 }}%</strong> renewable energy
         (operational demand basis) and <strong>{{ annual_summary.re_percentage_underlying|floatformat:1 }}%</strong>
-        (underlying demand basis, including rooftop solar) in {{ year }}, representing a significant milestone in
-        Western Australia's energy transition. Total grid emissions were
+        (underlying demand basis, including rooftop solar) in {{ year }}. Total grid emissions were
         <strong>{{ annual_summary.total_emissions|floatformat:0|intcomma }} tonnes CO₂-e</strong>{% if yoy_changes.emissions %}, a {% if yoy_changes.emissions < 0 %}reduction{% else %}increase{% endif %} of
         {% with abs_change=yoy_changes.emissions %}
         <strong>{% if abs_change < 0 %}{{ abs_change|slice:"1:"|floatformat:1 }}{% else %}{{ abs_change|floatformat:1 }}{% endif %}%</strong>
