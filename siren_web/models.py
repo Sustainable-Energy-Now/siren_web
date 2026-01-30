@@ -1897,14 +1897,18 @@ class MonthlyREPerformance(models.Model):
         )
     
     def get_status_vs_target(self):
-        """Determine if performance is ahead/behind target"""
+        """Determine if YTD performance is ahead/behind target"""
         try:
             target = self.get_target_for_period()
         except ValueError:
             return {'status': 'unknown', 'gap': 0, 'message': 'No target set'}
 
+        # Calculate YTD RE% to compare against the annual target
+        ytd_summary = self.calculate_ytd_summary()
+        ytd_re_percentage = ytd_summary.get('re_percentage_operational', 0) if ytd_summary else 0
+
         # The target is a namedtuple with 'target_percentage' field
-        gap = self.re_percentage_underlying - target.target_percentage
+        gap = ytd_re_percentage - target.target_percentage
 
         if gap >= 0:
             return {
@@ -1928,14 +1932,7 @@ class MonthlyREPerformance(models.Model):
         """
         Calculate aggregate summary from a queryset of MonthlyREPerformance records.
         
-        This is the SINGLE SOURCE OF TRUTH for RE% calculations.
-        
-        Storage policy:
-        - BESS and Hydro (pumped storage) are EXCLUDED from:
-          - Renewable generation totals
-          - RE% calculations
-          - Demand is already net of storage charging
-        
+        This is the SINGLE SOURCE OF TRUTH for RE% calculations.       
         Args:
             queryset: QuerySet of MonthlyREPerformance records
             

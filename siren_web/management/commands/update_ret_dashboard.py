@@ -141,8 +141,8 @@ class Command(BaseCommand):
         # Get peak/minimum demand
         peak_min_data = self.get_peak_minimum(scada_data)
         
-        # Get best RE hour
-        best_re_hour = self.calculate_best_re_hour(scada_data, rooftop_solar)
+        # Get best RE hour (based on operational demand, excludes rooftop solar)
+        best_re_hour = self.calculate_best_re_hour(scada_data)
         
         # Get wholesale price statistics
         wholesale_data = self.calculate_wholesale_prices(year, month, start_datetime, end_datetime)
@@ -451,11 +451,22 @@ class Command(BaseCommand):
         }
 
     def get_peak_minimum(self, scada_data):
-        """Get peak and minimum operational demand"""
-        
+        """Get peak and minimum operational demand (positive generation only, excludes charging)"""
+        from django.db.models import Case, When, Value, DecimalField
+
         # Aggregate by dispatch_interval to get total demand per hour
+        # Only count positive values (generation) to exclude storage charging
         hourly_demand = scada_data.values('dispatch_interval').annotate(
-            total_demand=Sum('quantity')
+            total_demand=Sum(
+                Case(
+                    When(
+                        quantity__gt=0,
+                        then=F('quantity')
+                    ),
+                    default=Value(0),
+                    output_field=DecimalField()
+                )
+            )
         ).order_by('dispatch_interval')
         
         if not hourly_demand:
@@ -477,22 +488,20 @@ class Command(BaseCommand):
             'min_datetime': minimum['dispatch_interval'],
         }
 
-    def calculate_best_re_hour(self, scada_data, rooftop_solar_gwh):
-        """Calculate the hour with highest RE percentage using database aggregation"""
+    def calculate_best_re_hour(self, scada_data):
+        """
+        Calculate the hour with highest RE percentage based on operational demand.
+
+        Operational RE% = (wind + utility solar + biomass + storage) / operational demand
+        Excludes rooftop solar (DPV) as that's not part of operational/grid demand.
+        """
         from django.db.models import Case, When, Value, DecimalField
-        
+
         best_re = {
             'percentage': None,
             'datetime': None
         }
-        
-        # Calculate rooftop solar per hour (average across the month)
-        total_hours = scada_data.values('dispatch_interval').distinct().count()
-        if total_hours > 0:
-            rooftop_per_hour_mw = (rooftop_solar_gwh * 1000) / total_hours
-        else:
-            rooftop_per_hour_mw = 0
-        
+
         # Use conditional aggregation to calculate RE vs total for each interval
         # This does all the work in the database
         hourly_stats = scada_data.values('dispatch_interval').annotate(
@@ -508,29 +517,38 @@ class Command(BaseCommand):
                     output_field=DecimalField()
                 )
             ),
-            # Sum of all generation
-            total_generation=Sum('quantity')
+            # Sum of all generation (operational demand) - positive values only to exclude charging
+            total_generation=Sum(
+                Case(
+                    When(
+                        quantity__gt=0,
+                        then=F('quantity')
+                    ),
+                    default=Value(0),
+                    output_field=DecimalField()
+                )
+            )
         ).order_by('dispatch_interval')
-        
+
         # Find the hour with maximum RE percentage
         max_re_percentage = 0
         best_datetime = None
-        
+
         for hour in hourly_stats:
-            re_gen = float(hour['re_generation'] or 0) + rooftop_per_hour_mw
-            total_gen = float(hour['total_generation'] or 0) + rooftop_per_hour_mw
-            
+            re_gen = float(hour['re_generation'] or 0)
+            total_gen = float(hour['total_generation'] or 0)
+
             if total_gen > 0:
                 re_percentage = (re_gen / total_gen) * 100
-                
+
                 if re_percentage > max_re_percentage:
                     max_re_percentage = re_percentage
                     best_datetime = hour['dispatch_interval']
-        
+
         if best_datetime:
             best_re['percentage'] = max_re_percentage
             best_re['datetime'] = best_datetime
-        
+
         return best_re
 
     def update_new_capacity(self, year, month):

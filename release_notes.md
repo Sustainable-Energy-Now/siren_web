@@ -1,5 +1,9 @@
 # Release Notes (Latest first)
 
+## Version 3.16.3 - January 30, 2026
+### 🐛 Bug Fixes
+- Dashboard and Report Review Fixes ([#60](https://github.com/Sustainable-Energy-Now/siren_web/issues/54))
+
 ## Version 3.16.2 - January 19, 2026
 ### ✨ Enhancements
 - Feature: Facilities Lifecycle ([#59](https://github.com/Sustainable-Energy-Now/siren_web/issues/59))

@@ -444,7 +444,14 @@ def generate_annual_generation_chart(annual_data):
         y=[record.gas_generation for record in annual_data],
         marker_color='#95a5a6'
     ))
-    
+
+    fig.add_trace(go.Bar(
+        name='Coal',
+        x=months,
+        y=[record.coal_generation or 0 for record in annual_data],
+        marker_color='#5D4037'
+    ))
+
     fig.update_layout(
         title='Monthly Generation by Technology (Storage excluded)',
         xaxis_title='Month',
@@ -737,6 +744,24 @@ def quarterly_report(request, year, quarter):
     except Exception:
         target = None
 
+    # Calculate target status based on YTD RE% (operational)
+    target_status = None
+    if target and ytd_summary:
+        ytd_re_pct = ytd_summary.get('re_percentage_operational', 0)
+        gap = ytd_re_pct - target.target_re_percentage
+        if gap >= 0:
+            target_status = {
+                'status': 'ahead',
+                'gap': gap,
+                'message': f'✓ {abs(gap):.1f} percentage points ahead'
+            }
+        else:
+            target_status = {
+                'status': 'behind',
+                'gap': gap,
+                'message': f'⚠ {abs(gap):.1f} percentage points behind'
+            }
+
     comments = ReportComment.get_comments_for_report('quarterly', year, quarter=quarter)
 
     # Get Executive Summary from comments
@@ -756,6 +781,7 @@ def quarterly_report(request, year, quarter):
         'ytd_summary': ytd_summary,
         'prev_ytd_summary': prev_ytd_summary,
         'target': target,
+        'target_status': target_status,
         'completed_quarters': completed_quarters,
         'comments': comments,
         'executive_summary': executive_summary,
@@ -836,19 +862,21 @@ def annual_review(request, year):
     except Exception:
         target = None
     
-    # Calculate target status
+    # Calculate target status based on annual operational RE%
     target_status = None
     if target:
-        diff = re_pct_underlying - target.target_re_percentage
+        diff = re_pct_operational - target.target_re_percentage
         if diff >= 0:
             target_status = {
                 'status': 'ahead',
-                'message': f'✓ {diff:.1f} pp above target'
+                'gap': diff,
+                'message': f'✓ {diff:.1f} percentage points ahead'
             }
         else:
             target_status = {
                 'status': 'behind',
-                'message': f'⚠ {abs(diff):.1f} pp below target'
+                'gap': diff,
+                'message': f'⚠ {abs(diff):.1f} percentage points behind'
             }
     
     # Get previous year data for comparison

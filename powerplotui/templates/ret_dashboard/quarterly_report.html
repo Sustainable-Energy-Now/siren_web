@@ -620,15 +620,11 @@
         </div>
 
         {% if target %}
-        <div class="metric-card {% if ytd_summary.re_percentage_underlying >= target.target_re_percentage %}positive{% elif ytd_summary.re_percentage_underlying >= target.target_re_percentage|mul:0.95 %}warning{% else %}negative{% endif %}">
+        <div class="metric-card {% if target_status.status == 'ahead' %}positive{% elif target_status.status == 'behind' %}negative{% else %}neutral{% endif %}">
             <div class="metric-label">{{ year }} Target</div>
             <div class="metric-value">{{ target.target_re_percentage|floatformat:1 }}%</div>
             <div class="metric-change">
-                {% if ytd_summary.re_percentage_underlying >= target.target_re_percentage %}
-                ✓ On track
-                {% else %}
-                ⚠ {{ target.target_re_percentage|sub:ytd_summary.re_percentage_underlying|floatformat:1 }} pp behind
-                {% endif %}
+                {{ target_status.message }}
             </div>
         </div>
         {% endif %}
@@ -944,18 +940,14 @@
         </tbody>
     </table>
 
-    {% if target %}
+    {% if target and target_status %}
     <p style="margin-top: 20px;">
-        {% if ytd_summary.re_percentage_underlying >= target.target_re_percentage %}
-        {% with diff=ytd_summary.re_percentage_underlying|sub:target.target_re_percentage %}
-        ✓ YTD performance is <strong>{{ diff|floatformat:1 }} percentage points
+        {% if target_status.status == 'ahead' %}
+        ✓ YTD performance is <strong>{{ target_status.gap|floatformat:1 }} percentage points
             ahead</strong> of the {{ year }} annual target.
-        {% endwith %}
         {% else %}
-        {% with diff=target.target_re_percentage|sub:ytd_summary.re_percentage_underlying %}
-        ⚠ YTD performance is <strong>{{ diff|floatformat:1 }} percentage points
+        ⚠ YTD performance is <strong>{{ target_status.gap|mul:-1|floatformat:1 }} percentage points
             behind</strong> the {{ year }} annual target. Acceleration needed in remaining quarters.
-        {% endwith %}
         {% endif %}
     </p>
     {% endif %}
@@ -1169,10 +1161,17 @@
     {
         x: [{% for monthly in quarterly_data %} '{{ monthly.get_month_name }}'{% if not forloop.last %},{% endif %}{% endfor %}],
     y: [{% for monthly in quarterly_data %}{{ monthly.gas_generation|default:0 }}{% if not forloop.last %},{% endif %}{% endfor %}],
-    
+
     name: 'Gas',
         type: 'bar',
             marker: { color: '#9E9E9E' }
+        },
+    {
+        x: [{% for monthly in quarterly_data %} '{{ monthly.get_month_name }}'{% if not forloop.last %},{% endif %}{% endfor %}],
+    y: [{% for monthly in quarterly_data %}{{ monthly.coal_generation|default:0 }}{% if not forloop.last %},{% endif %}{% endfor %}],
+    name: 'Coal',
+        type: 'bar',
+            marker: { color: '#5D4037' }
         }
     ];
 
