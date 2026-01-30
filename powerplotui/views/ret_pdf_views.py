@@ -553,7 +553,7 @@ def publish_annual_report(request, year):
         # Calculate target status
         target_status = None
         if target:
-            diff = re_pct_underlying - target.target_percentage
+            diff = re_pct_underlying - target.target_re_percentage
             if diff >= 0:
                 target_status = {
                     'status': 'ahead',
