@@ -336,9 +336,9 @@ def process_hybrid_facility(sam_processor, facility_obj, weather_year, start_dat
                     power_curve_path = sam_processor.get_power_curve_file_path(turbine.turbine_model)
                     power_curve = sam_processor.load_power_curve(power_curve_path)
 
-                # Create a temporary facility-like object for this installation
+                # Process this wind installation
                 results = process_wind_installation(
-                    sam_processor, facility_obj, wind_install, power_curve, weather_year
+                    sam_processor, facility_obj, wind_install, power_curve, weather_year, fuel_type
                 )
 
                 if results:
@@ -369,7 +369,8 @@ def process_hybrid_facility(sam_processor, facility_obj, weather_year, start_dat
             if technology and technology.renewable and not technology.dispatchable:
 
                 results = process_solar_installation(
-                    sam_processor, facility_obj, solar_install, weather_year
+                    sam_processor, facility_obj, solar_install, weather_year,
+                    technology.fuel_type.lower()
                 )
 
                 if results:
@@ -431,7 +432,7 @@ def process_hybrid_facility(sam_processor, facility_obj, weather_year, start_dat
         }
     )
 
-def process_wind_installation(sam_processor, facility_obj, wind_install, power_curve, weather_year):
+def process_wind_installation(sam_processor, facility_obj, wind_install, power_curve, weather_year, fuel_type):
     """
     Process a specific wind installation within a facility.
     """
@@ -439,7 +440,7 @@ def process_wind_installation(sam_processor, facility_obj, wind_install, power_c
         weather_file_path = sam_processor.get_weather_file_path(
             facility_obj.latitude,
             facility_obj.longitude,
-            wind_install.idtechnologies.technology_name if wind_install.idtechnologies else 'wind',
+            fuel_type,
             weather_year
         )
 
@@ -452,7 +453,7 @@ def process_wind_installation(sam_processor, facility_obj, wind_install, power_c
 
         # Process using the wind installation's specific parameters
         results = sam_processor.process_wind_facility(
-            facility_obj, weather_year, power_curve, wind_install
+            facility_obj, weather_year, weather_data, power_curve, wind_install
         )
 
         return results
@@ -461,7 +462,7 @@ def process_wind_installation(sam_processor, facility_obj, wind_install, power_c
         logger.error(f"Error processing wind installation: {e}")
         return None
 
-def process_solar_installation(sam_processor, facility_obj, solar_install, weather_year):
+def process_solar_installation(sam_processor, facility_obj, solar_install, weather_year, fuel_type):
     """
     Process a specific solar installation within a facility.
     """
@@ -469,7 +470,7 @@ def process_solar_installation(sam_processor, facility_obj, solar_install, weath
         weather_file_path = sam_processor.get_weather_file_path(
             facility_obj.latitude,
             facility_obj.longitude,
-            solar_install.idtechnologies.technology_name if solar_install.idtechnologies else 'solar',
+            fuel_type,
             weather_year
         )
 
@@ -580,7 +581,7 @@ def process_renewable_facility(sam_processor, facility_obj, fuel_type, weather_y
                 power_curve = sam_processor.load_power_curve(power_curve_path)
             
             results = sam_processor.process_wind_facility(
-                facility_obj, weather_year, power_curve, wind_installation
+                facility_obj, weather_year, weather_data, power_curve, wind_installation
             )
             
         elif fuel_type == 'solar':

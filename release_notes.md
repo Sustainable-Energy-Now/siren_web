@@ -1,8 +1,12 @@
 # Release Notes (Latest first)
 
+## Version 3.16.3 - January 31, 2026
+### 🐛 Bug Fixes
+- Storage Edit and Wind Generation ([#61](https://github.com/Sustainable-Energy-Now/siren_web/issues/61))
+
 ## Version 3.16.3 - January 30, 2026
 ### 🐛 Bug Fixes
-- Dashboard and Report Review Fixes ([#60](https://github.com/Sustainable-Energy-Now/siren_web/issues/54))
+- Dashboard and Report Review Fixes ([#60](https://github.com/Sustainable-Energy-Now/siren_web/issues/60))
 
 ## Version 3.16.2 - January 19, 2026
 ### ✨ Enhancements

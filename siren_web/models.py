@@ -1134,7 +1134,7 @@ class FacilityStorage(models.Model):
     @property
     def storage_attrs(self):
         """Get the technology-level storage attributes"""
-        return self.technology.storageattributes_set.first()
+        return self.technology.storage_attributes.first()
     
     def get_calculated_duration(self):
         """Calculate duration from energy and power capacity"""
@@ -1523,10 +1523,15 @@ class TurbinePowerCurves(models.Model):
         return f"Power Curve - {self.wind_turbine.turbine_model} ({self.power_file_name})"
 
     @property
+    def wind_turbine(self):
+        """Get the wind turbine model"""
+        return self.idwindturbines
+
+    @property
     def hub_height(self):
         """Get hub height, using installation override if set"""
         return self.hub_height_override or self.wind_turbine.hub_height
-    
+
     @property
     def capacity_summary(self):
         """Return a formatted string summarizing the installation"""
@@ -1534,7 +1539,21 @@ class TurbinePowerCurves(models.Model):
         if cap:
             return f"{self.no_turbines}× {self.wind_turbine.turbine_model} = {cap:.1f} MW"
         return f"{self.no_turbines}× {self.wind_turbine.turbine_model}"
-    
+
+    @property
+    def wind_speeds(self):
+        """Get wind speeds from power curve data"""
+        if self.power_curve_data:
+            return self.power_curve_data.get('wind_speeds', [])
+        return []
+
+    @property
+    def power_outputs(self):
+        """Get power outputs from power curve data"""
+        if self.power_curve_data:
+            return self.power_curve_data.get('power_outputs', [])
+        return []
+
     def clean(self):
         """Validate the installation"""
         if self.no_turbines is not None and self.no_turbines <= 0:

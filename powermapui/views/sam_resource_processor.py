@@ -68,10 +68,10 @@ class WeatherFileFinder:
             Path to nearest weather file or None if not found
         """
         # Determine weather subdirectory and supported formats
-        if technology.lower() in ['onshore wind', 'offshore wind', 'offshore wind floating']:
+        if technology.lower() == 'wind':
             weather_subdir = 'wind_weather'
             file_formats = self.WIND_FORMATS
-        elif technology.lower() in ['fixed pv', 'single axis pv', 'rooftop pv']:
+        elif technology.lower() == 'solar':
             weather_subdir = 'solar_weather'
             file_formats = self.SOLAR_FORMATS
         else:
@@ -137,8 +137,6 @@ class WeatherFileFinder:
             if distance < min_distance:
                 min_distance = distance
                 nearest_file = file_path
-
-        logger.debug(f"Nearest weather file distance: {min_distance:.2f} km")
         return nearest_file
 
     def _parse_weather_files(self, weather_dir: Path, file_formats: List[Tuple[str, str]],
@@ -434,20 +432,13 @@ class SAMResourceProcessor:
                     power_values.append(power_value)
                 except ValueError:
                     # Skip non-numeric lines (like turbine name, etc.)
-                    logger.debug(f"Skipping non-numeric line {line_num} in {pow_file_path}: {line}")
                     continue
             
             # Create wind speed to power mapping
             # Assuming standard wind speeds from 0 to (number of power values - 1) m/s
             if power_values:
                 for wind_speed, power in enumerate(power_values):
-                    power_curve[float(wind_speed)] = power
-                    
-                logger.info(f"Loaded power curve with {len(power_curve)} points from {pow_file_path}")
-                logger.debug(f"Power curve range: 0-{len(power_values)-1} m/s, {min(power_values)}-{max(power_values)} kW")
-            else:
-                logger.warning(f"No valid power values found in {pow_file_path}")
-                
+                    power_curve[float(wind_speed)] = power                
         except Exception as e:
             logger.error(f"Error loading power curve {pow_file_path}: {e}")
             return {}
@@ -455,34 +446,23 @@ class SAMResourceProcessor:
         return power_curve
     
     def process_wind_facility(self, facility, weather_year: str,
+                            weather_data: WeatherData,
                             power_curve: Dict[float, float] = None,
                             wind_installation=None) -> SimulationResults:
         """
         Process wind facility using SAM wind power module with file-based approach
-        
+
         Args:
             facility: Facility model instance
             weather_year: Year string for weather data
+            weather_data: WeatherData object containing wind resource data
             power_curve: Optional power curve dictionary
             wind_installation: FacilityWindTurbines instance (optional, for turbine specs)
         """
         temp_weather_file = None
         try:
             logger.info(f"Starting wind simulation for {facility.facility_name}")
-            
-            # Get weather file and parse data
-            weather_file_path = self.get_weather_file_path(
-                facility.latitude, facility.longitude,
-                facility.idtechnologies.technology_name,
-                weather_year
-            )
-            
-            if not weather_file_path or not weather_file_path.exists():
-                raise SAMError(f"Weather file not found for {facility.facility_name}")
-            
-            # Load weather data
-            weather_data = self.load_weather_data(weather_file_path)
-            
+
             if not weather_data.wind_speed or len(weather_data.wind_speed) == 0:
                 raise SAMError(f"No wind data found for {facility.facility_name}")
             
@@ -534,8 +514,6 @@ class SAMResourceProcessor:
                             cutin_speed = ws
                             break
                 data.set_number(b'wind_turbine_cutin', cutin_speed)
-                
-                logger.debug(f"Using custom power curve: {len(power_curve)} points, cut-in: {cutin_speed} m/s")
             else:
                 # Use default power curve based on typical 1.87MW turbine
                 default_speeds = list(range(26))  # 0-25 m/s
@@ -543,8 +521,6 @@ class SAMResourceProcessor:
                 data.set_array(b'wind_turbine_powercurve_windspeeds', default_speeds)
                 data.set_array(b'wind_turbine_powercurve_powerout', default_powers)
                 data.set_number(b'wind_turbine_cutin', 3.0)
-                
-                logger.debug("Using default power curve")
             
             # REQUIRED: Wind farm layout - get turbine count from wind_installation or facility
             if wind_installation and wind_installation.no_turbines:
@@ -584,8 +560,6 @@ class SAMResourceProcessor:
             data.set_array(b'wind_farm_xCoordinates', wt_x)
             data.set_array(b'wind_farm_yCoordinates', wt_y)
             
-            logger.debug(f"Wind farm layout: {no_turbines} turbines in {t_rows}x{t_rows} grid")
-            
             # REQUIRED: Wind farm parameters
             data.set_number(b'wind_farm_losses_percent', 2.0)  # Default 2% losses
             data.set_number(b'wind_farm_wake_model', 0)  # No wake model
@@ -593,16 +567,11 @@ class SAMResourceProcessor:
             # REQUIRED: Adjustment factors
             data.set_number(b'adjust:constant', 0.0)  # No constant adjustment
             
-            logger.debug(f"Set all required parameters for {facility.facility_name}")
-            logger.debug(f"Using temporary weather file: {temp_weather_file}")
-            
             # Create and execute wind power module
             wind_module = Module(b'windpower')
             
             if not wind_module.is_ok():
                 raise SAMError("Failed to create wind power module")
-            
-            logger.debug("Executing wind simulation...")
             success = wind_module.exec_(data)
             
             if not success:
@@ -639,7 +608,6 @@ class SAMResourceProcessor:
                 try:
                     import os
                     os.remove(temp_weather_file)
-                    logger.debug(f"Cleaned up temporary file: {temp_weather_file}")
                 except:
                     pass
 
@@ -672,8 +640,6 @@ class SAMResourceProcessor:
                     direction = weather_data.wind_direction[i] if i < len(weather_data.wind_direction) else 0.0
                     
                     f.write(f"{temp},{pres},{speed},{direction}\n")
-            
-            logger.debug(f"Created temporary SAM weather file: {temp_path}")
             return temp_path
             
         except Exception as e:
@@ -745,10 +711,6 @@ class SAMResourceProcessor:
         
         # Set the data matrix - WITH BYTE STRING
         wind_resource_table.set_matrix(b'data', data_matrix)
-        
-        logger.debug(f"Created wind resource table: {nstep} time steps, {nheights} heights, {nfields} fields")
-        logger.debug(f"Matrix dimensions: {len(data_matrix)} x {len(data_matrix[0]) if data_matrix else 0}")
-        
         return wind_resource_table.get_data_handle()
 
     def _set_solar_weather_data(self, data: Data, weather_data: WeatherData, facility):
@@ -783,9 +745,6 @@ class SAMResourceProcessor:
             dni_data = [max(0, ghi * 0.8) for ghi in ghi_data]
         if not any(dhi_data):
             dhi_data = [max(0, ghi * 0.2) for ghi in ghi_data]
-        
-        logger.debug("Creating weather file for PVWatts v5")
-        
         try:
             # Try the simple SAM CSV format first
             temp_weather_file = self._create_sam_csv_weather_file(
@@ -795,9 +754,6 @@ class SAMResourceProcessor:
             # Set the weather file path
             data.set_string(b'solar_resource_file', str(temp_weather_file).encode('utf-8'))
             self._temp_solar_file = temp_weather_file
-            
-            logger.debug(f"Successfully set solar resource file: {temp_weather_file}")
-            
         except Exception as e:
             logger.warning(f"CSV format failed: {e}")
 
@@ -881,8 +837,6 @@ class SAMResourceProcessor:
             with open(temp_path, 'r') as f:
                 lines = f.readlines()
                 data_lines = len(lines) - 3  # Subtract 3 header lines
-                
-            logger.debug(f"Created SAM CSV file with {data_lines} data records")
             
             if data_lines != 8760:
                 logger.error(f"Expected 8760 records, got {data_lines}")
@@ -908,14 +862,7 @@ class SAMResourceProcessor:
             # Set system parameters
             self._set_solar_system_parameters(data, facility)
             
-            # Debug: Log some parameter values to confirm they're set
-            logger.debug(f"System capacity: {data.get_number(b'system_capacity')} kW")
-            logger.debug(f"Array type: {data.get_number(b'array_type')}")
-            logger.debug(f"Tilt: {data.get_number(b'tilt')}°")
-            logger.debug(f"Azimuth: {data.get_number(b'azimuth')}°")
-            
             # Create PVWatts v5 module
-            logger.debug("Creating PVWatts v5 module...")
             pv_module = Module(b'pvwattsv5')
             
             if not pv_module.is_ok():
@@ -924,7 +871,6 @@ class SAMResourceProcessor:
             logger.info("Successfully created PVWatts v5 module")
                 
             # Execute the module
-            logger.debug("Executing solar simulation...")
             success = pv_module.exec_(data)
             
             if not success:
@@ -953,7 +899,6 @@ class SAMResourceProcessor:
                 try:
                     import os
                     os.remove(self._temp_solar_file)
-                    logger.debug(f"Cleaned up temporary solar file: {self._temp_solar_file}")
                 except:
                     pass
             
@@ -1020,7 +965,6 @@ class SAMResourceProcessor:
                             weather_data.wind_direction.append(wind_direction)
                             
                     except (ValueError, IndexError) as e:
-                        logger.debug(f"Skipping invalid wind data line: {line} - {e}")
                         continue
                 
                 logger.info(f"Parsed wind weather: {len(weather_data.wind_speed)} records from {file_path}")
@@ -1048,7 +992,6 @@ class SAMResourceProcessor:
                         
                         # Ensure we have enough columns
                         if len(parts) < 10:
-                            logger.debug(f"Line {line_num}: insufficient columns ({len(parts)}), skipping")
                             continue
                         
                         # Parse according to the format you showed:
@@ -1078,9 +1021,8 @@ class SAMResourceProcessor:
                         weather_data.dhi.append(dhi)
                         
                     except (ValueError, IndexError) as e:
-                        logger.debug(f"Line {line_num}: error parsing '{line}' - {e}")
                         continue
-                
+
                 # Log parsing results
                 total_records = len(weather_data.ghi)
                 logger.info(f"Successfully parsed solar weather: {total_records} records from {file_path}")
@@ -1160,7 +1102,6 @@ class SAMResourceProcessor:
 
                         # Expected columns: Year,Month,Day,Hour,Minute,GHI,DNI,DHI,Tdry,Tdew,RH,Pres,Wspd,Wdir
                         if len(parts) < 14:
-                            logger.debug(f"Line {line_num}: insufficient columns ({len(parts)})")
                             continue
 
                         # Parse values (indices: 5=GHI, 6=DNI, 7=DHI, 8=Tdry, 9=Tdew, 10=RH, 11=Pres, 12=Wspd, 13=Wdir)
@@ -1189,7 +1130,6 @@ class SAMResourceProcessor:
                         weather_data.wind_direction.append(wind_direction)
 
                     except (ValueError, IndexError) as e:
-                        logger.debug(f"Line {line_num}: error parsing - {e}")
                         continue
 
                 total_records = len(weather_data.ghi)
@@ -1224,7 +1164,6 @@ class SAMResourceProcessor:
                         # Expected columns: Temperature,Pressure,Speed,Direction,Speed,Direction
                         # (10m and 100m wind data)
                         if len(parts) < 6:
-                            logger.debug(f"Line {line_num}: insufficient columns ({len(parts)})")
                             continue
 
                         temperature = float(parts[0])
@@ -1334,8 +1273,6 @@ class SAMResourceProcessor:
             # Additional PVWatts v5 parameters
             data.set_number(b'adjust:constant', 0.0)  # No adjustment factors
             
-            logger.debug(f"Set solar parameters for PVWatts v5: {system_capacity}kW, tilt={tilt}°, azimuth={azimuth}°, array_type={array_type}")
-            
         except Exception as e:
             raise SAMError(f"Error setting solar system parameters: {e}")
     
@@ -1422,7 +1359,6 @@ class SAMResourceProcessor:
             # Check if it's a gzip file
             with gzip.open(file_path, 'rt', encoding='utf-8') as f:
                 content = f.read()
-                logger.debug(f"Successfully read {file_path} as gzip file")
                 return content
         except:
             pass
@@ -1435,7 +1371,6 @@ class SAMResourceProcessor:
                 if names:
                     with zip_file.open(names[0]) as f:
                         content = f.read().decode('utf-8')
-                        logger.debug(f"Successfully read {file_path} as zip file")
                         return content
         except:
             pass
@@ -1447,7 +1382,6 @@ class SAMResourceProcessor:
             try:
                 with open(file_path, 'r', encoding=encoding) as f:
                     content = f.read()
-                    logger.debug(f"Successfully read {file_path} with {encoding} encoding")
                     return content
             except UnicodeDecodeError:
                 continue
