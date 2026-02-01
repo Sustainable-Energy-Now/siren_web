@@ -1,0 +1,875 @@
+{% extends 'scada/base.html' %}
+{% load humanize %}
+{% load static %}
+
+{% block title %}SWIS 2040 Scenario Projections{% endblock %}
+
+{% block content %}
+<header style="display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 20px;">
+    <div>
+        <h1>SWIS 2040 Scenario Projections</h1>
+        <h2>Renewable Energy Target Pathway Analysis</h2>
+        <p style="color: #7f8c8d; font-size: 1.1em;">
+            Projection Period: 2025 - 2040
+        </p>
+    </div>
+    <img src="{% static 'img/SEN_LOGO_HERO.png' %}" alt="SEN Logo" style="height: 100px; width: auto;">
+</header>
+
+<!-- Quick Navigation Links -->
+<div style="margin: 20px 0; padding: 15px; background: #ecf0f1; border-radius: 8px; display: flex; gap: 15px; align-items: center; flex-wrap: wrap;">
+    <strong style="color: #2c3e50;">Other Reports:</strong>
+    <a href="#" style="color: #3498db; text-decoration: none; padding: 8px 15px; background: white; border-radius: 4px; font-weight: 500;">Monthly Dashboard</a>
+    <a href="#" style="color: #3498db; text-decoration: none; padding: 8px 15px; background: white; border-radius: 4px; font-weight: 500;">Annual Review</a>
+    <a href="#" style="color: #3498db; text-decoration: none; padding: 8px 15px; background: white; border-radius: 4px; font-weight: 500;">Published Reports</a>
+    <button onclick="window.print()" style="padding: 8px 15px; background: #95a5a6; color: white; border: none; border-radius: 4px; font-weight: 500; cursor: pointer;">Print</button>
+</div>
+
+<!-- Executive Summary -->
+<div class="section-header">
+    <h2>Executive Summary</h2>
+</div>
+
+<div class="info-box" style="background: white; border-left: 4px solid #9b59b6;">
+    <p style="font-size: 1.1em; line-height: 1.8;">
+        This report presents scenario-based projections for the South West Interconnected System (SWIS)
+        renewable energy transition to 2040. Three scenarios are modelled: <strong>Base Case</strong> (most likely pathway),
+        <strong>Accelerated Pipeline</strong> (optimistic delivery), and <strong>Delayed Pipeline</strong> (conservative assumptions).
+        The 2040 target of <strong>85% renewable energy</strong> (underlying demand basis) appears achievable under the Base Case
+        scenario with a <strong>78% probability</strong> based on Monte Carlo analysis.
+    </p>
+</div>
+
+<!-- Scenario Definitions -->
+<div class="info-box" style="background: #e3f2fd; border-left-color: #2196f3;">
+    <h3 style="margin-top: 0;">Scenario Definitions</h3>
+    <p style="margin-bottom: 0;">
+        <strong>Base Case:</strong> Planned and probable facilities commissioned on schedule with historical capacity factors.<br>
+        <strong>Accelerated Pipeline:</strong> All possible facilities included, faster commissioning, optimistic capacity factors.<br>
+        <strong>Delayed Pipeline:</strong> Only planned facilities, 12-month average delay, conservative capacity factors.
+    </p>
+</div>
+
+<!-- Key Targets Overview -->
+<div class="section-header">
+    <h2>Key Targets Overview</h2>
+</div>
+
+<div class="metric-grid">
+    <div class="metric-card positive">
+        <div class="metric-label">2040 RE Target</div>
+        <div class="metric-value">85%</div>
+        <div class="metric-sublabel">Underlying demand basis</div>
+        <div class="metric-change">Major Target Year</div>
+    </div>
+
+    <div class="metric-card neutral">
+        <div class="metric-label">2030 Interim Target</div>
+        <div class="metric-value">65%</div>
+        <div class="metric-sublabel">Underlying demand basis</div>
+        <div class="metric-change">Interim Milestone</div>
+    </div>
+
+    <div class="metric-card neutral">
+        <div class="metric-label">Current RE% (2024)</div>
+        <div class="metric-value">42.3%</div>
+        <div class="metric-sublabel">Latest annual result</div>
+    </div>
+
+    <div class="metric-card positive">
+        <div class="metric-label">Achievement Probability</div>
+        <div class="metric-value">78%</div>
+        <div class="metric-sublabel">Base Case @ 85% target</div>
+        <div class="metric-change">Monte Carlo analysis</div>
+    </div>
+</div>
+
+<!-- Scenario Comparison Chart Placeholder -->
+<div class="section-header">
+    <h2>RE% Trajectory by Scenario</h2>
+</div>
+
+<div class="chart-container">
+    <div style="height: 400px; background: linear-gradient(135deg, #f5f7fa 0%, #e4e8ec 100%); border-radius: 8px; display: flex; align-items: center; justify-content: center; border: 2px dashed #bdc3c7;">
+        <div style="text-align: center; color: #7f8c8d;">
+            <p style="font-size: 1.5em; margin-bottom: 10px;">RE% Trajectory Chart</p>
+            <p>Line chart showing RE% projections for all scenarios 2025-2040</p>
+            <p style="font-size: 0.9em;">Base Case (solid), Accelerated (dashed), Delayed (dotted)</p>
+        </div>
+    </div>
+</div>
+
+<!-- Scenario Projections Table -->
+<div class="section-header">
+    <h2>Scenario Projections Summary</h2>
+</div>
+
+<h3>Base Case Scenario</h3>
+<table class="stats-table">
+    <thead>
+        <tr>
+            <th>Year</th>
+            <th class="value">RE%</th>
+            <th class="value">Wind (GWh)</th>
+            <th class="value">Solar (GWh)</th>
+            <th class="value">DPV (GWh)</th>
+            <th class="value">Storage (MWh)</th>
+            <th class="value">Emissions (kt)</th>
+            <th>Target Type</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td><strong>2025</strong></td>
+            <td class="value">45.2%</td>
+            <td class="value">4,850</td>
+            <td class="value">2,120</td>
+            <td class="value">3,400</td>
+            <td class="value">850</td>
+            <td class="value">5,420</td>
+            <td>Ordinary</td>
+        </tr>
+        <tr>
+            <td><strong>2026</strong></td>
+            <td class="value">48.5%</td>
+            <td class="value">5,320</td>
+            <td class="value">2,580</td>
+            <td class="value">3,650</td>
+            <td class="value">1,200</td>
+            <td class="value">5,180</td>
+            <td>Ordinary</td>
+        </tr>
+        <tr>
+            <td><strong>2027</strong></td>
+            <td class="value">52.1%</td>
+            <td class="value">5,890</td>
+            <td class="value">3,150</td>
+            <td class="value">3,920</td>
+            <td class="value">1,650</td>
+            <td class="value">4,850</td>
+            <td>Ordinary</td>
+        </tr>
+        <tr>
+            <td><strong>2028</strong></td>
+            <td class="value">56.8%</td>
+            <td class="value">6,580</td>
+            <td class="value">3,820</td>
+            <td class="value">4,180</td>
+            <td class="value">2,200</td>
+            <td class="value">4,420</td>
+            <td>Ordinary</td>
+        </tr>
+        <tr class="highlight-row">
+            <td><strong>2030</strong></td>
+            <td class="value"><strong>65.2%</strong></td>
+            <td class="value">7,850</td>
+            <td class="value">5,120</td>
+            <td class="value">4,650</td>
+            <td class="value">3,500</td>
+            <td class="value">3,650</td>
+            <td><span style="color: #3498db;">Interim Target</span></td>
+        </tr>
+        <tr>
+            <td><strong>2032</strong></td>
+            <td class="value">71.5%</td>
+            <td class="value">8,920</td>
+            <td class="value">6,480</td>
+            <td class="value">5,100</td>
+            <td class="value">4,800</td>
+            <td class="value">3,020</td>
+            <td>Ordinary</td>
+        </tr>
+        <tr>
+            <td><strong>2035</strong></td>
+            <td class="value">78.3%</td>
+            <td class="value">10,250</td>
+            <td class="value">8,150</td>
+            <td class="value">5,680</td>
+            <td class="value">6,500</td>
+            <td class="value">2,350</td>
+            <td>Ordinary</td>
+        </tr>
+        <tr class="highlight-row" style="background: #e8f5e9 !important;">
+            <td><strong>2040</strong></td>
+            <td class="value"><strong>86.7%</strong></td>
+            <td class="value">12,450</td>
+            <td class="value">10,820</td>
+            <td class="value">6,520</td>
+            <td class="value">9,200</td>
+            <td class="value">1,480</td>
+            <td><span style="color: #27ae60;">Major Target</span></td>
+        </tr>
+    </tbody>
+</table>
+
+<!-- Scenario Comparison -->
+<h3>2040 Target - Scenario Comparison</h3>
+<table class="stats-table">
+    <thead>
+        <tr>
+            <th>Scenario</th>
+            <th class="value">2040 RE%</th>
+            <th class="value">vs 85% Target</th>
+            <th class="value">Probability</th>
+            <th class="value">Total RE Gen (GWh)</th>
+            <th class="value">Emissions (kt)</th>
+            <th>Status</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr class="renewable-row">
+            <td><strong>Accelerated Pipeline</strong></td>
+            <td class="value">91.2%</td>
+            <td class="value positive">+6.2 pp</td>
+            <td class="value">92%</td>
+            <td class="value">32,850</td>
+            <td class="value">980</td>
+            <td><span style="color: #27ae60;">Exceeds Target</span></td>
+        </tr>
+        <tr class="highlight-row">
+            <td><strong>Base Case</strong></td>
+            <td class="value">86.7%</td>
+            <td class="value positive">+1.7 pp</td>
+            <td class="value">78%</td>
+            <td class="value">29,790</td>
+            <td class="value">1,480</td>
+            <td><span style="color: #27ae60;">Meets Target</span></td>
+        </tr>
+        <tr class="fossil-row">
+            <td><strong>Delayed Pipeline</strong></td>
+            <td class="value">79.5%</td>
+            <td class="value negative">-5.5 pp</td>
+            <td class="value">45%</td>
+            <td class="value">26,120</td>
+            <td class="value">2,280</td>
+            <td><span style="color: #e74c3c;">Below Target</span></td>
+        </tr>
+    </tbody>
+</table>
+
+<!-- Capacity Pipeline -->
+<div class="section-header">
+    <h2>Projected Facility Pipeline</h2>
+</div>
+
+<div class="info-box">
+    <h3>Capacity by Status and Technology</h3>
+    <p>Facilities included in Base Case scenario projections, ordered by expected commissioning date.</p>
+</div>
+
+<!-- Capacity Summary Cards -->
+<div class="metric-grid">
+    <div class="metric-card positive">
+        <div class="metric-label">Commissioned</div>
+        <div class="metric-value">4,850</div>
+        <div class="metric-sublabel">MW operational</div>
+    </div>
+    <div class="metric-card neutral">
+        <div class="metric-label">Under Construction</div>
+        <div class="metric-value">1,240</div>
+        <div class="metric-sublabel">MW in progress</div>
+    </div>
+    <div class="metric-card warning">
+        <div class="metric-label">Planned</div>
+        <div class="metric-value">3,580</div>
+        <div class="metric-sublabel">MW committed</div>
+    </div>
+    <div class="metric-card">
+        <div class="metric-label">Probable</div>
+        <div class="metric-value">2,150</div>
+        <div class="metric-sublabel">MW likely</div>
+    </div>
+</div>
+
+<!-- Upcoming Facilities Table -->
+<h3>Upcoming Facility Commissioning (2025-2030)</h3>
+<table class="stats-table">
+    <thead>
+        <tr>
+            <th>Facility</th>
+            <th>Technology</th>
+            <th class="value">Capacity (MW)</th>
+            <th>Status</th>
+            <th>Expected Commissioning</th>
+            <th class="value">Probability</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr class="renewable-row">
+            <td><strong>Yandin Wind Farm Extension</strong></td>
+            <td>Wind</td>
+            <td class="value">180</td>
+            <td>Under Construction</td>
+            <td>Q2 2025</td>
+            <td class="value">95%</td>
+        </tr>
+        <tr class="renewable-row">
+            <td><strong>Collie Battery Stage 1</strong></td>
+            <td>Battery Storage</td>
+            <td class="value">200</td>
+            <td>Under Construction</td>
+            <td>Q3 2025</td>
+            <td class="value">90%</td>
+        </tr>
+        <tr class="renewable-row">
+            <td><strong>Warradarge Solar</strong></td>
+            <td>Solar</td>
+            <td class="value">150</td>
+            <td>Planned</td>
+            <td>Q4 2025</td>
+            <td class="value">85%</td>
+        </tr>
+        <tr>
+            <td><strong>Emu Downs Wind Extension</strong></td>
+            <td>Wind</td>
+            <td class="value">250</td>
+            <td>Planned</td>
+            <td>Q1 2026</td>
+            <td class="value">80%</td>
+        </tr>
+        <tr>
+            <td><strong>Geraldton Solar Farm</strong></td>
+            <td>Solar</td>
+            <td class="value">320</td>
+            <td>Planned</td>
+            <td>Q2 2026</td>
+            <td class="value">75%</td>
+        </tr>
+        <tr>
+            <td><strong>Kwinana Big Battery</strong></td>
+            <td>Battery Storage</td>
+            <td class="value">500</td>
+            <td>Planned</td>
+            <td>Q4 2026</td>
+            <td class="value">70%</td>
+        </tr>
+        <tr class="info-row">
+            <td><strong>Midwest Wind Hub</strong></td>
+            <td>Wind</td>
+            <td class="value">450</td>
+            <td>Probable</td>
+            <td>Q2 2027</td>
+            <td class="value">65%</td>
+        </tr>
+        <tr class="info-row">
+            <td><strong>Southern Cross Solar</strong></td>
+            <td>Solar</td>
+            <td class="value">280</td>
+            <td>Probable</td>
+            <td>Q3 2027</td>
+            <td class="value">60%</td>
+        </tr>
+        <tr class="info-row">
+            <td><strong>Northam Wind Farm</strong></td>
+            <td>Wind</td>
+            <td class="value">380</td>
+            <td>Probable</td>
+            <td>Q1 2028</td>
+            <td class="value">55%</td>
+        </tr>
+        <tr class="info-row">
+            <td><strong>Esperance Hybrid</strong></td>
+            <td>Wind + Solar + Battery</td>
+            <td class="value">420</td>
+            <td>Probable</td>
+            <td>Q4 2028</td>
+            <td class="value">50%</td>
+        </tr>
+    </tbody>
+    <tfoot>
+        <tr style="background: #34495e; color: white;">
+            <td colspan="2"><strong>Total Pipeline (2025-2028)</strong></td>
+            <td class="value"><strong>3,130 MW</strong></td>
+            <td colspan="3"></td>
+        </tr>
+    </tfoot>
+</table>
+
+<!-- Generation Mix Chart Placeholder -->
+<div class="section-header">
+    <h2>Projected Generation Mix Evolution</h2>
+</div>
+
+<div class="chart-container">
+    <div style="height: 400px; background: linear-gradient(135deg, #f5f7fa 0%, #e4e8ec 100%); border-radius: 8px; display: flex; align-items: center; justify-content: center; border: 2px dashed #bdc3c7;">
+        <div style="text-align: center; color: #7f8c8d;">
+            <p style="font-size: 1.5em; margin-bottom: 10px;">Generation Mix Stacked Area Chart</p>
+            <p>Showing Wind, Solar (Utility), Solar (DPV), Gas, and Storage contribution 2025-2040</p>
+        </div>
+    </div>
+</div>
+
+<!-- Capacity by Technology Over Time -->
+<div class="section-header">
+    <h2>Cumulative Capacity by Technology</h2>
+</div>
+
+<table class="stats-table">
+    <thead>
+        <tr>
+            <th>Year</th>
+            <th class="value">Wind (MW)</th>
+            <th class="value">Solar Utility (MW)</th>
+            <th class="value">DPV (MW)</th>
+            <th class="value">Storage (MW)</th>
+            <th class="value">Total RE (MW)</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td><strong>2025</strong></td>
+            <td class="value">2,850</td>
+            <td class="value">1,420</td>
+            <td class="value">2,100</td>
+            <td class="value">450</td>
+            <td class="value">6,820</td>
+        </tr>
+        <tr>
+            <td><strong>2027</strong></td>
+            <td class="value">3,580</td>
+            <td class="value">2,150</td>
+            <td class="value">2,650</td>
+            <td class="value">850</td>
+            <td class="value">9,230</td>
+        </tr>
+        <tr class="highlight-row">
+            <td><strong>2030</strong></td>
+            <td class="value">4,820</td>
+            <td class="value">3,450</td>
+            <td class="value">3,400</td>
+            <td class="value">1,500</td>
+            <td class="value">13,170</td>
+        </tr>
+        <tr>
+            <td><strong>2035</strong></td>
+            <td class="value">6,250</td>
+            <td class="value">5,180</td>
+            <td class="value">4,500</td>
+            <td class="value">2,800</td>
+            <td class="value">18,730</td>
+        </tr>
+        <tr class="highlight-row" style="background: #e8f5e9 !important;">
+            <td><strong>2040</strong></td>
+            <td class="value">7,850</td>
+            <td class="value">7,200</td>
+            <td class="value">5,800</td>
+            <td class="value">4,500</td>
+            <td class="value">25,350</td>
+        </tr>
+    </tbody>
+</table>
+
+<!-- Demand Projections -->
+<div class="section-header">
+    <h2>Demand Projections</h2>
+</div>
+
+<div class="chart-container">
+    <div style="height: 300px; background: linear-gradient(135deg, #f5f7fa 0%, #e4e8ec 100%); border-radius: 8px; display: flex; align-items: center; justify-content: center; border: 2px dashed #bdc3c7;">
+        <div style="text-align: center; color: #7f8c8d;">
+            <p style="font-size: 1.5em; margin-bottom: 10px;">Demand Growth Chart</p>
+            <p>Operational demand vs Underlying demand (including DPV) 2025-2040</p>
+        </div>
+    </div>
+</div>
+
+<table class="stats-table">
+    <thead>
+        <tr>
+            <th>Year</th>
+            <th class="value">Operational Demand (GWh)</th>
+            <th class="value">DPV Generation (GWh)</th>
+            <th class="value">Underlying Demand (GWh)</th>
+            <th class="value">Growth Rate</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td><strong>2025</strong></td>
+            <td class="value">19,850</td>
+            <td class="value">3,400</td>
+            <td class="value">23,250</td>
+            <td class="value">+1.8%</td>
+        </tr>
+        <tr class="highlight-row">
+            <td><strong>2030</strong></td>
+            <td class="value">21,420</td>
+            <td class="value">4,650</td>
+            <td class="value">26,070</td>
+            <td class="value">+1.5%</td>
+        </tr>
+        <tr>
+            <td><strong>2035</strong></td>
+            <td class="value">23,150</td>
+            <td class="value">5,680</td>
+            <td class="value">28,830</td>
+            <td class="value">+1.2%</td>
+        </tr>
+        <tr class="highlight-row" style="background: #e8f5e9 !important;">
+            <td><strong>2040</strong></td>
+            <td class="value">25,080</td>
+            <td class="value">6,520</td>
+            <td class="value">31,600</td>
+            <td class="value">+1.0%</td>
+        </tr>
+    </tbody>
+</table>
+
+<!-- Emissions Trajectory -->
+<div class="section-header">
+    <h2>Emissions Reduction Trajectory</h2>
+</div>
+
+<div class="chart-container">
+    <div style="height: 300px; background: linear-gradient(135deg, #f5f7fa 0%, #e4e8ec 100%); border-radius: 8px; display: flex; align-items: center; justify-content: center; border: 2px dashed #bdc3c7;">
+        <div style="text-align: center; color: #7f8c8d;">
+            <p style="font-size: 1.5em; margin-bottom: 10px;">Emissions Reduction Chart</p>
+            <p>Annual CO2-e emissions by scenario 2025-2040</p>
+        </div>
+    </div>
+</div>
+
+<div class="metric-grid">
+    <div class="metric-card positive">
+        <div class="metric-label">2024 Baseline</div>
+        <div class="metric-value">5,850</div>
+        <div class="metric-sublabel">kt CO2-e</div>
+    </div>
+    <div class="metric-card positive">
+        <div class="metric-label">2030 Projected</div>
+        <div class="metric-value">3,650</div>
+        <div class="metric-sublabel">kt CO2-e (-38%)</div>
+    </div>
+    <div class="metric-card positive">
+        <div class="metric-label">2040 Projected</div>
+        <div class="metric-value">1,480</div>
+        <div class="metric-sublabel">kt CO2-e (-75%)</div>
+    </div>
+    <div class="metric-card neutral">
+        <div class="metric-label">Cumulative Reduction</div>
+        <div class="metric-value">42.5</div>
+        <div class="metric-sublabel">Mt CO2-e (2025-2040)</div>
+    </div>
+</div>
+
+<!-- Risk Analysis -->
+<div class="section-header">
+    <h2>Key Risks and Sensitivities</h2>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 20px;">
+    <div class="info-box" style="border-left-color: #e74c3c;">
+        <h3 style="margin-top: 0; color: #e74c3c;">Downside Risks</h3>
+        <ul class="bullet-list">
+            <li><strong>Project Delays:</strong> Average 12-month delay would reduce 2040 RE% by 5-7 pp</li>
+            <li><strong>Grid Constraints:</strong> Transmission bottlenecks could limit new capacity connections</li>
+            <li><strong>Financing Challenges:</strong> Higher interest rates may slow investment pipeline</li>
+            <li><strong>Resource Variability:</strong> Below-average wind/solar years impact generation</li>
+        </ul>
+    </div>
+
+    <div class="info-box" style="border-left-color: #27ae60;">
+        <h3 style="margin-top: 0; color: #27ae60;">Upside Opportunities</h3>
+        <ul class="bullet-list">
+            <li><strong>Technology Improvements:</strong> Higher capacity factors from newer equipment</li>
+            <li><strong>Policy Support:</strong> Additional incentives could accelerate pipeline</li>
+            <li><strong>Storage Cost Decline:</strong> Battery costs falling faster than projected</li>
+            <li><strong>DPV Growth:</strong> Rooftop solar adoption exceeding forecasts</li>
+        </ul>
+    </div>
+</div>
+
+<!-- Monte Carlo Analysis -->
+<div class="section-header">
+    <h2>Monte Carlo Probability Analysis</h2>
+</div>
+
+<div class="info-box">
+    <h3>Simulation Parameters</h3>
+    <p>10,000 iterations with the following uncertainty distributions:</p>
+    <ul class="bullet-list">
+        <li><strong>Commissioning Probability:</strong> Based on facility status (Planned: 85%, Probable: 60%, Possible: 35%)</li>
+        <li><strong>Commissioning Delay:</strong> Normal distribution, mean 6 months, std dev 4 months</li>
+        <li><strong>Capacity Factor Variance:</strong> +/- 10% based on historical data</li>
+        <li><strong>Demand Growth:</strong> +/- 0.5% annual variation</li>
+    </ul>
+</div>
+
+<div class="chart-container">
+    <div style="height: 350px; background: linear-gradient(135deg, #f5f7fa 0%, #e4e8ec 100%); border-radius: 8px; display: flex; align-items: center; justify-content: center; border: 2px dashed #bdc3c7;">
+        <div style="text-align: center; color: #7f8c8d;">
+            <p style="font-size: 1.5em; margin-bottom: 10px;">Probability Distribution Chart</p>
+            <p>Histogram showing 2040 RE% outcome distribution from Monte Carlo simulation</p>
+            <p style="font-size: 0.9em;">P10: 78.5% | P50: 86.2% | P90: 92.1%</p>
+        </div>
+    </div>
+</div>
+
+<table class="stats-table">
+    <thead>
+        <tr>
+            <th>Target RE%</th>
+            <th class="value">Probability of Achievement</th>
+            <th>Assessment</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td><strong>80%</strong></td>
+            <td class="value">92%</td>
+            <td><span style="color: #27ae60;">Very Likely</span></td>
+        </tr>
+        <tr class="highlight-row">
+            <td><strong>85%</strong></td>
+            <td class="value">78%</td>
+            <td><span style="color: #27ae60;">Likely</span></td>
+        </tr>
+        <tr>
+            <td><strong>90%</strong></td>
+            <td class="value">48%</td>
+            <td><span style="color: #f39c12;">Possible</span></td>
+        </tr>
+        <tr>
+            <td><strong>95%</strong></td>
+            <td class="value">15%</td>
+            <td><span style="color: #e74c3c;">Unlikely</span></td>
+        </tr>
+    </tbody>
+</table>
+
+<!-- Recommendations -->
+<div class="section-header">
+    <h2>Recommendations</h2>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 20px;">
+    <div class="info-box">
+        <h3>Target Confirmation</h3>
+        <p><strong>Recommended 2040 Target:</strong> 85% Renewable Energy by 2040 (underlying demand basis)</p>
+        <ul class="bullet-list">
+            <li>Achievable with Planned + Probable facilities</li>
+            <li>78% probability of achievement based on Monte Carlo analysis</li>
+            <li>Provides buffer above target in base case</li>
+            <li>Aligns with current facility pipeline</li>
+        </ul>
+    </div>
+
+    <div class="info-box">
+        <h3>Priority Actions</h3>
+        <ul class="bullet-list">
+            <li><strong>Pipeline Management:</strong> Transition 3-4 Probable facilities to Planned status</li>
+            <li><strong>Battery Storage:</strong> Current pipeline needs ~800 MW additional by 2028</li>
+            <li><strong>Grid Investment:</strong> Identify transmission upgrades for new capacity zones</li>
+            <li><strong>Interim Milestones:</strong> Establish 2027 and 2030 progress checkpoints</li>
+        </ul>
+    </div>
+</div>
+
+<!-- Footer -->
+<div style="margin-top: 40px; padding: 20px; background: #ecf0f1; border-radius: 8px;">
+    <p style="margin: 0;"><strong>Report Generated:</strong> Mockup Version - Layout Only</p>
+    <p style="margin: 5px 0 0 0;">
+        <strong><a href="mailto:modelling.lead@sen.asn.au">Contact SEN Modelling</a></strong>
+    </p>
+</div>
+
+<style>
+    .section-header {
+        background: white;
+        padding: 30px;
+        margin-bottom: 30px;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    .section-header h2 {
+        color: #1e3c72;
+        border-bottom: 3px solid #4CAF50;
+        padding-bottom: 10px;
+        margin-bottom: 20px;
+        font-size: 1.8em;
+    }
+
+    .section-header h3 {
+        color: #2a5298;
+        margin-top: 25px;
+        margin-bottom: 15px;
+        font-size: 1.4em;
+    }
+
+    .metric-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 20px;
+        margin: 20px 0;
+    }
+
+    .metric-card {
+        background: white;
+        padding: 25px;
+        border-radius: 12px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        border-left: 4px solid #bdc3c7;
+    }
+
+    .metric-card.positive {
+        border-left-color: #27ae60;
+        background: linear-gradient(135deg, #ffffff 0%, #e8f5e9 100%);
+    }
+
+    .metric-card.negative {
+        border-left-color: #e74c3c;
+        background: linear-gradient(135deg, #ffffff 0%, #ffebee 100%);
+    }
+
+    .metric-card.warning {
+        border-left-color: #f39c12;
+        background: linear-gradient(135deg, #ffffff 0%, #fff8e1 100%);
+    }
+
+    .metric-card.neutral {
+        border-left-color: #3498db;
+        background: linear-gradient(135deg, #ffffff 0%, #e3f2fd 100%);
+    }
+
+    .metric-label {
+        font-size: 0.9em;
+        color: #7f8c8d;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 8px;
+    }
+
+    .metric-value {
+        font-size: 2.5em;
+        font-weight: 700;
+        color: #2c3e50;
+        margin: 10px 0;
+    }
+
+    .metric-sublabel {
+        font-size: 0.85em;
+        color: #95a5a6;
+        margin-top: 8px;
+    }
+
+    .metric-change {
+        font-size: 0.9em;
+        color: #7f8c8d;
+        margin-top: 8px;
+    }
+
+    .info-box {
+        background: #f8f9fa;
+        padding: 25px;
+        border-radius: 8px;
+        margin: 20px 0;
+        border-left: 4px solid #3498db;
+    }
+
+    .info-box h3 {
+        color: #2c3e50;
+        margin-top: 0;
+        margin-bottom: 15px;
+    }
+
+    .bullet-list {
+        list-style: none;
+        padding-left: 0;
+    }
+
+    .bullet-list li {
+        padding: 8px 0 8px 25px;
+        position: relative;
+        line-height: 1.6;
+    }
+
+    .bullet-list li:before {
+        content: "▪";
+        position: absolute;
+        left: 5px;
+        color: #3498db;
+        font-size: 1.2em;
+    }
+
+    .stats-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 20px 0;
+        background: white;
+        border-radius: 8px;
+        overflow: hidden;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    .stats-table thead {
+        background: #34495e;
+        color: white;
+    }
+
+    .stats-table th,
+    .stats-table td {
+        padding: 12px 15px;
+        text-align: left;
+    }
+
+    .stats-table th.value,
+    .stats-table td.value {
+        text-align: right;
+    }
+
+    .stats-table tbody tr:nth-child(even) {
+        background: #f8f9fa;
+    }
+
+    .stats-table tbody tr:hover {
+        background: #e8f4f8;
+    }
+
+    .stats-table tfoot td {
+        padding: 12px 15px;
+    }
+
+    .renewable-row {
+        background: #e8f5e9 !important;
+    }
+
+    .fossil-row {
+        background: #fafafa !important;
+    }
+
+    .info-row {
+        background: #e3f2fd !important;
+        font-style: italic;
+    }
+
+    .highlight-row {
+        background: #e3f2fd !important;
+        font-weight: 600;
+    }
+
+    .chart-container {
+        background: white;
+        padding: 20px;
+        border-radius: 8px;
+        margin: 20px 0;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    }
+
+    td.value.positive {
+        color: #27ae60;
+    }
+
+    td.value.negative {
+        color: #e74c3c;
+    }
+
+    @media print {
+        .chart-container {
+            break-inside: avoid;
+        }
+    }
+</style>
+
+{% endblock %}

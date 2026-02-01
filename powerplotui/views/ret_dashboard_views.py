@@ -43,12 +43,19 @@ def ret_dashboard(request, year=None, month=None):
     Main dashboard view for renewable energy tracking.
     Shows monthly performance vs targets.
     """
-    # Default to last complete month if not specified
+    # Default to most recent month with available data if not specified
     now = timezone.now()
     if not year and not month:
-        target_date = (now.replace(day=1) - timedelta(days=1))
-        year = target_date.year
-        month = target_date.month
+        # Try to get the most recent month with data
+        latest_record = MonthlyREPerformance.objects.order_by('-year', '-month').first()
+        if latest_record:
+            year = latest_record.year
+            month = latest_record.month
+        else:
+            # Fallback to last complete month if no data exists at all
+            target_date = (now.replace(day=1) - timedelta(days=1))
+            year = target_date.year
+            month = target_date.month
     if not year:
         year = now.year
     if not month:
