@@ -573,12 +573,12 @@
         {% endif %}
     </div>
 </div>
-    <!-- Demand Definitions Info Box -->
+    <!-- Consumption Definitions Info Box -->
 <div class="info-box" style="background: #e3f2fd; border-left-color: #2196f3;">
     <p style="margin-bottom: 0;">
-        <strong>Operational Demand:</strong> Total grid-sent generation. This
+        <strong>Operational Consumption:</strong> Total consumption from grid sources. This
         represents electricity delivered through the grid.<br>
-        <strong>Underlying Demand:</strong> Operational demand plus rooftop solar (DPV). This represents total
+        <strong>Underlying Consumption:</strong> Operational demand plus rooftop solar (DPV). This represents total
         electricity consumed including behind-the-meter generation.<br>
     </p>
 </div>
@@ -620,11 +620,11 @@
         </div>
 
         {% if target %}
-        <div class="metric-card {% if target_status.status == 'ahead' %}positive{% elif target_status.status == 'behind' %}negative{% else %}neutral{% endif %}">
-            <div class="metric-label">{{ year }} Target</div>
-            <div class="metric-value">{{ target.target_re_percentage|floatformat:1 }}%</div>
+        <div class="metric-card {% if ytd_summary.re_percentage_operational >= target.target_re_percentage %}positive{% else %}warning{% endif %}">
+            <div class="metric-label">{{ year }} Target {% if ytd_summary.re_percentage_operational >= target.target_re_percentage %}Exceeded{% else %}Shortfall{% endif %}</div>
+            <div class="metric-value">{% with shortfall=target.target_re_percentage|sub:ytd_summary.re_percentage_operational %}{% if shortfall > 0 %}{{ shortfall|floatformat:1 }} pp{% else %}On track{% endif %}{% endwith %}</div>
             <div class="metric-change">
-                {{ target_status.message }}
+                ⚠ RE% (Operational) target is {{ target.target_re_percentage|floatformat:0 }}% by year end.
             </div>
         </div>
         {% endif %}
@@ -794,12 +794,12 @@
         <thead>
             <tr>
                 <th>Month</th>
-                <th class="value">Underlying Demand (GWh)</th>
+                <th class="value">Underlying Consumption (GWh)</th>
                 <th class="value">Renewable Gen (GWh)</th>
                 <th class="value">RE% (Operational)</th>
+                <th class="value">vs Target (pp)</th>
                 <th class="value">RE% (Underlying)</th>
                 <th class="value">Emissions (t CO₂-e)</th>
-                <th class="value">vs Target</th>
             </tr>
         </thead>
         <tbody>
@@ -809,8 +809,6 @@
                 <td class="value">{{ monthly.underlying_demand|floatformat:0|intcomma }}</td>
                 <td class="value">{{ monthly.total_renewable_generation|floatformat:0|intcomma }}</td>
                 <td class="value">{{ monthly.re_percentage_operational|floatformat:1 }}%</td>
-                <td class="value">{{ monthly.re_percentage_underlying|floatformat:1 }}%</td>
-                <td class="value">{{ monthly.total_emissions_tonnes|floatformat:0|intcomma }}</td>
                 <td class="value">
                     {% if target %}
                         {% if monthly.re_percentage_underlying >= target.target_re_percentage %}
@@ -822,6 +820,8 @@
                     -
                     {% endif %}
                 </td>
+                <td class="value">{{ monthly.re_percentage_underlying|floatformat:1 }}%</td>
+                <td class="value">{{ monthly.total_emissions_tonnes|floatformat:0|intcomma }}</td>
             </tr>
             {% empty %}
             <tr>
@@ -947,7 +947,7 @@
             ahead</strong> of the {{ year }} annual target.
         {% else %}
         ⚠ YTD performance is <strong>{{ target_status.gap|mul:-1|floatformat:1 }} percentage points
-            behind</strong> the {{ year }} annual target. Acceleration needed in remaining quarters.
+            behind</strong> the {{ year }} annual target. Acceleration needed in the remaining quarter(s).
         {% endif %}
     </p>
     {% endif %}
@@ -955,9 +955,7 @@
 
 <!-- Generation Mix Analysis -->
 <div class="section-header">
-    <h2>Generation Mix Analysis</h2>
-
-    <h3>Quarterly Generation by Technology (Q{{ quarter }})</h3>
+    <h2>Generation by Technology for the Quarter (Q{{ quarter }})</h2>
 
     <table class="data-table">
         <thead>
@@ -1012,6 +1010,7 @@
                 <td class="value">{{ quarterly_summary.coal_generation|floatformat:1 }}</td>
                 <td class="value">{{ quarterly_summary.coal_generation|div:quarterly_summary.operational_demand|mul:100|floatformat:1 }}%</td>
                 <td class="value">{{ quarterly_summary.coal_generation|div:quarterly_summary.underlying_demand|mul:100|floatformat:1 }}%</td>
+                <td class="value">{{ quarterly_summary.coal_generation|mul:900|floatformat:0|intcomma }} t</td>
             </tr>
             {% if quarterly_summary.storage_charge > 0 %}
             <tr class="info-row">
@@ -1042,8 +1041,8 @@
 
 <!-- Charts -->
 <div class="section-header">
-    <h2>Quarterly Trends</h2>
-
+    <h2>Generation Mix Analysis</h2>
+    <I >Hover over the chart columns to see generation values</I>
     <div class="chart-container">
         <h3>Monthly Generation Breakdown (Q{{ quarter }} {{ year }})</h3>
         <div id="monthly-generation-chart"></div>

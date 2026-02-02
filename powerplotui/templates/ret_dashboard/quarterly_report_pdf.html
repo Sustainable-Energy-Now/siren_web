@@ -221,15 +221,11 @@
             </div>
 
             {% if target %}
-            <div class="summary-card">
-                <div class="label">{{ year }} Target</div>
-                <div class="value">{{ target.target_re_percentage|floatformat:1 }}%</div>
+            <div class="summary-card {% if ytd_summary.re_percentage_operational >= target.target_re_percentage %}positive{% else %}warning{% endif %}">
+                <div class="label">{{ year }} Target {% if ytd_summary.re_percentage_operational >= target.target_re_percentage %}Exceeded{% else %}Shortfall{% endif %}</div>
+                <div class="value">{% with shortfall=target.target_re_percentage|sub:ytd_summary.re_percentage_operational %}{% if shortfall > 0 %}{{ shortfall|floatformat:1 }} pp{% else %}On track{% endif %}{% endwith %}</div>
                 <div class="change">
-                    {% if ytd_summary.re_percentage_underlying >= target.target_re_percentage %}
-                    ✓ On track
-                    {% else %}
-                    ⚠ {{ target.target_re_percentage|sub:ytd_summary.re_percentage_underlying|floatformat:1 }} pp behind
-                    {% endif %}
+                    ⚠ RE% (Operational) target is {{ target.target_re_percentage|floatformat:0 }}% by year end.
                 </div>
             </div>
             {% endif %}
@@ -267,8 +263,8 @@
 
         <div class="info-box">
             <strong>Note:</strong>
-            <strong>Operational Demand</strong> = Grid-sent generation.
-            <strong>Underlying Demand</strong> = Operational + rooftop solar (DPV).
+            <strong>Operational Consumption</strong> = Total consumption from grid sources.
+            <strong>Underlying Consumption</strong> = Operational + rooftop solar (DPV).
         </div>
 
         {% if executive_summary and executive_summary.content %}
@@ -388,12 +384,12 @@
             <thead>
                 <tr>
                     <th>Month</th>
-                    <th class="value">Underlying Demand (GWh)</th>
+                    <th class="value">Underlying Consumption (GWh)</th>
                     <th class="value">Renewable Gen (GWh)</th>
                     <th class="value">RE% (Operational)</th>
+                    <th class="value">vs Target (pp)</th>
                     <th class="value">RE% (Underlying)</th>
                     <th class="value">Emissions (t CO₂-e)</th>
-                    <th class="value">vs Target</th>
                 </tr>
             </thead>
             <tbody>
@@ -403,8 +399,6 @@
                     <td class="value">{{ monthly.underlying_demand|floatformat:0|intcomma }}</td>
                     <td class="value">{{ monthly.total_renewable_generation|floatformat:0|intcomma }}</td>
                     <td class="value">{{ monthly.re_percentage_operational|floatformat:1 }}%</td>
-                    <td class="value">{{ monthly.re_percentage_underlying|floatformat:1 }}%</td>
-                    <td class="value">{{ monthly.total_emissions_tonnes|floatformat:0|intcomma }}</td>
                     <td class="value">
                         {% if target %}
                             {% if monthly.re_percentage_underlying >= target.target_re_percentage %}
@@ -416,6 +410,8 @@
                         —
                         {% endif %}
                     </td>
+                    <td class="value">{{ monthly.re_percentage_underlying|floatformat:1 }}%</td>
+                    <td class="value">{{ monthly.total_emissions_tonnes|floatformat:0|intcomma }}</td>
                 </tr>
                 {% endfor %}
                 {% if quarterly_summary %}

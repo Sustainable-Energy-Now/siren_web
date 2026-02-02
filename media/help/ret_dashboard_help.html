@@ -1,0 +1,1236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Siren Web Help</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 0;
+            background: #f8f9fa;
+            color: #333;
+        }
+        
+        .container {
+            display: flex;
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            min-height: 100vh;
+            box-shadow: 0 0 20px rgba(0,0,0,0.1);
+        }
+        
+        .sidebar {
+            width: 350px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px 25px;
+            position: sticky;
+            top: 0;
+            height: 100vh;
+            overflow-y: auto;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+        }
+        
+        .sidebar h2 {
+            margin-top: 0;
+            color: #ffffff;
+            border-bottom: 2px solid rgba(255,255,255,0.3);
+            padding-bottom: 15px;
+            font-size: 1.4em;
+            font-weight: 600;
+        }
+        
+        .toc-list {
+            list-style: none;
+            padding: 0;
+            margin: 20px 0;
+        }
+        
+        .toc-item {
+            margin: 5px 0;
+        }
+        
+        .toc-link {
+            color: rgba(255,255,255,0.8);
+            text-decoration: none;
+            padding: 12px 15px;
+            display: block;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+            font-weight: 500;
+            border-left: 3px solid transparent;
+        }
+        
+        .toc-link:hover {
+            background: rgba(255,255,255,0.1);
+            color: white;
+            transform: translateX(5px);
+            border-left-color: rgba(255,255,255,0.5);
+        }
+        
+        .toc-link.active {
+            background: rgba(255,255,255,0.2);
+            color: white;
+            border-left-color: #ffd700;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+        }
+        .toc-subsections {
+            list-style: none;
+            padding: 0;
+            margin: 5px 0 0 20px;
+        }
+
+        .toc-subitem {
+            margin: 3px 0;
+        }
+
+        .toc-sublink {
+            color: rgba(255,255,255,0.6);
+            text-decoration: none;
+            padding: 6px 12px;
+            display: block;
+            border-radius: 5px;
+            transition: all 0.3s ease;
+            font-size: 0.9em;
+            border-left: 2px solid transparent;
+        }
+
+        .toc-sublink:hover {
+            background: rgba(255,255,255,0.05);
+            color: rgba(255,255,255,0.8);
+            border-left-color: rgba(255,255,255,0.3);
+        }
+        .content {
+            flex: 1;
+            padding: 40px 50px;
+            position: relative;
+            max-width: none;
+        }
+        
+        .page-section {
+            display: none;
+            animation: fadeIn 0.4s ease-in;
+        }
+        
+        .page-section.active {
+            display: block !important;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .navigation {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            display: flex;
+            gap: 15px;
+            z-index: 1000;
+        }
+        
+        .nav-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px 20px;
+            border-radius: 50px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+            min-width: 120px;
+        }
+        
+        .nav-btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+        }
+        
+        .nav-btn:disabled {
+            background: #cbd5e0;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        
+        .back-to-top {
+            position: fixed;
+            bottom: 120px;
+            right: 30px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px;
+            border-radius: 50%;
+            cursor: pointer;
+            width: 55px;
+            height: 55px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+            font-size: 18px;
+        }
+        
+        .back-to-top:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+        }
+        
+        .page-indicator {
+            position: fixed;
+            top: 30px;
+            right: 30px;
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 10px 15px;
+            border-radius: 25px;
+            font-size: 14px;
+            font-weight: 600;
+            z-index: 1000;
+            backdrop-filter: blur(10px);
+        }
+        
+        /* Content Styling */
+        h1, h2, h3, h4, h5, h6 {
+            color: #2d3748;
+            margin-top: 2em;
+            margin-bottom: 1em;
+        }
+        
+        h1 {
+            font-size: 2.5em;
+            border-bottom: 3px solid #667eea;
+            padding-bottom: 0.5em;
+            margin-top: 0;
+        }
+        
+        h2 {
+            font-size: 2em;
+            color: #4a5568;
+            border-bottom: 2px solid #e2e8f0;
+            padding-bottom: 0.3em;
+        }
+        
+        h3 {
+            font-size: 1.5em;
+            color: #667eea;
+        }
+        
+        p {
+            margin-bottom: 1.2em;
+            text-align: justify;
+        }
+        
+        ul, ol {
+            margin-bottom: 1.2em;
+            padding-left: 2em;
+        }
+        
+        li {
+            margin-bottom: 0.5em;
+        }
+        
+        code {
+            background: #f7fafc;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'Monaco', 'Consolas', monospace;
+            color: #e53e3e;
+            border: 1px solid #e2e8f0;
+        }
+        
+        pre {
+            background: #2d3748;
+            color: #e2e8f0;
+            padding: 20px;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin: 1.5em 0;
+        }
+        
+        pre code {
+            background: none;
+            padding: 0;
+            border: none;
+            color: inherit;
+        }
+        
+        strong {
+            color: #2d3748;
+            font-weight: 600;
+        }
+        
+        /* Mobile Responsive */
+        @media (max-width: 768px) {
+            .container {
+                flex-direction: column;
+            }
+            
+            .sidebar {
+                width: 100%;
+                height: auto;
+                position: relative;
+                padding: 20px;
+            }
+            
+            .content {
+                padding: 30px 20px;
+            }
+            
+            .navigation {
+                position: relative;
+                bottom: auto;
+                right: auto;
+                justify-content: center;
+                margin-top: 30px;
+            }
+            
+            .page-indicator {
+                position: relative;
+                top: auto;
+                right: auto;
+                margin-bottom: 20px;
+                display: inline-block;
+            }
+            
+            .back-to-top {
+                display: none;
+            }
+        }
+        
+        /* Print Styles */
+        @media print {
+            .sidebar, .navigation, .back-to-top, .page-indicator {
+                display: none;
+            }
+            
+            .page-section {
+                display: block !important;
+                page-break-after: always;
+            }
+            
+            .content {
+                width: 100%;
+                padding: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <nav class="sidebar">
+            <h2>📖 Table of Contents</h2>
+            
+            <div style="margin-bottom: 20px; padding-bottom: 15px; border-bottom: 1px solid rgba(255,255,255,0.2);">
+                <a href="/help/" style="color: rgba(255,255,255,0.9); text-decoration: none; padding: 10px 15px; display: block; border-radius: 8px; background: rgba(255,255,255,0.1); transition: all 0.3s ease;">
+                    ← Back to Main Help
+                </a>
+            </div>
+            <ul class="toc-list" id="tocList">
+                
+                <li class="toc-item">
+                    <a href="#" class="toc-link active" data-section="0">Guide to the RET Dashboard Reports</a>
+                </li><ul class="toc-subsections">
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="0" data-subsection="overview">Overview</a>
+                    </li></ul></li>
+                <li class="toc-item">
+                    <a href="#" class="toc-link " data-section="1">Available Reports</a>
+                </li></li>
+                <li class="toc-item">
+                    <a href="#" class="toc-link " data-section="2">Monthly Dashboard</a>
+                </li><ul class="toc-subsections">
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="2" data-subsection="purpose">Purpose</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="2" data-subsection="key-sections">Key Sections</a>
+                    </li></ul></li>
+                <li class="toc-item">
+                    <a href="#" class="toc-link " data-section="3">Quarterly Report</a>
+                </li><ul class="toc-subsections">
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="3" data-subsection="purpose">Purpose</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="3" data-subsection="key-sections">Key Sections</a>
+                    </li></ul></li>
+                <li class="toc-item">
+                    <a href="#" class="toc-link " data-section="4">Annual Review</a>
+                </li><ul class="toc-subsections">
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="4" data-subsection="purpose">Purpose</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="4" data-subsection="key-sections">Key Sections</a>
+                    </li></ul></li>
+                <li class="toc-item">
+                    <a href="#" class="toc-link " data-section="5">Scenario Projections</a>
+                </li><ul class="toc-subsections">
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="5" data-subsection="purpose">Purpose</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="5" data-subsection="scenario-types">Scenario Types</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="5" data-subsection="key-sections">Key Sections</a>
+                    </li></ul></li>
+                <li class="toc-item">
+                    <a href="#" class="toc-link " data-section="6">Glossary of Terms</a>
+                </li><ul class="toc-subsections">
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="6" data-subsection="consumption-measures">Consumption Measures</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="6" data-subsection="generation-technologies">Generation Technologies</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="6" data-subsection="performance-metrics">Performance Metrics</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="6" data-subsection="wholesale-market-terms">Wholesale Market Terms</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="6" data-subsection="facility-status-categories">Facility Status Categories</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="6" data-subsection="scenario-analysis-terms">Scenario Analysis Terms</a>
+                    </li></ul></li>
+                <li class="toc-item">
+                    <a href="#" class="toc-link " data-section="7">Formulae and Calculations</a>
+                </li><ul class="toc-subsections">
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="7" data-subsection="renewable-energy-percentage">Renewable Energy Percentage</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="7" data-subsection="emissions-calculations">Emissions Calculations</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="7" data-subsection="yearoveryear-change">Year-over-Year Change</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="7" data-subsection="target-status">Target Status</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="7" data-subsection="quarterly-aggregations">Quarterly Aggregations</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="7" data-subsection="wholesale-price-statistics">Wholesale Price Statistics</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="7" data-subsection="monte-carlo-simulation">Monte Carlo Simulation</a>
+                    </li></ul></li>
+                <li class="toc-item">
+                    <a href="#" class="toc-link " data-section="8">Report Usage Tips</a>
+                </li><ul class="toc-subsections">
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="8" data-subsection="report-actions">Report Actions</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="8" data-subsection="interactive-charts">Interactive Charts</a>
+                    </li></ul></li>
+                <li class="toc-item">
+                    <a href="#" class="toc-link " data-section="9">Frequently Asked Questions</a>
+                </li><ul class="toc-subsections">
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="9" data-subsection="general">General</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="9" data-subsection="data-and-calculations">Data and Calculations</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="9" data-subsection="reports">Reports</a>
+                    </li></ul></li>
+                <li class="toc-item">
+                    <a href="#" class="toc-link " data-section="10">Support</a>
+                </li></li>
+            </ul>
+            <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid rgba(255,255,255,0.2); font-size: 0.9em;">
+                <p><strong>Generated:</strong><br>February 02, 2026</p>
+                <p><strong>Sections:</strong> 11</p>
+            </div>
+        </nav>
+        
+        <main class="content">
+            <div class="page-indicator">
+                Page <span id="currentPage">1</span> of <span id="totalPages">11</span>
+            </div>
+            
+            
+            <div class="page-section active" data-section="0">
+                <h1 id="guide-to-the-ret-dashboard-reports">Guide to the RET Dashboard Reports</h1>
+<h2 id="overview">Overview</h2>
+<p>The Renewable Energy Target (RET) Dashboard is a comprehensive reporting system for tracking the South West Interconnected System's (SWIS) progress towards a renewable energy target. It provides monthly performance monitoring, quarterly analysis, annual reviews, and long-term scenario projections to support energy transition planning and stakeholder reporting.</p>
+<hr />
+            </div>
+            <div class="page-section " data-section="1">
+                <h2 id="available-reports">Available Reports</h2>
+<p>The RET Dashboard system includes four main report types:</p>
+<table>
+<thead>
+<tr>
+<th>Report</th>
+<th>Purpose</th>
+<th>Frequency</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Monthly Dashboard</strong></td>
+<td>Current month performance snapshot</td>
+<td>Monthly</td>
+</tr>
+<tr>
+<td><strong>Quarterly Report</strong></td>
+<td>Detailed quarterly analysis with trends</td>
+<td>Quarterly</td>
+</tr>
+<tr>
+<td><strong>Annual Review</strong></td>
+<td>Comprehensive yearly assessment</td>
+<td>Annually</td>
+</tr>
+<tr>
+<td><strong>Scenario Projections</strong></td>
+<td>Long-term pathway analysis to 2040</td>
+<td>Ad-hoc</td>
+</tr>
+</tbody>
+</table>
+<hr />
+            </div>
+            <div class="page-section " data-section="2">
+                <h2 id="monthly-dashboard">Monthly Dashboard</h2>
+<h3 id="purpose">Purpose</h3>
+<p>The Monthly Dashboard provides a real-time snapshot of SWIS renewable energy performance for the current reporting period, including year-to-date progress and comparison against targets.</p>
+<h3 id="key-sections">Key Sections</h3>
+<h4 id="re-performance">RE Performance</h4>
+<p>Displays the renewable energy percentage for both consumption measures:
+- <strong>RE% (Operational Consumption)</strong>: Renewable generation as a percentage of grid-sent electricity
+- <strong>RE% (Underlying Consumption)</strong>: Renewable generation as a percentage of total consumption including rooftop solar</p>
+<h4 id="year-to-date-summary">Year to Date Summary</h4>
+<p>Cumulative performance metrics from January to the current month:
+- YTD RE% (Operational and Underlying)
+- Target comparison and status
+- Total emissions</p>
+<h4 id="generation-mix">Generation Mix</h4>
+<p>Breakdown of electricity generation by technology:
+- Wind generation
+- Solar (Utility-scale)
+- Solar (Rooftop/DPV)
+- Biomass
+- Gas
+- Coal
+- Storage (charge/discharge)</p>
+<h4 id="key-statistics">Key Statistics</h4>
+<p>Notable performance indicators:
+- Grid emissions intensity (kg CO2-e/MWh)
+- Best renewable hour (highest instantaneous RE%)
+- Peak demand (MW and timestamp)
+- Minimum demand (MW and timestamp)</p>
+<h4 id="wholesale-price-statistics">Wholesale Price Statistics</h4>
+<p>Market price analysis for the period:
+- Average, maximum, and minimum prices
+- Price volatility (standard deviation)
+- Negative price interval count
+- Price spike interval count (&gt;$300/MWh)</p>
+<h4 id="pathway-chart">Pathway Chart</h4>
+<p>Visual representation of progress towards the 2040 target, showing historical performance and projected trajectory.</p>
+<hr />
+            </div>
+            <div class="page-section " data-section="3">
+                <h2 id="quarterly-report">Quarterly Report</h2>
+<h3 id="purpose">Purpose</h3>
+<p>The Quarterly Report provides detailed analysis of performance over a three-month period, enabling trend identification and progress assessment against annual targets.</p>
+<h3 id="key-sections">Key Sections</h3>
+<h4 id="executive-summary">Executive Summary</h4>
+<p>Editable summary highlighting key achievements, challenges, and insights for the quarter. Includes:
+- Quarterly RE% achievements
+- Emissions performance
+- Year-over-year comparisons
+- Wholesale price summary</p>
+<h4 id="key-findings">Key Findings</h4>
+<p>Summary metrics displayed as cards:
+- Q[N] RE% (Operational and Underlying)
+- YTD RE% (Operational and Underlying)
+- Target status and gap
+- Quarterly and YTD emissions
+- Average wholesale price</p>
+<h4 id="monthly-performance-breakdown">Monthly Performance Breakdown</h4>
+<p>Detailed table showing each month's performance:
+- Underlying consumption
+- Renewable generation
+- RE% (both measures)
+- Emissions
+- Variance from target</p>
+<h4 id="cumulative-year-to-date-performance">Cumulative Year-to-Date Performance</h4>
+<p>Comparison table showing:
+- Current quarter vs YTD performance
+- Year-over-year changes
+- Percentage point improvements</p>
+<h4 id="generation-mix-analysis">Generation Mix Analysis</h4>
+<p>Quarterly generation breakdown by technology with:
+- Generation volumes (GWh)
+- Percentage of operational consumption
+- Percentage of underlying consumption
+- Associated emissions</p>
+<h4 id="quarterly-trends">Quarterly Trends</h4>
+<p>Interactive charts showing:
+- Monthly generation breakdown (stacked bar)
+- Year-over-year RE% comparison</p>
+<h4 id="key-observations">Key Observations</h4>
+<p>Analysis sections for:
+- <strong>Positive Developments</strong>: Achievements and improvements
+- <strong>Challenges and Risks</strong>: Areas requiring attention</p>
+<hr />
+            </div>
+            <div class="page-section " data-section="4">
+                <h2 id="annual-review">Annual Review</h2>
+<h3 id="purpose">Purpose</h3>
+<p>The Annual Review provides a comprehensive assessment of the full calendar year's performance, including progress towards long-term targets and strategic recommendations.</p>
+<h3 id="key-sections">Key Sections</h3>
+<h4 id="executive-summary">Executive Summary</h4>
+<p>Editable annual summary with:
+- Annual RE% achievements
+- Total emissions and year-over-year change
+- Average wholesale price
+- Strategic insights</p>
+<h4 id="key-findings">Key Findings</h4>
+<p>Annual performance metrics:
+- RE% (Operational and Underlying)
+- Total consumption
+- Total emissions
+- New commissioned capacity</p>
+<h4 id="wholesale-price-summary">Wholesale Price Summary</h4>
+<p>Complete annual price analysis:
+- Average, maximum, minimum prices
+- Monthly breakdown table
+- Negative price and spike interval analysis
+- Price insights and trends</p>
+<h4 id="performance-summary">Performance Summary</h4>
+<p>Year-over-year comparison table:
+- Operational and underlying consumption
+- Renewable generation
+- RE% changes (percentage points)</p>
+<h4 id="generation-mix-analysis">Generation Mix Analysis</h4>
+<p>Annual technology breakdown with:
+- Generation volumes
+- Percentage contributions
+- Emissions by technology</p>
+<h4 id="2040-target-progress">2040 Target Progress</h4>
+<p>Assessment of long-term target trajectory:
+- Projected 2040 RE%
+- Monte Carlo probability analysis
+- Target achievement status</p>
+<h4 id="new-capacity-commissioned">New Capacity Commissioned</h4>
+<p>Table of facilities commissioned during the year:
+- Facility name
+- Technology type
+- Capacity (MW)
+- Commissioning date</p>
+<h4 id="recommendations">Recommendations</h4>
+<p>Strategic guidance including:
+- Target confirmation
+- Priority actions
+- Pipeline management recommendations</p>
+<hr />
+            </div>
+            <div class="page-section " data-section="5">
+                <h2 id="scenario-projections">Scenario Projections</h2>
+<h3 id="purpose">Purpose</h3>
+<p>The Scenario Projections report provides long-term pathway analysis to assess the likelihood of achieving the 2040 renewable energy target under different assumptions.</p>
+<h3 id="scenario-types">Scenario Types</h3>
+<table>
+<thead>
+<tr>
+<th>Scenario</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Base Case</strong></td>
+<td>Planned and probable facilities commissioned on schedule with historical capacity factors</td>
+</tr>
+<tr>
+<td><strong>Accelerated Pipeline</strong></td>
+<td>All possible facilities included, faster commissioning, optimistic capacity factors</td>
+</tr>
+<tr>
+<td><strong>Delayed Pipeline</strong></td>
+<td>Only planned facilities, 12-month average delay, conservative capacity factors</td>
+</tr>
+</tbody>
+</table>
+<h3 id="key-sections">Key Sections</h3>
+<h4 id="key-targets-overview">Key Targets Overview</h4>
+<p>Summary of milestone targets:
+- 2040 RE Target (100%)
+- 2030 Interim Target
+- Current RE% baseline
+- Achievement probability</p>
+<h4 id="re-trajectory">RE% Trajectory</h4>
+<p>Projection chart showing RE% pathways for all scenarios from current year to 2040.</p>
+<h4 id="scenario-projections-summary">Scenario Projections Summary</h4>
+<p>Year-by-year projection table including:
+- RE%
+- Wind, Solar, DPV generation
+- Storage capacity
+- Emissions
+- Target type (Interim/Major)</p>
+<h4 id="scenario-comparison">Scenario Comparison</h4>
+<p>2040 outcomes comparison:
+- RE% by scenario
+- Variance from target
+- Achievement probability
+- Total generation
+- Emissions</p>
+<h4 id="projected-facility-pipeline">Projected Facility Pipeline</h4>
+<p>Upcoming capacity additions:
+- Facility name
+- Technology
+- Capacity (MW)
+- Status (Under Construction/Planned/Probable)
+- Expected commissioning
+- Probability</p>
+<h4 id="cumulative-capacity">Cumulative Capacity</h4>
+<p>Technology capacity growth over time:
+- Wind (MW)
+- Solar Utility (MW)
+- DPV (MW)
+- Storage (MW)
+- Total RE (MW)</p>
+<h4 id="consumption-projections">Consumption Projections</h4>
+<p>Consumption growth forecasts:
+- Operational consumption
+- DPV generation
+- Underlying consumption
+- Growth rate</p>
+<h4 id="emissions-trajectory">Emissions Trajectory</h4>
+<p>Projected emissions reduction:
+- Baseline emissions
+- 2030 projected
+- 2040 projected
+- Cumulative reduction</p>
+<h4 id="risk-analysis">Risk Analysis</h4>
+<p>Assessment of factors affecting outcomes:
+- <strong>Downside Risks</strong>: Project delays, grid constraints, financing challenges
+- <strong>Upside Opportunities</strong>: Technology improvements, policy support, cost declines</p>
+<h4 id="monte-carlo-analysis">Monte Carlo Analysis</h4>
+<p>Probabilistic assessment including:
+- Simulation parameters
+- Probability distribution
+- Achievement probability by RE% threshold</p>
+<hr />
+            </div>
+            <div class="page-section " data-section="6">
+                <h2 id="glossary-of-terms">Glossary of Terms</h2>
+<h3 id="consumption-measures">Consumption Measures</h3>
+<table>
+<thead>
+<tr>
+<th>Term</th>
+<th>Definition</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Operational Consumption</strong></td>
+<td>Total electricity consumption from grid sources. Represents electricity delivered through the transmission and distribution network.</td>
+</tr>
+<tr>
+<td><strong>Underlying Consumption</strong></td>
+<td>Operational consumption plus rooftop solar generation consumed behind the meter. Represents total electricity consumption including self-consumed distributed generation.</td>
+</tr>
+<tr>
+<td><strong>Peak Demand</strong></td>
+<td>Maximum instantaneous power demand (MW) during the reporting period.</td>
+</tr>
+<tr>
+<td><strong>Minimum Demand</strong></td>
+<td>Minimum instantaneous power demand (MW) during the reporting period.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="generation-technologies">Generation Technologies</h3>
+<table>
+<thead>
+<tr>
+<th>Term</th>
+<th>Definition</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Wind</strong></td>
+<td>Utility-scale wind farm generation connected to the grid.</td>
+</tr>
+<tr>
+<td><strong>Solar (Utility)</strong></td>
+<td>Large-scale solar farms connected to the transmission network.</td>
+</tr>
+<tr>
+<td><strong>Solar (Rooftop/DPV)</strong></td>
+<td>Distributed Photovoltaic - residential and commercial rooftop solar systems.</td>
+</tr>
+<tr>
+<td><strong>Biomass</strong></td>
+<td>Generation from organic waste materials (e.g., landfill gas, wood waste).</td>
+</tr>
+<tr>
+<td><strong>Gas</strong></td>
+<td>Generation from natural gas-fired power stations (OCGT and CCGT).</td>
+</tr>
+<tr>
+<td><strong>Coal</strong></td>
+<td>Generation from coal-fired power stations.</td>
+</tr>
+<tr>
+<td><strong>Storage Charge</strong></td>
+<td>Electricity consumed by battery and pumped hydro storage systems when charging.</td>
+</tr>
+<tr>
+<td><strong>Storage Discharge</strong></td>
+<td>Electricity supplied by battery and pumped hydro storage systems when discharging.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="performance-metrics">Performance Metrics</h3>
+<table>
+<thead>
+<tr>
+<th>Term</th>
+<th>Definition</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>RE%</strong></td>
+<td>Renewable Energy Percentage - the proportion of consumption met by renewable generation.</td>
+</tr>
+<tr>
+<td><strong>Capacity Factor</strong></td>
+<td>Actual generation as a percentage of theoretical maximum output.</td>
+</tr>
+<tr>
+<td><strong>Emissions Intensity</strong></td>
+<td>CO2-equivalent emissions per unit of electricity (kg CO2-e/MWh).</td>
+</tr>
+<tr>
+<td><strong>YTD</strong></td>
+<td>Year-to-Date - cumulative performance from January to the current period.</td>
+</tr>
+<tr>
+<td><strong>YoY</strong></td>
+<td>Year-over-Year - comparison with the same period in the previous year.</td>
+</tr>
+<tr>
+<td><strong>pp</strong></td>
+<td>Percentage points - absolute change in percentage values.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="wholesale-market-terms">Wholesale Market Terms</h3>
+<table>
+<thead>
+<tr>
+<th>Term</th>
+<th>Definition</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>WEM</strong></td>
+<td>The wholesale electricity market. The WEM system selects the lowest tender first, and others of increasing value until demand is satisfied.</td>
+</tr>
+<tr>
+<td><strong>Balancing Price</strong></td>
+<td>The price of the highest offer used during each interval. All selected generators receive the Balancing Price. There is a regulated ceiling for the offer price, currently $1000/MWh.</td>
+</tr>
+<tr>
+<td><strong>Wholesale Price</strong></td>
+<td>The price paid for electricity in the wholesale market ($/MWh).</td>
+</tr>
+<tr>
+<td><strong>Trading Interval</strong></td>
+<td>An interval is one of the 30min blocks of time used for controlling the electricity delivered to the grid.</td>
+</tr>
+<tr>
+<td><strong>Negative Price</strong></td>
+<td>When the wholesale price falls below $0/MWh. . Generators are allowed to offer negative prices during intervals, when generation exceeds demand, to avoid the costs of stopping and restarting generating plant.  Coal and to a lesser extent gas plants have these costs.</td>
+</tr>
+<tr>
+<td><strong>Price Spike</strong></td>
+<td>A trading interval where the balancing price suddenly jumps from earlier prices, usually at or near the offer price ceiling</td>
+</tr>
+<tr>
+<td><strong>Price Volatility</strong></td>
+<td>Standard deviation of wholesale prices, indicating price variability.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="facility-status-categories">Facility Status Categories</h3>
+<table>
+<thead>
+<tr>
+<th>Term</th>
+<th>Definition</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Commissioned</strong></td>
+<td>Facility is operational and generating electricity.</td>
+</tr>
+<tr>
+<td><strong>Under Construction</strong></td>
+<td>Facility is being built with high certainty of completion.</td>
+</tr>
+<tr>
+<td><strong>Planned</strong></td>
+<td>Facility has received approvals and/or financing commitment.</td>
+</tr>
+<tr>
+<td><strong>Probable</strong></td>
+<td>Facility is likely to proceed but lacks final commitment.</td>
+</tr>
+<tr>
+<td><strong>Possible</strong></td>
+<td>Facility is under consideration but has significant uncertainty.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="scenario-analysis-terms">Scenario Analysis Terms</h3>
+<table>
+<thead>
+<tr>
+<th>Term</th>
+<th>Definition</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Base Case</strong></td>
+<td>Most likely outcome based on current plans and historical performance.</td>
+</tr>
+<tr>
+<td><strong>Monte Carlo Analysis</strong></td>
+<td>Statistical simulation using random sampling to model uncertainty.</td>
+</tr>
+<tr>
+<td><strong>P10/P50/P90</strong></td>
+<td>Probability percentiles (10%, 50%, 90% chance of achieving or exceeding).</td>
+</tr>
+<tr>
+<td><strong>Probability of Achievement</strong></td>
+<td>Likelihood of meeting a specific target based on simulation.</td>
+</tr>
+</tbody>
+</table>
+<hr />
+            </div>
+            <div class="page-section " data-section="7">
+                <h2 id="formulae-and-calculations">Formulae and Calculations</h2>
+<h3 id="renewable-energy-percentage">Renewable Energy Percentage</h3>
+<p><strong>RE% (Operational)</strong></p>
+<div class="codehilite"><pre><span></span><code>RE% (Operational) = (Renewable Generation / Operational Consumption) x 100
+
+Where:
+  Renewable Generation = Wind + Solar (Utility) + Biomass + Storage Discharge
+  Operational Consumption = Total consumption from grid sources. This represents electricity delivered through the grid.
+</code></pre></div>
+
+<p><strong>RE% (Underlying)</strong></p>
+<div class="codehilite"><pre><span></span><code><span class="nx">RE</span><span class="o">%</span><span class="w"> </span><span class="p">(</span><span class="nx">Underlying</span><span class="p">)</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="p">(</span><span class="nx">Total</span><span class="w"> </span><span class="nx">Renewable</span><span class="w"> </span><span class="nx">Generation</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="nx">Underlying</span><span class="w"> </span><span class="nx">Consumption</span><span class="p">)</span><span class="w"> </span><span class="nx">x</span><span class="w"> </span><span class="mi">100</span>
+
+<span class="nx">Where</span><span class="p">:</span>
+<span class="w">  </span><span class="nx">Total</span><span class="w"> </span><span class="nx">Renewable</span><span class="w"> </span><span class="nx">Generation</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nx">Wind</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="nx">Solar</span><span class="w"> </span><span class="p">(</span><span class="nx">Utility</span><span class="p">)</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="nx">Solar</span><span class="w"> </span><span class="p">(</span><span class="nx">DPV</span><span class="p">)</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="nx">Biomass</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="nx">Storage</span><span class="w"> </span><span class="nx">Discharge</span>
+<span class="w">  </span><span class="nx">Underlying</span><span class="w"> </span><span class="nx">Consumption</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nx">Operational</span><span class="w"> </span><span class="nx">Consumption</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="nx">Estimated</span><span class="w"> </span><span class="k">Self</span><span class="w"> </span><span class="nx">Consumed</span><span class="w"> </span><span class="nx">DPV</span><span class="w"> </span><span class="nx">Generation</span>
+</code></pre></div>
+
+<h3 id="emissions-calculations">Emissions Calculations</h3>
+<p><strong>Total Emissions</strong></p>
+<div class="codehilite"><pre><span></span><code>Total Emissions (tonnes CO2-e) = Sum of (Generation by Fuel Type x Emissions Factor)
+
+Emissions Factors:
+  Gas:  380 kg CO2-e/MWh (typical CCGT)
+  Coal: 900 kg CO2-e/MWh (typical black coal)
+  Wind, Solar, Biomass: 0 kg CO2-e/MWh
+</code></pre></div>
+
+<p><strong>Emissions Intensity</strong></p>
+<div class="codehilite"><pre><span></span><code>Emissions Intensity (kg CO2-e/MWh) = Total Emissions / Operational Consumption
+</code></pre></div>
+
+<h3 id="year-over-year-change">Year-over-Year Change</h3>
+<p><strong>Percentage Change</strong></p>
+<div class="codehilite"><pre><span></span><code>YoY Change (%) = ((Current Period Value - Previous Period Value) / Previous Period Value) x 100
+</code></pre></div>
+
+<p><strong>Percentage Point Change</strong></p>
+<div class="codehilite"><pre><span></span><code><span class="nv">YoY</span><span class="w"> </span><span class="nv">Change</span><span class="w"> </span><span class="ss">(</span><span class="nv">pp</span><span class="ss">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nv">Current</span><span class="w"> </span><span class="nv">Period</span><span class="w"> </span><span class="nv">RE</span><span class="o">%</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="nv">Previous</span><span class="w"> </span><span class="nv">Period</span><span class="w"> </span><span class="nv">RE</span><span class="o">%</span>
+
+<span class="nv">Note</span>:<span class="w"> </span><span class="nv">Use</span><span class="w"> </span><span class="nv">percentage</span><span class="w"> </span><span class="nv">points</span><span class="w"> </span><span class="ss">(</span><span class="nv">pp</span><span class="ss">)</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="nv">comparing</span><span class="w"> </span><span class="nv">percentages</span>,<span class="w"> </span><span class="nv">not</span><span class="w"> </span><span class="nv">percentage</span><span class="w"> </span><span class="nv">change</span>.
+<span class="nv">Example</span>:<span class="w"> </span><span class="nv">RE</span><span class="o">%</span><span class="w"> </span><span class="nv">increased</span><span class="w"> </span><span class="nv">from</span><span class="w"> </span><span class="mi">35</span><span class="o">%</span><span class="w"> </span><span class="nv">to</span><span class="w"> </span><span class="mi">40</span><span class="o">%</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">+</span><span class="mi">5</span><span class="w"> </span><span class="nv">pp</span><span class="w"> </span><span class="ss">(</span><span class="nv">not</span><span class="w"> </span><span class="o">+</span><span class="mi">14</span>.<span class="mi">3</span><span class="o">%</span><span class="ss">)</span>
+</code></pre></div>
+
+<h3 id="target-status">Target Status</h3>
+<p><strong>Gap to Target</strong></p>
+<div class="codehilite"><pre><span></span><code>Gap (pp) = Actual RE% - Target RE%
+
+Status:
+  Gap &gt; 0:  &quot;Ahead of target&quot;
+  Gap = 0:  &quot;On target&quot;
+  Gap &lt; 0:  &quot;Behind target&quot;
+</code></pre></div>
+
+<h3 id="quarterly-aggregations">Quarterly Aggregations</h3>
+<p><strong>Quarterly Summary</strong></p>
+<div class="codehilite"><pre><span></span><code>Quarterly Consumption = Sum of Monthly Consumptions (Jan-Mar, Apr-Jun, Jul-Sep, Oct-Dec)
+Quarterly Generation = Sum of Monthly Generations
+Quarterly RE% = (Quarterly Renewable Generation / Quarterly Consumption) x 100
+</code></pre></div>
+
+<p><strong>Year-to-Date Summary</strong></p>
+<div class="codehilite"><pre><span></span><code>YTD Consumption = Sum of all monthly consumption from January to current month
+YTD Generation = Sum of all monthly generations from January to current month
+YTD RE% = (YTD Renewable Generation / YTD Consumption) x 100
+</code></pre></div>
+
+<h3 id="wholesale-price-statistics">Wholesale Price Statistics</h3>
+<p><strong>Average Price (Volume-Weighted)</strong></p>
+<div class="codehilite"><pre><span></span><code>Avg Price = Sum(Price x Volume) / Sum(Volume)
+</code></pre></div>
+
+<p><strong>Price Volatility (Standard Deviation)</strong></p>
+<div class="codehilite"><pre><span></span><code>Std Dev = sqrt(Sum((Price - Avg Price)^2 x Volume) / Sum(Volume))
+</code></pre></div>
+
+<p><strong>Negative Price Count</strong></p>
+<div class="codehilite"><pre><span></span><code>Negative Intervals = Count of trading intervals where Price &lt; $0/MWh
+</code></pre></div>
+
+<p><strong>Price Spike Count</strong></p>
+<div class="codehilite"><pre><span></span><code>Spike Intervals = Count of trading intervals where Price &gt; $300/MWh
+</code></pre></div>
+
+<h3 id="monte-carlo-simulation">Monte Carlo Simulation</h3>
+<p><strong>Achievement Probability</strong></p>
+<div class="codehilite"><pre><span></span><code><span class="n">Probability</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="n">Count</span><span class="w"> </span><span class="n">of</span><span class="w"> </span><span class="n">simulations</span><span class="w"> </span><span class="n">achieving</span><span class="w"> </span><span class="n">target</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="n">Total</span><span class="w"> </span><span class="n">simulations</span><span class="p">)</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="mi">100</span>
+
+<span class="n">Parameters</span><span class="p">:</span>
+<span class="w">  </span><span class="o">-</span><span class="w"> </span><span class="n">Commissioning</span><span class="w"> </span><span class="n">probability</span><span class="w"> </span><span class="n">by</span><span class="w"> </span><span class="n">status</span>
+<span class="w">  </span><span class="o">-</span><span class="w"> </span><span class="n">Commissioning</span><span class="w"> </span><span class="n">delay</span><span class="w"> </span><span class="n">distribution</span>
+<span class="w">  </span><span class="o">-</span><span class="w"> </span><span class="n">Capacity</span><span class="w"> </span><span class="n">factor</span><span class="w"> </span><span class="n">variance</span>
+<span class="w">  </span><span class="o">-</span><span class="w"> </span><span class="n">Consumption</span><span class="w"> </span><span class="n">growth</span><span class="w"> </span><span class="n">uncertainty</span>
+</code></pre></div>
+
+<hr />
+            </div>
+            <div class="page-section " data-section="8">
+                <h2 id="report-usage-tips">Report Usage Tips</h2>
+<h3 id="report-actions">Report Actions</h3>
+<ul>
+<li><strong>Print</strong>: Use the Print button or browser print function</li>
+<li><strong>Publish</strong>: Authenticated users can publish reports for external distribution</li>
+<li><strong>Comment</strong>: Add comments and observations to reports (authenticated users)</li>
+<li><strong>Edit Summary</strong>: Modify executive summaries for published reports</li>
+</ul>
+<h3 id="interactive-charts">Interactive Charts</h3>
+<ul>
+<li><strong>Hover</strong>: View exact values for data points</li>
+<li><strong>Zoom</strong>: Click and drag to zoom into specific periods</li>
+<li><strong>Pan</strong>: Use controls to move across the chart</li>
+<li><strong>Download</strong>: Save charts as PNG images</li>
+</ul>
+<hr />
+            </div>
+            <div class="page-section " data-section="9">
+                <h2 id="frequently-asked-questions">Frequently Asked Questions</h2>
+<h3 id="general">General</h3>
+<p><strong>Q: What is the difference between Operational and Underlying Consumption?</strong>
+A: Operational consumption measures electricity delivered through the grid. Underlying consumption includes operational consumption plus rooftop solar generation consumed by households before export. Underlying consumption represents total electricity consumption.</p>
+<p><strong>Q: Why are there two RE% measures?</strong>
+A: RE% (Operational) shows renewables contribution to grid electricity, while RE% (Underlying) includes behind-the-meter solar, giving a complete picture of renewable energy in the system.</p>
+<p><strong>Q: What is the 2040 target?</strong>
+A: The proposed SWIS target is for 100% renewable energy by 2040, measured on an operational consumption basis.</p>
+<h3 id="data-and-calculations">Data and Calculations</h3>
+<p><strong>Q: Where does the data come from?</strong>
+A: Generation data comes from AEMO SCADA systems, demand data from system operator reports, and DPV estimates from network operators. Wholesale prices are from WEM market data.</p>
+<p><strong>Q: How often is data updated?</strong>
+A: Monthly performance data is typically available within 2-3 days of month end. Real-time data is updated every 5 minutes.</p>
+<p><strong>Q: Why don't storage emissions show in the table?</strong>
+A: Storage (batteries, pumped hydro) doesn't generate emissions directly - it stores and releases electricity. The emissions are attributed to the original generation source.</p>
+<h3 id="reports">Reports</h3>
+<p><strong>Q: Can I download reports?</strong>
+A: Yes, use the Print function to save as PDF, or published reports are available in the Published Reports section.</p>
+<p><strong>Q: What does "Published" mean for a report?</strong>
+A: Published reports are frozen versions that have been reviewed and approved for external distribution. They cannot be edited.</p>
+<hr />
+            </div>
+            <div class="page-section " data-section="10">
+                <h2 id="support">Support</h2>
+<p>For technical support or questions about the RET Dashboard:
+- <strong>Email</strong>: modelling.lead@sen.asn.au</p>
+<p><em>Last updated: February 2026</em></p>
+            </div>
+        </main>
+    </div>
+    
+    <div class="navigation">
+        <button class="nav-btn" id="prevBtn" onclick="previousPage()">← Previous</button>
+        <button class="nav-btn" id="nextBtn" onclick="nextPage()">Next →</button>
+    </div>
+    
+    <button class="back-to-top" onclick="scrollToTop()" title="Back to top">↑</button>
+    
+    <script>
+        let currentSection = 0;
+        const totalSections = 11;
+        
+        function showSection(sectionIndex) {
+            // Hide all sections
+            document.querySelectorAll('.page-section').forEach(section => {
+                section.classList.remove('active');
+            });
+            
+            // Show selected section
+            const targetSection = document.querySelector(`.content .page-section[data-section="${sectionIndex}"]`);
+            if (targetSection) {
+                targetSection.classList.add('active');
+            }
+            
+            // Update TOC active state
+            document.querySelectorAll('.toc-link').forEach(link => {
+                link.classList.remove('active');
+            });
+            const activeLink = document.querySelector(`[data-section="${sectionIndex}"]`);
+            if (activeLink) {
+                activeLink.classList.add('active');
+            }
+            
+            // Update current section
+            currentSection = sectionIndex;
+            
+            // Update page indicator
+            document.getElementById('currentPage').textContent = sectionIndex + 1;
+            
+            // Update navigation buttons
+            updateNavigationButtons();
+            
+            // Scroll to top of content
+            document.querySelector('.content').scrollTop = 0;
+            window.scrollTo(0, 0);
+        }
+        
+        function updateNavigationButtons() {
+            const prevBtn = document.getElementById('prevBtn');
+            const nextBtn = document.getElementById('nextBtn');
+            
+            prevBtn.disabled = currentSection === 0;
+            nextBtn.disabled = currentSection === totalSections - 1;
+        }
+        
+        function nextPage() {
+            if (currentSection < totalSections - 1) {
+                showSection(currentSection + 1);
+            }
+        }
+        
+        function previousPage() {
+            if (currentSection > 0) {
+                showSection(currentSection - 1);
+            }
+        }
+        
+        function scrollToTop() {
+            showSection(0);
+        }
+        
+        // Keyboard navigation
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'ArrowRight' || e.key === 'PageDown') {
+                nextPage();
+                e.preventDefault();
+            } else if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
+                previousPage();
+                e.preventDefault();
+            }
+        });
+        
+                // TOC click handlers
+        document.addEventListener("DOMContentLoaded", function () {
+            const tocLinks = document.querySelectorAll(".toc-link");
+            const tocSubLinks = document.querySelectorAll(".toc-sublink");
+            const pageSections = document.querySelectorAll(".page-section");
+            const currentPage = document.getElementById("currentPage");
+
+            // Handle main section navigation
+            tocLinks.forEach(link => {
+                link.addEventListener("click", function (e) {
+                    e.preventDefault();
+
+                    const sectionIndex = this.dataset.section;
+
+                    // Activate the correct section
+                    pageSections.forEach(sec => {
+                        sec.classList.toggle("active", sec.dataset.section === sectionIndex);
+                    });
+
+                    // Update TOC link active state
+                    tocLinks.forEach(l => l.classList.remove("active"));
+                    this.classList.add("active");
+
+                    // Update page number
+                    if (currentPage) currentPage.textContent = parseInt(sectionIndex) + 1;
+
+                    // Scroll to top smoothly
+                    window.scrollTo({ top: 0, behavior: "smooth" });
+                });
+            });
+
+            // Handle subsection navigation
+            tocSubLinks.forEach(link => {
+                link.addEventListener("click", function (e) {
+                    e.preventDefault();
+
+                    const sectionIndex = this.dataset.section;
+                    const subsectionId = this.dataset.subsection;
+
+                    // 1️⃣ Activate correct section first
+                    pageSections.forEach(sec => {
+                        sec.classList.toggle("active", sec.dataset.section === sectionIndex);
+                    });
+
+                    // 2️⃣ Delay scroll until browser has rendered section
+                    setTimeout(() => {
+                        const target = document.getElementById(subsectionId);
+                        if (target) {
+                            target.scrollIntoView({ behavior: "smooth", block: "center" });
+
+                            // 3️⃣ Temporary highlight
+                            target.style.transition = "background-color 0.5s ease";
+                            const originalBg = target.style.backgroundColor;
+                            target.style.backgroundColor = "#fffa9e"; // light yellow
+                            setTimeout(() => {
+                                target.style.backgroundColor = originalBg;
+                            }, 1200);
+                        }
+                    }, 100); // wait a bit to ensure section is visible
+                });
+            });
+        });
+
+    </script>
+</body>
+</html>

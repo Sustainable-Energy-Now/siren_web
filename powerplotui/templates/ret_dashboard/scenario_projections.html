@@ -33,20 +33,23 @@
 <div class="info-box" style="background: white; border-left: 4px solid #9b59b6;">
     <p style="font-size: 1.1em; line-height: 1.8;">
         This report presents scenario-based projections for the South West Interconnected System (SWIS)
-        renewable energy transition to 2040. Three scenarios are modelled: <strong>Base Case</strong> (most likely pathway),
-        <strong>Accelerated Pipeline</strong> (optimistic delivery), and <strong>Delayed Pipeline</strong> (conservative assumptions).
-        The 2040 target of <strong>85% renewable energy</strong> (underlying demand basis) appears achievable under the Base Case
+        renewable energy transition to 2040. Three types of scenarios are modelled: <strong>Base Case</strong> (the most likely pathways),
+        <strong>Accelerated Pipeline</strong> (optimistic assumptions and delivery), and <strong>Delayed Pipeline</strong> (conservative assumptions and delivery).
+        The 2040 target of <strong>100% renewable energy</strong> (underlying consumption basis) appears achievable under the Base Case
         scenario with a <strong>78% probability</strong> based on Monte Carlo analysis.
     </p>
 </div>
 
 <!-- Scenario Definitions -->
 <div class="info-box" style="background: #e3f2fd; border-left-color: #2196f3;">
-    <h3 style="margin-top: 0;">Scenario Definitions</h3>
+    <h3 style="margin-top: 0;">Scenario Type Definitions</h3>
     <p style="margin-bottom: 0;">
-        <strong>Base Case:</strong> Planned and probable facilities commissioned on schedule with historical capacity factors.<br>
-        <strong>Accelerated Pipeline:</strong> All possible facilities included, faster commissioning, optimistic capacity factors.<br>
-        <strong>Delayed Pipeline:</strong> Only planned facilities, 12-month average delay, conservative capacity factors.
+        This analysis includes three scenario types to capture a range of possible outcomes based on consumption growth, facility commissioning and performance assumptions.
+    </p>
+    <p style="margin-bottom: 0;">
+        <strong>Base Case:</strong> Planned and probable facilities commissioned on schedule with historical capacity factors and planned consumption growth.<br>
+        <strong>Accelerated Pipeline:</strong> All possible facilities included, faster commissioning, optimistic capacity factors and additional unplanned consumption growth.<br>
+        <strong>Delayed Pipeline:</strong> Only planned facilities, 12-month average delay, conservative capacity factors, less than planned consumption growth.
     </p>
 </div>
 
@@ -58,28 +61,28 @@
 <div class="metric-grid">
     <div class="metric-card positive">
         <div class="metric-label">2040 RE Target</div>
-        <div class="metric-value">85%</div>
-        <div class="metric-sublabel">Underlying demand basis</div>
+        <div class="metric-value">100%</div>
+        <div class="metric-sublabel">Underlying consumption basis</div>
         <div class="metric-change">Major Target Year</div>
     </div>
 
     <div class="metric-card neutral">
         <div class="metric-label">2030 Interim Target</div>
-        <div class="metric-value">65%</div>
-        <div class="metric-sublabel">Underlying demand basis</div>
+        <div class="metric-value">82%</div>
+        <div class="metric-sublabel">Underlying consumption basis</div>
         <div class="metric-change">Interim Milestone</div>
     </div>
 
     <div class="metric-card neutral">
-        <div class="metric-label">Current RE% (2024)</div>
-        <div class="metric-value">42.3%</div>
+        <div class="metric-label">Current RE% (2025)</div>
+        <div class="metric-value">32.3%</div>
         <div class="metric-sublabel">Latest annual result</div>
     </div>
 
     <div class="metric-card positive">
         <div class="metric-label">Achievement Probability</div>
         <div class="metric-value">78%</div>
-        <div class="metric-sublabel">Base Case @ 85% target</div>
+        <div class="metric-sublabel">Base Case @ 100% target</div>
         <div class="metric-change">Monte Carlo analysis</div>
     </div>
 </div>
@@ -104,7 +107,7 @@
     <h2>Scenario Projections Summary</h2>
 </div>
 
-<h3>Base Case Scenario</h3>
+<h3>Step Change Scenario (Base Case)</h3>
 <table class="stats-table">
     <thead>
         <tr>
@@ -209,7 +212,7 @@
         <tr>
             <th>Scenario</th>
             <th class="value">2040 RE%</th>
-            <th class="value">vs 85% Target</th>
+            <th class="value">vs 100% Target</th>
             <th class="value">Probability</th>
             <th class="value">Total RE Gen (GWh)</th>
             <th class="value">Emissions (kt)</th>
@@ -218,7 +221,7 @@
     </thead>
     <tbody>
         <tr class="renewable-row">
-            <td><strong>Accelerated Pipeline</strong></td>
+            <td><strong>Accelerated Transition (Accelerated Pipeline)</strong></td>
             <td class="value">91.2%</td>
             <td class="value positive">+6.2 pp</td>
             <td class="value">92%</td>
@@ -227,7 +230,7 @@
             <td><span style="color: #27ae60;">Exceeds Target</span></td>
         </tr>
         <tr class="highlight-row">
-            <td><strong>Base Case</strong></td>
+            <td><strong>Step Change (Base Case)</strong></td>
             <td class="value">86.7%</td>
             <td class="value positive">+1.7 pp</td>
             <td class="value">78%</td>
@@ -236,7 +239,7 @@
             <td><span style="color: #27ae60;">Meets Target</span></td>
         </tr>
         <tr class="fossil-row">
-            <td><strong>Delayed Pipeline</strong></td>
+            <td><strong>Slower Growth (Delayed Pipeline)</strong></td>
             <td class="value">79.5%</td>
             <td class="value negative">-5.5 pp</td>
             <td class="value">45%</td>
@@ -387,14 +390,14 @@
 
 <!-- Generation Mix Chart Placeholder -->
 <div class="section-header">
-    <h2>Projected Generation Mix Evolution</h2>
+    <h2>Projected Generation Mix Transition</h2>
 </div>
 
 <div class="chart-container">
     <div style="height: 400px; background: linear-gradient(135deg, #f5f7fa 0%, #e4e8ec 100%); border-radius: 8px; display: flex; align-items: center; justify-content: center; border: 2px dashed #bdc3c7;">
         <div style="text-align: center; color: #7f8c8d;">
             <p style="font-size: 1.5em; margin-bottom: 10px;">Generation Mix Stacked Area Chart</p>
-            <p>Showing Wind, Solar (Utility), Solar (DPV), Gas, and Storage contribution 2025-2040</p>
+            <p>Showing Wind, Solar (Utility), Solar (DPV), Coal, Gas, and Storage contribution 2025-2040</p>
         </div>
     </div>
 </div>
@@ -459,16 +462,16 @@
     </tbody>
 </table>
 
-<!-- Demand Projections -->
+<!-- Consumption Projections -->
 <div class="section-header">
-    <h2>Demand Projections</h2>
+    <h2>Consumption Projections</h2>
 </div>
 
 <div class="chart-container">
     <div style="height: 300px; background: linear-gradient(135deg, #f5f7fa 0%, #e4e8ec 100%); border-radius: 8px; display: flex; align-items: center; justify-content: center; border: 2px dashed #bdc3c7;">
         <div style="text-align: center; color: #7f8c8d;">
-            <p style="font-size: 1.5em; margin-bottom: 10px;">Demand Growth Chart</p>
-            <p>Operational demand vs Underlying demand (including DPV) 2025-2040</p>
+            <p style="font-size: 1.5em; margin-bottom: 10px;">Consumption Growth Chart</p>
+            <p>Operational Consumption vs Underlying Consumption (including DPV) 2025-2040</p>
         </div>
     </div>
 </div>
@@ -477,9 +480,9 @@
     <thead>
         <tr>
             <th>Year</th>
-            <th class="value">Operational Demand (GWh)</th>
+            <th class="value">Operational Consumption (GWh)</th>
             <th class="value">DPV Generation (GWh)</th>
-            <th class="value">Underlying Demand (GWh)</th>
+            <th class="value">Underlying Consumption (GWh)</th>
             <th class="value">Growth Rate</th>
         </tr>
     </thead>
@@ -591,7 +594,7 @@
         <li><strong>Commissioning Probability:</strong> Based on facility status (Planned: 85%, Probable: 60%, Possible: 35%)</li>
         <li><strong>Commissioning Delay:</strong> Normal distribution, mean 6 months, std dev 4 months</li>
         <li><strong>Capacity Factor Variance:</strong> +/- 10% based on historical data</li>
-        <li><strong>Demand Growth:</strong> +/- 0.5% annual variation</li>
+        <li><strong>Consumption Growth:</strong> +/- 0.5% annual variation</li>
     </ul>
 </div>
 
@@ -645,7 +648,7 @@
 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 20px;">
     <div class="info-box">
         <h3>Target Confirmation</h3>
-        <p><strong>Recommended 2040 Target:</strong> 85% Renewable Energy by 2040 (underlying demand basis)</p>
+        <p><strong>Recommended 2040 Target:</strong> 100% Renewable Energy by 2040 (Operational Consumption basis)</p>
         <ul class="bullet-list">
             <li>Achievable with Planned + Probable facilities</li>
             <li>78% probability of achievement based on Monte Carlo analysis</li>

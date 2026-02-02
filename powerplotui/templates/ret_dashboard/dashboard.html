@@ -65,7 +65,7 @@
 <div class="metric-grid">
     <!-- Monthly RE% Operational -->
     <div class="metric-card positive">
-        <div class="metric-label">RE% (Operational Demand)</div>
+        <div class="metric-label">RE% (Operational Consumption)</div>
         <div class="metric-value">{{ performance.re_percentage_operational|floatformat:1 }}%</div>
         <div class="metric-sublabel">
             {{ performance.operational_demand|floatformat:1 }} GWh operational demand
@@ -79,7 +79,7 @@
     
     <!-- Monthly RE% Underlying -->
     <div class="metric-card positive">
-        <div class="metric-label">RE% (Underlying Demand)</div>
+        <div class="metric-label">RE% (Underlying Consumption)</div>
         <div class="metric-value">{{ performance.re_percentage_underlying|floatformat:1 }}%</div>
         <div class="metric-sublabel">
             {{ performance.underlying_demand|floatformat:1 }} GWh underlying demand
@@ -134,12 +134,12 @@
     </div>
 </div>
 
-<!-- Demand Definitions Info Box -->
+<!-- Consumption Definitions Info Box -->
 <div class="info-box" style="background: #e3f2fd; border-left-color: #2196f3;">
-    <h3 style="margin-top: 0;">Understanding Demand Measures</h3>
+    <h3 style="margin-top: 0;">Understanding Consumption Measures</h3>
     <p style="margin-bottom: 0;">
-        <strong>Operational Demand:</strong> Total consumption from grid sources. This represents electricity delivered through the grid.<br>
-        <strong>Underlying Demand:</strong> Operational demand plus that part of household rooftop solar generation that is consumed by the household before export to the grid.
+        <strong>Operational Consumption:</strong> Total consumption from grid sources. This represents electricity delivered through the grid.<br>
+        <strong>Underlying Consumption:</strong> Operational demand plus that part of household rooftop solar generation that is consumed by the household before export to the grid.
     </p>
 </div>
 
