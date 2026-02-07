@@ -3286,6 +3286,12 @@ class DemandFactor(models.Model):
         help_text="Year where S-curve reaches 50% of saturation"
     )
 
+    steepness = models.FloatField(
+        default=0.5,
+        validators=[MinValueValidator(0.01), MaxValueValidator(5.0)],
+        help_text="Steepness of S-curve transition (higher = sharper). Only used with S-curve growth type."
+    )
+
     # Advanced: Time-varying growth rates
     time_varying_config = models.JSONField(
         null=True,

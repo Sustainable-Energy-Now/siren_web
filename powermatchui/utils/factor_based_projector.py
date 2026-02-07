@@ -80,6 +80,7 @@ class FactorBasedProjector:
     def apply_growth(base_demand: np.ndarray, years_ahead: int,
                      growth_rate: float, growth_type: str,
                      saturation: float = 2.0, midpoint_year: int = 2035,
+                     steepness: float = 0.5,
                      base_year: int = 2024) -> np.ndarray:
         """
         Apply growth factor to hourly demand array.
@@ -91,6 +92,7 @@ class FactorBasedProjector:
             growth_type: One of 'linear', 'exponential', 's_curve', 'compound'
             saturation: Maximum growth multiplier for s_curve
             midpoint_year: Year where s_curve reaches 50% of saturation
+            steepness: S-curve steepness (higher = sharper transition)
             base_year: Starting year for calculations
 
         Returns:
@@ -104,28 +106,98 @@ class FactorBasedProjector:
             growth_factor = 1 + (growth_rate * years_ahead)
 
         elif growth_type == 'exponential':
-            # Exponential growth: demand * (1 + rate)^years
-            growth_factor = (1 + growth_rate) ** years_ahead
+            # True continuous exponential growth: demand * e^(rate * years)
+            growth_factor = np.exp(growth_rate * years_ahead)
 
         elif growth_type == 's_curve':
             # Logistic/S-curve growth for technology adoption
-            # Factor ranges from 1 to saturation value
+            # Normalized so growth_factor = 1.0 at years_ahead = 0
             midpoint_offset = midpoint_year - base_year
-            k = growth_rate * 10  # Steepness parameter
+            k = steepness
 
-            # Logistic function: 1 + (saturation - 1) / (1 + exp(-k * (year - midpoint)))
-            growth_factor = 1 + (saturation - 1) / (
-                1 + np.exp(-k * (years_ahead - midpoint_offset))
-            )
+            # Logistic function value at t and at t=0
+            L_t = (saturation - 1) / (1 + np.exp(-k * (years_ahead - midpoint_offset)))
+            L_0 = (saturation - 1) / (1 + np.exp(-k * (0 - midpoint_offset)))
+
+            # Normalized: equals 1.0 at base year, approaches saturation at infinity
+            growth_factor = 1 + L_t - L_0
 
         elif growth_type == 'compound':
-            # Compound annual growth rate (same as exponential)
+            # Compound annual growth rate: demand * (1 + rate)^years
             growth_factor = (1 + growth_rate) ** years_ahead
 
         else:
             raise ValueError(f"Unknown growth_type: {growth_type}")
 
         return base_demand * growth_factor
+
+    def _compute_time_varying_growth_factor(self, factor, target_year: int) -> float:
+        """
+        Compute cumulative growth factor for factors with time-varying rates.
+        Accumulates growth year-by-year using the appropriate formula.
+
+        Args:
+            factor: DemandFactor instance with time_varying_config
+            target_year: Year to project to
+
+        Returns:
+            Cumulative growth factor (float), or None for s_curve (use apply_growth instead)
+        """
+        if factor.growth_type == 's_curve':
+            # S-curve shape is defined by saturation/midpoint/steepness,
+            # not cumulative rates. Use apply_growth directly.
+            return None
+
+        growth_factor = 1.0
+        for y in range(self.base_year + 1, target_year + 1):
+            rate = self._get_growth_rate_for_year(factor, y)
+            if factor.growth_type == 'linear':
+                # Linear: add rate each year
+                growth_factor += rate
+            elif factor.growth_type == 'compound':
+                # Compound: multiply by (1 + rate) each year
+                growth_factor *= (1 + rate)
+            elif factor.growth_type == 'exponential':
+                # True exponential: multiply by e^rate each year
+                growth_factor *= np.exp(rate)
+        return growth_factor
+
+    def _apply_factor_growth(self, base_demand: np.ndarray, factor,
+                             target_year: int, years_ahead: int) -> np.ndarray:
+        """
+        Apply growth to a factor's base demand, handling both fixed and
+        time-varying rates correctly.
+
+        Args:
+            base_demand: Base demand array for this factor (already scaled by percentage)
+            factor: DemandFactor instance
+            target_year: Year to project to
+            years_ahead: Number of years from base year
+
+        Returns:
+            Projected demand array
+        """
+        if years_ahead == 0:
+            return base_demand.copy()
+
+        # Time-varying rates: accumulate year-by-year
+        if factor.time_varying_config and factor.growth_type != 's_curve':
+            cumulative_factor = self._compute_time_varying_growth_factor(factor, target_year)
+            if cumulative_factor is not None:
+                return base_demand * cumulative_factor
+
+        # Fixed rate or S-curve: use apply_growth
+        growth_rate = self._get_growth_rate_for_year(factor, target_year)
+        return self.apply_growth(
+            base_demand,
+            years_ahead,
+            growth_rate,
+            factor.growth_type,
+            factor.saturation_multiplier,
+            factor.midpoint_year,
+            factor.steepness,
+            self.base_year
+        )
 
     def project_with_factors(self, base_operational: np.ndarray,
                             base_underlying: np.ndarray,
@@ -177,23 +249,14 @@ class FactorBasedProjector:
 
             factor_name = factor.factor_type.name
 
-            # Get growth rate (supports time-varying)
-            growth_rate = self._get_growth_rate_for_year(factor, target_year)
-
             # PROJECT OPERATIONAL DEMAND FOR THIS FACTOR
             if factor.base_percentage_operational > 0:
                 # Calculate base demand for this factor
                 base_op_factor = base_operational * (factor.base_percentage_operational / 100.0)
 
-                # Apply growth
-                proj_op_factor = self.apply_growth(
-                    base_op_factor,
-                    years_ahead,
-                    growth_rate,
-                    factor.growth_type,
-                    factor.saturation_multiplier,
-                    factor.midpoint_year,
-                    self.base_year
+                # Apply growth (handles both fixed and time-varying rates)
+                proj_op_factor = self._apply_factor_growth(
+                    base_op_factor, factor, target_year, years_ahead
                 )
 
                 operational_factors[factor_name] = proj_op_factor
@@ -204,15 +267,9 @@ class FactorBasedProjector:
                 # Calculate base demand for this factor
                 base_und_factor = base_underlying * (factor.base_percentage_underlying / 100.0)
 
-                # Apply growth
-                proj_und_factor = self.apply_growth(
-                    base_und_factor,
-                    years_ahead,
-                    growth_rate,
-                    factor.growth_type,
-                    factor.saturation_multiplier,
-                    factor.midpoint_year,
-                    self.base_year
+                # Apply growth (handles both fixed and time-varying rates)
+                proj_und_factor = self._apply_factor_growth(
+                    base_und_factor, factor, target_year, years_ahead
                 )
 
                 underlying_factors[factor_name] = proj_und_factor

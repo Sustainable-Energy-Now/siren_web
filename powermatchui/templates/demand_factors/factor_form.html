@@ -146,7 +146,7 @@
                             </div>
 
                             <div class="row mb-3">
-                                <div class="col-md-6">
+                                <div class="col-md-4">
                                     <label for="saturation_multiplier" class="form-label">Saturation Multiplier</label>
                                     <input type="number" class="form-control" id="saturation_multiplier"
                                            name="saturation_multiplier"
@@ -155,12 +155,20 @@
                                     <div class="form-text">Maximum growth (1.0 = no growth, 2.0 = doubles)</div>
                                 </div>
 
-                                <div class="col-md-6">
+                                <div class="col-md-4">
                                     <label for="midpoint_year" class="form-label">Midpoint Year</label>
                                     <input type="number" class="form-control" id="midpoint_year" name="midpoint_year"
                                            value="{% if editing %}{{ factor.midpoint_year }}{% else %}2035{% endif %}"
                                            min="2020" max="2100">
                                     <div class="form-text">Year of 50% saturation</div>
+                                </div>
+
+                                <div class="col-md-4">
+                                    <label for="steepness" class="form-label">Steepness</label>
+                                    <input type="number" class="form-control" id="steepness" name="steepness"
+                                           value="{% if editing %}{{ factor.steepness }}{% else %}0.5{% endif %}"
+                                           min="0.01" max="5.0" step="0.01">
+                                    <div class="form-text">Transition sharpness (0.2=gradual, 0.5=moderate, 1.0=sharp)</div>
                                 </div>
                             </div>
                         </div>

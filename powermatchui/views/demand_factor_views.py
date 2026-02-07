@@ -206,6 +206,7 @@ def factor_create(request):
             growth_type = request.POST.get('growth_type', 'exponential')
             saturation_multiplier = float(request.POST.get('saturation_multiplier', 2.0))
             midpoint_year = int(request.POST.get('midpoint_year', 2035))
+            steepness = float(request.POST.get('steepness', 0.5))
 
             # Time-varying config (JSON)
             time_varying_str = request.POST.get('time_varying_config', '').strip()
@@ -243,6 +244,7 @@ def factor_create(request):
                 growth_type=growth_type,
                 saturation_multiplier=saturation_multiplier,
                 midpoint_year=midpoint_year,
+                steepness=steepness,
                 time_varying_config=time_varying_config,
                 notes=notes,
                 is_active=is_active
@@ -281,6 +283,7 @@ def factor_edit(request, pk):
             factor.growth_type = request.POST.get('growth_type', 'exponential')
             factor.saturation_multiplier = float(request.POST.get('saturation_multiplier', 2.0))
             factor.midpoint_year = int(request.POST.get('midpoint_year', 2035))
+            factor.steepness = float(request.POST.get('steepness', 0.5))
             factor.notes = request.POST.get('notes', '').strip()
             factor.is_active = request.POST.get('is_active') == 'on'
 
@@ -448,6 +451,7 @@ def api_get_factor_details(request, pk):
         'growth_type': factor.growth_type,
         'saturation_multiplier': factor.saturation_multiplier,
         'midpoint_year': factor.midpoint_year,
+        'steepness': factor.steepness,
         'time_varying_config': factor.time_varying_config,
         'is_active': factor.is_active,
         'notes': factor.notes

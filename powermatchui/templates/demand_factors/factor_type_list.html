@@ -47,7 +47,6 @@
                                 <th>Category</th>
                                 <th>Description</th>
                                 <th>Instances</th>
-                                <th>System</th>
                                 <th>Actions</th>
                             </tr>
                         </thead>
@@ -68,11 +67,6 @@
                                 <td>{{ factor_type.description|truncatewords:15 }}</td>
                                 <td>
                                     <span class="badge bg-secondary">{{ factor_type.instance_count }}</span>
-                                </td>
-                                <td>
-                                    {% if factor_type.is_system_default %}
-                                        <i class="bi bi-check-circle-fill text-success" title="System default"></i>
-                                    {% endif %}
                                 </td>
                                 <td>
                                     <div class="btn-group btn-group-sm" role="group">
@@ -124,10 +118,9 @@
             <div class="alert alert-secondary">
                 <h6><i class="bi bi-question-circle"></i> About Factor Types</h6>
                 <ul class="mb-0">
-                    <li><strong>Operational</strong>: Demand sent to the grid (e.g., industrial loads, data centers)</li>
-                    <li><strong>Underlying</strong>: Total consumption including distributed generation (e.g., rooftop solar offset)</li>
+                    <li><strong>Operational</strong>: Electricity supplied from the grid to customers (e.g. industrial loads, data centers)</li>
+                    <li><strong>Underlying</strong>: Total consumption including behind-the-meter self generation (e.g. rooftop dpv)</li>
                     <li><strong>Both</strong>: Applies to both demand types (e.g., EV charging, residential)</li>
-                    <li><strong>System</strong>: Default factor types provided by the system</li>
                 </ul>
             </div>
         </div>
