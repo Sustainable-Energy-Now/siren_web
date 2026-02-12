@@ -106,13 +106,14 @@ def get_base_year_demand(year: int, config_section: Dict = None) -> Dict[str, np
         ).order_by('dispatch_interval')
 
         # Build hourly shape array
+        # SCADA data is half-hourly; accumulate (+=) to sum both intervals per hour
         hourly_operational_shape = np.zeros(hours_in_month)
         for record in scada_operational:
             dt = record['dispatch_interval']
             # Calculate hour index within the month (0-indexed)
             hour_in_month = (dt.day - 1) * 24 + dt.hour
             if 0 <= hour_in_month < hours_in_month:
-                hourly_operational_shape[hour_in_month] = float(record['total_mw'])
+                hourly_operational_shape[hour_in_month] += float(record['total_mw'])
 
         # Normalize shape and scale to monthly total
         if hourly_operational_shape.sum() > 0:

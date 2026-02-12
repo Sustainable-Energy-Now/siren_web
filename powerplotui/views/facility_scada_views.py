@@ -16,6 +16,22 @@ from ..services.generation_utils import (
 )
 
 
+def _consolidate_to_hourly(hour_data):
+    """Sum half-hourly entries into hourly totals.
+
+    SCADA data is stored at half-hourly intervals. Multiple entries may map
+    to the same hour-of-year. This function sums them so that each hour has
+    one entry with the total MWh (= average MW for the hour).
+    """
+    hourly = {}
+    for entry in hour_data:
+        h = entry['hour']
+        if h not in hourly:
+            hourly[h] = 0
+        hourly[h] += entry['quantity']
+    return [{'hour': h, 'quantity': hourly[h]} for h in sorted(hourly.keys())]
+
+
 def scada_plot_view(request):
     """Main view to render the SCADA plot page"""
     # Get all facilities (SCADA data can be for any facility)
@@ -98,7 +114,10 @@ def get_scada_data(request):
         
         if not hour_data:
             continue
-        
+
+        # Consolidate half-hourly entries to hourly totals
+        hour_data = _consolidate_to_hourly(hour_data)
+
         # Aggregate data based on selected time period
         if aggregation == 'hour':
             data = aggregate_scada_by_hour(hour_data)
@@ -710,6 +729,9 @@ def export_scada_to_excel(request):
 
             if not hour_data:
                 continue
+
+            # Consolidate half-hourly entries to hourly totals
+            hour_data = _consolidate_to_hourly(hour_data)
 
             if aggregation == 'hour':
                 data = aggregate_scada_by_hour(hour_data)

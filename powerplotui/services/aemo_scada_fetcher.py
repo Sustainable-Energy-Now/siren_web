@@ -367,58 +367,59 @@ class AEMOScadaFetcher:
         logger.debug(f"Parsed {len(records)} records from JSON")
         return records
     
-    def _aggregate_to_hourly(self, records):
+    def _aggregate_to_half_hourly(self, records):
         """
-        Aggregate 5-minute dispatch intervals into hourly energy totals.
+        Aggregate 5-minute dispatch intervals into half-hourly energy totals.
 
-        Quantity is in mWh at 5-minute resolution, so for each hour we SUM
-        the 12 intervals to obtain hourly mWh.
+        Quantity is in mWh at 5-minute resolution, so for each half-hour we SUM
+        the 6 intervals to obtain half-hourly mWh.
 
         Args:
             records: List of dicts with dispatch_interval, facility_id, quantity
 
         Returns:
-            List of hourly aggregated records
+            List of half-hourly aggregated records
         """
         if not records:
             return []
 
         from collections import defaultdict
-        hourly_data = defaultdict(lambda: {'total': Decimal('0'), 'count': 0})
+        half_hourly_data = defaultdict(lambda: {'total': Decimal('0'), 'count': 0})
 
-        # Group by (hour_start, facility_id)
+        # Group by (half_hour_start, facility_id)
         for record in records:
-            hour_start = record['dispatch_interval'].replace(
-                minute=0, second=0, microsecond=0
+            dt = record['dispatch_interval']
+            half_hour_start = dt.replace(
+                minute=(dt.minute // 30) * 30, second=0, microsecond=0
             )
-            key = (hour_start, record['facility_id'])
+            key = (half_hour_start, record['facility_id'])
 
-            hourly_data[key]['total'] += record['quantity']
-            hourly_data[key]['count'] += 1
+            half_hourly_data[key]['total'] += record['quantity']
+            half_hourly_data[key]['count'] += 1
 
         aggregated = []
-        incomplete_hours = 0
+        incomplete_intervals = 0
 
-        for (hour_start, facility_id), data in hourly_data.items():
+        for (half_hour_start, facility_id), data in half_hourly_data.items():
             total_quantity = data['total']   # SUM of mWh values
 
             aggregated.append({
-                'dispatch_interval': hour_start,
+                'dispatch_interval': half_hour_start,
                 'facility_id': facility_id,
                 'quantity': total_quantity
             })
 
-            if data['count'] != 12:
-                incomplete_hours += 1
+            if data['count'] != 6:
+                incomplete_intervals += 1
 
-        if incomplete_hours > 0:
+        if incomplete_intervals > 0:
             logger.warning(
-                f"{incomplete_hours} hours have incomplete data "
-                "(expected 12 samples/hour)"
+                f"{incomplete_intervals} half-hours have incomplete data "
+                "(expected 6 samples per half-hour)"
             )
 
         logger.debug(
-            f"Aggregated {len(records)} 5-minute records into {len(aggregated)} hourly records"
+            f"Aggregated {len(records)} 5-minute records into {len(aggregated)} half-hourly records"
         )
 
         return aggregated
@@ -426,20 +427,20 @@ class AEMOScadaFetcher:
     @transaction.atomic
     def _save_data(self, records):
         """
-        Aggregate to hourly intervals and bulk upsert optimized for MariaDB
-        
+        Aggregate to half-hourly intervals and bulk upsert optimized for MariaDB
+
         Args:
             records: List of 5-minute interval records
-            
+
         Returns:
-            Number of hourly records saved
+            Number of half-hourly records saved
         """
         if not records:
             return 0
-        
-        # Aggregate 5-minute data to hourly averages
-        hourly_records = self._aggregate_to_hourly(records)
-        
+
+        # Aggregate 5-minute data to half-hourly totals
+        hourly_records = self._aggregate_to_half_hourly(records)
+
         if not hourly_records:
             return 0
         
@@ -466,20 +467,20 @@ class AEMOScadaFetcher:
                 cursor.executemany(sql, batch)
                 total_saved += len(batch)
         
-        logger.debug(f"Saved {total_saved} hourly records")
+        logger.debug(f"Saved {total_saved} half-hourly records")
         return total_saved
     
     def verify_data_exists(self, trading_date):
         """
-        Check if hourly data exists for a given trading date.
-        
-        Returns True if we have at least 20 unique hourly intervals
+        Check if half-hourly data exists for a given trading date.
+
+        Returns True if we have at least 40 unique half-hourly intervals
         (allowing for some incomplete data at day boundaries).
-        A complete day should have 24 hourly records per facility.
-        
+        A complete day should have 48 half-hourly records per facility.
+
         Args:
             trading_date: datetime.date object
-            
+
         Returns:
             Tuple of (exists: bool, count: int)
         """
@@ -487,24 +488,24 @@ class AEMOScadaFetcher:
         # Make timezone aware
         start_datetime = self.AWST.localize(start_datetime)
         end_datetime = start_datetime + timedelta(days=1)
-        
+
         # Get total count of records
         count = FacilityScada.objects.filter(
             dispatch_interval__gte=start_datetime,
             dispatch_interval__lt=end_datetime
         ).count()
-        
-        # Count unique hourly intervals
+
+        # Count unique half-hourly intervals
         from django.db.models import Count
-        unique_hours = FacilityScada.objects.filter(
+        unique_intervals = FacilityScada.objects.filter(
             dispatch_interval__gte=start_datetime,
             dispatch_interval__lt=end_datetime
         ).values('dispatch_interval').annotate(
-            hour_count=Count('dispatch_interval')
+            interval_count=Count('dispatch_interval')
         ).count()
-        
-        # Data exists if we have at least 20 unique hourly intervals
+
+        # Data exists if we have at least 40 unique half-hourly intervals
         # (allowing for some missing data at day boundaries)
-        exists = unique_hours >= 20
-        
+        exists = unique_intervals >= 40
+
         return exists, count

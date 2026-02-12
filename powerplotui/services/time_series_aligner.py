@@ -1,7 +1,7 @@
 """
 Time series alignment service for comparing SCADA and SupplyFactors data.
 
-SCADA data has 5-minute dispatch intervals (12 records per hour).
+SCADA data is stored at half-hourly intervals (2 records per hour).
 SupplyFactors data has hourly granularity (hour 1-8760 per year).
 
 This service provides utilities to align these different time formats
@@ -21,11 +21,12 @@ class TimeSeriesAligner:
     def convert_scada_to_hourly(self, scada_queryset: QuerySet, year: int,
                                  start_hour: Optional[int] = None,
                                  end_hour: Optional[int] = None) -> dict:
-        """Convert SCADA 5-minute data to hourly averages.
+        """Convert SCADA half-hourly data to hourly totals.
 
-        SCADA has up to 12 records per hour (5-minute intervals).
-        This method averages quantity values for each hour of year
-        to match SupplyFactors format.
+        SCADA has 2 records per hour (half-hourly intervals).
+        This method sums quantity values for each hour of year
+        to match SupplyFactors format. The sum of two half-hourly MWh
+        values gives hourly MWh (numerically equal to average MW).
 
         Args:
             scada_queryset: FacilityScada queryset filtered by facility and year
@@ -37,7 +38,6 @@ class TimeSeriesAligner:
             Dict with 'hours' and 'quantity' lists
         """
         hour_totals = {}
-        hour_counts = {}
 
         for record in scada_queryset:
             hour = get_hour_of_year(record.dispatch_interval)
@@ -50,33 +50,29 @@ class TimeSeriesAligner:
 
             if hour not in hour_totals:
                 hour_totals[hour] = 0
-                hour_counts[hour] = 0
 
             quantity = float(record.quantity) if record.quantity else 0
             hour_totals[hour] += quantity
-            hour_counts[hour] += 1
 
-        # Average to get hourly MW value
+        # Sum of half-hourly MWh = hourly MWh = average MW for the hour
         hours = sorted(hour_totals.keys())
-        quantities = [
-            hour_totals[h] / hour_counts[h] if hour_counts[h] > 0 else 0
-            for h in hours
-        ]
+        quantities = [hour_totals[h] for h in hours]
 
         return {
             'hours': hours,
             'quantity': quantities,
-            'record_count': sum(hour_counts.values()),
+            'record_count': sum(1 for _ in hours),
             'hour_count': len(hours)
         }
 
     def convert_scada_to_hourly_aggregated(self, scada_queryset: QuerySet, year: int,
                                             start_hour: Optional[int] = None,
                                             end_hour: Optional[int] = None) -> dict:
-        """Convert SCADA data to hourly, summing across multiple facilities.
+        """Convert SCADA half-hourly data to hourly, summing across multiple facilities.
 
-        Similar to convert_scada_to_hourly but sums values across facilities
-        instead of just averaging intervals.
+        Similar to convert_scada_to_hourly but sums values across facilities.
+        For each facility, the two half-hourly MWh values per hour are summed to
+        get hourly MWh, then summed across facilities.
 
         Args:
             scada_queryset: FacilityScada queryset (can span multiple facilities)
@@ -87,7 +83,7 @@ class TimeSeriesAligner:
         Returns:
             Dict with 'hours' and 'quantity' lists (summed across facilities)
         """
-        # First, group by (facility, hour) and average the 5-min intervals
+        # Group by (facility, hour) and sum the half-hourly intervals
         facility_hour_data = {}
 
         for record in scada_queryset:
@@ -102,19 +98,18 @@ class TimeSeriesAligner:
             key = (facility_id, hour)
 
             if key not in facility_hour_data:
-                facility_hour_data[key] = {'total': 0, 'count': 0}
+                facility_hour_data[key] = {'total': 0}
 
             quantity = float(record.quantity) if record.quantity else 0
             facility_hour_data[key]['total'] += quantity
-            facility_hour_data[key]['count'] += 1
 
-        # Average each facility's intervals, then sum across facilities by hour
+        # Sum each facility's hourly total across facilities by hour
         hour_totals = {}
         for (facility_id, hour), data in facility_hour_data.items():
-            avg_quantity = data['total'] / data['count'] if data['count'] > 0 else 0
+            hourly_quantity = data['total']  # Sum of half-hourly MWh = hourly MWh
             if hour not in hour_totals:
                 hour_totals[hour] = 0
-            hour_totals[hour] += avg_quantity
+            hour_totals[hour] += hourly_quantity
 
         hours = sorted(hour_totals.keys())
         quantities = [hour_totals[h] for h in hours]

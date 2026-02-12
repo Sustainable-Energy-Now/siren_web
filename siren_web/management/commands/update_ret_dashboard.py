@@ -454,7 +454,7 @@ class Command(BaseCommand):
         """Get peak and minimum operational demand (positive generation only, excludes charging)"""
         from django.db.models import Case, When, Value, DecimalField
 
-        # Aggregate by dispatch_interval to get total demand per hour
+        # Aggregate by dispatch_interval to get total demand per half-hour interval
         # Only count positive values (generation) to exclude storage charging
         hourly_demand = scada_data.values('dispatch_interval').annotate(
             total_demand=Sum(
@@ -480,11 +480,13 @@ class Command(BaseCommand):
         # Find max and min
         peak = max(hourly_demand, key=lambda x: x['total_demand'])
         minimum = min(hourly_demand, key=lambda x: x['total_demand'])
-        
+
+        # total_demand is half-hourly MWh (sum of facility quantities per interval).
+        # Convert to MW: MW = half-hourly MWh / 0.5 hours = value * 2
         return {
-            'peak_mw': float(peak['total_demand']),
+            'peak_mw': float(peak['total_demand']) * 2,
             'peak_datetime': peak['dispatch_interval'],
-            'min_mw': float(minimum['total_demand']),
+            'min_mw': float(minimum['total_demand']) * 2,
             'min_datetime': minimum['dispatch_interval'],
         }
 
