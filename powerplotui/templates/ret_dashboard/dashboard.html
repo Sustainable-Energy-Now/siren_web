@@ -17,30 +17,14 @@
 </header>
 
 <!-- Quick Navigation Links -->
-<div style="margin: 20px 0; padding: 15px; background: #ecf0f1; border-radius: 8px; display: flex; gap: 15px; align-items: center;">
+<div style="margin: 20px 0; padding: 15px; background: #ecf0f1; border-radius: 8px; display: flex; gap: 15px; align-items: center; flex-wrap: wrap;">
     <strong style="color: #2c3e50;">Other Reports:</strong>
-    {% if 1 in completed_quarters %}
-    <a href="{% url 'quarterly_report' year 1 %}"
+    {% for q in recent_quarters reversed %}
+    <a href="{% url 'quarterly_report' q.year q.quarter %}"
         style="color: #3498db; text-decoration: none; padding: 8px 15px; background: white; border-radius: 4px; font-weight: 500;">📈
-        Q1 Report</a>
-    {% endif %}
-    {% if 2 in completed_quarters %}
-    <a href="{% url 'quarterly_report' year 2 %}"
-        style="color: #3498db; text-decoration: none; padding: 8px 15px; background: white; border-radius: 4px; font-weight: 500;">📈
-        Q2 Report</a>
-    {% endif %}
-    {% if 3 in completed_quarters %}
-    <a href="{% url 'quarterly_report' year 3 %}"
-        style="color: #3498db; text-decoration: none; padding: 8px 15px; background: white; border-radius: 4px; font-weight: 500;">📈
-        Q3 Report</a>
-    {% endif %}
-    {% if 4 in completed_quarters %}
-    <a href="{% url 'quarterly_report' year 4 %}"
-        style="color: #3498db; text-decoration: none; padding: 8px 15px; background: white; border-radius: 4px; font-weight: 500;">📈
-        Q4 Report</a>
-    {% endif %}
-    <a href="{% url 'annual_review' year %}" style="color: #3498db; text-decoration: none; padding: 8px 15px; background: white; border-radius: 4px; font-weight: 500;">📑 {{ year }} Annual Review</a>
-    <a href="{% url 'ret_targets_list' %}" style="color: #27ae60; text-decoration: none; padding: 8px 15px; background: white; border-radius: 4px; font-weight: 500;">🎯 Manage Targets</a>
+        Q{{ q.quarter }} {{ q.year }}</a>
+    {% endfor %}
+    <a href="{% url 'annual_review' annual_review_year %}" style="color: #3498db; text-decoration: none; padding: 8px 15px; background: white; border-radius: 4px; font-weight: 500;">📑 {{ annual_review_year }} Annual Review</a>
 </div>
 
 <!-- Period Selector -->
@@ -185,6 +169,18 @@
                 <td class="value">{{ performance.biomass_generation|div:performance.operational_demand|mul:100|floatformat:1 }}%</td>
                 <td class="value">{{ performance.biomass_generation|div:performance.underlying_demand|mul:100|floatformat:1 }}%</td>
             </tr>
+            <tr class="renewable-row">
+                <td><strong>Hydro</strong></td>
+                <td class="value">{{ performance.hydro_discharge|floatformat:1 }}</td>
+                <td class="value">{{ performance.hydro_discharge|div:performance.operational_demand|mul:100|floatformat:1 }}%</td>
+                <td class="value">{{ performance.hydro_discharge|div:performance.underlying_demand|mul:100|floatformat:1 }}%</td>
+            </tr>
+            <tr class="renewable-row">
+                <td><strong>Battery</strong></td>
+                <td class="value">{{ performance.storage_discharge|floatformat:1 }}</td>
+                <td class="value">{{ performance.storage_discharge|div:performance.operational_demand|mul:100|floatformat:1 }}%</td>
+                <td class="value">{{ performance.storage_discharge|div:performance.underlying_demand|mul:100|floatformat:1 }}%</td>
+            </tr>
             <tr class="fossil-row">
                 <td>Gas</td>
                 <td class="value">{{ performance.gas_generation|floatformat:1 }}</td>
@@ -199,15 +195,16 @@
             </tr>
             {% if performance.storage_charge > 0 %}
             <tr class="info-row">
-                <td><em>Storage Charge</em></td>
+                <td><em>Battery Charge</em></td>
                 <td class="value"><em>{{ performance.storage_charge|floatformat:1 }}</em></td>
                 <td class="value" colspan="2"></td>
             </tr>
             {% endif %}
-            {% if performance.storage_discharge > 0 %}
+            {% if performance.hydro_charge > 0 %}
             <tr class="info-row">
-                <td><em>Storage Discharge</em></td>
-                <td class="value"><em>{{ performance.storage_discharge|floatformat:1 }}</em></td>
+                <td><em>Hydro Pumping</em></td>
+                <td class="value"><em>{{ performance.hydro_charge|floatformat:1 }}</em></td>
+                <td class="value" colspan="2"></td>
             </tr>
             {% endif %}
         </tbody>
@@ -520,34 +517,6 @@
     grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
     gap: 20px;
     margin: 20px 0;
-}
-
-.metric-card {
-    background: white;
-    padding: 25px;
-    border-radius: 12px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-    border-left: 4px solid #bdc3c7;
-}
-
-.metric-card.positive {
-    border-left-color: #27ae60;
-    background: linear-gradient(135deg, #ffffff 0%, #e8f5e9 100%);
-}
-
-.metric-card.negative {
-    border-left-color: #e74c3c;
-    background: linear-gradient(135deg, #ffffff 0%, #ffebee 100%);
-}
-
-.metric-card.warning {
-    border-left-color: #f39c12;
-    background: linear-gradient(135deg, #ffffff 0%, #fff8e1 100%);
-}
-
-.metric-card.neutral {
-    border-left-color: #3498db;
-    background: linear-gradient(135deg, #ffffff 0%, #e3f2fd 100%);
 }
 
 .metric-label {

@@ -166,6 +166,8 @@ class Command(BaseCommand):
                 'coal_generation': generation_data.get('coal', 0),
                 'storage_discharge': generation_data.get('storage_discharge', 0),
                 'storage_charge': generation_data.get('storage_charge', 0),
+                'hydro_discharge': generation_data.get('hydro_discharge', 0),
+                'hydro_charge': generation_data.get('hydro_charge', 0),
                 'total_emissions_tonnes': emissions_data['total_emissions'],
                 'emissions_intensity_kg_mwh': emissions_data['emissions_intensity'],
                 'peak_demand_mw': peak_min_data.get('peak_mw'),
@@ -297,8 +299,12 @@ class Command(BaseCommand):
         return result
 
     def calculate_generation(self, scada_data):
-        """Calculate generation totals by technology fuel type from SCADA data"""
-        
+        """Calculate generation totals by technology fuel type from SCADA data.
+
+        SCADA quantity is in MW (power). Data is at half-hourly intervals.
+        Energy (MWh) = MW * 0.5 hours per interval.
+        """
+
         generation: dict[str, float] = {
             'operational_demand': 0,
             'wind': 0,
@@ -309,37 +315,51 @@ class Command(BaseCommand):
             'coal': 0,
             'storage_discharge': 0,
             'storage_charge': 0,
+            'hydro_discharge': 0,
+            'hydro_charge': 0,
         }
-        
-        # Aggregate generation by fuel type
-        # Group by facility and sum quantities
-        facility_totals = scada_data.values(
+
+        group_fields = [
             'facility__idtechnologies__fuel_type',
             'facility__idtechnologies__technology_name',
-            'facility__idtechnologies__category'
-        ).annotate(
+            'facility__idtechnologies__category',
+        ]
+
+        # Aggregate POSITIVE quantities (generation / discharge) by fuel type
+        facility_discharge = scada_data.values(*group_fields).annotate(
             total_mw=Sum(
                 Case(
-                    When(
-                        quantity__gt=0,
-                        then=F('quantity')
-                    ),
+                    When(quantity__gt=0, then=F('quantity')),
                     default=Value(0),
                     output_field=DecimalField()
                 )
             )
         )
-        
-        for item in facility_totals:
-            fuel_type = item.get('facility__idtechnologies__fuel_type', '').upper() if item.get('facility__idtechnologies__fuel_type') else ''
-            tech_name = item.get('facility__idtechnologies__technology_name', '') or ''
-            category = item.get('facility__idtechnologies__category', '').upper() if item.get('facility__idtechnologies__category') else ''
+
+        # Aggregate NEGATIVE quantities (charging / pumping) by fuel type
+        facility_charge = scada_data.values(*group_fields).annotate(
+            total_mw=Sum(
+                Case(
+                    When(quantity__lt=0, then=F('quantity')),
+                    default=Value(0),
+                    output_field=DecimalField()
+                )
+            )
+        )
+
+        def _is_storage(fuel_type, category, tech_name):
+            return category == 'STORAGE' or 'BATTERY' in tech_name.upper()
+
+        # Process positive values (generation / discharge)
+        for item in facility_discharge:
+            fuel_type = (item.get('facility__idtechnologies__fuel_type') or '').upper()
+            tech_name = item.get('facility__idtechnologies__technology_name') or ''
+            category = (item.get('facility__idtechnologies__category') or '').upper()
             total_mw = float(item['total_mw'] or 0)
-            
-            # Convert from MW (hourly average) to GWh
-            gen_gwh = total_mw / 1000.0
-            
-            # Categorize by fuel type
+
+            # Convert from MW (half-hourly) to GWh: MW * 0.5h / 1000
+            gen_gwh = total_mw * 0.5 / 1000.0
+
             if fuel_type == 'WIND':
                 generation['wind'] += gen_gwh
             elif fuel_type == 'SOLAR':
@@ -350,24 +370,37 @@ class Command(BaseCommand):
                 generation['gas'] += gen_gwh
             elif fuel_type == 'COAL':
                 generation['coal'] += gen_gwh
-            elif category == 'STORAGE' or 'BATTERY' in tech_name.upper():
-                # Battery can be positive (discharge) or negative (charge)
-                if gen_gwh >= 0:
-                    generation['storage_discharge'] += gen_gwh
-                else:
-                    generation['storage_charge'] += abs(gen_gwh)
-        
-        # Calculate total operational demand
-        # Sum of all generation
+            elif fuel_type == 'HYDRO':
+                generation['hydro_discharge'] += gen_gwh
+            elif _is_storage(fuel_type, category, tech_name):
+                generation['storage_discharge'] += gen_gwh
+
+        # Process negative values (charging / pumping)
+        for item in facility_charge:
+            fuel_type = (item.get('facility__idtechnologies__fuel_type') or '').upper()
+            tech_name = item.get('facility__idtechnologies__technology_name') or ''
+            category = (item.get('facility__idtechnologies__category') or '').upper()
+            total_mw = float(item['total_mw'] or 0)
+
+            # Convert negative MW to positive GWh charge value
+            charge_gwh = abs(total_mw) * 0.5 / 1000.0
+
+            if fuel_type == 'HYDRO':
+                generation['hydro_charge'] += charge_gwh
+            elif _is_storage(fuel_type, category, tech_name):
+                generation['storage_charge'] += charge_gwh
+
+        # Calculate total operational demand (all grid-connected generation)
         generation['operational_demand'] = (
             generation['wind'] +
             generation['solar_utility'] +
             generation['biomass'] +
             generation['gas'] +
             generation['coal'] +
+            generation['hydro_discharge'] +
             generation['storage_discharge']
         )
-        
+
         return generation
 
     def get_rooftop_solar(self, year, month, start_datetime, end_datetime):
@@ -404,15 +437,15 @@ class Command(BaseCommand):
         return 0
 
     def calculate_emissions(self, scada_data):
-        """Calculate total emissions using facility emission intensities"""
-        
-        # Calculate emissions from each facility
-        # emission_intensity is in t CO2-e per MWh
-        # quantity is in MW (average for the hour)
-        
+        """Calculate total emissions using facility emission intensities.
+
+        SCADA quantity is in MW at half-hourly intervals.
+        Energy (MWh) = sum(MW) * 0.5 hours per interval.
+        """
+
         total_emissions_kg = 0
         total_generation_mwh = 0
-        
+
         # Aggregate by facility
         facility_totals = scada_data.values(
             'facility__emission_intensity'
@@ -420,31 +453,31 @@ class Command(BaseCommand):
             total_mw=Sum('quantity'),
             facility_id=F('facility')
         )
-        
+
         for item in facility_totals:
             emission_intensity = item.get('facility__emission_intensity')
             total_mw = float(item['total_mw'] or 0)
-            
-            # Convert MW hours to MWh
-            # Since we have hourly data, sum of MW = MWh
-            generation_mwh = total_mw
-            
+
+            # Convert MW (half-hourly) to MWh: MW * 0.5 hours
+            generation_mwh = total_mw * 0.5
+
             if emission_intensity and generation_mwh > 0:
-                # Emissions = generation (MWh) * intensity (kg/MWh)
-                emissions_kg = generation_mwh * float(emission_intensity*1000)  # Convert t to kg
+                # emission_intensity is in t CO2-e per MWh
+                # Convert to kg: t * 1000
+                emissions_kg = generation_mwh * float(emission_intensity * 1000)
                 total_emissions_kg += emissions_kg
-            
+
             total_generation_mwh += generation_mwh
-        
+
         # Convert kg to tonnes
         total_emissions_tonnes = total_emissions_kg / 1000.0
-        
+
         # Calculate average emissions intensity for the month
         if total_generation_mwh > 0:
             emissions_intensity = total_emissions_kg / total_generation_mwh
         else:
             emissions_intensity = 0
-        
+
         return {
             'total_emissions': total_emissions_tonnes,
             'emissions_intensity': emissions_intensity  # kg CO2-e per MWh
@@ -481,20 +514,21 @@ class Command(BaseCommand):
         peak = max(hourly_demand, key=lambda x: x['total_demand'])
         minimum = min(hourly_demand, key=lambda x: x['total_demand'])
 
-        # total_demand is half-hourly MWh (sum of facility quantities per interval).
-        # Convert to MW: MW = half-hourly MWh / 0.5 hours = value * 2
+        # total_demand is sum of facility MW (power) for each interval.
+        # Already in MW - no conversion needed.
         return {
-            'peak_mw': float(peak['total_demand']) * 2,
+            'peak_mw': float(peak['total_demand']),
             'peak_datetime': peak['dispatch_interval'],
-            'min_mw': float(minimum['total_demand']) * 2,
+            'min_mw': float(minimum['total_demand']),
             'min_datetime': minimum['dispatch_interval'],
         }
 
     def calculate_best_re_hour(self, scada_data):
         """
-        Calculate the hour with highest RE percentage based on operational demand.
+        Calculate the interval with highest RE percentage based on operational demand.
 
-        Operational RE% = (wind + utility solar + biomass + storage) / operational demand
+        Operational RE% = (wind + solar + biomass + hydro discharge + battery discharge)
+                          / operational demand
         Excludes rooftop solar (DPV) as that's not part of operational/grid demand.
         """
         from django.db.models import Case, When, Value, DecimalField
@@ -504,14 +538,19 @@ class Command(BaseCommand):
             'datetime': None
         }
 
+        # RE sources: fuel_type in WIND/SOLAR/BIOMASS/HYDRO, or category=Storage (BESS)
+        re_condition = (
+            Q(facility__idtechnologies__fuel_type__in=['WIND', 'SOLAR', 'BIOMASS', 'HYDRO']) |
+            Q(facility__idtechnologies__category__iexact='storage')
+        )
+
         # Use conditional aggregation to calculate RE vs total for each interval
-        # This does all the work in the database
         hourly_stats = scada_data.values('dispatch_interval').annotate(
-            # Sum of renewable generation (conditionally sum based on fuel type)
+            # Sum of renewable generation (positive only)
             re_generation=Sum(
                 Case(
                     When(
-                        facility__idtechnologies__fuel_type__in=['WIND', 'SOLAR', 'BIOMASS', 'BESS', 'HYDRO'],
+                        re_condition,
                         quantity__gt=0,
                         then=F('quantity')
                     ),

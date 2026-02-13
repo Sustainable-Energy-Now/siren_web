@@ -8,10 +8,10 @@ This module provides views for the renewable energy dashboard, including:
 - API endpoints for data updates
 
 RE% Calculation Policy:
-- Operational demand = grid connected load
-- Underlying demand = operational demand + that proportion rooftop solar (DPV) consumed behind the meter.
-- RE% (operational) = (wind + utility solar + biomass+ BESS) / operational demand
-- RE% (underlying) = (wind + utility solar + biomass + DPV) / underlying demand
+- Operational demand = all grid connected generation
+- Underlying demand = operational demand + rooftop solar (DPV) consumed behind the meter
+- RE% (operational) = (wind + solar + biomass + hydro discharge + battery discharge) / operational demand
+- RE% (underlying) = (wind + solar + biomass + hydro discharge + battery discharge + DPV) / underlying demand
 """
 from django.shortcuts import render
 from django.views.decorators.http import require_POST
@@ -64,9 +64,10 @@ def ret_dashboard(request, year=None, month=None):
     month = int(month)
     quarter = (month - 1) // 3 + 1
 
-    # Calculate completed quarters for the report year
-    completed_quarters = get_completed_quarters(year)
-    
+    # Calculate last 4 completed quarterly reports and annual review year
+    recent_quarters = get_recent_completed_quarters(4)
+    annual_review_year = now.year - 1
+
     # Get selected month's performance
     try:
         performance = MonthlyREPerformance.objects.get(year=year, month=month)
@@ -153,7 +154,8 @@ def ret_dashboard(request, year=None, month=None):
         'pathway_chart': pathway_chart,
         'available_months': get_available_months(),
         'selected_period': f"{year}-{month:02d}",
-        'completed_quarters': completed_quarters,
+        'recent_quarters': recent_quarters,
+        'annual_review_year': annual_review_year,
         'comments': comments,
         'report_type': 'monthly',
     }
@@ -190,29 +192,30 @@ def get_dpv_generation(year, month):
 def generate_generation_mix_operational_chart(performance):
     """
     Generate Plotly pie chart for OPERATIONAL generation mix.
-    
+
     Shows grid-sent generation only (excludes rooftop solar/DPV).
-    Storage (BESS + Hydro) is also excluded as it's not counted in RE%.
+    Includes hydro discharge and battery discharge as renewable.
     """
     import plotly.graph_objects as go
-    
-    # Data for pie chart - EXCLUDES DPV (rooftop solar) and storage
-    labels = ['Wind', 'Solar (Utility)', 'Biomass', 'Gas (CCGT)']
-    
+
+    labels = ['Wind', 'Solar (Utility)', 'Biomass', 'Hydro', 'Battery', 'Gas (CCGT)']
+
     values = [
         performance.wind_generation,
         performance.solar_generation,
         performance.biomass_generation,
+        performance.hydro_discharge,
+        performance.storage_discharge,
         performance.gas_generation,
     ]
-    
+
     # Add coal if present
     if performance.coal_generation and performance.coal_generation > 0:
         labels.append('Coal')
         values.append(performance.coal_generation)
-    
-    # Colors - green for renewables, gray for fossil
-    colors = ['#27ae60', '#f39c12', '#16a085', '#95a5a6', '#7f8c8d']
+
+    # Colors - green/warm for renewables, purple for storage, gray for fossil
+    colors = ['#27ae60', '#f39c12', '#16a085', '#1abc9c', '#9b59b6', '#95a5a6', '#7f8c8d']
     
     fig = go.Figure(data=[go.Pie(
         labels=labels,
@@ -248,30 +251,32 @@ def generate_generation_mix_operational_chart(performance):
 def generate_generation_mix_underlying_chart(performance):
     """
     Generate Plotly pie chart for UNDERLYING generation mix.
-    
+
     Shows total generation including rooftop solar (DPV).
-    Storage (BESS + Hydro) is excluded as it's not counted in RE%.
+    Includes hydro discharge and battery discharge as renewable.
     """
     import plotly.graph_objects as go
-    
-    # Data for pie chart - INCLUDES DPV (rooftop solar), excludes storage
-    labels = ['Wind', 'Solar (Utility)', 'Solar (Rooftop)', 'Biomass', 'Gas (CCGT)']
-    
+
+    labels = ['Wind', 'Solar (Utility)', 'Solar (Rooftop)', 'Biomass',
+              'Hydro', 'Battery', 'Gas (CCGT)']
+
     values = [
         performance.wind_generation,
         performance.solar_generation,
         performance.dpv_generation,
         performance.biomass_generation,
+        performance.hydro_discharge,
+        performance.storage_discharge,
         performance.gas_generation,
     ]
-    
+
     # Add coal if present
     if performance.coal_generation and performance.coal_generation > 0:
         labels.append('Coal')
         values.append(performance.coal_generation)
-    
-    # Colors - green for renewables (including rooftop solar in yellow), gray for fossil
-    colors = ['#27ae60', '#f39c12', '#f1c40f', '#16a085', '#95a5a6', '#7f8c8d']
+
+    # Colors - green/warm for renewables, purple for storage, gray for fossil
+    colors = ['#27ae60', '#f39c12', '#f1c40f', '#16a085', '#1abc9c', '#9b59b6', '#95a5a6', '#7f8c8d']
     
     fig = go.Figure(data=[go.Pie(
         labels=labels,
@@ -349,9 +354,11 @@ def generate_pathway_chart(current_year, current_month):
         for record in current_year_data:
             # Add this month's values to cumulative totals
             cumulative_renewable += (
-                record.wind_generation + 
-                record.solar_generation + 
-                record.biomass_generation
+                record.wind_generation +
+                record.solar_generation +
+                record.biomass_generation +
+                record.hydro_discharge +
+                record.storage_discharge
             )
             cumulative_operational += record.operational_demand
             
@@ -448,7 +455,21 @@ def generate_annual_generation_chart(annual_data):
         y=[record.biomass_generation for record in annual_data],
         marker_color='#16a085'
     ))
-    
+
+    fig.add_trace(go.Bar(
+        name='Hydro',
+        x=months,
+        y=[record.hydro_discharge for record in annual_data],
+        marker_color='#1abc9c'
+    ))
+
+    fig.add_trace(go.Bar(
+        name='Battery',
+        x=months,
+        y=[record.storage_discharge for record in annual_data],
+        marker_color='#9b59b6'
+    ))
+
     fig.add_trace(go.Bar(
         name='Gas',
         x=months,
@@ -464,7 +485,7 @@ def generate_annual_generation_chart(annual_data):
     ))
 
     fig.update_layout(
-        title='Monthly Generation by Technology (Storage excluded)',
+        title='Monthly Generation by Technology',
         xaxis_title='Month',
         yaxis_title='Generation (GWh)',
         barmode='stack',
@@ -829,11 +850,15 @@ def annual_review(request, year):
     total_biomass = sum(r.biomass_generation for r in annual_data)
     total_gas = sum(r.gas_generation for r in annual_data)
     total_coal = sum(r.coal_generation or 0 for r in annual_data)
-    
+    total_hydro_discharge = sum(r.hydro_discharge for r in annual_data)
+    total_hydro_charge = sum(r.hydro_charge for r in annual_data)
+    total_storage_discharge = sum(r.storage_discharge for r in annual_data)
+    total_storage_charge = sum(r.storage_charge for r in annual_data)
+
     # Calculate annual RE percentages
     re_pct_operational = (total_renewable_operational / total_operational_demand * 100) if total_operational_demand > 0 else 0
     re_pct_underlying = (total_renewable / total_underlying_demand * 100) if total_underlying_demand > 0 else 0
-    
+
     # Build annual_summary dictionary for template
     annual_summary = {
         'total_generation': total_generation,
@@ -849,6 +874,10 @@ def annual_review(request, year):
         'biomass_generation': total_biomass,
         'gas_generation': total_gas,
         'coal_generation': total_coal,
+        'hydro_discharge': total_hydro_discharge,
+        'hydro_charge': total_hydro_charge,
+        'storage_discharge': total_storage_discharge,
+        'storage_charge': total_storage_charge,
     }
     
     # Aggregate wholesale price statistics for the year
@@ -903,11 +932,11 @@ def annual_review(request, year):
         prev_total_biomass = sum(r.biomass_generation for r in prev_annual_data)
         prev_total_gas = sum(r.gas_generation for r in prev_annual_data)
         prev_total_coal = sum(r.coal_generation or 0 for r in prev_annual_data)
-        
+
         prev_re_pct_operational = (prev_total_renewable_operational / prev_operational_demand * 100) if prev_operational_demand > 0 else 0
-        prev_re_with_dpv = prev_total_renewable + prev_total_dpv
-        prev_re_pct_underlying = (prev_re_with_dpv / prev_underlying_demand * 100) if prev_underlying_demand > 0 else 0
-        
+        # total_renewable_generation already includes DPV
+        prev_re_pct_underlying = (prev_total_renewable / prev_underlying_demand * 100) if prev_underlying_demand > 0 else 0
+
         prev_annual_summary = {
             'total_generation': prev_total_generation,
             'renewable_generation': prev_total_renewable,
@@ -922,6 +951,10 @@ def annual_review(request, year):
             'biomass_generation': prev_total_biomass,
             'gas_generation': prev_total_gas,
             'coal_generation': prev_total_coal,
+            'hydro_discharge': sum(r.hydro_discharge for r in prev_annual_data),
+            'hydro_charge': sum(r.hydro_charge for r in prev_annual_data),
+            'storage_discharge': sum(r.storage_discharge for r in prev_annual_data),
+            'storage_charge': sum(r.storage_charge for r in prev_annual_data),
         }
         
         # Add wholesale stats for previous year
@@ -1081,14 +1114,43 @@ def update_executive_summary(request):
 def get_completed_quarters(year):
     """Get list of completed quarters for a given year"""
     from datetime import date
-    
+
     today = date.today()
     current_year = today.year
     current_quarter = (today.month - 1) // 3 + 1
-    
+
     if year < current_year:
         return [1, 2, 3, 4]
     elif year == current_year:
         return list(range(1, current_quarter))
     else:
         return []
+
+
+def get_recent_completed_quarters(count=4):
+    """
+    Get the last N completed quarterly reports as a list of dicts
+    with 'year' and 'quarter' keys, most recent first.
+    """
+    from datetime import date
+
+    today = date.today()
+    current_year = today.year
+    current_quarter = (today.month - 1) // 3 + 1
+
+    # Start from the quarter before the current one
+    q = current_quarter - 1
+    y = current_year
+    if q < 1:
+        q = 4
+        y -= 1
+
+    result = []
+    while len(result) < count:
+        result.append({'year': y, 'quarter': q})
+        q -= 1
+        if q < 1:
+            q = 4
+            y -= 1
+
+    return result

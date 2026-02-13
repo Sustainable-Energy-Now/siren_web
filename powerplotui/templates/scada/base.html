@@ -87,23 +87,31 @@
         }
         
         .metric-card {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            background: white;
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            border-left: 4px solid #bdc3c7;
         }
-        
+
         .metric-card.positive {
-            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+            border-left-color: #27ae60;
+            background: linear-gradient(135deg, #ffffff 0%, #e8f5e9 100%);
         }
-        
+
         .metric-card.negative {
-            background: linear-gradient(135deg, #eb3349 0%, #f45c43 100%);
+            border-left-color: #e74c3c;
+            background: linear-gradient(135deg, #ffffff 0%, #ffebee 100%);
         }
-        
+
+        .metric-card.warning {
+            border-left-color: #f39c12;
+            background: linear-gradient(135deg, #ffffff 0%, #fff8e1 100%);
+        }
+
         .metric-card.neutral {
-            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            border-left-color: #3498db;
+            background: linear-gradient(135deg, #ffffff 0%, #e3f2fd 100%);
         }
         
         .metric-label {

@@ -1674,10 +1674,14 @@ class MonthlyREPerformance(models.Model):
     gas_generation = models.FloatField(default=0, help_text="Combined Cycle Gas Turbine")
     coal_generation = models.FloatField(default=0)
     
-    # Storage (for information only - not counted in RE%)
-    storage_discharge = models.FloatField(default=0)
-    storage_charge = models.FloatField(default=0)
-    
+    # Storage (BESS) - discharge counted as renewable in RE%
+    storage_discharge = models.FloatField(default=0, help_text="Battery discharge in GWh")
+    storage_charge = models.FloatField(default=0, help_text="Battery charging in GWh")
+
+    # Hydro (pumped storage) - discharge counted as renewable in RE%
+    hydro_discharge = models.FloatField(default=0, help_text="Hydro discharge generation in GWh")
+    hydro_charge = models.FloatField(default=0, help_text="Hydro pumping consumption in GWh")
+
     # Emissions data
     total_emissions_tonnes = models.FloatField(help_text="Total emissions in tonnes CO2-e")
     emissions_intensity_kg_mwh = models.FloatField(help_text="Grid emissions intensity kg CO2-e/MWh")
@@ -1752,24 +1756,27 @@ class MonthlyREPerformance(models.Model):
     def renewable_gen_operational(self):
         """
         Renewable generation for operational demand basis.
-        Excludes:
-        - DPV (not grid-sent, behind-the-meter)
-        - Hydro (pumped storage, like BESS)
+        Includes: wind, solar, biomass, hydro discharge, battery discharge.
+        Excludes: DPV (behind-the-meter), charging loads.
         """
-        return (self.wind_generation + 
-                self.solar_generation + 
-                self.biomass_generation)
+        return (self.wind_generation +
+                self.solar_generation +
+                self.biomass_generation +
+                self.hydro_discharge +
+                self.storage_discharge)
     
     @property
     def total_renewable_generation(self):
         """
         Total renewable generation for underlying demand basis.
-        Excludes storage discharge.
+        Includes: wind, solar, DPV, biomass, hydro discharge, battery discharge.
         """
-        return (self.wind_generation + 
-                self.solar_generation + 
-                self.dpv_generation + 
-                self.biomass_generation)
+        return (self.wind_generation +
+                self.solar_generation +
+                self.dpv_generation +
+                self.biomass_generation +
+                self.hydro_discharge +
+                self.storage_discharge)
     
     # -------------------------------------------------------------------------
     # RE Percentage Properties
@@ -1779,9 +1786,7 @@ class MonthlyREPerformance(models.Model):
     def re_percentage_operational(self):
         """
         Calculate RE% based on operational demand.
-        RE% = (wind + utility solar + biomass) / operational_demand
-        
-        Operational demand = grid-sent generation minus storage charging.
+        RE% = (wind + solar + biomass + hydro discharge + battery discharge) / operational_demand
         """
         if self.operational_demand > 0:
             return (self.renewable_gen_operational / self.operational_demand) * 100
@@ -1791,9 +1796,7 @@ class MonthlyREPerformance(models.Model):
     def re_percentage_underlying(self):
         """
         Calculate RE% based on underlying demand (PRIMARY METRIC).
-        RE% = (wind + utility solar + biomass + DPV) / underlying_demand
-        
-        Underlying demand = operational demand + rooftop solar (DPV).
+        RE% = (wind + solar + biomass + hydro discharge + battery discharge + DPV) / underlying_demand
         """
         if self.underlying_demand > 0:
             return (self.total_renewable_generation / self.underlying_demand) * 100
@@ -1810,6 +1813,11 @@ class MonthlyREPerformance(models.Model):
     def storage_net_discharge(self):
         """Net storage discharge (positive = net discharge)"""
         return self.storage_discharge - self.storage_charge
+
+    @property
+    def hydro_net_discharge(self):
+        """Net hydro discharge (positive = net discharge)"""
+        return self.hydro_discharge - self.hydro_charge
 
     @property
     def fossil_generation(self):
@@ -1980,7 +1988,11 @@ class MonthlyREPerformance(models.Model):
         # Sum storage fields
         storage_discharge = sum(r.storage_discharge for r in records)
         storage_charge = sum(r.storage_charge for r in records)
-        
+
+        # Sum hydro fields
+        hydro_discharge = sum(r.hydro_discharge for r in records)
+        hydro_charge = sum(r.hydro_charge for r in records)
+
         # Sum emissions
         total_emissions = sum(r.total_emissions_tonnes for r in records)
         
@@ -2010,8 +2022,8 @@ class MonthlyREPerformance(models.Model):
         total_spike_count = sum(spike_counts) if spike_counts else None
             
         # Calculate renewable totals
-        # Hydro (pumped storage) excluded - it's storage like BESS
-        renewable_gen_operational = wind + solar + biomass
+        # RE includes wind, solar, biomass, hydro discharge, battery discharge
+        renewable_gen_operational = wind + solar + biomass + hydro_discharge + storage_discharge
         renewable_gen_underlying = renewable_gen_operational + dpv
         
         # Calculate RE percentages
@@ -2040,9 +2052,13 @@ class MonthlyREPerformance(models.Model):
             'gas_generation': gas,
             'coal_generation': coal,
             
-            # Storage (for display only)
+            # Storage
             'storage_discharge': storage_discharge,
             'storage_charge': storage_charge,
+
+            # Hydro
+            'hydro_discharge': hydro_discharge,
+            'hydro_charge': hydro_charge,
             
             # Renewable totals
             'renewable_generation': renewable_gen_underlying,

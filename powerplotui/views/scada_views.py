@@ -201,13 +201,16 @@ def get_historical_data(current_year, current_month, years_back=3):
             'underlying_demand': float(summary.underlying_demand),
             'wind_generation': float(summary.wind_generation),
             'solar_generation': float(summary.solar_generation),
+            'biomass_generation': float(summary.biomass_generation),
             'dpv_generation': float(summary.dpv_generation),
-            'fossil_generation': float(summary.fossil_generation),  # Uses computed property
+            'fossil_generation': float(summary.fossil_generation),
+            'hydro_discharge': float(summary.hydro_discharge),
+            'hydro_charge': float(summary.hydro_charge),
             'storage_discharge': float(summary.storage_discharge),
             'storage_charge': float(summary.storage_charge),
-            're_percentage_operational': float(summary.re_percentage_operational),  # Uses computed property
-            're_percentage_underlying': float(summary.re_percentage_underlying),  # Uses computed property
-            'dpv_percentage_underlying': float(summary.dpv_percentage_underlying),  # Uses computed property
+            're_percentage_operational': float(summary.re_percentage_operational),
+            're_percentage_underlying': float(summary.re_percentage_underlying),
+            'dpv_percentage_underlying': float(summary.dpv_percentage_underlying),
         })
 
     return historical_records
@@ -236,7 +239,9 @@ def calculate_historical_stats(historical_data):
     
     # Calculate total RE generation
     total_re = sum(
-        record['wind_generation'] + record['solar_generation'] 
+        record['wind_generation'] + record['solar_generation'] +
+        record.get('biomass_generation', 0) + record.get('hydro_discharge', 0) +
+        record.get('storage_discharge', 0)
         for record in historical_data
     )
     
@@ -321,7 +326,9 @@ def export_historical_data(request):
     writer = csv.writer(response)
     writer.writerow([
         'Period', 'Operational Demand (GWh)', 'Underlying Demand (GWh)',
-        'Wind Generation (GWh)', 'Solar Generation (GWh)', 'DPV Generation (GWh)',
+        'Wind Generation (GWh)', 'Solar Generation (GWh)', 'Biomass Generation (GWh)',
+        'DPV Generation (GWh)',
+        'Hydro Discharge (GWh)', 'Hydro Charge (GWh)',
         'Battery Discharge (GWh)', 'Battery Charge (GWh)', 'Fossil Generation (GWh)',
         'RE % Operational', 'RE % Underlying', 'DPV % Underlying'
     ])
@@ -333,13 +340,16 @@ def export_historical_data(request):
             float(summary.underlying_demand),
             float(summary.wind_generation),
             float(summary.solar_generation),
+            float(summary.biomass_generation),
             float(summary.dpv_generation),
+            float(summary.hydro_discharge),
+            float(summary.hydro_charge),
             float(summary.storage_discharge),
             float(summary.storage_charge),
-            float(summary.fossil_generation),  # Uses computed property
-            float(summary.re_percentage_operational),  # Uses computed property
-            float(summary.re_percentage_underlying),  # Uses computed property
-            float(summary.dpv_percentage_underlying),  # Uses computed property
+            float(summary.fossil_generation),
+            float(summary.re_percentage_operational),
+            float(summary.re_percentage_underlying),
+            float(summary.dpv_percentage_underlying),
         ])
 
     return response
@@ -353,7 +363,10 @@ def aggregate_summaries(summaries):
             'underlying_demand': 0,
             'storage_discharge': 0,
             'storage_charge': 0,
+            'hydro_discharge': 0,
+            'hydro_charge': 0,
             'fossil_generation': 0,
+            'biomass_generation': 0,
             're_percentage_operational': 0,
             're_percentage_underlying': 0,
             'dpv_generation': 0,
@@ -361,36 +374,41 @@ def aggregate_summaries(summaries):
             'wind_generation': 0,
             'solar_generation': 0,
         }
-    
+
     total = {
         'operational_demand': sum(s.operational_demand for s in summaries),
         'underlying_demand': sum(s.underlying_demand for s in summaries),
         'storage_discharge': sum(s.storage_discharge for s in summaries),
         'storage_charge': sum(s.storage_charge for s in summaries),
+        'hydro_discharge': sum(s.hydro_discharge for s in summaries),
+        'hydro_charge': sum(s.hydro_charge for s in summaries),
         'fossil_generation': sum(s.fossil_generation for s in summaries),
+        'biomass_generation': sum(s.biomass_generation for s in summaries),
         'dpv_generation': sum(s.dpv_generation for s in summaries),
         'wind_generation': sum(s.wind_generation for s in summaries),
         'solar_generation': sum(s.solar_generation for s in summaries),
     }
-    
-    # Recalculate percentages
-    total_re = total['wind_generation'] + total['solar_generation']
-    
+
+    # RE = wind + solar + biomass + hydro discharge + battery discharge
+    total_re = (total['wind_generation'] + total['solar_generation'] +
+                total['biomass_generation'] + total['hydro_discharge'] +
+                total['storage_discharge'])
+
     total['re_percentage_operational'] = (
-        (total_re / total['operational_demand']) * 100 
+        (total_re / total['operational_demand']) * 100
         if total['operational_demand'] > 0 else 0
     )
-    
+
     total['re_percentage_underlying'] = (
         ((total_re + total['dpv_generation']) / total['underlying_demand']) * 100
         if total['underlying_demand'] > 0 else 0
     )
-    
+
     total['dpv_percentage_underlying'] = (
         (total['dpv_generation'] / total['underlying_demand']) * 100
         if total['underlying_demand'] > 0 else 0
     )
-    
+
     return total
 
 
@@ -409,7 +427,7 @@ class ChartGenerator:
     
     def create_technology_breakdown_pies(self, monthly_summary, ytd_summary):
         """Create 4 pie charts showing operational and underlying demand breakdown"""
-        
+
         fig = make_subplots(
             rows=2, cols=2,
             subplot_titles=(
@@ -421,67 +439,77 @@ class ChartGenerator:
             specs=[[{'type': 'pie'}, {'type': 'pie'}],
                    [{'type': 'pie'}, {'type': 'pie'}]]
         )
-        
+
+        op_labels = ['Wind', 'Solar', 'Biomass', 'Hydro', 'Battery', 'Fossil']
+        op_colors = [self.COLORS['wind'], self.COLORS['solar'], '#16a085',
+                     self.COLORS['hydro'], self.COLORS['battery'], self.COLORS['fossil']]
+        ul_labels = ['Wind', 'Solar', 'DPV', 'Biomass', 'Hydro', 'Battery', 'Fossil']
+        ul_colors = [self.COLORS['wind'], self.COLORS['solar'], self.COLORS['dpv'],
+                     '#16a085', self.COLORS['hydro'], self.COLORS['battery'],
+                     self.COLORS['fossil']]
+
         # Monthly Operational
         fig.add_trace(go.Pie(
-            labels=['Wind', 'Solar', 'Battery', 'Fossil'],
+            labels=op_labels,
             values=[
                 float(monthly_summary.wind_generation),
                 float(monthly_summary.solar_generation),
+                float(monthly_summary.biomass_generation),
+                float(monthly_summary.hydro_discharge),
                 float(monthly_summary.storage_discharge),
                 float(monthly_summary.fossil_generation)
             ],
-            marker_colors=[self.COLORS['wind'], self.COLORS['solar'], 
-                          self.COLORS['battery'], self.COLORS['fossil']],
+            marker_colors=op_colors,
             textinfo='label+percent',
             hovertemplate='%{label}<br>%{value:.1f} GWh<br>%{percent}<extra></extra>'
         ), row=1, col=1)
-        
+
         # Monthly Underlying
         fig.add_trace(go.Pie(
-            labels=['Wind', 'Solar', 'DPV', 'Battery', 'Fossil'],
+            labels=ul_labels,
             values=[
                 float(monthly_summary.wind_generation),
                 float(monthly_summary.solar_generation),
                 float(monthly_summary.dpv_generation),
+                float(monthly_summary.biomass_generation),
+                float(monthly_summary.hydro_discharge),
                 float(monthly_summary.storage_discharge),
                 float(monthly_summary.fossil_generation)
             ],
-            marker_colors=[self.COLORS['wind'], self.COLORS['solar'], 
-                          self.COLORS['dpv'], self.COLORS['battery'], 
-                          self.COLORS['fossil']],
+            marker_colors=ul_colors,
             textinfo='label+percent',
             hovertemplate='%{label}<br>%{value:.1f} GWh<br>%{percent}<extra></extra>'
         ), row=1, col=2)
-        
+
         # YTD Operational
         fig.add_trace(go.Pie(
-            labels=['Wind', 'Solar', 'Battery', 'Fossil'],
+            labels=op_labels,
             values=[
                 ytd_summary['wind_generation'],
                 ytd_summary['solar_generation'],
+                ytd_summary.get('biomass_generation', 0),
+                ytd_summary.get('hydro_discharge', 0),
                 ytd_summary['storage_discharge'],
                 ytd_summary['fossil_generation']
             ],
-            marker_colors=[self.COLORS['wind'], self.COLORS['solar'], 
-                          self.COLORS['battery'], self.COLORS['fossil']],
+            marker_colors=op_colors,
             textinfo='label+percent',
             hovertemplate='%{label}<br>%{value:.1f} GWh<br>%{percent}<extra></extra>'
         ), row=2, col=1)
-        
+
         # YTD Underlying
         fig.add_trace(go.Pie(
-            labels=['Wind', 'Solar', 'DPV', 'Battery', 'Fossil'],
+            labels=ul_labels,
             values=[
                 ytd_summary['wind_generation'],
                 ytd_summary['solar_generation'],
                 ytd_summary['dpv_generation'],
+                ytd_summary.get('biomass_generation', 0),
+                ytd_summary.get('hydro_discharge', 0),
                 ytd_summary['storage_discharge'],
                 ytd_summary['fossil_generation']
             ],
-            marker_colors=[self.COLORS['wind'], self.COLORS['solar'], 
-                          self.COLORS['dpv'], self.COLORS['battery'], 
-                          self.COLORS['fossil']],
+            marker_colors=ul_colors,
             textinfo='label+percent',
             hovertemplate='%{label}<br>%{value:.1f} GWh<br>%{percent}<extra></extra>'
         ), row=2, col=2)
@@ -679,7 +707,7 @@ class ChartGenerator:
             fillcolor=self.COLORS['fossil'],
             line=dict(width=0.5, color=self.COLORS['fossil'])
         ))
-        
+
         fig.add_trace(go.Scatter(
             x=dates,
             y=[record['storage_discharge'] for record in historical_data],
@@ -688,7 +716,25 @@ class ChartGenerator:
             fillcolor=self.COLORS['battery'],
             line=dict(width=0.5, color=self.COLORS['battery'])
         ))
-        
+
+        fig.add_trace(go.Scatter(
+            x=dates,
+            y=[record.get('hydro_discharge', 0) for record in historical_data],
+            name='Hydro',
+            stackgroup='one',
+            fillcolor=self.COLORS['hydro'],
+            line=dict(width=0.5, color=self.COLORS['hydro'])
+        ))
+
+        fig.add_trace(go.Scatter(
+            x=dates,
+            y=[record.get('biomass_generation', 0) for record in historical_data],
+            name='Biomass',
+            stackgroup='one',
+            fillcolor='#16a085',
+            line=dict(width=0.5, color='#16a085')
+        ))
+
         fig.add_trace(go.Scatter(
             x=dates,
             y=[record['solar_generation'] for record in historical_data],
@@ -697,7 +743,7 @@ class ChartGenerator:
             fillcolor=self.COLORS['solar'],
             line=dict(width=0.5, color=self.COLORS['solar'])
         ))
-        
+
         fig.add_trace(go.Scatter(
             x=dates,
             y=[record['wind_generation'] for record in historical_data],

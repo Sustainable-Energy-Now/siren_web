@@ -243,6 +243,18 @@
                 <td class="value">N/A</td>
             </tr>
             <tr>
+                <td>Biomass Generation</td>
+                <td class="value">{{ ytd_summary.biomass_generation|floatformat:1 }} GWh</td>
+                <td class="value">{{ ytd_prev_summary.biomass_generation|floatformat:1 }} GWh</td>
+                <td class="value">N/A</td>
+            </tr>
+            <tr>
+                <td>Hydro Discharge</td>
+                <td class="value">{{ ytd_summary.hydro_discharge|floatformat:1 }} GWh</td>
+                <td class="value">{{ ytd_prev_summary.hydro_discharge|floatformat:1 }} GWh</td>
+                <td class="value">N/A</td>
+            </tr>
+            <tr>
                 <td>Battery Discharge</td>
                 <td class="value">{{ ytd_summary.storage_discharge|floatformat:1 }} GWh</td>
                 <td class="value">{{ ytd_prev_summary.storage_discharge|floatformat:1 }} GWh</td>
@@ -357,9 +369,12 @@
                     <th onclick="sortTable(3)" class="value">Wind<br>(GWh) <span class="sort-icon">⇅</span></th>
                     <th onclick="sortTable(4)" class="value">Solar<br>(GWh) <span class="sort-icon">⇅</span></th>
                     <th onclick="sortTable(5)" class="value">DPV<br>(GWh) <span class="sort-icon">⇅</span></th>
-                    <th onclick="sortTable(6)" class="value">Fossil<br>(GWh) <span class="sort-icon">⇅</span></th>
-                    <th onclick="sortTable(7)" class="value">RE %<br>Operational <span class="sort-icon">⇅</span></th>
-                    <th onclick="sortTable(8)" class="value">RE %<br>Underlying <span class="sort-icon">⇅</span></th>
+                    <th onclick="sortTable(6)" class="value">Biomass<br>(GWh) <span class="sort-icon">⇅</span></th>
+                    <th onclick="sortTable(7)" class="value">Hydro<br>(GWh) <span class="sort-icon">⇅</span></th>
+                    <th onclick="sortTable(8)" class="value">Battery<br>(GWh) <span class="sort-icon">⇅</span></th>
+                    <th onclick="sortTable(9)" class="value">Fossil<br>(GWh) <span class="sort-icon">⇅</span></th>
+                    <th onclick="sortTable(10)" class="value">RE %<br>Operational <span class="sort-icon">⇅</span></th>
+                    <th onclick="sortTable(11)" class="value">RE %<br>Underlying <span class="sort-icon">⇅</span></th>
                 </tr>
             </thead>
             <tbody>
@@ -371,6 +386,9 @@
                     <td class="value">{{ record.wind_generation|floatformat:1 }}</td>
                     <td class="value">{{ record.solar_generation|floatformat:1 }}</td>
                     <td class="value">{{ record.dpv_generation|floatformat:1 }}</td>
+                    <td class="value">{{ record.biomass_generation|floatformat:1 }}</td>
+                    <td class="value">{{ record.hydro_discharge|floatformat:1 }}</td>
+                    <td class="value">{{ record.storage_discharge|floatformat:1 }}</td>
                     <td class="value">{{ record.fossil_generation|floatformat:1 }}</td>
                     <td class="value re-percent">{{ record.re_percentage_operational|floatformat:1 }}%</td>
                     <td class="value re-percent">{{ record.re_percentage_underlying|floatformat:1 }}%</td>

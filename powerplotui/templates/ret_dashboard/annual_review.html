@@ -245,17 +245,20 @@
         {% endif %}
     </div>
 
-    <div class="metric-card positive">
+    <div class="metric-card {% if yoy_changes.emissions and yoy_changes.emissions < 0 %}positive{% elif yoy_changes.emissions and yoy_changes.emissions > 0 %}negative{% else %}neutral{% endif %}">
         <div class="metric-label">Total Emissions</div>
         <div class="metric-value">{{ annual_summary.total_emissions|floatformat:0|intcomma }}</div>
         <div class="metric-sublabel">tonnes CO₂-e</div>
         {% if yoy_changes.emissions %}
         <div class="metric-change {% if yoy_changes.emissions < 0 %}positive{% else %}negative{% endif %}">
-            {% if yoy_changes.emissions < 0 %}✓{% else %}⚠{% endif %} {% if yoy_changes.emissions < 0 %} {{
-                yoy_changes.emissions|mul:-1|floatformat:1 }}% vs {{ year|add:"-1" }} {% else %} {{
-                yoy_changes.emissions|floatformat:1 }}% vs {{ year|add:"-1" }} {% endif %} </div>
-                {% endif %}
+            {% if yoy_changes.emissions < 0 %}
+            ✓ {{ yoy_changes.emissions|mul:-1|floatformat:1 }}% vs {{ year|add:"-1" }}
+            {% else %}
+            ⚠ {{ yoy_changes.emissions|floatformat:1 }}% vs {{ year|add:"-1" }}
+            {% endif %}
         </div>
+        {% endif %}
+    </div>
 
         <div class="metric-card neutral">
             <div class="metric-label">New Capacity</div>
@@ -565,6 +568,20 @@
                 </td>
                 <td class="value">0</td>
             </tr>
+            <tr class="renewable-row">
+                <td><strong>Hydro</strong></td>
+                <td class="value">{{ annual_summary.hydro_discharge|floatformat:0|intcomma }}</td>
+                <td class="value">{{ annual_summary.hydro_discharge|div:annual_summary.operational_demand|mul:100|floatformat:1 }}%</td>
+                <td class="value">{{ annual_summary.hydro_discharge|div:annual_summary.underlying_demand|mul:100|floatformat:1 }}%</td>
+                <td class="value">0</td>
+            </tr>
+            <tr class="renewable-row">
+                <td><strong>Battery</strong></td>
+                <td class="value">{{ annual_summary.storage_discharge|floatformat:0|intcomma }}</td>
+                <td class="value">{{ annual_summary.storage_discharge|div:annual_summary.operational_demand|mul:100|floatformat:1 }}%</td>
+                <td class="value">{{ annual_summary.storage_discharge|div:annual_summary.underlying_demand|mul:100|floatformat:1 }}%</td>
+                <td class="value">0</td>
+            </tr>
             <tr class="fossil-row">
                 <td>Gas</td>
                 <td class="value">{{ annual_summary.gas_generation|floatformat:0|intcomma }}</td>
@@ -581,16 +598,16 @@
             </tr>
             {% if annual_summary.storage_charge > 0 %}
             <tr class="info-row">
-                <td><em>Storage Charge</em></td>
+                <td><em>Battery Charge</em></td>
                 <td class="value"><em>{{ annual_summary.storage_charge|floatformat:1 }}</em></td>
                 <td class="value" colspan="2"></td>
             </tr>
             {% endif %}
-            {% if annual_summary.storage_discharge > 0 %}
+            {% if annual_summary.hydro_charge > 0 %}
             <tr class="info-row">
-                <td><em>Storage Discharge</em></td>
-                <td class="value"><em>{{ annual_summary.storage_discharge|floatformat:0|intcomma }}</em></td>
-                <td class="value"><em>0</em></td>
+                <td><em>Hydro Pumping</em></td>
+                <td class="value"><em>{{ annual_summary.hydro_charge|floatformat:1 }}</em></td>
+                <td class="value" colspan="2"></td>
             </tr>
             {% endif %}
         </tbody>
@@ -784,34 +801,6 @@
             grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
             gap: 20px;
             margin: 20px 0;
-        }
-
-        .metric-card {
-            background: white;
-            padding: 25px;
-            border-radius: 12px;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-            border-left: 4px solid #bdc3c7;
-        }
-
-        .metric-card.positive {
-            border-left-color: #27ae60;
-            background: linear-gradient(135deg, #ffffff 0%, #e8f5e9 100%);
-        }
-
-        .metric-card.negative {
-            border-left-color: #e74c3c;
-            background: linear-gradient(135deg, #ffffff 0%, #ffebee 100%);
-        }
-
-        .metric-card.warning {
-            border-left-color: #f39c12;
-            background: linear-gradient(135deg, #ffffff 0%, #fff8e1 100%);
-        }
-
-        .metric-card.neutral {
-            border-left-color: #3498db;
-            background: linear-gradient(135deg, #ffffff 0%, #e3f2fd 100%);
         }
 
         .metric-label {
