@@ -9,7 +9,7 @@ from collections import defaultdict
 from django.db import transaction, connection
 from django.utils import timezone
 import pytz
-from siren_web.models import FacilityScada, facilities, Technologies
+from siren_web.models import FacilityScada, DailyPeakRE, facilities, Technologies
 import logging
 import time
 
@@ -219,29 +219,41 @@ class AEMOScadaFetcher:
                     logger.info(f"✓ {current_date}: Data already exists ({existing_count:,} records), skipping")
                     summary['successful_days'] += 1
                     summary['total_records'] += existing_count
+                    # Backfill DailyPeakRE if missing
+                    if not DailyPeakRE.objects.filter(trading_date=current_date).exists():
+                        peak = self._calculate_half_hourly_peak_re(current_date)
+                        if peak:
+                            DailyPeakRE.objects.create(
+                                trading_date=current_date,
+                                peak_re_percentage=peak['percentage'],
+                                peak_re_datetime=peak['datetime'],
+                                re_generation_mw=peak['re_mw'],
+                                total_generation_mw=peak['total_mw'],
+                            )
+                            logger.info(f"  Backfilled DailyPeakRE: {peak['percentage']:.1f}%")
                 else:
                     # Fetch data
                     count = self.fetch_historical_data(current_date)
                     summary['successful_days'] += 1
                     summary['total_records'] += count
                     logger.info(f"✓ {current_date}: Fetched {count:,} records")
-                
+
                 # Small delay to be nice to the server
                 time.sleep(0.5)
-                
+
             except Exception as e:
                 summary['failed_days'] += 1
                 error_msg = f"{current_date}: {str(e)}"
                 summary['errors'].append(error_msg)
                 logger.error(f"✗ {error_msg}")
-            
+
             current_date += timedelta(days=1)
-        
+
         logger.info(
             f"Month summary: {summary['successful_days']}/{summary['total_days']} days successful, "
             f"{summary['total_records']:,} total records"
         )
-        
+
         return summary
     
     def fetch_date_range_historical(self, start_date, end_date):
@@ -280,13 +292,25 @@ class AEMOScadaFetcher:
                     logger.info(f"⊘ {current_date}: Already exists ({existing_count:,} records), skipping")
                     summary['skipped_days'] += 1
                     summary['total_records'] += existing_count
+                    # Backfill DailyPeakRE if missing
+                    if not DailyPeakRE.objects.filter(trading_date=current_date).exists():
+                        peak = self._calculate_half_hourly_peak_re(current_date)
+                        if peak:
+                            DailyPeakRE.objects.create(
+                                trading_date=current_date,
+                                peak_re_percentage=peak['percentage'],
+                                peak_re_datetime=peak['datetime'],
+                                re_generation_mw=peak['re_mw'],
+                                total_generation_mw=peak['total_mw'],
+                            )
+                            logger.info(f"  Backfilled DailyPeakRE: {peak['percentage']:.1f}%")
                 else:
                     # Fetch data
                     count = self.fetch_historical_data(current_date)
                     summary['successful_days'] += 1
                     summary['total_records'] += count
                     logger.info(f"✓ {current_date}: Fetched {count:,} records")
-                
+
                 # Progress update every 7 days
                 if summary['total_days'] % 7 == 0:
                     logger.info(
@@ -424,6 +448,182 @@ class AEMOScadaFetcher:
 
         return aggregated
 
+    def _calculate_daily_peak_re(self, records):
+        """
+        Calculate peak 5-minute instantaneous operational RE% from raw records.
+
+        RE sources: fuel_type in (WIND, SOLAR, BIOMASS, HYDRO) or category = Storage.
+        Must match the re_condition in update_ret_dashboard.calculate_best_re_hour().
+
+        Args:
+            records: List of 5-min dicts with dispatch_interval, facility_id, quantity
+
+        Returns:
+            dict keyed by date with peak RE% data
+        """
+        # Build facility_id -> is_re lookup
+        facility_ids = {r['facility_id'] for r in records}
+        re_facility_ids = set()
+
+        facility_qs = facilities.objects.filter(
+            idfacilities__in=facility_ids
+        ).select_related('idtechnologies')
+
+        for f in facility_qs:
+            tech = f.idtechnologies
+            if tech:
+                fuel_type = (tech.fuel_type or '').upper()
+                category = (tech.category or '').upper()
+                if fuel_type in ('WIND', 'SOLAR', 'BIOMASS', 'HYDRO') or category == 'STORAGE':
+                    re_facility_ids.add(f.idfacilities)
+
+        # Group records by dispatch_interval, sum RE and total generation
+        interval_totals = defaultdict(lambda: {'re_mw': 0.0, 'total_mw': 0.0})
+
+        for record in records:
+            qty = float(record['quantity'])
+            if qty <= 0:
+                continue
+
+            dt = record['dispatch_interval']
+            interval_totals[dt]['total_mw'] += qty
+
+            if record['facility_id'] in re_facility_ids:
+                interval_totals[dt]['re_mw'] += qty
+
+        # Find daily peaks
+        daily_peaks = {}
+        for dt, totals in interval_totals.items():
+            if totals['total_mw'] <= 0:
+                continue
+            re_pct = (totals['re_mw'] / totals['total_mw']) * 100
+            day = dt.date() if hasattr(dt, 'date') else dt
+
+            if day not in daily_peaks or re_pct > daily_peaks[day]['percentage']:
+                daily_peaks[day] = {
+                    'percentage': re_pct,
+                    'datetime': dt,
+                    're_mw': totals['re_mw'],
+                    'total_mw': totals['total_mw'],
+                }
+
+        return daily_peaks
+
+    def _store_daily_peak_re(self, daily_peaks):
+        """Store daily peak RE% records in DailyPeakRE table."""
+        for day, peak in daily_peaks.items():
+            DailyPeakRE.objects.update_or_create(
+                trading_date=day,
+                defaults={
+                    'peak_re_percentage': peak['percentage'],
+                    'peak_re_datetime': peak['datetime'],
+                    're_generation_mw': peak['re_mw'],
+                    'total_generation_mw': peak['total_mw'],
+                }
+            )
+            logger.info(
+                f"Daily peak RE% for {day}: {peak['percentage']:.1f}% "
+                f"at {peak['datetime']}"
+            )
+
+    def _calculate_half_hourly_peak_re(self, trading_date):
+        """
+        Calculate peak half-hourly RE% from existing FacilityScada records.
+        Used as fallback when 5-minute data is not available.
+
+        Args:
+            trading_date: datetime.date object
+
+        Returns:
+            dict with percentage, datetime, re_mw, total_mw or None
+        """
+        from django.db.models import Sum, Case, When, Value, DecimalField, F, Q
+
+        start_dt = self.AWST.localize(datetime.combine(trading_date, datetime.min.time()))
+        end_dt = start_dt + timedelta(days=1)
+
+        scada_qs = FacilityScada.objects.filter(
+            dispatch_interval__gte=start_dt,
+            dispatch_interval__lt=end_dt,
+            quantity__gt=0,
+        )
+
+        if not scada_qs.exists():
+            return None
+
+        re_condition = (
+            Q(facility__idtechnologies__fuel_type__in=['WIND', 'SOLAR', 'BIOMASS', 'HYDRO']) |
+            Q(facility__idtechnologies__category__iexact='storage')
+        )
+
+        interval_stats = scada_qs.values('dispatch_interval').annotate(
+            re_gen=Sum(
+                Case(
+                    When(re_condition, then=F('quantity')),
+                    default=Value(0),
+                    output_field=DecimalField(),
+                )
+            ),
+            total_gen=Sum('quantity'),
+        )
+
+        best = None
+        for interval in interval_stats:
+            total = float(interval['total_gen'] or 0)
+            re = float(interval['re_gen'] or 0)
+            if total > 0:
+                pct = (re / total) * 100
+                if best is None or pct > best['percentage']:
+                    best = {
+                        'percentage': pct,
+                        'datetime': interval['dispatch_interval'],
+                        're_mw': re,
+                        'total_mw': total,
+                    }
+
+        return best
+
+    def backfill_daily_peak_re(self, start_date, end_date):
+        """
+        Backfill DailyPeakRE records from existing half-hourly FacilityScada data
+        for days that have SCADA data but no DailyPeakRE record.
+
+        Args:
+            start_date: datetime.date
+            end_date: datetime.date
+
+        Returns:
+            dict with backfilled and skipped counts
+        """
+        current_date = start_date
+        backfilled = 0
+        skipped = 0
+
+        while current_date <= end_date:
+            if not DailyPeakRE.objects.filter(trading_date=current_date).exists():
+                peak = self._calculate_half_hourly_peak_re(current_date)
+                if peak:
+                    DailyPeakRE.objects.create(
+                        trading_date=current_date,
+                        peak_re_percentage=peak['percentage'],
+                        peak_re_datetime=peak['datetime'],
+                        re_generation_mw=peak['re_mw'],
+                        total_generation_mw=peak['total_mw'],
+                    )
+                    logger.info(
+                        f"Backfilled DailyPeakRE for {current_date}: "
+                        f"{peak['percentage']:.1f}%"
+                    )
+                    backfilled += 1
+                else:
+                    skipped += 1
+            else:
+                skipped += 1
+
+            current_date += timedelta(days=1)
+
+        return {'backfilled': backfilled, 'skipped': skipped}
+
     @transaction.atomic
     def _save_data(self, records):
         """
@@ -437,6 +637,13 @@ class AEMOScadaFetcher:
         """
         if not records:
             return 0
+
+        # Calculate 5-minute peak RE% BEFORE aggregation discards the data
+        try:
+            daily_peaks = self._calculate_daily_peak_re(records)
+            self._store_daily_peak_re(daily_peaks)
+        except Exception as e:
+            logger.warning(f"Error calculating daily peak RE%: {e}")
 
         # Aggregate 5-minute data to half-hourly totals
         hourly_records = self._aggregate_to_half_hourly(records)

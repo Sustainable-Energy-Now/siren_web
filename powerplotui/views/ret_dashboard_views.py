@@ -224,7 +224,7 @@ def generate_generation_mix_operational_chart(performance):
         textposition='inside',
         textinfo='label+percent',
         hovertemplate='<b>%{label}</b><br>%{value:.1f} GWh<br>%{percent}<extra></extra>',
-        hole=0,
+        hole=0.45,
         direction='clockwise',
         sort=False,
         domain=dict(x=[0.1, 0.9], y=[0.15, 0.85])
@@ -232,7 +232,7 @@ def generate_generation_mix_operational_chart(performance):
 
     fig.update_layout(
         title=dict(
-            text=f"Operational Demand - RE: {performance.re_percentage_operational:.1f}%",
+            text="Operational Demand",
             x=0.5,
             xanchor='center',
             font=dict(size=14)
@@ -241,6 +241,12 @@ def generate_generation_mix_operational_chart(performance):
         showlegend=True,
         legend=dict(orientation='h', yanchor='top', y=0.02, xanchor='center', x=0.5),
         margin=dict(l=20, r=20, t=50, b=50),
+        annotations=[dict(
+            text=f"<b>{performance.re_percentage_operational:.1f}%</b><br>RE",
+            x=0.5, y=0.52,
+            font=dict(size=20, color='#27ae60'),
+            showarrow=False,
+        )],
     )
     
     # Wrap in a div with explicit width control
@@ -285,7 +291,7 @@ def generate_generation_mix_underlying_chart(performance):
         textposition='inside',
         textinfo='label+percent',
         hovertemplate='<b>%{label}</b><br>%{value:.1f} GWh<br>%{percent}<extra></extra>',
-        hole=0,
+        hole=0.45,
         direction='clockwise',
         sort=False,
         domain=dict(x=[0.1, 0.9], y=[0.15, 0.85])
@@ -293,7 +299,7 @@ def generate_generation_mix_underlying_chart(performance):
 
     fig.update_layout(
         title=dict(
-            text=f"Underlying Demand - RE: {performance.re_percentage_underlying:.1f}%",
+            text="Underlying Demand",
             x=0.5,
             xanchor='center',
             font=dict(size=14)
@@ -302,6 +308,12 @@ def generate_generation_mix_underlying_chart(performance):
         showlegend=True,
         legend=dict(orientation='h', yanchor='top', y=0.02, xanchor='center', x=0.5),
         margin=dict(l=20, r=20, t=50, b=50),
+        annotations=[dict(
+            text=f"<b>{performance.re_percentage_underlying:.1f}%</b><br>RE",
+            x=0.5, y=0.52,
+            font=dict(size=20, color='#27ae60'),
+            showarrow=False,
+        )],
     )
     
     # Wrap in a div with explicit width control

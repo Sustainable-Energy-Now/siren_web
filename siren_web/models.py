@@ -1498,6 +1498,32 @@ class FacilityScada(models.Model):
         return f"{self.facility.facility_code} @ {self.dispatch_interval}: {self.quantity}MW"
 
 
+class DailyPeakRE(models.Model):
+    """Store daily peak instantaneous (5-minute) operational RE% calculated during SCADA fetch"""
+    trading_date = models.DateField(unique=True, db_index=True)
+    peak_re_percentage = models.FloatField(
+        help_text="Peak 5-minute instantaneous operational RE%"
+    )
+    peak_re_datetime = models.DateTimeField(
+        help_text="DateTime of peak 5-minute RE% interval"
+    )
+    re_generation_mw = models.FloatField(
+        help_text="Total RE generation (MW) at peak interval"
+    )
+    total_generation_mw = models.FloatField(
+        help_text="Total operational generation (MW) at peak interval"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'daily_peak_re'
+        ordering = ['-trading_date']
+
+    def __str__(self):
+        return f"Peak RE {self.trading_date}: {self.peak_re_percentage:.1f}%"
+
+
 class TurbinePowerCurves(models.Model):
     idturbinepowercurves = models.AutoField(db_column='idturbinepowercurves', primary_key=True)
     idwindturbines = models.ForeignKey(WindTurbines, on_delete=models.CASCADE, related_name='power_curves', db_column='idwindturbines')
@@ -1693,6 +1719,14 @@ class MonthlyREPerformance(models.Model):
     minimum_demand_datetime = models.DateTimeField(null=True, blank=True)
     best_re_hour_percentage = models.FloatField(null=True, blank=True)
     best_re_hour_datetime = models.DateTimeField(null=True, blank=True)
+    peak_instantaneous_re_percentage = models.FloatField(
+        null=True, blank=True,
+        help_text="Peak instantaneous RE% in any single trading interval"
+    )
+    peak_instantaneous_re_datetime = models.DateTimeField(
+        null=True, blank=True,
+        help_text="Date/time of peak instantaneous RE%"
+    )
     
     # Wholesale price statistics
     wholesale_price_max = models.FloatField(

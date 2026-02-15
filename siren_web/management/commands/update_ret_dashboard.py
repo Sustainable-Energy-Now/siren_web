@@ -12,7 +12,7 @@ from calendar import monthrange
 import logging
 
 from siren_web.models import (
-    MonthlyREPerformance,
+    MonthlyREPerformance, DailyPeakRE,
     NewCapacityCommissioned, FacilityScada, facilities,
     DPVGeneration, WholesalePrice
 )
@@ -143,13 +143,34 @@ class Command(BaseCommand):
         
         # Get best RE hour (based on operational demand, excludes rooftop solar)
         best_re_hour = self.calculate_best_re_hour(scada_data)
-        
+
+        # Get 5-minute peak instantaneous RE% from DailyPeakRE (calculated during SCADA fetch)
+        five_min_peak = self.get_5min_peak_re(year, month)
+
+        # Determine peak instantaneous RE%
+        peak_inst_pct = five_min_peak.get('percentage')
+        peak_inst_dt = five_min_peak.get('datetime')
+
+        # Fallback: if no DailyPeakRE data or peak is invalid, use best single half-hour
+        best_re_hour_pct = best_re_hour.get('percentage')
+        if peak_inst_pct is None or (
+            best_re_hour_pct is not None and peak_inst_pct < best_re_hour_pct
+        ):
+            if peak_inst_pct is not None and best_re_hour_pct is not None:
+                self.stdout.write(self.style.WARNING(
+                    f"  WARNING: peak_instantaneous ({peak_inst_pct:.1f}%) < "
+                    f"best_re_hour ({best_re_hour_pct:.1f}%). Using single-interval fallback."
+                ))
+            half_hourly_peak = self.calculate_best_single_interval_re(scada_data)
+            peak_inst_pct = half_hourly_peak.get('percentage')
+            peak_inst_dt = half_hourly_peak.get('datetime')
+
         # Get wholesale price statistics
         wholesale_data = self.calculate_wholesale_prices(year, month, start_datetime, end_datetime)
-        
+
         # Calculate underlying demand (operational + rooftop)
         underlying_demand = operational_demand + rooftop_solar
-        
+
         # Create or update record
         performance, created = MonthlyREPerformance.objects.update_or_create(
             year=year,
@@ -174,8 +195,10 @@ class Command(BaseCommand):
                 'peak_demand_datetime': peak_min_data.get('peak_datetime'),
                 'minimum_demand_mw': peak_min_data.get('min_mw'),
                 'minimum_demand_datetime': peak_min_data.get('min_datetime'),
-                'best_re_hour_percentage': best_re_hour.get('percentage'),
+                'best_re_hour_percentage': best_re_hour_pct,
                 'best_re_hour_datetime': best_re_hour.get('datetime'),
+                'peak_instantaneous_re_percentage': peak_inst_pct,
+                'peak_instantaneous_re_datetime': peak_inst_dt,
                 # Wholesale price fields
                 'wholesale_price_max': wholesale_data.get('max_price'),
                 'wholesale_price_max_datetime': wholesale_data.get('max_datetime'),
@@ -571,26 +594,123 @@ class Command(BaseCommand):
             )
         ).order_by('dispatch_interval')
 
-        # Find the hour with maximum RE percentage
-        max_re_percentage = 0
-        best_datetime = None
-
-        for hour in hourly_stats:
-            re_gen = float(hour['re_generation'] or 0)
-            total_gen = float(hour['total_generation'] or 0)
-
+        # Collect per-interval RE data
+        interval_data = []
+        for interval in hourly_stats:
+            re_gen = float(interval['re_generation'] or 0)
+            total_gen = float(interval['total_generation'] or 0)
             if total_gen > 0:
-                re_percentage = (re_gen / total_gen) * 100
+                interval_data.append({
+                    'datetime': interval['dispatch_interval'],
+                    're_gen': re_gen,
+                    'total_gen': total_gen,
+                    're_percentage': (re_gen / total_gen) * 100,
+                })
 
-                if re_percentage > max_re_percentage:
-                    max_re_percentage = re_percentage
-                    best_datetime = hour['dispatch_interval']
+        # Best Renewable Hour - average RE% over pairs of consecutive
+        # half-hourly intervals (i.e. full clock hours)
+        max_hourly = 0
+        best_hour_datetime = None
+        for i in range(len(interval_data) - 1):
+            curr = interval_data[i]
+            nxt = interval_data[i + 1]
+            # Check they are consecutive (30 min apart)
+            if hasattr(curr['datetime'], 'timestamp'):
+                delta = (nxt['datetime'] - curr['datetime']).total_seconds()
+                if delta != 1800:
+                    continue
+            hourly_re = curr['re_gen'] + nxt['re_gen']
+            hourly_total = curr['total_gen'] + nxt['total_gen']
+            if hourly_total > 0:
+                hourly_pct = (hourly_re / hourly_total) * 100
+                if hourly_pct > max_hourly:
+                    max_hourly = hourly_pct
+                    best_hour_datetime = curr['datetime']
 
-        if best_datetime:
-            best_re['percentage'] = max_re_percentage
-            best_re['datetime'] = best_datetime
+        if best_hour_datetime:
+            best_re['percentage'] = max_hourly
+            best_re['datetime'] = best_hour_datetime
 
         return best_re
+
+    def calculate_best_single_interval_re(self, scada_data):
+        """
+        Calculate the single half-hourly interval with highest operational RE%.
+
+        Used as fallback when DailyPeakRE (5-minute) data is unavailable.
+        Always >= best_re_hour (which averages over paired half-hours).
+        """
+        re_condition = (
+            Q(facility__idtechnologies__fuel_type__in=['WIND', 'SOLAR', 'BIOMASS', 'HYDRO']) |
+            Q(facility__idtechnologies__category__iexact='storage')
+        )
+
+        interval_stats = scada_data.values('dispatch_interval').annotate(
+            re_generation=Sum(
+                Case(
+                    When(
+                        re_condition,
+                        quantity__gt=0,
+                        then=F('quantity'),
+                    ),
+                    default=Value(0),
+                    output_field=DecimalField(),
+                )
+            ),
+            total_generation=Sum(
+                Case(
+                    When(
+                        quantity__gt=0,
+                        then=F('quantity'),
+                    ),
+                    default=Value(0),
+                    output_field=DecimalField(),
+                )
+            ),
+        )
+
+        best = {'percentage': None, 'datetime': None}
+        for interval in interval_stats:
+            re_gen = float(interval['re_generation'] or 0)
+            total_gen = float(interval['total_generation'] or 0)
+            if total_gen > 0:
+                pct = (re_gen / total_gen) * 100
+                if best['percentage'] is None or pct > best['percentage']:
+                    best['percentage'] = pct
+                    best['datetime'] = interval['dispatch_interval']
+
+        if best['percentage'] is not None:
+            self.stdout.write(
+                f"  Best single-interval RE%: {best['percentage']:.1f}% "
+                f"at {best['datetime']}"
+            )
+
+        return best
+
+    def get_5min_peak_re(self, year, month):
+        """
+        Get peak 5-minute instantaneous operational RE% for a month
+        from DailyPeakRE records (populated during SCADA fetch).
+        """
+        _, last_day = monthrange(year, month)
+        start_date = datetime(year, month, 1).date()
+        end_date = datetime(year, month, last_day).date()
+
+        peak = DailyPeakRE.objects.filter(
+            trading_date__gte=start_date,
+            trading_date__lte=end_date
+        ).order_by('-peak_re_percentage').first()
+
+        if peak:
+            self.stdout.write(
+                f"  5-min peak RE%: {peak.peak_re_percentage:.1f}% "
+                f"on {peak.peak_re_datetime}"
+            )
+            return {
+                'percentage': peak.peak_re_percentage,
+                'datetime': peak.peak_re_datetime,
+            }
+        return {}
 
     def update_new_capacity(self, year, month):
         """Update new capacity commissioned for the month"""

@@ -226,6 +226,36 @@
 
 <div class="metric-grid" style="grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));">
     <div class="metric-card neutral">
+        <div class="metric-label">Operational Demand</div>
+        <div class="metric-value">{{ performance.operational_demand|floatformat:1 }}</div>
+        <div class="metric-sublabel">GWh (grid-sent)</div>
+        {% if prev_year_performance %}
+        <div class="metric-change">
+            {% with change=performance.operational_demand|sub:prev_year_performance.operational_demand|div:prev_year_performance.operational_demand|mul:100 %}
+            {% if change >= 0 %}↑{% else %}↓{% endif %}
+            {% if change >= 0 %}{{ change|floatformat:1 }}%{% else %}{{ change|mul:-1|floatformat:1 }}%{% endif %}
+            vs {{ month_name }} {{ year|add:"-1" }}
+            {% endwith %}
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="metric-card neutral">
+        <div class="metric-label">Underlying Demand</div>
+        <div class="metric-value">{{ performance.underlying_demand|floatformat:1 }}</div>
+        <div class="metric-sublabel">GWh (incl. rooftop solar)</div>
+        {% if prev_year_performance %}
+        <div class="metric-change">
+            {% with change=performance.underlying_demand|sub:prev_year_performance.underlying_demand|div:prev_year_performance.underlying_demand|mul:100 %}
+            {% if change >= 0 %}↑{% else %}↓{% endif %}
+            {% if change >= 0 %}{{ change|floatformat:1 }}%{% else %}{{ change|mul:-1|floatformat:1 }}%{% endif %}
+            vs {{ month_name }} {{ year|add:"-1" }}
+            {% endwith %}
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="metric-card neutral">
         <div class="metric-label">Avg Grid Emissions Intensity</div>
         <div class="metric-value">{{ performance.emissions_intensity_kg_mwh|floatformat:2 }}</div>
         <div class="metric-sublabel">kg CO₂-e/MWh</div>
@@ -236,6 +266,14 @@
         <div class="metric-label">Best Renewable Hour</div>
         <div class="metric-value">{{ performance.best_re_hour_percentage|floatformat:1 }}%</div>
         <div class="metric-sublabel">{{ performance.best_re_hour_datetime|date:"d M, g:i A" }}</div>
+    </div>
+    {% endif %}
+
+    {% if performance.peak_instantaneous_re_percentage %}
+    <div class="metric-card positive">
+        <div class="metric-label">Peak Instantaneous RE%</div>
+        <div class="metric-value">{{ performance.peak_instantaneous_re_percentage|floatformat:1 }}%</div>
+        <div class="metric-sublabel">{{ performance.peak_instantaneous_re_datetime|date:"d M, g:i A" }}</div>
     </div>
     {% endif %}
     

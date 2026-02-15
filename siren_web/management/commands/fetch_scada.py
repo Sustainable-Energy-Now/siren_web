@@ -53,6 +53,13 @@ class Command(BaseCommand):
             help='Year to fetch - fetches all months (historical mode only)',
         )
         
+        # Backfill options
+        parser.add_argument(
+            '--backfill-peak-re',
+            action='store_true',
+            help='Backfill DailyPeakRE from existing half-hourly SCADA data for days missing peak RE records',
+        )
+
         # Output options
         parser.add_argument(
             '--output-summary',
@@ -62,8 +69,14 @@ class Command(BaseCommand):
     
     def handle(self, *args, **options):
         fetcher = AEMOScadaFetcher()
+
+        # Handle backfill mode
+        if options['backfill_peak_re']:
+            self._handle_backfill(fetcher, options)
+            return
+
         historical = options['historical']
-        
+
         # Validate mode-specific options
         if not historical and (options['month'] or options['year']):
             self.stdout.write(
@@ -87,6 +100,36 @@ class Command(BaseCommand):
         else:
             self._handle_current(fetcher, options)
     
+    def _handle_backfill(self, fetcher, options):
+        """Backfill DailyPeakRE from existing half-hourly SCADA data"""
+        from calendar import monthrange
+        from siren_web.models import FacilityScada
+
+        if options['start_date'] and options['end_date']:
+            start = datetime.strptime(options['start_date'], '%Y-%m-%d').date()
+            end = datetime.strptime(options['end_date'], '%Y-%m-%d').date()
+        elif options.get('month'):
+            year, month = map(int, options['month'].split('-'))
+            start = date(year, month, 1)
+            _, last = monthrange(year, month)
+            end = date(year, month, last)
+        else:
+            earliest = FacilityScada.objects.order_by('dispatch_interval').first()
+            if not earliest:
+                self.stdout.write(self.style.ERROR('No SCADA data found'))
+                return
+            start = earliest.dispatch_interval.date()
+            end = date.today() - timedelta(days=1)
+
+        self.stdout.write(f'Backfilling DailyPeakRE from {start} to {end}...')
+        summary = fetcher.backfill_daily_peak_re(start, end)
+        self.stdout.write(
+            self.style.SUCCESS(
+                f'Backfilled {summary["backfilled"]} days, '
+                f'skipped {summary["skipped"]} days'
+            )
+        )
+
     def _handle_current(self, fetcher, options):
         """Handle current/recent SCADA data fetching"""
         
