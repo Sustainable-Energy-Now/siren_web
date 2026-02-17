@@ -311,7 +311,7 @@ def generate_module_help(request, module_name):
         generator = SirenWebHelpGenerator(module_name=module_name)
         html_content = generator.generate_paginated_html(
             markdown_file_path,
-            show_home_link=True
+            show_home_link = (module_name not in ['ret_dashboard'])
         )
 
         # Ensure help directory exists

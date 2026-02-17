@@ -14,6 +14,7 @@ RE% Calculation Policy:
 - RE% (underlying) = (wind + solar + biomass + hydro discharge + battery discharge + DPV) / underlying demand
 """
 from django.shortcuts import render
+from django.views.decorators.clickjacking import xframe_options_exempt
 from django.views.decorators.http import require_POST
 from django.db.models import Sum
 from django.utils import timezone
@@ -38,6 +39,7 @@ logger = logging.getLogger(__name__)
 # Main Dashboard View
 # =============================================================================
 
+@xframe_options_exempt
 def ret_dashboard(request, year=None, month=None):
     """
     Main dashboard view for renewable energy tracking.
@@ -697,6 +699,7 @@ def aggregate_wholesale_price_stats(queryset):
 # Quarterly Report View
 # =============================================================================
 
+@xframe_options_exempt
 def quarterly_report(request, year, quarter):
     """
     Generate quarterly report view.
@@ -830,6 +833,7 @@ def quarterly_report(request, year, quarter):
 # Annual Review View
 # =============================================================================
 
+@xframe_options_exempt
 def annual_review(request, year):
     """
     Generate annual review view.
