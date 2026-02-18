@@ -553,36 +553,28 @@ crossorigin=""></script>
         box-shadow: 0 2px 8px rgba(0,0,0,0.3);
     }
 
-    .terminal-extra-high {
+    .terminal_extra_high {
         background-color: #8B0000;
-        color: white;
-        width: 40px;
-        height: 40px;
-        font-size: 12px;
+        width: 14px;
+        height: 14px;
     }
 
-    .terminal-high {
+    .terminal_high {
         background-color: #FF4500;
-        color: white;  
-        width: 35px;
-        height: 35px;
-        font-size: 11px;
+        width: 12px;
+        height: 12px;
     }
 
-    .terminal-medium {
+    .terminal_medium {
         background-color: #FFA500;
-        color: black;
-        width: 30px;
-        height: 30px;
-        font-size: 10px;
+        width: 10px;
+        height: 10px;
     }
 
-    .terminal-low {
+    .terminal_low {
         background-color: #FFFF00;
-        color: black;
-        width: 25px;
-        height: 25px;
-        font-size: 9px;
+        width: 8px;
+        height: 8px;
     }
 
     .terminal-popup {
@@ -873,13 +865,13 @@ function getIconForTechnology(technologyId) {
 // Terminal icon creation function
 function createTerminalIcon(terminal) {
     var iconClass = 'terminal-marker ' + terminal.icon_type;
-    var iconSize = terminal.primary_voltage_kv >= 330 ? 35 : 
-                   terminal.primary_voltage_kv >= 132 ? 30 :
-                   terminal.primary_voltage_kv >= 66 ? 25 : 20;
-    
+    var iconSize = terminal.primary_voltage_kv >= 330 ? 14 :
+                   terminal.primary_voltage_kv >= 132 ? 12 :
+                   terminal.primary_voltage_kv >= 66 ? 10 : 8;
+
     return L.divIcon({
         className: iconClass,
-        html: terminal.terminal_code,
+        html: '',
         iconSize: [iconSize, iconSize],
         iconAnchor: [iconSize/2, iconSize/2]
     });
