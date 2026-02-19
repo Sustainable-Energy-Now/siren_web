@@ -1,0 +1,402 @@
+<!-- powermapui/templates/pipeline_waterfall.html -->
+{% extends 'powermapui_base.html' %}
+{% load static %}
+{% block powermapui_content %}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div>
+    <h3>Capacity Outlook</h3>
+    <small class="text-muted">Cumulative capacity (MW) by technology over time &mdash; {{ year_min }}&ndash;{{ year_max }}</small>
+  </div>
+  <div>
+    <a href="{% url 'powermapui:pipeline_gantt' %}" class="btn btn-outline-primary btn-sm">Timeline/Gantt</a>
+    <a href="{% url 'powermapui:pipeline_map' %}" class="btn btn-outline-secondary btn-sm">Pipeline Map</a>
+    <a href="{% url 'powermapui:infrastructure_network' %}" class="btn btn-outline-secondary btn-sm">Network View</a>
+  </div>
+</div>
+
+<!-- Scenario Selector -->
+<div class="mb-3">
+  <form method="post" class="d-flex align-items-end gap-2">
+    {% csrf_token %}
+    {{ demand_weather_scenario.demand_year.label_tag }}
+    {{ demand_weather_scenario.demand_year }}
+    {{ demand_weather_scenario.scenario.label_tag }}
+    {{ demand_weather_scenario.scenario }}
+    <button name="apply_settings" type="submit" class="btn btn-primary btn-sm">Apply</button>
+  </form>
+</div>
+
+{% if success_message %}
+<div class="alert alert-success alert-dismissible fade show" role="alert">
+  {{ success_message }}
+  <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+</div>
+{% endif %}
+
+<div class="row">
+  <!-- Controls -->
+  <div class="col-lg-2">
+    <div class="card mb-3">
+      <div class="card-header"><h6 class="mb-0">Chart Type</h6></div>
+      <div class="card-body">
+        <select class="form-select form-select-sm" id="chart-type">
+          <option value="stacked_area" selected>Stacked Area</option>
+          <option value="stacked_bar">Stacked Bar</option>
+          <option value="line">Lines (by category)</option>
+        </select>
+      </div>
+    </div>
+    <div class="card mb-3">
+      <div class="card-header"><h6 class="mb-0">Show Layers</h6></div>
+      <div class="card-body p-2">
+        <div class="form-check">
+          <input class="form-check-input layer-toggle" type="checkbox" id="show-committed" value="committed" checked>
+          <label class="form-check-label small" for="show-committed">Committed Capacity</label>
+        </div>
+        <div class="form-check">
+          <input class="form-check-input layer-toggle" type="checkbox" id="show-probable" value="probable" checked>
+          <label class="form-check-label small" for="show-probable">Probable (weighted)</label>
+        </div>
+        <div class="form-check">
+          <input class="form-check-input layer-toggle" type="checkbox" id="show-total" value="total" checked>
+          <label class="form-check-label small" for="show-total">Net Total Line</label>
+        </div>
+        <div class="form-check">
+          <input class="form-check-input layer-toggle" type="checkbox" id="show-retirements" value="retirements">
+          <label class="form-check-label small" for="show-retirements">Retirements (bar)</label>
+        </div>
+      </div>
+    </div>
+    <div class="card mb-3">
+      <div class="card-header"><h6 class="mb-0">Probability Bands</h6></div>
+      <div class="card-body p-2">
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" id="show-bands">
+          <label class="form-check-label small" for="show-bands">Show P90/P50/P10 bands</label>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header"><h6 class="mb-0">Legend</h6></div>
+      <div class="card-body small">
+        <strong>Committed</strong> = commissioned + under construction<br>
+        <strong>Probable</strong> = proposed/planned weighted by probability<br>
+        <strong>Net total</strong> = committed + probable<br>
+        <strong>Retirements</strong> = capacity reaching end-of-life each year
+      </div>
+    </div>
+  </div>
+
+  <!-- Charts -->
+  <div class="col-lg-10">
+    <div class="card mb-3">
+      <div class="card-body p-0">
+        <div id="waterfall-chart" style="width:100%; height:500px;"></div>
+      </div>
+    </div>
+    <div class="card" id="retirement-card" style="display:none;">
+      <div class="card-header"><h6 class="mb-0">Annual Retirements by Category</h6></div>
+      <div class="card-body p-0">
+        <div id="retirement-chart" style="width:100%; height:300px;"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Data -->
+<script type="application/json" id="waterfall-data">{{ waterfall_json|safe }}</script>
+<script type="application/json" id="facilities-data">{{ facilities_json|safe }}</script>
+
+<!-- Plotly -->
+<script src="https://cdn.plot.ly/plotly-2.26.0.min.js"></script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const waterfallData = JSON.parse(document.getElementById('waterfall-data').textContent);
+    const allFacilities = JSON.parse(document.getElementById('facilities-data').textContent);
+
+    const categoryColors = {
+        'Wind': '#80B1D3',
+        'Solar': '#FDB462',
+        'Storage': '#FB8072',
+        'Battery': '#FB8072',
+        'Gas': '#BEBADA',
+        'Coal': '#8DD3C7',
+        'Hydro': '#FFFFB3',
+        'Biomass': '#B3DE69',
+        'Nuclear': '#FCCDE5',
+    };
+
+    function getCategoryColor(cat) {
+        for (const [key, color] of Object.entries(categoryColors)) {
+            if (cat.toLowerCase().includes(key.toLowerCase())) return color;
+        }
+        // Generate a deterministic fallback color
+        let hash = 0;
+        for (let i = 0; i < cat.length; i++) hash = cat.charCodeAt(i) + ((hash << 5) - hash);
+        return '#' + ((hash & 0xFFFFFF) | 0x808080).toString(16).padStart(6, '0');
+    }
+
+    function renderCharts() {
+        const chartType = document.getElementById('chart-type').value;
+        const showCommitted = document.getElementById('show-committed').checked;
+        const showProbable = document.getElementById('show-probable').checked;
+        const showTotal = document.getElementById('show-total').checked;
+        const showRetirements = document.getElementById('show-retirements').checked;
+        const showBands = document.getElementById('show-bands').checked;
+
+        const years = waterfallData.years;
+        const categories = waterfallData.categories;
+        const committed = waterfallData.committed;
+        const probable = waterfallData.probable;
+        const retirements = waterfallData.retirements;
+
+        const traces = [];
+
+        // Stacked area or bar traces for committed capacity by category
+        if (showCommitted) {
+            categories.forEach(cat => {
+                const values = committed[cat];
+                if (values && values.some(v => v > 0)) {
+                    const trace = {
+                        x: years,
+                        y: values,
+                        name: cat + ' (committed)',
+                        marker: {color: getCategoryColor(cat)},
+                        hovertemplate: '<b>' + cat + ' (committed)</b><br>Year: %{x}<br>Capacity: %{y:.0f} MW<extra></extra>',
+                    };
+
+                    if (chartType === 'stacked_area') {
+                        trace.type = 'scatter';
+                        trace.mode = 'lines';
+                        trace.fill = 'tonexty';
+                        trace.stackgroup = 'committed';
+                        trace.line = {width: 0.5};
+                    } else if (chartType === 'stacked_bar') {
+                        trace.type = 'bar';
+                    } else {
+                        trace.type = 'scatter';
+                        trace.mode = 'lines+markers';
+                        trace.line = {width: 2};
+                        trace.marker = {size: 4, color: getCategoryColor(cat)};
+                    }
+
+                    traces.push(trace);
+                }
+            });
+        }
+
+        // Probable capacity (semi-transparent overlay)
+        if (showProbable) {
+            categories.forEach(cat => {
+                const values = probable[cat];
+                if (values && values.some(v => v > 0)) {
+                    // Stack on top of committed
+                    const trace = {
+                        x: years,
+                        y: values,
+                        name: cat + ' (probable)',
+                        marker: {color: getCategoryColor(cat)},
+                        opacity: 0.4,
+                        hovertemplate: '<b>' + cat + ' (probable)</b><br>Year: %{x}<br>Capacity: %{y:.0f} MW<extra></extra>',
+                    };
+
+                    if (chartType === 'stacked_area') {
+                        trace.type = 'scatter';
+                        trace.mode = 'lines';
+                        trace.fill = 'tonexty';
+                        trace.stackgroup = 'probable';
+                        trace.line = {width: 0.5, dash: 'dot'};
+                    } else if (chartType === 'stacked_bar') {
+                        trace.type = 'bar';
+                    } else {
+                        trace.type = 'scatter';
+                        trace.mode = 'lines';
+                        trace.line = {width: 1.5, dash: 'dot', color: getCategoryColor(cat)};
+                    }
+
+                    traces.push(trace);
+                }
+            });
+        }
+
+        // Net total line
+        if (showTotal) {
+            const totalLine = years.map((yr, i) => {
+                let total = 0;
+                if (showCommitted) categories.forEach(cat => { total += (committed[cat] || [])[i] || 0; });
+                if (showProbable) categories.forEach(cat => { total += (probable[cat] || [])[i] || 0; });
+                return total;
+            });
+
+            traces.push({
+                x: years,
+                y: totalLine,
+                type: 'scatter',
+                mode: 'lines',
+                name: 'Net Total',
+                line: {color: '#212529', width: 3},
+                hovertemplate: '<b>Net Total</b><br>Year: %{x}<br>Capacity: %{y:.0f} MW<extra></extra>',
+            });
+        }
+
+        // P90/P50/P10 probability bands
+        if (showBands) {
+            const p90 = [];
+            const p50 = [];
+            const p10 = [];
+
+            years.forEach((year, yi) => {
+                let totalP90 = 0, totalP50 = 0, totalP10 = 0;
+
+                allFacilities.forEach(f => {
+                    if (!f.comm_year) return;
+                    const online = f.comm_year <= year && (f.end_year === null || year < f.end_year);
+                    if (!online) return;
+
+                    const prob = f.commissioning_probability;
+                    // P90: only >= 0.9 probability
+                    if (prob >= 0.9) totalP90 += f.capacity;
+                    // P50: expected value
+                    totalP50 += f.capacity * prob;
+                    // P10: all facilities included
+                    totalP10 += f.capacity;
+                });
+
+                p90.push(Math.round(totalP90));
+                p50.push(Math.round(totalP50));
+                p10.push(Math.round(totalP10));
+            });
+
+            // P10 upper bound (background)
+            traces.push({
+                x: years, y: p10,
+                type: 'scatter', mode: 'lines',
+                name: 'P10 (optimistic)',
+                line: {color: 'rgba(33,150,243,0.3)', width: 1, dash: 'dot'},
+                fill: 'none',
+                hovertemplate: '<b>P10 (all included)</b><br>Year: %{x}<br>%{y:.0f} MW<extra></extra>',
+            });
+
+            // Fill between P10 and P90
+            traces.push({
+                x: years, y: p90,
+                type: 'scatter', mode: 'lines',
+                name: 'P90 (high confidence)',
+                line: {color: 'rgba(76,175,80,0.3)', width: 1, dash: 'dot'},
+                fill: 'tonexty',
+                fillcolor: 'rgba(33,150,243,0.08)',
+                hovertemplate: '<b>P90 (prob >= 90%)</b><br>Year: %{x}<br>%{y:.0f} MW<extra></extra>',
+            });
+
+            // P50 line
+            traces.push({
+                x: years, y: p50,
+                type: 'scatter', mode: 'lines',
+                name: 'P50 (expected)',
+                line: {color: '#ff9800', width: 2, dash: 'dash'},
+                hovertemplate: '<b>P50 (expected value)</b><br>Year: %{x}<br>%{y:.0f} MW<extra></extra>',
+            });
+        }
+
+        const layout = {
+            xaxis: {
+                title: 'Year',
+                dtick: 5,
+                gridcolor: '#e0e0e0',
+            },
+            yaxis: {
+                title: 'Capacity (MW)',
+                gridcolor: '#e0e0e0',
+                rangemode: 'tozero',
+            },
+            barmode: 'stack',
+            legend: {
+                orientation: 'h',
+                y: -0.15,
+                x: 0.5,
+                xanchor: 'center',
+                font: {size: 10},
+            },
+            margin: {l: 70, r: 30, t: 30, b: 80},
+            hovermode: 'x unified',
+            // Today marker
+            shapes: [{
+                type: 'line',
+                x0: new Date().getFullYear(),
+                x1: new Date().getFullYear(),
+                y0: 0, y1: 1,
+                yref: 'paper',
+                line: {color: '#dc3545', width: 2, dash: 'dash'},
+            }],
+            annotations: [{
+                x: new Date().getFullYear(),
+                y: 1, yref: 'paper',
+                text: 'Today',
+                showarrow: false,
+                font: {color: '#dc3545', size: 11},
+                yanchor: 'bottom',
+            }],
+        };
+
+        const config = {
+            responsive: true,
+            displayModeBar: true,
+            modeBarButtonsToRemove: ['lasso2d', 'select2d'],
+            displaylogo: false,
+            toImageButtonOptions: {format: 'png', filename: 'capacity_waterfall', width: 1400, height: 600},
+        };
+
+        Plotly.react('waterfall-chart', traces, layout, config);
+
+        // Retirement chart
+        const retCard = document.getElementById('retirement-card');
+        if (showRetirements) {
+            retCard.style.display = 'block';
+            const retTraces = [];
+            categories.forEach(cat => {
+                const values = retirements[cat];
+                if (values && values.some(v => v > 0)) {
+                    retTraces.push({
+                        x: years,
+                        y: values.map(v => -v), // negative to show as "loss"
+                        type: 'bar',
+                        name: cat,
+                        marker: {color: getCategoryColor(cat)},
+                        hovertemplate: '<b>' + cat + ' retiring</b><br>Year: %{x}<br>Capacity: %{customdata:.0f} MW<extra></extra>',
+                        customdata: values,
+                    });
+                }
+            });
+
+            const retLayout = {
+                barmode: 'stack',
+                xaxis: {title: 'Year', dtick: 5, gridcolor: '#e0e0e0'},
+                yaxis: {title: 'Retiring Capacity (MW)', gridcolor: '#e0e0e0'},
+                margin: {l: 70, r: 30, t: 20, b: 50},
+                legend: {orientation: 'h', y: -0.25, x: 0.5, xanchor: 'center', font: {size: 10}},
+                hovermode: 'x unified',
+                shapes: [{
+                    type: 'line',
+                    x0: new Date().getFullYear(), x1: new Date().getFullYear(),
+                    y0: 0, y1: 1, yref: 'paper',
+                    line: {color: '#dc3545', width: 2, dash: 'dash'},
+                }],
+            };
+
+            Plotly.react('retirement-chart', retTraces, retLayout, config);
+        } else {
+            retCard.style.display = 'none';
+        }
+    }
+
+    // Wire up controls
+    document.getElementById('chart-type').addEventListener('change', renderCharts);
+    document.querySelectorAll('.layer-toggle').forEach(cb => cb.addEventListener('change', renderCharts));
+    document.getElementById('show-bands').addEventListener('change', renderCharts);
+
+    renderCharts();
+});
+</script>
+{% endblock %}

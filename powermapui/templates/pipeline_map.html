@@ -1,0 +1,381 @@
+<!-- powermapui/templates/pipeline_map.html -->
+{% extends 'powermapui_base.html' %}
+{% load static %}
+{% block powermapui_content %}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h3>Pipeline Map</h3>
+  <div>
+    <a href="{% url 'powermapui:map' %}" class="btn btn-outline-secondary btn-sm">Grid Map</a>
+    <a href="{% url 'powermapui:infrastructure_network' %}" class="btn btn-outline-primary btn-sm">Network View</a>
+  </div>
+</div>
+
+<!-- Scenario Selector -->
+<div class="mb-3">
+  <form method="post" class="d-flex align-items-end gap-2">
+    {% csrf_token %}
+    {{ demand_weather_scenario.demand_year.label_tag }}
+    {{ demand_weather_scenario.demand_year }}
+    {{ demand_weather_scenario.scenario.label_tag }}
+    {{ demand_weather_scenario.scenario }}
+    <button name="apply_settings" type="submit" class="btn btn-primary btn-sm">Apply</button>
+  </form>
+</div>
+
+{% if success_message %}
+<div class="alert alert-success alert-dismissible fade show" role="alert">
+  {{ success_message }}
+  <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+</div>
+{% endif %}
+
+<div class="row">
+  <!-- Filter Panel -->
+  <div class="col-lg-3">
+    <!-- Status Filter -->
+    <div class="card mb-3">
+      <div class="card-header"><h6 class="mb-0">Status Filter</h6></div>
+      <div class="card-body">
+        <div class="form-check" id="status-filters">
+          <div class="form-check">
+            <input class="form-check-input status-filter" type="checkbox" value="proposed" id="filter-proposed" checked>
+            <label class="form-check-label" for="filter-proposed">
+              <span style="display:inline-block;width:12px;height:12px;background:#9e9e9e;border-radius:50%;margin-right:4px;"></span>Proposed
+            </label>
+          </div>
+          <div class="form-check">
+            <input class="form-check-input status-filter" type="checkbox" value="planned" id="filter-planned" checked>
+            <label class="form-check-label" for="filter-planned">
+              <span style="display:inline-block;width:12px;height:12px;background:#2196f3;border-radius:50%;margin-right:4px;"></span>Planned
+            </label>
+          </div>
+          <div class="form-check">
+            <input class="form-check-input status-filter" type="checkbox" value="under_construction" id="filter-under_construction" checked>
+            <label class="form-check-label" for="filter-under_construction">
+              <span style="display:inline-block;width:12px;height:12px;background:#ff9800;border-radius:50%;margin-right:4px;"></span>Under Construction
+            </label>
+          </div>
+          <div class="form-check">
+            <input class="form-check-input status-filter" type="checkbox" value="commissioned" id="filter-commissioned" checked>
+            <label class="form-check-label" for="filter-commissioned">
+              <span style="display:inline-block;width:12px;height:12px;background:#4caf50;border-radius:50%;margin-right:4px;"></span>Commissioned
+            </label>
+          </div>
+          <div class="form-check">
+            <input class="form-check-input status-filter" type="checkbox" value="decommissioned" id="filter-decommissioned">
+            <label class="form-check-label" for="filter-decommissioned">
+              <span style="display:inline-block;width:12px;height:12px;background:#f44336;border-radius:50%;margin-right:4px;"></span>Decommissioned
+            </label>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Category Filter -->
+    <div class="card mb-3">
+      <div class="card-header"><h6 class="mb-0">Technology Category</h6></div>
+      <div class="card-body" id="category-filters">
+        <!-- Populated by JS -->
+      </div>
+    </div>
+
+    <!-- Time Slider -->
+    <div class="card mb-3">
+      <div class="card-header"><h6 class="mb-0">Timeline</h6></div>
+      <div class="card-body">
+        <div class="d-flex justify-content-between mb-1">
+          <small id="year-min-label">{{ year_min }}</small>
+          <strong id="current-year-label">-</strong>
+          <small id="year-max-label">{{ year_max }}</small>
+        </div>
+        <input type="range" class="form-range" id="year-slider"
+               min="{{ year_min }}" max="{{ year_max }}" value="{{ year_min }}" step="1">
+        <div class="form-check mt-2">
+          <input class="form-check-input" type="checkbox" id="enable-timeline">
+          <label class="form-check-label small" for="enable-timeline">Enable timeline filter</label>
+        </div>
+      </div>
+    </div>
+
+    <!-- Summary Stats -->
+    <div class="card mb-3">
+      <div class="card-header"><h6 class="mb-0">Summary</h6></div>
+      <div class="card-body p-2">
+        <table class="table table-sm table-borderless mb-0" id="summary-table">
+          <thead>
+            <tr><th>Status</th><th class="text-end">Count</th><th class="text-end">MW</th></tr>
+          </thead>
+          <tbody id="summary-tbody">
+            <!-- Populated by JS -->
+          </tbody>
+          <tfoot>
+            <tr class="border-top"><th>Total</th><th class="text-end" id="summary-total-count">0</th><th class="text-end" id="summary-total-mw">0</th></tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+
+    <!-- Legend -->
+    <div class="card">
+      <div class="card-header"><h6 class="mb-0">Legend</h6></div>
+      <div class="card-body small">
+        <div class="mb-2">
+          <strong>Color</strong> = Pipeline Status<br>
+          <span style="color:#9e9e9e;">&#9679;</span> Proposed
+          <span style="color:#2196f3;">&#9679;</span> Planned
+          <span style="color:#ff9800;">&#9679;</span> Under Construction
+          <span style="color:#4caf50;">&#9679;</span> Commissioned
+          <span style="color:#f44336;">&#9679;</span> Decommissioned
+        </div>
+        <div class="mb-2">
+          <strong>Opacity</strong> = Commissioning Probability<br>
+          <span style="opacity:0.3;">&#9679;</span> Low (0-30%)
+          <span style="opacity:0.6;">&#9679;</span> Medium (30-70%)
+          <span style="opacity:1.0;">&#9679;</span> High (70-100%)
+        </div>
+        <div>
+          <strong>Size</strong> = Capacity (MW)<br>
+          <span style="font-size:8px;">&#9679;</span> Small
+          <span style="font-size:14px;">&#9679;</span> Medium
+          <span style="font-size:22px;">&#9679;</span> Large
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Map -->
+  <div class="col-lg-9">
+    <div class="card">
+      <div class="card-body p-0">
+        <div id="pipeline-map" style="width:100%; height:700px;"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Data -->
+<script type="application/json" id="pipeline-facilities-data">{{ pipeline_facilities_json|safe }}</script>
+<script type="application/json" id="grid-lines-data">{{ grid_lines_json|safe }}</script>
+<script type="application/json" id="terminals-data">{{ terminals_json|safe }}</script>
+<script type="application/json" id="categories-data">{{ categories|safe }}</script>
+
+<!-- Leaflet CSS & JS -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Parse data
+    const pipelineFacilities = JSON.parse(document.getElementById('pipeline-facilities-data').textContent);
+    const gridLines = JSON.parse(document.getElementById('grid-lines-data').textContent);
+    const terminals = JSON.parse(document.getElementById('terminals-data').textContent);
+    const categories = JSON.parse(document.getElementById('categories-data').textContent);
+
+    const statusColors = {
+        proposed: '#9e9e9e',
+        planned: '#2196f3',
+        under_construction: '#ff9800',
+        commissioned: '#4caf50',
+        decommissioned: '#f44336'
+    };
+
+    const statusLabels = {
+        proposed: 'Proposed',
+        planned: 'Planned',
+        under_construction: 'Under Construction',
+        commissioned: 'Commissioned',
+        decommissioned: 'Decommissioned'
+    };
+
+    // Initialize map centered on SWIS region
+    const map = L.map('pipeline-map').setView([-31.95, 115.86], 6);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors',
+        maxZoom: 18
+    }).addTo(map);
+
+    // Populate category filters
+    const categoryFiltersDiv = document.getElementById('category-filters');
+    categories.forEach(function(cat) {
+        const div = document.createElement('div');
+        div.className = 'form-check';
+        div.innerHTML = '<input class="form-check-input category-filter" type="checkbox" value="' + cat + '" id="filter-cat-' + cat + '" checked>' +
+                        '<label class="form-check-label small" for="filter-cat-' + cat + '">' + cat + '</label>';
+        categoryFiltersDiv.appendChild(div);
+    });
+
+    // Draw grid lines
+    const gridLineLayer = L.layerGroup().addTo(map);
+    gridLines.forEach(function(gl) {
+        let coords = gl.coordinates;
+        if (!coords || coords.length < 2) {
+            coords = [[gl.from_latitude, gl.from_longitude], [gl.to_latitude, gl.to_longitude]];
+        }
+        if (coords.length >= 2) {
+            const lineTypeColors = {transmission: '#198754', subtransmission: '#17a2b8', distribution: '#6c757d'};
+            const lineTypeWidths = {transmission: 2, subtransmission: 1.5, distribution: 1};
+            L.polyline(coords, {
+                color: lineTypeColors[gl.line_type] || '#6c757d',
+                weight: lineTypeWidths[gl.line_type] || 1,
+                opacity: 0.4
+            }).addTo(gridLineLayer);
+        }
+    });
+
+    // Draw terminals as small diamond markers
+    const terminalLayer = L.layerGroup().addTo(map);
+    terminals.forEach(function(t) {
+        L.circleMarker([t.latitude, t.longitude], {
+            radius: 4,
+            fillColor: '#333',
+            color: '#333',
+            weight: 1,
+            fillOpacity: 0.7
+        }).bindTooltip(t.terminal_name, {direction: 'top', offset: [0, -5]})
+        .addTo(terminalLayer);
+    });
+
+    // Draw facility markers
+    const facilityMarkers = [];
+    const facilityLayer = L.layerGroup().addTo(map);
+
+    pipelineFacilities.forEach(function(f) {
+        const radius = Math.max(5, Math.sqrt(f.capacity) * 1.5);
+        const opacity = Math.max(0.3, f.commissioning_probability);
+        const color = statusColors[f.status] || '#9e9e9e';
+
+        const marker = L.circleMarker([f.latitude, f.longitude], {
+            radius: radius,
+            fillColor: color,
+            color: '#fff',
+            weight: 1.5,
+            fillOpacity: opacity
+        }).addTo(facilityLayer);
+
+        // Popup content
+        let popupHtml = '<div style="min-width:200px;">';
+        popupHtml += '<strong>' + f.facility_name + '</strong><br>';
+        popupHtml += '<span class="badge" style="background:' + color + ';">' + (statusLabels[f.status] || f.status) + '</span><br>';
+        popupHtml += '<strong>Technology:</strong> ' + f.technology_name + ' (' + f.technology_category + ')<br>';
+        popupHtml += '<strong>Capacity:</strong> ' + f.capacity.toFixed(1) + ' MW<br>';
+        popupHtml += '<strong>Probability:</strong> ' + (f.commissioning_probability * 100).toFixed(0) + '%<br>';
+        if (f.commissioning_date) popupHtml += '<strong>Commissioning:</strong> ' + f.commissioning_date + '<br>';
+        if (f.decommissioning_date) popupHtml += '<strong>Decommissioning:</strong> ' + f.decommissioning_date + '<br>';
+        if (f.retirement_year) popupHtml += '<strong>Expected Retirement:</strong> ' + f.retirement_year + '<br>';
+        if (f.technology_lifetime) popupHtml += '<strong>Technology Lifetime:</strong> ' + f.technology_lifetime + ' years<br>';
+        popupHtml += '</div>';
+        marker.bindPopup(popupHtml);
+
+        facilityMarkers.push({data: f, marker: marker, originalStatus: f.status});
+    });
+
+    // Fit map bounds to facilities
+    if (pipelineFacilities.length > 0) {
+        const bounds = L.latLngBounds(pipelineFacilities.map(function(f) { return [f.latitude, f.longitude]; }));
+        map.fitBounds(bounds.pad(0.1));
+    }
+
+    // --- Filtering ---
+    function getActiveStatuses() {
+        const checkboxes = document.querySelectorAll('.status-filter:checked');
+        return Array.from(checkboxes).map(function(cb) { return cb.value; });
+    }
+
+    function getActiveCategories() {
+        const checkboxes = document.querySelectorAll('.category-filter:checked');
+        return Array.from(checkboxes).map(function(cb) { return cb.value; });
+    }
+
+    function getEffectiveStatus(f, year) {
+        if (!document.getElementById('enable-timeline').checked) return f.status;
+        const commYear = f.commissioning_date ? new Date(f.commissioning_date).getFullYear() : null;
+        const retireYear = f.retirement_year;
+
+        if (commYear && year < commYear) {
+            // Before commissioning - keep original pre-commissioning status
+            return f.status;
+        } else if (commYear && year >= commYear) {
+            if (retireYear && year >= retireYear) return 'decommissioned';
+            return 'commissioned';
+        }
+        return f.status;
+    }
+
+    function applyFilters() {
+        const activeStatuses = getActiveStatuses();
+        const activeCategories = getActiveCategories();
+        const year = parseInt(document.getElementById('year-slider').value);
+        const timelineEnabled = document.getElementById('enable-timeline').checked;
+
+        if (timelineEnabled) {
+            document.getElementById('current-year-label').textContent = year;
+        } else {
+            document.getElementById('current-year-label').textContent = '-';
+        }
+
+        // Track summary stats
+        const stats = {};
+        let totalCount = 0;
+        let totalMW = 0;
+
+        facilityMarkers.forEach(function(item) {
+            const effectiveStatus = getEffectiveStatus(item.data, year);
+            const visible = activeStatuses.indexOf(effectiveStatus) !== -1 &&
+                           activeCategories.indexOf(item.data.technology_category) !== -1;
+
+            if (visible) {
+                if (!facilityLayer.hasLayer(item.marker)) facilityLayer.addLayer(item.marker);
+                const color = statusColors[effectiveStatus] || '#9e9e9e';
+                item.marker.setStyle({fillColor: color});
+
+                if (!stats[effectiveStatus]) stats[effectiveStatus] = {count: 0, total_mw: 0};
+                stats[effectiveStatus].count += 1;
+                stats[effectiveStatus].total_mw += item.data.capacity;
+                totalCount += 1;
+                totalMW += item.data.capacity;
+            } else {
+                if (facilityLayer.hasLayer(item.marker)) facilityLayer.removeLayer(item.marker);
+            }
+        });
+
+        // Update summary table
+        const tbody = document.getElementById('summary-tbody');
+        tbody.innerHTML = '';
+        Object.keys(statusLabels).forEach(function(status) {
+            if (stats[status]) {
+                const tr = document.createElement('tr');
+                tr.innerHTML = '<td><span style="color:' + statusColors[status] + ';">&#9679;</span> ' + statusLabels[status] + '</td>' +
+                              '<td class="text-end">' + stats[status].count + '</td>' +
+                              '<td class="text-end">' + stats[status].total_mw.toFixed(0) + '</td>';
+                tbody.appendChild(tr);
+            }
+        });
+        document.getElementById('summary-total-count').textContent = totalCount;
+        document.getElementById('summary-total-mw').textContent = totalMW.toFixed(0);
+    }
+
+    // Wire up filter events
+    document.querySelectorAll('.status-filter').forEach(function(cb) {
+        cb.addEventListener('change', applyFilters);
+    });
+    document.querySelectorAll('.category-filter').forEach(function(cb) {
+        cb.addEventListener('change', applyFilters);
+    });
+    document.getElementById('year-slider').addEventListener('input', applyFilters);
+    document.getElementById('enable-timeline').addEventListener('change', applyFilters);
+
+    // Initial render
+    applyFilters();
+});
+</script>
+
+<style>
+  #pipeline-map {
+    border: 1px solid #dee2e6;
+    border-radius: 0.25rem;
+  }
+</style>
+{% endblock %}

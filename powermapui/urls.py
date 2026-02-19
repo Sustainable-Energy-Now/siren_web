@@ -1,15 +1,19 @@
 from django.urls import path
 from powermapui.views import crud_scenario_views, facilities_views, facility_solar_views, \
     facility_storage_views, crud_terminals_views, gridlines_views, powermapui_home_views, \
-    map_views, power_views, storage_views, table_update_views, \
-    technologies_views, terminals_connections_views, terminals_dashboard, terminals_views, \
-    wind_turbines_views
+    map_views, network_overview_views, pipeline_charts_views, pipeline_map_views, \
+    power_views, storage_views, table_update_views, technologies_views, \
+    terminals_connections_views, terminals_dashboard, terminals_views, wind_turbines_views
 app_name = 'powermapui'
 
 urlpatterns = [
         # Powermap home
     path('powermapui/', powermapui_home_views.powermapui_home, name='powermapui_home'),
     path('map/', map_views.home, name='map'),
+    path('pipeline-map/', pipeline_map_views.pipeline_map, name='pipeline_map'),
+    path('infrastructure-network/', network_overview_views.infrastructure_network, name='infrastructure_network'),
+    path('pipeline-gantt/', pipeline_charts_views.pipeline_gantt, name='pipeline_gantt'),
+    path('pipeline-waterfall/', pipeline_charts_views.pipeline_waterfall, name='pipeline_waterfall'),
     path('add_facility/', map_views.add_facility, name='add_facility'),
     path('get_facilities/', map_views.get_facilities_for_scenario, name='get_facilities_for_scenario'),
     path('get_technologies/', map_views.get_technologies, name='get_technologies'),

@@ -1,0 +1,306 @@
+<!-- powermapui/templates/pipeline_gantt.html -->
+{% extends 'powermapui_base.html' %}
+{% load static %}
+{% block powermapui_content %}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div>
+    <h3>Pipeline Timeline</h3>
+    <small class="text-muted">Facility lifespans from commissioning to retirement &mdash; {{ facility_count }} facilities</small>
+  </div>
+  <div>
+    <a href="{% url 'powermapui:pipeline_waterfall' %}" class="btn btn-outline-primary btn-sm">Capacity Waterfall</a>
+    <a href="{% url 'powermapui:pipeline_map' %}" class="btn btn-outline-secondary btn-sm">Pipeline Map</a>
+    <a href="{% url 'powermapui:infrastructure_network' %}" class="btn btn-outline-secondary btn-sm">Network View</a>
+  </div>
+</div>
+
+<!-- Scenario Selector -->
+<div class="mb-3">
+  <form method="post" class="d-flex align-items-end gap-2">
+    {% csrf_token %}
+    {{ demand_weather_scenario.demand_year.label_tag }}
+    {{ demand_weather_scenario.demand_year }}
+    {{ demand_weather_scenario.scenario.label_tag }}
+    {{ demand_weather_scenario.scenario }}
+    <button name="apply_settings" type="submit" class="btn btn-primary btn-sm">Apply</button>
+  </form>
+</div>
+
+{% if success_message %}
+<div class="alert alert-success alert-dismissible fade show" role="alert">
+  {{ success_message }}
+  <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+</div>
+{% endif %}
+
+<div class="row">
+  <!-- Controls -->
+  <div class="col-lg-2">
+    <div class="card mb-3">
+      <div class="card-header"><h6 class="mb-0">Group By</h6></div>
+      <div class="card-body">
+        <select class="form-select form-select-sm" id="group-by">
+          <option value="category" selected>Technology Category</option>
+          <option value="status">Pipeline Status</option>
+          <option value="none">None (flat list)</option>
+        </select>
+      </div>
+    </div>
+    <div class="card mb-3">
+      <div class="card-header"><h6 class="mb-0">Color By</h6></div>
+      <div class="card-body">
+        <select class="form-select form-select-sm" id="color-by">
+          <option value="status" selected>Pipeline Status</option>
+          <option value="category">Technology Category</option>
+        </select>
+      </div>
+    </div>
+    <div class="card mb-3">
+      <div class="card-header"><h6 class="mb-0">Filter Status</h6></div>
+      <div class="card-body p-2">
+        <div class="form-check"><input class="form-check-input gantt-status" type="checkbox" value="proposed" checked><label class="form-check-label small"><span style="color:#9e9e9e;">&#9679;</span> Proposed</label></div>
+        <div class="form-check"><input class="form-check-input gantt-status" type="checkbox" value="planned" checked><label class="form-check-label small"><span style="color:#2196f3;">&#9679;</span> Planned</label></div>
+        <div class="form-check"><input class="form-check-input gantt-status" type="checkbox" value="under_construction" checked><label class="form-check-label small"><span style="color:#ff9800;">&#9679;</span> Under Construction</label></div>
+        <div class="form-check"><input class="form-check-input gantt-status" type="checkbox" value="commissioned" checked><label class="form-check-label small"><span style="color:#4caf50;">&#9679;</span> Commissioned</label></div>
+        <div class="form-check"><input class="form-check-input gantt-status" type="checkbox" value="decommissioned" checked><label class="form-check-label small"><span style="color:#f44336;">&#9679;</span> Decommissioned</label></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header"><h6 class="mb-0">Legend</h6></div>
+      <div class="card-body small">
+        <strong>Bar opacity</strong> = commissioning probability<br>
+        <strong>Bar length</strong> = operational lifespan<br>
+        <strong>Hover</strong> for full details
+      </div>
+    </div>
+  </div>
+
+  <!-- Chart -->
+  <div class="col-lg-10">
+    <div class="card">
+      <div class="card-body p-0">
+        <div id="gantt-chart" style="width:100%; min-height:600px;"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Data -->
+<script type="application/json" id="facilities-data">{{ facilities_json|safe }}</script>
+
+<!-- Plotly -->
+<script src="https://cdn.plot.ly/plotly-2.26.0.min.js"></script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const allFacilities = JSON.parse(document.getElementById('facilities-data').textContent);
+
+    const statusColors = {
+        proposed: '#9e9e9e',
+        planned: '#2196f3',
+        under_construction: '#ff9800',
+        commissioned: '#4caf50',
+        decommissioned: '#f44336'
+    };
+
+    const statusLabels = {
+        proposed: 'Proposed',
+        planned: 'Planned',
+        under_construction: 'Under Construction',
+        commissioned: 'Commissioned',
+        decommissioned: 'Decommissioned'
+    };
+
+    const categoryColors = {
+        'Wind': '#80B1D3',
+        'Solar': '#FDB462',
+        'Storage': '#FB8072',
+        'Battery': '#FB8072',
+        'Gas': '#BEBADA',
+        'Coal': '#8DD3C7',
+        'Hydro': '#FFFFB3',
+        'Biomass': '#B3DE69',
+        'Nuclear': '#FCCDE5',
+        'Unknown': '#d9d9d9'
+    };
+
+    function getCategoryColor(cat) {
+        for (const [key, color] of Object.entries(categoryColors)) {
+            if (cat.toLowerCase().includes(key.toLowerCase())) return color;
+        }
+        return '#d9d9d9';
+    }
+
+    function renderGantt() {
+        const colorBy = document.getElementById('color-by').value;
+        const groupBy = document.getElementById('group-by').value;
+        const activeStatuses = Array.from(document.querySelectorAll('.gantt-status:checked')).map(c => c.value);
+
+        // Filter
+        let facs = allFacilities.filter(f => activeStatuses.includes(f.status));
+
+        // Only include facilities that have a commissioning date
+        facs = facs.filter(f => f.comm_year !== null);
+
+        if (facs.length === 0) {
+            Plotly.react('gantt-chart', [], {
+                title: 'No facilities with commissioning dates match the current filters',
+                xaxis: {title: 'Year'},
+                yaxis: {title: 'Facility'}
+            });
+            return;
+        }
+
+        // Sort by group then by commissioning year
+        facs.sort((a, b) => {
+            if (groupBy === 'category') {
+                if (a.technology_category !== b.technology_category) return a.technology_category.localeCompare(b.technology_category);
+            } else if (groupBy === 'status') {
+                const statusOrder = ['proposed', 'planned', 'under_construction', 'commissioned', 'decommissioned'];
+                if (a.status !== b.status) return statusOrder.indexOf(a.status) - statusOrder.indexOf(b.status);
+            }
+            return (a.comm_year || 0) - (b.comm_year || 0);
+        });
+
+        // Build traces - group by color key for legend
+        const traceMap = {};
+
+        facs.forEach(f => {
+            const startDate = f.commissioning_date;
+            // End date: explicit decommissioning, or computed retirement, or +30 years default
+            let endYear = f.end_year || (f.comm_year + 30);
+            const endDate = (f.decommissioning_date) ? f.decommissioning_date : endYear + '-01-01';
+
+            let colorKey, barColor;
+            if (colorBy === 'status') {
+                colorKey = f.status;
+                barColor = statusColors[f.status] || '#999';
+            } else {
+                colorKey = f.technology_category;
+                barColor = getCategoryColor(f.technology_category);
+            }
+
+            // Label for y-axis
+            let label = f.facility_name;
+            if (groupBy === 'category') {
+                label = f.technology_category + ' | ' + f.facility_name;
+            } else if (groupBy === 'status') {
+                label = (statusLabels[f.status] || f.status) + ' | ' + f.facility_name;
+            }
+
+            const opacity = Math.max(0.3, f.commissioning_probability);
+
+            if (!traceMap[colorKey]) {
+                traceMap[colorKey] = {
+                    type: 'bar',
+                    orientation: 'h',
+                    name: colorBy === 'status' ? (statusLabels[colorKey] || colorKey) : colorKey,
+                    marker: {color: [], opacity: []},
+                    base: [],
+                    x: [],
+                    y: [],
+                    text: [],
+                    hovertemplate: [],
+                    showlegend: true,
+                };
+            }
+
+            const trace = traceMap[colorKey];
+            // Use numeric years for x-axis for cleaner display
+            const startYear = f.comm_year;
+            const duration = endYear - startYear;
+
+            trace.base.push(startYear);
+            trace.x.push(duration);
+            trace.y.push(label);
+            trace.marker.color.push(barColor);
+            trace.marker.opacity.push(opacity);
+
+            const hoverText = '<b>' + f.facility_name + '</b><br>' +
+                'Technology: ' + f.technology_name + '<br>' +
+                'Category: ' + f.technology_category + '<br>' +
+                'Capacity: ' + f.capacity.toFixed(1) + ' MW<br>' +
+                'Status: ' + (statusLabels[f.status] || f.status) + '<br>' +
+                'Probability: ' + (f.commissioning_probability * 100).toFixed(0) + '%<br>' +
+                'Commissioned: ' + (f.commissioning_date || 'N/A') + '<br>' +
+                'End: ' + (f.decommissioning_date || (f.end_year ? f.end_year + ' (lifetime)' : 'N/A')) +
+                '<extra></extra>';
+
+            trace.hovertemplate.push(hoverText);
+            trace.text.push(f.capacity.toFixed(0) + ' MW');
+        });
+
+        const traces = Object.values(traceMap);
+
+        // Calculate dynamic height based on number of facilities
+        const chartHeight = Math.max(500, facs.length * 22 + 100);
+
+        const layout = {
+            barmode: 'overlay',
+            xaxis: {
+                title: 'Year',
+                type: 'linear',
+                dtick: 5,
+                gridcolor: '#e0e0e0',
+            },
+            yaxis: {
+                autorange: 'reversed',
+                tickfont: {size: 10},
+            },
+            margin: {l: 250, r: 30, t: 40, b: 50},
+            height: chartHeight,
+            legend: {
+                orientation: 'h',
+                y: 1.02,
+                x: 0.5,
+                xanchor: 'center',
+            },
+            hoverlabel: {align: 'left'},
+            // Add today marker
+            shapes: [{
+                type: 'line',
+                x0: new Date().getFullYear(),
+                x1: new Date().getFullYear(),
+                y0: 0,
+                y1: 1,
+                yref: 'paper',
+                line: {color: '#dc3545', width: 2, dash: 'dash'},
+            }],
+            annotations: [{
+                x: new Date().getFullYear(),
+                y: 1,
+                yref: 'paper',
+                text: 'Today',
+                showarrow: false,
+                font: {color: '#dc3545', size: 11},
+                yanchor: 'bottom',
+            }],
+        };
+
+        const config = {
+            responsive: true,
+            displayModeBar: true,
+            modeBarButtonsToRemove: ['lasso2d', 'select2d'],
+            displaylogo: false,
+            toImageButtonOptions: {
+                format: 'png',
+                filename: 'pipeline_gantt',
+                width: 1600,
+                height: chartHeight,
+            },
+        };
+
+        Plotly.react('gantt-chart', traces, layout, config);
+    }
+
+    // Wire up controls
+    document.getElementById('group-by').addEventListener('change', renderGantt);
+    document.getElementById('color-by').addEventListener('change', renderGantt);
+    document.querySelectorAll('.gantt-status').forEach(cb => cb.addEventListener('change', renderGantt));
+
+    // Initial render
+    renderGantt();
+});
+</script>
+{% endblock %}

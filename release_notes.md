@@ -1,6 +1,10 @@
 # Release Notes (Latest first)
 
-## Version 3.16.5 - February 13, 2026
+## Version 3.16.7 - February 19, 2026
+### ✨ Enhancements
+- Feature: Implement Pipeline Visualisations ([#67](https://github.com/Sustainable-Energy-Now/siren_web/issues/67))
+
+## Version 3.16.6 - February 13, 2026
 ### ✨ Enhancements
 - Feature: RET Report Help ([#65](https://github.com/Sustainable-Energy-Now/siren_web/issues/65))
 - Feature: Replace Pies with Donuts ([#66](https://github.com/Sustainable-Energy-Now/siren_web/issues/66))
