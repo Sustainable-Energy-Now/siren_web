@@ -3228,8 +3228,8 @@ class DemandFactorType(models.Model):
     description = models.TextField(blank=True, help_text="Detailed description of this demand factor")
 
     CATEGORY_CHOICES = [
-        ('operational', 'Operational Demand Only'),
-        ('underlying', 'Underlying Demand Only'),
+        ('operational', 'Operational Consumption Only'),
+        ('underlying', 'Underlying Consumption Only'),
         ('both', 'Both Operational and Underlying'),
     ]
     category = models.CharField(

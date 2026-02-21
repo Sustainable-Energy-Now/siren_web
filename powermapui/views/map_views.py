@@ -116,6 +116,9 @@ def home(request):
         
         facilities_data = []
         for facility in facilities_queryset:
+            retirement_year = None
+            if facility.commissioning_date and facility.idtechnologies and facility.idtechnologies.lifetime:
+                retirement_year = facility.commissioning_date.year + int(facility.idtechnologies.lifetime)
             facility_dict = {
                 'facility_name': facility.facility_name,
                 'idtechnologies': facility.idtechnologies.idtechnologies,
@@ -127,11 +130,41 @@ def home(request):
                 'has_grid_connection': facility.grid_connections.exists(),
                 'primary_grid_line_id': facility.primary_grid_line.idgridlines if facility.primary_grid_line else None,
                 'primary_grid_line_name': facility.primary_grid_line.line_name if facility.primary_grid_line else None,
-                'connection_count': facility.grid_connections.count()
+                'connection_count': facility.grid_connections.count(),
+                'status': facility.status if facility.status else 'commissioned',
+                'commissioning_probability': float(facility.commissioning_probability) if facility.commissioning_probability is not None else 1.0,
+                'commissioning_date': facility.commissioning_date.isoformat() if facility.commissioning_date else None,
+                'decommissioning_date': facility.decommissioning_date.isoformat() if facility.decommissioning_date else None,
+                'technology_category': facility.idtechnologies.category if facility.idtechnologies and facility.idtechnologies.category else 'Unknown',
+                'retirement_year': retirement_year,
             }
             facilities_data.append(facility_dict)
     else:
         facilities_data = []
+
+    # Compute year range and categories for filter controls
+    categories = set()
+    year_min = None
+    year_max = None
+    for fd in facilities_data:
+        categories.add(fd['technology_category'])
+        if fd['commissioning_date']:
+            cy = int(fd['commissioning_date'][:4])
+            if year_min is None or cy < year_min:
+                year_min = cy
+            if year_max is None or cy > year_max:
+                year_max = cy
+        if fd['retirement_year']:
+            ry = fd['retirement_year']
+            if year_max is None or ry > year_max:
+                year_max = ry
+    from datetime import date
+    last_year = date.today().year - 1
+    year_min = last_year
+    if year_max is None or year_max < last_year:
+        year_max = 2040
+    else:
+        year_max = min(year_max, 2040)
     
     # Convert to JSON
     facilities_json = json.dumps(facilities_data)
@@ -194,10 +227,13 @@ def home(request):
         'demand_year': demand_year,
         'scenario': scenario,
         'config_file': config_file,
-        'success_message': success_message, 
+        'success_message': success_message,
         'facilities_json': facilities_json,
         'grid_lines_json': grid_lines_json,
         'terminals_json': terminals_json,
+        'categories_json': json.dumps(sorted(categories)),
+        'year_min': year_min,
+        'year_max': year_max,
     }
     return render(request, 'map_home.html', context)
 
@@ -234,10 +270,6 @@ def add_facility(request):
             scenario_title = request.session.get('scenario')
             if not scenario_title:
                 return JsonResponse({'status': 'error', 'message': 'No scenario selected. Please select a scenario first.'}, status=400)
-            
-            # Check if scenario is 'Current' - facilities cannot be added to this scenario
-            if scenario_title == 'Current':
-                return JsonResponse({'status': 'error', 'message': 'Cannot add facilities to the "Current" scenario. Please select a different scenario.'}, status=400)
             
             try:
                 scenario_obj = Scenarios.objects.get(title=scenario_title)

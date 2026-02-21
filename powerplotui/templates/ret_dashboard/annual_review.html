@@ -77,8 +77,8 @@
         <p style="font-size: 1.1em; line-height: 1.8;">
             The South West Interconnected System (SWIS) achieved
             <strong>{{ annual_summary.re_percentage_operational|floatformat:1 }}%</strong> renewable energy
-            (operational demand basis) and <strong>{{ annual_summary.re_percentage_underlying|floatformat:1 }}%</strong>
-            (underlying demand basis, including rooftop solar) in {{ year }}. Total grid emissions were
+            (operational consumption basis) and <strong>{{ annual_summary.re_percentage_underlying|floatformat:1 }}%</strong>
+            (underlying consumption basis, including rooftop solar) in {{ year }}. Total grid emissions were
             <strong>{{ annual_summary.total_emissions|floatformat:0|intcomma }} tonnes CO₂-e</strong>
             {% if yoy_changes.emissions %}, a reduction of
             {% if yoy_changes.emissions < 0 %} <strong>{{ yoy_changes.emissions|mul:-1|floatformat:1 }}%</strong> from
@@ -204,7 +204,7 @@
     <p style="margin-bottom: 0;">
         <strong>Operational Consumption:</strong> Total consumption from grid sources. This
         represents electricity delivered through the grid.<br>
-        <strong>Underlying Consumption:</strong> Operational demand plus rooftop solar (DPV). This represents total
+        <strong>Underlying Consumption:</strong> Operational consumption plus rooftop solar (DPV). This represents total
         electricity consumed including behind-the-meter generation.<br>
     </p>
 </div>

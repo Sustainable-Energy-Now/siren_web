@@ -234,7 +234,7 @@ def generate_generation_mix_operational_chart(performance):
 
     fig.update_layout(
         title=dict(
-            text="Operational Demand",
+            text="Operational Consumption",
             x=0.5,
             xanchor='center',
             font=dict(size=14)
@@ -301,7 +301,7 @@ def generate_generation_mix_underlying_chart(performance):
 
     fig.update_layout(
         title=dict(
-            text="Underlying Demand",
+            text="Underlying Consumption",
             x=0.5,
             xanchor='center',
             font=dict(size=14)

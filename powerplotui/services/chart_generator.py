@@ -14,16 +14,16 @@ class ChartGenerator:
         fig = make_subplots(
             rows=2, cols=2,
             subplot_titles=(
-                f'Operational Demand - {month_name} {year}',
-                f'Underlying Demand - {month_name} {year}',
-                f'Operational Demand - YTD {year}',
-                f'Underlying Demand - YTD {year}'
+                f'Operational Consumption - {month_name} {year}',
+                f'Underlying Consumption - {month_name} {year}',
+                f'Operational Consumption - YTD {year}',
+                f'Underlying Consumption - YTD {year}'
             ),
             specs=[[{'type': 'pie'}, {'type': 'pie'}],
                    [{'type': 'pie'}, {'type': 'pie'}]]
         )
         
-        # Monthly Operational Demand (row 1, col 1)
+        # Monthly Operational Consumption (row 1, col 1)
         fig.add_trace(
             go.Pie(
                 labels=['Wind', 'Solar', 'Fossil', 'Battery Net'],
@@ -38,7 +38,7 @@ class ChartGenerator:
             row=1, col=1
         )
         
-        # Monthly Underlying Demand (row 1, col 2)
+        # Monthly Underlying Consumption (row 1, col 2)
         fig.add_trace(
             go.Pie(
                 labels=['Wind', 'Solar', 'DPV', 'Fossil', 'Battery Net'],
@@ -54,7 +54,7 @@ class ChartGenerator:
             row=1, col=2
         )
         
-        # YTD Operational Demand (row 2, col 1)
+        # YTD Operational Consumption (row 2, col 1)
         fig.add_trace(
             go.Pie(
                 labels=['Wind', 'Solar', 'Fossil', 'Battery Net'],
@@ -69,7 +69,7 @@ class ChartGenerator:
             row=2, col=1
         )
         
-        # YTD Underlying Demand (row 2, col 2)
+        # YTD Underlying Consumption (row 2, col 2)
         fig.add_trace(
             go.Pie(
                 labels=['Wind', 'Solar', 'DPV', 'Fossil', 'Battery Net'],
@@ -101,7 +101,7 @@ class ChartGenerator:
         fig.add_trace(go.Scatter(
             x=df['time_of_day'],
             y=df['underlying_demand'],
-            name='Underlying Demand',
+            name='Underlying Consumption',
             line=dict(color='blue', width=2)
         ))
         
@@ -109,7 +109,7 @@ class ChartGenerator:
         fig.add_trace(go.Scatter(
             x=df['time_of_day'],
             y=df['operational_demand'],
-            name='Operational Demand',
+            name='Operational Consumption',
             line=dict(color='red', width=2, dash='dash')
         ))
         

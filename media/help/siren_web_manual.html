@@ -2706,7 +2706,7 @@ The facility detail page provides comprehensive information organized into secti
 </ol>
 <h3 id="understanding-demand-types">Understanding Demand Types</h3>
 <p>The system models two distinct types of electricity demand:</p>
-<h4 id="operational-demand">Operational Demand</h4>
+<h4 id="operational-demand">Operational Consumption</h4>
 <p><strong>What it is</strong>: Grid-visible demand measured at transmission level
 <strong>Data Source</strong>: <code>supplyfactors</code> table, facility ID 144
 <strong>Characteristics</strong>:
@@ -2715,7 +2715,7 @@ The facility detail page provides comprehensive information organized into secti
 - Includes commercial, industrial, and residential consumption
 - Net of rooftop solar generation
 <strong>Typical Growth Rate</strong>: 2-3% per year (moderate growth)</p>
-<h4 id="underlying-demand">Underlying Demand</h4>
+<h4 id="underlying-demand">Underlying Consumption</h4>
 <p><strong>What it is</strong>: Total electricity consumption including distributed generation
 <strong>Data Source</strong>: <code>DPVGeneration</code> table (AEMO data)
 <strong>Characteristics</strong>:
@@ -2725,7 +2725,7 @@ The facility detail page provides comprehensive information organized into secti
 - Shows actual customer consumption patterns
 <strong>Typical Growth Rate</strong>: 4-8% per year (higher due to electrification trends)</p>
 <h4 id="total-demand">Total Demand</h4>
-<p><strong>Calculation</strong>: Operational Demand + Underlying Demand
+<p><strong>Calculation</strong>: Operational Consumption + Underlying Consumption
 <strong>Interpretation</strong>: Comprehensive view of future grid requirements</p>
 <hr />
 <h3 id="configuration">Configuration</h3>
@@ -2898,11 +2898,11 @@ projection_end_year = 2050
 <p>Click <strong>"Adjust Growth Rates"</strong> to expand additional controls:</p>
 <h4 id="interactive-growth-rate-sliders">Interactive Growth Rate Sliders</h4>
 <p>Two sliders allow real-time adjustment:
-<strong>Operational Demand Growth Rate</strong>
+<strong>Operational Consumption Growth Rate</strong>
 - Range: 0% to 10% per year
 - Controls: Growth of grid-supplied electricity demand
 - Default: Set by selected scenario
-<strong>Underlying Demand Growth Rate</strong>
+<strong>Underlying Consumption Growth Rate</strong>
 - Range: 0% to 15% per year
 - Controls: Growth of behind-the-meter demand (e.g., distributed solar)
 - Default: Set by selected scenario
@@ -3195,12 +3195,12 @@ underlying_midpoint_year = 2040
 <li>Panel expands showing two sliders</li>
 </ol>
 <h4 id="understanding-the-sliders">Understanding the Sliders</h4>
-<p><strong>Operational Demand Growth Rate Slider</strong>
+<p><strong>Operational Consumption Growth Rate Slider</strong>
 - <strong>Range</strong>: 0% (no growth) to 10% (very high growth)
 - <strong>Controls</strong>: Grid-supplied electricity demand
 - <strong>Factors</strong>: Economic growth, electrification, population
 - <strong>Display</strong>: Shows current value as badge
-<strong>Underlying Demand Growth Rate Slider</strong>
+<strong>Underlying Consumption Growth Rate Slider</strong>
 - <strong>Range</strong>: 0% (no growth) to 15% (extremely high growth)
 - <strong>Controls</strong>: Behind-the-meter demand (distributed generation)
 - <strong>Factors</strong>: Solar adoption, battery storage, prosumer behavior
@@ -3513,7 +3513,7 @@ Conclusion:     High uncertainty - plan for flexibility
 - Grid demand after subtracting DPV
 - Formula: Operational demand - Underlying generation
 - Important for: Grid planning
-<strong>Operational Demand</strong>
+<strong>Operational Consumption</strong>
 - Electricity supplied by grid
 - Measured at: Transmission level
 - Does not include: Behind-the-meter generation
@@ -3545,7 +3545,7 @@ Conclusion:     High uncertainty - plan for flexibility
 - Testing: How results change with assumptions
 - Method: Vary one parameter at a time
 - Purpose: Understand uncertainty
-<strong>Underlying Demand</strong>
+<strong>Underlying Consumption</strong>
 - Behind-the-meter demand (DPV)
 - Not visible: To grid operators
 - Important for: Total demand projections</p>
@@ -4671,7 +4671,7 @@ MONTH=09</p>
 from powerplot.services.load_analyzer import LoadAnalyzer
 analyzer = LoadAnalyzer()
 summary = analyzer.calculate_monthly_summary($YEAR, $MONTH)
-print(f"Operational Demand: {summary.operational_demand} GWh")
+print(f"Operational Consumption: {summary.operational_demand} GWh")
 print(f"RE %: {summary.re_percentage_operational}%")
 EOF</p>
 <hr />

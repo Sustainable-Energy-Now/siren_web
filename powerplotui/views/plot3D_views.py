@@ -591,7 +591,7 @@ def wem_price_history(request):
 def swis_demand_history(request):
     # Initialise data
     html_content = mark_safe("""
-    <h1>WEM Underlying Demand</h1>
+    <h1>WEM Underlying Consumption</h1>
 
     <p>This 3D image shows how operational demand has moderated despite increasing underlying demand in the WA
     Wholesale Electricity Market (WEM). This is due mainly to the growth in rooftop PV.</p>

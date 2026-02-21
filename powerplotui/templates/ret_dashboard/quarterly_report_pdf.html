@@ -591,7 +591,7 @@
                 {% if prev_ytd_summary and ytd_summary.total_emissions < prev_ytd_summary.total_emissions %}
                 <li>YTD emissions reduced by {{ prev_ytd_summary.total_emissions|sub:ytd_summary.total_emissions|floatformat:0|intcomma }} tonnes CO₂-e ({{ prev_ytd_summary.total_emissions|sub:ytd_summary.total_emissions|div:prev_ytd_summary.total_emissions|mul:100|floatformat:1 }}%) compared to same period last year</li>
                 {% endif %}
-                <li>Wind generation contributed {{ quarterly_summary.wind_generation|percent:quarterly_summary.underlying_demand|floatformat:1 }}% of total underlying demand</li>
+                <li>Wind generation contributed {{ quarterly_summary.wind_generation|percent:quarterly_summary.underlying_demand|floatformat:1 }}% of total underlying consumption</li>
                 <li>Combined solar (utility + rooftop) provided {{ quarterly_summary.solar_generation|add:quarterly_summary.dpv_generation|percent:quarterly_summary.underlying_demand|floatformat:1 }}% of electricity</li>
                 {% if quarterly_summary.wholesale_negative_count and quarterly_summary.wholesale_negative_count > 0 %}
                 <li>{{ quarterly_summary.wholesale_negative_count|intcomma }} intervals of negative wholesale prices indicate strong renewable energy penetration</li>

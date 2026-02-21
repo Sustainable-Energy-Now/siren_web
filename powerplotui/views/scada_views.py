@@ -325,7 +325,7 @@ def export_historical_data(request):
 
     writer = csv.writer(response)
     writer.writerow([
-        'Period', 'Operational Demand (GWh)', 'Underlying Demand (GWh)',
+        'Period', 'Operational Consumption (GWh)', 'Underlying Consumption (GWh)',
         'Wind Generation (GWh)', 'Solar Generation (GWh)', 'Biomass Generation (GWh)',
         'DPV Generation (GWh)',
         'Hydro Discharge (GWh)', 'Hydro Charge (GWh)',
@@ -431,10 +431,10 @@ class ChartGenerator:
         fig = make_subplots(
             rows=2, cols=2,
             subplot_titles=(
-                'Monthly Operational Demand',
-                'Monthly Underlying Demand',
-                'YTD Operational Demand',
-                'YTD Underlying Demand'
+                'Monthly Operational Consumption',
+                'Monthly Underlying Consumption',
+                'YTD Operational Consumption',
+                'YTD Underlying Consumption'
             ),
             specs=[[{'type': 'pie'}, {'type': 'pie'}],
                    [{'type': 'pie'}, {'type': 'pie'}]]
@@ -546,7 +546,7 @@ class ChartGenerator:
         fig.add_trace(go.Scatter(
             x=times,
             y=operational_demands,
-            name='Operational Demand',
+            name='Operational Consumption',
             mode='lines',
             line=dict(color=self.COLORS['wind'], width=2),
             fill='tozeroy',
@@ -557,7 +557,7 @@ class ChartGenerator:
         fig.add_trace(go.Scatter(
             x=times,
             y=underlying_demands,
-            name='Underlying Demand',
+            name='Underlying Consumption',
             mode='lines',
             line=dict(color=self.COLORS['re'], width=2, dash='dash')
         ))
@@ -610,7 +610,7 @@ class ChartGenerator:
         fig.add_trace(go.Scatter(
             x=dates,
             y=[record['operational_demand'] for record in historical_data],
-            name='Operational Demand',
+            name='Operational Consumption',
             mode='lines+markers',
             line=dict(color='#3498db', width=2),
             marker=dict(size=6)
@@ -619,7 +619,7 @@ class ChartGenerator:
         fig.add_trace(go.Scatter(
             x=dates,
             y=[record['underlying_demand'] for record in historical_data],
-            name='Underlying Demand',
+            name='Underlying Consumption',
             mode='lines+markers',
             line=dict(color='#e74c3c', width=2, dash='dash'),
             marker=dict(size=6)

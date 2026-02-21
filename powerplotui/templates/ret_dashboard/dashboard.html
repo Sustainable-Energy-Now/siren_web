@@ -59,7 +59,7 @@
         <div class="metric-label">RE% (Operational Consumption)</div>
         <div class="metric-value">{{ performance.re_percentage_operational|floatformat:1 }}%</div>
         <div class="metric-sublabel">
-            {{ performance.operational_demand|floatformat:1 }} GWh operational demand
+            {{ performance.operational_demand|floatformat:1 }} GWh operational consumption
         </div>
         <div class="metric-change">
             {% if prev_year_performance %}
@@ -73,7 +73,7 @@
         <div class="metric-label">RE% (Underlying Consumption)</div>
         <div class="metric-value">{{ performance.re_percentage_underlying|floatformat:1 }}%</div>
         <div class="metric-sublabel">
-            {{ performance.underlying_demand|floatformat:1 }} GWh underlying demand
+            {{ performance.underlying_demand|floatformat:1 }} GWh underlying consumption
         </div>
         <div class="metric-change">
             {% if prev_year_performance %}
@@ -130,7 +130,7 @@
     <h3 style="margin-top: 0;">Understanding Consumption Measures</h3>
     <p style="margin-bottom: 0;">
         <strong>Operational Consumption:</strong> Total consumption from grid sources. This represents electricity delivered through the grid.<br>
-        <strong>Underlying Consumption:</strong> Operational demand plus that part of household rooftop solar generation that is consumed by the household before export to the grid.
+        <strong>Underlying Consumption:</strong> Operational consumption plus that part of household rooftop solar generation that is consumed by the household before export to the grid.
     </p>
 </div>
 
@@ -233,8 +233,8 @@
 
 <div class="metric-grid" style="grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));">
     <div class="metric-card neutral">
-        <div class="metric-label">Operational Demand</div>
-        <div class="metric-value">{{ performance.operational_demand|floatformat:1 }}</div>
+        <div class="metric-label">Operational Consumption</div>
+        <div class="metric-value">{{ performance.operational_|floatformat:1 }}</div>
         <div class="metric-sublabel">GWh (grid-sent)</div>
         {% if prev_year_performance %}
         <div class="metric-change">
@@ -248,7 +248,7 @@
     </div>
 
     <div class="metric-card neutral">
-        <div class="metric-label">Underlying Demand</div>
+        <div class="metric-label">Underlying Consumption</div>
         <div class="metric-value">{{ performance.underlying_demand|floatformat:1 }}</div>
         <div class="metric-sublabel">GWh (incl. rooftop solar)</div>
         {% if prev_year_performance %}

@@ -44,7 +44,7 @@
 
     <div class="metric-grid">
         <div class="metric-card neutral">
-            <div class="metric-label">Operational Demand</div>
+            <div class="metric-label">Operational Consumption</div>
             <div class="metric-value">{{ summary.operational_demand|floatformat:1 }} GWh</div>
             <div class="metric-change">
                 {% if changes.operational_demand %}
@@ -55,7 +55,7 @@
         </div>
         
         <div class="metric-card positive">
-            <div class="metric-label">RE % of Operational Demand</div>
+            <div class="metric-label">RE % of Operational Consumption</div>
             <div class="metric-value">{{ summary.re_percentage_operational|floatformat:1 }}%</div>
             <div class="metric-change">
                 {% if prev_summary %}
@@ -65,7 +65,7 @@
         </div>
         
         <div class="metric-card positive">
-            <div class="metric-label">RE % of Underlying Demand</div>
+            <div class="metric-label">RE % of Underlying Consumption</div>
             <div class="metric-value">{{ summary.re_percentage_underlying|floatformat:1 }}%</div>
             <div class="metric-change">
                 {% if prev_summary %}
@@ -87,7 +87,7 @@
     <h2>Energy Mix Breakdown</h2>
 
     <div class="chart-container">
-        <div class="chart-title">How Operational and Underlying Demand Was Met</div>
+        <div class="chart-title">How Operational and Underlying Consumption Was Met</div>
         <p style="text-align: center; color: #7f8c8d; margin-bottom: 20px;">
             Technology breakdown for {{ month_name }} {{ year }} and Year-to-Date {{ year }}
         </p>
@@ -141,7 +141,7 @@
     </thead>
     <tbody>
         <tr>
-            <td><strong>Overall Operational Demand</strong></td>
+            <td><strong>Overall Operational Consumption</strong></td>
             <td class="value">{{ summary.operational_demand|floatformat:1 }} GWh</td>
             <td class="value">
                 {% if prev_summary %}{{ prev_summary.operational_demand|floatformat:1 }} GWh{% else %}N/A{% endif %}
@@ -213,13 +213,13 @@
         </thead>
         <tbody>
             <tr>
-                <td><strong>Overall Operational Demand</strong></td>
+                <td><strong>Overall Operational Consumption</strong></td>
                 <td class="value">{{ ytd_summary.operational_demand|floatformat:1 }} GWh</td>
                 <td class="value">{{ ytd_prev_summary.operational_demand|floatformat:1 }} GWh</td>
                 <td class="value positive">{{ ytd_changes.operational_demand|floatformat:1 }}%</td>
             </tr>
             <tr>
-                <td>Underlying Demand</td>
+                <td>Underlying Consumption</td>
                 <td class="value">{{ ytd_summary.underlying_demand|floatformat:1 }} GWh</td>
                 <td class="value">{{ ytd_prev_summary.underlying_demand|floatformat:1 }} GWh</td>
                 <td class="value">N/A</td>
@@ -333,13 +333,13 @@
     <!-- Trend Charts -->
     <h3>Demand Trends</h3>
     <div class="chart-container">
-        <div class="chart-title">Operational and Underlying Demand Over Time</div>
+        <div class="chart-title">Operational and Underlying Consumption Over Time</div>
         {{ historical_demand_chart|safe }}
     </div>
 
     <h3>Renewable Energy Penetration</h3>
     <div class="chart-container">
-        <div class="chart-title">RE Percentage of Operational and Underlying Demand</div>
+        <div class="chart-title">RE Percentage of Operational and Underlying Consumption</div>
         <p style="text-align: center; color: #7f8c8d; margin-bottom: 20px;">
             Track renewable energy penetration progress over time
         </p>

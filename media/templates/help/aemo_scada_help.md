@@ -137,7 +137,7 @@ python manage.py shell <<EOF
 from powerplot.services.load_analyzer import LoadAnalyzer
 analyzer = LoadAnalyzer()
 summary = analyzer.calculate_monthly_summary($YEAR, $MONTH)
-print(f"Operational Demand: {summary.operational_demand} GWh")
+print(f"Operational Consumption: {summary.operational_demand} GWh")
 print(f"RE %: {summary.re_percentage_operational}%")
 EOF
 ---

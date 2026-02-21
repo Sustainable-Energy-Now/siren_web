@@ -23,8 +23,7 @@
     
     <!-- Add New Facility -->
     {% if scenario %}
-        {% if scenario != 'Current' %}
-            <button id="addFacilityBtn" class="btn btn-primary" type="button">
+        <button id="addFacilityBtn" class="btn btn-primary" type="button">
                 Add New Facility
             </button>
             <button id="addTerminalBtn" class="btn btn-warning" type="button">
@@ -33,18 +32,6 @@
             <button id="addGridLineBtn" class="btn btn-success" type="button">
                 Add New Grid Line
             </button>
-        {% else %}
-            {# Current scenario - allow terminals but not facilities or grid lines #}
-            <button class="btn btn-secondary" type="button" disabled title="Cannot add facilities to the 'Current' scenario">
-                Add New Facility (Disabled)
-            </button>
-            <button id="addTerminalBtn" class="btn btn-warning" type="button">
-                Add New Terminal
-            </button>
-            <button class="btn btn-secondary" type="button" disabled title="Cannot add grid lines to the 'Current' scenario">
-                Add New Grid Line (Disabled)
-            </button>
-        {% endif %}
         <button id="manageConnectionsBtn" class="btn btn-info" type="button">
             Manage Connections
         </button>
@@ -74,9 +61,9 @@
         <button onclick="showGridUtilization()" class="btn btn-secondary btn-sm" style="margin: 2px;">
             Show Grid Utilization
         </button>
-        <button onclick="showConnectionsOverview()" class="btn btn-secondary btn-sm" style="margin: 2px;">
+        <a href="{% url 'powermapui:infrastructure_network' %}" class="btn btn-secondary btn-sm" style="margin: 2px;" target="_blank">
             Connections Overview
-        </button>
+        </a>
     </div>
 </div>
 
@@ -396,8 +383,104 @@
     </div>
 </div>
 
-<!-- Leaflet.js Map -->
-<div id="map" style="height: 600px; width: 100%;"></div>
+<!-- Map + Filter Sidebar -->
+<div class="row g-2">
+
+  <!-- Filter Sidebar -->
+  <div class="col-lg-2" style="font-size:0.8rem;">
+
+    <!-- Status Filter -->
+    <div class="card mb-2">
+      <div class="card-header py-1"><h6 class="mb-0">Status Filter</h6></div>
+      <div class="card-body py-1 px-2">
+        <div>
+          <input class="facility-status-filter" type="checkbox" value="proposed" id="sf-proposed" checked>
+          <label for="sf-proposed">
+            <span style="display:inline-block;width:10px;height:10px;background:#9e9e9e;border-radius:50%;margin-right:2px;"></span>Proposed
+          </label>
+        </div>
+        <div>
+          <input class="facility-status-filter" type="checkbox" value="planned" id="sf-planned" checked>
+          <label for="sf-planned">
+            <span style="display:inline-block;width:10px;height:10px;background:#2196f3;border-radius:50%;margin-right:2px;"></span>Planned
+          </label>
+        </div>
+        <div>
+          <input class="facility-status-filter" type="checkbox" value="under_construction" id="sf-under_construction" checked>
+          <label for="sf-under_construction">
+            <span style="display:inline-block;width:10px;height:10px;background:#ff9800;border-radius:50%;margin-right:2px;"></span>Under Construction
+          </label>
+        </div>
+        <div>
+          <input class="facility-status-filter" type="checkbox" value="commissioned" id="sf-commissioned" checked>
+          <label for="sf-commissioned">
+            <span style="display:inline-block;width:10px;height:10px;background:#4caf50;border-radius:50%;margin-right:2px;"></span>Commissioned
+          </label>
+        </div>
+        <div>
+          <input class="facility-status-filter" type="checkbox" value="decommissioned" id="sf-decommissioned">
+          <label for="sf-decommissioned">
+            <span style="display:inline-block;width:10px;height:10px;background:#f44336;border-radius:50%;margin-right:2px;"></span>Decommissioned
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <!-- Timeline -->
+    <div class="card mb-2">
+      <div class="card-header py-1"><h6 class="mb-0">Timeline</h6></div>
+      <div class="card-body py-1 px-2">
+        <div style="display:flex; justify-content:space-between; margin-bottom:2px;">
+          <small id="sf-year-min-label">{{ year_min }}</small>
+          <strong id="sf-current-year-label">-</strong>
+          <small id="sf-year-max-label">{{ year_max }}</small>
+        </div>
+        <input type="range" style="width:100%;" id="sf-year-slider"
+               min="{{ year_min }}" max="{{ year_max }}" value="{{ year_min }}" step="1">
+        <div style="margin-top:4px;">
+          <input type="checkbox" id="sf-enable-timeline">
+          <label for="sf-enable-timeline">Enable timeline</label>
+        </div>
+      </div>
+    </div>
+
+    <!-- Category Filter -->
+    <div class="card mb-2">
+      <div class="card-header py-1"><h6 class="mb-0">Technology</h6></div>
+      <div class="card-body py-1 px-2" id="sf-category-filters">
+        <!-- Populated by JS -->
+      </div>
+    </div>
+
+    <!-- Summary -->
+    <div class="card">
+      <div class="card-header py-1"><h6 class="mb-0">Summary</h6></div>
+      <div class="card-body p-1">
+        <table style="width:100%; font-size:0.72rem; border-collapse:collapse;">
+          <thead><tr><th>Status</th><th style="text-align:right;">N</th><th style="text-align:right;">MW</th></tr></thead>
+          <tbody id="sf-summary-tbody"></tbody>
+          <tfoot>
+            <tr style="border-top:1px solid #dee2e6;">
+              <th>Total</th>
+              <th style="text-align:right;" id="sf-total-count">0</th>
+              <th style="text-align:right;" id="sf-total-mw">0</th>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+
+  </div><!-- /sidebar -->
+
+  <!-- Map -->
+  <div class="col-lg-10">
+    <div id="map" style="height:700px; width:100%;"></div>
+  </div>
+
+</div><!-- /row -->
+
+<!-- Safe JSON data element (avoids </script> injection risk in inline JS) -->
+<script type="application/json" id="categories-json-data">{{ categories_json|safe }}</script>
 
 <!-- Leaflet.js Library -->
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
@@ -732,17 +815,23 @@ crossorigin=""></script>
 
 <script>
 // ===== GLOBAL VARIABLES AND CONSTANTS =====
-// Initialize the map and set its view to South West of Western Australia
-var map = L.map('map').setView([-33.45, 121.25], 7);
-
-// Create a custom pane for grid lines with higher z-index to ensure they're above KML layers
-map.createPane('gridLinesPane');
-map.getPane('gridLinesPane').style.zIndex = 450; // Higher than default overlayPane (400)
-map.getPane('gridLinesPane').style.pointerEvents = 'auto'; // Ensure mouse events work
+var map;
 
 // Data passed from view
 var facilities = {{ facilities_json|safe }};
 var gridLines = JSON.parse('{{ grid_lines_json|escapejs }}');
+
+// Filter-related globals
+var facilityMarkers = [];  // [{data, marker}] populated by loadFacilitiesOnMap
+var sfCategories = JSON.parse(document.getElementById('categories-json-data').textContent || '[]');
+var sfStatusColors = {
+    proposed: '#9e9e9e', planned: '#2196f3', under_construction: '#ff9800',
+    commissioned: '#4caf50', decommissioned: '#f44336'
+};
+var sfStatusLabels = {
+    proposed: 'Proposed', planned: 'Planned', under_construction: 'Under Construction',
+    commissioned: 'Commissioned', decommissioned: 'Decommissioned'
+};
 
 // Global variables for connection management
 var connectionManagementMode = false;
@@ -799,6 +888,17 @@ var recipIcon = L.icon({ iconUrl: "{% static 'icons/recip.png' %}", iconSize: [3
 var solarIcon = L.icon({ iconUrl: "{% static 'icons/solar.png' %}", iconSize: [32, 32] });
 var windIcon = L.icon({ iconUrl: "{% static 'icons/wind.png' %}", iconSize: [32, 32] });
 var defaultIcon = L.icon({ iconUrl: "{% static 'icons/power_technology.png' %}", iconSize: [32, 32] });
+
+// ===== MAP INITIALIZATION =====
+// Inline (synchronous) so Leaflet measures the container with the correct
+// flex-layout dimensions. The #map div is already in the DOM above this tag.
+map = L.map('map').setView([-33.45, 121.25], 7);
+map.createPane('gridLinesPane');
+map.getPane('gridLinesPane').style.zIndex = 450;
+map.getPane('gridLinesPane').style.pointerEvents = 'auto';
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: 'Map data © <a href="https://openstreetmap.org">OpenStreetMap</a> contributors'
+}).addTo(map);
 
 // ===== FUNCTION DEFINITIONS =====
 
@@ -969,12 +1069,13 @@ function loadTerminalsOnMap(terminalsData) {
 // Enhanced function to load facilities with connection indicators
 function loadFacilitiesOnMap(facilitiesData) {
     facilityLayer.clearLayers();
-    
+    facilityMarkers = [];
+
     if (map.hasLayer(facilityLayer)) {
         map.removeLayer(facilityLayer);
     }
-    
-    facilitiesData.forEach(function(facility, index) { 
+
+    facilitiesData.forEach(function(facility, index) {
         if (!facility.latitude || !facility.longitude) {
             console.warn('Invalid coordinates for facility:', facility.facility_name);
             return;
@@ -1041,11 +1142,97 @@ function loadFacilitiesOnMap(facilitiesData) {
         });
         
         facilityLayer.addLayer(marker);
+        facilityMarkers.push({data: facility, marker: marker});
     });
-    
+
     facilityLayer.addTo(map);
     map.invalidateSize();
+
+    // Populate category filters (first load only)
+    sfBuildCategoryFilters();
+    applyFacilityFilters();
 }
+
+// ===== STATUS / TIMELINE / CATEGORY FILTERS =====
+
+function sfGetEffectiveStatus(f, year) {
+    if (!document.getElementById('sf-enable-timeline').checked) return f.status || 'commissioned';
+    var commYear = f.commissioning_date ? parseInt(f.commissioning_date.substring(0, 4)) : null;
+    var retireYear = f.retirement_year;
+    if (commYear && year < commYear) return f.status || 'commissioned';
+    if (commYear && year >= commYear) {
+        if (retireYear && year >= retireYear) return 'decommissioned';
+        return 'commissioned';
+    }
+    return f.status || 'commissioned';
+}
+
+function applyFacilityFilters() {
+    var activeStatuses = Array.from(document.querySelectorAll('.facility-status-filter:checked')).map(function(cb){ return cb.value; });
+    var activeCategories = Array.from(document.querySelectorAll('.sf-category-filter:checked')).map(function(cb){ return cb.value; });
+    var year = parseInt(document.getElementById('sf-year-slider').value);
+    var timelineEnabled = document.getElementById('sf-enable-timeline').checked;
+
+    document.getElementById('sf-current-year-label').textContent = timelineEnabled ? year : '-';
+
+    var stats = {};
+    var totalCount = 0;
+    var totalMW = 0;
+
+    facilityMarkers.forEach(function(item) {
+        var effStatus = sfGetEffectiveStatus(item.data, year);
+        var cat = item.data.technology_category || 'Unknown';
+        var visible = activeStatuses.indexOf(effStatus) !== -1 && activeCategories.indexOf(cat) !== -1;
+
+        if (visible) {
+            if (!facilityLayer.hasLayer(item.marker)) facilityLayer.addLayer(item.marker);
+            if (!stats[effStatus]) stats[effStatus] = {count: 0, total_mw: 0};
+            stats[effStatus].count += 1;
+            stats[effStatus].total_mw += item.data.capacity || 0;
+            totalCount += 1;
+            totalMW += item.data.capacity || 0;
+        } else {
+            if (facilityLayer.hasLayer(item.marker)) facilityLayer.removeLayer(item.marker);
+        }
+    });
+
+    // Update summary table
+    var tbody = document.getElementById('sf-summary-tbody');
+    tbody.innerHTML = '';
+    Object.keys(sfStatusLabels).forEach(function(status) {
+        if (stats[status]) {
+            var tr = document.createElement('tr');
+            tr.innerHTML = '<td><span style="color:' + sfStatusColors[status] + ';">&#9679;</span> ' + sfStatusLabels[status] + '</td>' +
+                           '<td class="text-end">' + stats[status].count + '</td>' +
+                           '<td class="text-end">' + stats[status].total_mw.toFixed(0) + '</td>';
+            tbody.appendChild(tr);
+        }
+    });
+    document.getElementById('sf-total-count').textContent = totalCount;
+    document.getElementById('sf-total-mw').textContent = totalMW.toFixed(0);
+}
+
+function sfBuildCategoryFilters() {
+    var container = document.getElementById('sf-category-filters');
+    if (!container || container.children.length > 0) return; // already built
+    sfCategories.forEach(function(cat) {
+        var div = document.createElement('div');
+        div.className = 'form-check form-check-sm';
+        div.innerHTML = '<input class="form-check-input sf-category-filter" type="checkbox" value="' + cat + '" id="sf-cat-' + cat.replace(/\s+/g, '-') + '" checked>' +
+                        '<label class="form-check-label small" for="sf-cat-' + cat.replace(/\s+/g, '-') + '">' + cat + '</label>';
+        container.appendChild(div);
+        div.querySelector('input').addEventListener('change', applyFacilityFilters);
+    });
+}
+
+// Wire up status / timeline filter events (after DOM ready)
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.facility-status-filter').forEach(function(cb) {
+        cb.addEventListener('change', applyFacilityFilters);
+    });
+    document.getElementById('sf-year-slider').addEventListener('input', applyFacilityFilters);
+    document.getElementById('sf-enable-timeline').addEventListener('change', applyFacilityFilters);
+});
 
 function getLineWeightFromVoltage(voltageLevel) {
     if (voltageLevel >= 330) return 6; // Extra high voltage
@@ -1306,22 +1493,17 @@ function findNearbyGridLines(lat, lng) {
 
 // ===== MAIN INITIALIZATION =====
 document.addEventListener('DOMContentLoaded', function() {
-    // Add OpenStreetMap tiles to the map
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: 'Map data © <a href="https://openstreetmap.org">OpenStreetMap</a> contributors'
-    }).addTo(map);
-    
+    // map is already initialised inline above (before function definitions).
     // Load initial data
     loadFacilitiesOnMap(facilities);
-    // Load terminals on map
     loadTerminalsOnMap(terminals);
     loadTerminalsForSelection();
     loadGridLinesOnMap(gridLines);
     loadTechnologies();
     loadGridLinesForSelection();
 
-    // Note: Layers are added to map within their respective load functions
-    // No need to add them again here
+    // Safety resize after any layout reflow
+    setTimeout(function() { map.invalidateSize(); }, 300);
     
     const technologySelect = document.getElementById('technology_id');
     if (technologySelect) {
@@ -1757,11 +1939,6 @@ document.addEventListener('DOMContentLoaded', function() {
     if (addFacilityBtn) {
         addFacilityBtn.addEventListener('click', function() {
             const currentScenario = '{{ scenario|escapejs }}';
-            
-            if (currentScenario === 'Current') {
-                alert('Cannot add facilities to the "Current" scenario. Please select a different scenario.');
-                return;
-            }
             
             if (!currentScenario) {
                 alert('Please select a scenario first.');
@@ -2387,9 +2564,6 @@ function closeGridUtilization() {
     document.getElementById('gridUtilizationModal').style.display = 'none';
 }
 
-function showConnectionsOverview() {
-    alert('Connections overview functionality would be implemented here');
-}
 
 function refreshFacilities(scenarioTitle) {
     if (!scenarioTitle) {

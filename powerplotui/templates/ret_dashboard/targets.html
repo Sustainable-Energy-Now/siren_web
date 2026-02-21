@@ -216,12 +216,12 @@
 
             <div class="form-row form-row-3">
                 <div class="form-group">
-                    <label for="operational_demand">Operational Demand (GWh)</label>
+                    <label for="operational_demand">Operational Consumption (GWh)</label>
                     <input type="number" name="operational_demand" id="operational_demand"
                            min="0" step="0.1" placeholder="Optional">
                 </div>
                 <div class="form-group">
-                    <label for="underlying_demand">Underlying Demand (GWh)</label>
+                    <label for="underlying_demand">Underlying Consumption (GWh)</label>
                     <input type="number" name="underlying_demand" id="underlying_demand"
                            min="0" step="0.1" placeholder="Optional">
                 </div>
@@ -361,12 +361,12 @@
 
             <div class="form-row form-row-3">
                 <div class="form-group">
-                    <label for="edit_operational_demand">Operational Demand (GWh)</label>
+                    <label for="edit_operational_demand">Operational Consumption (GWh)</label>
                     <input type="number" name="operational_demand" id="edit_operational_demand"
                            min="0" step="0.1">
                 </div>
                 <div class="form-group">
-                    <label for="edit_underlying_demand">Underlying Demand (GWh)</label>
+                    <label for="edit_underlying_demand">Underlying Consumption (GWh)</label>
                     <input type="number" name="underlying_demand" id="edit_underlying_demand"
                            min="0" step="0.1">
                 </div>
@@ -1043,8 +1043,8 @@ function viewScenarioDetail(scenarioId) {
                     <div class="detail-section">
                         <h3>Demand & Targets</h3>
                         <table class="detail-table">
-                            <tr><th>Operational Demand:</th><td>${data.operational_demand ? data.operational_demand.toFixed(1).replace(/\B(?=(\d{3})+(?!\d))/g, ',') + ' GWh' : '—'}</td></tr>
-                            <tr><th>Underlying Demand:</th><td>${data.underlying_demand ? data.underlying_demand.toFixed(1).replace(/\B(?=(\d{3})+(?!\d))/g, ',') + ' GWh' : '—'}</td></tr>
+                            <tr><th>Operational Consumption:</th><td>${data.operational_demand ? data.operational_demand.toFixed(1).replace(/\B(?=(\d{3})+(?!\d))/g, ',') + ' GWh' : '—'}</td></tr>
+                            <tr><th>Underlying Consumption:</th><td>${data.underlying_demand ? data.underlying_demand.toFixed(1).replace(/\B(?=(\d{3})+(?!\d))/g, ',') + ' GWh' : '—'}</td></tr>
                             <tr class="highlight-row"><th>Target RE %:</th><td><strong style="font-size: 1.2em; color: #27ae60;">${data.target_re_percentage.toFixed(1)}%</strong></td></tr>
                             <tr><th>Target Emissions:</th><td>${data.target_emissions_tonnes ? data.target_emissions_tonnes.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ',') + ' t CO₂-e' : '—'}</td></tr>
                             <tr><th>Storage:</th><td>${data.storage ? data.storage.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ',') + ' MWh' : '—'}</td></tr>

@@ -18,7 +18,7 @@
         <div class="col-md-6">
             <div class="card {% if total_operational_pct > 100 %}border-warning{% elif total_operational_pct >= 95 %}border-success{% endif %}">
                 <div class="card-body">
-                    <h5 class="card-title">Operational Demand Coverage</h5>
+                    <h5 class="card-title">Operational Consumption Coverage</h5>
                     <div class="progress" style="height: 30px;">
                         <div class="progress-bar {% if total_operational_pct > 100 %}bg-warning{% elif total_operational_pct >= 95 %}bg-success{% else %}bg-primary{% endif %}"
                              role="progressbar"
@@ -44,7 +44,7 @@
         <div class="col-md-6">
             <div class="card {% if total_underlying_pct > 100 %}border-warning{% elif total_underlying_pct >= 95 %}border-success{% endif %}">
                 <div class="card-body">
-                    <h5 class="card-title">Underlying Demand Coverage</h5>
+                    <h5 class="card-title">Underlying Consumption Coverage</h5>
                     <div class="progress" style="height: 30px;">
                         <div class="progress-bar {% if total_underlying_pct > 100 %}bg-warning{% elif total_underlying_pct >= 95 %}bg-success{% else %}bg-primary{% endif %}"
                              role="progressbar"

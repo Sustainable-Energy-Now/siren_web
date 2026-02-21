@@ -594,7 +594,7 @@ The Demand Forecast module provides tools for projecting future electricity dema
 3. Navigate to the Demand Projection page from the main menu
 ### Understanding Demand Types
 The system models two distinct types of electricity demand:
-#### Operational Demand
+#### Operational Consumption
 **What it is**: Grid-visible demand measured at transmission level
 **Data Source**: `supplyfactors` table, facility ID 144
 **Characteristics**:
@@ -603,7 +603,7 @@ The system models two distinct types of electricity demand:
 - Includes commercial, industrial, and residential consumption
 - Net of rooftop solar generation
 **Typical Growth Rate**: 2-3% per year (moderate growth)
-#### Underlying Demand
+#### Underlying Consumption
 **What it is**: Total electricity consumption including distributed generation
 **Data Source**: `DPVGeneration` table (AEMO data)
 **Characteristics**:
@@ -613,7 +613,7 @@ The system models two distinct types of electricity demand:
 - Shows actual customer consumption patterns
 **Typical Growth Rate**: 4-8% per year (higher due to electrification trends)
 #### Total Demand
-**Calculation**: Operational Demand + Underlying Demand
+**Calculation**: Operational Consumption + Underlying Consumption
 **Interpretation**: Comprehensive view of future grid requirements
 ---
 ### Configuration
@@ -695,11 +695,11 @@ Three viewing modes are available:
 Click **"Adjust Growth Rates"** to expand additional controls:
 #### Interactive Growth Rate Sliders
 Two sliders allow real-time adjustment:
-**Operational Demand Growth Rate**
+**Operational Consumption Growth Rate**
 - Range: 0% to 10% per year
 - Controls: Growth of grid-supplied electricity demand
 - Default: Set by selected scenario
-**Underlying Demand Growth Rate**
+**Underlying Consumption Growth Rate**
 - Range: 0% to 15% per year
 - Controls: Growth of behind-the-meter demand (e.g., distributed solar)
 - Default: Set by selected scenario
@@ -982,12 +982,12 @@ The sliders let you override scenario assumptions and test custom growth rates.
 1. Click **"Adjust Growth Rates"** accordion
 2. Panel expands showing two sliders
 #### Understanding the Sliders
-**Operational Demand Growth Rate Slider**
+**Operational Consumption Growth Rate Slider**
 - **Range**: 0% (no growth) to 10% (very high growth)
 - **Controls**: Grid-supplied electricity demand
 - **Factors**: Economic growth, electrification, population
 - **Display**: Shows current value as badge
-**Underlying Demand Growth Rate Slider**
+**Underlying Consumption Growth Rate Slider**
 - **Range**: 0% (no growth) to 15% (extremely high growth)
 - **Controls**: Behind-the-meter demand (distributed generation)
 - **Factors**: Solar adoption, battery storage, prosumer behavior
@@ -1288,7 +1288,7 @@ Understanding demand evolution over specific periods:
 - Grid demand after subtracting DPV
 - Formula: Operational demand - Underlying generation
 - Important for: Grid planning
-**Operational Demand**
+**Operational Consumption**
 - Electricity supplied by grid
 - Measured at: Transmission level
 - Does not include: Behind-the-meter generation
@@ -1320,7 +1320,7 @@ Understanding demand evolution over specific periods:
 - Testing: How results change with assumptions
 - Method: Vary one parameter at a time
 - Purpose: Understand uncertainty
-**Underlying Demand**
+**Underlying Consumption**
 - Behind-the-meter demand (DPV)
 - Not visible: To grid operators
 - Important for: Total demand projections
