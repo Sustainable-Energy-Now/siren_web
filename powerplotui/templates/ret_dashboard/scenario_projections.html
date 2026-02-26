@@ -19,11 +19,18 @@
 <!-- Quick Navigation Links -->
 <div style="margin: 20px 0; padding: 15px; background: #ecf0f1; border-radius: 8px; display: flex; gap: 15px; align-items: center; flex-wrap: wrap;">
     <strong style="color: #2c3e50;">Other Reports:</strong>
-    <a href="#" style="color: #3498db; text-decoration: none; padding: 8px 15px; background: white; border-radius: 4px; font-weight: 500;">Monthly Dashboard</a>
-    <a href="#" style="color: #3498db; text-decoration: none; padding: 8px 15px; background: white; border-radius: 4px; font-weight: 500;">Annual Review</a>
-    <a href="#" style="color: #3498db; text-decoration: none; padding: 8px 15px; background: white; border-radius: 4px; font-weight: 500;">Published Reports</a>
-    <button onclick="window.print()" style="padding: 8px 15px; background: #95a5a6; color: white; border: none; border-radius: 4px; font-weight: 500; cursor: pointer;">Print</button>
+    <a href="{% url 'ret_dashboard' %}" style="color: #3498db; text-decoration: none; padding: 8px 15px; background: white; border-radius: 4px; font-weight: 500;">📊 Monthly Dashboard</a>
+    <a href="{% url 'annual_review' annual_review_year %}" style="color: #3498db; text-decoration: none; padding: 8px 15px; background: white; border-radius: 4px; font-weight: 500;">📑 Annual Review</a>
+    <a href="{% url 'published_reports_list' %}" style="color: #3498db; text-decoration: none; padding: 8px 15px; background: white; border-radius: 4px; font-weight: 500;">📂 Published Reports</a>
+    <button onclick="window.print()" style="padding: 8px 15px; background: #95a5a6; color: white; border: none; border-radius: 4px; font-weight: 500; cursor: pointer;">🖨 Print</button>
 </div>
+
+{% if not has_data %}
+<div class="info-box warning" style="margin-bottom: 20px;">
+    <strong>Example Data:</strong> No scenario projection data found in the database. Charts and metrics below use illustrative example data.
+    To add real projections, use the <a href="{% url 'ret_targets_list' %}">Targets &amp; Scenarios</a> admin page.
+</div>
+{% endif %}
 
 <!-- Executive Summary -->
 <div class="section-header">
@@ -33,10 +40,10 @@
 <div class="info-box" style="background: white; border-left: 4px solid #9b59b6;">
     <p style="font-size: 1.1em; line-height: 1.8;">
         This report presents scenario-based projections for the South West Interconnected System (SWIS)
-        renewable energy transition to 2040. Three types of scenarios are modelled: <strong>Base Case</strong>,
-        <strong>Accelerated Pipeline</strong><strong>Delayed Pipeline</strong>
+        renewable energy transition to 2040. Three scenario types are modelled: <strong>Base Case</strong>,
+        <strong>Accelerated Pipeline</strong> and <strong>Delayed Pipeline</strong>.
         The 2040 target of <strong>100% renewable energy</strong> (underlying consumption basis) appears achievable under the Base Case
-        scenario with a <strong>78% probability</strong> based on Monte Carlo analysis.
+        scenario with a <strong>{% if base_2040 %}{{ base_2040.probability|floatformat:"0" }}{% else %}78{% endif %}% probability</strong> based on Monte Carlo analysis.
     </p>
 </div>
 
@@ -47,7 +54,7 @@
         This analysis includes three scenario types to capture a range of possible outcomes based on consumption growth, facility commissioning and performance assumptions.
     </p>
     <p style="margin-bottom: 0;">
-        <strong>Base Case:</strong> Planned and probable facilities commissioned on schedule with historical capacity factors and planned consumption growth (the most likely pathways).<br>
+        <strong>Base Case:</strong> Planned and probable facilities commissioned on schedule with historical capacity factors and planned consumption growth (the most likely pathway).<br>
         <strong>Accelerated Pipeline:</strong> All possible facilities included, faster commissioning, optimistic capacity factors and additional unplanned consumption growth (optimistic assumptions and delivery).<br>
         <strong>Delayed Pipeline:</strong> Only planned facilities, 12-month average delay, conservative capacity factors, less than planned consumption growth (conservative assumptions and delivery).
     </p>
@@ -74,31 +81,101 @@
     </div>
 
     <div class="metric-card neutral">
-        <div class="metric-label">Current RE% (2025)</div>
-        <div class="metric-value">32.3%</div>
-        <div class="metric-sublabel">Latest annual result</div>
+        <div class="metric-label">Current RE% ({% if current_year %}{{ current_year }}{% else %}Latest{% endif %})</div>
+        <div class="metric-value">{% if current_re_pct %}{{ current_re_pct|floatformat:"1" }}%{% else %}—{% endif %}</div>
+        <div class="metric-sublabel">Latest annual result (underlying)</div>
     </div>
 
     <div class="metric-card positive">
         <div class="metric-label">Achievement Probability</div>
-        <div class="metric-value">78%</div>
+        <div class="metric-value">{% if base_2040 %}{{ base_2040.probability|floatformat:"0" }}%{% else %}78%{% endif %}</div>
         <div class="metric-sublabel">Base Case @ 100% target</div>
         <div class="metric-change">Monte Carlo analysis</div>
     </div>
 </div>
 
-<!-- Scenario Comparison Chart Placeholder -->
+<!-- RE% Trajectory Chart — from PDF design: stacked area + line overlay + hover panel -->
 <div class="section-header">
     <h2>RE% Trajectory by Scenario</h2>
 </div>
 
 <div class="chart-container">
-    <div style="height: 400px; background: linear-gradient(135deg, #f5f7fa 0%, #e4e8ec 100%); border-radius: 8px; display: flex; align-items: center; justify-content: center; border: 2px dashed #bdc3c7;">
-        <div style="text-align: center; color: #7f8c8d;">
-            <p style="font-size: 1.5em; margin-bottom: 10px;">RE% Trajectory Chart</p>
-            <p>Line chart showing RE% projections for all scenarios 2025-2040</p>
-            <p style="font-size: 0.9em;">Base Case (solid), Accelerated (dashed), Delayed (dotted)</p>
+    <!-- Scenario selector for stacked area -->
+    <div style="margin-bottom: 14px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+        <label for="energyMixScenario" style="font-weight: 600; color: #2c3e50;">Energy Mix for:</label>
+        <select id="energyMixScenario" onchange="changeScenario(this.value)"
+                style="padding: 6px 14px; border: 1px solid #bdc3c7; border-radius: 4px; font-size: 1em; background: white;">
+            <option value="base_case">Base Case</option>
+            <option value="accelerated_pipeline">Accelerated Pipeline</option>
+            <option value="delayed_pipeline">Delayed Pipeline</option>
+        </select>
+        <span style="color: #95a5a6; font-size: 0.88em;">← Controls stacked area display &nbsp;|&nbsp; Hover chart for energy mix values →</span>
+    </div>
+
+    <!-- Chart + Energy Mix Panel (from PDF design) -->
+    <div style="display: flex; gap: 18px; align-items: flex-start;">
+        <div style="flex: 1; min-width: 0;">
+            <div id="re_trajectory_chart" style="height: 430px;"></div>
         </div>
+
+        <!-- Energy mix hover panel -->
+        <div id="energy_mix_panel"
+             style="width: 195px; flex-shrink: 0; background: #f8f9fa; border: 1px solid #dee2e6;
+                    border-radius: 8px; padding: 14px; position: sticky; top: 20px;">
+            <div style="font-weight: 700; color: #1e3c72; font-size: 1em; margin-bottom: 8px;
+                        border-bottom: 2px solid #4CAF50; padding-bottom: 6px;">Energy Mix</div>
+            <div style="font-size: 0.83em; margin-bottom: 10px; color: #555;">
+                <div>Scenario: <span id="mix_scenario" style="font-weight: 600;">—</span></div>
+                <div>Year: <span id="mix_year" style="font-weight: 600;">—</span></div>
+            </div>
+            <div id="mix_hint" style="color: #95a5a6; font-size: 0.82em; font-style: italic; margin-bottom: 6px;">
+                Hover over chart to see values
+            </div>
+            <table id="mix_table" style="width: 100%; font-size: 0.88em; display: none; border-collapse: collapse;">
+                <tbody>
+                    <tr>
+                        <td style="padding: 4px 0;"><span style="color: #FFCA28; font-size: 1.1em;">■</span> DPV</td>
+                        <td style="text-align: right; padding: 4px 0;" id="mix_dpv">—</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 4px 0;"><span style="color: #FFA726; font-size: 1.1em;">■</span> Solar (Utility)</td>
+                        <td style="text-align: right; padding: 4px 0;" id="mix_solar">—</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 4px 0;"><span style="color: #42A5F5; font-size: 1.1em;">■</span> Wind</td>
+                        <td style="text-align: right; padding: 4px 0;" id="mix_wind">—</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 4px 0;"><span style="color: #78909C; font-size: 1.1em;">■</span> Storage</td>
+                        <td style="text-align: right; padding: 4px 0;" id="mix_storage">—</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 4px 0;"><span style="color: #66BB6A; font-size: 1.1em;">■</span> Other RE</td>
+                        <td style="text-align: right; padding: 4px 0;" id="mix_biomass">—</td>
+                    </tr>
+                    <tr style="border-top: 1px solid #dee2e6;">
+                        <td style="padding-top: 7px; font-weight: 700; color: #27ae60;">RE%</td>
+                        <td style="text-align: right; padding-top: 7px; font-weight: 700; color: #27ae60;" id="mix_re_pct">—</td>
+                    </tr>
+                    <tr>
+                        <td style="color: #7f8c8d; font-size: 0.9em; padding-top: 3px;">Demand</td>
+                        <td style="text-align: right; color: #7f8c8d; font-size: 0.9em; padding-top: 3px;" id="mix_demand">—</td>
+                    </tr>
+                </tbody>
+            </table>
+            <div style="margin-top: 10px; font-size: 0.72em; color: #bbb; border-top: 1px solid #eee; padding-top: 7px;">
+                Generation in GWh<br>Storage capacity in MWh
+            </div>
+        </div>
+    </div>
+
+    <!-- Legend for lines -->
+    <div style="margin-top: 12px; display: flex; gap: 20px; flex-wrap: wrap; font-size: 0.88em; color: #555;">
+        <span><span style="display:inline-block;width:28px;height:3px;background:#2196F3;vertical-align:middle;margin-right:5px;"></span>Base Case</span>
+        <span><span style="display:inline-block;width:28px;height:3px;background:#4CAF50;vertical-align:middle;margin-right:5px;border-top: 2px dashed #4CAF50;background:none;"></span>Accelerated</span>
+        <span><span style="display:inline-block;width:28px;height:3px;background:#FF9800;vertical-align:middle;margin-right:5px;border-top: 2px dotted #FF9800;background:none;"></span>Delayed</span>
+        <span><span style="display:inline-block;width:28px;height:3px;background:#e74c3c;vertical-align:middle;margin-right:5px;border-top: 2px dashed #e74c3c;background:none;"></span>Target</span>
+        <span><span style="display:inline-block;width:28px;height:3px;background:#2c3e50;vertical-align:middle;margin-right:5px;"></span>Actual</span>
     </div>
 </div>
 
@@ -194,7 +271,7 @@
         </tr>
         <tr class="highlight-row" style="background: #e8f5e9 !important;">
             <td><strong>2040</strong></td>
-            <td class="value"><strong>86.7%</strong></td>
+            <td class="value"><strong>{% if base_2040 %}{{ base_2040.re_pct|floatformat:"1" }}%{% else %}86.7%{% endif %}</strong></td>
             <td class="value">12,450</td>
             <td class="value">10,820</td>
             <td class="value">6,520</td>
@@ -206,7 +283,7 @@
 </table>
 
 <!-- Scenario Comparison -->
-<h3>2040 Target - Scenario Comparison</h3>
+<h3>2040 Target — Scenario Comparison</h3>
 <table class="stats-table">
     <thead>
         <tr>
@@ -222,30 +299,30 @@
     <tbody>
         <tr class="renewable-row">
             <td><strong>Accelerated Transition (Accelerated Pipeline)</strong></td>
-            <td class="value">91.2%</td>
-            <td class="value positive">+6.2 pp</td>
+            <td class="value">94.2%</td>
+            <td class="value positive">−5.8 pp</td>
             <td class="value">92%</td>
-            <td class="value">32,850</td>
-            <td class="value">980</td>
-            <td><span style="color: #27ae60;">Exceeds Target</span></td>
+            <td class="value">36,100</td>
+            <td class="value">800</td>
+            <td><span style="color: #2980b9;">Near Target</span></td>
         </tr>
         <tr class="highlight-row">
             <td><strong>Step Change (Base Case)</strong></td>
-            <td class="value">86.7%</td>
-            <td class="value positive">+1.7 pp</td>
-            <td class="value">78%</td>
+            <td class="value">{% if base_2040 %}{{ base_2040.re_pct|floatformat:"1" }}%{% else %}86.7%{% endif %}</td>
+            <td class="value" style="color: #e67e22;">−13.3 pp</td>
+            <td class="value">{% if base_2040 %}{{ base_2040.probability|floatformat:"0" }}%{% else %}78%{% endif %}</td>
             <td class="value">29,790</td>
             <td class="value">1,480</td>
-            <td><span style="color: #27ae60;">Meets Target</span></td>
+            <td><span style="color: #f39c12;">Below Target</span></td>
         </tr>
         <tr class="fossil-row">
             <td><strong>Slower Growth (Delayed Pipeline)</strong></td>
             <td class="value">79.5%</td>
-            <td class="value negative">-5.5 pp</td>
+            <td class="value negative">−20.5 pp</td>
             <td class="value">45%</td>
-            <td class="value">26,120</td>
-            <td class="value">2,280</td>
-            <td><span style="color: #e74c3c;">Below Target</span></td>
+            <td class="value">26,750</td>
+            <td class="value">2,100</td>
+            <td><span style="color: #e74c3c;">Well Below Target</span></td>
         </tr>
     </tbody>
 </table>
@@ -260,7 +337,6 @@
     <p>Facilities included in Base Case scenario projections, ordered by expected commissioning date.</p>
 </div>
 
-<!-- Capacity Summary Cards -->
 <div class="metric-grid">
     <div class="metric-card positive">
         <div class="metric-label">Commissioned</div>
@@ -284,8 +360,7 @@
     </div>
 </div>
 
-<!-- Upcoming Facilities Table -->
-<h3>Upcoming Facility Commissioning (2025-2030)</h3>
+<h3>Upcoming Facility Commissioning (2025–2030)</h3>
 <table class="stats-table">
     <thead>
         <tr>
@@ -381,28 +456,24 @@
     </tbody>
     <tfoot>
         <tr style="background: #34495e; color: white;">
-            <td colspan="2"><strong>Total Pipeline (2025-2028)</strong></td>
+            <td colspan="2"><strong>Total Pipeline (2025–2028)</strong></td>
             <td class="value"><strong>3,130 MW</strong></td>
             <td colspan="3"></td>
         </tr>
     </tfoot>
 </table>
 
-<!-- Generation Mix Chart Placeholder -->
+<!-- Generation Mix Stacked Bar Chart -->
 <div class="section-header">
     <h2>Projected Generation Mix Transition</h2>
 </div>
 
 <div class="chart-container">
-    <div style="height: 400px; background: linear-gradient(135deg, #f5f7fa 0%, #e4e8ec 100%); border-radius: 8px; display: flex; align-items: center; justify-content: center; border: 2px dashed #bdc3c7;">
-        <div style="text-align: center; color: #7f8c8d;">
-            <p style="font-size: 1.5em; margin-bottom: 10px;">Generation Mix Stacked Area Chart</p>
-            <p>Showing Wind, Solar (Utility), Solar (DPV), Coal, Gas, and Storage contribution 2025-2040</p>
-        </div>
-    </div>
+    <p style="color: #7f8c8d; margin-bottom: 10px; font-size: 0.9em;">Base Case scenario — absolute generation (GWh) by technology, showing the shift from fossil fuels to renewables.</p>
+    <div id="generation_mix_chart" style="height: 420px;"></div>
 </div>
 
-<!-- Capacity by Technology Over Time -->
+<!-- Cumulative Capacity by Technology Over Time -->
 <div class="section-header">
     <h2>Cumulative Capacity by Technology</h2>
 </div>
@@ -468,12 +539,7 @@
 </div>
 
 <div class="chart-container">
-    <div style="height: 300px; background: linear-gradient(135deg, #f5f7fa 0%, #e4e8ec 100%); border-radius: 8px; display: flex; align-items: center; justify-content: center; border: 2px dashed #bdc3c7;">
-        <div style="text-align: center; color: #7f8c8d;">
-            <p style="font-size: 1.5em; margin-bottom: 10px;">Consumption Growth Chart</p>
-            <p>Operational Consumption vs Underlying Consumption (including DPV) 2025-2040</p>
-        </div>
-    </div>
+    <div id="consumption_chart" style="height: 320px;"></div>
 </div>
 
 <table class="stats-table">
@@ -524,34 +590,29 @@
 </div>
 
 <div class="chart-container">
-    <div style="height: 300px; background: linear-gradient(135deg, #f5f7fa 0%, #e4e8ec 100%); border-radius: 8px; display: flex; align-items: center; justify-content: center; border: 2px dashed #bdc3c7;">
-        <div style="text-align: center; color: #7f8c8d;">
-            <p style="font-size: 1.5em; margin-bottom: 10px;">Emissions Reduction Chart</p>
-            <p>Annual CO2-e emissions by scenario 2025-2040</p>
-        </div>
-    </div>
+    <div id="emissions_chart" style="height: 320px;"></div>
 </div>
 
 <div class="metric-grid">
     <div class="metric-card positive">
         <div class="metric-label">2024 Baseline</div>
         <div class="metric-value">5,850</div>
-        <div class="metric-sublabel">kt CO2-e</div>
+        <div class="metric-sublabel">kt CO₂-e</div>
     </div>
     <div class="metric-card positive">
-        <div class="metric-label">2030 Projected</div>
+        <div class="metric-label">2030 Projected (Base)</div>
         <div class="metric-value">3,650</div>
-        <div class="metric-sublabel">kt CO2-e (-38%)</div>
+        <div class="metric-sublabel">kt CO₂-e (−38%)</div>
     </div>
     <div class="metric-card positive">
-        <div class="metric-label">2040 Projected</div>
+        <div class="metric-label">2040 Projected (Base)</div>
         <div class="metric-value">1,480</div>
-        <div class="metric-sublabel">kt CO2-e (-75%)</div>
+        <div class="metric-sublabel">kt CO₂-e (−75%)</div>
     </div>
     <div class="metric-card neutral">
         <div class="metric-label">Cumulative Reduction</div>
         <div class="metric-value">42.5</div>
-        <div class="metric-sublabel">Mt CO2-e (2025-2040)</div>
+        <div class="metric-sublabel">Mt CO₂-e (2025–2040)</div>
     </div>
 </div>
 
@@ -564,7 +625,7 @@
     <div class="info-box" style="border-left-color: #e74c3c;">
         <h3 style="margin-top: 0; color: #e74c3c;">Downside Risks</h3>
         <ul class="bullet-list">
-            <li><strong>Project Delays:</strong> Average 12-month delay would reduce 2040 RE% by 5-7 pp</li>
+            <li><strong>Project Delays:</strong> Average 12-month delay would reduce 2040 RE% by 5–7 pp</li>
             <li><strong>Grid Constraints:</strong> Transmission bottlenecks could limit new capacity connections</li>
             <li><strong>Financing Challenges:</strong> Higher interest rates may slow investment pipeline</li>
             <li><strong>Resource Variability:</strong> Below-average wind/solar years impact generation</li>
@@ -593,19 +654,13 @@
     <ul class="bullet-list">
         <li><strong>Commissioning Probability:</strong> Based on facility status (Planned: 85%, Probable: 60%, Possible: 35%)</li>
         <li><strong>Commissioning Delay:</strong> Normal distribution, mean 6 months, std dev 4 months</li>
-        <li><strong>Capacity Factor Variance:</strong> +/- 10% based on historical data</li>
-        <li><strong>Consumption Growth:</strong> +/- 0.5% annual variation</li>
+        <li><strong>Capacity Factor Variance:</strong> ±10% based on historical data</li>
+        <li><strong>Consumption Growth:</strong> ±0.5% annual variation</li>
     </ul>
 </div>
 
 <div class="chart-container">
-    <div style="height: 350px; background: linear-gradient(135deg, #f5f7fa 0%, #e4e8ec 100%); border-radius: 8px; display: flex; align-items: center; justify-content: center; border: 2px dashed #bdc3c7;">
-        <div style="text-align: center; color: #7f8c8d;">
-            <p style="font-size: 1.5em; margin-bottom: 10px;">Probability Distribution Chart</p>
-            <p>Histogram showing 2040 RE% outcome distribution from Monte Carlo simulation</p>
-            <p style="font-size: 0.9em;">P10: 78.5% | P50: 86.2% | P90: 92.1%</p>
-        </div>
-    </div>
+    <div id="monte_carlo_chart" style="height: 360px;"></div>
 </div>
 
 <table class="stats-table">
@@ -637,6 +692,11 @@
             <td class="value">15%</td>
             <td><span style="color: #e74c3c;">Unlikely</span></td>
         </tr>
+        <tr>
+            <td><strong>100%</strong></td>
+            <td class="value">5%</td>
+            <td><span style="color: #e74c3c;">Very Unlikely</span></td>
+        </tr>
     </tbody>
 </table>
 
@@ -648,7 +708,7 @@
 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 20px;">
     <div class="info-box">
         <h3>Target Confirmation</h3>
-        <p><strong>Recommended 2040 Target:</strong> 100% Renewable Energy by 2040 (Operational Consumption basis)</p>
+        <p><strong>Recommended 2040 Target:</strong> 100% Renewable Energy by 2040 (Underlying Consumption basis)</p>
         <ul class="bullet-list">
             <li>Achievable with Planned + Probable facilities</li>
             <li>78% probability of achievement based on Monte Carlo analysis</li>
@@ -660,7 +720,7 @@
     <div class="info-box">
         <h3>Priority Actions</h3>
         <ul class="bullet-list">
-            <li><strong>Pipeline Management:</strong> Transition 3-4 Probable facilities to Planned status</li>
+            <li><strong>Pipeline Management:</strong> Transition 3–4 Probable facilities to Planned status</li>
             <li><strong>Battery Storage:</strong> Current pipeline needs ~800 MW additional by 2028</li>
             <li><strong>Grid Investment:</strong> Identify transmission upgrades for new capacity zones</li>
             <li><strong>Interim Milestones:</strong> Establish 2027 and 2030 progress checkpoints</li>
@@ -670,7 +730,9 @@
 
 <!-- Footer -->
 <div style="margin-top: 40px; padding: 20px; background: #ecf0f1; border-radius: 8px;">
-    <p style="margin: 0;"><strong>Report Generated:</strong> Mockup Version - Layout Only</p>
+    <p style="margin: 0;"><strong>Report Generated:</strong>
+        {% if has_data %}Live data from SEN database{% else %}Example data — no scenario projections in database{% endif %}
+    </p>
     <p style="margin: 5px 0 0 0;">
         <strong><a href="mailto:modelling.lead@sen.asn.au">Contact SEN Modelling</a></strong>
     </p>
@@ -682,9 +744,8 @@
         padding: 30px;
         margin-bottom: 30px;
         border-radius: 8px;
-        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
     }
-
     .section-header h2 {
         color: #1e3c72;
         border-bottom: 3px solid #4CAF50;
@@ -692,159 +753,410 @@
         margin-bottom: 20px;
         font-size: 1.8em;
     }
-
-    .section-header h3 {
-        color: #2a5298;
-        margin-top: 25px;
-        margin-bottom: 15px;
-        font-size: 1.4em;
-    }
-
     .metric-grid {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
         gap: 20px;
         margin: 20px 0;
     }
-
-    .metric-label {
-        font-size: 0.9em;
-        color: #7f8c8d;
-        font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-        margin-bottom: 8px;
-    }
-
-    .metric-value {
-        font-size: 2.5em;
-        font-weight: 700;
-        color: #2c3e50;
-        margin: 10px 0;
-    }
-
-    .metric-sublabel {
-        font-size: 0.85em;
-        color: #95a5a6;
-        margin-top: 8px;
-    }
-
-    .metric-change {
-        font-size: 0.9em;
-        color: #7f8c8d;
-        margin-top: 8px;
-    }
-
-    .info-box {
-        background: #f8f9fa;
-        padding: 25px;
-        border-radius: 8px;
-        margin: 20px 0;
-        border-left: 4px solid #3498db;
-    }
-
-    .info-box h3 {
-        color: #2c3e50;
-        margin-top: 0;
-        margin-bottom: 15px;
-    }
-
-    .bullet-list {
-        list-style: none;
-        padding-left: 0;
-    }
-
-    .bullet-list li {
-        padding: 8px 0 8px 25px;
-        position: relative;
-        line-height: 1.6;
-    }
-
-    .bullet-list li:before {
-        content: "▪";
-        position: absolute;
-        left: 5px;
-        color: #3498db;
-        font-size: 1.2em;
-    }
-
+    .metric-sublabel { font-size: 0.85em; color: #95a5a6; margin-top: 8px; }
+    .metric-change   { font-size: 0.9em;  color: #7f8c8d; margin-top: 8px; }
     .stats-table {
-        width: 100%;
-        border-collapse: collapse;
-        margin: 20px 0;
-        background: white;
-        border-radius: 8px;
-        overflow: hidden;
-        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        width: 100%; border-collapse: collapse; margin: 20px 0;
+        background: white; border-radius: 8px; overflow: hidden;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
     }
-
-    .stats-table thead {
-        background: #34495e;
-        color: white;
-    }
-
-    .stats-table th,
-    .stats-table td {
-        padding: 12px 15px;
-        text-align: left;
-    }
-
-    .stats-table th.value,
-    .stats-table td.value {
-        text-align: right;
-    }
-
-    .stats-table tbody tr:nth-child(even) {
-        background: #f8f9fa;
-    }
-
-    .stats-table tbody tr:hover {
-        background: #e8f4f8;
-    }
-
-    .stats-table tfoot td {
-        padding: 12px 15px;
-    }
-
-    .renewable-row {
-        background: #e8f5e9 !important;
-    }
-
-    .fossil-row {
-        background: #fafafa !important;
-    }
-
-    .info-row {
-        background: #e3f2fd !important;
-        font-style: italic;
-    }
-
-    .highlight-row {
-        background: #e3f2fd !important;
-        font-weight: 600;
-    }
-
+    .stats-table thead { background: #34495e; color: white; }
+    .stats-table th, .stats-table td { padding: 12px 15px; text-align: left; }
+    .stats-table th.value, .stats-table td.value { text-align: right; }
+    .stats-table tbody tr:nth-child(even) { background: #f8f9fa; }
+    .stats-table tbody tr:hover { background: #e8f4f8; }
+    .stats-table tfoot td { padding: 12px 15px; }
+    .renewable-row  { background: #e8f5e9 !important; }
+    .fossil-row     { background: #fafafa !important; }
+    .info-row       { background: #e3f2fd !important; font-style: italic; }
+    .highlight-row  { background: #e3f2fd !important; font-weight: 600; }
     .chart-container {
-        background: white;
-        padding: 20px;
-        border-radius: 8px;
-        margin: 20px 0;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        background: white; padding: 20px; border-radius: 8px;
+        margin: 20px 0; box-shadow: 0 2px 8px rgba(0,0,0,0.1);
     }
-
-    td.value.positive {
-        color: #27ae60;
-    }
-
-    td.value.negative {
-        color: #e74c3c;
-    }
-
-    @media print {
-        .chart-container {
-            break-inside: avoid;
-        }
-    }
+    td.value.positive { color: #27ae60; }
+    td.value.negative { color: #e74c3c; }
+    @media print { .chart-container { break-inside: avoid; } }
 </style>
 
+<!-- Embed JSON data for charts -->
+<script type="application/json" id="scenario-data-raw">{{ scenario_data_json }}</script>
+<script type="application/json" id="historical-data-raw">{{ historical_data_json }}</script>
+<script type="application/json" id="scenario-labels-raw">{{ scenario_labels_json }}</script>
+<script type="application/json" id="scenario-colors-raw">{{ scenario_colors_json }}</script>
+<script type="application/json" id="scenario-dash-raw">{{ scenario_dash_json }}</script>
+
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.plot.ly/plotly-2.32.0.min.js" charset="utf-8"></script>
+<script>
+// ── Data from server ──────────────────────────────────────────────────────────
+const serverScenarioData  = JSON.parse(document.getElementById('scenario-data-raw').textContent);
+const serverHistoricalData = JSON.parse(document.getElementById('historical-data-raw').textContent);
+const SCENARIO_LABELS = JSON.parse(document.getElementById('scenario-labels-raw').textContent);
+const SCENARIO_COLORS = JSON.parse(document.getElementById('scenario-colors-raw').textContent);
+const SCENARIO_DASH   = JSON.parse(document.getElementById('scenario-dash-raw').textContent);
+const hasData = {{ has_data|yesno:"true,false" }};
+
+// ── Fallback illustrative data (used when DB has no scenario projections) ─────
+function calcPcts(row) {
+    const total = row.wind_gwh + row.solar_gwh + row.dpv_gwh + row.biomass_gwh;
+    if (total > 0) {
+        row.wind_pct    = row.re_pct * row.wind_gwh    / total;
+        row.solar_pct   = row.re_pct * row.solar_gwh   / total;
+        row.dpv_pct     = row.re_pct * row.dpv_gwh     / total;
+        row.biomass_pct = row.re_pct * row.biomass_gwh / total;
+        row.storage_pct = Math.max(0, row.re_pct - row.wind_pct - row.solar_pct - row.dpv_pct - row.biomass_pct);
+    } else {
+        row.wind_pct = row.solar_pct = row.dpv_pct = row.biomass_pct = row.storage_pct = 0;
+    }
+    return row;
+}
+
+const FALLBACK = {
+    base_case: [
+        {year:2025,re_pct:45.2,wind_gwh:4850,solar_gwh:2120,dpv_gwh:3400,biomass_gwh:50,  gas_gwh:10800,storage_mwh:850, operational_demand:19850,underlying_demand:23250,emissions_kt:5.42,probability:0, target_type:'ordinary'},
+        {year:2027,re_pct:52.1,wind_gwh:5890,solar_gwh:3150,dpv_gwh:3920,biomass_gwh:80,  gas_gwh:9200, storage_mwh:1650,operational_demand:20600,underlying_demand:24520,emissions_kt:4.85,probability:0, target_type:'ordinary'},
+        {year:2030,re_pct:65.2,wind_gwh:7850,solar_gwh:5120,dpv_gwh:4650,biomass_gwh:120, gas_gwh:7200, storage_mwh:3500,operational_demand:21420,underlying_demand:26070,emissions_kt:3.65,probability:0, target_type:'interim'},
+        {year:2032,re_pct:71.5,wind_gwh:8920,solar_gwh:6480,dpv_gwh:5100,biomass_gwh:150, gas_gwh:5800, storage_mwh:4800,operational_demand:22100,underlying_demand:27200,emissions_kt:3.02,probability:0, target_type:'ordinary'},
+        {year:2035,re_pct:78.3,wind_gwh:10250,solar_gwh:8150,dpv_gwh:5680,biomass_gwh:200,gas_gwh:4500, storage_mwh:6500,operational_demand:23150,underlying_demand:28830,emissions_kt:2.35,probability:0, target_type:'ordinary'},
+        {year:2040,re_pct:86.7,wind_gwh:12450,solar_gwh:10820,dpv_gwh:6520,biomass_gwh:300,gas_gwh:2800,storage_mwh:9200,operational_demand:25080,underlying_demand:31600,emissions_kt:1.48,probability:78,target_type:'major'},
+    ].map(calcPcts),
+    accelerated_pipeline: [
+        {year:2025,re_pct:50.0,wind_gwh:5200,solar_gwh:2500,dpv_gwh:3600,biomass_gwh:60,  gas_gwh:9800, storage_mwh:1000,operational_demand:19850,underlying_demand:23450,emissions_kt:5.10,probability:0, target_type:'ordinary'},
+        {year:2027,re_pct:57.5,wind_gwh:6500,solar_gwh:3800,dpv_gwh:4200,biomass_gwh:100, gas_gwh:8000, storage_mwh:2200,operational_demand:20500,underlying_demand:24700,emissions_kt:4.40,probability:0, target_type:'ordinary'},
+        {year:2030,re_pct:72.0,wind_gwh:9000,solar_gwh:6200,dpv_gwh:5000,biomass_gwh:150, gas_gwh:5500, storage_mwh:4500,operational_demand:21200,underlying_demand:26200,emissions_kt:3.10,probability:0, target_type:'interim'},
+        {year:2032,re_pct:79.0,wind_gwh:10200,solar_gwh:7800,dpv_gwh:5500,biomass_gwh:200,gas_gwh:4200, storage_mwh:5800,operational_demand:21900,underlying_demand:27400,emissions_kt:2.50,probability:0, target_type:'ordinary'},
+        {year:2035,re_pct:87.0,wind_gwh:12000,solar_gwh:10000,dpv_gwh:6200,biomass_gwh:280,gas_gwh:2800,storage_mwh:7500,operational_demand:22800,underlying_demand:29000,emissions_kt:1.80,probability:0, target_type:'ordinary'},
+        {year:2040,re_pct:94.2,wind_gwh:15000,solar_gwh:13500,dpv_gwh:7000,biomass_gwh:400,gas_gwh:1000,storage_mwh:12000,operational_demand:24800,underlying_demand:31800,emissions_kt:0.80,probability:92,target_type:'major'},
+    ].map(calcPcts),
+    delayed_pipeline: [
+        {year:2025,re_pct:40.0,wind_gwh:4200,solar_gwh:1800,dpv_gwh:3200,biomass_gwh:40,  gas_gwh:12000,storage_mwh:700, operational_demand:20000,underlying_demand:23200,emissions_kt:5.80,probability:0, target_type:'ordinary'},
+        {year:2027,re_pct:46.0,wind_gwh:5000,solar_gwh:2600,dpv_gwh:3700,biomass_gwh:60,  gas_gwh:10500,storage_mwh:1200,operational_demand:20800,underlying_demand:24500,emissions_kt:5.30,probability:0, target_type:'ordinary'},
+        {year:2030,re_pct:58.5,wind_gwh:6800,solar_gwh:4400,dpv_gwh:4300,biomass_gwh:90,  gas_gwh:8500, storage_mwh:2800,operational_demand:21600,underlying_demand:25900,emissions_kt:4.30,probability:0, target_type:'interim'},
+        {year:2032,re_pct:64.0,wind_gwh:7800,solar_gwh:5500,dpv_gwh:4800,biomass_gwh:110, gas_gwh:7000, storage_mwh:4000,operational_demand:22300,underlying_demand:27100,emissions_kt:3.60,probability:0, target_type:'ordinary'},
+        {year:2035,re_pct:70.5,wind_gwh:9000,solar_gwh:7000,dpv_gwh:5300,biomass_gwh:160, gas_gwh:5500, storage_mwh:5500,operational_demand:23400,underlying_demand:28700,emissions_kt:2.90,probability:0, target_type:'ordinary'},
+        {year:2040,re_pct:79.5,wind_gwh:11000,solar_gwh:9500,dpv_gwh:6000,biomass_gwh:250, gas_gwh:3800,storage_mwh:8000,operational_demand:25300,underlying_demand:31300,emissions_kt:2.10,probability:45,target_type:'major'},
+    ].map(calcPcts),
+};
+const FALLBACK_HISTORICAL = [
+    {year:2023,re_pct:28.5,operational_demand:18900,underlying_demand:21800,emissions_kt:6.85},
+    {year:2024,re_pct:32.3,operational_demand:19200,underlying_demand:22500,emissions_kt:6.42},
+];
+
+// Choose live data if available, otherwise fallback
+const scenarioData  = (hasData && Object.keys(serverScenarioData).length > 0) ? serverScenarioData  : FALLBACK;
+const historicalData = (serverHistoricalData && serverHistoricalData.length > 0) ? serverHistoricalData : FALLBACK_HISTORICAL;
+
+let activeScenario = 'base_case';
+
+// ── Shared layout defaults ────────────────────────────────────────────────────
+const BASE_LAYOUT = {
+    plot_bgcolor: '#fafafa',
+    paper_bgcolor: 'white',
+    font: {family: "'Segoe UI', Tahoma, sans-serif"},
+};
+
+// ── 1. RE% Trajectory Chart ───────────────────────────────────────────────────
+function renderRETrajectoryChart() {
+    const traces = [];
+
+    // Stacked area layers for the active scenario
+    const sd = scenarioData[activeScenario];
+    if (sd && sd.length) {
+        const years = sd.map(d => d.year);
+        const layers = [
+            {name: 'Wind',              key: 'wind_pct',    color: '#42A5F5'},
+            {name: 'Solar (Utility)',   key: 'solar_pct',   color: '#FFA726'},
+            {name: 'DPV',               key: 'dpv_pct',     color: '#FFCA28'},
+            {name: 'Storage Discharge', key: 'storage_pct', color: '#78909C'},
+            {name: 'Other RE',          key: 'biomass_pct', color: '#66BB6A'},
+        ];
+        for (const L of layers) {
+            traces.push({
+                x: years,
+                y: sd.map(d => d[L.key] || 0),
+                name: L.name,
+                type: 'scatter', mode: 'none',
+                fill: 'tonexty',
+                fillcolor: L.color + 'BB',
+                stackgroup: 'mix',
+                legendgroup: 'areas',
+                hoverinfo: 'skip',
+            });
+        }
+    }
+
+    // RE% lines for all three scenarios
+    for (const st of ['base_case', 'accelerated_pipeline', 'delayed_pipeline']) {
+        const data = scenarioData[st];
+        if (!data || !data.length) continue;
+        traces.push({
+            x: data.map(d => d.year),
+            y: data.map(d => d.re_pct),
+            name: SCENARIO_LABELS[st] || st,
+            type: 'scatter', mode: 'lines+markers',
+            line: {color: SCENARIO_COLORS[st], dash: SCENARIO_DASH[st], width: 2.5},
+            marker: {size: 7},
+            legendgroup: st,
+            customdata: data,
+            hovertemplate: '<b>%{x}: %{y:.1f}% RE</b><extra>' + (SCENARIO_LABELS[st] || st) + '</extra>',
+        });
+    }
+
+    // Historical actual
+    if (historicalData.length) {
+        traces.push({
+            x: historicalData.map(d => d.year),
+            y: historicalData.map(d => d.re_pct),
+            name: 'Actual (historical)',
+            type: 'scatter', mode: 'lines+markers',
+            line: {color: '#2c3e50', width: 3},
+            marker: {size: 9},
+            hovertemplate: '<b>%{x}: %{y:.1f}% RE (Actual)</b><extra></extra>',
+        });
+    }
+
+    // Target milestones
+    traces.push({
+        x: [2025, 2030, 2040],
+        y: [null,  82,  100],
+        name: 'Target',
+        type: 'scatter', mode: 'lines+markers',
+        line: {color: '#e74c3c', dash: 'longdash', width: 2},
+        marker: {size: 10, symbol: 'diamond', color: '#e74c3c'},
+        hovertemplate: '<b>%{x}: %{y}% Target</b><extra></extra>',
+    });
+
+    // Vertical "current" marker
+    const currentX = historicalData.length ? historicalData[historicalData.length - 1].year : 2024;
+    const layout = Object.assign({}, BASE_LAYOUT, {
+        xaxis: {
+            title: 'Year',
+            tickmode: 'array',
+            tickvals: [2025, 2027, 2030, 2032, 2035, 2040],
+            ticktext: ['2025','2027','2030','2032','2035','2040'],
+            range: [2024, 2041],
+            showgrid: true, gridcolor: '#ecf0f1',
+        },
+        yaxis: {
+            title: 'RE% (Underlying Basis)',
+            range: [0, 110], ticksuffix: '%',
+            showgrid: true, gridcolor: '#ecf0f1',
+        },
+        legend: {orientation: 'h', y: -0.28, x: 0},
+        margin: {t: 20, l: 65, r: 20, b: 120},
+        hovermode: 'closest',
+        shapes: [{
+            type: 'line',
+            x0: currentX, x1: currentX, y0: 0, y1: 110,
+            line: {color: '#95a5a6', dash: 'dot', width: 1.5},
+        }],
+        annotations: [{
+            x: currentX, y: 107,
+            text: 'Current', showarrow: false,
+            xanchor: 'center', font: {size: 11, color: '#95a5a6'},
+        }],
+    });
+
+    Plotly.newPlot('re_trajectory_chart', traces, layout, {responsive: true, displayModeBar: false});
+
+    // Hover → update energy mix panel
+    document.getElementById('re_trajectory_chart').on('plotly_hover', function(ev) {
+        if (!ev.points || !ev.points.length) return;
+        updateEnergyMixPanel(activeScenario, ev.points[0].x);
+    });
+}
+
+// Update the hover panel on the right
+function updateEnergyMixPanel(scenarioType, year) {
+    const sd = scenarioData[scenarioType];
+    if (!sd) return;
+    const row = sd.find(d => d.year === year);
+    if (!row) return;
+
+    document.getElementById('mix_scenario').textContent = SCENARIO_LABELS[scenarioType] || scenarioType;
+    document.getElementById('mix_scenario').style.color  = SCENARIO_COLORS[scenarioType] || '#333';
+    document.getElementById('mix_year').textContent    = year;
+    document.getElementById('mix_dpv').textContent     = Math.round(row.dpv_gwh).toLocaleString()     + ' GWh';
+    document.getElementById('mix_solar').textContent   = Math.round(row.solar_gwh).toLocaleString()   + ' GWh';
+    document.getElementById('mix_wind').textContent    = Math.round(row.wind_gwh).toLocaleString()    + ' GWh';
+    document.getElementById('mix_storage').textContent = Math.round(row.storage_mwh).toLocaleString() + ' MWh';
+    document.getElementById('mix_biomass').textContent = Math.round(row.biomass_gwh).toLocaleString() + ' GWh';
+    document.getElementById('mix_re_pct').textContent  = row.re_pct.toFixed(1) + '%';
+    document.getElementById('mix_demand').textContent  = Math.round(row.underlying_demand).toLocaleString() + ' GWh';
+    document.getElementById('mix_hint').style.display  = 'none';
+    document.getElementById('mix_table').style.display = '';
+}
+
+// Called by the scenario dropdown
+function changeScenario(value) {
+    activeScenario = value;
+    renderRETrajectoryChart();
+    const sd = scenarioData[value];
+    if (sd && sd.length) updateEnergyMixPanel(value, sd[0].year);
+}
+
+// ── 2. Generation Mix Stacked Bar Chart ───────────────────────────────────────
+function renderGenerationMixChart() {
+    const sd = scenarioData['base_case'] || [];
+    if (!sd.length) return;
+    const years = sd.map(d => d.year);
+
+    const traces = [
+        {x: years, y: sd.map(d => d.wind_gwh),    name: 'Wind',               type: 'bar', marker: {color: '#42A5F5'}},
+        {x: years, y: sd.map(d => d.solar_gwh),   name: 'Solar (Utility)',    type: 'bar', marker: {color: '#FFA726'}},
+        {x: years, y: sd.map(d => d.dpv_gwh),     name: 'DPV (Rooftop Solar)',type: 'bar', marker: {color: '#FFCA28'}},
+        {x: years, y: sd.map(d => d.biomass_gwh), name: 'Biomass / Other RE', type: 'bar', marker: {color: '#66BB6A'}},
+        {x: years, y: sd.map(d => d.gas_gwh),     name: 'Gas',                type: 'bar', marker: {color: '#EF5350'}},
+    ];
+
+    const layout = Object.assign({}, BASE_LAYOUT, {
+        barmode: 'stack',
+        xaxis: {title: 'Year', tickmode: 'array', tickvals: years},
+        yaxis: {title: 'Generation (GWh)', tickformat: ',.0f'},
+        legend: {orientation: 'h', y: -0.25},
+        margin: {t: 20, l: 75, r: 20, b: 100},
+    });
+
+    Plotly.newPlot('generation_mix_chart', traces, layout, {responsive: true, displayModeBar: false});
+}
+
+// ── 3. Consumption Growth Chart ───────────────────────────────────────────────
+function renderConsumptionChart() {
+    const sd = scenarioData['base_case'] || [];
+    if (!sd.length) return;
+
+    const traces = [
+        {
+            x: sd.map(d => d.year), y: sd.map(d => d.underlying_demand),
+            name: 'Underlying Demand (incl. DPV)', type: 'scatter', mode: 'lines+markers',
+            line: {color: '#9b59b6', width: 2.5}, marker: {size: 7},
+            fill: 'tozeroy', fillcolor: 'rgba(155,89,182,0.07)',
+        },
+        {
+            x: sd.map(d => d.year), y: sd.map(d => d.operational_demand),
+            name: 'Operational Demand (grid)', type: 'scatter', mode: 'lines+markers',
+            line: {color: '#3498db', width: 2.5}, marker: {size: 7},
+            fill: 'tozeroy', fillcolor: 'rgba(52,152,219,0.1)',
+        },
+    ];
+
+    if (historicalData.length) {
+        traces.push({
+            x: historicalData.map(d => d.year),
+            y: historicalData.map(d => d.underlying_demand || d.operational_demand),
+            name: 'Actual Demand', type: 'scatter', mode: 'lines+markers',
+            line: {color: '#2c3e50', width: 2, dash: 'dot'}, marker: {size: 8},
+        });
+    }
+
+    const layout = Object.assign({}, BASE_LAYOUT, {
+        xaxis: {title: 'Year', tickmode: 'array', tickvals: sd.map(d => d.year)},
+        yaxis: {title: 'GWh', tickformat: ',.0f'},
+        legend: {orientation: 'h', y: -0.25},
+        margin: {t: 20, l: 75, r: 20, b: 100},
+        hovermode: 'x unified',
+    });
+
+    Plotly.newPlot('consumption_chart', traces, layout, {responsive: true, displayModeBar: false});
+}
+
+// ── 4. Emissions Reduction Chart ──────────────────────────────────────────────
+function renderEmissionsChart() {
+    const traces = [];
+    for (const st of ['accelerated_pipeline', 'base_case', 'delayed_pipeline']) {
+        const data = scenarioData[st];
+        if (!data || !data.length) continue;
+        traces.push({
+            x: data.map(d => d.year),
+            y: data.map(d => d.emissions_kt),
+            name: SCENARIO_LABELS[st] || st,
+            type: 'scatter', mode: 'lines+markers',
+            line: {color: SCENARIO_COLORS[st], dash: SCENARIO_DASH[st], width: 2.5},
+            marker: {size: 7},
+            fill: st === 'base_case' ? 'tozeroy' : 'none',
+            fillcolor: 'rgba(33,150,243,0.05)',
+            hovertemplate: '<b>%{x}: %{y:.1f} kt CO₂-e</b><extra>' + (SCENARIO_LABELS[st] || st) + '</extra>',
+        });
+    }
+
+    if (historicalData.length) {
+        traces.push({
+            x: historicalData.map(d => d.year),
+            y: historicalData.map(d => d.emissions_kt),
+            name: 'Actual Emissions', type: 'scatter', mode: 'lines+markers',
+            line: {color: '#2c3e50', width: 2.5}, marker: {size: 9},
+            hovertemplate: '<b>%{x}: %{y:.1f} kt CO₂-e (Actual)</b><extra></extra>',
+        });
+    }
+
+    const layout = Object.assign({}, BASE_LAYOUT, {
+        xaxis: {title: 'Year', showgrid: true, gridcolor: '#ecf0f1'},
+        yaxis: {title: 'kt CO₂-e', tickformat: ',.0f', showgrid: true, gridcolor: '#ecf0f1'},
+        legend: {orientation: 'h', y: -0.25},
+        margin: {t: 20, l: 75, r: 20, b: 100},
+        hovermode: 'x unified',
+    });
+
+    Plotly.newPlot('emissions_chart', traces, layout, {responsive: true, displayModeBar: false});
+}
+
+// ── 5. Monte Carlo Probability Chart ─────────────────────────────────────────
+function renderMonteCarloChart() {
+    const targets = ['80%', '85%', '90%', '95%', '100%'];
+    const probs   = [92,     78,    48,    15,     5];
+    const colors  = probs.map(p => p >= 70 ? '#27ae60' : p >= 40 ? '#f39c12' : '#e74c3c');
+
+    const traces = [{
+        x: targets, y: probs,
+        type: 'bar',
+        marker: {color: colors, line: {color: 'white', width: 1}},
+        text: probs.map(p => p + '%'),
+        textposition: 'auto',
+        textfont: {color: 'white', size: 13, family: "'Segoe UI', sans-serif"},
+        hovertemplate: 'Target %{x}: <b>%{y}%</b> probability of achievement<extra>Base Case</extra>',
+        name: 'Base Case',
+    }];
+
+    const layout = Object.assign({}, BASE_LAYOUT, {
+        xaxis: {title: 'Target RE% by 2040', tickfont: {size: 13}},
+        yaxis: {title: 'Probability of Achievement (%)', range: [0, 105], ticksuffix: '%'},
+        shapes: [{
+            type: 'line', x0: -0.5, x1: 4.5, y0: 50, y1: 50,
+            line: {color: '#bdc3c7', dash: 'dash', width: 1.5},
+        }],
+        annotations: [{
+            x: 4.35, y: 53, xref: 'x', yref: 'y',
+            text: '50% line', showarrow: false,
+            font: {color: '#95a5a6', size: 11}, xanchor: 'right',
+        }],
+        margin: {t: 30, l: 70, r: 30, b: 60},
+        bargap: 0.3,
+        showlegend: false,
+    });
+
+    Plotly.newPlot('monte_carlo_chart', traces, layout, {responsive: true, displayModeBar: false});
+}
+
+// ── Initialise all charts ─────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', function () {
+    renderRETrajectoryChart();
+    renderGenerationMixChart();
+    renderConsumptionChart();
+    renderEmissionsChart();
+    renderMonteCarloChart();
+
+    // Populate energy mix panel with first base-case year on load
+    const sd = scenarioData['base_case'];
+    if (sd && sd.length) updateEnergyMixPanel('base_case', sd[0].year);
+});
+</script>
 {% endblock %}

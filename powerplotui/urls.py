@@ -5,7 +5,7 @@ from .views.variants_views import VariantsView
 from .views.echart_views import eChartView
 from .views import facility_scada_views, plot3D_views, powerplotui_home_views, ret_dashboard_views, \
     ret_comments_views, ret_targets_views, ret_pdf_views, supplyfactors_views, scada_views, \
-    generation_comparison_views, risk_analysis_views
+    generation_comparison_views, risk_analysis_views, scenario_projections_views
 
 urlpatterns = [
     path('powerplotui/', powerplotui_home_views.powerplotui_home, name='powerplotui_home'),
@@ -46,7 +46,7 @@ urlpatterns = [
     path('ret_dashboard/<int:year>/<int:month>/', ret_dashboard_views.ret_dashboard, name='ret_dashboard_period'),
     path('ret_quarterly_report/<int:year>/<int:quarter>/', ret_dashboard_views.quarterly_report, name='quarterly_report'),
     path('ret_annual_review/<int:year>/', ret_dashboard_views.annual_review, name='annual_review'),
-    path('ret_scenario_projections/', TemplateView.as_view(template_name='ret_dashboard/scenario_projections.html'), name='scenario_projections'),
+    path('ret_scenario_projections/', scenario_projections_views.scenario_projections, name='scenario_projections'),
     path('ret_dashboard/comments/add/', ret_comments_views.add_comment, name='ret_comment_add'),
     path('ret_dashboard/comments/<int:comment_id>/edit/', ret_comments_views.edit_comment, name='ret_comment_edit'),
     path('ret_dashboard/comments/<int:comment_id>/delete/', ret_comments_views.delete_comment, name='ret_comment_delete'),
