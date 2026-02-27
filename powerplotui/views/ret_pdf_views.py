@@ -12,6 +12,7 @@ from django.shortcuts import render, get_object_or_404
 from django.http import HttpResponse, FileResponse, Http404
 from django.contrib.auth.decorators import login_required
 from django.views.decorators.http import require_POST
+from django.views.decorators.clickjacking import xframe_options_exempt
 from django.template.loader import render_to_string
 from django.core.files.base import ContentFile
 from django.contrib import messages
@@ -702,6 +703,7 @@ def publish_annual_report(request, year):
         messages.error(request, f"Error publishing report: {str(e)}")
         return HttpResponse(status=500)
 
+@xframe_options_exempt
 def published_reports_list(request):
     """
     Display list of all published reports with options to view/download.

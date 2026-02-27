@@ -3032,44 +3032,53 @@ function showConnectionManagementModal(facilityData) {
     var connectionsHtml = `
         <h4>${facilityData.facility_name} - Grid Connections</h4>
         <p><strong>Total Connections:</strong> ${facilityData.total_connections}</p>
-        
-        <div style="margin-bottom: 20px;">
+
+        <div style="margin-bottom: 20px; display: flex; gap: 8px; flex-wrap: wrap;">
             <button onclick="addNewConnection(${facilityData.facility_id})" class="btn btn-success btn-sm">
-                Add New Connection
+                + Add via Grid Line
+            </button>
+            <button onclick="addViaTerminal(${facilityData.facility_id})" class="btn btn-info btn-sm">
+                + Add via Terminal
             </button>
         </div>
-        
+
         <div class="connections-list">
     `;
-    
+
     if (facilityData.connections.length === 0) {
         connectionsHtml += '<p>No grid connections found for this facility.</p>';
     } else {
         facilityData.connections.forEach(function(conn) {
             var isPrimary = conn.is_primary;
-            var utilizationClass = conn.loss_percentage > 10 ? 'utilization-critical' : 
-                                 conn.loss_percentage > 5 ? 'utilization-high' : 
+            var utilizationClass = conn.loss_percentage > 10 ? 'utilization-critical' :
+                                 conn.loss_percentage > 5 ? 'utilization-high' :
                                  conn.loss_percentage > 2 ? 'utilization-medium' : 'utilization-low';
-            
+            var terminalInfo = '';
+            if (conn.from_terminal_name || conn.to_terminal_name) {
+                var from = conn.from_terminal_name || '?';
+                var to = conn.to_terminal_name || '?';
+                terminalInfo = `<br><small>Terminals: ${from} → ${to}</small>`;
+            }
+
             connectionsHtml += `
-                <div class="grid-connection-item ${isPrimary ? 'primary' : ''}" style="position: relative;">
-                    <div class="connection-actions">
-                        ${!isPrimary ? `<button onclick="setPrimaryConnection(${conn.connection_id})" class="btn btn-xs btn-outline-success" title="Set as Primary">★</button>` : '<span style="color: #28a745;" title="Primary Connection">★</span>'}
-                        <button onclick="removeConnection(${conn.connection_id})" class="btn btn-xs btn-outline-danger" title="Remove Connection">×</button>
-                    </div>
-                    
-                    <div style="display: flex; justify-content: space-between; align-items: start;">
-                        <div>
+                <div class="grid-connection-item ${isPrimary ? 'primary' : ''}">
+                    <div style="display: flex; justify-content: space-between; align-items: start; gap: 10px;">
+                        <div style="flex: 1; min-width: 0;">
                             <strong>${conn.grid_line_name}</strong> ${isPrimary ? '<span style="background: #28a745; color: white; padding: 2px 6px; border-radius: 3px; font-size: 10px;">PRIMARY</span>' : ''}
                             <br><small>${conn.voltage_level} kV | ${conn.connection_type} connection</small>
                             <br><small>Distance: ${conn.distance_km} km</small>
+                            ${terminalInfo}
                         </div>
-                        <div style="text-align: right;">
+                        <div style="text-align: right; flex-shrink: 0;">
                             <div><strong>${conn.capacity_mw} MW</strong></div>
                             <div><small>Losses: ${conn.total_losses_mw} MW (${conn.loss_percentage}%)</small></div>
+                            <div style="margin-top: 6px; display: flex; gap: 4px; justify-content: flex-end;">
+                                ${!isPrimary ? `<button onclick="setPrimaryConnection(${conn.connection_id})" class="btn btn-xs btn-outline-success" title="Set as Primary">★ Primary</button>` : '<span style="color: #28a745; font-size: 11px; line-height: 28px;">★ Primary</span>'}
+                                <button onclick="removeConnection(${conn.connection_id})" class="btn btn-xs btn-outline-danger" title="Remove this connection">Remove</button>
+                            </div>
                         </div>
                     </div>
-                    
+
                     <div class="utilization-bar" style="margin-top: 8px;">
                         <div class="utilization-fill ${utilizationClass}" style="width: ${Math.min(100, conn.loss_percentage * 10)}%;"></div>
                     </div>
@@ -3077,9 +3086,9 @@ function showConnectionManagementModal(facilityData) {
             `;
         });
     }
-    
+
     connectionsHtml += '</div>';
-    
+
     document.getElementById('connectionManagementContent').innerHTML = connectionsHtml;
     document.getElementById('connectionManagementModal').style.display = 'block';
 }
@@ -3322,6 +3331,136 @@ function addNewConnection(facilityId) {
         });
 }
 
+function addViaTerminal(facilityId) {
+    var facility = facilities.find(f => f.idfacilities === facilityId);
+    if (!facility) {
+        alert('Facility not found');
+        return;
+    }
+
+    fetch(`/find_nearest_terminals/?lat=${facility.latitude}&lon=${facility.longitude}&max_distance=200`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                alert('Error: ' + data.error);
+                return;
+            }
+            if (data.length === 0) {
+                alert('No terminals found within 200 km of this facility.');
+                return;
+            }
+            showAddViaTerminalModal(facilityId, data);
+        })
+        .catch(error => {
+            console.error('Error finding terminals:', error);
+            alert('Failed to find nearby terminals');
+        });
+}
+
+function showAddViaTerminalModal(facilityId, terminals) {
+    var modalHtml = `
+        <div id="addViaTerminalOverlay" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 10001;">
+            <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 20px; border-radius: 8px; max-width: 600px; width: 90%; max-height: 80vh; overflow-y: auto;">
+                <h4>Add Connection via Terminal</h4>
+                <p>Select a terminal to connect through:</p>
+                <div style="max-height: 400px; overflow-y: auto;">
+    `;
+
+    terminals.forEach(function(terminal) {
+        var typeLabel = terminal.terminal_type.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+        modalHtml += `
+            <div class="grid-connection-item" onclick="selectTerminalForConnection(${facilityId}, ${terminal.idterminals})" style="cursor: pointer;">
+                <div style="display: flex; justify-content: space-between; align-items: start;">
+                    <div>
+                        <strong>${terminal.terminal_name}</strong> (${terminal.terminal_code})
+                        <br><small>${typeLabel} | ${terminal.primary_voltage_kv} kV</small>
+                        <br><small>Grid lines: ${terminal.connected_lines_count} | Utilization: ${terminal.utilization_percent}%</small>
+                        ${terminal.distance_km !== undefined ? `<br><small>Distance: ${terminal.distance_km.toFixed(1)} km</small>` : ''}
+                    </div>
+                    <div style="text-align: right;">
+                        <span style="background: #17a2b8; color: white; padding: 3px 8px; border-radius: 3px; font-size: 11px;">Select</span>
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+
+    modalHtml += `
+                </div>
+                <div style="margin-top: 20px; text-align: right;">
+                    <button onclick="document.getElementById('addViaTerminalOverlay').remove()" class="btn btn-secondary">Cancel</button>
+                </div>
+            </div>
+        </div>
+    `;
+
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+}
+
+function selectTerminalForConnection(facilityId, terminalId) {
+    document.getElementById('addViaTerminalOverlay').remove();
+
+    fetch(`/terminal/${terminalId}/details/`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                alert('Error: ' + data.error);
+                return;
+            }
+            if (!data.connected_lines || data.connected_lines.length === 0) {
+                alert(`Terminal "${data.terminal_name}" has no connected grid lines. Add grid lines to this terminal first.`);
+                return;
+            }
+            showTerminalGridLinesModal(facilityId, data);
+        })
+        .catch(error => {
+            console.error('Error fetching terminal details:', error);
+            alert('Failed to load terminal details');
+        });
+}
+
+function showTerminalGridLinesModal(facilityId, terminalData) {
+    var modalHtml = `
+        <div id="terminalGridLinesOverlay" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 10001;">
+            <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 20px; border-radius: 8px; max-width: 600px; width: 90%; max-height: 80vh; overflow-y: auto;">
+                <h4>Connect via ${terminalData.terminal_name}</h4>
+                <p>Select a grid line connected to this terminal:</p>
+                <div style="max-height: 400px; overflow-y: auto;">
+    `;
+
+    terminalData.connected_lines.forEach(function(line) {
+        var directionLabel = line.connection_type === 'from' ? 'Outgoing from terminal' : 'Incoming to terminal';
+        var otherTerminal = line.other_terminal && line.other_terminal !== 'None' ? ` → ${line.other_terminal}` : '';
+        modalHtml += `
+            <div class="grid-connection-item" onclick="confirmAddConnection(${facilityId}, ${line.line_id})" style="cursor: pointer;">
+                <div style="display: flex; justify-content: space-between; align-items: start;">
+                    <div>
+                        <strong>${line.line_name}</strong> (${line.line_code})
+                        <br><small>${line.voltage_level} kV | ${line.thermal_capacity_mw} MW | ${line.length_km} km</small>
+                        <br><small>${directionLabel}${otherTerminal}</small>
+                        <br><small>Facilities connected: ${line.connected_facilities_count}</small>
+                    </div>
+                    <div style="text-align: right;">
+                        <span style="background: #28a745; color: white; padding: 3px 8px; border-radius: 3px; font-size: 11px;">Connect</span>
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+
+    modalHtml += `
+                </div>
+                <div style="margin-top: 20px; text-align: right;">
+                    <button onclick="document.getElementById('terminalGridLinesOverlay').remove(); addViaTerminal(${facilityId});" class="btn btn-secondary" style="margin-right: 8px;">← Back</button>
+                    <button onclick="document.getElementById('terminalGridLinesOverlay').remove()" class="btn btn-secondary">Cancel</button>
+                </div>
+            </div>
+        </div>
+    `;
+
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+}
+
 function showAddConnectionModal(facilityId, nearbyLines) {
     var modalHtml = `
         <div id="addConnectionOverlay" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 10001;">
@@ -3390,8 +3529,13 @@ function confirmAddConnection(facilityId, gridLineId) {
     .then(data => {
         if (data.status === 'success') {
             alert(data.message);
-            
-            document.getElementById('addConnectionOverlay').remove();
+
+            // Remove whichever selection overlay is open
+            var addOverlay = document.getElementById('addConnectionOverlay');
+            if (addOverlay) addOverlay.remove();
+            var terminalOverlay = document.getElementById('terminalGridLinesOverlay');
+            if (terminalOverlay) terminalOverlay.remove();
+
             manageFacilityConnections(facilityId);
             refreshFacilities(getCurrentScenario());
         } else {

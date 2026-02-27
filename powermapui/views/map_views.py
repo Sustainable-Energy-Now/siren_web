@@ -609,12 +609,16 @@ def get_facility_grid_connections(request, facility_id):
         facility = facilities.objects.get(pk=facility_id)
         connections = FacilityGridConnections.objects.filter(
             idfacilities=facility
-        ).select_related('idgridlines').order_by('-is_primary', 'connection_distance_km')
-        
+        ).select_related(
+            'idgridlines',
+            'idgridlines__from_terminal',
+            'idgridlines__to_terminal'
+        ).order_by('-is_primary', 'connection_distance_km')
+
         connection_data = []
         for conn in connections:
             grid_line = conn.idgridlines
-            
+
             # Calculate losses if possible
             connection_losses = 0
             grid_line_losses = 0
@@ -624,7 +628,7 @@ def get_facility_grid_connections(request, facility_id):
                     grid_line_losses = grid_line.calculate_line_losses_mw(float(facility.capacity))
                 except (AttributeError, TypeError):
                     pass
-            
+
             connection_info = {
                 'connection_id': conn.idfacilitygridconnections,
                 'grid_line_id': grid_line.idgridlines,
@@ -640,7 +644,11 @@ def get_facility_grid_connections(request, facility_id):
                 'connection_losses_mw': round(connection_losses, 3),
                 'grid_line_losses_mw': round(grid_line_losses, 3),
                 'total_losses_mw': round(connection_losses + grid_line_losses, 3),
-                'loss_percentage': round(((connection_losses + grid_line_losses) / float(facility.capacity)) * 100, 2) if facility.capacity and facility.capacity > 0 else 0
+                'loss_percentage': round(((connection_losses + grid_line_losses) / float(facility.capacity)) * 100, 2) if facility.capacity and facility.capacity > 0 else 0,
+                'from_terminal_id': grid_line.from_terminal.idterminals if grid_line.from_terminal else None,
+                'from_terminal_name': grid_line.from_terminal.terminal_name if grid_line.from_terminal else None,
+                'to_terminal_id': grid_line.to_terminal.idterminals if grid_line.to_terminal else None,
+                'to_terminal_name': grid_line.to_terminal.terminal_name if grid_line.to_terminal else None,
             }
             connection_data.append(connection_info)
         
