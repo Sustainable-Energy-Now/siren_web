@@ -661,19 +661,45 @@ def get_facility_grid_connections(request, facility_id):
 def get_facilities_for_scenario(request):
     """Return facilities data for the selected scenario"""
     scenario_title = request.GET.get('scenario')
-    
+
     if not scenario_title:
         return JsonResponse([], safe=False)
-    
+
     try:
         scenario_obj = Scenarios.objects.get(title=scenario_title)
-        facilities_data = facilities.objects.filter(
+        facilities_queryset = facilities.objects.filter(
             scenarios=scenario_obj,
-            latitude__isnull=False, 
+            latitude__isnull=False,
             longitude__isnull=False
-        ).values('facility_name', 'idtechnologies', 'latitude', 'longitude', 'idfacilities')
-        
-        return JsonResponse(list(facilities_data), safe=False)
+        ).select_related('idtechnologies', 'primary_grid_line').prefetch_related('grid_connections')
+
+        facilities_data = []
+        for facility in facilities_queryset:
+            retirement_year = None
+            if facility.commissioning_date and facility.idtechnologies and facility.idtechnologies.lifetime:
+                retirement_year = facility.commissioning_date.year + int(facility.idtechnologies.lifetime)
+            facility_dict = {
+                'facility_name': facility.facility_name,
+                'idtechnologies': facility.idtechnologies.idtechnologies,
+                'latitude': facility.latitude,
+                'longitude': facility.longitude,
+                'idfacilities': facility.idfacilities,
+                'capacity': float(facility.capacity) if facility.capacity else 0,
+                'technology_name': facility.idtechnologies.technology_name,
+                'has_grid_connection': facility.grid_connections.exists(),
+                'primary_grid_line_id': facility.primary_grid_line.idgridlines if facility.primary_grid_line else None,
+                'primary_grid_line_name': facility.primary_grid_line.line_name if facility.primary_grid_line else None,
+                'connection_count': facility.grid_connections.count(),
+                'status': facility.status if facility.status else 'commissioned',
+                'commissioning_probability': float(facility.commissioning_probability) if facility.commissioning_probability is not None else 1.0,
+                'commissioning_date': facility.commissioning_date.isoformat() if facility.commissioning_date else None,
+                'decommissioning_date': facility.decommissioning_date.isoformat() if facility.decommissioning_date else None,
+                'technology_category': facility.idtechnologies.category if facility.idtechnologies and facility.idtechnologies.category else 'Unknown',
+                'retirement_year': retirement_year,
+            }
+            facilities_data.append(facility_dict)
+
+        return JsonResponse(facilities_data, safe=False)
     except Scenarios.DoesNotExist:
         return JsonResponse({'error': 'Scenario not found'}, status=404)
     except Exception as e:

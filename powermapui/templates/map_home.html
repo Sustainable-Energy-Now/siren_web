@@ -3324,11 +3324,11 @@ function addNewConnection(facilityId) {
 
 function showAddConnectionModal(facilityId, nearbyLines) {
     var modalHtml = `
-        <div style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 10001;">
+        <div id="addConnectionOverlay" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 10001;">
             <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 20px; border-radius: 8px; max-width: 600px; max-height: 80vh; overflow-y: auto;">
                 <h4>Add New Grid Connection</h4>
                 <p>Select a grid line to connect to:</p>
-                
+
                 <div style="max-height: 400px; overflow-y: auto;">
     `;
     
@@ -3362,7 +3362,7 @@ function showAddConnectionModal(facilityId, nearbyLines) {
     modalHtml += `
                 </div>
                 <div style="margin-top: 20px; text-align: right;">
-                    <button onclick="this.closest('div').remove()" class="btn btn-secondary">Cancel</button>
+                    <button onclick="document.getElementById('addConnectionOverlay').remove()" class="btn btn-secondary">Cancel</button>
                 </div>
             </div>
         </div>
@@ -3391,7 +3391,7 @@ function confirmAddConnection(facilityId, gridLineId) {
         if (data.status === 'success') {
             alert(data.message);
             
-            document.querySelector('div[style*="z-index: 10001"]').remove();
+            document.getElementById('addConnectionOverlay').remove();
             manageFacilityConnections(facilityId);
             refreshFacilities(getCurrentScenario());
         } else {
