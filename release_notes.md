@@ -2,6 +2,10 @@
 
 ## Version 3.17.0 - February 21, 2026
 ### ✨ Enhancements
+- Feature: CEL Probability ([#69](https://github.com/Sustainable-Energy-Now/siren_web/issues/69))
+
+## Version 3.17.0 - February 21, 2026
+### ✨ Enhancements
 - Feature: Enhanced Grid Map ([#68](https://github.com/Sustainable-Energy-Now/siren_web/issues/68))
 
 ## Version 3.16.7 - February 19, 2026

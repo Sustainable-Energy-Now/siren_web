@@ -127,6 +127,11 @@
                   <td>
                     {% if facility.commissioning_probability != None %}
                       {{ facility.commissioning_probability|floatformat:2 }}
+                      {% if effective_commissioning_probability != None and effective_commissioning_probability != facility.commissioning_probability %}
+                        <br><small class="text-muted">
+                          CEL-adjusted: <strong>{{ effective_commissioning_probability|floatformat:2 }}</strong>
+                        </small>
+                      {% endif %}
                     {% else %}
                       Not specified
                     {% endif %}
@@ -135,6 +140,121 @@
               </table>
             </div>
           </div>
+        </div>
+      </div>
+
+      <!-- CEL Transmission Alignment -->
+      <div class="card mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <h5 class="mb-0">CEL Transmission Alignment</h5>
+          {% if effective_commissioning_probability != None %}
+            <span class="badge
+              {% if effective_commissioning_probability >= 0.7 %}bg-success
+              {% elif effective_commissioning_probability >= 0.4 %}bg-warning text-dark
+              {% else %}bg-danger{% endif %}
+              fs-6">
+              Effective probability: {{ effective_commissioning_probability|floatformat:2 }}
+            </span>
+          {% endif %}
+        </div>
+        <div class="card-body">
+          {% if cel_alignments %}
+            <p class="text-muted small mb-3">
+              Viability score = CEL funding weight &times; project status weight &times; capacity feasibility.
+              The effective commissioning probability combines this with the standalone commissioning probability.
+            </p>
+            <div class="table-responsive">
+              <table class="table table-sm table-hover align-middle">
+                <thead class="table-light">
+                  <tr>
+                    <th>CEL Stage</th>
+                    <th>Program</th>
+                    <th>Funding Status</th>
+                    <th class="text-end">Distance</th>
+                    <th class="text-end">Available Capacity</th>
+                    <th class="text-center">Viability</th>
+                    <th class="text-end">Score</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for a in cel_alignments %}
+                    <tr {% if not a.is_aligned %}class="text-muted"{% endif %}>
+                      <td>
+                        {{ a.cel_stage.name }}
+                        {% if a.is_exception %}
+                          <span class="badge bg-purple ms-1" style="background-color:#9b59b6;">exception</span>
+                        {% endif %}
+                      </td>
+                      <td>
+                        <span class="badge bg-secondary">{{ a.cel_stage.cel_program.code }}</span>
+                      </td>
+                      <td>
+                        <span class="badge
+                          {% if a.cel_stage.funding_status == 'operational' %}bg-success
+                          {% elif a.cel_stage.funding_status == 'under_construction' %}bg-warning text-dark
+                          {% elif a.cel_stage.funding_status == 'funded' %}bg-info text-dark
+                          {% elif a.cel_stage.funding_status == 'environmental_approval' %}bg-primary
+                          {% else %}bg-secondary{% endif %}">
+                          {{ a.cel_stage.get_funding_status_display }}
+                        </span>
+                      </td>
+                      <td class="text-end">
+                        {% if a.distance_to_route_km != None %}
+                          {{ a.distance_to_route_km|floatformat:1 }} km
+                          {% if not a.is_aligned %}
+                            <br><small class="text-danger">outside radius ({{ a.cel_stage.alignment_radius_km|floatformat:0 }} km)</small>
+                          {% endif %}
+                        {% else %}
+                          —
+                        {% endif %}
+                      </td>
+                      <td class="text-end">
+                        {{ a.cel_stage.available_capacity_mw|floatformat:0 }} / {{ a.cel_stage.total_capacity_mw|floatformat:0 }} MW
+                      </td>
+                      <td class="text-center">
+                        {% if a.is_exception %}
+                          <span class="badge" style="background-color:#9b59b6;">EXCEPTION</span>
+                        {% elif a.viability_label == 'high' %}
+                          <span class="badge bg-success">HIGH</span>
+                        {% elif a.viability_label == 'medium' %}
+                          <span class="badge bg-warning text-dark">MEDIUM</span>
+                        {% elif a.viability_label == 'low' %}
+                          <span class="badge bg-danger">LOW</span>
+                        {% else %}
+                          <span class="badge bg-secondary">NOT ALIGNED</span>
+                        {% endif %}
+                      </td>
+                      <td class="text-end">
+                        {% if a.viability_score != None %}
+                          {{ a.viability_score|floatformat:3 }}
+                          <br>
+                          <small class="text-muted">
+                            {{ a.cel_funding_weight|floatformat:2 }} &times;
+                            {{ a.facility_status_weight|floatformat:2 }} &times;
+                            {{ a.capacity_feasibility_score|floatformat:2 }}
+                          </small>
+                        {% else %}
+                          —
+                        {% endif %}
+                      </td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+            <p class="text-muted small mt-2 mb-0">
+              Score components: <em>CEL funding weight &times; project status weight &times; capacity feasibility</em>.
+              Scores are recomputed by running <code>python manage.py compute_cel_viability</code>.
+            </p>
+          {% else %}
+            <div class="text-center text-muted py-3">
+              <p class="mb-1">No CEL alignment data for this facility.</p>
+              <p class="small">
+                Run <code>python manage.py compute_cel_viability</code> after entering CEL stage data
+                to compute transmission viability scores.
+              </p>
+            </div>
+          {% endif %}
         </div>
       </div>
 

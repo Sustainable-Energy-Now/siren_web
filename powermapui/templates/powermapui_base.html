@@ -78,6 +78,12 @@
 
             <li><a class="dropdown-item" href="{% url 'powermapui:terminals_dashboard' %}">Dashboard</a></li>
             <li><a class="dropdown-item" href="{% url 'powermapui:terminal_health_check' %}">Health Check</a></li>
+
+            <li><hr class="dropdown-divider"></li>
+
+            <li><h6 class="dropdown-header">Clean Energy Link (CEL)</h6></li>
+            <li><a class="dropdown-item" href="{% url 'powermapui:cel_program_list' %}">All CEL Programs</a></li>
+            <li><a class="dropdown-item" href="{% url 'powermapui:cel_program_create' %}">Add CEL Program</a></li>
           </ul>
         </li>
         <li class="nav-item">

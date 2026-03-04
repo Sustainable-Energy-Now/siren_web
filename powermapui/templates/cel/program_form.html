@@ -1,0 +1,64 @@
+<!-- cel/program_form.html -->
+{% extends 'powermapui_base.html' %}
+
+{% block powermapui_content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h3>{% if action == 'edit' %}Edit Program — {{ program.name }}{% else %}New CEL Program{% endif %}</h3>
+  <a href="{% url 'powermapui:cel_program_list' %}" class="btn btn-outline-secondary">← Programs</a>
+</div>
+
+<div class="row">
+  <div class="col-lg-7">
+    <div class="card">
+      <div class="card-body">
+        <form method="post" novalidate>
+          {% csrf_token %}
+
+          <div class="mb-3">
+            <label for="name" class="form-label">Program Name <span class="text-danger">*</span></label>
+            <input type="text" class="form-control" id="name" name="name"
+                   value="{{ initial.name }}" required>
+          </div>
+
+          <div class="mb-3">
+            <label for="code" class="form-label">Short Code <span class="text-danger">*</span></label>
+            <input type="text" class="form-control" id="code" name="code"
+                   value="{{ initial.code }}"
+                   placeholder="e.g. CEL-NORTH" required>
+            <div class="form-text">Unique short identifier (will be uppercased).</div>
+          </div>
+
+          <div class="mb-3">
+            <label for="description" class="form-label">Description</label>
+            <textarea class="form-control" id="description" name="description"
+                      rows="3">{{ initial.description }}</textarea>
+          </div>
+
+          <div class="mb-3 form-check">
+            <input type="checkbox" class="form-check-input" id="is_active" name="is_active"
+                   {% if initial.is_active %}checked{% endif %}>
+            <label class="form-check-label" for="is_active">Active</label>
+          </div>
+
+          <div class="mb-4">
+            <label for="notes" class="form-label">Notes</label>
+            <textarea class="form-control" id="notes" name="notes"
+                      rows="2">{{ initial.notes }}</textarea>
+          </div>
+
+          <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-primary">
+              {% if action == 'edit' %}Update Program{% else %}Create Program{% endif %}
+            </button>
+            {% if action == 'edit' and program %}
+              <a href="{% url 'powermapui:cel_program_detail' program.pk %}" class="btn btn-outline-secondary">Cancel</a>
+            {% else %}
+              <a href="{% url 'powermapui:cel_program_list' %}" class="btn btn-outline-secondary">Cancel</a>
+            {% endif %}
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

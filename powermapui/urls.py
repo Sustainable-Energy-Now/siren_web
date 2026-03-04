@@ -3,7 +3,8 @@ from powermapui.views import crud_scenario_views, facilities_views, facility_sol
     facility_storage_views, crud_terminals_views, gridlines_views, powermapui_home_views, \
     map_views, network_overview_views, pipeline_charts_views, pipeline_map_views, \
     power_views, storage_views, table_update_views, technologies_views, \
-    terminals_connections_views, terminals_dashboard, terminals_views, wind_turbines_views
+    terminals_connections_views, terminals_dashboard, terminals_views, wind_turbines_views, \
+    cel_views
 app_name = 'powermapui'
 
 urlpatterns = [
@@ -112,6 +113,19 @@ urlpatterns = [
     path('technologies/<int:technology_pk>/years/create/', technologies_views.technology_years_create, name='technology_years_create_for_tech'),
     path('technology-years/<int:pk>/edit/', technologies_views.technology_years_edit, name='technology_years_edit'),
     path('technology-years/<int:pk>/delete/', technologies_views.technology_years_delete, name='technology_years_delete'),
+    # ========== CEL (Clean Energy Link) CRUD ==========
+    path('cel/', cel_views.cel_program_list, name='cel_program_list'),
+    path('cel/create/', cel_views.cel_program_create, name='cel_program_create'),
+    path('cel/<int:pk>/', cel_views.cel_program_detail, name='cel_program_detail'),
+    path('cel/<int:pk>/edit/', cel_views.cel_program_edit, name='cel_program_edit'),
+    path('cel/<int:pk>/delete/', cel_views.cel_program_delete, name='cel_program_delete'),
+    path('cel/<int:program_pk>/stages/create/', cel_views.cel_stage_create, name='cel_stage_create'),
+    path('cel/stages/<int:pk>/', cel_views.cel_stage_detail, name='cel_stage_detail'),
+    path('cel/stages/<int:pk>/edit/', cel_views.cel_stage_edit, name='cel_stage_edit'),
+    path('cel/stages/<int:pk>/delete/', cel_views.cel_stage_delete, name='cel_stage_delete'),
+    path('cel/stages/<int:pk>/recompute/', cel_views.cel_stage_recompute, name='cel_stage_recompute'),
+    path('cel/alignments/<int:pk>/exception/', cel_views.cel_alignment_set_exception, name='cel_alignment_set_exception'),
+
     path('tableupdate/', table_update_views.select_table, name='table_update'),
     path('tableupdate/process/', table_update_views.update_table, name='table_update_process'),
     path('power/', power_views.generate_power, name='generate_power'),

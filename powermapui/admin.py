@@ -3,8 +3,11 @@ from django.forms import ModelForm, FileField
 from django.core.exceptions import ValidationError
 from django.urls import path
 from django.utils.html import format_html
-from siren_web.models import GridLines, FacilityGridConnections, facilities, WindTurbines, \
-    TurbinePowerCurves, FacilityWindTurbines
+from siren_web.models import (
+    GridLines, FacilityGridConnections, facilities, WindTurbines,
+    TurbinePowerCurves, FacilityWindTurbines,
+    CELProgram, CELStage, FacilityCELAlignment,
+)
 
 @admin.register(GridLines)
 class GridLinesAdmin(admin.ModelAdmin):
@@ -605,3 +608,198 @@ class TurbinePowerCurveAdmin(admin.ModelAdmin):
         return "No power curve data available"
     
     power_curve_preview.short_description = 'Power Curve Data Preview'
+
+
+# =============================================================================
+# Clean Energy Link (CEL) Administration
+# =============================================================================
+
+class CELStageInline(admin.TabularInline):
+    """Inline editor for CEL stages nested inside a CELProgram."""
+    model = CELStage
+    extra = 1
+    fields = [
+        'stage_number', 'name', 'stage_type', 'funding_status',
+        'capacity_new_mw', 'capacity_unlocked_existing_mw', 'reserved_capacity_mw',
+        'expected_operational_date', 'display_color', 'is_active',
+    ]
+    ordering = ['stage_number']
+
+
+@admin.register(CELProgram)
+class CELProgramAdmin(admin.ModelAdmin):
+    list_display = ['name', 'code', 'stage_count', 'total_capacity_display', 'is_active']
+    list_filter = ['is_active']
+    search_fields = ['name', 'code']
+    inlines = [CELStageInline]
+
+    fieldsets = [
+        ('Program Details', {
+            'fields': ['name', 'code', 'description', 'is_active']
+        }),
+        ('Notes', {
+            'fields': ['notes'],
+            'classes': ['collapse']
+        }),
+    ]
+
+    def stage_count(self, obj):
+        return obj.stages.filter(is_active=True).count()
+    stage_count.short_description = 'Active Stages'
+
+    def total_capacity_display(self, obj):
+        total = sum(
+            s.total_capacity_mw for s in obj.stages.filter(is_active=True)
+        )
+        return f"{total:,.0f} MW" if total else "—"
+    total_capacity_display.short_description = 'Total Capacity'
+
+
+@admin.register(CELStage)
+class CELStageAdmin(admin.ModelAdmin):
+    list_display = [
+        'name', 'cel_program', 'stage_type', 'funding_status',
+        'capacity_new_mw', 'capacity_unlocked_existing_mw',
+        'available_capacity_display', 'served_region',
+        'expected_operational_date', 'is_active',
+    ]
+    list_filter = ['funding_status', 'stage_type', 'cel_program', 'is_active']
+    search_fields = ['name', 'cel_program__name', 'served_region']
+    readonly_fields = [
+        'funding_status_weight', 'total_capacity_mw', 'available_capacity_mw',
+        'created_at', 'updated_at',
+    ]
+    raw_id_fields = ['from_terminal', 'to_terminal']
+
+    fieldsets = [
+        ('Basic Information', {
+            'fields': [
+                'cel_program', 'stage_number', 'name',
+                'stage_type', 'is_active',
+            ]
+        }),
+        ('Funding Status', {
+            'fields': [
+                'funding_status', 'funding_status_weight',
+                'funding_status_weight_override',
+            ]
+        }),
+        ('Capacity', {
+            'fields': [
+                'capacity_new_mw', 'capacity_unlocked_existing_mw',
+                'reserved_capacity_mw', 'total_capacity_mw', 'available_capacity_mw',
+            ]
+        }),
+        ('Timeline', {
+            'fields': ['expected_operational_date', 'actual_operational_date']
+        }),
+        ('Geography', {
+            'fields': [
+                'served_region', 'alignment_radius_km',
+                'from_latitude', 'from_longitude',
+                'to_latitude', 'to_longitude',
+                'from_terminal', 'to_terminal',
+                'route_coordinates',
+            ]
+        }),
+        ('Display', {
+            'fields': ['display_color']
+        }),
+        ('Notes', {
+            'fields': ['notes'],
+            'classes': ['collapse']
+        }),
+        ('Timestamps', {
+            'fields': ['created_at', 'updated_at'],
+            'classes': ['collapse']
+        }),
+    ]
+
+    actions = ['recompute_viability']
+
+    def available_capacity_display(self, obj):
+        available = obj.available_capacity_mw
+        total = obj.total_capacity_mw
+        if total:
+            pct = available / total * 100
+            color = '#27ae60' if pct > 50 else '#e67e22' if pct > 20 else '#e74c3c'
+            return format_html(
+                '<span style="color:{}">{:,.0f} / {:,.0f} MW ({:.0f}%)</span>',
+                color, available, total, pct,
+            )
+        return "—"
+    available_capacity_display.short_description = 'Available / Total Capacity'
+
+    def recompute_viability(self, request, queryset):
+        """Trigger viability score recomputation for facilities aligned to selected stages."""
+        try:
+            from powermapui.utils.cel_viability_service import CELViabilityService
+            count = 0
+            for stage in queryset:
+                count += CELViabilityService.score_facilities_for_stage(stage)
+            self.message_user(request, f"Recomputed viability scores for {count} facility alignments.")
+        except ImportError:
+            self.message_user(
+                request,
+                "CELViabilityService not yet implemented. "
+                "Build powermapui/utils/cel_viability_service.py first.",
+                level='WARNING',
+            )
+    recompute_viability.short_description = "Recompute viability scores for selected stages"
+
+
+@admin.register(FacilityCELAlignment)
+class FacilityCELAlignmentAdmin(admin.ModelAdmin):
+    list_display = [
+        'facility', 'cel_stage', 'is_aligned', 'viability_label_display',
+        'viability_score', 'distance_to_route_km', 'is_exception', 'computed_at',
+    ]
+    list_filter = [
+        'is_aligned', 'is_exception',
+        'cel_stage__funding_status', 'cel_stage__cel_program',
+    ]
+    search_fields = ['facility__facility_name', 'cel_stage__name']
+    raw_id_fields = ['facility', 'cel_stage']
+    readonly_fields = [
+        'viability_score', 'cel_funding_weight', 'facility_status_weight',
+        'capacity_feasibility_score', 'computed_at', 'viability_label_display',
+    ]
+
+    fieldsets = [
+        ('Alignment', {
+            'fields': ['facility', 'cel_stage', 'is_aligned', 'distance_to_route_km']
+        }),
+        ('Viability Score', {
+            'fields': [
+                'viability_label_display', 'viability_score',
+                'cel_funding_weight', 'facility_status_weight',
+                'capacity_feasibility_score',
+            ]
+        }),
+        ('Exception Handling', {
+            'fields': ['is_exception', 'exception_reason']
+        }),
+        ('Notes', {
+            'fields': ['notes'],
+            'classes': ['collapse']
+        }),
+        ('Computed', {
+            'fields': ['computed_at'],
+            'classes': ['collapse']
+        }),
+    ]
+
+    def viability_label_display(self, obj):
+        label = obj.viability_label
+        colours = {
+            'high': '#27ae60',
+            'medium': '#f39c12',
+            'low': '#e74c3c',
+            'exception': '#9b59b6',
+            'unscored': '#95a5a6',
+        }
+        return format_html(
+            '<span style="color:{}; font-weight:bold;">{}</span>',
+            colours.get(label, '#000'), label.upper(),
+        )
+    viability_label_display.short_description = 'Viability'

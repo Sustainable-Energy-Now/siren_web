@@ -1,0 +1,67 @@
+<!-- cel/alignment_exception_form.html -->
+{% extends 'powermapui_base.html' %}
+
+{% block powermapui_content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h3>Alignment Exception — {{ alignment.facility.facility_name }}</h3>
+  <a href="{% url 'powermapui:cel_stage_detail' alignment.cel_stage.pk %}" class="btn btn-outline-secondary">← Stage</a>
+</div>
+
+<div class="row">
+  <div class="col-lg-6">
+    <div class="card mb-3">
+      <div class="card-header"><h6 class="mb-0">Alignment Details</h6></div>
+      <div class="card-body">
+        <table class="table table-sm mb-0">
+          <tr><td><strong>Facility</strong></td><td><a href="{% url 'powermapui:facility_detail' alignment.facility.pk %}">{{ alignment.facility.facility_name }}</a></td></tr>
+          <tr><td><strong>CEL Stage</strong></td><td>{{ alignment.cel_stage.name }} ({{ alignment.cel_stage.cel_program.code }})</td></tr>
+          <tr><td><strong>Distance to route</strong></td><td>{{ alignment.distance_to_route_km|floatformat:1|default:"—" }} km</td></tr>
+          <tr><td><strong>Is aligned</strong></td><td>{% if alignment.is_aligned %}Yes{% else %}No{% endif %}</td></tr>
+          <tr><td><strong>Viability score</strong></td><td>{{ alignment.viability_score|floatformat:3|default:"—" }}</td></tr>
+          <tr><td><strong>Viability label</strong></td><td>{{ alignment.viability_label|capfirst }}</td></tr>
+          <tr><td><strong>Computed at</strong></td><td>{{ alignment.computed_at|date:"Y-m-d H:i" }}</td></tr>
+        </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><h6 class="mb-0">Set / Clear Exception</h6></div>
+      <div class="card-body">
+        <form method="post" novalidate>
+          {% csrf_token %}
+
+          <div class="mb-3 form-check">
+            <input type="checkbox" class="form-check-input" id="is_exception" name="is_exception"
+                   {% if alignment.is_exception %}checked{% endif %}
+                   onchange="document.getElementById('exception_reason_row').style.display = this.checked ? '' : 'none'">
+            <label class="form-check-label" for="is_exception">Mark as exception</label>
+            <div class="form-text">Exceptions are excluded from standard viability scoring logic.</div>
+          </div>
+
+          <div id="exception_reason_row" {% if not alignment.is_exception %}style="display:none"{% endif %}>
+            <div class="mb-3">
+              <label for="exception_reason" class="form-label">Exception Reason</label>
+              <select class="form-select" id="exception_reason" name="exception_reason">
+                <option value="">— Select reason —</option>
+                {% for val, label in exception_reason_choices %}
+                  <option value="{{ val }}" {% if alignment.exception_reason == val %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+
+          <div class="mb-4">
+            <label for="notes" class="form-label">Notes</label>
+            <textarea class="form-control" id="notes" name="notes" rows="3">{{ alignment.notes }}</textarea>
+          </div>
+
+          <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-primary">Save</button>
+            <a href="{% url 'powermapui:cel_stage_detail' alignment.cel_stage.pk %}" class="btn btn-outline-secondary">Cancel</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

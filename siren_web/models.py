@@ -2,6 +2,8 @@
 #   * Make sure each ForeignKey and OneToOneField has `on_delete` set to the desired behavior
 #   * Remove `managed = False` lines if you wish to allow Django to create, modify, and delete the table
 # Feel free to rename the models, but don't rename db_table values or field names.
+import json
+
 from django.contrib.auth import get_user_model
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.db import models
@@ -41,6 +43,25 @@ FACILITY_STATUS_CHOICES = [
     ('commissioned', 'Commissioned'),
     ('decommissioned', 'Decommissioned'),
 ]
+
+CEL_FUNDING_STATUS_CHOICES = [
+    ('planning', 'Planning'),
+    ('environmental_approval', 'Environmental Approval'),
+    ('funded', 'Funded'),
+    ('under_construction', 'Under Construction'),
+    ('operational', 'Operational'),
+]
+
+# Probability weights for each CEL funding status.
+# Reflects the likelihood that a CEL stage will proceed and provide
+# transmission access, used in viability scoring.
+CEL_FUNDING_STATUS_WEIGHTS = {
+    'planning': 0.30,
+    'environmental_approval': 0.50,
+    'funded': 0.80,
+    'under_construction': 0.90,
+    'operational': 1.00,
+}
 
 class facilities(models.Model):
     """
@@ -433,16 +454,59 @@ class facilities(models.Model):
         """Calculate total losses from facility through all grid connections"""
         total_losses = 0
         connections = self.get_all_grid_connections()
-        
+
         if connections:
             power_per_connection = power_output_mw / len(connections)
-            
+
             for connection in connections:
                 connection_losses = connection.calculate_connection_losses_mw(power_per_connection)
                 grid_line_losses = connection.idgridlines.calculate_line_losses_mw(power_per_connection)
                 total_losses += connection_losses + grid_line_losses
-        
+
         return total_losses
+
+    # =========================================================================
+    # CEL TRANSMISSION CONSTRAINT METHODS
+    # =========================================================================
+
+    @property
+    def best_cel_alignment(self):
+        """
+        Return the FacilityCELAlignment record with the highest viability
+        score for this facility, or None if no alignment records exist.
+        """
+        return (
+            self.cel_alignments
+            .filter(is_aligned=True)
+            .order_by('-viability_score')
+            .first()
+        )
+
+    @property
+    def effective_commissioning_probability(self):
+        """
+        Combined probability that this facility both completes construction
+        AND secures transmission access via the CEL program.
+
+          P(effective) = P(project built)  ×  P(transmission access)
+                       = commissioning_probability  ×  cel_viability_score
+
+        Falls back to commissioning_probability alone when no CEL alignment
+        data exists, preserving existing behaviour for facilities that predate
+        the CEL modelling or are exceptions (co-located load, behind-the-meter).
+
+        Returns a float in [0.0, 1.0], or None if commissioning_probability
+        is not set.
+        """
+        base = self.commissioning_probability
+        if base is None:
+            return None
+
+        alignment = self.best_cel_alignment
+        if alignment is not None and alignment.viability_score is not None:
+            return round(base * alignment.viability_score, 3)
+
+        return base
 
 class Generatorattributes(models.Model):
     """Technology-level attributes for conventional generators"""
@@ -824,11 +888,345 @@ class FacilityGridConnections(models.Model):
         
         return connection_losses_mw
 
+class CELProgram(models.Model):
+    """
+    A Clean Energy Link (CEL) transmission expansion program.
+
+    The CEL is the WA Government's program to expand the SWIS transmission
+    network to support renewable energy growth and coal retirement.  A program
+    groups one or more stages that collectively serve a geographic area
+    (e.g. 'Clean Energy Link – North', 'Clean Energy Link – East').
+    """
+    cel_program_id = models.AutoField(primary_key=True)
+    name = models.CharField(
+        max_length=100, unique=True,
+        help_text="e.g. 'Clean Energy Link – North'"
+    )
+    code = models.CharField(
+        max_length=20, unique=True,
+        help_text="Short identifier, e.g. 'CEL-N'"
+    )
+    description = models.TextField(blank=True)
+    is_active = models.BooleanField(default=True)
+    notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'cel_program'
+        ordering = ['name']
+
+    def __str__(self):
+        return self.name
+
+
+class CELStage(models.Model):
+    """
+    A single stage or tranche of a CEL Program.
+
+    Each stage has its own funding status, capacity headroom, and geographic
+    route.  The viability scoring service uses these records to determine
+    whether an RE facility has a credible transmission path to the grid.
+
+    Capacity fields:
+      capacity_new_mw            — new generation capacity enabled by this stage
+      capacity_unlocked_existing_mw — existing constrained capacity freed up
+      reserved_capacity_mw       — capacity already allocated to committed projects
+      total_capacity_mw          — property: new + unlocked
+      available_capacity_mw      — property: total - reserved
+
+    Route geometry is stored as a JSON list of [lat, lon] pairs in
+    route_coordinates, mirroring the kml_geometry approach on GridLines.
+    For point-based upgrades (substations) set stage_type='substation' and
+    populate only from_latitude/from_longitude.
+    """
+
+    CEL_STAGE_TYPE_CHOICES = [
+        ('corridor', 'Transmission Corridor'),
+        ('substation', 'Substation Upgrade'),
+        ('terminal', 'New Terminal'),
+    ]
+
+    cel_stage_id = models.AutoField(primary_key=True)
+    cel_program = models.ForeignKey(
+        'CELProgram', on_delete=models.CASCADE,
+        related_name='stages'
+    )
+    stage_number = models.IntegerField(
+        help_text="Stage order within the program (1, 2, 3 …)"
+    )
+    name = models.CharField(
+        max_length=150,
+        help_text="e.g. 'CEL-North – Malaga to Three Springs'"
+    )
+    stage_type = models.CharField(
+        max_length=20,
+        choices=CEL_STAGE_TYPE_CHOICES,
+        default='corridor',
+        help_text="Physical nature of this stage"
+    )
+
+    # Funding / development status
+    funding_status = models.CharField(
+        max_length=30,
+        choices=CEL_FUNDING_STATUS_CHOICES,
+        default='planning'
+    )
+    # Optional override for the weight derived from funding_status.
+    # Leave null to use the default from CEL_FUNDING_STATUS_WEIGHTS.
+    funding_status_weight_override = models.FloatField(
+        null=True, blank=True,
+        validators=[MinValueValidator(0.0), MaxValueValidator(1.0)],
+        help_text="Override the default probability weight for this stage's "
+                  "funding status.  Leave blank to use the system default."
+    )
+    expected_operational_date = models.DateField(null=True, blank=True)
+    actual_operational_date = models.DateField(null=True, blank=True)
+
+    # Capacity
+    capacity_new_mw = models.FloatField(
+        help_text="New generation capacity enabled by this stage (MW)"
+    )
+    capacity_unlocked_existing_mw = models.FloatField(
+        default=0.0,
+        help_text="Existing constrained capacity freed by this stage (MW)"
+    )
+    reserved_capacity_mw = models.FloatField(
+        default=0.0,
+        help_text="Capacity already allocated to committed projects (MW)"
+    )
+
+    # Geographic route — JSON list of [lat, lon] pairs for Leaflet polyline.
+    # For substation/terminal stages use from_latitude/from_longitude only.
+    route_coordinates = models.TextField(
+        null=True, blank=True,
+        help_text="JSON list of [lat, lon] pairs defining the stage route, "
+                  "e.g. [[-31.84, 115.89], [-29.54, 115.76]]"
+    )
+    # Radius within which a facility is considered geographically aligned
+    alignment_radius_km = models.FloatField(
+        default=50.0,
+        help_text="Facilities within this distance of the route are "
+                  "considered aligned with this stage (km)"
+    )
+
+    # Endpoint coordinates (fallback when no route_coordinates are set)
+    from_latitude = models.FloatField(null=True, blank=True)
+    from_longitude = models.FloatField(null=True, blank=True)
+    to_latitude = models.FloatField(null=True, blank=True)
+    to_longitude = models.FloatField(null=True, blank=True)
+
+    # Optional links to existing terminal records
+    from_terminal = models.ForeignKey(
+        'Terminals', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='cel_from_stages'
+    )
+    to_terminal = models.ForeignKey(
+        'Terminals', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='cel_to_stages'
+    )
+
+    # Human-readable region label for display (e.g. 'Mid West', 'Kwinana SIA')
+    served_region = models.CharField(max_length=100, blank=True)
+
+    # Hex colour used when rendering this stage on the Leaflet map
+    display_color = models.CharField(
+        max_length=7, default='#FF6B35',
+        help_text="Hex colour for map rendering, e.g. '#FF6B35'"
+    )
+
+    is_active = models.BooleanField(default=True)
+    notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'cel_stage'
+        ordering = ['cel_program', 'stage_number']
+        unique_together = [['cel_program', 'stage_number']]
+
+    def __str__(self):
+        return f"{self.cel_program.code} – {self.name}"
+
+    # ------------------------------------------------------------------
+    # Derived capacity properties
+    # ------------------------------------------------------------------
+
+    @property
+    def total_capacity_mw(self):
+        """Total capacity enabled: new generation + existing unlocked (MW)."""
+        return (self.capacity_new_mw or 0.0) + (self.capacity_unlocked_existing_mw or 0.0)
+
+    @property
+    def available_capacity_mw(self):
+        """Remaining headroom after committed projects (MW)."""
+        return max(0.0, self.total_capacity_mw - (self.reserved_capacity_mw or 0.0))
+
+    # ------------------------------------------------------------------
+    # Funding weight property
+    # ------------------------------------------------------------------
+
+    @property
+    def funding_status_weight(self):
+        """
+        Probability weight reflecting how likely this stage is to proceed.
+        Uses funding_status_weight_override if set, otherwise looks up the
+        default from CEL_FUNDING_STATUS_WEIGHTS.
+        """
+        if self.funding_status_weight_override is not None:
+            return self.funding_status_weight_override
+        return CEL_FUNDING_STATUS_WEIGHTS.get(self.funding_status, 0.30)
+
+    # ------------------------------------------------------------------
+    # Route coordinate helpers
+    # ------------------------------------------------------------------
+
+    def get_route_coordinates(self):
+        """
+        Return the stage route as a list of [lat, lon] pairs for Leaflet.
+
+        Preference order:
+        1. Parsed route_coordinates JSON
+        2. from_terminal / to_terminal locations
+        3. from_latitude/from_longitude and to_latitude/to_longitude fields
+        """
+        if self.route_coordinates:
+            try:
+                coords = json.loads(self.route_coordinates)
+                if isinstance(coords, list) and len(coords) >= 2:
+                    return coords
+            except (json.JSONDecodeError, TypeError):
+                pass
+
+        # Fall back to terminal coordinates
+        coords = []
+        if self.from_terminal and self.from_terminal.latitude and self.from_terminal.longitude:
+            coords.append([self.from_terminal.latitude, self.from_terminal.longitude])
+        elif self.from_latitude and self.from_longitude:
+            coords.append([self.from_latitude, self.from_longitude])
+
+        if self.to_terminal and self.to_terminal.latitude and self.to_terminal.longitude:
+            coords.append([self.to_terminal.latitude, self.to_terminal.longitude])
+        elif self.to_latitude and self.to_longitude:
+            coords.append([self.to_latitude, self.to_longitude])
+
+        return coords
+
+
+class FacilityCELAlignment(models.Model):
+    """
+    Pre-computed viability alignment between an RE facility and a CEL stage.
+
+    Records are created/updated by the CELViabilityService (management command
+    compute_cel_viability).  The service evaluates each active facility against
+    every active CEL stage and stores the results here for fast retrieval.
+
+    Viability score components (all stored for audit/transparency):
+      cel_funding_weight       — probability the CEL stage proceeds
+      facility_status_weight   — probability the facility is built
+      capacity_feasibility_score — whether the stage has room for this project
+      viability_score          — combined: cel × facility × capacity
+
+    Exception facilities (co-located load/gen, behind-the-meter large projects,
+    Goldfields Regional Network) are flagged separately and bypass the standard
+    capacity logic.
+    """
+
+    EXCEPTION_REASON_CHOICES = [
+        ('collocated_load', 'Co-located Load/Generation'),
+        ('behind_meter', 'Behind-the-Meter Large Project'),
+        ('goldfields_network', 'Goldfields Regional Network'),
+    ]
+
+    idfacilitycelal = models.AutoField(primary_key=True)
+    facility = models.ForeignKey(
+        'facilities', on_delete=models.CASCADE,
+        related_name='cel_alignments'
+    )
+    cel_stage = models.ForeignKey(
+        'CELStage', on_delete=models.CASCADE,
+        related_name='facility_alignments'
+    )
+
+    # Distance from facility to nearest point on the CEL stage route
+    distance_to_route_km = models.FloatField(
+        null=True, blank=True,
+        help_text="Distance from facility to the nearest point on the "
+                  "CEL stage route (km)"
+    )
+    # True when distance_to_route_km <= cel_stage.alignment_radius_km
+    is_aligned = models.BooleanField(default=False)
+
+    # Viability score components
+    viability_score = models.FloatField(
+        null=True, blank=True,
+        validators=[MinValueValidator(0.0), MaxValueValidator(1.0)],
+        help_text="Combined viability score (0–1): "
+                  "cel_funding_weight × facility_status_weight × capacity_feasibility_score"
+    )
+    cel_funding_weight = models.FloatField(
+        null=True, blank=True,
+        help_text="CEL stage funding probability used in this score"
+    )
+    facility_status_weight = models.FloatField(
+        null=True, blank=True,
+        help_text="Facility development status probability used in this score"
+    )
+    capacity_feasibility_score = models.FloatField(
+        null=True, blank=True,
+        help_text="Score reflecting whether CEL stage capacity covers this facility"
+    )
+
+    # Exception flags — bypass standard capacity logic for special cases
+    is_exception = models.BooleanField(
+        default=False,
+        help_text="Flag facilities that bypass standard transmission constraint logic"
+    )
+    exception_reason = models.CharField(
+        max_length=30, blank=True,
+        choices=EXCEPTION_REASON_CHOICES
+    )
+
+    notes = models.TextField(blank=True)
+    computed_at = models.DateTimeField(
+        auto_now=True,
+        help_text="Last time this alignment record was computed"
+    )
+
+    class Meta:
+        db_table = 'facility_cel_alignment'
+        unique_together = [['facility', 'cel_stage']]
+        ordering = ['-viability_score']
+
+    def __str__(self):
+        return (
+            f"{self.facility.facility_name} → {self.cel_stage.name} "
+            f"({self.viability_label})"
+        )
+
+    @property
+    def viability_label(self):
+        """
+        Human-readable viability tier for display and map colouring.
+
+        Returns one of: 'high', 'medium', 'low', 'exception', 'unscored'
+        """
+        if self.is_exception:
+            return 'exception'
+        if self.viability_score is None:
+            return 'unscored'
+        if self.viability_score >= 0.70:
+            return 'high'
+        if self.viability_score >= 0.40:
+            return 'medium'
+        return 'low'
+
+
 class FacilitySolar(models.Model):
     """
     Installation-specific solar PV system data.
     Links facilities to solar technologies with deployment details.
-    
+
     A facility can have multiple solar installations with different:
     - Technology types (fixed tilt, single-axis tracking, etc.)
     - Commissioning dates (Phase 1, Phase 2)

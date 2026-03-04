@@ -3,7 +3,10 @@ from django.core.paginator import Paginator
 from django.shortcuts import render, get_object_or_404, redirect
 from django.db.models import Q, Prefetch
 from django.views.decorators.http import require_POST
-from siren_web.models import facilities, Scenarios, ScenariosFacilities, Technologies, Zones, FacilityWindTurbines
+from siren_web.models import (
+    facilities, Scenarios, ScenariosFacilities, Technologies, Zones,
+    FacilityWindTurbines, FacilityCELAlignment,
+)
 
 def facilities_list(request):
     """List all facilities with search and pagination"""
@@ -159,6 +162,14 @@ def facility_detail(request, pk):
     # Get facility capacity summary
     capacity_summary = facility.get_installation_summary()
 
+    # CEL transmission alignments — ordered best score first
+    cel_alignments = (
+        FacilityCELAlignment.objects
+        .filter(facility=facility)
+        .select_related('cel_stage', 'cel_stage__cel_program')
+        .order_by('-viability_score', 'distance_to_route_km')
+    )
+
     context = {
         'facility': facility,
         'facility_scenarios': facility_scenarios,
@@ -166,6 +177,8 @@ def facility_detail(request, pk):
         'solar_installations': solar_installations,
         'storage_installations': storage_installations,
         'capacity_summary': capacity_summary,
+        'cel_alignments': cel_alignments,
+        'effective_commissioning_probability': facility.effective_commissioning_probability,
     }
 
     return render(request, 'facilities/detail.html', context)

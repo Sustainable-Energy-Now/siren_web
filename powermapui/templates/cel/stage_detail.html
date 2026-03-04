@@ -1,0 +1,179 @@
+<!-- cel/stage_detail.html -->
+{% extends 'powermapui_base.html' %}
+
+{% block powermapui_content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <h3>{{ stage.name }}
+      {% with fs=stage.funding_status %}
+        <span class="badge ms-2
+          {% if fs == 'operational' %}bg-success
+          {% elif fs == 'under_construction' %}bg-warning text-dark
+          {% elif fs == 'funded' %}bg-info text-dark
+          {% elif fs == 'environmental_approval' %}bg-primary
+          {% else %}bg-secondary{% endif %}">
+          {{ stage.get_funding_status_display }}
+        </span>
+      {% endwith %}
+      {% if not stage.is_active %}<span class="badge bg-secondary ms-1">Inactive</span>{% endif %}
+    </h3>
+    <p class="text-muted mb-0">
+      <a href="{% url 'powermapui:cel_program_detail' stage.cel_program.pk %}">{{ stage.cel_program.name }}</a>
+      {% if stage.stage_number %} · Stage {{ stage.stage_number }}{% endif %}
+      · {{ stage.get_stage_type_display }}
+    </p>
+  </div>
+  <div class="d-flex gap-2">
+    <form method="post" action="{% url 'powermapui:cel_stage_recompute' stage.pk %}">
+      {% csrf_token %}
+      <button type="submit" class="btn btn-outline-info">↺ Recompute Viability</button>
+    </form>
+    <a href="{% url 'powermapui:cel_stage_edit' stage.pk %}" class="btn btn-outline-secondary">Edit</a>
+    <form method="post" action="{% url 'powermapui:cel_stage_delete' stage.pk %}"
+          onsubmit="return confirm('Delete stage {{ stage.name }}?');">
+      {% csrf_token %}
+      <button type="submit" class="btn btn-outline-danger">Delete</button>
+    </form>
+  </div>
+</div>
+
+<div class="row mb-4">
+  <!-- Capacity card -->
+  <div class="col-md-4">
+    <div class="card h-100">
+      <div class="card-header"><h6 class="mb-0">Capacity</h6></div>
+      <div class="card-body">
+        <table class="table table-sm mb-0">
+          <tr><td>New MW</td><td class="text-end">{{ stage.capacity_new_mw|floatformat:0|default:"—" }}</td></tr>
+          <tr><td>Unlocked existing MW</td><td class="text-end">{{ stage.capacity_unlocked_existing_mw|floatformat:0|default:"—" }}</td></tr>
+          <tr><td>Reserved MW</td><td class="text-end">{{ stage.reserved_capacity_mw|floatformat:0|default:"—" }}</td></tr>
+          <tr class="table-active fw-bold">
+            <td>Available MW</td><td class="text-end">{{ stage.available_capacity_mw|floatformat:0 }}</td>
+          </tr>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Geography card -->
+  <div class="col-md-4">
+    <div class="card h-100">
+      <div class="card-header"><h6 class="mb-0">Geography</h6></div>
+      <div class="card-body">
+        <table class="table table-sm mb-0">
+          {% if stage.served_region %}<tr><td>Region</td><td>{{ stage.served_region }}</td></tr>{% endif %}
+          <tr><td>Alignment radius</td><td>{{ stage.alignment_radius_km }} km</td></tr>
+          {% if stage.from_terminal %}<tr><td>From terminal</td><td>{{ stage.from_terminal.terminal_name }}</td></tr>{% endif %}
+          {% if stage.to_terminal %}<tr><td>To terminal</td><td>{{ stage.to_terminal.terminal_name }}</td></tr>{% endif %}
+          {% if stage.from_latitude %}
+            <tr><td>From</td><td class="small">{{ stage.from_latitude }}, {{ stage.from_longitude }}</td></tr>{% endif %}
+          {% if stage.to_latitude %}
+            <tr><td>To</td><td class="small">{{ stage.to_latitude }}, {{ stage.to_longitude }}</td></tr>{% endif %}
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Viability card -->
+  <div class="col-md-4">
+    <div class="card h-100">
+      <div class="card-header"><h6 class="mb-0">Pipeline Summary</h6></div>
+      <div class="card-body">
+        <table class="table table-sm mb-0">
+          <tr><td>Aligned facilities</td><td class="text-end fw-bold">{{ aligned_count }}</td></tr>
+          <tr><td>Pipeline MW</td><td class="text-end fw-bold">{{ pipeline_mw|floatformat:0 }}</td></tr>
+          <tr><td>Funding weight</td><td class="text-end">{{ stage.funding_status_weight|floatformat:2 }}</td></tr>
+          <tr><td>Display colour</td>
+              <td class="text-end">
+                <span style="display:inline-block;width:18px;height:18px;background:{{ stage.display_color }};border-radius:3px;vertical-align:middle;"></span>
+                {{ stage.display_color }}
+              </td>
+          </tr>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Route coordinates info -->
+{% if stage.route_coordinates %}
+<div class="alert alert-light border mb-4 small">
+  <strong>Route coordinates:</strong> {{ stage.get_route_coordinates|length }} waypoint(s) stored.
+</div>
+{% endif %}
+
+<!-- Aligned facilities table -->
+<h5>Facility Alignments</h5>
+{% if alignments %}
+  <table class="table table-sm table-hover">
+    <thead class="table-light">
+      <tr>
+        <th>Facility</th>
+        <th>Technology</th>
+        <th>Status</th>
+        <th class="text-end">Capacity (MW)</th>
+        <th class="text-end">Distance (km)</th>
+        <th>Viability</th>
+        <th class="text-end">Score</th>
+        <th>Exception</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for a in alignments %}
+        <tr {% if not a.is_aligned %}class="text-muted"{% endif %}>
+          <td>
+            <a href="{% url 'powermapui:facility_detail' a.facility.pk %}">{{ a.facility.facility_name }}</a>
+          </td>
+          <td>{{ a.facility.idtechnologies.technology_name|default:"—" }}</td>
+          <td>{{ a.facility.get_status_display|default:a.facility.status }}</td>
+          <td class="text-end">{{ a.facility.capacity|floatformat:0|default:"—" }}</td>
+          <td class="text-end">{{ a.distance_to_route_km|floatformat:1|default:"—" }}</td>
+          <td>
+            {% if a.is_exception %}
+              <span class="badge bg-purple" style="background:#9C27B0;">Exception</span>
+            {% elif a.is_aligned %}
+              {% with lbl=a.viability_label %}
+                <span class="badge
+                  {% if lbl == 'high' %}bg-success
+                  {% elif lbl == 'medium' %}bg-warning text-dark
+                  {% elif lbl == 'low' %}bg-danger
+                  {% else %}bg-secondary{% endif %}">
+                  {{ lbl|capfirst }}
+                </span>
+              {% endwith %}
+            {% else %}
+              <span class="text-muted small">Outside radius</span>
+            {% endif %}
+          </td>
+          <td class="text-end">
+            {% if a.viability_score is not None %}
+              {{ a.viability_score|floatformat:3 }}
+            {% else %}—{% endif %}
+          </td>
+          <td>
+            {% if a.is_exception %}
+              <span class="badge bg-light text-dark border">{{ a.get_exception_reason_display }}</span>
+            {% endif %}
+          </td>
+          <td class="text-end">
+            {% if a.is_aligned or a.is_exception %}
+              <a href="{% url 'powermapui:cel_alignment_set_exception' a.pk %}" class="btn btn-outline-secondary btn-sm">
+                {% if a.is_exception %}Edit exception{% else %}Set exception{% endif %}
+              </a>
+            {% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% else %}
+  <p class="text-muted">
+    No alignment records yet.
+    <form method="post" action="{% url 'powermapui:cel_stage_recompute' stage.pk %}" class="d-inline">
+      {% csrf_token %}
+      <button type="submit" class="btn btn-sm btn-outline-info">Run viability compute</button>
+    </form>
+  </p>
+{% endif %}
+{% endblock %}

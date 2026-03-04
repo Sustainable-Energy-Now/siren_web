@@ -124,7 +124,23 @@
                        min="0"
                        max="1"
                        value="{{ form_data.commissioning_probability|default:facility.commissioning_probability|default:'' }}">
-                <div class="form-text">Likelihood of commissioning (0-1), for proposed/planned facilities</div>
+                <div class="form-text">
+                  Likelihood of commissioning (0–1), independent of transmission access.
+                  {% with ep=facility.effective_commissioning_probability %}
+                    {% if ep != None and ep != facility.commissioning_probability %}
+                      <br>CEL-adjusted effective probability:
+                      <strong class="
+                        {% if ep >= 0.7 %}text-success
+                        {% elif ep >= 0.4 %}text-warning
+                        {% else %}text-danger{% endif %}">
+                        {{ ep|floatformat:2 }}
+                      </strong>
+                      (commissioning probability &times; best CEL viability score)
+                    {% elif ep == None and facility.commissioning_probability %}
+                      <br><span class="text-muted">No CEL alignment data — run <code>compute_cel_viability</code> to compute effective probability.</span>
+                    {% endif %}
+                  {% endwith %}
+                </div>
               </div>
             </div>
 

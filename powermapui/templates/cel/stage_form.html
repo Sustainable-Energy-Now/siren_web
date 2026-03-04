@@ -1,0 +1,221 @@
+<!-- cel/stage_form.html -->
+{% extends 'powermapui_base.html' %}
+
+{% block powermapui_content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <h3>{% if action == 'edit' %}Edit Stage — {{ stage.name }}{% else %}New Stage{% endif %}</h3>
+    <p class="text-muted mb-0">Program: <a href="{% url 'powermapui:cel_program_detail' program.pk %}">{{ program.name }}</a></p>
+  </div>
+  <a href="{% url 'powermapui:cel_program_detail' program.pk %}" class="btn btn-outline-secondary">← Program</a>
+</div>
+
+<div class="row">
+  <div class="col-lg-8">
+    <div class="card">
+      <div class="card-body">
+        <form method="post" novalidate>
+          {% csrf_token %}
+
+          <!-- Basic details -->
+          <h6 class="mb-3">Basic Details</h6>
+          <div class="row mb-3">
+            <div class="col-md-8">
+              <label for="name" class="form-label">Stage Name <span class="text-danger">*</span></label>
+              <input type="text" class="form-control" id="name" name="name"
+                     value="{{ initial.name }}" required>
+            </div>
+            <div class="col-md-4">
+              <label for="stage_number" class="form-label">Stage Number</label>
+              <input type="number" class="form-control" id="stage_number" name="stage_number"
+                     value="{{ initial.stage_number }}" min="1">
+            </div>
+          </div>
+
+          <div class="row mb-3">
+            <div class="col-md-6">
+              <label for="stage_type" class="form-label">Stage Type</label>
+              <select class="form-select" id="stage_type" name="stage_type">
+                {% for val, label in stage_type_choices %}
+                  <option value="{{ val }}" {% if initial.stage_type == val %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label for="served_region" class="form-label">Served Region</label>
+              <input type="text" class="form-control" id="served_region" name="served_region"
+                     value="{{ initial.served_region }}" placeholder="e.g. Mid West, South West">
+            </div>
+          </div>
+
+          <hr class="my-3">
+          <h6 class="mb-3">Funding &amp; Capacity</h6>
+
+          <div class="row mb-3">
+            <div class="col-md-6">
+              <label for="funding_status" class="form-label">Funding Status</label>
+              <select class="form-select" id="funding_status" name="funding_status">
+                {% for val, label in funding_status_choices %}
+                  <option value="{{ val }}" {% if initial.funding_status == val %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+              </select>
+              <div class="form-text">Determines default funding weight for viability scoring.</div>
+            </div>
+            <div class="col-md-6">
+              <label for="funding_status_weight_override" class="form-label">Weight Override</label>
+              <input type="number" class="form-control" id="funding_status_weight_override"
+                     name="funding_status_weight_override" step="0.01" min="0" max="1"
+                     value="{{ initial.funding_status_weight_override }}">
+              <div class="form-text">Leave blank to use the default weight for the selected status.</div>
+            </div>
+          </div>
+
+          <div class="row mb-3">
+            <div class="col-md-4">
+              <label for="capacity_new_mw" class="form-label">New Capacity (MW)</label>
+              <input type="number" class="form-control" id="capacity_new_mw" name="capacity_new_mw"
+                     step="1" min="0" value="{{ initial.capacity_new_mw }}">
+            </div>
+            <div class="col-md-4">
+              <label for="capacity_unlocked_existing_mw" class="form-label">Unlocked Existing (MW)</label>
+              <input type="number" class="form-control" id="capacity_unlocked_existing_mw"
+                     name="capacity_unlocked_existing_mw" step="1" min="0"
+                     value="{{ initial.capacity_unlocked_existing_mw }}">
+            </div>
+            <div class="col-md-4">
+              <label for="reserved_capacity_mw" class="form-label">Reserved (MW)</label>
+              <input type="number" class="form-control" id="reserved_capacity_mw"
+                     name="reserved_capacity_mw" step="1" min="0"
+                     value="{{ initial.reserved_capacity_mw }}">
+              <div class="form-text">Already committed headroom.</div>
+            </div>
+          </div>
+
+          <hr class="my-3">
+          <h6 class="mb-3">Geography</h6>
+
+          <div class="mb-3">
+            <label for="alignment_radius_km" class="form-label">Alignment Radius (km)</label>
+            <input type="number" class="form-control" id="alignment_radius_km" name="alignment_radius_km"
+                   step="1" min="1" style="max-width:140px;" value="{{ initial.alignment_radius_km }}">
+            <div class="form-text">Facilities within this radius of the route are considered aligned.</div>
+          </div>
+
+          <div class="row mb-3">
+            <div class="col-md-6">
+              <label for="from_terminal" class="form-label">From Terminal</label>
+              <select class="form-select" id="from_terminal" name="from_terminal">
+                <option value="">— None —</option>
+                {% for t in terminals %}
+                  <option value="{{ t.pk }}"
+                    {% if initial.from_terminal|stringformat:"s" == t.pk|stringformat:"s" %}selected{% endif %}>
+                    {{ t.terminal_name }}
+                  </option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label for="to_terminal" class="form-label">To Terminal</label>
+              <select class="form-select" id="to_terminal" name="to_terminal">
+                <option value="">— None —</option>
+                {% for t in terminals %}
+                  <option value="{{ t.pk }}"
+                    {% if initial.to_terminal|stringformat:"s" == t.pk|stringformat:"s" %}selected{% endif %}>
+                    {{ t.terminal_name }}
+                  </option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+
+          <div class="row mb-3">
+            <div class="col-md-3">
+              <label class="form-label">From Latitude</label>
+              <input type="number" class="form-control" name="from_latitude" step="0.000001" min="-90" max="90"
+                     value="{{ initial.from_latitude }}">
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">From Longitude</label>
+              <input type="number" class="form-control" name="from_longitude" step="0.000001" min="-180" max="180"
+                     value="{{ initial.from_longitude }}">
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">To Latitude</label>
+              <input type="number" class="form-control" name="to_latitude" step="0.000001" min="-90" max="90"
+                     value="{{ initial.to_latitude }}">
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">To Longitude</label>
+              <input type="number" class="form-control" name="to_longitude" step="0.000001" min="-180" max="180"
+                     value="{{ initial.to_longitude }}">
+            </div>
+          </div>
+
+          <div class="mb-3">
+            <label for="route_coordinates" class="form-label">Route Coordinates (JSON)</label>
+            <textarea class="form-control font-monospace" id="route_coordinates" name="route_coordinates"
+                      rows="4" placeholder='[[lat, lon], [lat, lon], ...]'>{{ initial.route_coordinates }}</textarea>
+            <div class="form-text">Array of [lat, lon] pairs defining the transmission route polyline.</div>
+          </div>
+
+          <hr class="my-3">
+          <h6 class="mb-3">Display</h6>
+
+          <div class="row mb-4">
+            <div class="col-md-4">
+              <label for="display_color" class="form-label">Display Colour</label>
+              <div class="input-group">
+                <input type="color" class="form-control form-control-color" id="display_color_picker"
+                       value="{{ initial.display_color }}"
+                       oninput="document.getElementById('display_color').value=this.value">
+                <input type="text" class="form-control" id="display_color" name="display_color"
+                       value="{{ initial.display_color }}"
+                       oninput="document.getElementById('display_color_picker').value=this.value">
+              </div>
+            </div>
+            <div class="col-md-4 d-flex align-items-end">
+              <div class="form-check mb-2">
+                <input type="checkbox" class="form-check-input" id="is_active" name="is_active"
+                       {% if initial.is_active %}checked{% endif %}>
+                <label class="form-check-label" for="is_active">Active (include in viability scoring)</label>
+              </div>
+            </div>
+          </div>
+
+          <div class="mb-4">
+            <label for="notes" class="form-label">Notes</label>
+            <textarea class="form-control" id="notes" name="notes" rows="2">{{ initial.notes }}</textarea>
+          </div>
+
+          <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-primary">
+              {% if action == 'edit' %}Update Stage{% else %}Create Stage{% endif %}
+            </button>
+            {% if action == 'edit' and stage %}
+              <a href="{% url 'powermapui:cel_stage_detail' stage.pk %}" class="btn btn-outline-secondary">Cancel</a>
+            {% else %}
+              <a href="{% url 'powermapui:cel_program_detail' program.pk %}" class="btn btn-outline-secondary">Cancel</a>
+            {% endif %}
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-4">
+    <div class="card">
+      <div class="card-header"><h6 class="mb-0">Funding Weight Reference</h6></div>
+      <div class="card-body small">
+        <table class="table table-sm mb-0">
+          <tr><td>Planning</td><td class="text-end">0.30</td></tr>
+          <tr><td>Environmental Approval</td><td class="text-end">0.50</td></tr>
+          <tr><td>Funded</td><td class="text-end">0.80</td></tr>
+          <tr><td>Under Construction</td><td class="text-end">0.90</td></tr>
+          <tr><td>Operational</td><td class="text-end">1.00</td></tr>
+        </table>
+        <p class="mt-2 mb-0 text-muted">Use the weight override field to set a custom value independent of status.</p>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
