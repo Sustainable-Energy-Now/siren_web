@@ -19,18 +19,6 @@
         <li class="nav-item">
           <a class="nav-link" href="/map/">Grid Map</a>
         </li>
-        <li class="nav-item dropdown">
-          <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
-            Pipeline
-          </a>
-          <ul class="dropdown-menu">
-            <li><a class="dropdown-item" href="{% url 'powermapui:pipeline_map' %}">Pipeline Map</a></li>
-            <li><a class="dropdown-item" href="{% url 'powermapui:infrastructure_network' %}">Network View</a></li>
-            <li><hr class="dropdown-divider"></li>
-            <li><a class="dropdown-item" href="{% url 'powermapui:pipeline_gantt' %}">Timeline / Gantt</a></li>
-            <li><a class="dropdown-item" href="{% url 'powermapui:pipeline_waterfall' %}">Capacity Outlook</a></li>
-          </ul>
-        </li>
         <li class="nav-item">
           <a class="nav-link" href="/scenarios/">Scenarios</a>
         </li>
@@ -58,6 +46,10 @@
             <li><a class="dropdown-item" href="{% url 'powermapui:facilities_list' %}?installation_type=wind">Wind Facilities</a></li>
             <li><a class="dropdown-item" href="{% url 'powermapui:facilities_list' %}?installation_type=solar">Solar Facilities</a></li>
             <li><a class="dropdown-item" href="{% url 'powermapui:facilities_list' %}?installation_type=storage">Storage Facilities</a></li>
+            <li><hr class="dropdown-divider"></li>
+            <li><a class="dropdown-item" href="{% url 'powermapui:infrastructure_network' %}">Network View</a></li>
+            <li><a class="dropdown-item" href="{% url 'powermapui:pipeline_gantt' %}">Timeline / Gantt</a></li>
+            <li><a class="dropdown-item" href="{% url 'powermapui:pipeline_waterfall' %}">Capacity Outlook</a></li>
           </ul>
         </li>
         <li class="nav-item dropdown">
@@ -82,7 +74,8 @@
             <li><hr class="dropdown-divider"></li>
 
             <li><h6 class="dropdown-header">Clean Energy Link (CEL)</h6></li>
-            <li><a class="dropdown-item" href="{% url 'powermapui:cel_program_list' %}">All CEL Programs</a></li>
+            <li><a class="dropdown-item" href="{% url 'powermapui:cel-map' %}">Transmission Map</a></li>
+            <li><a class="dropdown-item" href="{% url 'powermapui:cel_program_list' %}">CEL Programs</a></li>
             <li><a class="dropdown-item" href="{% url 'powermapui:cel_program_create' %}">Add CEL Program</a></li>
           </ul>
         </li>

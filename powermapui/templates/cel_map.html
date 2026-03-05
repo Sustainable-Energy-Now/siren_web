@@ -1,0 +1,612 @@
+<!-- powermapui/templates/pipeline_map.html -->
+{% extends 'powermapui_base.html' %}
+{% load static %}
+{% block powermapui_content %}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h3 id="map-title">Clean Energy Link Map</h3>
+  <div>
+    <a href="{% url 'powermapui:map' %}" class="btn btn-outline-secondary btn-sm">Grid Map</a>
+    <a href="{% url 'powermapui:infrastructure_network' %}" class="btn btn-outline-primary btn-sm">Network View</a>
+    <a href="{% url 'powermapui:cel_program_list' %}" class="btn btn-outline-info btn-sm">CEL Programs</a>
+  </div>
+</div>
+
+<!-- Scenario Selector -->
+<div class="mb-3">
+  <form method="post" class="d-flex align-items-end gap-2">
+    {% csrf_token %}
+    {{ demand_weather_scenario.demand_year.label_tag }}
+    {{ demand_weather_scenario.demand_year }}
+    {{ demand_weather_scenario.scenario.label_tag }}
+    {{ demand_weather_scenario.scenario }}
+    <button name="apply_settings" type="submit" class="btn btn-primary btn-sm">Apply</button>
+  </form>
+</div>
+
+{% if success_message %}
+<div class="alert alert-success alert-dismissible fade show" role="alert">
+  {{ success_message }}
+  <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+</div>
+{% endif %}
+
+<div class="row">
+  <!-- ── Filter / Info panel ──────────────────────────────────────────── -->
+  <div class="col-lg-3">
+
+    <!-- Display mode toggle -->
+    <div class="card mb-3">
+      <div class="card-header"><h6 class="mb-0">Facility Colour Mode</h6></div>
+      <div class="card-body py-2">
+        <div class="form-check">
+          <input class="form-check-input" type="radio" name="colorMode" id="mode-status" value="status" checked>
+          <label class="form-check-label" for="mode-status">Development Status</label>
+        </div>
+        <div class="form-check">
+          <input class="form-check-input" type="radio" name="colorMode" id="mode-viability" value="viability">
+          <label class="form-check-label" for="mode-viability">CEL Viability</label>
+        </div>
+      </div>
+    </div>
+
+    <!-- Status filters (shown in status mode) -->
+    <div class="card mb-3" id="panel-status-filters">
+      <div class="card-header"><h6 class="mb-0">Development Status</h6></div>
+      <div class="card-body py-2">
+        <div class="form-check">
+          <input class="form-check-input status-filter" type="checkbox" value="proposed" id="filter-proposed" checked>
+          <label class="form-check-label small" for="filter-proposed">
+            <span style="display:inline-block;width:12px;height:12px;background:#9e9e9e;border-radius:50%;vertical-align:middle;margin-right:4px;"></span>Proposed
+          </label>
+        </div>
+        <div class="form-check">
+          <input class="form-check-input status-filter" type="checkbox" value="planned" id="filter-planned" checked>
+          <label class="form-check-label small" for="filter-planned">
+            <span style="display:inline-block;width:12px;height:12px;background:#2196f3;border-radius:50%;vertical-align:middle;margin-right:4px;"></span>Planned
+          </label>
+        </div>
+        <div class="form-check">
+          <input class="form-check-input status-filter" type="checkbox" value="under_construction" id="filter-uc" checked>
+          <label class="form-check-label small" for="filter-uc">
+            <span style="display:inline-block;width:12px;height:12px;background:#ff9800;border-radius:50%;vertical-align:middle;margin-right:4px;"></span>Under Construction
+          </label>
+        </div>
+        <div class="form-check">
+          <input class="form-check-input status-filter" type="checkbox" value="commissioned" id="filter-commissioned" checked>
+          <label class="form-check-label small" for="filter-commissioned">
+            <span style="display:inline-block;width:12px;height:12px;background:#4caf50;border-radius:50%;vertical-align:middle;margin-right:4px;"></span>Commissioned
+          </label>
+        </div>
+        <div class="form-check">
+          <input class="form-check-input status-filter" type="checkbox" value="decommissioned" id="filter-decommissioned">
+          <label class="form-check-label small" for="filter-decommissioned">
+            <span style="display:inline-block;width:12px;height:12px;background:#f44336;border-radius:50%;vertical-align:middle;margin-right:4px;"></span>Decommissioned
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <!-- Viability filters (shown in viability mode) -->
+    <div class="card mb-3 d-none" id="panel-viability-filters">
+      <div class="card-header"><h6 class="mb-0">CEL Viability Tier</h6></div>
+      <div class="card-body py-2">
+        <div class="form-check">
+          <input class="form-check-input viability-filter" type="checkbox" value="high" id="v-high" checked>
+          <label class="form-check-label small" for="v-high">
+            <span style="display:inline-block;width:12px;height:12px;background:#4CAF50;border-radius:50%;vertical-align:middle;margin-right:4px;"></span>High (&ge;0.70)
+          </label>
+        </div>
+        <div class="form-check">
+          <input class="form-check-input viability-filter" type="checkbox" value="medium" id="v-medium" checked>
+          <label class="form-check-label small" for="v-medium">
+            <span style="display:inline-block;width:12px;height:12px;background:#FFC107;border-radius:50%;vertical-align:middle;margin-right:4px;"></span>Medium (0.40–0.70)
+          </label>
+        </div>
+        <div class="form-check">
+          <input class="form-check-input viability-filter" type="checkbox" value="low" id="v-low" checked>
+          <label class="form-check-label small" for="v-low">
+            <span style="display:inline-block;width:12px;height:12px;background:#F44336;border-radius:50%;vertical-align:middle;margin-right:4px;"></span>Low (&lt;0.40)
+          </label>
+        </div>
+        <div class="form-check">
+          <input class="form-check-input viability-filter" type="checkbox" value="exception" id="v-exception" checked>
+          <label class="form-check-label small" for="v-exception">
+            <span style="display:inline-block;width:12px;height:12px;background:#9C27B0;border-radius:50%;vertical-align:middle;margin-right:4px;"></span>Exception
+          </label>
+        </div>
+        <div class="form-check mt-1 border-top pt-1">
+          <input class="form-check-input viability-filter" type="checkbox" value="unscored" id="v-unscored">
+          <label class="form-check-label small" for="v-unscored">
+            <span style="display:inline-block;width:12px;height:12px;background:#9E9E9E;border-radius:50%;vertical-align:middle;margin-right:4px;opacity:0.5;"></span>Unscored / not aligned
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <!-- Category Filter -->
+    <div class="card mb-3">
+      <div class="card-header"><h6 class="mb-0">Technology Category</h6></div>
+      <div class="card-body py-2" id="category-filters">
+        <!-- Populated by JS -->
+      </div>
+    </div>
+
+    <!-- CEL Layer -->
+    <div class="card mb-3">
+      <div class="card-header"><h6 class="mb-0">CEL Stage Routes</h6></div>
+      <div class="card-body py-2">
+        <div class="form-check">
+          <input class="form-check-input cel-filter" type="checkbox" value="planning" id="cel-planning" checked>
+          <label class="form-check-label small" for="cel-planning">
+            <span style="display:inline-block;width:20px;height:4px;background:#9E9E9E;vertical-align:middle;margin-right:4px;border-radius:2px;"></span>Planning
+          </label>
+        </div>
+        <div class="form-check">
+          <input class="form-check-input cel-filter" type="checkbox" value="environmental_approval" id="cel-env" checked>
+          <label class="form-check-label small" for="cel-env">
+            <span style="display:inline-block;width:20px;height:4px;background:#2196F3;vertical-align:middle;margin-right:4px;border-radius:2px;"></span>Environmental Approval
+          </label>
+        </div>
+        <div class="form-check">
+          <input class="form-check-input cel-filter" type="checkbox" value="funded" id="cel-funded" checked>
+          <label class="form-check-label small" for="cel-funded">
+            <span style="display:inline-block;width:20px;height:4px;background:#FF9800;vertical-align:middle;margin-right:4px;border-radius:2px;"></span>Funded
+          </label>
+        </div>
+        <div class="form-check">
+          <input class="form-check-input cel-filter" type="checkbox" value="under_construction" id="cel-uc" checked>
+          <label class="form-check-label small" for="cel-uc">
+            <span style="display:inline-block;width:20px;height:4px;background:#FF5722;vertical-align:middle;margin-right:4px;border-radius:2px;"></span>Under Construction
+          </label>
+        </div>
+        <div class="form-check">
+          <input class="form-check-input cel-filter" type="checkbox" value="operational" id="cel-operational" checked>
+          <label class="form-check-label small" for="cel-operational">
+            <span style="display:inline-block;width:20px;height:4px;background:#4CAF50;vertical-align:middle;margin-right:4px;border-radius:2px;"></span>Operational
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <!-- Timeline Slider -->
+    <div class="card mb-3">
+      <div class="card-header"><h6 class="mb-0">Timeline</h6></div>
+      <div class="card-body">
+        <div class="d-flex justify-content-between mb-1">
+          <small id="year-min-label">{{ year_min }}</small>
+          <strong id="current-year-label">-</strong>
+          <small id="year-max-label">{{ year_max }}</small>
+        </div>
+        <input type="range" class="form-range" id="year-slider"
+               min="{{ year_min }}" max="{{ year_max }}" value="{{ year_min }}" step="1">
+        <div class="form-check mt-2">
+          <input class="form-check-input" type="checkbox" id="enable-timeline">
+          <label class="form-check-label small" for="enable-timeline">Enable timeline filter</label>
+        </div>
+      </div>
+    </div>
+
+    <!-- Summary -->
+    <div class="card mb-3">
+      <div class="card-header"><h6 class="mb-0">Summary</h6></div>
+      <div class="card-body p-2" id="summary-panel">
+        <!-- Status summary (shown in status mode) -->
+        <div id="summary-status">
+          <table class="table table-sm table-borderless mb-0">
+            <thead><tr><th>Status</th><th class="text-end">Count</th><th class="text-end">MW</th></tr></thead>
+            <tbody id="summary-tbody"></tbody>
+            <tfoot>
+              <tr class="border-top">
+                <th>Total</th>
+                <th class="text-end" id="summary-total-count">0</th>
+                <th class="text-end" id="summary-total-mw">0</th>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+        <!-- Viability summary (shown in viability mode) -->
+        <div id="summary-viability" class="d-none">
+          {% if cel_summary %}
+            <table class="table table-sm table-borderless mb-2">
+              <tr><td class="text-muted small">CEL headroom</td>
+                  <td class="text-end fw-bold">{{ cel_summary.totals.cel_available_capacity_mw|floatformat:0 }} MW</td></tr>
+              <tr><td class="text-muted small">Aligned pipeline</td>
+                  <td class="text-end fw-bold">{{ cel_summary.totals.pipeline_mw|floatformat:0 }} MW</td></tr>
+            </table>
+            {% for tier, data in cel_summary.by_viability.items %}
+              {% if data.count %}
+              <div class="d-flex justify-content-between small mb-1">
+                <span>
+                  <span class="badge
+                    {% if tier == 'high' %}bg-success
+                    {% elif tier == 'medium' %}bg-warning text-dark
+                    {% elif tier == 'low' %}bg-danger
+                    {% elif tier == 'exception' %}bg-purple
+                    {% else %}bg-secondary{% endif %}"
+                    style="{% if tier == 'exception' %}background:#9C27B0!important;{% endif %}">
+                    {{ tier|capfirst }}
+                  </span>
+                </span>
+                <span>{{ data.count }} &middot; {{ data.capacity_mw|floatformat:0 }} MW</span>
+              </div>
+              {% endif %}
+            {% endfor %}
+          {% else %}
+            <p class="small text-muted mb-0">No CEL data — run <code>compute_cel_viability</code>.</p>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Legend -->
+    <div class="card">
+      <div class="card-header"><h6 class="mb-0">Legend</h6></div>
+      <div class="card-body small">
+        <!-- Status legend -->
+        <div id="legend-status">
+          <div class="mb-1"><strong>Marker colour</strong> = Development Status</div>
+          <div><span style="color:#9e9e9e;">&#9679;</span> Proposed &nbsp;
+               <span style="color:#2196f3;">&#9679;</span> Planned<br>
+               <span style="color:#ff9800;">&#9679;</span> Under Construction<br>
+               <span style="color:#4caf50;">&#9679;</span> Commissioned &nbsp;
+               <span style="color:#f44336;">&#9679;</span> Decommissioned</div>
+          <div class="mt-1"><strong>Opacity</strong> = Commissioning Probability</div>
+          <div class="mt-1"><strong>Size</strong> = Capacity (MW)</div>
+        </div>
+        <!-- Viability legend -->
+        <div id="legend-viability" class="d-none">
+          <div class="mb-1"><strong>Marker colour</strong> = CEL Viability Tier</div>
+          <div><span style="color:#4CAF50;">&#9679;</span> High (&ge;0.70)<br>
+               <span style="color:#FFC107;">&#9679;</span> Medium (0.40–0.70)<br>
+               <span style="color:#F44336;">&#9679;</span> Low (&lt;0.40)<br>
+               <span style="color:#9C27B0;">&#9679;</span> Exception<br>
+               <span style="color:#9E9E9E;opacity:0.5;">&#9679;</span> Unscored</div>
+          <div class="mt-1"><strong>Size</strong> = Capacity (MW)</div>
+        </div>
+        <!-- CEL routes (always shown) -->
+        <div class="mt-2 pt-2 border-top">
+          <strong>CEL Routes</strong> (funding status)<br>
+          <span style="color:#9E9E9E;">━</span> Planning &nbsp;
+          <span style="color:#2196F3;">━</span> Env. Approval<br>
+          <span style="color:#FF9800;">━</span> Funded &nbsp;
+          <span style="color:#FF5722;">━</span> Under Const.<br>
+          <span style="color:#4CAF50;">━</span> Operational
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Map ──────────────────────────────────────────────────────────── -->
+  <div class="col-lg-9">
+    <div class="card">
+      <div class="card-body p-0">
+        <div id="cel-map" style="width:100%; height:700px;"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Data -->
+<script type="application/json" id="pipeline-facilities-data">{{ pipeline_facilities_json|safe }}</script>
+<script type="application/json" id="grid-lines-data">{{ grid_lines_json|safe }}</script>
+<script type="application/json" id="terminals-data">{{ terminals_json|safe }}</script>
+<script type="application/json" id="cel-stages-data">{{ cel_stages_json|safe }}</script>
+<script type="application/json" id="categories-data">{{ categories|safe }}</script>
+
+<!-- Leaflet -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+
+  // ── Parse data ──────────────────────────────────────────────────────────
+  const pipelineFacilities = JSON.parse(document.getElementById('pipeline-facilities-data').textContent);
+  const gridLines          = JSON.parse(document.getElementById('grid-lines-data').textContent);
+  const terminals          = JSON.parse(document.getElementById('terminals-data').textContent);
+  const celStages          = JSON.parse(document.getElementById('cel-stages-data').textContent);
+  const categories         = JSON.parse(document.getElementById('categories-data').textContent);
+
+  // ── Colour maps ─────────────────────────────────────────────────────────
+  const statusColors = {
+    proposed:          '#9e9e9e',
+    planned:           '#2196f3',
+    under_construction:'#ff9800',
+    commissioned:      '#4caf50',
+    decommissioned:    '#f44336',
+  };
+  const statusLabels = {
+    proposed:          'Proposed',
+    planned:           'Planned',
+    under_construction:'Under Construction',
+    commissioned:      'Commissioned',
+    decommissioned:    'Decommissioned',
+  };
+  const viabilityColors = {
+    high:      '#4CAF50',
+    medium:    '#FFC107',
+    low:       '#F44336',
+    exception: '#9C27B0',
+    unscored:  '#9E9E9E',
+  };
+  const celColors = {
+    planning:               '#9E9E9E',
+    environmental_approval: '#2196F3',
+    funded:                 '#FF9800',
+    under_construction:     '#FF5722',
+    operational:            '#4CAF50',
+  };
+
+  // ── Initialise map ──────────────────────────────────────────────────────
+  const map = L.map('cel-map').setView([-31.95, 115.86], 6);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap contributors',
+    maxZoom: 18,
+  }).addTo(map);
+
+  // ── Category filters ────────────────────────────────────────────────────
+  const categoryFiltersDiv = document.getElementById('category-filters');
+  categories.forEach(function (cat) {
+    const d = document.createElement('div');
+    d.className = 'form-check';
+    d.innerHTML = '<input class="form-check-input category-filter" type="checkbox" value="' + cat +
+      '" id="filter-cat-' + cat + '" checked>' +
+      '<label class="form-check-label small" for="filter-cat-' + cat + '">' + cat + '</label>';
+    categoryFiltersDiv.appendChild(d);
+  });
+
+  // ── Grid lines ──────────────────────────────────────────────────────────
+  gridLines.forEach(function (gl) {
+    let coords = gl.coordinates;
+    if (!coords || coords.length < 2) {
+      coords = [[gl.from_latitude, gl.from_longitude], [gl.to_latitude, gl.to_longitude]];
+    }
+    if (coords && coords.length >= 2) {
+      const lineColors = { transmission: '#198754', subtransmission: '#17a2b8', distribution: '#6c757d' };
+      const lineWidths = { transmission: 2, subtransmission: 1.5, distribution: 1 };
+      L.polyline(coords, {
+        color:   lineColors[gl.line_type] || '#6c757d',
+        weight:  lineWidths[gl.line_type] || 1,
+        opacity: 0.35,
+        interactive: false,
+      }).addTo(map);
+    }
+  });
+
+  // ── Terminals ───────────────────────────────────────────────────────────
+  const terminalLayer = L.layerGroup().addTo(map);
+  terminals.forEach(function (t) {
+    L.circleMarker([t.latitude, t.longitude], {
+      radius: 4, fillColor: '#333', color: '#333', weight: 1, fillOpacity: 0.7,
+    }).bindTooltip(t.terminal_name, { direction: 'top', offset: [0, -5] })
+      .addTo(terminalLayer);
+  });
+
+  // ── CEL stage routes ────────────────────────────────────────────────────
+  const celLayerMap = {};
+
+  celStages.forEach(function (stage) {
+    const coords = stage.coordinates;
+    if (!coords || coords.length < 2) return;
+    const color = celColors[stage.funding_status] || '#9E9E9E';
+
+    const total   = stage.total_capacity_mw || 0;
+    const avail   = stage.available_capacity_mw || 0;
+    const resPct  = total > 0 ? Math.round((stage.reserved_capacity_mw / total) * 100) : 0;
+    const availPct= total > 0 ? Math.round((avail / total) * 100) : 0;
+
+    const popup = `<div style="min-width:230px;">
+      <strong>${stage.name}</strong>
+      <span style="float:right;font-size:0.8em;background:${color};color:#fff;padding:1px 6px;border-radius:3px;">${stage.funding_status_display}</span>
+      <br><span style="color:#666;font-size:0.85em;">${stage.program_name} (${stage.program_code})</span>
+      <hr style="margin:5px 0;">
+      <div style="font-size:0.85em;">
+        <b>New capacity:</b> ${stage.capacity_new_mw.toLocaleString()} MW<br>
+        <b>Unlocked existing:</b> ${stage.capacity_unlocked_mw.toLocaleString()} MW<br>
+        <b>Reserved:</b> ${stage.reserved_capacity_mw.toLocaleString()} MW<br>
+        <b>Available:</b> <strong>${avail.toLocaleString()} MW</strong>
+      </div>
+      <div style="margin-top:5px;">
+        <div style="background:#e9ecef;border-radius:4px;height:8px;overflow:hidden;">
+          <div style="background:#dc3545;width:${resPct}%;height:100%;display:inline-block;"></div>
+          <div style="background:#198754;width:${availPct}%;height:100%;display:inline-block;"></div>
+        </div>
+        <div style="font-size:0.75em;color:#666;">
+          <span style="color:#dc3545;">&#9632;</span> Reserved &nbsp;
+          <span style="color:#198754;">&#9632;</span> Available
+        </div>
+      </div>
+      ${stage.served_region ? '<div style="font-size:0.8em;margin-top:3px;">Region: ' + stage.served_region + '</div>' : ''}
+      <div style="font-size:0.8em;margin-top:3px;">Funding weight: ${stage.funding_status_weight.toFixed(2)}</div>
+    </div>`;
+
+    const line = L.polyline(coords, { color, weight: 5, opacity: 0.85 }).bindPopup(popup, { maxWidth: 260 });
+
+    if (!celLayerMap[stage.funding_status]) {
+      celLayerMap[stage.funding_status] = L.layerGroup().addTo(map);
+    }
+    celLayerMap[stage.funding_status].addLayer(line);
+  });
+
+  // ── Facility markers ────────────────────────────────────────────────────
+  const facilityMarkers = [];
+  const facilityLayer   = L.layerGroup().addTo(map);
+
+  pipelineFacilities.forEach(function (f) {
+    const radius = Math.max(5, Math.sqrt(f.capacity) * 1.5);
+
+    // Build popup (includes both status and CEL sections)
+    const statusColor = statusColors[f.status] || '#9e9e9e';
+    let popup = '<div style="min-width:210px;">';
+    popup += '<strong>' + f.facility_name + '</strong><br>';
+    popup += '<span class="badge" style="background:' + statusColor + ';color:#fff;">' + (statusLabels[f.status] || f.status) + '</span><br>';
+    popup += '<div style="font-size:0.85em;margin-top:4px;">';
+    popup += '<b>Technology:</b> ' + f.technology_name + ' (' + f.technology_category + ')<br>';
+    popup += '<b>Capacity:</b> ' + f.capacity.toFixed(1) + ' MW<br>';
+    popup += '<b>Probability:</b> ' + (f.commissioning_probability * 100).toFixed(0) + '%<br>';
+    if (f.commissioning_date)   popup += '<b>Commissioning:</b> ' + f.commissioning_date + '<br>';
+    if (f.decommissioning_date) popup += '<b>Decommissioning:</b> ' + f.decommissioning_date + '<br>';
+    if (f.retirement_year)      popup += '<b>Expected retirement:</b> ' + f.retirement_year + '<br>';
+    popup += '</div>';
+    if (f.is_aligned || f.is_exception) {
+      const vColor = viabilityColors[f.viability_label] || '#9E9E9E';
+      popup += '<hr style="margin:5px 0;">';
+      popup += '<div style="font-size:0.85em;">';
+      popup += '<b>CEL stage:</b> ' + (f.cel_stage_name || '—') + ' (' + (f.program_code || '—') + ')<br>';
+      popup += '<b>Distance:</b> ' + (f.distance_km !== null ? f.distance_km.toFixed(1) + ' km' : '—') + '<br>';
+      popup += '<b>Viability:</b> <span style="background:' + vColor + ';color:#fff;padding:1px 5px;border-radius:3px;">' +
+               f.viability_label.charAt(0).toUpperCase() + f.viability_label.slice(1) + '</span>';
+      if (f.viability_score !== null) popup += ' (' + f.viability_score.toFixed(3) + ')';
+      if (f.is_exception) popup += '<br><b style="color:#9C27B0;">Exception facility</b>';
+      popup += '</div>';
+    }
+    popup += '</div>';
+
+    const marker = L.circleMarker([f.latitude, f.longitude], {
+      radius, fillColor: statusColor, color: '#fff', weight: 1.5,
+      fillOpacity: Math.max(0.3, f.commissioning_probability),
+    }).bindPopup(popup);
+
+    facilityMarkers.push({ data: f, marker, originalStatus: f.status });
+  });
+
+  // ── Fit map bounds ──────────────────────────────────────────────────────
+  const allCoords = [];
+  celStages.forEach(function (s) { if (s.coordinates) s.coordinates.forEach(function (c) { allCoords.push(c); }); });
+  pipelineFacilities.forEach(function (f) { allCoords.push([f.latitude, f.longitude]); });
+  if (allCoords.length) map.fitBounds(L.latLngBounds(allCoords).pad(0.05));
+
+  // ── State helpers ───────────────────────────────────────────────────────
+  function colorMode() {
+    return document.querySelector('input[name="colorMode"]:checked').value;
+  }
+  function getActiveStatuses() {
+    return Array.from(document.querySelectorAll('.status-filter:checked')).map(function (cb) { return cb.value; });
+  }
+  function getActiveViabilityTiers() {
+    return Array.from(document.querySelectorAll('.viability-filter:checked')).map(function (cb) { return cb.value; });
+  }
+  function getActiveCategories() {
+    return Array.from(document.querySelectorAll('.category-filter:checked')).map(function (cb) { return cb.value; });
+  }
+  function getEffectiveStatus(f, year) {
+    if (!document.getElementById('enable-timeline').checked) return f.status;
+    const commYear = f.commissioning_date ? new Date(f.commissioning_date).getFullYear() : null;
+    const retireYear = f.retirement_year;
+    if (commYear && year < commYear) return f.status;
+    if (commYear && year >= commYear) return (retireYear && year >= retireYear) ? 'decommissioned' : 'commissioned';
+    return f.status;
+  }
+
+  // ── Filters ─────────────────────────────────────────────────────────────
+  function applyFilters() {
+    const mode           = colorMode();
+    const activeStatuses = getActiveStatuses();
+    const activeTiers    = getActiveViabilityTiers();
+    const activeCategories = getActiveCategories();
+    const year           = parseInt(document.getElementById('year-slider').value);
+    const timelineOn     = document.getElementById('enable-timeline').checked;
+
+    document.getElementById('current-year-label').textContent = timelineOn ? year : '-';
+
+    // CEL routes
+    Object.keys(celLayerMap).forEach(function (status) {
+      const checked = document.querySelector('.cel-filter[value="' + status + '"]');
+      const show = checked && checked.checked;
+      if (show && !map.hasLayer(celLayerMap[status])) map.addLayer(celLayerMap[status]);
+      if (!show && map.hasLayer(celLayerMap[status])) map.removeLayer(celLayerMap[status]);
+    });
+
+    // Facility markers
+    facilityLayer.clearLayers();
+    const stats = {};
+    let totalCount = 0, totalMW = 0;
+
+    facilityMarkers.forEach(function (item) {
+      const f = item.data;
+      const effectiveStatus = getEffectiveStatus(f, year);
+      const catOk = activeCategories.indexOf(f.technology_category) !== -1;
+
+      let show = false, markerColor, markerOpacity;
+
+      if (mode === 'status') {
+        show = catOk && activeStatuses.indexOf(effectiveStatus) !== -1;
+        markerColor   = statusColors[effectiveStatus] || '#9e9e9e';
+        markerOpacity = Math.max(0.3, f.commissioning_probability);
+      } else {
+        // viability mode — timeline filter still applies for status visibility
+        const visibleStatus = timelineOn
+          ? (activeStatuses.indexOf(effectiveStatus) !== -1)
+          : true;
+        const vLabel = f.viability_label;
+        show = catOk && visibleStatus && activeTiers.indexOf(vLabel) !== -1;
+        markerColor   = viabilityColors[vLabel] || '#9E9E9E';
+        markerOpacity = (f.viability_score !== null) ? Math.max(0.3, f.viability_score) : 0.4;
+      }
+
+      if (show) {
+        item.marker.setStyle({ fillColor: markerColor, fillOpacity: markerOpacity });
+        facilityLayer.addLayer(item.marker);
+
+        const key = mode === 'status' ? effectiveStatus : f.viability_label;
+        if (!stats[key]) stats[key] = { count: 0, total_mw: 0 };
+        stats[key].count   += 1;
+        stats[key].total_mw += f.capacity;
+        totalCount += 1;
+        totalMW    += f.capacity;
+      }
+    });
+
+    // Update status summary table
+    const tbody = document.getElementById('summary-tbody');
+    tbody.innerHTML = '';
+    const keys = mode === 'status' ? Object.keys(statusLabels) : Object.keys(viabilityColors);
+    const labelMap = mode === 'status' ? statusLabels : Object.fromEntries(Object.keys(viabilityColors).map(function (k) { return [k, k.charAt(0).toUpperCase() + k.slice(1)]; }));
+    const colorMap = mode === 'status' ? statusColors : viabilityColors;
+    keys.forEach(function (key) {
+      if (stats[key]) {
+        const tr = document.createElement('tr');
+        tr.innerHTML = '<td><span style="color:' + colorMap[key] + ';">&#9679;</span> ' + labelMap[key] + '</td>' +
+                       '<td class="text-end">' + stats[key].count + '</td>' +
+                       '<td class="text-end">' + stats[key].total_mw.toFixed(0) + '</td>';
+        tbody.appendChild(tr);
+      }
+    });
+    document.getElementById('summary-total-count').textContent = totalCount;
+    document.getElementById('summary-total-mw').textContent = totalMW.toFixed(0);
+  }
+
+  // ── Mode switch ─────────────────────────────────────────────────────────
+  function onModeChange() {
+    const mode = colorMode();
+    const isViability = mode === 'viability';
+    document.getElementById('panel-status-filters').classList.toggle('d-none', isViability);
+    document.getElementById('panel-viability-filters').classList.toggle('d-none', !isViability);
+    document.getElementById('summary-status').classList.toggle('d-none', isViability);
+    document.getElementById('summary-viability').classList.toggle('d-none', !isViability);
+    document.getElementById('legend-status').classList.toggle('d-none', isViability);
+    document.getElementById('legend-viability').classList.toggle('d-none', !isViability);
+    document.getElementById('map-title').textContent = isViability ? 'Facility CEL Viability' : 'Facility Development Status';
+    applyFilters();
+  }
+
+  // ── Wire up events ──────────────────────────────────────────────────────
+  document.querySelectorAll('input[name="colorMode"]').forEach(function (r) { r.addEventListener('change', onModeChange); });
+  document.querySelectorAll('.status-filter').forEach(function (cb) { cb.addEventListener('change', applyFilters); });
+  document.querySelectorAll('.viability-filter').forEach(function (cb) { cb.addEventListener('change', applyFilters); });
+  document.querySelectorAll('.category-filter').forEach(function (cb) { cb.addEventListener('change', applyFilters); });
+  document.querySelectorAll('.cel-filter').forEach(function (cb) { cb.addEventListener('change', applyFilters); });
+  document.getElementById('year-slider').addEventListener('input', applyFilters);
+  document.getElementById('enable-timeline').addEventListener('change', applyFilters);
+
+  applyFilters();
+});
+</script>
+
+<style>
+  #cel-map { border: 1px solid #dee2e6; border-radius: 0.25rem; }
+</style>
+{% endblock %}
