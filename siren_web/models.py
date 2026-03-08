@@ -1113,6 +1113,88 @@ class CELStage(models.Model):
         return coords
 
 
+class CELStageGridLine(models.Model):
+    """
+    Associates a GridLine with a CEL stage, recording the capacity (MW)
+    that line will carry as part of the stage build or upgrade.
+
+    One CEL stage can involve many grid lines — new builds as well as
+    upgrades to existing constrained lines.
+    """
+
+    LINE_ROLE_CHOICES = [
+        ('new', 'New Construction'),
+        ('upgrade', 'Capacity Upgrade'),
+    ]
+
+    idcel_stage_gridline = models.AutoField(primary_key=True)
+    cel_stage = models.ForeignKey(
+        'CELStage', on_delete=models.CASCADE,
+        related_name='stage_gridlines',
+    )
+    grid_line = models.ForeignKey(
+        'GridLines', on_delete=models.CASCADE,
+        related_name='cel_stage_associations',
+    )
+    capacity_mw = models.FloatField(
+        help_text='Capacity this line will carry for this CEL stage (MW)',
+    )
+    line_role = models.CharField(
+        max_length=20, choices=LINE_ROLE_CHOICES, default='new',
+        help_text='Whether this line is newly built or an upgrade of existing infrastructure',
+    )
+    notes = models.TextField(blank=True)
+
+    class Meta:
+        db_table = 'cel_stage_gridline'
+        unique_together = [['cel_stage', 'grid_line']]
+        ordering = ['line_role', 'grid_line__line_name']
+
+    def __str__(self):
+        return f'{self.cel_stage.name} → {self.grid_line.line_name} ({self.capacity_mw} MW)'
+
+
+class CELStageTerminal(models.Model):
+    """
+    Associates a Terminal with a CEL stage, recording the capacity (MW)
+    that terminal will handle as part of the stage build or upgrade.
+
+    One CEL stage can involve multiple terminals — new substation builds
+    as well as upgrades to existing ones.
+    """
+
+    TERMINAL_ROLE_CHOICES = [
+        ('new', 'New Terminal'),
+        ('upgrade', 'Capacity Upgrade'),
+    ]
+
+    idcel_stage_terminal = models.AutoField(primary_key=True)
+    cel_stage = models.ForeignKey(
+        'CELStage', on_delete=models.CASCADE,
+        related_name='stage_terminals',
+    )
+    terminal = models.ForeignKey(
+        'Terminals', on_delete=models.CASCADE,
+        related_name='cel_stage_associations',
+    )
+    capacity_mw = models.FloatField(
+        help_text='Capacity this terminal will handle for this CEL stage (MW)',
+    )
+    terminal_role = models.CharField(
+        max_length=20, choices=TERMINAL_ROLE_CHOICES, default='new',
+        help_text='Whether this terminal is newly built or an upgrade of existing infrastructure',
+    )
+    notes = models.TextField(blank=True)
+
+    class Meta:
+        db_table = 'cel_stage_terminal'
+        unique_together = [['cel_stage', 'terminal']]
+        ordering = ['terminal_role', 'terminal__terminal_name']
+
+    def __str__(self):
+        return f'{self.cel_stage.name} → {self.terminal.terminal_name} ({self.capacity_mw} MW)'
+
+
 class FacilityCELAlignment(models.Model):
     """
     Pre-computed viability alignment between an RE facility and a CEL stage.

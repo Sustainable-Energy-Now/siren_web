@@ -125,6 +125,12 @@ urlpatterns = [
     path('cel/stages/<int:pk>/delete/', cel_views.cel_stage_delete, name='cel_stage_delete'),
     path('cel/stages/<int:pk>/recompute/', cel_views.cel_stage_recompute, name='cel_stage_recompute'),
     path('cel/alignments/<int:pk>/exception/', cel_views.cel_alignment_set_exception, name='cel_alignment_set_exception'),
+    path('cel/stages/<int:stage_pk>/gridlines/add/', cel_views.cel_stage_gridline_add, name='cel_stage_gridline_add'),
+    path('cel/stage-gridlines/<int:pk>/edit/', cel_views.cel_stage_gridline_edit, name='cel_stage_gridline_edit'),
+    path('cel/stage-gridlines/<int:pk>/remove/', cel_views.cel_stage_gridline_remove, name='cel_stage_gridline_remove'),
+    path('cel/stages/<int:stage_pk>/terminals/add/', cel_views.cel_stage_terminal_add, name='cel_stage_terminal_add'),
+    path('cel/stage-terminals/<int:pk>/edit/', cel_views.cel_stage_terminal_edit, name='cel_stage_terminal_edit'),
+    path('cel/stage-terminals/<int:pk>/remove/', cel_views.cel_stage_terminal_remove, name='cel_stage_terminal_remove'),
 
     path('tableupdate/', table_update_views.select_table, name='table_update'),
     path('tableupdate/process/', table_update_views.update_table, name='table_update_process'),

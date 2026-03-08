@@ -6,7 +6,7 @@ from django.utils.html import format_html
 from siren_web.models import (
     GridLines, FacilityGridConnections, facilities, WindTurbines,
     TurbinePowerCurves, FacilityWindTurbines,
-    CELProgram, CELStage, FacilityCELAlignment,
+    CELProgram, CELStage, CELStageGridLine, CELStageTerminal, FacilityCELAlignment,
 )
 
 @admin.register(GridLines)
@@ -614,6 +614,25 @@ class TurbinePowerCurveAdmin(admin.ModelAdmin):
 # Clean Energy Link (CEL) Administration
 # =============================================================================
 
+class CELStageGridLineInline(admin.TabularInline):
+    """Inline editor for grid line associations on a CEL stage."""
+    model = CELStageGridLine
+    extra = 1
+    fields = ['grid_line', 'line_role', 'capacity_mw', 'notes']
+    autocomplete_fields = []
+    verbose_name = 'Grid Line'
+    verbose_name_plural = 'Grid Lines'
+
+
+class CELStageTerminalInline(admin.TabularInline):
+    """Inline editor for terminal associations on a CEL stage."""
+    model = CELStageTerminal
+    extra = 1
+    fields = ['terminal', 'terminal_role', 'capacity_mw', 'notes']
+    verbose_name = 'Terminal'
+    verbose_name_plural = 'Terminals'
+
+
 class CELStageInline(admin.TabularInline):
     """Inline editor for CEL stages nested inside a CELProgram."""
     model = CELStage
@@ -665,6 +684,7 @@ class CELStageAdmin(admin.ModelAdmin):
     ]
     list_filter = ['funding_status', 'stage_type', 'cel_program', 'is_active']
     search_fields = ['name', 'cel_program__name', 'served_region']
+    inlines = [CELStageGridLineInline, CELStageTerminalInline]
     readonly_fields = [
         'funding_status_weight', 'total_capacity_mw', 'available_capacity_mw',
         'created_at', 'updated_at',

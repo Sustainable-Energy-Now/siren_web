@@ -1,0 +1,133 @@
+<!-- cel/stage_gridline_form.html -->
+{% extends 'powermapui_base.html' %}
+
+{% block powermapui_content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <h3>{% if action == 'edit' %}Edit Grid Line — {{ association.grid_line.line_name }}{% else %}Link Grid Line{% endif %}</h3>
+    <p class="text-muted mb-0">
+      Stage: <a href="{% url 'powermapui:cel_stage_detail' stage.pk %}">{{ stage.name }}</a>
+      &middot; <a href="{% url 'powermapui:cel_program_detail' stage.cel_program.pk %}">{{ stage.cel_program.name }}</a>
+    </p>
+  </div>
+  <a href="{% url 'powermapui:cel_stage_detail' stage.pk %}" class="btn btn-outline-secondary">← Stage</a>
+</div>
+
+<div class="row">
+  <div class="col-lg-6">
+    <div class="card">
+      <div class="card-body">
+        <form method="post" novalidate>
+          {% csrf_token %}
+
+          {% if action == 'add' %}
+          <div class="mb-3">
+            <label for="grid_line" class="form-label">Grid Line <span class="text-danger">*</span></label>
+            <select class="form-select" id="grid_line" name="grid_line" required>
+              <option value="">— Select a grid line —</option>
+              {% for gl in available_gridlines %}
+                <option value="{{ gl.pk }}"
+                  {% if initial.grid_line == gl.pk|stringformat:"s" %}selected{% endif %}>
+                  {{ gl.line_name }}
+                  {% if gl.line_code %} ({{ gl.line_code }}){% endif %}
+                  — {{ gl.get_line_type_display }}, {{ gl.voltage_level|floatformat:0 }} kV,
+                  {{ gl.thermal_capacity_mw|floatformat:0 }} MW thermal
+                </option>
+              {% empty %}
+                <option value="" disabled>All active grid lines are already linked to this stage</option>
+              {% endfor %}
+            </select>
+            <div class="form-text">Only active grid lines not already linked to this stage are shown.</div>
+          </div>
+          {% else %}
+          <div class="mb-3">
+            <label class="form-label">Grid Line</label>
+            <p class="form-control-plaintext fw-bold">
+              {{ association.grid_line.line_name }}
+              <span class="text-muted fw-normal">
+                — {{ association.grid_line.get_line_type_display }},
+                {{ association.grid_line.voltage_level|floatformat:0 }} kV,
+                {{ association.grid_line.thermal_capacity_mw|floatformat:0 }} MW thermal
+              </span>
+            </p>
+          </div>
+          {% endif %}
+
+          <div class="mb-3">
+            <label for="line_role" class="form-label">Role <span class="text-danger">*</span></label>
+            <select class="form-select" id="line_role" name="line_role">
+              {% for val, label in line_role_choices %}
+                <option value="{{ val }}" {% if initial.line_role == val %}selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+            <div class="form-text">
+              <strong>New Construction</strong> — line is being built as part of this CEL stage.<br>
+              <strong>Capacity Upgrade</strong> — existing line is being reconductored or uprated.
+            </div>
+          </div>
+
+          <div class="mb-3">
+            <label for="capacity_mw" class="form-label">CEL Capacity (MW) <span class="text-danger">*</span></label>
+            <div class="input-group" style="max-width: 200px;">
+              <input type="number" class="form-control" id="capacity_mw" name="capacity_mw"
+                     step="1" min="1" value="{{ initial.capacity_mw }}" required>
+              <span class="input-group-text">MW</span>
+            </div>
+            <div class="form-text">
+              The capacity this line will carry as part of this CEL stage —
+              may differ from the line's thermal capacity if the stage only partially upgrades it.
+            </div>
+          </div>
+
+          <div class="mb-4">
+            <label for="notes" class="form-label">Notes</label>
+            <textarea class="form-control" id="notes" name="notes" rows="2">{{ initial.notes }}</textarea>
+          </div>
+
+          <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-primary">
+              {% if action == 'edit' %}Update{% else %}Link Grid Line{% endif %}
+            </button>
+            <a href="{% url 'powermapui:cel_stage_detail' stage.pk %}" class="btn btn-outline-secondary">Cancel</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  {% if action == 'add' and available_gridlines %}
+  <div class="col-lg-6">
+    <div class="card">
+      <div class="card-header"><h6 class="mb-0">Available Grid Lines</h6></div>
+      <div class="card-body p-0">
+        <table class="table table-sm mb-0">
+          <thead class="table-light">
+            <tr>
+              <th>Name</th>
+              <th>Type</th>
+              <th class="text-end">kV</th>
+              <th class="text-end">Thermal (MW)</th>
+              <th class="text-end">Length (km)</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for gl in available_gridlines %}
+              <tr>
+                <td>
+                  <a href="{% url 'powermapui:gridline_detail' gl.pk %}" target="_blank">{{ gl.line_name }}</a>
+                  {% if gl.line_code %}<span class="text-muted small">{{ gl.line_code }}</span>{% endif %}
+                </td>
+                <td>{{ gl.get_line_type_display }}</td>
+                <td class="text-end">{{ gl.voltage_level|floatformat:0 }}</td>
+                <td class="text-end">{{ gl.thermal_capacity_mw|floatformat:0 }}</td>
+                <td class="text-end">{{ gl.length_km|floatformat:1 }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,129 @@
+<!-- cel/stage_terminal_form.html -->
+{% extends 'powermapui_base.html' %}
+
+{% block powermapui_content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <h3>{% if action == 'edit' %}Edit Terminal — {{ association.terminal.terminal_name }}{% else %}Link Terminal{% endif %}</h3>
+    <p class="text-muted mb-0">
+      Stage: <a href="{% url 'powermapui:cel_stage_detail' stage.pk %}">{{ stage.name }}</a>
+      &middot; <a href="{% url 'powermapui:cel_program_detail' stage.cel_program.pk %}">{{ stage.cel_program.name }}</a>
+    </p>
+  </div>
+  <a href="{% url 'powermapui:cel_stage_detail' stage.pk %}" class="btn btn-outline-secondary">← Stage</a>
+</div>
+
+<div class="row">
+  <div class="col-lg-6">
+    <div class="card">
+      <div class="card-body">
+        <form method="post" novalidate>
+          {% csrf_token %}
+
+          {% if action == 'add' %}
+          <div class="mb-3">
+            <label for="terminal" class="form-label">Terminal <span class="text-danger">*</span></label>
+            <select class="form-select" id="terminal" name="terminal" required>
+              <option value="">— Select a terminal —</option>
+              {% for t in available_terminals %}
+                <option value="{{ t.pk }}"
+                  {% if initial.terminal == t.pk|stringformat:"s" %}selected{% endif %}>
+                  {{ t.terminal_name }}
+                  — {{ t.get_terminal_type_display }}, {{ t.primary_voltage_kv|floatformat:0 }} kV
+                  {% if t.transformer_capacity_mva %} / {{ t.transformer_capacity_mva|floatformat:0 }} MVA{% endif %}
+                </option>
+              {% empty %}
+                <option value="" disabled>All active terminals are already linked to this stage</option>
+              {% endfor %}
+            </select>
+            <div class="form-text">Only active terminals not already linked to this stage are shown.</div>
+          </div>
+          {% else %}
+          <div class="mb-3">
+            <label class="form-label">Terminal</label>
+            <p class="form-control-plaintext fw-bold">
+              {{ association.terminal.terminal_name }}
+              <span class="text-muted fw-normal">
+                — {{ association.terminal.get_terminal_type_display }},
+                {{ association.terminal.primary_voltage_kv|floatformat:0 }} kV
+                {% if association.terminal.transformer_capacity_mva %}
+                  / {{ association.terminal.transformer_capacity_mva|floatformat:0 }} MVA
+                {% endif %}
+              </span>
+            </p>
+          </div>
+          {% endif %}
+
+          <div class="mb-3">
+            <label for="terminal_role" class="form-label">Role <span class="text-danger">*</span></label>
+            <select class="form-select" id="terminal_role" name="terminal_role">
+              {% for val, label in terminal_role_choices %}
+                <option value="{{ val }}" {% if initial.terminal_role == val %}selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+            <div class="form-text">
+              <strong>New Terminal</strong> — terminal is being built as part of this CEL stage.<br>
+              <strong>Capacity Upgrade</strong> — existing terminal is being expanded or uprated.
+            </div>
+          </div>
+
+          <div class="mb-3">
+            <label for="capacity_mw" class="form-label">CEL Capacity (MW) <span class="text-danger">*</span></label>
+            <div class="input-group" style="max-width: 200px;">
+              <input type="number" class="form-control" id="capacity_mw" name="capacity_mw"
+                     step="1" min="1" value="{{ initial.capacity_mw }}" required>
+              <span class="input-group-text">MW</span>
+            </div>
+            <div class="form-text">
+              The capacity this terminal will handle as part of this CEL stage —
+              may differ from its rated transformer capacity if only partially upgraded.
+            </div>
+          </div>
+
+          <div class="mb-4">
+            <label for="notes" class="form-label">Notes</label>
+            <textarea class="form-control" id="notes" name="notes" rows="2">{{ initial.notes }}</textarea>
+          </div>
+
+          <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-primary">
+              {% if action == 'edit' %}Update{% else %}Link Terminal{% endif %}
+            </button>
+            <a href="{% url 'powermapui:cel_stage_detail' stage.pk %}" class="btn btn-outline-secondary">Cancel</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  {% if action == 'add' and available_terminals %}
+  <div class="col-lg-6">
+    <div class="card">
+      <div class="card-header"><h6 class="mb-0">Available Terminals</h6></div>
+      <div class="card-body p-0">
+        <table class="table table-sm mb-0">
+          <thead class="table-light">
+            <tr>
+              <th>Name</th>
+              <th>Type</th>
+              <th class="text-end">kV</th>
+              <th class="text-end">Transformer (MVA)</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for t in available_terminals %}
+              <tr>
+                <td>{{ t.terminal_name }}</td>
+                <td>{{ t.get_terminal_type_display }}</td>
+                <td class="text-end">{{ t.primary_voltage_kv|floatformat:0 }}</td>
+                <td class="text-end">{{ t.transformer_capacity_mva|floatformat:0|default:"—" }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

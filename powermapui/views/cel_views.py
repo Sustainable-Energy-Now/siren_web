@@ -13,8 +13,11 @@ from django.views.decorators.http import require_POST
 from siren_web.models import (
     CELProgram,
     CELStage,
+    CELStageGridLine,
+    CELStageTerminal,
     FacilityCELAlignment,
     CEL_FUNDING_STATUS_CHOICES,
+    GridLines,
     Terminals,
 )
 
@@ -185,11 +188,27 @@ def cel_stage_detail(request, pk):
     pipeline_mw = sum(
         a.facility.capacity or 0 for a in alignments if a.is_aligned
     )
+    gridline_assocs = (
+        stage.stage_gridlines
+        .select_related('grid_line')
+        .order_by('line_role', 'grid_line__line_name')
+    )
+    gridline_capacity_total = sum(a.capacity_mw for a in gridline_assocs)
+    terminal_assocs = (
+        stage.stage_terminals
+        .select_related('terminal')
+        .order_by('terminal_role', 'terminal__terminal_name')
+    )
+    terminal_capacity_total = sum(a.capacity_mw for a in terminal_assocs)
     context = {
         'stage': stage,
         'alignments': alignments,
         'aligned_count': aligned_count,
         'pipeline_mw': pipeline_mw,
+        'gridline_assocs': gridline_assocs,
+        'gridline_capacity_total': gridline_capacity_total,
+        'terminal_assocs': terminal_assocs,
+        'terminal_capacity_total': terminal_capacity_total,
     }
     return render(request, 'cel/stage_detail.html', context)
 
@@ -253,6 +272,234 @@ def cel_stage_recompute(request, pk):
     count = CELViabilityService.score_facilities_for_stage(stage)
     messages.success(request, f'Recomputed viability for {count} facility alignment(s).')
     return redirect('powermapui:cel_stage_detail', pk=pk)
+
+
+# ---------------------------------------------------------------------------
+# CELStageGridLine — grid line associations
+# ---------------------------------------------------------------------------
+
+def cel_stage_gridline_add(request, stage_pk):
+    """Associate a GridLine with a CEL stage, recording the capacity it will carry."""
+    stage = get_object_or_404(CELStage, pk=stage_pk)
+    already_linked = stage.stage_gridlines.values_list('grid_line_id', flat=True)
+    available_gridlines = (
+        GridLines.objects.filter(active=True)
+        .exclude(idgridlines__in=already_linked)
+        .order_by('line_name')
+    )
+
+    if request.method == 'POST':
+        grid_line_id = request.POST.get('grid_line')
+        capacity_mw = _float_or_none(request.POST.get('capacity_mw'))
+        line_role = request.POST.get('line_role', 'new')
+        notes = request.POST.get('notes', '').strip()
+
+        errors = []
+        if not grid_line_id:
+            errors.append('Please select a grid line.')
+        if capacity_mw is None or capacity_mw <= 0:
+            errors.append('Capacity (MW) must be a positive number.')
+
+        if not errors:
+            try:
+                grid_line = GridLines.objects.get(pk=grid_line_id)
+                CELStageGridLine.objects.create(
+                    cel_stage=stage,
+                    grid_line=grid_line,
+                    capacity_mw=capacity_mw,
+                    line_role=line_role,
+                    notes=notes,
+                )
+                messages.success(
+                    request,
+                    f'Grid line "{grid_line.line_name}" linked to stage "{stage.name}" '
+                    f'({capacity_mw:,.0f} MW).'
+                )
+                return redirect('powermapui:cel_stage_detail', pk=stage_pk)
+            except GridLines.DoesNotExist:
+                errors.append('Selected grid line not found.')
+
+        for msg in errors:
+            messages.error(request, msg)
+
+    return render(request, 'cel/stage_gridline_form.html', {
+        'stage': stage,
+        'available_gridlines': available_gridlines,
+        'line_role_choices': CELStageGridLine.LINE_ROLE_CHOICES,
+        'initial': request.POST if request.method == 'POST' else {},
+        'action': 'add',
+    })
+
+
+def cel_stage_gridline_edit(request, pk):
+    """Edit the capacity and role of an existing CELStageGridLine association."""
+    association = get_object_or_404(
+        CELStageGridLine.objects.select_related('cel_stage', 'grid_line'), pk=pk
+    )
+    stage = association.cel_stage
+
+    if request.method == 'POST':
+        capacity_mw = _float_or_none(request.POST.get('capacity_mw'))
+        line_role = request.POST.get('line_role', 'new')
+        notes = request.POST.get('notes', '').strip()
+
+        errors = []
+        if capacity_mw is None or capacity_mw <= 0:
+            errors.append('Capacity (MW) must be a positive number.')
+
+        if not errors:
+            association.capacity_mw = capacity_mw
+            association.line_role = line_role
+            association.notes = notes
+            association.save()
+            messages.success(
+                request,
+                f'Updated "{association.grid_line.line_name}" — {capacity_mw:,.0f} MW.'
+            )
+            return redirect('powermapui:cel_stage_detail', pk=stage.pk)
+
+        for msg in errors:
+            messages.error(request, msg)
+
+    initial = request.POST if request.method == 'POST' else {
+        'capacity_mw': association.capacity_mw,
+        'line_role': association.line_role,
+        'notes': association.notes,
+    }
+    return render(request, 'cel/stage_gridline_form.html', {
+        'stage': stage,
+        'association': association,
+        'line_role_choices': CELStageGridLine.LINE_ROLE_CHOICES,
+        'initial': initial,
+        'action': 'edit',
+    })
+
+
+@require_POST
+def cel_stage_gridline_remove(request, pk):
+    """Remove a CELStageGridLine association."""
+    association = get_object_or_404(
+        CELStageGridLine.objects.select_related('cel_stage', 'grid_line'), pk=pk
+    )
+    stage_pk = association.cel_stage_id
+    line_name = association.grid_line.line_name
+    association.delete()
+    messages.success(request, f'Grid line "{line_name}" removed from stage.')
+    return redirect('powermapui:cel_stage_detail', pk=stage_pk)
+
+
+# ---------------------------------------------------------------------------
+# CELStageTerminal — terminal associations
+# ---------------------------------------------------------------------------
+
+def cel_stage_terminal_add(request, stage_pk):
+    """Associate a Terminal with a CEL stage, recording the capacity it will handle."""
+    stage = get_object_or_404(CELStage, pk=stage_pk)
+    already_linked = stage.stage_terminals.values_list('terminal_id', flat=True)
+    available_terminals = (
+        Terminals.objects.filter(active=True)
+        .exclude(idterminals__in=already_linked)
+        .order_by('terminal_name')
+    )
+
+    if request.method == 'POST':
+        terminal_id = request.POST.get('terminal')
+        capacity_mw = _float_or_none(request.POST.get('capacity_mw'))
+        terminal_role = request.POST.get('terminal_role', 'new')
+        notes = request.POST.get('notes', '').strip()
+
+        errors = []
+        if not terminal_id:
+            errors.append('Please select a terminal.')
+        if capacity_mw is None or capacity_mw <= 0:
+            errors.append('Capacity (MW) must be a positive number.')
+
+        if not errors:
+            try:
+                terminal = Terminals.objects.get(pk=terminal_id)
+                CELStageTerminal.objects.create(
+                    cel_stage=stage,
+                    terminal=terminal,
+                    capacity_mw=capacity_mw,
+                    terminal_role=terminal_role,
+                    notes=notes,
+                )
+                messages.success(
+                    request,
+                    f'Terminal "{terminal.terminal_name}" linked to stage "{stage.name}" '
+                    f'({capacity_mw:,.0f} MW).'
+                )
+                return redirect('powermapui:cel_stage_detail', pk=stage_pk)
+            except Terminals.DoesNotExist:
+                errors.append('Selected terminal not found.')
+
+        for msg in errors:
+            messages.error(request, msg)
+
+    return render(request, 'cel/stage_terminal_form.html', {
+        'stage': stage,
+        'available_terminals': available_terminals,
+        'terminal_role_choices': CELStageTerminal.TERMINAL_ROLE_CHOICES,
+        'initial': request.POST if request.method == 'POST' else {},
+        'action': 'add',
+    })
+
+
+def cel_stage_terminal_edit(request, pk):
+    """Edit the capacity and role of an existing CELStageTerminal association."""
+    association = get_object_or_404(
+        CELStageTerminal.objects.select_related('cel_stage', 'terminal'), pk=pk
+    )
+    stage = association.cel_stage
+
+    if request.method == 'POST':
+        capacity_mw = _float_or_none(request.POST.get('capacity_mw'))
+        terminal_role = request.POST.get('terminal_role', 'new')
+        notes = request.POST.get('notes', '').strip()
+
+        errors = []
+        if capacity_mw is None or capacity_mw <= 0:
+            errors.append('Capacity (MW) must be a positive number.')
+
+        if not errors:
+            association.capacity_mw = capacity_mw
+            association.terminal_role = terminal_role
+            association.notes = notes
+            association.save()
+            messages.success(
+                request,
+                f'Updated "{association.terminal.terminal_name}" — {capacity_mw:,.0f} MW.'
+            )
+            return redirect('powermapui:cel_stage_detail', pk=stage.pk)
+
+        for msg in errors:
+            messages.error(request, msg)
+
+    initial = request.POST if request.method == 'POST' else {
+        'capacity_mw': association.capacity_mw,
+        'terminal_role': association.terminal_role,
+        'notes': association.notes,
+    }
+    return render(request, 'cel/stage_terminal_form.html', {
+        'stage': stage,
+        'association': association,
+        'terminal_role_choices': CELStageTerminal.TERMINAL_ROLE_CHOICES,
+        'initial': initial,
+        'action': 'edit',
+    })
+
+
+@require_POST
+def cel_stage_terminal_remove(request, pk):
+    """Remove a CELStageTerminal association."""
+    association = get_object_or_404(
+        CELStageTerminal.objects.select_related('cel_stage', 'terminal'), pk=pk
+    )
+    stage_pk = association.cel_stage_id
+    terminal_name = association.terminal.terminal_name
+    association.delete()
+    messages.success(request, f'Terminal "{terminal_name}" removed from stage.')
+    return redirect('powermapui:cel_stage_detail', pk=stage_pk)
 
 
 # ---------------------------------------------------------------------------
