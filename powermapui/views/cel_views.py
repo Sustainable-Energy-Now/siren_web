@@ -564,6 +564,8 @@ def _stage_from_post(post_data, program=None, stage=None):
     stage_type = post_data.get('stage_type', 'corridor')
     funding_status = post_data.get('funding_status', 'planning')
     start_date = post_data.get('start_date') or None
+    expected_operational_date = post_data.get('expected_operational_date') or None
+    actual_operational_date = post_data.get('actual_operational_date') or None
     capacity_new_mw = _float_or_none(post_data.get('capacity_new_mw'))
     capacity_unlocked_existing_mw = _float_or_none(post_data.get('capacity_unlocked_existing_mw'))
     reserved_capacity_mw = _float_or_none(post_data.get('reserved_capacity_mw'))
@@ -635,6 +637,8 @@ def _stage_from_post(post_data, program=None, stage=None):
         stage_type=stage_type,
         funding_status=funding_status,
         start_date=start_date,
+        expected_operational_date=expected_operational_date,
+        actual_operational_date=actual_operational_date,
         funding_status_weight_override=funding_status_weight_override,
         capacity_new_mw=capacity_new_mw,
         capacity_unlocked_existing_mw=capacity_unlocked_existing_mw,
@@ -675,6 +679,8 @@ def _stage_form_context(post_data, program, action, stage=None):
             'stage_type': stage.stage_type,
             'funding_status': stage.funding_status,
             'start_date': stage.start_date or '',
+            'expected_operational_date': stage.expected_operational_date or '',
+            'actual_operational_date': stage.actual_operational_date or '',
             'funding_status_weight_override': stage.funding_status_weight_override or '',
             'capacity_new_mw': stage.capacity_new_mw or '',
             'capacity_unlocked_existing_mw': stage.capacity_unlocked_existing_mw or '',

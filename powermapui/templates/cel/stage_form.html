@@ -49,7 +49,22 @@
             <div class="col-md-4">
               <label for="start_date" class="form-label">Start Date</label>
               <input type="date" class="form-control" id="start_date" name="start_date"
-                     value="{{ initial.start_date }}">
+                     value="{{ initial.start_date|date:'Y-m-d' }}">
+            </div>
+          </div>
+
+          <div class="row mb-3">
+            <div class="col-md-6">
+              <label for="expected_operational_date" class="form-label">Expected Operational Date</label>
+              <input type="date" class="form-control" id="expected_operational_date"
+                     name="expected_operational_date"
+                     value="{{ initial.expected_operational_date|date:'Y-m-d' }}">
+            </div>
+            <div class="col-md-6">
+              <label for="actual_operational_date" class="form-label">Actual Operational Date</label>
+              <input type="date" class="form-control" id="actual_operational_date"
+                     name="actual_operational_date"
+                     value="{{ initial.actual_operational_date|date:'Y-m-d' }}">
             </div>
           </div>
 

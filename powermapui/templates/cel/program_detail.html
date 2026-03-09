@@ -46,13 +46,44 @@
       </div>
     </div>
   </div>
-  {% if program.notes %}
-  <div class="col-md-3">
-    <div class="card">
-      <div class="card-body small text-muted">{{ program.notes }}</div>
-    </div>
+</div>
+
+<div class="card mb-4">
+  <div class="card-header"><h6 class="mb-0">Program Details</h6></div>
+  <div class="card-body">
+    <dl class="row mb-0">
+      <dt class="col-sm-3">Code</dt>
+      <dd class="col-sm-9"><code>{{ program.code }}</code></dd>
+
+      <dt class="col-sm-3">Status</dt>
+      <dd class="col-sm-9">
+        {% if program.is_active %}
+          <span class="badge bg-success">Active</span>
+        {% else %}
+          <span class="badge bg-warning text-dark">Inactive</span>
+        {% endif %}
+      </dd>
+
+      <dt class="col-sm-3">Start Date</dt>
+      <dd class="col-sm-9">{{ program.start_date|date:"j N Y"|default:"—" }}</dd>
+
+      {% if program.description %}
+      <dt class="col-sm-3">Description</dt>
+      <dd class="col-sm-9">{{ program.description }}</dd>
+      {% endif %}
+
+      {% if program.notes %}
+      <dt class="col-sm-3">Notes</dt>
+      <dd class="col-sm-9">{{ program.notes }}</dd>
+      {% endif %}
+
+      <dt class="col-sm-3">Created</dt>
+      <dd class="col-sm-9">{{ program.created_at|date:"j N Y, H:i" }}</dd>
+
+      <dt class="col-sm-3">Last Updated</dt>
+      <dd class="col-sm-9">{{ program.updated_at|date:"j N Y, H:i" }}</dd>
+    </dl>
   </div>
-  {% endif %}
 </div>
 
 <h5>Stages</h5>

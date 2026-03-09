@@ -95,6 +95,33 @@
   </div>
 </div>
 
+<div class="row mb-4">
+  <!-- Schedule card -->
+  <div class="col-md-6">
+    <div class="card h-100">
+      <div class="card-header"><h6 class="mb-0">Schedule</h6></div>
+      <div class="card-body">
+        <table class="table table-sm mb-0">
+          <tr><td>Start Date</td><td>{{ stage.start_date|date:"j N Y"|default:"—" }}</td></tr>
+          <tr><td>Expected Operational</td><td>{{ stage.expected_operational_date|date:"j N Y"|default:"—" }}</td></tr>
+          <tr><td>Actual Operational</td><td>{{ stage.actual_operational_date|date:"j N Y"|default:"—" }}</td></tr>
+          <tr><td>Created</td><td class="small text-muted">{{ stage.created_at|date:"j N Y, H:i" }}</td></tr>
+          <tr><td>Last Updated</td><td class="small text-muted">{{ stage.updated_at|date:"j N Y, H:i" }}</td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+  {% if stage.notes %}
+  <!-- Notes card -->
+  <div class="col-md-6">
+    <div class="card h-100">
+      <div class="card-header"><h6 class="mb-0">Notes</h6></div>
+      <div class="card-body small">{{ stage.notes }}</div>
+    </div>
+  </div>
+  {% endif %}
+</div>
+
 <!-- Route coordinates info -->
 {% if stage.route_coordinates %}
 <div class="alert alert-light border mb-4 small">

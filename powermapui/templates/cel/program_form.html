@@ -37,7 +37,7 @@
           <div class="mb-3">
             <label for="start_date" class="form-label">Start Date</label>
             <input type="date" class="form-control" id="start_date" name="start_date"
-                   value="{{ initial.start_date }}" style="max-width:200px;">
+                   value="{{ initial.start_date|date:'Y-m-d' }}" style="max-width:200px;">
             <div class="form-text">Used for ordering programs in the list.</div>
           </div>
 
