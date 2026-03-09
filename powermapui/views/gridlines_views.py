@@ -7,7 +7,7 @@ from django.core.paginator import Paginator
 from django.shortcuts import render, get_object_or_404, redirect
 from django.db.models import Q
 from django.views.decorators.http import require_POST
-from siren_web.models import GridLines, Terminals, FacilityGridConnections
+from siren_web.models import GridLines, Terminals, FacilityGridConnections, FACILITY_STATUS_CHOICES
 
 
 def gridlines_list(request):
@@ -153,7 +153,11 @@ def gridline_create(request):
             to_longitude = request.POST.get('to_longitude')
             owner = request.POST.get('owner', '').strip()
             active = request.POST.get('active') == 'on'
-            
+            status = request.POST.get('status', 'commissioned')
+            commissioning_date = request.POST.get('commissioning_date') or None
+            decommissioning_date = request.POST.get('decommissioning_date') or None
+            commissioning_probability = request.POST.get('commissioning_probability') or None
+
             # Validation
             if not line_name:
                 messages.error(request, 'Line name is required.')
@@ -207,8 +211,12 @@ def gridline_create(request):
                 to_longitude=float(to_longitude) if to_longitude else None,
                 owner=owner if owner else None,
                 active=active,
+                status=status,
+                commissioning_date=commissioning_date,
+                decommissioning_date=decommissioning_date,
+                commissioning_probability=float(commissioning_probability) if commissioning_probability else None,
             )
-            
+
             messages.success(request, f'Grid line "{line_name}" created successfully.')
             return redirect('powermapui:gridline_detail', pk=gridline.pk)
             
@@ -248,7 +256,11 @@ def gridline_edit(request, pk):
             to_longitude = request.POST.get('to_longitude')
             owner = request.POST.get('owner', '').strip()
             active = request.POST.get('active') == 'on'
-            
+            status = request.POST.get('status', 'commissioned')
+            commissioning_date = request.POST.get('commissioning_date') or None
+            decommissioning_date = request.POST.get('decommissioning_date') or None
+            commissioning_probability = request.POST.get('commissioning_probability') or None
+
             # Validation
             if not line_name:
                 messages.error(request, 'Line name is required.')
@@ -297,6 +309,10 @@ def gridline_edit(request, pk):
             gridline.to_longitude = float(to_longitude) if to_longitude else None
             gridline.owner = owner if owner else None
             gridline.active = active
+            gridline.status = status
+            gridline.commissioning_date = commissioning_date
+            gridline.decommissioning_date = decommissioning_date
+            gridline.commissioning_probability = float(commissioning_probability) if commissioning_probability else None
             gridline.save()
             
             messages.success(request, f'Grid line "{line_name}" updated successfully.')
@@ -340,24 +356,26 @@ def get_create_context(form_data=None):
     """Get context for create form"""
     terminals = Terminals.objects.filter(active=True).order_by('terminal_name')
     line_types = GridLines._meta.get_field('line_type').choices
-    
+
     context = {
         'terminals': terminals,
         'line_types': line_types,
+        'status_choices': FACILITY_STATUS_CHOICES,
     }
-    
+
     if form_data:
         context['form_data'] = form_data
-    
+
     return context
 
 def get_edit_context(gridline):
     """Get context for edit form"""
     terminals = Terminals.objects.filter(active=True).order_by('terminal_name')
     line_types = GridLines._meta.get_field('line_type').choices
-    
+
     return {
         'gridline': gridline,
         'terminals': terminals,
         'line_types': line_types,
+        'status_choices': FACILITY_STATUS_CHOICES,
     }

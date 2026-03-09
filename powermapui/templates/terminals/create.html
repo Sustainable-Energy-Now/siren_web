@@ -191,67 +191,87 @@
 
             <hr class="my-4">
 
-            <!-- Ownership and Operations -->
-            <h5 class="mb-3">Ownership and Operations</h5>
-            <div class="row mb-3">
-              <div class="col-md-6">
-                <label for="owner" class="form-label">Owner</label>
-                <input type="text" 
-                       class="form-control" 
-                       id="owner" 
-                       name="owner" 
-                       value="{{ form_data.owner|default:'' }}">
-                <div class="form-text">Terminal owner organization</div>
-              </div>
-              <div class="col-md-6">
-                <label for="operator" class="form-label">Operator</label>
-                <input type="text" 
-                       class="form-control" 
-                       id="operator" 
-                       name="operator" 
-                       value="{{ form_data.operator|default:'' }}">
-                <div class="form-text">Terminal operator organization</div>
-              </div>
+            <!-- Ownership -->
+            <h5 class="mb-3">Ownership</h5>
+            <div class="mb-3">
+              <label for="owner" class="form-label">Owner</label>
+              <input type="text"
+                     class="form-control"
+                     id="owner"
+                     name="owner"
+                     value="{{ form_data.owner|default:'' }}">
+              <div class="form-text">Terminal owner organization</div>
             </div>
 
-            <div class="row mb-3">
-              <div class="col-md-6">
-                <label for="maintenance_zone" class="form-label">Maintenance Zone</label>
-                <input type="text" 
-                       class="form-control" 
-                       id="maintenance_zone" 
-                       name="maintenance_zone" 
-                       value="{{ form_data.maintenance_zone|default:'' }}">
-                <div class="form-text">Maintenance zone designation</div>
-              </div>
-              <div class="col-md-6">
-                <label for="control_center" class="form-label">Control Center</label>
-                <input type="text" 
-                       class="form-control" 
-                       id="control_center" 
-                       name="control_center" 
-                       value="{{ form_data.control_center|default:'' }}">
-                <div class="form-text">Associated control center</div>
-              </div>
-            </div>
-
-            <div class="mb-4">
+            <div class="mb-3">
               <label for="scada_id" class="form-label">SCADA ID</label>
-              <input type="text" 
-                     class="form-control" 
-                     id="scada_id" 
-                     name="scada_id" 
+              <input type="text"
+                     class="form-control"
+                     id="scada_id"
+                     name="scada_id"
                      value="{{ form_data.scada_id|default:'' }}">
               <div class="form-text">SCADA system identifier</div>
             </div>
 
             <div class="mb-4">
               <label for="description" class="form-label">Description</label>
-              <textarea class="form-control" 
-                        id="description" 
-                        name="description" 
+              <textarea class="form-control"
+                        id="description"
+                        name="description"
                         rows="3">{{ form_data.description|default:'' }}</textarea>
               <div class="form-text">Additional notes about this terminal</div>
+            </div>
+
+            <hr class="my-4">
+
+            <!-- Lifecycle Status -->
+            <h5 class="mb-3">Lifecycle Status</h5>
+            <div class="row mb-3">
+              <div class="col-md-6">
+                <label for="status" class="form-label">Status</label>
+                <select class="form-select" id="status" name="status">
+                  {% for status_value, status_label in status_choices %}
+                    <option value="{{ status_value }}"
+                            {% if form_data.status == status_value or not form_data and status_value == 'commissioned' %}selected{% endif %}>
+                      {{ status_label }}
+                    </option>
+                  {% endfor %}
+                </select>
+                <div class="form-text">Current lifecycle status</div>
+              </div>
+              <div class="col-md-6">
+                <label for="commissioning_probability" class="form-label">Commissioning Probability</label>
+                <input type="number"
+                       class="form-control"
+                       id="commissioning_probability"
+                       name="commissioning_probability"
+                       step="0.01"
+                       min="0"
+                       max="1"
+                       value="{{ form_data.commissioning_probability|default:'' }}">
+                <div class="form-text">Probability (0–1), for proposed/planned terminals</div>
+              </div>
+            </div>
+
+            <div class="row mb-4">
+              <div class="col-md-6">
+                <label for="commissioning_date" class="form-label">Commissioning Date</label>
+                <input type="date"
+                       class="form-control"
+                       id="commissioning_date"
+                       name="commissioning_date"
+                       value="{{ form_data.commissioning_date|default:'' }}">
+                <div class="form-text">Actual or expected commissioning date</div>
+              </div>
+              <div class="col-md-6">
+                <label for="decommissioning_date" class="form-label">Decommissioning Date</label>
+                <input type="date"
+                       class="form-control"
+                       id="decommissioning_date"
+                       name="decommissioning_date"
+                       value="{{ form_data.decommissioning_date|default:'' }}">
+                <div class="form-text">Actual or expected decommissioning date</div>
+              </div>
             </div>
 
             <div class="d-flex gap-2">

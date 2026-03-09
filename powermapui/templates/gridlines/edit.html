@@ -273,12 +273,64 @@
             <h5 class="mb-3">Additional Information</h5>
             <div class="mb-4">
               <label for="owner" class="form-label">Owner</label>
-              <input type="text" 
-                     class="form-control" 
-                     id="owner" 
-                     name="owner" 
+              <input type="text"
+                     class="form-control"
+                     id="owner"
+                     name="owner"
                      value="{{ form_data.owner|default:gridline.owner|default:'' }}">
               <div class="form-text">Line owner organization</div>
+            </div>
+
+            <hr class="my-4">
+
+            <!-- Lifecycle Status -->
+            <h5 class="mb-3">Lifecycle Status</h5>
+            <div class="row mb-3">
+              <div class="col-md-6">
+                <label for="status" class="form-label">Status</label>
+                <select class="form-select" id="status" name="status">
+                  {% for status_value, status_label in status_choices %}
+                    <option value="{{ status_value }}"
+                            {% if form_data.status|default:gridline.status == status_value %}selected{% endif %}>
+                      {{ status_label }}
+                    </option>
+                  {% endfor %}
+                </select>
+                <div class="form-text">Current lifecycle status</div>
+              </div>
+              <div class="col-md-6">
+                <label for="commissioning_probability" class="form-label">Commissioning Probability</label>
+                <input type="number"
+                       class="form-control"
+                       id="commissioning_probability"
+                       name="commissioning_probability"
+                       step="0.01"
+                       min="0"
+                       max="1"
+                       value="{{ form_data.commissioning_probability|default:gridline.commissioning_probability|default:'' }}">
+                <div class="form-text">Probability (0–1), for proposed/planned lines</div>
+              </div>
+            </div>
+
+            <div class="row mb-4">
+              <div class="col-md-6">
+                <label for="commissioning_date" class="form-label">Commissioning Date</label>
+                <input type="date"
+                       class="form-control"
+                       id="commissioning_date"
+                       name="commissioning_date"
+                       value="{{ form_data.commissioning_date|default:gridline.commissioning_date|default:'' }}">
+                <div class="form-text">Actual or expected commissioning date</div>
+              </div>
+              <div class="col-md-6">
+                <label for="decommissioning_date" class="form-label">Decommissioning Date</label>
+                <input type="date"
+                       class="form-control"
+                       id="decommissioning_date"
+                       name="decommissioning_date"
+                       value="{{ form_data.decommissioning_date|default:gridline.decommissioning_date|default:'' }}">
+                <div class="form-text">Actual or expected decommissioning date</div>
+              </div>
             </div>
 
             <div class="d-flex gap-2">

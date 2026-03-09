@@ -62,7 +62,10 @@
                   <td class="text-end">{{ stage.capacity_unlocked_existing_mw|floatformat:0|default:"—" }}</td>
                   <td class="text-end">{{ stage.available_capacity_mw|floatformat:0 }}</td>
                   <td class="text-end">
-                    <a href="{% url 'powermapui:cel_stage_detail' stage.pk %}" class="btn btn-outline-primary btn-sm">View</a>
+                    <div class="btn-group btn-group-sm">
+                      <a href="{% url 'powermapui:cel_stage_detail' stage.pk %}" class="btn btn-outline-primary">View</a>
+                      <a href="{% url 'powermapui:cel_stage_edit' stage.pk %}" class="btn btn-outline-secondary">Edit</a>
+                    </div>
                   </td>
                 </tr>
               {% endfor %}

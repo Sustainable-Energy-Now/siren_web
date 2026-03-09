@@ -3,7 +3,7 @@ from django.core.paginator import Paginator
 from django.shortcuts import render, get_object_or_404, redirect
 from django.db.models import Q
 from django.views.decorators.http import require_POST
-from siren_web.models import Terminals
+from siren_web.models import Terminals, FACILITY_STATUS_CHOICES
 
 def terminals_list(request):
     """List all terminals with search and pagination"""
@@ -19,8 +19,7 @@ def terminals_list(request):
         terminals = terminals.filter(
             Q(terminal_name__icontains=search_query) |
             Q(terminal_code__icontains=search_query) |
-            Q(owner__icontains=search_query) |
-            Q(operator__icontains=search_query)
+            Q(owner__icontains=search_query)
         )
     
     # Apply terminal type filter
@@ -105,13 +104,14 @@ def terminal_create(request):
             short_circuit_capacity_mva = request.POST.get('short_circuit_capacity_mva')
             bay_count = request.POST.get('bay_count')
             owner = request.POST.get('owner', '').strip()
-            operator = request.POST.get('operator', '').strip()
-            maintenance_zone = request.POST.get('maintenance_zone', '').strip()
-            control_center = request.POST.get('control_center', '').strip()
             scada_id = request.POST.get('scada_id', '').strip()
             description = request.POST.get('description', '').strip()
             active = request.POST.get('active') == 'on'
-            
+            status = request.POST.get('status', 'commissioned')
+            commissioning_date = request.POST.get('commissioning_date') or None
+            decommissioning_date = request.POST.get('decommissioning_date') or None
+            commissioning_probability = request.POST.get('commissioning_probability') or None
+
             # Validation
             if not terminal_name:
                 messages.error(request, 'Terminal name is required.')
@@ -119,6 +119,7 @@ def terminal_create(request):
                     'form_data': request.POST,
                     'terminal_types': Terminals.TERMINAL_TYPES,
                     'voltage_classes': Terminals.VOLTAGE_CLASSES,
+                    'status_choices': FACILITY_STATUS_CHOICES,
                 })
             
             if not terminal_code:
@@ -127,16 +128,18 @@ def terminal_create(request):
                     'form_data': request.POST,
                     'terminal_types': Terminals.TERMINAL_TYPES,
                     'voltage_classes': Terminals.VOLTAGE_CLASSES,
+                    'status_choices': FACILITY_STATUS_CHOICES,
                 })
-            
+
             if not primary_voltage_kv:
                 messages.error(request, 'Primary voltage is required.')
                 return render(request, 'terminals/create.html', {
                     'form_data': request.POST,
                     'terminal_types': Terminals.TERMINAL_TYPES,
                     'voltage_classes': Terminals.VOLTAGE_CLASSES,
+                    'status_choices': FACILITY_STATUS_CHOICES,
                 })
-            
+
             # Check for duplicate terminal name
             if Terminals.objects.filter(terminal_name=terminal_name).exists():
                 messages.error(request, 'A terminal with this name already exists.')
@@ -144,8 +147,9 @@ def terminal_create(request):
                     'form_data': request.POST,
                     'terminal_types': Terminals.TERMINAL_TYPES,
                     'voltage_classes': Terminals.VOLTAGE_CLASSES,
+                    'status_choices': FACILITY_STATUS_CHOICES,
                 })
-            
+
             # Check for duplicate terminal code
             if Terminals.objects.filter(terminal_code=terminal_code).exists():
                 messages.error(request, 'A terminal with this code already exists.')
@@ -153,8 +157,9 @@ def terminal_create(request):
                     'form_data': request.POST,
                     'terminal_types': Terminals.TERMINAL_TYPES,
                     'voltage_classes': Terminals.VOLTAGE_CLASSES,
+                    'status_choices': FACILITY_STATUS_CHOICES,
                 })
-            
+
             # Create the terminal
             terminal = Terminals.objects.create(
                 terminal_name=terminal_name,
@@ -170,23 +175,25 @@ def terminal_create(request):
                 short_circuit_capacity_mva=float(short_circuit_capacity_mva) if short_circuit_capacity_mva else None,
                 bay_count=int(bay_count) if bay_count else None,
                 owner=owner if owner else None,
-                operator=operator if operator else None,
-                maintenance_zone=maintenance_zone if maintenance_zone else None,
-                control_center=control_center if control_center else None,
                 scada_id=scada_id if scada_id else None,
                 description=description if description else None,
                 active=active,
+                status=status,
+                commissioning_date=commissioning_date,
+                decommissioning_date=decommissioning_date,
+                commissioning_probability=float(commissioning_probability) if commissioning_probability else None,
             )
-            
+
             messages.success(request, f'Terminal "{terminal_name}" created successfully.')
             return redirect('powermapui:terminal_detail', pk=terminal.pk)
-            
+
         except ValueError as e:
             messages.error(request, f'Invalid numeric value provided: {str(e)}')
             return render(request, 'terminals/create.html', {
                 'form_data': request.POST,
                 'terminal_types': Terminals.TERMINAL_TYPES,
                 'voltage_classes': Terminals.VOLTAGE_CLASSES,
+                'status_choices': FACILITY_STATUS_CHOICES,
             })
         except Exception as e:
             messages.error(request, f'Error creating terminal: {str(e)}')
@@ -194,11 +201,13 @@ def terminal_create(request):
                 'form_data': request.POST,
                 'terminal_types': Terminals.TERMINAL_TYPES,
                 'voltage_classes': Terminals.VOLTAGE_CLASSES,
+                'status_choices': FACILITY_STATUS_CHOICES,
             })
-    
+
     context = {
         'terminal_types': Terminals.TERMINAL_TYPES,
         'voltage_classes': Terminals.VOLTAGE_CLASSES,
+        'status_choices': FACILITY_STATUS_CHOICES,
     }
     return render(request, 'terminals/create.html', context)
 
@@ -222,13 +231,14 @@ def terminal_edit(request, pk):
             short_circuit_capacity_mva = request.POST.get('short_circuit_capacity_mva')
             bay_count = request.POST.get('bay_count')
             owner = request.POST.get('owner', '').strip()
-            operator = request.POST.get('operator', '').strip()
-            maintenance_zone = request.POST.get('maintenance_zone', '').strip()
-            control_center = request.POST.get('control_center', '').strip()
             scada_id = request.POST.get('scada_id', '').strip()
             description = request.POST.get('description', '').strip()
             active = request.POST.get('active') == 'on'
-            
+            status = request.POST.get('status', 'commissioned')
+            commissioning_date = request.POST.get('commissioning_date') or None
+            decommissioning_date = request.POST.get('decommissioning_date') or None
+            commissioning_probability = request.POST.get('commissioning_probability') or None
+
             # Validation
             if not terminal_name:
                 messages.error(request, 'Terminal name is required.')
@@ -236,24 +246,27 @@ def terminal_edit(request, pk):
                     'terminal': terminal,
                     'terminal_types': Terminals.TERMINAL_TYPES,
                     'voltage_classes': Terminals.VOLTAGE_CLASSES,
+                    'status_choices': FACILITY_STATUS_CHOICES,
                 })
-            
+
             if not terminal_code:
                 messages.error(request, 'Terminal code is required.')
                 return render(request, 'terminals/edit.html', {
                     'terminal': terminal,
                     'terminal_types': Terminals.TERMINAL_TYPES,
                     'voltage_classes': Terminals.VOLTAGE_CLASSES,
+                    'status_choices': FACILITY_STATUS_CHOICES,
                 })
-            
+
             if not primary_voltage_kv:
                 messages.error(request, 'Primary voltage is required.')
                 return render(request, 'terminals/edit.html', {
                     'terminal': terminal,
                     'terminal_types': Terminals.TERMINAL_TYPES,
                     'voltage_classes': Terminals.VOLTAGE_CLASSES,
+                    'status_choices': FACILITY_STATUS_CHOICES,
                 })
-            
+
             # Check for duplicate terminal name (excluding current terminal)
             if Terminals.objects.filter(terminal_name=terminal_name).exclude(pk=pk).exists():
                 messages.error(request, 'A terminal with this name already exists.')
@@ -262,8 +275,9 @@ def terminal_edit(request, pk):
                     'form_data': request.POST,
                     'terminal_types': Terminals.TERMINAL_TYPES,
                     'voltage_classes': Terminals.VOLTAGE_CLASSES,
+                    'status_choices': FACILITY_STATUS_CHOICES,
                 })
-            
+
             # Check for duplicate terminal code (excluding current terminal)
             if Terminals.objects.filter(terminal_code=terminal_code).exclude(pk=pk).exists():
                 messages.error(request, 'A terminal with this code already exists.')
@@ -272,8 +286,9 @@ def terminal_edit(request, pk):
                     'form_data': request.POST,
                     'terminal_types': Terminals.TERMINAL_TYPES,
                     'voltage_classes': Terminals.VOLTAGE_CLASSES,
+                    'status_choices': FACILITY_STATUS_CHOICES,
                 })
-            
+
             # Update the terminal
             terminal.terminal_name = terminal_name
             terminal.terminal_code = terminal_code
@@ -288,23 +303,25 @@ def terminal_edit(request, pk):
             terminal.short_circuit_capacity_mva = float(short_circuit_capacity_mva) if short_circuit_capacity_mva else None
             terminal.bay_count = int(bay_count) if bay_count else None
             terminal.owner = owner if owner else None
-            terminal.operator = operator if operator else None
-            terminal.maintenance_zone = maintenance_zone if maintenance_zone else None
-            terminal.control_center = control_center if control_center else None
             terminal.scada_id = scada_id if scada_id else None
             terminal.description = description if description else None
             terminal.active = active
+            terminal.status = status
+            terminal.commissioning_date = commissioning_date
+            terminal.decommissioning_date = decommissioning_date
+            terminal.commissioning_probability = float(commissioning_probability) if commissioning_probability else None
             terminal.save()
-            
+
             messages.success(request, f'Terminal "{terminal_name}" updated successfully.')
             return redirect('powermapui:terminal_detail', pk=terminal.pk)
-            
+
         except ValueError as e:
             messages.error(request, f'Invalid numeric value provided: {str(e)}')
             return render(request, 'terminals/edit.html', {
                 'terminal': terminal,
                 'terminal_types': Terminals.TERMINAL_TYPES,
                 'voltage_classes': Terminals.VOLTAGE_CLASSES,
+                'status_choices': FACILITY_STATUS_CHOICES,
             })
         except Exception as e:
             messages.error(request, f'Error updating terminal: {str(e)}')
@@ -312,12 +329,14 @@ def terminal_edit(request, pk):
                 'terminal': terminal,
                 'terminal_types': Terminals.TERMINAL_TYPES,
                 'voltage_classes': Terminals.VOLTAGE_CLASSES,
+                'status_choices': FACILITY_STATUS_CHOICES,
             })
     
     context = {
         'terminal': terminal,
         'terminal_types': Terminals.TERMINAL_TYPES,
         'voltage_classes': Terminals.VOLTAGE_CLASSES,
+        'status_choices': FACILITY_STATUS_CHOICES,
     }
     
     return render(request, 'terminals/edit.html', context)

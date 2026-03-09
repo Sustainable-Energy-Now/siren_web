@@ -15,7 +15,7 @@ class GridLinesAdmin(admin.ModelAdmin):
         'line_name', 'line_code', 'line_type', 'voltage_level', 
         'thermal_capacity_mw', 'length_km', 'active', 'utilization_display'
     ]
-    list_filter = ['line_type', 'voltage_level', 'active', 'commissioned_date']
+    list_filter = ['line_type', 'voltage_level', 'active', 'status', 'commissioning_date']
     search_fields = ['line_name', 'line_code', 'owner']
     readonly_fields = ['created_date', 'modified_date', 'calculated_length']
     
@@ -40,7 +40,7 @@ class GridLinesAdmin(admin.ModelAdmin):
             'classes': ['collapse']
         }),
         ('Administrative', {
-            'fields': ['owner', 'commissioned_date', 'decommissioned_date']
+            'fields': ['owner', 'status', 'commissioning_date', 'decommissioning_date', 'commissioning_probability']
         }),
         ('System Data', {
             'fields': ['created_date', 'modified_date'],
@@ -640,7 +640,7 @@ class CELStageInline(admin.TabularInline):
     fields = [
         'stage_number', 'name', 'stage_type', 'funding_status',
         'capacity_new_mw', 'capacity_unlocked_existing_mw', 'reserved_capacity_mw',
-        'expected_operational_date', 'display_color', 'is_active',
+        'start_date', 'expected_operational_date', 'display_color', 'is_active',
     ]
     ordering = ['stage_number']
 
@@ -654,7 +654,7 @@ class CELProgramAdmin(admin.ModelAdmin):
 
     fieldsets = [
         ('Program Details', {
-            'fields': ['name', 'code', 'description', 'is_active']
+            'fields': ['name', 'code', 'description', 'start_date', 'is_active']
         }),
         ('Notes', {
             'fields': ['notes'],
@@ -711,15 +711,12 @@ class CELStageAdmin(admin.ModelAdmin):
             ]
         }),
         ('Timeline', {
-            'fields': ['expected_operational_date', 'actual_operational_date']
+            'fields': ['start_date', 'expected_operational_date', 'actual_operational_date']
         }),
         ('Geography', {
             'fields': [
                 'served_region', 'alignment_radius_km',
-                'from_latitude', 'from_longitude',
-                'to_latitude', 'to_longitude',
                 'from_terminal', 'to_terminal',
-                'route_coordinates',
             ]
         }),
         ('Display', {

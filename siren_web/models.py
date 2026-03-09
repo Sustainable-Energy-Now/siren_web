@@ -573,8 +573,20 @@ class GridLines(models.Model):
     
     # Additional attributes
     active = models.BooleanField(default=True)
-    commissioned_date = models.DateField(null=True, blank=True)
-    decommissioned_date = models.DateField(null=True, blank=True)
+    commissioning_date = models.DateField(null=True, blank=True, help_text="Actual or expected commissioning date")
+    decommissioning_date = models.DateField(null=True, blank=True, help_text="Actual or expected decommissioning date")
+    status = models.CharField(
+        max_length=20,
+        choices=FACILITY_STATUS_CHOICES,
+        default='commissioned',
+        help_text="Current lifecycle status of the grid line"
+    )
+    commissioning_probability = models.FloatField(
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(0.0), MaxValueValidator(1.0)],
+        help_text="Probability of commissioning (0-1), relevant for proposed/planned lines"
+    )
     owner = models.CharField(max_length=100, blank=True, null=True)
     
     # Text field to store KML geometry data as string
@@ -907,6 +919,7 @@ class CELProgram(models.Model):
         help_text="Short identifier, e.g. 'CEL-N'"
     )
     description = models.TextField(blank=True)
+    start_date = models.DateField(null=True, blank=True)
     is_active = models.BooleanField(default=True)
     notes = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -914,7 +927,7 @@ class CELProgram(models.Model):
 
     class Meta:
         db_table = 'cel_program'
-        ordering = ['name']
+        ordering = ['start_date', 'name']
 
     def __str__(self):
         return self.name
@@ -980,6 +993,7 @@ class CELStage(models.Model):
         help_text="Override the default probability weight for this stage's "
                   "funding status.  Leave blank to use the system default."
     )
+    start_date = models.DateField(null=True, blank=True)
     expected_operational_date = models.DateField(null=True, blank=True)
     actual_operational_date = models.DateField(null=True, blank=True)
 
@@ -996,25 +1010,12 @@ class CELStage(models.Model):
         help_text="Capacity already allocated to committed projects (MW)"
     )
 
-    # Geographic route — JSON list of [lat, lon] pairs for Leaflet polyline.
-    # For substation/terminal stages use from_latitude/from_longitude only.
-    route_coordinates = models.TextField(
-        null=True, blank=True,
-        help_text="JSON list of [lat, lon] pairs defining the stage route, "
-                  "e.g. [[-31.84, 115.89], [-29.54, 115.76]]"
-    )
     # Radius within which a facility is considered geographically aligned
     alignment_radius_km = models.FloatField(
         default=50.0,
         help_text="Facilities within this distance of the route are "
                   "considered aligned with this stage (km)"
     )
-
-    # Endpoint coordinates (fallback when no route_coordinates are set)
-    from_latitude = models.FloatField(null=True, blank=True)
-    from_longitude = models.FloatField(null=True, blank=True)
-    to_latitude = models.FloatField(null=True, blank=True)
-    to_longitude = models.FloatField(null=True, blank=True)
 
     # Optional links to existing terminal records
     from_terminal = models.ForeignKey(
@@ -1042,7 +1043,7 @@ class CELStage(models.Model):
 
     class Meta:
         db_table = 'cel_stage'
-        ordering = ['cel_program', 'stage_number']
+        ordering = ['start_date', 'stage_number']
         unique_together = [['cel_program', 'stage_number']]
 
     def __str__(self):
@@ -1084,31 +1085,14 @@ class CELStage(models.Model):
     def get_route_coordinates(self):
         """
         Return the stage route as a list of [lat, lon] pairs for Leaflet.
-
-        Preference order:
-        1. Parsed route_coordinates JSON
-        2. from_terminal / to_terminal locations
-        3. from_latitude/from_longitude and to_latitude/to_longitude fields
+        Derived from from_terminal / to_terminal locations.
         """
-        if self.route_coordinates:
-            try:
-                coords = json.loads(self.route_coordinates)
-                if isinstance(coords, list) and len(coords) >= 2:
-                    return coords
-            except (json.JSONDecodeError, TypeError):
-                pass
-
-        # Fall back to terminal coordinates
         coords = []
         if self.from_terminal and self.from_terminal.latitude and self.from_terminal.longitude:
             coords.append([self.from_terminal.latitude, self.from_terminal.longitude])
-        elif self.from_latitude and self.from_longitude:
-            coords.append([self.from_latitude, self.from_longitude])
 
         if self.to_terminal and self.to_terminal.latitude and self.to_terminal.longitude:
             coords.append([self.to_terminal.latitude, self.to_terminal.longitude])
-        elif self.to_latitude and self.to_longitude:
-            coords.append([self.to_latitude, self.to_longitude])
 
         return coords
 
@@ -3447,18 +3431,27 @@ class Terminals(models.Model):
     bay_count = models.IntegerField(null=True, blank=True, help_text="Number of bays/feeders")
     
     # Operational data
-    commissioned_date = models.DateField(null=True, blank=True)
-    decommissioned_date = models.DateField(null=True, blank=True)
+    commissioning_date = models.DateField(null=True, blank=True, help_text="Actual or expected commissioning date")
+    decommissioning_date = models.DateField(null=True, blank=True, help_text="Actual or expected decommissioning date")
+    status = models.CharField(
+        max_length=20,
+        choices=FACILITY_STATUS_CHOICES,
+        default='commissioned',
+        help_text="Current lifecycle status of the terminal"
+    )
+    commissioning_probability = models.FloatField(
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(0.0), MaxValueValidator(1.0)],
+        help_text="Probability of commissioning (0-1), relevant for proposed/planned terminals"
+    )
     active = models.BooleanField(default=True)
-    
-    # Ownership and maintenance
+
+    # Ownership
     owner = models.CharField(max_length=100, blank=True, null=True)
-    operator = models.CharField(max_length=100, blank=True, null=True)
-    maintenance_zone = models.CharField(max_length=50, blank=True, null=True)
-    
+
     # Additional attributes
     description = models.TextField(blank=True, null=True)
-    control_center = models.CharField(max_length=100, blank=True, null=True)
     scada_id = models.CharField(max_length=50, blank=True, null=True, help_text="SCADA system identifier")
     
     # Metadata
@@ -3561,9 +3554,9 @@ class Terminals(models.Model):
         super().clean()
         self.validate_voltage_levels()
         
-        if self.commissioned_date and self.decommissioned_date:
-            if self.decommissioned_date <= self.commissioned_date:
-                raise ValidationError("Decommission date must be after commission date")
+        if self.commissioning_date and self.decommissioning_date:
+            if self.decommissioning_date <= self.commissioning_date:
+                raise ValidationError("Decommissioning date must be after commissioning date")
 
 class WholesalePrice(models.Model):
     """Store AEMO Interval wholesale prices """

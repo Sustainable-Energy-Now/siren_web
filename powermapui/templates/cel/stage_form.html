@@ -33,7 +33,7 @@
           </div>
 
           <div class="row mb-3">
-            <div class="col-md-6">
+            <div class="col-md-4">
               <label for="stage_type" class="form-label">Stage Type</label>
               <select class="form-select" id="stage_type" name="stage_type">
                 {% for val, label in stage_type_choices %}
@@ -41,10 +41,15 @@
                 {% endfor %}
               </select>
             </div>
-            <div class="col-md-6">
+            <div class="col-md-4">
               <label for="served_region" class="form-label">Served Region</label>
               <input type="text" class="form-control" id="served_region" name="served_region"
                      value="{{ initial.served_region }}" placeholder="e.g. Mid West, South West">
+            </div>
+            <div class="col-md-4">
+              <label for="start_date" class="form-label">Start Date</label>
+              <input type="date" class="form-control" id="start_date" name="start_date"
+                     value="{{ initial.start_date }}">
             </div>
           </div>
 
@@ -126,36 +131,6 @@
                 {% endfor %}
               </select>
             </div>
-          </div>
-
-          <div class="row mb-3">
-            <div class="col-md-3">
-              <label class="form-label">From Latitude</label>
-              <input type="number" class="form-control" name="from_latitude" step="0.000001" min="-90" max="90"
-                     value="{{ initial.from_latitude }}">
-            </div>
-            <div class="col-md-3">
-              <label class="form-label">From Longitude</label>
-              <input type="number" class="form-control" name="from_longitude" step="0.000001" min="-180" max="180"
-                     value="{{ initial.from_longitude }}">
-            </div>
-            <div class="col-md-3">
-              <label class="form-label">To Latitude</label>
-              <input type="number" class="form-control" name="to_latitude" step="0.000001" min="-90" max="90"
-                     value="{{ initial.to_latitude }}">
-            </div>
-            <div class="col-md-3">
-              <label class="form-label">To Longitude</label>
-              <input type="number" class="form-control" name="to_longitude" step="0.000001" min="-180" max="180"
-                     value="{{ initial.to_longitude }}">
-            </div>
-          </div>
-
-          <div class="mb-3">
-            <label for="route_coordinates" class="form-label">Route Coordinates (JSON)</label>
-            <textarea class="form-control font-monospace" id="route_coordinates" name="route_coordinates"
-                      rows="4" placeholder='[[lat, lon], [lat, lon], ...]'>{{ initial.route_coordinates }}</textarea>
-            <div class="form-text">Array of [lat, lon] pairs defining the transmission route polyline.</div>
           </div>
 
           <hr class="my-3">

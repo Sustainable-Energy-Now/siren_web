@@ -34,6 +34,13 @@
                       rows="3">{{ initial.description }}</textarea>
           </div>
 
+          <div class="mb-3">
+            <label for="start_date" class="form-label">Start Date</label>
+            <input type="date" class="form-control" id="start_date" name="start_date"
+                   value="{{ initial.start_date }}" style="max-width:200px;">
+            <div class="form-text">Used for ordering programs in the list.</div>
+          </div>
+
           <div class="mb-3 form-check">
             <input type="checkbox" class="form-check-input" id="is_active" name="is_active"
                    {% if initial.is_active %}checked{% endif %}>

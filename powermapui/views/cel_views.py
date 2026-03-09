@@ -3,8 +3,6 @@ CEL (Clean Energy Link) CRUD views
 Provides list/detail/create/edit/delete for CELProgram and CELStage,
 plus exception management for FacilityCELAlignment.
 """
-import json
-
 from django.contrib import messages
 from django.http import JsonResponse
 from django.shortcuts import render, get_object_or_404, redirect
@@ -31,7 +29,7 @@ def cel_program_list(request):
     programs = (
         CELProgram.objects
         .prefetch_related('stages')
-        .order_by('name')
+        .order_by('start_date', 'name')
     )
     context = {
         'programs': programs,
@@ -64,6 +62,7 @@ def cel_program_create(request):
         name = request.POST.get('name', '').strip()
         code = request.POST.get('code', '').strip().upper()
         description = request.POST.get('description', '').strip()
+        start_date = request.POST.get('start_date') or None
         is_active = request.POST.get('is_active') == 'on'
         notes = request.POST.get('notes', '').strip()
 
@@ -89,6 +88,7 @@ def cel_program_create(request):
             name=name,
             code=code,
             description=description,
+            start_date=start_date,
             is_active=is_active,
             notes=notes,
         )
@@ -108,6 +108,7 @@ def cel_program_edit(request, pk):
         name = request.POST.get('name', '').strip()
         code = request.POST.get('code', '').strip().upper()
         description = request.POST.get('description', '').strip()
+        start_date = request.POST.get('start_date') or None
         is_active = request.POST.get('is_active') == 'on'
         notes = request.POST.get('notes', '').strip()
 
@@ -132,6 +133,7 @@ def cel_program_edit(request, pk):
         program.name = name
         program.code = code
         program.description = description
+        program.start_date = start_date
         program.is_active = is_active
         program.notes = notes
         program.save()
@@ -143,6 +145,7 @@ def cel_program_edit(request, pk):
         'name': program.name,
         'code': program.code,
         'description': program.description or '',
+        'start_date': program.start_date or '',
         'is_active': program.is_active,
         'notes': program.notes or '',
     }
@@ -560,6 +563,7 @@ def _stage_from_post(post_data, program=None, stage=None):
     stage_number_raw = post_data.get('stage_number', '').strip()
     stage_type = post_data.get('stage_type', 'corridor')
     funding_status = post_data.get('funding_status', 'planning')
+    start_date = post_data.get('start_date') or None
     capacity_new_mw = _float_or_none(post_data.get('capacity_new_mw'))
     capacity_unlocked_existing_mw = _float_or_none(post_data.get('capacity_unlocked_existing_mw'))
     reserved_capacity_mw = _float_or_none(post_data.get('reserved_capacity_mw'))
@@ -568,13 +572,8 @@ def _stage_from_post(post_data, program=None, stage=None):
     display_color = post_data.get('display_color', '#FF6B35').strip()
     is_active = post_data.get('is_active') == 'on'
     notes = post_data.get('notes', '').strip()
-    route_coordinates_raw = post_data.get('route_coordinates', '').strip()
 
-    # Endpoint / terminal fields
-    from_latitude = _float_or_none(post_data.get('from_latitude'))
-    from_longitude = _float_or_none(post_data.get('from_longitude'))
-    to_latitude = _float_or_none(post_data.get('to_latitude'))
-    to_longitude = _float_or_none(post_data.get('to_longitude'))
+    # Terminal fields
     from_terminal_id = post_data.get('from_terminal') or None
     to_terminal_id = post_data.get('to_terminal') or None
     funding_status_weight_override = _float_or_none(post_data.get('funding_status_weight_override'))
@@ -597,18 +596,6 @@ def _stage_from_post(post_data, program=None, stage=None):
     except ValueError:
         alignment_radius_km = 50.0
         errors.append('Alignment radius must be a number.')
-
-    # Validate and parse route_coordinates JSON
-    route_coordinates = None
-    if route_coordinates_raw:
-        try:
-            parsed = json.loads(route_coordinates_raw)
-            if not isinstance(parsed, list):
-                errors.append('Route coordinates must be a JSON array, e.g. [[lat,lon],...]')
-            else:
-                route_coordinates = route_coordinates_raw  # store as-is (valid JSON string)
-        except json.JSONDecodeError as exc:
-            errors.append(f'Route coordinates: invalid JSON — {exc}')
 
     if errors:
         return None, errors
@@ -647,6 +634,7 @@ def _stage_from_post(post_data, program=None, stage=None):
         stage_number=stage_number,
         stage_type=stage_type,
         funding_status=funding_status,
+        start_date=start_date,
         funding_status_weight_override=funding_status_weight_override,
         capacity_new_mw=capacity_new_mw,
         capacity_unlocked_existing_mw=capacity_unlocked_existing_mw,
@@ -656,11 +644,6 @@ def _stage_from_post(post_data, program=None, stage=None):
         display_color=display_color,
         is_active=is_active,
         notes=notes,
-        route_coordinates=route_coordinates,
-        from_latitude=from_latitude,
-        from_longitude=from_longitude,
-        to_latitude=to_latitude,
-        to_longitude=to_longitude,
         from_terminal=from_terminal,
         to_terminal=to_terminal,
     )
@@ -691,6 +674,7 @@ def _stage_form_context(post_data, program, action, stage=None):
             'stage_number': stage.stage_number or '',
             'stage_type': stage.stage_type,
             'funding_status': stage.funding_status,
+            'start_date': stage.start_date or '',
             'funding_status_weight_override': stage.funding_status_weight_override or '',
             'capacity_new_mw': stage.capacity_new_mw or '',
             'capacity_unlocked_existing_mw': stage.capacity_unlocked_existing_mw or '',
@@ -700,11 +684,6 @@ def _stage_form_context(post_data, program, action, stage=None):
             'display_color': stage.display_color,
             'is_active': stage.is_active,
             'notes': stage.notes or '',
-            'route_coordinates': stage.route_coordinates or '',
-            'from_latitude': stage.from_latitude or '',
-            'from_longitude': stage.from_longitude or '',
-            'to_latitude': stage.to_latitude or '',
-            'to_longitude': stage.to_longitude or '',
             'from_terminal': stage.from_terminal_id or '',
             'to_terminal': stage.to_terminal_id or '',
         }
