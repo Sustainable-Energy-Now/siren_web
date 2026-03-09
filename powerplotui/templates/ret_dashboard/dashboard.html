@@ -48,6 +48,30 @@
     <button onclick="loadDashboard()">View</button>
 </div>
 
+<!-- Charts - Visualizations -->
+<div class="section-header">
+    <h2>Visualizations</h2>
+</div>
+
+<!-- Generation Mix Charts - Side by Side -->
+<div class="charts-grid">
+    <div class="chart-container pie-chart-container">
+        {{ generation_mix_operational_chart|safe }}
+        <p class="chart-note">{{ month_name }} {{ year }} — Excludes rooftop solar (DPV)</p>
+    </div>
+
+    <div class="chart-container pie-chart-container">
+        {{ generation_mix_underlying_chart|safe }}
+        <p class="chart-note">{{ month_name }} {{ year }} — Includes rooftop solar (DPV)</p>
+    </div>
+</div>
+
+<!-- Pathway Chart - Full Width -->
+<div class="chart-container">
+    <div class="chart-title">Pathway to 2040 Target</div>
+    {{ pathway_chart|safe }}
+</div>
+
 <!-- Monthly RE Performance -->
 <div class="section-header">
     <h2>{{ month_name }} {{ year }} RE Performance</h2>
@@ -56,28 +80,28 @@
 <div class="metric-grid">
     <!-- Monthly RE% Operational -->
     <div class="metric-card positive">
-        <div class="metric-label">RE% (Operational Consumption)</div>
+        <div class="metric-label">RE% (Operational Demand)</div>
         <div class="metric-value">{{ performance.re_percentage_operational|floatformat:1 }}%</div>
         <div class="metric-sublabel">
-            {{ performance.operational_demand|floatformat:1 }} GWh operational consumption
+            {{ performance.operational_demand|floatformat:1 }} GWh operational demand
         </div>
         <div class="metric-change">
             {% if prev_year_performance %}
-                {{ prev_year_performance.re_percentage_operational|floatformat:1 }}% in {{ year|add:"-1" }}
+                {{ prev_year_performance.re_percentage_operational|floatformat:1 }}% in {{ month_name }} {{ year|add:"-1" }}
             {% endif %}
         </div>
     </div>
-    
+
     <!-- Monthly RE% Underlying -->
     <div class="metric-card positive">
-        <div class="metric-label">RE% (Underlying Consumption)</div>
+        <div class="metric-label">RE% (Underlying Demand)</div>
         <div class="metric-value">{{ performance.re_percentage_underlying|floatformat:1 }}%</div>
         <div class="metric-sublabel">
-            {{ performance.underlying_demand|floatformat:1 }} GWh underlying consumption
+            {{ performance.underlying_demand|floatformat:1 }} GWh underlying demand
         </div>
         <div class="metric-change">
             {% if prev_year_performance %}
-                {{ prev_year_performance.re_percentage_underlying|floatformat:1 }}% in {{ year|add:"-1" }}
+                {{ prev_year_performance.re_percentage_underlying|floatformat:1 }}% in {{ month_name }} {{ year|add:"-1" }}
             {% endif %}
         </div>
     </div>
@@ -93,7 +117,6 @@
     <div class="metric-card {% if target_status.status == 'ahead' %}positive{% elif target_status.status == 'behind' %}warning{% else %}neutral{% endif %}">
         <div class="metric-label">YTD RE% (Operational)</div>
         <div class="metric-value">{{ ytd_summary.re_percentage_operational|floatformat:1 }}%</div>
-        <div class="metric-sublabel">Grid-sent electricity</div>
     </div>
     
     <!-- YTD RE Percentage - Underlying -->
@@ -115,22 +138,22 @@
     <!-- Emissions -->
     <div class="metric-card neutral">
         <div class="metric-label">YTD Emissions</div>
-        <div class="metric-value">{{ ytd_summary.total_emissions|floatformat:0|intcomma }} t CO₂-e</div>
+        <div class="metric-value">{{ ytd_summary.total_emissions|div:1000|floatformat:0 }} Kt CO₂-e</div>
         <div class="metric-change">
             {% if ytd_emissions_change %}
                 {% if ytd_emissions_change < 0 %}✓{% else %}⚠{% endif %}
-                {{ ytd_emissions_change|floatformat:1 }}% vs {{ year|add:"-1" }}
+                {{ ytd_emissions_change|floatformat:1 }}% in {{ year|add:"-1" }}
             {% endif %}
         </div>
     </div>
 </div>
 
-<!-- Consumption Definitions Info Box -->
+<!-- Demand Definitions Info Box -->
 <div class="info-box" style="background: #e3f2fd; border-left-color: #2196f3;">
-    <h3 style="margin-top: 0;">Understanding Consumption Measures</h3>
+    <h3 style="margin-top: 0;">Understanding Demand Measures</h3>
     <p style="margin-bottom: 0;">
-        <strong>Operational Consumption:</strong> Total consumption from grid sources. This represents electricity delivered through the grid.<br>
-        <strong>Underlying Consumption:</strong> Operational consumption plus that part of household rooftop solar generation that is consumed by the household before export to the grid.
+        <strong>Operational Demand:</strong> Represents the total load required from the grid, excluding behind-the-meter rooftop solar and small, non-scheduled generation.<br>
+        <strong>Underlying Demand:</strong> Total electricity usage by consumers, including electricity sourced from the grid, behind-the-meter rooftop solar (PV), and battery storage.
     </p>
 </div>
 
@@ -147,8 +170,8 @@
             <tr>
                 <th>Technology</th>
                 <th class="value">Generation (GWh)</th>
-                <th class="value">% of Operational</th>
-                <th class="value">% of Underlying</th>
+                <th class="value">% of Operational Demand</th>
+                <th class="value">% of Underlying Demand</th>
             </tr>
         </thead>
         <tbody>
@@ -233,22 +256,22 @@
 
 <div class="metric-grid" style="grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));">
     <div class="metric-card neutral">
-        <div class="metric-label">Operational Consumption</div>
-        <div class="metric-value">{{ performance.operational_|floatformat:1 }}</div>
-        <div class="metric-sublabel">GWh (grid-sent)</div>
+        <div class="metric-label">Operational Demand</div>
+        <div class="metric-value">{{ performance.operational_demand|floatformat:1 }}</div>
+        <div class="metric-sublabel">GWh</div>
         {% if prev_year_performance %}
         <div class="metric-change">
             {% with change=performance.operational_demand|sub:prev_year_performance.operational_demand|div:prev_year_performance.operational_demand|mul:100 %}
             {% if change >= 0 %}↑{% else %}↓{% endif %}
             {% if change >= 0 %}{{ change|floatformat:1 }}%{% else %}{{ change|mul:-1|floatformat:1 }}%{% endif %}
-            vs {{ month_name }} {{ year|add:"-1" }}
+            in {{ month_name }} {{ year|add:"-1" }}
             {% endwith %}
         </div>
         {% endif %}
     </div>
 
     <div class="metric-card neutral">
-        <div class="metric-label">Underlying Consumption</div>
+        <div class="metric-label">Underlying Demand</div>
         <div class="metric-value">{{ performance.underlying_demand|floatformat:1 }}</div>
         <div class="metric-sublabel">GWh (incl. rooftop solar)</div>
         {% if prev_year_performance %}
@@ -256,7 +279,7 @@
             {% with change=performance.underlying_demand|sub:prev_year_performance.underlying_demand|div:prev_year_performance.underlying_demand|mul:100 %}
             {% if change >= 0 %}↑{% else %}↓{% endif %}
             {% if change >= 0 %}{{ change|floatformat:1 }}%{% else %}{{ change|mul:-1|floatformat:1 }}%{% endif %}
-            vs {{ month_name }} {{ year|add:"-1" }}
+            in {{ month_name }} {{ year|add:"-1" }}
             {% endwith %}
         </div>
         {% endif %}
@@ -278,7 +301,7 @@
 
     {% if performance.peak_instantaneous_re_percentage %}
     <div class="metric-card positive">
-        <div class="metric-label">Peak Instantaneous RE%</div>
+        <div class="metric-label">Peak Instantaneous Operational RE%</div>
         <div class="metric-value">{{ performance.peak_instantaneous_re_percentage|floatformat:1 }}%</div>
         <div class="metric-sublabel">{{ performance.peak_instantaneous_re_datetime|date:"d M, g:i A" }}</div>
     </div>
@@ -286,7 +309,7 @@
     
     {% if performance.peak_demand_mw %}
     <div class="metric-card neutral">
-        <div class="metric-label">Peak Demand</div>
+        <div class="metric-label">Peak Operational Demand</div>
         <div class="metric-value">{{ performance.peak_demand_mw|floatformat:0|intcomma }}</div>
         <div class="metric-sublabel">MW on {{ performance.peak_demand_datetime|date:"d M, g:i A" }}</div>
     </div>
@@ -294,7 +317,7 @@
     
     {% if performance.minimum_demand_mw %}
     <div class="metric-card neutral">
-        <div class="metric-label">Minimum Demand</div>
+        <div class="metric-label">Minimum Operational Demand</div>
         <div class="metric-value">{{ performance.minimum_demand_mw|floatformat:0|intcomma }}</div>
         <div class="metric-sublabel">MW on {{ performance.minimum_demand_datetime|date:"d M, g:i A" }}</div>
     </div>
@@ -385,37 +408,12 @@
 <div class="info-box" style="background: #fff3e0; border-left-color: #ff9800; margin-top: 20px;">
     <h3 style="margin-top: 0;">Understanding Wholesale Prices</h3>
     <p style="margin-bottom: 0;">
-        <strong>Negative prices:</strong> Can occur due to bidding strategies when total generation exceeds demand and inflexible facilities such as coal generators have minimum generation levels. This incentivises storage charging and demand response from large scale consumers exposed to wholesale prices.<br>
-        <strong>Price spikes (&gt;$300/MWh):</strong> Typically occur during periods of high demand or low renewable generation, indicating grid stress.<br>
-        <strong>Volatility:</strong> Higher standard deviation indicates more variable prices, which can affect investment decisions.
+        <strong>Negative prices:</strong> Can occur due to generators bidding strategies (e.g. coal generators have minimum generation levels or RE generators with large scale generation certificates). This incentivises storage charging and demand response from large scale consumers.<br>
+        <strong>Price spikes (&gt;$300/MWh):</strong> Typically occur during periods of high demand and / or low generation.<br>
+        <strong>Volatility:</strong> Measured by standard deviation indicating how much prices fluctuate around the average wholesale price over time. A higher standard deviation signifies more variable, unpredictable, and risky price movements. A lower SD indicates stable, predictable price movements, less risky, stable assets and lower risk premium on pricing.
     </p>
 </div>
 {% endif %}
-
-<!-- Charts -->
-<div class="section-header">
-    <h2>Visualizations</h2>
-</div>
-
-<!-- Generation Mix Charts - Side by Side -->
-<div class="charts-grid">
-    <div class="chart-container pie-chart-container">
-        {{ generation_mix_operational_chart|safe }}
-        <p class="chart-note">Excludes rooftop solar (DPV)</p>
-    </div>
-    
-    <div class="chart-container pie-chart-container">
-        {{ generation_mix_underlying_chart|safe }}
-        <p class="chart-note">Includes rooftop solar (DPV)</p>
-    </div>
-</div>
-
-<!-- Pathway Chart - Full Width -->
-<div class="chart-container">
-    <div class="chart-title">Pathway to 2040 Target</div>
-    <p class="chart-subtitle">Based on Operational RE% (grid-sent electricity)</p>
-    {{ pathway_chart|safe }}
-</div>
 
 <!-- New Capacity -->
 {% if new_capacity %}
@@ -472,7 +470,7 @@
     <tbody>
         <tr>
             <td><strong>{{ month_name }} {{ year }}</strong></td>
-            <td class="value">{{ performance.total_emissions_tonnes|floatformat:0|intcomma }} t CO₂-e</td>
+            <td class="value">{{ performance.total_emissions_tonnes|div:1000|floatformat:1 }} Kt CO₂-e</td>
             <td class="value">{{ performance.emissions_intensity_kg_mwh|floatformat:2 }} kg/MWh</td>
             <td class="value">
                 {% if emissions_change %}
@@ -485,7 +483,7 @@
         </tr>
         <tr>
             <td><strong>YTD {{ year }}</strong></td>
-            <td class="value">{{ ytd_summary.total_emissions|floatformat:0|intcomma }} t CO₂-e</td>
+            <td class="value">{{ ytd_summary.total_emissions|div:1000|floatformat:1 }} Kt CO₂-e</td>
             <td class="value">{{ ytd_summary.emissions_intensity|floatformat:2 }} kg/MWh</td>
             <td class="value">
                 {% if ytd_emissions_change %}

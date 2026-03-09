@@ -40,9 +40,11 @@ Cumulative performance metrics from January to the current month:
 #### Generation Mix
 Breakdown of electricity generation by technology:
 - Wind generation
-- Solar (Utility-scale)
+- Solar (Utility)
 - Solar (Rooftop/DPV)
 - Biomass
+- Hydro - Indicates pumped hydro electricity storage.
+- Battery - Indicates utility scale storage batteries.
 - Gas
 - Coal
 - Storage (charge/discharge)
@@ -273,8 +275,8 @@ Probabilistic assessment including:
 
 | Term | Definition |
 |------|------------|
-| **Operational Consumption** | Total electricity consumption from grid sources. Represents electricity delivered through the transmission and distribution network. |
-| **Underlying Consumption** | Operational consumption plus rooftop solar generation consumed behind the meter. Represents total electricity consumption including self-consumed distributed generation. |
+| **Operational Consumption** | The half-hourly average output from all large-scale grid connected generators. It doesn't include energy consumed by market scheduled loads e.g. pumped hydro and utility scale batteries. Represents electricity delivered through the transmission and distribution network. |
+| **Underlying Consumption** | Operational consumption plus half hourly estimates of rooftop solar generation production yeilding an estimate of total supply from "both ends of the grid." |
 | **Peak Demand** | Maximum instantaneous power demand (MW) during the reporting period. |
 | **Minimum Demand** | Minimum instantaneous power demand (MW) during the reporting period. |
 

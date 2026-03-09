@@ -77,8 +77,8 @@
         <p style="font-size: 1.1em; line-height: 1.8;">
             The South West Interconnected System (SWIS) achieved
             <strong>{{ annual_summary.re_percentage_operational|floatformat:1 }}%</strong> renewable energy
-            (operational consumption basis) and <strong>{{ annual_summary.re_percentage_underlying|floatformat:1 }}%</strong>
-            (underlying consumption basis, including rooftop solar) in {{ year }}. Total grid emissions were
+            (operational demand basis) and <strong>{{ annual_summary.re_percentage_underlying|floatformat:1 }}%</strong>
+            (underlying demand basis, including rooftop solar) in {{ year }}. Total grid emissions were
             <strong>{{ annual_summary.total_emissions|floatformat:0|intcomma }} tonnes CO₂-e</strong>
             {% if yoy_changes.emissions %}, a reduction of
             {% if yoy_changes.emissions < 0 %} <strong>{{ yoy_changes.emissions|mul:-1|floatformat:1 }}%</strong> from
@@ -199,13 +199,11 @@
     {% endif %}
 </div>
 
-<!-- Consumption Definitions -->
+<!-- Demand Definitions -->
 <div class="info-box" style="background: #e3f2fd; border-left-color: #2196f3;">
     <p style="margin-bottom: 0;">
-        <strong>Operational Consumption:</strong> Total consumption from grid sources. This
-        represents electricity delivered through the grid.<br>
-        <strong>Underlying Consumption:</strong> Operational consumption plus rooftop solar (DPV). This represents total
-        electricity consumed including behind-the-meter generation.<br>
+        <strong>Operational Demand:</strong> Represents the total load required from the grid, excluding behind-the-meter rooftop solar and small, non-scheduled generation.<br>
+        <strong>Underlying Demand:</strong> Total electricity usage by consumers, including electricity sourced from the grid, behind-the-meter rooftop solar (PV), and battery storage.<br>
     </p>
 </div>
 
@@ -240,9 +238,9 @@
         <div class="metric-change">
             {% if yoy_changes.underlying_demand > 0 %}↑{% else %}↓{% endif %}
             {% if yoy_changes.underlying_demand >= 0 %}
-            {{ yoy_changes.underlying_demand|floatformat:1 }}% vs {{ year|add:"-1" }}
+            {{ yoy_changes.underlying_demand|floatformat:1 }}% in {{ year|add:"-1" }}
             {% else %}
-            {{ yoy_changes.underlying_demand|mul:-1|floatformat:1 }}% vs {{ year|add:"-1" }}
+            {{ yoy_changes.underlying_demand|mul:-1|floatformat:1 }}% in {{ year|add:"-1" }}
             {% endif %}
         </div>
         {% endif %}
@@ -255,9 +253,9 @@
         {% if yoy_changes.emissions %}
         <div class="metric-change {% if yoy_changes.emissions < 0 %}positive{% else %}negative{% endif %}">
             {% if yoy_changes.emissions < 0 %}
-            ✓ {{ yoy_changes.emissions|mul:-1|floatformat:1 }}% vs {{ year|add:"-1" }}
+            ✓ {{ yoy_changes.emissions|mul:-1|floatformat:1 }}% in {{ year|add:"-1" }}
             {% else %}
-            ⚠ {{ yoy_changes.emissions|floatformat:1 }}% vs {{ year|add:"-1" }}
+            ⚠ {{ yoy_changes.emissions|floatformat:1 }}% in {{ year|add:"-1" }}
             {% endif %}
         </div>
         {% endif %}
@@ -285,9 +283,9 @@
             <div class="metric-change">
                 {% if yoy_changes.wholesale_price_avg >= 0 %}↑{% else %}↓{% endif %}
                 {% if yoy_changes.wholesale_price_avg >= 0 %}
-                {{ yoy_changes.wholesale_price_avg|floatformat:1 }}% vs {{ year|add:"-1" }}
+                {{ yoy_changes.wholesale_price_avg|floatformat:1 }}% in {{ year|add:"-1" }}
                 {% else %}
-                {{ yoy_changes.wholesale_price_avg|mul:-1|floatformat:1 }}% vs {{ year|add:"-1" }}
+                {{ yoy_changes.wholesale_price_avg|mul:-1|floatformat:1 }}% in {{ year|add:"-1" }}
                 {% endif %}
             </div>
             {% endif %}
@@ -465,7 +463,7 @@
         </thead>
         <tbody>
             <tr>
-                <td><strong>Operational Consumption</strong></td>
+                <td><strong>Operational Demand</strong></td>
                 <td class="value">{{ annual_summary.operational_demand|floatformat:0|intcomma }} GWh</td>
                 {% if prev_annual_summary %}
                 <td class="value">{{ prev_annual_summary.operational_demand|floatformat:0|intcomma }} GWh</td>
@@ -477,7 +475,7 @@
                 {% endif %}
             </tr>
             <tr>
-                <td><strong>Underlying Consumption</strong></td>
+                <td><strong>Underlying Demand</strong></td>
                 <td class="value">{{ annual_summary.underlying_demand|floatformat:0|intcomma }} GWh</td>
                 {% if prev_annual_summary %}
                 <td class="value">{{ prev_annual_summary.underlying_demand|floatformat:0|intcomma }} GWh</td>

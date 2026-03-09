@@ -200,7 +200,7 @@ def generate_generation_mix_operational_chart(performance):
     """
     import plotly.graph_objects as go
 
-    labels = ['Wind', 'Solar (Utility)', 'Biomass', 'Hydro', 'Battery', 'Gas (CCGT)']
+    labels = ['Wind', 'Solar (Utility)', 'Biomass', 'Hydro', 'Battery', 'Gas']
 
     values = [
         performance.wind_generation,
@@ -234,7 +234,7 @@ def generate_generation_mix_operational_chart(performance):
 
     fig.update_layout(
         title=dict(
-            text="Operational Consumption",
+            text="Operational Demand",
             x=0.5,
             xanchor='center',
             font=dict(size=14)
@@ -265,8 +265,8 @@ def generate_generation_mix_underlying_chart(performance):
     """
     import plotly.graph_objects as go
 
-    labels = ['Wind', 'Solar (Utility)', 'Solar (Rooftop)', 'Biomass',
-              'Hydro', 'Battery', 'Gas (CCGT)']
+    labels = ['Wind', 'Solar (Utility)', 'Solar (Rooftop/DPV)', 'Biomass',
+              'Hydro', 'Battery', 'Gas']
 
     values = [
         performance.wind_generation,
@@ -301,7 +301,7 @@ def generate_generation_mix_underlying_chart(performance):
 
     fig.update_layout(
         title=dict(
-            text="Underlying Consumption",
+            text="Underlying Demand",
             x=0.5,
             xanchor='center',
             font=dict(size=14)
