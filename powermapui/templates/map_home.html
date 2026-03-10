@@ -182,87 +182,16 @@
 <!-- Add Grid Line Form (initially hidden) -->
 <div id="addGridLineForm" style="display: none; margin-bottom: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
     <h4 style="padding: 15px; background-color: #e8f5e8; margin: 0; border-top-left-radius: 8px; border-top-right-radius: 8px; border-bottom: 1px solid #dee2e6;">Add New Grid Line</h4>
-    
     <div style="padding: 15px; background-color: white;">
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
-            <div>
-                <label for="grid_line_name">Line Name:</label>
-                <input type="text" id="grid_line_name" class="form-control" required>
-            </div>
-            <div>
-                <label for="grid_line_code">Line Code:</label>
-                <input type="text" id="grid_line_code" class="form-control" required>
-            </div>
-            <div>
-                <label for="grid_line_type">Line Type:</label>
-                <select id="grid_line_type" class="form-control">
-                    <option value="transmission">Transmission</option>
-                    <option value="subtransmission">Sub-transmission</option>
-                    <option value="distribution">Distribution</option>
-                </select>
-            </div>
-            <div>
-                <label for="grid_voltage_level">Voltage Level (kV):</label>
-                <input type="number" id="grid_voltage_level" class="form-control" step="0.1" min="0" value="132">
-            </div>
-            <div>
-                <label for="grid_thermal_capacity">Thermal Capacity (MW):</label>
-                <input type="number" id="grid_thermal_capacity" class="form-control" step="0.1" min="0" value="100">
-            </div>
-            <div>
-                <label for="grid_resistance">Resistance per km (Ω/km):</label>
-                <input type="number" id="grid_resistance" class="form-control" step="0.001" min="0" value="0.1">
-            </div>
-        </div>      
-        
-        <div style="margin-top: 15px;">
-            <label>Grid Line Connection:</label>
-            
-            <div style="margin-bottom: 10px;">
-                <label>
-                    <input type="radio" name="grid_line_connection_method" value="terminals" checked> 
-                    Connect between terminals
-                </label>
-                <div class="technology-info">Select existing terminals as endpoints</div>
-            </div>
-            
-            <div style="margin-bottom: 10px;">
-                <label>
-                    <input type="radio" name="grid_line_connection_method" value="coordinates"> 
-                    Use map coordinates
-                </label>
-                <div class="technology-info">Click two points on the map to define endpoints</div>
-            </div>
-            
-            <!-- Terminal Selection Section -->
-            <div id="terminal-selection" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px;">
-                <div>
-                    <label for="from_terminal_select">From Terminal:</label>
-                    <select id="from_terminal_select" class="form-control">
-                        <option value="">Select Terminal</option>
-                        <!-- Options will be loaded dynamically -->
-                    </select>
-                </div>
-                <div>
-                    <label for="to_terminal_select">To Terminal:</label>
-                    <select id="to_terminal_select" class="form-control">
-                        <option value="">Select Terminal</option>
-                        <!-- Options will be loaded dynamically -->
-                    </select>
-                </div>
-            </div>
-            
-            <!-- Coordinate Selection Section (initially hidden) -->
-            <div id="coordinate-selection" style="display: none; padding: 10px; background-color: #f8f9fa; border-radius: 4px; margin-top: 10px;">
-                <div>From: <span id="grid_from_coords">Click on map for start point</span></div>
-                <div>To: <span id="grid_to_coords">Click on map for end point</span></div>
-                <div>Length: <span id="grid_length_display">0 km</span></div>
-            </div>
-            
-            <div id="connection-info" style="margin-top: 10px; padding: 8px; background: #e3f2fd; border-radius: 4px; display: none;">
-                <strong>Connection Details:</strong>
-                <div id="connection-details"></div>
-            </div>
+        <p class="text-muted mb-3">Click two points on the map to set the grid line endpoints, then open the full form to complete all details and save.</p>
+        <div style="padding: 10px; background-color: #f8f9fa; border-radius: 4px; margin-bottom: 15px; font-size: 0.9em;">
+            <div>From: <strong><span id="grid_from_coords">Click on map for start point</span></strong></div>
+            <div>To: <strong><span id="grid_to_coords">Click on map for end point</span></strong></div>
+            <div>Length: <span id="grid_length_display">—</span></div>
+        </div>
+        <div class="d-flex gap-2">
+            <button id="gridLineContinueBtn" class="btn btn-primary" disabled>Continue to Full Form →</button>
+            <button id="cancelAddGridLine" class="btn btn-outline-secondary">Cancel</button>
         </div>
     </div>
 </div>
@@ -1856,26 +1785,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
-    // Grid line connection method radio buttons
-    document.querySelectorAll('input[name="grid_line_connection_method"]').forEach(radio => {
-        radio.addEventListener('change', function() {
-            const terminalSelection = document.getElementById('terminal-selection');
-            const coordinateSelection = document.getElementById('coordinate-selection');
-            const connectionInfo = document.getElementById('connection-info');
-            
-            if (this.value === 'terminals') {
-                terminalSelection.style.display = 'grid';
-                coordinateSelection.style.display = 'none';
-                connectionInfo.style.display = 'block';
-                updateConnectionInfo();
-            } else {
-                terminalSelection.style.display = 'none';
-                coordinateSelection.style.display = 'block';
-                connectionInfo.style.display = 'none';
-            }
-        });
-    });
-    
     // Terminal selection change handlers
     const fromTerminalSelect = document.getElementById('from_terminal_select');
     const toTerminalSelect = document.getElementById('to_terminal_select');
@@ -1908,28 +1817,30 @@ document.addEventListener('DOMContentLoaded', function() {
                 this.classList.add('active');
                 document.getElementById('addGridLineForm').style.display = 'block';
                 map.getContainer().style.cursor = 'crosshair';
-                
-                    // Reset grid line creation
+
+                // Reset grid line creation
                 gridLinePoints = [];
                 gridLineMarkers.forEach(marker => map.removeLayer(marker));
                 gridLineMarkers = [];
-                
-                    // Reset form
+
+                // Reset status display
                 document.getElementById('grid_from_coords').textContent = 'Click on map for start point';
                 document.getElementById('grid_to_coords').textContent = 'Click on map for end point';
-                document.getElementById('grid_length_display').textContent = '0 km';
-                
-                alert('Click two points on the map to define the grid line endpoints.');
+                document.getElementById('grid_length_display').textContent = '—';
+                const continueBtn = document.getElementById('gridLineContinueBtn');
+                if (continueBtn) continueBtn.disabled = true;
             } else {
                 this.textContent = 'Add New Grid Line';
                 this.classList.remove('active');
                 document.getElementById('addGridLineForm').style.display = 'none';
                 map.getContainer().style.cursor = '';
-                
-                    // Clean up markers
+
+                // Clean up markers
                 gridLineMarkers.forEach(marker => map.removeLayer(marker));
                 gridLineMarkers = [];
                 gridLinePoints = [];
+                const continueBtn = document.getElementById('gridLineContinueBtn');
+                if (continueBtn) continueBtn.disabled = true;
             }
         });
     }
@@ -1991,87 +1902,19 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
-    // Submit grid line button
-    const submitAddGridLine = document.getElementById('submitAddGridLine');
-    if (submitAddGridLine) {
-        submitAddGridLine.addEventListener('click', function() {
-            const lineName = document.getElementById('grid_line_name').value.trim();
-            const lineCode = document.getElementById('grid_line_code').value.trim();
-            const lineType = document.getElementById('grid_line_type').value;
-            const voltageLevel = document.getElementById('grid_voltage_level').value;
-            const thermalCapacity = document.getElementById('grid_thermal_capacity').value;
-            const resistance = document.getElementById('grid_resistance').value;
-            
-            if (!lineName || !lineCode || !voltageLevel || !thermalCapacity) {
-                alert('Please fill in all required fields.');
-                return;
+    // Continue to full form button
+    const gridLineContinueBtn = document.getElementById('gridLineContinueBtn');
+    if (gridLineContinueBtn) {
+        gridLineContinueBtn.addEventListener('click', function() {
+            if (gridLinePoints.length === 2) {
+                const params = new URLSearchParams({
+                    from_lat: gridLinePoints[0].lat,
+                    from_lng: gridLinePoints[0].lng,
+                    to_lat: gridLinePoints[1].lat,
+                    to_lng: gridLinePoints[1].lng,
+                });
+                window.location.href = '/gridlines/create/?' + params.toString();
             }
-            
-            if (gridLinePoints.length !== 2) {
-                alert('Please click two points on the map to define the grid line.');
-                return;
-            }
-            
-            const data = {
-                line_name: lineName,
-                line_code: lineCode,
-                line_type: lineType,
-                voltage_level: parseFloat(voltageLevel),
-                thermal_capacity_mw: parseFloat(thermalCapacity),
-                resistance_per_km: parseFloat(resistance),
-                reactance_per_km: parseFloat(resistance) * 4, // Typical X/R ratio
-                from_latitude: gridLinePoints[0].lat,
-                from_longitude: gridLinePoints[0].lng,
-                to_latitude: gridLinePoints[1].lat,
-                to_longitude: gridLinePoints[1].lng
-            };
-            
-            fetch('/create_grid_line/', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': getCookie('csrftoken')
-                },
-                body: JSON.stringify(data)
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.status === 'success') {
-                    alert('Grid line created successfully!');
-                    
-                    // Add the new grid line to the map
-                    const newGridLine = {
-                        idgridlines: data.grid_line.idgridlines,
-                        line_name: data.grid_line.line_name,
-                        line_code: data.grid_line.line_code,
-                        line_type: lineType,
-                        voltage_level: data.grid_line.voltage_level,
-                        thermal_capacity_mw: parseFloat(thermalCapacity),
-                        from_latitude: gridLinePoints[0].lat,
-                        from_longitude: gridLinePoints[0].lng,
-                        to_latitude: gridLinePoints[1].lat,
-                        to_longitude: gridLinePoints[1].lng
-                    };
-                    
-                    gridLines.push(newGridLine);
-                    loadGridLinesOnMap([newGridLine]);
-                    
-                    // Reset the add grid line mode
-                    const addGridLineBtn = document.getElementById('addGridLineBtn');
-                    if (addGridLineBtn) {
-                        addGridLineBtn.click();
-                    }
-                    
-                    // Refresh grid lines dropdown for facilities
-                    loadGridLinesForSelection();
-                } else {
-                    alert('Error: ' + data.message);
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                alert('Failed to create grid line. Please try again.');
-            });
         });
     }
     
@@ -2227,17 +2070,17 @@ document.addEventListener('DOMContentLoaded', function() {
                         `${e.latlng.lat.toFixed(6)}, ${e.latlng.lng.toFixed(6)}`;
                     marker.bindPopup('Grid Line Start Point').openPopup();
                 } else if (gridLinePoints.length === 2) {
-                    document.getElementById('grid_to_coords').textContent = 
+                    document.getElementById('grid_to_coords').textContent =
                         `${e.latlng.lat.toFixed(6)}, ${e.latlng.lng.toFixed(6)}`;
                     marker.bindPopup('Grid Line End Point').openPopup();
-                    
+
                     const distance = calculateDistance(
                         gridLinePoints[0].lat, gridLinePoints[0].lng,
                         gridLinePoints[1].lat, gridLinePoints[1].lng
                     );
-                    document.getElementById('grid_length_display').textContent = 
+                    document.getElementById('grid_length_display').textContent =
                         `${distance.toFixed(2)} km`;
-                    
+
                     const line = L.polyline(gridLinePoints, {
                         color: 'red',
                         weight: 3,
@@ -2245,6 +2088,10 @@ document.addEventListener('DOMContentLoaded', function() {
                         dashArray: '10, 10'
                     }).addTo(map);
                     gridLineMarkers.push(line);
+
+                    // Enable the continue button now both endpoints are set
+                    const continueBtn = document.getElementById('gridLineContinueBtn');
+                    if (continueBtn) continueBtn.disabled = false;
                 }
             }
         } else if (addFacilityMode) {
@@ -3232,12 +3079,13 @@ function showTerminalOnMap(terminalId) {
 
 // Load terminals for dropdown selection
 function loadTerminalsForSelection() {
+    const fromSelect = document.getElementById('from_terminal_select');
+    const toSelect = document.getElementById('to_terminal_select');
+    if (!fromSelect || !toSelect) return;
+
     fetch('/get_terminals/')
         .then(response => response.json())
         .then(data => {
-            const fromSelect = document.getElementById('from_terminal_select');
-            const toSelect = document.getElementById('to_terminal_select');
-            
             // Clear existing options (except first)
             while (fromSelect.options.length > 1) {
                 fromSelect.remove(1);
@@ -3245,13 +3093,13 @@ function loadTerminalsForSelection() {
             while (toSelect.options.length > 1) {
                 toSelect.remove(1);
             }
-            
+
             data.forEach(terminal => {
                 const fromOption = document.createElement('option');
                 fromOption.value = terminal.idterminals;
                 fromOption.textContent = `${terminal.terminal_name} (${terminal.primary_voltage_kv}kV)`;
                 fromSelect.appendChild(fromOption);
-                
+
                 const toOption = document.createElement('option');
                 toOption.value = terminal.idterminals;
                 toOption.textContent = `${terminal.terminal_name} (${terminal.primary_voltage_kv}kV)`;
@@ -3282,9 +3130,12 @@ function resetTerminalForm() {
 }
 
 function updateConnectionInfo() {
-    const fromTerminalId = document.getElementById('from_terminal_select').value;
-    const toTerminalId = document.getElementById('to_terminal_select').value;
+    const fromTerminalEl = document.getElementById('from_terminal_select');
+    const toTerminalEl = document.getElementById('to_terminal_select');
     const connectionDetails = document.getElementById('connection-details');
+    if (!fromTerminalEl || !toTerminalEl || !connectionDetails) return;
+    const fromTerminalId = fromTerminalEl.value;
+    const toTerminalId = toTerminalEl.value;
     
     if (fromTerminalId && toTerminalId) {
         const fromTerminal = terminals.find(t => t.idterminals == fromTerminalId);

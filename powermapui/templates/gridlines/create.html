@@ -1,6 +1,11 @@
 <!-- gridlines/create.html -->
 {% extends 'powermapui_base.html' %}
 
+{% block scripts %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+{% endblock %}
+
 {% block powermapui_content %}
   <div class="d-flex justify-content-between align-items-center mb-4">
     <h3>Add New Grid Line</h3>
@@ -211,58 +216,68 @@
 
             <!-- Geographic Coordinates -->
             <h5 class="mb-3">Geographic Coordinates</h5>
+            <div class="alert alert-info py-2 mb-3">
+              <small>Enter coordinates manually or click on the map below: first click sets the <strong>From</strong> point, second click sets the <strong>To</strong> point. Click a third time to reset and start again.</small>
+            </div>
             <div class="row mb-3">
               <div class="col-md-6">
                 <label for="from_latitude" class="form-label">From Latitude</label>
-                <input type="number" 
-                       class="form-control" 
-                       id="from_latitude" 
-                       name="from_latitude" 
-                       step="0.000001" 
-                       min="-90" 
+                <input type="number"
+                       class="form-control coord-input"
+                       id="from_latitude"
+                       name="from_latitude"
+                       step="0.000001"
+                       min="-90"
                        max="90"
                        value="{{ form_data.from_latitude|default:'' }}">
                 <div class="form-text">Starting point latitude</div>
               </div>
               <div class="col-md-6">
                 <label for="from_longitude" class="form-label">From Longitude</label>
-                <input type="number" 
-                       class="form-control" 
-                       id="from_longitude" 
-                       name="from_longitude" 
-                       step="0.000001" 
-                       min="-180" 
+                <input type="number"
+                       class="form-control coord-input"
+                       id="from_longitude"
+                       name="from_longitude"
+                       step="0.000001"
+                       min="-180"
                        max="180"
                        value="{{ form_data.from_longitude|default:'' }}">
                 <div class="form-text">Starting point longitude</div>
               </div>
             </div>
 
-            <div class="row mb-4">
+            <div class="row mb-3">
               <div class="col-md-6">
                 <label for="to_latitude" class="form-label">To Latitude</label>
-                <input type="number" 
-                       class="form-control" 
-                       id="to_latitude" 
-                       name="to_latitude" 
-                       step="0.000001" 
-                       min="-90" 
+                <input type="number"
+                       class="form-control coord-input"
+                       id="to_latitude"
+                       name="to_latitude"
+                       step="0.000001"
+                       min="-90"
                        max="90"
                        value="{{ form_data.to_latitude|default:'' }}">
                 <div class="form-text">Ending point latitude</div>
               </div>
               <div class="col-md-6">
                 <label for="to_longitude" class="form-label">To Longitude</label>
-                <input type="number" 
-                       class="form-control" 
-                       id="to_longitude" 
-                       name="to_longitude" 
-                       step="0.000001" 
-                       min="-180" 
+                <input type="number"
+                       class="form-control coord-input"
+                       id="to_longitude"
+                       name="to_longitude"
+                       step="0.000001"
+                       min="-180"
                        max="180"
                        value="{{ form_data.to_longitude|default:'' }}">
                 <div class="form-text">Ending point longitude</div>
               </div>
+            </div>
+
+            <!-- Embedded coordinate map -->
+            <div id="coordMap" style="height: 320px; border: 1px solid #dee2e6; border-radius: 4px;" class="mb-2"></div>
+            <div class="d-flex justify-content-between align-items-center mb-4">
+              <small class="text-muted" id="coordMapStatus">Click to set start point (From).</small>
+              <button type="button" class="btn btn-outline-secondary btn-sm" id="resetCoordMap">Reset points</button>
             </div>
 
             <hr class="my-4">
@@ -401,4 +416,157 @@
       </div>
     </div>
   </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    // Haversine distance in km
+    function haversineKm(lat1, lng1, lat2, lng2) {
+        const R = 6371;
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLng = (lng2 - lng1) * Math.PI / 180;
+        const a = Math.sin(dLat / 2) ** 2 +
+                  Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                  Math.sin(dLng / 2) ** 2;
+        return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    }
+
+    // Initialise the embedded map
+    const coordMap = L.map('coordMap').setView([-33.45, 121.25], 7);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© <a href="https://openstreetmap.org">OpenStreetMap</a> contributors'
+    }).addTo(coordMap);
+
+    const fromIcon = new L.Icon.Default();
+    const toIcon   = new L.Icon.Default();
+
+    let fromMarker = null, toMarker = null, connectLine = null;
+    let clickState = 0; // 0=awaiting from, 1=awaiting to, 2=both set
+
+    const statusEl   = document.getElementById('coordMapStatus');
+    const lengthInput = document.getElementById('length_km');
+
+    function setStatus(msg) { if (statusEl) statusEl.textContent = msg; }
+
+    function updateLine() {
+        if (connectLine) { coordMap.removeLayer(connectLine); connectLine = null; }
+        if (fromMarker && toMarker) {
+            connectLine = L.polyline([fromMarker.getLatLng(), toMarker.getLatLng()], {
+                color: '#0d6efd', weight: 2, dashArray: '6 4'
+            }).addTo(coordMap);
+            const dist = haversineKm(
+                fromMarker.getLatLng().lat, fromMarker.getLatLng().lng,
+                toMarker.getLatLng().lat,   toMarker.getLatLng().lng
+            );
+            if (lengthInput && !lengthInput.value) lengthInput.value = dist.toFixed(3);
+            setStatus(`Both endpoints set. Calculated length: ${dist.toFixed(2)} km.`);
+        }
+    }
+
+    function fillInputs(which, latlng) {
+        if (which === 'from') {
+            document.getElementById('from_latitude').value  = latlng.lat.toFixed(6);
+            document.getElementById('from_longitude').value = latlng.lng.toFixed(6);
+        } else {
+            document.getElementById('to_latitude').value  = latlng.lat.toFixed(6);
+            document.getElementById('to_longitude').value = latlng.lng.toFixed(6);
+        }
+    }
+
+    function placeFromMarker(latlng) {
+        if (fromMarker) coordMap.removeLayer(fromMarker);
+        fromMarker = L.marker(latlng, { draggable: true, title: 'From' })
+            .addTo(coordMap)
+            .bindPopup('From (start)');
+        fromMarker.on('dragend', function () {
+            fillInputs('from', fromMarker.getLatLng());
+            updateLine();
+        });
+        fillInputs('from', latlng);
+    }
+
+    function placeToMarker(latlng) {
+        if (toMarker) coordMap.removeLayer(toMarker);
+        toMarker = L.marker(latlng, { draggable: true, title: 'To' })
+            .addTo(coordMap)
+            .bindPopup('To (end)');
+        toMarker.on('dragend', function () {
+            fillInputs('to', toMarker.getLatLng());
+            updateLine();
+        });
+        fillInputs('to', latlng);
+    }
+
+    coordMap.on('click', function (e) {
+        if (clickState === 0) {
+            placeFromMarker(e.latlng);
+            clickState = 1;
+            setStatus('From point set. Click again to set the end point (To).');
+        } else if (clickState === 1) {
+            placeToMarker(e.latlng);
+            clickState = 2;
+            updateLine();
+        } else {
+            // Reset on third click
+            resetMap();
+        }
+    });
+
+    function resetMap() {
+        if (fromMarker)  { coordMap.removeLayer(fromMarker);  fromMarker  = null; }
+        if (toMarker)    { coordMap.removeLayer(toMarker);    toMarker    = null; }
+        if (connectLine) { coordMap.removeLayer(connectLine); connectLine = null; }
+        clickState = 0;
+        setStatus('Points cleared. Click to set start point (From).');
+    }
+
+    document.getElementById('resetCoordMap').addEventListener('click', resetMap);
+
+    // Pre-populate from URL params (set by the map page)
+    const params = new URLSearchParams(window.location.search);
+    const fromLat = parseFloat(params.get('from_lat'));
+    const fromLng = parseFloat(params.get('from_lng'));
+    const toLat   = parseFloat(params.get('to_lat'));
+    const toLng   = parseFloat(params.get('to_lng'));
+
+    if (!isNaN(fromLat) && !isNaN(fromLng)) {
+        placeFromMarker(L.latLng(fromLat, fromLng));
+        clickState = 1;
+        setStatus('From point set. Click on the map to set the end point (To).');
+    }
+    if (!isNaN(toLat) && !isNaN(toLng)) {
+        placeToMarker(L.latLng(toLat, toLng));
+        clickState = 2;
+        updateLine();
+        const bounds = L.latLngBounds([L.latLng(fromLat, fromLng), L.latLng(toLat, toLng)]);
+        coordMap.fitBounds(bounds.pad(0.3));
+    }
+
+    // Keep map markers in sync when coordinate fields are changed manually
+    document.querySelectorAll('#from_latitude, #from_longitude').forEach(function (el) {
+        el.addEventListener('change', function () {
+            const lat = parseFloat(document.getElementById('from_latitude').value);
+            const lng = parseFloat(document.getElementById('from_longitude').value);
+            if (!isNaN(lat) && !isNaN(lng)) {
+                placeFromMarker(L.latLng(lat, lng));
+                if (clickState === 0) clickState = 1;
+                updateLine();
+            }
+        });
+    });
+
+    document.querySelectorAll('#to_latitude, #to_longitude').forEach(function (el) {
+        el.addEventListener('change', function () {
+            const lat = parseFloat(document.getElementById('to_latitude').value);
+            const lng = parseFloat(document.getElementById('to_longitude').value);
+            if (!isNaN(lat) && !isNaN(lng)) {
+                placeToMarker(L.latLng(lat, lng));
+                if (clickState < 2) clickState = 2;
+                updateLine();
+            }
+        });
+    });
+})();
+</script>
 {% endblock %}
