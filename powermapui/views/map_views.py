@@ -747,7 +747,7 @@ def get_grid_line_details(request, grid_line_id):
             'reactance_total': grid_line.calculate_reactance(),
             'impedance_total': grid_line.calculate_impedance(),
             'owner': grid_line.owner,
-            'commissioned_date': grid_line.commissioned_date.isoformat() if grid_line.commissioned_date else None,
+            'commissioned_date': grid_line.commissioning_date.isoformat() if grid_line.commissioning_date else None,
             'coordinates': grid_line.get_line_coordinates(),
             'connected_facilities': connected_facilities,
             'current_utilization_percent': current_utilization,

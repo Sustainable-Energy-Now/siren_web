@@ -2,6 +2,7 @@
 GridLines CRUD views
 Similar to terminals_views.py but for grid lines
 """
+import json
 from django.contrib import messages
 from django.core.paginator import Paginator
 from django.shortcuts import render, get_object_or_404, redirect
@@ -313,6 +314,18 @@ def gridline_edit(request, pk):
             gridline.commissioning_date = commissioning_date
             gridline.decommissioning_date = decommissioning_date
             gridline.commissioning_probability = float(commissioning_probability) if commissioning_probability else None
+
+            # kml_geometry: store as-is if valid JSON, clear if empty
+            kml_geometry_raw = request.POST.get('kml_geometry', '').strip()
+            if kml_geometry_raw:
+                try:
+                    kml_data = json.loads(kml_geometry_raw)
+                    gridline.set_kml_geometry_data(kml_data)
+                except (json.JSONDecodeError, ValueError):
+                    messages.warning(request, 'Route geometry JSON was invalid and has not been changed.')
+            else:
+                gridline.kml_geometry = None
+
             gridline.save()
             
             messages.success(request, f'Grid line "{line_name}" updated successfully.')

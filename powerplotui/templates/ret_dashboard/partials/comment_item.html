@@ -20,24 +20,26 @@
         </div>
         
         <div class="comment-actions">
-            {% if user.is_staff %}
-            <button class="btn-icon" onclick="togglePinComment({{ comment.id }})" 
-                    title="{% if comment.is_pinned %}Unpin{% else %}Pin{% endif %}">
-                {% if comment.is_pinned %}📌{% else %}📍{% endif %}
-            </button>
-            {% endif %}
-            
-            {% if comment.category == 'action_item' or comment.category == 'question' %}
-            <button class="btn-icon" onclick="toggleResolveComment({{ comment.id }})"
-                    title="{% if comment.is_resolved %}Mark unresolved{% else %}Mark resolved{% endif %}">
-                {% if comment.is_resolved %}↩️{% else %}✓{% endif %}
-            </button>
-            {% endif %}
-            
-            {% if comment.author == user or user.is_staff %}
-            <button class="btn-icon" onclick="editComment({{ comment.id }})" title="Edit">✏️</button>
-            <button class="btn-icon btn-danger" onclick="deleteComment({{ comment.id }})" title="Delete">🗑️</button>
-            {% endif %}
+            <div class="btn-group btn-group-sm" role="group">
+                {% if user.is_staff %}
+                <button class="btn btn-outline-secondary" onclick="togglePinComment({{ comment.id }})"
+                        title="{% if comment.is_pinned %}Unpin{% else %}Pin{% endif %}">
+                    {% if comment.is_pinned %}Unpin{% else %}Pin{% endif %}
+                </button>
+                {% endif %}
+
+                {% if comment.category == 'action_item' or comment.category == 'question' %}
+                <button class="btn btn-outline-secondary" onclick="toggleResolveComment({{ comment.id }})"
+                        title="{% if comment.is_resolved %}Mark unresolved{% else %}Mark resolved{% endif %}">
+                    {% if comment.is_resolved %}Unresolve{% else %}Resolve{% endif %}
+                </button>
+                {% endif %}
+
+                {% if comment.author == user or user.is_staff %}
+                <button class="btn btn-outline-warning" onclick="editComment({{ comment.id }})" title="Edit">Edit</button>
+                <button class="btn btn-outline-danger" onclick="deleteComment({{ comment.id }})" title="Delete">Delete</button>
+                {% endif %}
+            </div>
         </div>
     </div>
     

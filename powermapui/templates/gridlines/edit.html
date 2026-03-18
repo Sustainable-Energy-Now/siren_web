@@ -1,6 +1,11 @@
 <!-- gridlines/edit.html -->
 {% extends 'powermapui_base.html' %}
 
+{% block scripts %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+{% endblock %}
+
 {% block powermapui_content %}
   <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
@@ -216,54 +221,89 @@
             <div class="row mb-3">
               <div class="col-md-6">
                 <label for="from_latitude" class="form-label">From Latitude</label>
-                <input type="number" 
-                       class="form-control" 
-                       id="from_latitude" 
-                       name="from_latitude" 
-                       step="0.000001" 
-                       min="-90" 
+                <input type="number"
+                       class="form-control coord-input"
+                       id="from_latitude"
+                       name="from_latitude"
+                       step="0.000001"
+                       min="-90"
                        max="90"
                        value="{{ form_data.from_latitude|default:gridline.from_latitude|default:'' }}">
                 <div class="form-text">Starting point latitude</div>
               </div>
               <div class="col-md-6">
                 <label for="from_longitude" class="form-label">From Longitude</label>
-                <input type="number" 
-                       class="form-control" 
-                       id="from_longitude" 
-                       name="from_longitude" 
-                       step="0.000001" 
-                       min="-180" 
+                <input type="number"
+                       class="form-control coord-input"
+                       id="from_longitude"
+                       name="from_longitude"
+                       step="0.000001"
+                       min="-180"
                        max="180"
                        value="{{ form_data.from_longitude|default:gridline.from_longitude|default:'' }}">
                 <div class="form-text">Starting point longitude</div>
               </div>
             </div>
 
-            <div class="row mb-4">
+            <div class="row mb-3">
               <div class="col-md-6">
                 <label for="to_latitude" class="form-label">To Latitude</label>
-                <input type="number" 
-                       class="form-control" 
-                       id="to_latitude" 
-                       name="to_latitude" 
-                       step="0.000001" 
-                       min="-90" 
+                <input type="number"
+                       class="form-control coord-input"
+                       id="to_latitude"
+                       name="to_latitude"
+                       step="0.000001"
+                       min="-90"
                        max="90"
                        value="{{ form_data.to_latitude|default:gridline.to_latitude|default:'' }}">
                 <div class="form-text">Ending point latitude</div>
               </div>
               <div class="col-md-6">
                 <label for="to_longitude" class="form-label">To Longitude</label>
-                <input type="number" 
-                       class="form-control" 
-                       id="to_longitude" 
-                       name="to_longitude" 
-                       step="0.000001" 
-                       min="-180" 
+                <input type="number"
+                       class="form-control coord-input"
+                       id="to_longitude"
+                       name="to_longitude"
+                       step="0.000001"
+                       min="-180"
                        max="180"
                        value="{{ form_data.to_longitude|default:gridline.to_longitude|default:'' }}">
                 <div class="form-text">Ending point longitude</div>
+              </div>
+            </div>
+
+            <hr class="my-4">
+
+            <!-- Route Geometry -->
+            <h5 class="mb-3">Route Geometry</h5>
+            {% if gridline.kml_geometry %}
+              <div class="alert alert-success py-2 mb-3">
+                <small>This line has a detailed route with <strong id="waypointCount">…</strong> waypoints. The map below shows the full route. Edit the JSON to change it, or clear it to remove.</small>
+              </div>
+            {% else %}
+              <div class="alert alert-secondary py-2 mb-3">
+                <small>No detailed route geometry is stored. Paste a GeoJSON LineString (coordinates in <code>[longitude, latitude]</code> order) in the field below to add one.</small>
+              </div>
+            {% endif %}
+
+            <!-- Embedded map showing route + endpoint markers -->
+            <div id="routeMap" style="height: 380px; border: 1px solid #dee2e6; border-radius: 4px;" class="mb-2"></div>
+            <div class="d-flex justify-content-between align-items-center mb-3">
+              <small class="text-muted" id="routeMapStatus"></small>
+              <button type="button" class="btn btn-outline-secondary btn-sm" id="toggleGeomJson">Edit raw JSON</button>
+            </div>
+
+            <!-- Raw JSON editor (hidden by default) -->
+            <div id="geomJsonPanel" style="display:none;" class="mb-3">
+              <label for="kml_geometry" class="form-label">Route Geometry JSON <small class="text-muted">(GeoJSON LineString, coordinates as [lng, lat] or [lng, lat, elev])</small></label>
+              <textarea class="form-control font-monospace"
+                        id="kml_geometry"
+                        name="kml_geometry"
+                        rows="8"
+                        style="font-size: 0.8em;">{{ gridline.kml_geometry|default:'' }}</textarea>
+              <div class="d-flex gap-2 mt-2">
+                <button type="button" class="btn btn-outline-primary btn-sm" id="applyGeomJson">Apply to map</button>
+                <button type="button" class="btn btn-outline-danger btn-sm" id="clearGeomJson">Clear geometry</button>
               </div>
             </div>
 
@@ -405,4 +445,134 @@
       </div>
     </div>
   </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    // ── Embedded route map ────────────────────────────────────────────────
+    const routeMap = L.map('routeMap').setView([-33.45, 121.25], 7);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© <a href="https://openstreetmap.org">OpenStreetMap</a> contributors'
+    }).addTo(routeMap);
+
+    const statusEl = document.getElementById('routeMapStatus');
+    function setStatus(msg) { if (statusEl) statusEl.textContent = msg; }
+
+    let fromMarker = null, toMarker = null, routeLine = null;
+
+    // Draw/replace the route polyline from a GeoJSON coordinates array [[lng,lat,?], ...]
+    function drawRoute(coords) {
+        if (routeLine) { routeMap.removeLayer(routeLine); routeLine = null; }
+        if (!coords || coords.length < 2) return;
+        // GeoJSON is [lng, lat, ?] — Leaflet wants [lat, lng]
+        const latlngs = coords.map(c => [c[1], c[0]]);
+        routeLine = L.polyline(latlngs, { color: '#0d6efd', weight: 3 }).addTo(routeMap);
+        return latlngs;
+    }
+
+    function placeEndpointMarkers() {
+        const fromLat = parseFloat(document.getElementById('from_latitude').value);
+        const fromLng = parseFloat(document.getElementById('from_longitude').value);
+        const toLat   = parseFloat(document.getElementById('to_latitude').value);
+        const toLng   = parseFloat(document.getElementById('to_longitude').value);
+
+        if (!isNaN(fromLat) && !isNaN(fromLng)) {
+            if (fromMarker) routeMap.removeLayer(fromMarker);
+            fromMarker = L.marker([fromLat, fromLng], { title: 'From' })
+                .addTo(routeMap).bindPopup('From (start)');
+        }
+        if (!isNaN(toLat) && !isNaN(toLng)) {
+            if (toMarker) routeMap.removeLayer(toMarker);
+            toMarker = L.marker([toLat, toLng], { title: 'To' })
+                .addTo(routeMap).bindPopup('To (end)');
+        }
+    }
+
+    function fitMapToContent() {
+        const layers = [];
+        if (fromMarker) layers.push(fromMarker);
+        if (toMarker)   layers.push(toMarker);
+        if (routeLine)  layers.push(routeLine);
+        if (layers.length === 0) return;
+        const group = L.featureGroup(layers);
+        routeMap.fitBounds(group.getBounds().pad(0.1));
+    }
+
+    // ── Initial load ─────────────────────────────────────────────────────
+    const geomTextarea = document.getElementById('kml_geometry');
+    const waypointCountEl = document.getElementById('waypointCount');
+
+    function loadInitialGeometry() {
+        const raw = geomTextarea ? geomTextarea.value.trim() : '';
+        placeEndpointMarkers();
+        if (raw) {
+            try {
+                const geom = JSON.parse(raw);
+                if (geom.coordinates && geom.coordinates.length) {
+                    drawRoute(geom.coordinates);
+                    if (waypointCountEl) waypointCountEl.textContent = geom.coordinates.length;
+                    setStatus(`Route: ${geom.coordinates.length} waypoints.`);
+                }
+            } catch (e) {
+                setStatus('Stored geometry JSON is not valid — check the raw editor.');
+            }
+        } else {
+            setStatus('No route geometry stored. Endpoint markers shown only.');
+        }
+        fitMapToContent();
+    }
+
+    loadInitialGeometry();
+
+    // ── Toggle raw JSON editor ────────────────────────────────────────────
+    document.getElementById('toggleGeomJson').addEventListener('click', function () {
+        const panel = document.getElementById('geomJsonPanel');
+        const visible = panel.style.display !== 'none';
+        panel.style.display = visible ? 'none' : 'block';
+        this.textContent = visible ? 'Edit raw JSON' : 'Hide JSON editor';
+        if (!visible) {
+            // Force Leaflet to recalculate map size (layout shift)
+            setTimeout(() => routeMap.invalidateSize(), 10);
+        }
+    });
+
+    // ── Apply JSON to map ─────────────────────────────────────────────────
+    document.getElementById('applyGeomJson').addEventListener('click', function () {
+        const raw = geomTextarea.value.trim();
+        if (!raw) {
+            if (routeLine) { routeMap.removeLayer(routeLine); routeLine = null; }
+            setStatus('Geometry cleared from map (not yet saved).');
+            return;
+        }
+        try {
+            const geom = JSON.parse(raw);
+            if (!geom.coordinates || !Array.isArray(geom.coordinates)) {
+                setStatus('JSON must have a "coordinates" array.');
+                return;
+            }
+            drawRoute(geom.coordinates);
+            if (waypointCountEl) waypointCountEl.textContent = geom.coordinates.length;
+            setStatus(`Route updated: ${geom.coordinates.length} waypoints.`);
+            fitMapToContent();
+        } catch (e) {
+            setStatus('Invalid JSON — ' + e.message);
+        }
+    });
+
+    // ── Clear geometry ────────────────────────────────────────────────────
+    document.getElementById('clearGeomJson').addEventListener('click', function () {
+        if (!confirm('Remove all route geometry for this line?')) return;
+        geomTextarea.value = '';
+        if (routeLine) { routeMap.removeLayer(routeLine); routeLine = null; }
+        setStatus('Geometry cleared. Save the form to apply.');
+    });
+
+    // ── Sync coord inputs → endpoint markers ─────────────────────────────
+    ['from_latitude', 'from_longitude', 'to_latitude', 'to_longitude'].forEach(function (id) {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener('change', placeEndpointMarkers);
+    });
+})();
+</script>
 {% endblock %}

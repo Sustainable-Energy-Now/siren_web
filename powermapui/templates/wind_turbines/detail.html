@@ -158,13 +158,11 @@
                           <button type="button"
                                   class="btn btn-outline-info"
                                   onclick="viewCurveData({{ curve.pk }})"
-                                  title="View Data">
-                            👁️
+                                  title="View Data">View
                           </button>
                           <a href="{% url 'powermapui:power_curve_edit' curve.pk %}"
                              class="btn btn-outline-warning"
-                             title="Edit">
-                            ✏️
+                             title="Edit">Edit
                           </a>
                           <form method="post"
                                 action="{% url 'powermapui:power_curve_toggle_active' curve.pk %}"
@@ -173,14 +171,13 @@
                             <button type="submit"
                                     class="btn {% if curve.is_active %}btn-outline-warning{% else %}btn-outline-success{% endif %}"
                                     title="{% if curve.is_active %}Deactivate{% else %}Activate{% endif %}">
-                              {% if curve.is_active %}⏸️{% else %}▶️{% endif %}
+                              {% if curve.is_active %}Deactivate{% else %}Activate{% endif %}
                             </button>
                           </form>
                           <button type="button"
                                   class="btn btn-outline-danger"
                                   onclick="confirmDeleteCurve({{ curve.pk }}, '{{ curve.power_file_name }}')"
-                                  title="Delete">
-                            🗑️
+                                  title="Delete">Delete
                           </button>
                         </div>
                       </td>

@@ -329,6 +329,7 @@
     <div class="container">
         <nav class="sidebar">
             <h2>📖 Table of Contents</h2>
+            
             <ul class="toc-list" id="tocList">
                 
                 <li class="toc-item">
@@ -1272,7 +1273,7 @@
                     </li></ul></li>
             </ul>
             <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid rgba(255,255,255,0.2); font-size: 0.9em;">
-                <p><strong>Generated:</strong><br>December 16, 2025</p>
+                <p><strong>Generated:</strong><br>March 18, 2026</p>
                 <p><strong>Sections:</strong> 83</p>
             </div>
         </nav>
@@ -1328,10 +1329,10 @@ Access is automatically granted based on membership status when accessing the sy
 3. <strong>Module Navigation</strong>: Quick access to the three main analysis modules</p>
 <h3 id="current-session-settings">Current Session Settings</h3>
 <p>The settings panel at the top of the page displays the current modeling parameters:</p>
-<pre class="codehilite"><code>Demand Year: [Year]
-Scenario: [Scenario Name]
-Config: [Configuration File]
-</code></pre>
+<div class="codehilite"><pre><span></span><code><span class="n">Demand</span><span class="w"> </span><span class="n">Year</span><span class="o">:</span><span class="w"> </span><span class="p">[</span><span class="n">Year</span><span class="p">]</span>
+<span class="nl">Scenario</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="n">Scenario</span><span class="w"> </span><span class="n">Name</span><span class="p">]</span>
+<span class="nl">Config</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="n">Configuration</span><span class="w"> </span><span class="n">File</span><span class="p">]</span>
+</code></pre></div>
 
 <h2 id="these-settings-persist-throughout-a-session-and-affect-how-the-system-processes-requests-across-all-modules">These settings persist throughout a session and affect how the system processes requests across all modules.</h2>
             </div>
@@ -1677,10 +1678,10 @@ For wind facilities, additional fields appear:
 - Examples: "Main Battery Bank", "North Array", "Phase 1"
 - Leave blank if facility has only one installation
 <strong>Example:</strong></p>
-<pre class="codehilite"><code>Facility: Solar Farm A
-Technology: Lithium-Ion BESS
-Installation Name: Main Battery Bank
-</code></pre>
+<div class="codehilite"><pre><span></span><code><span class="n">Facility</span><span class="o">:</span><span class="w"> </span><span class="n">Solar</span><span class="w"> </span><span class="n">Farm</span><span class="w"> </span><span class="n">A</span>
+<span class="n">Technology</span><span class="o">:</span><span class="w"> </span><span class="n">Lithium</span><span class="o">-</span><span class="n">Ion</span><span class="w"> </span><span class="n">BESS</span>
+<span class="n">Installation</span><span class="w"> </span><span class="n">Name</span><span class="o">:</span><span class="w"> </span><span class="n">Main</span><span class="w"> </span><span class="n">Battery</span><span class="w"> </span><span class="n">Bank</span>
+</code></pre></div>
 
 <h4 id="step-2-specify-capacity">Step 2: Specify Capacity</h4>
 <p><strong>Important:</strong> This is where you define the actual size of this installation!
@@ -1696,10 +1697,10 @@ Installation Name: Main Battery Bank
 - Example: 400 MWh ÷ 100 MW = 4 hours
 <strong>Auto-Calculation:</strong> As you enter power and energy, the form shows calculated duration
 <strong>Example:</strong></p>
-<pre class="codehilite"><code>Power: 100 MW (enter)
-Energy: 400 MWh (enter)
-Duration: 4.0 hours (automatically calculated)
-</code></pre>
+<div class="codehilite"><pre><span></span><code><span class="n">Power</span><span class="o">:</span><span class="w"> </span><span class="mi">100</span><span class="w"> </span><span class="n">MW</span><span class="w"> </span><span class="o">(</span><span class="n">enter</span><span class="o">)</span>
+<span class="n">Energy</span><span class="o">:</span><span class="w"> </span><span class="mi">400</span><span class="w"> </span><span class="n">MWh</span><span class="w"> </span><span class="o">(</span><span class="n">enter</span><span class="o">)</span>
+<span class="n">Duration</span><span class="o">:</span><span class="w"> </span><span class="mf">4.0</span><span class="w"> </span><span class="n">hours</span><span class="w"> </span><span class="o">(</span><span class="n">automatically</span><span class="w"> </span><span class="n">calculated</span><span class="o">)</span>
+</code></pre></div>
 
 <p><strong>At Least One Required:</strong> You must provide at least one capacity value (power, energy, or duration)</p>
 <h4 id="step-3-enter-installation-details">Step 3: Enter Installation Details</h4>
@@ -1723,11 +1724,11 @@ Duration: 4.0 hours (automatically calculated)
   - "Integrated with solar array"
   - "Primary frequency regulation unit"
 <strong>Example:</strong></p>
-<pre class="codehilite"><code>Installation Date: 2024-03-15
+<div class="codehilite"><pre><span></span><code>Installation Date: 2024-03-15
 Commissioning Date: 2024-04-01
 Initial SOC: 0.5
 Notes: Main battery bank integrated with 50 MW solar array
-</code></pre>
+</code></pre></div>
 
 <h4 id="step-4-create-installation">Step 4: Create Installation</h4>
 <p>Click <strong>Create Installation</strong>. The system will:
@@ -1764,13 +1765,13 @@ Notes: Main battery bank integrated with 50 MW solar array
 <li><strong>Capacity Summary:</strong> One-line description
 <strong>Example:</strong></li>
 </ul>
-<pre class="codehilite"><code>Power Capacity: 100 MW
+<div class="codehilite"><pre><span></span><code>Power Capacity: 100 MW
 Energy Capacity: 400 MWh
 Duration: 4.0 hours
 Usable Capacity: 320 MWh (based on 10-90% SOC limits)
 Initial SOC: 0.5 (50%)
 Capacity Summary: 100 MW / 400 MWh (4.0h)
-</code></pre>
+</code></pre></div>
 
 <h4 id="technology-characteristics">Technology Characteristics</h4>
 <ul>
@@ -1792,12 +1793,12 @@ Capacity Summary: 100 MW / 400 MWh (4.0h)
 - Suitability for daily cycling
 - Expected years of operation
 <strong>Example:</strong></p>
-<pre class="codehilite"><code>Usable Energy: 320 MWh (80% of 400 MWh, based on SOC limits)
-Effective Energy per Cycle: ~400 MWh × 85% RTE
-Lifetime Throughput: ~400 MWh × 5,000 cycles
-Cycling Capability: 5,000 full cycles
-  → Suitable for daily cycling (13+ years at 1 cycle/day)
-</code></pre>
+<div class="codehilite"><pre><span></span><code><span class="nv">Usable</span><span class="w"> </span><span class="nv">Energy</span>:<span class="w"> </span><span class="mi">320</span><span class="w"> </span><span class="nv">MWh</span><span class="w"> </span><span class="ss">(</span><span class="mi">80</span><span class="o">%</span><span class="w"> </span><span class="nv">of</span><span class="w"> </span><span class="mi">400</span><span class="w"> </span><span class="nv">MWh</span>,<span class="w"> </span><span class="nv">based</span><span class="w"> </span><span class="nv">on</span><span class="w"> </span><span class="nv">SOC</span><span class="w"> </span><span class="nv">limits</span><span class="ss">)</span>
+<span class="nv">Effective</span><span class="w"> </span><span class="nv">Energy</span><span class="w"> </span><span class="nv">per</span><span class="w"> </span><span class="nv">Cycle</span>:<span class="w"> </span><span class="o">~</span><span class="mi">400</span><span class="w"> </span><span class="nv">MWh</span><span class="w"> </span>×<span class="w"> </span><span class="mi">85</span><span class="o">%</span><span class="w"> </span><span class="nv">RTE</span>
+<span class="nv">Lifetime</span><span class="w"> </span><span class="nv">Throughput</span>:<span class="w"> </span><span class="o">~</span><span class="mi">400</span><span class="w"> </span><span class="nv">MWh</span><span class="w"> </span>×<span class="w"> </span><span class="mi">5</span>,<span class="mi">000</span><span class="w"> </span><span class="nv">cycles</span>
+<span class="nv">Cycling</span><span class="w"> </span><span class="nv">Capability</span>:<span class="w"> </span><span class="mi">5</span>,<span class="mi">000</span><span class="w"> </span><span class="nv">full</span><span class="w"> </span><span class="nv">cycles</span>
+<span class="w">  </span>→<span class="w"> </span><span class="nv">Suitable</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="nv">daily</span><span class="w"> </span><span class="nv">cycling</span><span class="w"> </span><span class="ss">(</span><span class="mi">13</span><span class="o">+</span><span class="w"> </span><span class="nv">years</span><span class="w"> </span><span class="nv">at</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="nv">cycle</span><span class="o">/</span><span class="nv">day</span><span class="ss">)</span>
+</code></pre></div>
 
 <h3 id="notes-section">Notes Section</h3>
 <p>Displays any notes entered for this installation</p>
@@ -1910,13 +1911,13 @@ Cycling Capability: 5,000 full cycles
 </ul>
 <h3 id="signatures-short-codes">Signatures (Short Codes)</h3>
 <p><strong>Technologies:</strong></p>
-<pre class="codehilite"><code>Good: &quot;BESS4&quot; (BESS)
+<div class="codehilite"><pre><span></span><code>Good: &quot;BESS4&quot; (BESS)
 Good: &quot;PHES&quot; (Pumped Hydro)
 Good: &quot;VRFB&quot; (Vanadium Redox Flow Battery)
 Bad: &quot;B1&quot; (not descriptive)
 Bad: &quot;Battery&quot; (too generic)
 Bad: &quot;StorageTech1&quot; (too long)
-</code></pre>
+</code></pre></div>
 
 <h3 id="consistency-rules">Consistency Rules</h3>
 <ul>
@@ -2354,13 +2355,13 @@ The turbine models list displays all wind turbine types in the system with the f
                 <h2 id="examples">Examples</h2>
 <h3 id="example-1-creating-from-csv-data">Example 1: Creating from CSV data</h3>
 <p>You have data in a CSV like this:</p>
-<pre class="codehilite"><code class="language-csv">wind_speed,power_output
+<div class="codehilite"><pre><span></span><code>wind_speed,power_output
 3.0,0.0
 4.0,0.004
 5.0,0.035
 6.0,0.072
 ...
-</code></pre>
+</code></pre></div>
 
 <p><strong>Steps</strong>:
 1. Copy the wind_speed column (without header): <code>3.0 4.0 5.0 6.0 ...</code>
@@ -2706,7 +2707,7 @@ The facility detail page provides comprehensive information organized into secti
 </ol>
 <h3 id="understanding-demand-types">Understanding Demand Types</h3>
 <p>The system models two distinct types of electricity demand:</p>
-<h4 id="operational-demand">Operational Consumption</h4>
+<h4 id="operational-demand">Operational Demand</h4>
 <p><strong>What it is</strong>: Grid-visible demand measured at transmission level
 <strong>Data Source</strong>: <code>supplyfactors</code> table, facility ID 144
 <strong>Characteristics</strong>:
@@ -2715,7 +2716,7 @@ The facility detail page provides comprehensive information organized into secti
 - Includes commercial, industrial, and residential consumption
 - Net of rooftop solar generation
 <strong>Typical Growth Rate</strong>: 2-3% per year (moderate growth)</p>
-<h4 id="underlying-demand">Underlying Consumption</h4>
+<h4 id="underlying-demand">Underlying Demand</h4>
 <p><strong>What it is</strong>: Total electricity consumption including distributed generation
 <strong>Data Source</strong>: <code>DPVGeneration</code> table (AEMO data)
 <strong>Characteristics</strong>:
@@ -2725,29 +2726,29 @@ The facility detail page provides comprehensive information organized into secti
 - Shows actual customer consumption patterns
 <strong>Typical Growth Rate</strong>: 4-8% per year (higher due to electrification trends)</p>
 <h4 id="total-demand">Total Demand</h4>
-<p><strong>Calculation</strong>: Operational Consumption + Underlying Consumption
+<p><strong>Calculation</strong>: Operational Demand + Underlying Demand
 <strong>Interpretation</strong>: Comprehensive view of future grid requirements</p>
 <hr />
 <h3 id="configuration">Configuration</h3>
 <h4 id="configuration-file-location">Configuration File Location</h4>
 <p>Configuration is stored in:</p>
-<pre class="codehilite"><code>siren_web/siren_files/preferences/siren.ini
-</code></pre>
+<div class="codehilite"><pre><span></span><code>siren_web/siren_files/preferences/siren.ini
+</code></pre></div>
 
 <h4 id="main-configuration-section">Main Configuration Section</h4>
-<pre class="codehilite"><code class="language-ini">[demand projection]
-base_year = 2024
-operational_growth_rate = 0.025
-operational_growth_type = exponential
-operational_saturation = 2.0
-operational_midpoint_year = 2035
-underlying_growth_rate = 0.04
-underlying_growth_type = s_curve
-underlying_saturation = 3.5
-underlying_midpoint_year = 2040
-projection_start_year = 2024
-projection_end_year = 2050
-</code></pre>
+<div class="codehilite"><pre><span></span><code><span class="k">[demand projection]</span>
+<span class="na">base_year</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">2024</span>
+<span class="na">operational_growth_rate</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">0.025</span>
+<span class="na">operational_growth_type</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">exponential</span>
+<span class="na">operational_saturation</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">2.0</span>
+<span class="na">operational_midpoint_year</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">2035</span>
+<span class="na">underlying_growth_rate</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">0.04</span>
+<span class="na">underlying_growth_type</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">s_curve</span>
+<span class="na">underlying_saturation</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">3.5</span>
+<span class="na">underlying_midpoint_year</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">2040</span>
+<span class="na">projection_start_year</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">2024</span>
+<span class="na">projection_end_year</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">2050</span>
+</code></pre></div>
 
 <h4 id="parameter-descriptions">Parameter Descriptions</h4>
 <table>
@@ -2898,11 +2899,11 @@ projection_end_year = 2050
 <p>Click <strong>"Adjust Growth Rates"</strong> to expand additional controls:</p>
 <h4 id="interactive-growth-rate-sliders">Interactive Growth Rate Sliders</h4>
 <p>Two sliders allow real-time adjustment:
-<strong>Operational Consumption Growth Rate</strong>
+<strong>Operational Demand Growth Rate</strong>
 - Range: 0% to 10% per year
 - Controls: Growth of grid-supplied electricity demand
 - Default: Set by selected scenario
-<strong>Underlying Consumption Growth Rate</strong>
+<strong>Underlying Demand Growth Rate</strong>
 - Range: 0% to 15% per year
 - Controls: Growth of behind-the-meter demand (e.g., distributed solar)
 - Default: Set by selected scenario
@@ -3073,24 +3074,24 @@ projection_end_year = 2050
 - Behavioral changes</p>
 <h4 id="defining-scenarios">Defining Scenarios</h4>
 <p>Scenarios are defined in siren.ini using the format:</p>
-<pre class="codehilite"><code class="language-ini">[Scenario: Scenario Name]
-operational_growth_rate = 0.03
-underlying_growth_rate = 0.05
-operational_growth_type = exponential
-underlying_growth_type = s_curve
-underlying_saturation = 4.0
-operational_midpoint_year = 2035
-underlying_midpoint_year = 2038
-</code></pre>
+<div class="codehilite"><pre><span></span><code><span class="k">[Scenario: Scenario Name]</span>
+<span class="na">operational_growth_rate</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">0.03</span>
+<span class="na">underlying_growth_rate</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">0.05</span>
+<span class="na">operational_growth_type</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">exponential</span>
+<span class="na">underlying_growth_type</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">s_curve</span>
+<span class="na">underlying_saturation</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">4.0</span>
+<span class="na">operational_midpoint_year</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">2035</span>
+<span class="na">underlying_midpoint_year</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">2038</span>
+</code></pre></div>
 
 <h3 id="example-scenarios">Example Scenarios</h3>
 <h4 id="low-growth-conservative">Low Growth (Conservative)</h4>
-<pre class="codehilite"><code class="language-ini">[Scenario: Low Growth]
-operational_growth_rate = 0.015
-underlying_growth_rate = 0.02
-operational_growth_type = linear
-underlying_growth_type = linear
-</code></pre>
+<div class="codehilite"><pre><span></span><code><span class="k">[Scenario: Low Growth]</span>
+<span class="na">operational_growth_rate</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">0.015</span>
+<span class="na">underlying_growth_rate</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">0.02</span>
+<span class="na">operational_growth_type</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">linear</span>
+<span class="na">underlying_growth_type</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">linear</span>
+</code></pre></div>
 
 <p><strong>Use Case</strong>: Economic stagnation, energy efficiency improvements, population decline
 <strong>Assumptions</strong>:
@@ -3099,15 +3100,15 @@ underlying_growth_type = linear
 - Limited electrification
 - Stable population</p>
 <h4 id="high-growth-aggressive-electrification">High Growth (Aggressive Electrification)</h4>
-<pre class="codehilite"><code class="language-ini">[Scenario: High Growth]
-operational_growth_rate = 0.04
-underlying_growth_rate = 0.08
-operational_growth_type = exponential
-underlying_growth_type = s_curve
-underlying_saturation = 5.0
-operational_midpoint_year = 2033
-underlying_midpoint_year = 2037
-</code></pre>
+<div class="codehilite"><pre><span></span><code><span class="k">[Scenario: High Growth]</span>
+<span class="na">operational_growth_rate</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">0.04</span>
+<span class="na">underlying_growth_rate</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">0.08</span>
+<span class="na">operational_growth_type</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">exponential</span>
+<span class="na">underlying_growth_type</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">s_curve</span>
+<span class="na">underlying_saturation</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">5.0</span>
+<span class="na">operational_midpoint_year</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">2033</span>
+<span class="na">underlying_midpoint_year</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">2037</span>
+</code></pre></div>
 
 <p><strong>Use Case</strong>: Rapid EV adoption, industrial expansion, hydrogen production
 <strong>Assumptions</strong>:
@@ -3117,15 +3118,15 @@ underlying_midpoint_year = 2037
 - Industrial electrification
 - Hydrogen electrolyzers</p>
 <h4 id="moderate-electrification-recommended-default">Moderate Electrification (Recommended Default)</h4>
-<pre class="codehilite"><code class="language-ini">[Scenario: Moderate Electrification]
-operational_growth_rate = 0.025
-underlying_growth_rate = 0.04
-operational_growth_type = exponential
-underlying_growth_type = s_curve
-underlying_saturation = 3.5
-operational_midpoint_year = 2035
-underlying_midpoint_year = 2040
-</code></pre>
+<div class="codehilite"><pre><span></span><code><span class="k">[Scenario: Moderate Electrification]</span>
+<span class="na">operational_growth_rate</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">0.025</span>
+<span class="na">underlying_growth_rate</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">0.04</span>
+<span class="na">operational_growth_type</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">exponential</span>
+<span class="na">underlying_growth_type</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">s_curve</span>
+<span class="na">underlying_saturation</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">3.5</span>
+<span class="na">operational_midpoint_year</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">2035</span>
+<span class="na">underlying_midpoint_year</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">2040</span>
+</code></pre></div>
 
 <p><strong>Use Case</strong>: Balanced outlook, aligns with AEMO forecasts
 <strong>Assumptions</strong>:
@@ -3195,12 +3196,12 @@ underlying_midpoint_year = 2040
 <li>Panel expands showing two sliders</li>
 </ol>
 <h4 id="understanding-the-sliders">Understanding the Sliders</h4>
-<p><strong>Operational Consumption Growth Rate Slider</strong>
+<p><strong>Operational Demand Growth Rate Slider</strong>
 - <strong>Range</strong>: 0% (no growth) to 10% (very high growth)
 - <strong>Controls</strong>: Grid-supplied electricity demand
 - <strong>Factors</strong>: Economic growth, electrification, population
 - <strong>Display</strong>: Shows current value as badge
-<strong>Underlying Consumption Growth Rate Slider</strong>
+<strong>Underlying Demand Growth Rate Slider</strong>
 - <strong>Range</strong>: 0% (no growth) to 15% (extremely high growth)
 - <strong>Controls</strong>: Behind-the-meter demand (distributed generation)
 - <strong>Factors</strong>: Solar adoption, battery storage, prosumer behavior
@@ -3222,24 +3223,24 @@ underlying_midpoint_year = 2040
 2. Sliders return to original positions</p>
 <h4 id="slider-best-practices">Slider Best Practices</h4>
 <p><strong>Testing Sensitivity:</strong></p>
-<pre class="codehilite"><code>1. Start with base scenario projection
-2. Move ONE slider at a time
-3. Note how much the projection changes
-4. This shows sensitivity to that parameter
-</code></pre>
+<div class="codehilite"><pre><span></span><code><span class="mf">1.</span><span class="w"> </span><span class="n">Start</span><span class="w"> </span><span class="n">with</span><span class="w"> </span><span class="n">base</span><span class="w"> </span><span class="n">scenario</span><span class="w"> </span><span class="n">projection</span>
+<span class="mf">2.</span><span class="w"> </span><span class="n">Move</span><span class="w"> </span><span class="kr">ON</span><span class="n">E</span><span class="w"> </span><span class="n">slider</span><span class="w"> </span><span class="n">at</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="n">time</span>
+<span class="mf">3.</span><span class="w"> </span><span class="ow">Not</span><span class="n">e</span><span class="w"> </span><span class="n">how</span><span class="w"> </span><span class="n">much</span><span class="w"> </span><span class="n">the</span><span class="w"> </span><span class="n">projection</span><span class="w"> </span><span class="n">changes</span>
+<span class="mf">4.</span><span class="w"> </span><span class="n">This</span><span class="w"> </span><span class="n">shows</span><span class="w"> </span><span class="n">sensitivity</span><span class="w"> </span><span class="kr">to</span><span class="w"> </span><span class="n">that</span><span class="w"> </span><span class="n">parameter</span>
+</code></pre></div>
 
 <p><strong>Creating Custom Scenarios:</strong></p>
-<pre class="codehilite"><code>1. Start with closest existing scenario
-2. Adjust both sliders according to assumptions
-3. Apply and review results
-4. Save screenshot or export data
-</code></pre>
+<div class="codehilite"><pre><span></span><code><span class="mf">1.</span><span class="w"> </span><span class="n">Start</span><span class="w"> </span><span class="n">with</span><span class="w"> </span><span class="kr">close</span><span class="n">st</span><span class="w"> </span><span class="n">existing</span><span class="w"> </span><span class="n">scenario</span>
+<span class="mf">2.</span><span class="w"> </span><span class="n">Adjust</span><span class="w"> </span><span class="n">both</span><span class="w"> </span><span class="n">sliders</span><span class="w"> </span><span class="n">according</span><span class="w"> </span><span class="kr">to</span><span class="w"> </span><span class="n">assumptions</span>
+<span class="mf">3.</span><span class="w"> </span><span class="n">Apply</span><span class="w"> </span><span class="ow">and</span><span class="w"> </span><span class="n">review</span><span class="w"> </span><span class="n">results</span>
+<span class="mf">4.</span><span class="w"> </span><span class="kr">Save</span><span class="w"> </span><span class="n">screenshot</span><span class="w"> </span><span class="ow">or</span><span class="w"> </span><span class="nb">exp</span><span class="ow">or</span><span class="n">t</span><span class="w"> </span><span class="kd">data</span>
+</code></pre></div>
 
 <p><strong>Bracketing Uncertainty:</strong></p>
-<pre class="codehilite"><code>1. Run projection with sliders at minimum plausible values
-2. Run again with sliders at maximum plausible values
-3. This gives you a range of possible futures
-</code></pre>
+<div class="codehilite"><pre><span></span><code><span class="mf">1.</span><span class="w"> </span><span class="kr">Run</span><span class="w"> </span><span class="n">projection</span><span class="w"> </span><span class="n">with</span><span class="w"> </span><span class="n">sliders</span><span class="w"> </span><span class="n">at</span><span class="w"> </span><span class="n">minimum</span><span class="w"> </span><span class="n">plausible</span><span class="w"> </span><span class="nb">val</span><span class="n">ues</span>
+<span class="mf">2.</span><span class="w"> </span><span class="kr">Run</span><span class="w"> </span><span class="n">again</span><span class="w"> </span><span class="n">with</span><span class="w"> </span><span class="n">sliders</span><span class="w"> </span><span class="n">at</span><span class="w"> </span><span class="n">maximum</span><span class="w"> </span><span class="n">plausible</span><span class="w"> </span><span class="nb">val</span><span class="n">ues</span>
+<span class="mf">3.</span><span class="w"> </span><span class="n">This</span><span class="w"> </span><span class="n">gives</span><span class="w"> </span><span class="n">you</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="n">range</span><span class="w"> </span><span class="n">of</span><span class="w"> </span><span class="nb">pos</span><span class="n">sible</span><span class="w"> </span><span class="n">futures</span>
+</code></pre></div>
 
 <hr />
 <h3 id="interpreting-results">Interpreting Results</h3>
@@ -3334,28 +3335,28 @@ underlying_midpoint_year = 2040
 - Useful for: Documentation, reproducibility</p>
 <h4 id="understanding-growth-patterns">Understanding Growth Patterns</h4>
 <h4 id="linear-growth_1">Linear Growth</h4>
-<pre class="codehilite"><code>Demand curve: Straight line upward
-Characteristics: Steady, predictable increase
-Example: Adding 250 GWh every year
-Use for: Conservative, stable demand
-</code></pre>
+<div class="codehilite"><pre><span></span><code><span class="nv">Demand</span><span class="w"> </span><span class="nv">curve</span>:<span class="w"> </span><span class="nv">Straight</span><span class="w"> </span><span class="nv">line</span><span class="w"> </span><span class="nv">upward</span>
+<span class="nv">Characteristics</span>:<span class="w"> </span><span class="nv">Steady</span>,<span class="w"> </span><span class="nv">predictable</span><span class="w"> </span><span class="nv">increase</span>
+<span class="nv">Example</span>:<span class="w"> </span><span class="nv">Adding</span><span class="w"> </span><span class="mi">250</span><span class="w"> </span><span class="nv">GWh</span><span class="w"> </span><span class="nv">every</span><span class="w"> </span><span class="nv">year</span>
+<span class="nv">Use</span><span class="w"> </span><span class="k">for</span>:<span class="w"> </span><span class="nv">Conservative</span>,<span class="w"> </span><span class="nv">stable</span><span class="w"> </span><span class="nv">demand</span>
+</code></pre></div>
 
 <h4 id="exponential-growth_1">Exponential Growth</h4>
-<pre class="codehilite"><code>Demand curve: Upward curve (accelerating)
-Characteristics: Compound growth, accelerates over time
-Example: Growing 3% per year (compounds)
-Use for: Economic growth, general demand
-</code></pre>
+<div class="codehilite"><pre><span></span><code><span class="nv">Demand</span><span class="w"> </span><span class="nv">curve</span>:<span class="w"> </span><span class="nv">Upward</span><span class="w"> </span><span class="nv">curve</span><span class="w"> </span><span class="ss">(</span><span class="nv">accelerating</span><span class="ss">)</span>
+<span class="nv">Characteristics</span>:<span class="w"> </span><span class="nv">Compound</span><span class="w"> </span><span class="nv">growth</span>,<span class="w"> </span><span class="nv">accelerates</span><span class="w"> </span><span class="nv">over</span><span class="w"> </span><span class="nv">time</span>
+<span class="nv">Example</span>:<span class="w"> </span><span class="nv">Growing</span><span class="w"> </span><span class="mi">3</span><span class="o">%</span><span class="w"> </span><span class="nv">per</span><span class="w"> </span><span class="nv">year</span><span class="w"> </span><span class="ss">(</span><span class="nv">compounds</span><span class="ss">)</span>
+<span class="nv">Use</span><span class="w"> </span><span class="k">for</span>:<span class="w"> </span><span class="nv">Economic</span><span class="w"> </span><span class="nv">growth</span>,<span class="w"> </span><span class="nv">general</span><span class="w"> </span><span class="nv">demand</span>
+</code></pre></div>
 
 <h4 id="s-curve-logistic-growth_1">S-Curve (Logistic Growth)</h4>
-<pre class="codehilite"><code>Demand curve: S-shaped
-  - Slow start
-  - Rapid acceleration
-  - Slowing as it saturates
-Characteristics: Technology adoption pattern
-Example: EV adoption, solar deployment
-Use for: New technologies, market saturation
-</code></pre>
+<div class="codehilite"><pre><span></span><code><span class="nv">Demand</span><span class="w"> </span><span class="nv">curve</span>:<span class="w"> </span><span class="nv">S</span><span class="o">-</span><span class="nv">shaped</span>
+<span class="w">  </span><span class="o">-</span><span class="w"> </span><span class="nv">Slow</span><span class="w"> </span><span class="nv">start</span>
+<span class="w">  </span><span class="o">-</span><span class="w"> </span><span class="nv">Rapid</span><span class="w"> </span><span class="nv">acceleration</span>
+<span class="w">  </span><span class="o">-</span><span class="w"> </span><span class="nv">Slowing</span><span class="w"> </span><span class="nv">as</span><span class="w"> </span><span class="nv">it</span><span class="w"> </span><span class="nv">saturates</span>
+<span class="nv">Characteristics</span>:<span class="w"> </span><span class="nv">Technology</span><span class="w"> </span><span class="nv">adoption</span><span class="w"> </span><span class="nv">pattern</span>
+<span class="nv">Example</span>:<span class="w"> </span><span class="nv">EV</span><span class="w"> </span><span class="nv">adoption</span>,<span class="w"> </span><span class="nv">solar</span><span class="w"> </span><span class="nv">deployment</span>
+<span class="nv">Use</span><span class="w"> </span><span class="k">for</span>:<span class="w"> </span><span class="nv">New</span><span class="w"> </span><span class="nv">technologies</span>,<span class="w"> </span><span class="nv">market</span><span class="w"> </span><span class="nv">saturation</span>
+</code></pre></div>
 
 <h4 id="what-different-results-mean">What Different Results Mean</h4>
 <p><strong>Scenario: Low base demand, high growth rate</strong>
@@ -3411,13 +3412,13 @@ Use for: New technologies, market saturation
 4. Measure spread between lines at key years (e.g., 2040)
 5. Spread = uncertainty / sensitivity
 <strong>Example output:</strong></p>
-<pre class="codehilite"><code>2040 Projections:
-Low Growth:     15,500 GWh
-Medium Growth:  18,200 GWh  
-High Growth:    22,800 GWh
-Range:          7,300 GWh (47% variation)
-Conclusion:     High uncertainty - plan for flexibility
-</code></pre>
+<div class="codehilite"><pre><span></span><code><span class="mf">2040</span><span class="w"> </span><span class="n">Projections</span><span class="p">:</span>
+<span class="n">Low</span><span class="w"> </span><span class="n">Growth</span><span class="p">:</span><span class="w">     </span><span class="mf">15</span><span class="p">,</span><span class="mf">500</span><span class="w"> </span><span class="n">GWh</span>
+<span class="n">Medium</span><span class="w"> </span><span class="n">Growth</span><span class="p">:</span><span class="w">  </span><span class="mf">18</span><span class="p">,</span><span class="mf">200</span><span class="w"> </span><span class="n">GWh</span><span class="w">  </span>
+<span class="n">High</span><span class="w"> </span><span class="n">Growth</span><span class="p">:</span><span class="w">    </span><span class="mf">22</span><span class="p">,</span><span class="mf">800</span><span class="w"> </span><span class="n">GWh</span>
+<span class="n">Range</span><span class="p">:</span><span class="w">          </span><span class="mf">7</span><span class="p">,</span><span class="mf">300</span><span class="w"> </span><span class="n">GWh</span><span class="w"> </span><span class="p">(</span><span class="mf">47</span><span class="err">%</span><span class="w"> </span><span class="n">variation</span><span class="p">)</span>
+<span class="n">Conclusion</span><span class="p">:</span><span class="w">     </span><span class="n">High</span><span class="w"> </span><span class="n">uncertainty</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">plan</span><span class="w"> </span><span class="kr">for</span><span class="w"> </span><span class="n">flexibility</span>
+</code></pre></div>
 
 <h3 id="time-series-analysis">Time-Series Analysis</h3>
 <p>Understanding demand evolution over specific periods:
@@ -3513,7 +3514,7 @@ Conclusion:     High uncertainty - plan for flexibility
 - Grid demand after subtracting DPV
 - Formula: Operational demand - Underlying generation
 - Important for: Grid planning
-<strong>Operational Consumption</strong>
+<strong>Operational Demand</strong>
 - Electricity supplied by grid
 - Measured at: Transmission level
 - Does not include: Behind-the-meter generation
@@ -3545,7 +3546,7 @@ Conclusion:     High uncertainty - plan for flexibility
 - Testing: How results change with assumptions
 - Method: Vary one parameter at a time
 - Purpose: Understand uncertainty
-<strong>Underlying Consumption</strong>
+<strong>Underlying Demand</strong>
 - Behind-the-meter demand (DPV)
 - Not visible: To grid operators
 - Important for: Total demand projections</p>
@@ -3560,15 +3561,15 @@ Conclusion:     High uncertainty - plan for flexibility
 <li><strong>Escape</strong>: Close dialogs</li>
 </ul>
 <h3 id="typical-workflow">Typical Workflow</h3>
-<pre class="codehilite"><code>1. Select Base Year (e.g., 2024)
-2. Select End Year (e.g., 2050)
-3. Choose View Mode (Single Projection)
-4. Select Scenario (Medium Growth)
-5. Click &quot;Generate Projection&quot;
-6. Review Chart and Statistics
-7. Try Other Scenarios or Adjust Sliders
-8. Screenshot or Export Results
-</code></pre>
+<div class="codehilite"><pre><span></span><code><span class="mf">1.</span><span class="w"> </span><span class="n">Select</span><span class="w"> </span><span class="n">Base</span><span class="w"> </span><span class="n">Year</span><span class="w"> </span><span class="p">(</span><span class="n">e</span><span class="mf">.</span><span class="n">g</span><span class="mf">.</span><span class="p">,</span><span class="w"> </span><span class="mf">2024</span><span class="p">)</span>
+<span class="mf">2.</span><span class="w"> </span><span class="n">Select</span><span class="w"> </span><span class="kr">End</span><span class="w"> </span><span class="n">Year</span><span class="w"> </span><span class="p">(</span><span class="n">e</span><span class="mf">.</span><span class="n">g</span><span class="mf">.</span><span class="p">,</span><span class="w"> </span><span class="mf">2050</span><span class="p">)</span>
+<span class="mf">3.</span><span class="w"> </span><span class="n">Choose</span><span class="w"> </span><span class="n">View</span><span class="w"> </span><span class="n">Mode</span><span class="w"> </span><span class="p">(</span><span class="nb">Sin</span><span class="n">gle</span><span class="w"> </span><span class="n">Projection</span><span class="p">)</span>
+<span class="mf">4.</span><span class="w"> </span><span class="n">Select</span><span class="w"> </span><span class="n">Scenario</span><span class="w"> </span><span class="p">(</span><span class="n">Medium</span><span class="w"> </span><span class="n">Growth</span><span class="p">)</span>
+<span class="mf">5.</span><span class="w"> </span><span class="n">Click</span><span class="w"> </span><span class="s">&quot;Generate Projection&quot;</span>
+<span class="mf">6.</span><span class="w"> </span><span class="n">Review</span><span class="w"> </span><span class="n">Chart</span><span class="w"> </span><span class="ow">and</span><span class="w"> </span><span class="n">Statistics</span>
+<span class="mf">7.</span><span class="w"> </span><span class="n">Try</span><span class="w"> </span><span class="n">Other</span><span class="w"> </span><span class="n">Scenarios</span><span class="w"> </span><span class="ow">or</span><span class="w"> </span><span class="n">Adjust</span><span class="w"> </span><span class="n">Sliders</span>
+<span class="mf">8.</span><span class="w"> </span><span class="n">Screenshot</span><span class="w"> </span><span class="ow">or</span><span class="w"> </span><span class="nb">Exp</span><span class="ow">or</span><span class="n">t</span><span class="w"> </span><span class="n">Results</span>
+</code></pre></div>
 
 <h3 id="typical-growth-rates">Typical Growth Rates</h3>
 <table>
@@ -4671,7 +4672,7 @@ MONTH=09</p>
 from powerplot.services.load_analyzer import LoadAnalyzer
 analyzer = LoadAnalyzer()
 summary = analyzer.calculate_monthly_summary($YEAR, $MONTH)
-print(f"Operational Consumption: {summary.operational_demand} GWh")
+print(f"Operational Demand: {summary.operational_demand} GWh")
 print(f"RE %: {summary.re_percentage_operational}%")
 EOF</p>
 <hr />

@@ -131,15 +131,16 @@
                     {% endif %}
                 </td>
                 <td class="value" style="white-space: nowrap;">
-                    <button onclick="viewScenarioDetail({{ target.id }})"
-                            class="btn btn-small btn-view" title="View Details"
-                            style="background: #17a2b8; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; margin-right: 3px;">👁️</button>
-                    <button onclick="editScenario({{ target.id }})"
-                            class="btn btn-small btn-edit" title="Edit">✏️</button>
-                    {% if target.scenario_type != 'base_case' %}
-                    <button onclick="confirmDeleteScenario({{ target.id }}, '{{ target.display_name|escapejs }}')"
-                            class="btn btn-small btn-delete" title="Delete">🗑️</button>
-                    {% endif %}
+                    <div class="btn-group btn-group-sm" role="group">
+                        <button onclick="viewScenarioDetail({{ target.id }})"
+                                class="btn btn-outline-info" title="View Details">View</button>
+                        <button onclick="editScenario({{ target.id }})"
+                                class="btn btn-outline-warning" title="Edit">Edit</button>
+                        {% if target.scenario_type != 'base_case' %}
+                        <button onclick="confirmDeleteScenario({{ target.id }}, '{{ target.display_name|escapejs }}')"
+                                class="btn btn-outline-danger" title="Delete">Delete</button>
+                        {% endif %}
+                    </div>
                 </td>
             </tr>
             {% empty %}

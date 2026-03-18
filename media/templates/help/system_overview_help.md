@@ -75,7 +75,6 @@ Click on any of the following components to view detailed information:
 - **Powerplot**: Visualization and plotting tools for results
 - **SAM**: System Advisor Model integration
 - **MAP**: Geographic information system components
-- **Optimisation**: Optimization algorithms and parameters
 - **Analysis**: Results analysis and reporting tools
 
 ### Using the Interactive Diagram

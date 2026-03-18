@@ -1,7 +1,7 @@
 # urls.py
 from django.urls import path, include
 from .views import variations_views, baseline_scenario_views, demand_projection_views, \
-    merit_order_views, optimisation_views, \
+    merit_order_views, \
     powermatchui_home_views, under_construction_views, demand_factor_views
 app_name = 'powermatchui'
 
@@ -18,10 +18,6 @@ urlpatterns = [
     path('merit_order/save_merit_order/', merit_order_views.set_merit_order, name='save_merit_order'),
     path('variation/', variations_views.setup_variation, name='setup_variation'),
     path('get_variation_data/', variations_views.get_variation_data, name='get_variation_data'), 
-
-    # path('optimisation/', optimisation_views.optimisation, name='optimisation'),
-    path('run_optimisation/', optimisation_views.run_optimisation, name='run_optimisation'),
-    path('optimisation/', under_construction_views.under_construction, name='under_construction'),
 
     # Main demand projection page
     path('demand-projection/', demand_projection_views.demand_projection_view, name='demand_projection'),

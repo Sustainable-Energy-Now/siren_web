@@ -6,7 +6,7 @@ import logging
 from django.db.models import Avg, Q, F, Sum, Count, When, OuterRef, Subquery
 from django.db.models.functions import TruncDay
 import os
-from siren_web.models import Analysis, facilities, FacilityStorage, Generatorattributes, Optimisations, \
+from siren_web.models import Analysis, facilities, FacilityStorage, Generatorattributes, \
     Scenarios, ScenariosTechnologies, ScenariosSettings, Settings, Storageattributes, supplyfactors, \
     Technologies, TechnologyYears, variations
 from powermatchui.views.balance_grid_load import Technology
@@ -285,11 +285,11 @@ def fetch_technology_attributes(demand_year, scenario):
                 queryset=Generatorattributes.objects.all(),
                 to_attr='generator_attrs'
             ),
-            # Get storage attributes  
+            # Get storage attributes
             Prefetch(
-                'idtechnologies__storageattributes_set',
+                'idtechnologies__storage_attributes',
                 queryset=Storageattributes.objects.all(),
-                to_attr='storage_attrs'
+                to_attr='storage_attrs_list'
             ),
             # Get FacilityStorage installations for this scenario's facilities
             Prefetch(
@@ -343,8 +343,8 @@ def fetch_technology_attributes(demand_year, scenario):
                 
         elif technology_row.category == 'Storage':
             # Get technology-level storage attributes (efficiency, losses, constraints)
-            if technology_row.storage_attrs:
-                storage = technology_row.storage_attrs[0]
+            if technology_row.storage_attrs_list:
+                storage = technology_row.storage_attrs_list[0]
                 recharge_max = storage.recharge_max
                 recharge_loss = storage.recharge_loss
                 discharge_max = storage.discharge_max
@@ -605,35 +605,6 @@ def fetch_module_settings_data(sw_context):
         # Handle any errors that occur during the database query
         return None
     return settings
-
-def fetch_optimisation_data(scenario):
-    try:
-        scenario_obj = get_scenario_by_title(scenario)
-        # Get the list of included technologies
-        optimisation_data = Technologies.objects \
-            .values(
-                'idtechnologies', 'technology_name', 'approach', 'capacity', 'capacity_max','capacity_min', 
-                'capacity_step', 'capacities').filter(
-            scenarios=scenario_obj,
-            # category__in=['Generator', 'Storage'],  # Use double underscores for related field lookups
-            scenariostechnologies__merit_order__lt=100
-        ).order_by('scenariostechnologies__merit_order')
-    except Exception as e:
-        # Handle any errors that occur during the database query
-        return None
-    return optimisation_data
-
-def update_optimisation_data(scenario, idtechnologies, approach, capacity, capacity_max, capacity_min, capacity_step,
-    capacities):
-    Technology = Technologies.objects.get(idtechnologies=idtechnologies)
-    Technology.approach = approach
-    Technology.capacity = capacity
-    Technology.capacity_max = capacity_max
-    Technology.capacity_min = capacity_min
-    Technology.capacity_step = capacity_step
-    Technology.capacities = capacities
-    Technology.save
-    return Technology
 
 def fetch_scenario_settings_data(scenario):
     try:

@@ -502,14 +502,14 @@
                     {% endif %}
                 </tr>
                 <tr>
-                    <td>Emissions Intensity (kg/MWh)</td>
-                    <td class="value">{{ quarterly_summary.emissions_intensity|floatformat:0 }}</td>
-                    <td class="value">{{ ytd_summary.emissions_intensity|floatformat:0 }}</td>
+                    <td>Emissions Intensity (kg CO₂-e/kWh)</td>
+                    <td class="value">{{ quarterly_summary.emissions_intensity|div:1000|floatformat:3 }}</td>
+                    <td class="value">{{ ytd_summary.emissions_intensity|div:1000|floatformat:3 }}</td>
                     {% if prev_ytd_summary %}
-                    <td class="value">{{ prev_ytd_summary.emissions_intensity|floatformat:0 }}</td>
+                    <td class="value">{{ prev_ytd_summary.emissions_intensity|div:1000|floatformat:3 }}</td>
                     <td class="value">
                         {% with change=ytd_summary.emissions_intensity|sub:prev_ytd_summary.emissions_intensity %}
-                        {% if change >= 0 %}+{% endif %}{{ change|floatformat:0 }}
+                        {% if change >= 0 %}+{% endif %}{{ change|div:1000|floatformat:3 }}
                         {% endwith %}
                     </td>
                     {% endif %}
