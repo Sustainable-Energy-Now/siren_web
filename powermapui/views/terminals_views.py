@@ -148,12 +148,12 @@ def get_terminal_details(request, terminal_id):
             'transformer_capacity_mva': terminal.transformer_capacity_mva,
             'short_circuit_capacity_mva': terminal.short_circuit_capacity_mva,
             'bay_count': terminal.bay_count,
-            'commissioned_date': terminal.commissioned_date.isoformat() if terminal.commissioned_date else None,
+            'commissioned_date': terminal.commissioning_date.isoformat() if terminal.commissioning_date else None,
             'active': terminal.active,
             'owner': terminal.owner,
-            'operator': terminal.operator,
-            'maintenance_zone': terminal.maintenance_zone,
-            'control_center': terminal.control_center,
+            'operator': getattr(terminal, 'operator', None),
+            'maintenance_zone': getattr(terminal, 'maintenance_zone', None),
+            'control_center': getattr(terminal, 'control_center', None),
             'scada_id': terminal.scada_id,
             'description': terminal.description,
             'connected_lines': connected_lines,
@@ -298,7 +298,7 @@ def create_grid_line_with_terminals(request):
                 from_terminal=from_terminal,
                 to_terminal=to_terminal,
                 owner=data.get('owner', ''),
-                commissioned_date=data.get('commissioned_date')
+                commissioning_date=data.get('commissioned_date')
             )
             
             response_data = {

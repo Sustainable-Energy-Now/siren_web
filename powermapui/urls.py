@@ -23,10 +23,12 @@ urlpatterns = [
     path('facility/<int:facility_id>/manage_connections/', map_views.manage_facility_grid_connections, name='manage_facility_grid_connections'),
     path('facility/<int:facility_id>/connections/', map_views.get_facility_grid_connections, name='get_facility_grid_connections'),
     path('facility/<int:facility_id>/details/', map_views.get_facility_details, name='get_facility_details'),
+    path('facility/<int:facility_id>/move/', map_views.ajax_move_facility, name='ajax_move_facility'),
     path('facility/<int:facility_id>/performance/', map_views.calculate_facility_performance, name='calculate_facility_performance'),
     
     # Grid Line Management URLs
     path('grid_line/<int:grid_line_id>/details/', map_views.get_grid_line_details, name='get_grid_line_details'),
+    path('grid_line/<int:gridline_id>/update/', map_views.ajax_update_gridline, name='ajax_update_gridline'),
     path('create_grid_line/', map_views.create_grid_line, name='create_grid_line'),
     path('get_grid_lines/', map_views.get_grid_lines, name='get_grid_lines'),
     path('find_nearest_grid_lines/', map_views.find_nearest_grid_lines, name='find_nearest_grid_lines'),
@@ -37,6 +39,8 @@ urlpatterns = [
     # Terminal Management URLs
     path('add_terminal/', terminals_views.add_terminal, name='add_terminal'),
     path('terminal/<int:terminal_id>/details/', terminals_views.get_terminal_details, name='get_terminal_details'),
+    path('terminal/<int:terminal_id>/update/', map_views.ajax_update_terminal, name='ajax_update_terminal'),
+    path('terminal/<int:terminal_id>/move/', map_views.ajax_move_terminal, name='ajax_move_terminal'),
     path('get_terminals/', terminals_views.get_terminals, name='get_terminals'),
     path('find_nearest_terminals/', terminals_views.find_nearest_terminals, name='find_nearest_terminals'),
     

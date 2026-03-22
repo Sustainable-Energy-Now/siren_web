@@ -747,7 +747,12 @@ def get_grid_line_details(request, grid_line_id):
             'reactance_total': grid_line.calculate_reactance(),
             'impedance_total': grid_line.calculate_impedance(),
             'owner': grid_line.owner,
+            'active': grid_line.active,
             'commissioned_date': grid_line.commissioning_date.isoformat() if grid_line.commissioning_date else None,
+            'from_latitude': grid_line.from_latitude,
+            'from_longitude': grid_line.from_longitude,
+            'to_latitude': grid_line.to_latitude,
+            'to_longitude': grid_line.to_longitude,
             'coordinates': grid_line.get_line_coordinates(),
             'connected_facilities': connected_facilities,
             'current_utilization_percent': current_utilization,
@@ -1153,5 +1158,185 @@ def find_nearest_grid_lines(request):
     
     # Sort by suitability score (combination of distance and available capacity)
     nearby_lines.sort(key=lambda x: x['suitability_score'], reverse=True)
-    
+
     return JsonResponse(nearby_lines, safe=False)
+
+
+def ajax_move_facility(request, facility_id):
+    """AJAX endpoint to update only the lat/lng of a facility (drag-and-drop)"""
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST required'}, status=405)
+    try:
+        facility = facilities.objects.get(pk=facility_id)
+        data = json.loads(request.body)
+        facility.latitude = float(data['latitude'])
+        facility.longitude = float(data['longitude'])
+        facility.save()
+        return JsonResponse({
+            'success': True,
+            'message': f'Facility "{facility.facility_name}" moved successfully',
+        })
+    except facilities.DoesNotExist:
+        return JsonResponse({'error': 'Facility not found'}, status=404)
+    except (KeyError, ValueError, TypeError) as e:
+        return JsonResponse({'error': f'Invalid coordinates: {e}'}, status=400)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+def ajax_move_terminal(request, terminal_id):
+    """AJAX endpoint to update only the lat/lng of a terminal (drag-and-drop)"""
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST required'}, status=405)
+    try:
+        terminal = Terminals.objects.get(pk=terminal_id)
+        data = json.loads(request.body)
+        terminal.latitude = float(data['latitude'])
+        terminal.longitude = float(data['longitude'])
+        terminal.save()
+        return JsonResponse({
+            'success': True,
+            'message': f'Terminal "{terminal.terminal_name}" moved successfully',
+        })
+    except Terminals.DoesNotExist:
+        return JsonResponse({'error': 'Terminal not found'}, status=404)
+    except (KeyError, ValueError, TypeError) as e:
+        return JsonResponse({'error': f'Invalid coordinates: {e}'}, status=400)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+def ajax_update_terminal(request, terminal_id):
+    """AJAX endpoint to update a terminal's attributes from the map"""
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST required'}, status=405)
+    try:
+        terminal = Terminals.objects.get(pk=terminal_id)
+        data = json.loads(request.body)
+
+        terminal_name = data.get('terminal_name', '').strip()
+        terminal_code = data.get('terminal_code', '').strip()
+        primary_voltage_kv = data.get('primary_voltage_kv')
+
+        if not terminal_name:
+            return JsonResponse({'error': 'Terminal name is required'}, status=400)
+        if not terminal_code:
+            return JsonResponse({'error': 'Terminal code is required'}, status=400)
+        if primary_voltage_kv is None:
+            return JsonResponse({'error': 'Primary voltage is required'}, status=400)
+
+        if Terminals.objects.filter(terminal_name=terminal_name).exclude(pk=terminal_id).exists():
+            return JsonResponse({'error': 'A terminal with this name already exists'}, status=400)
+        if Terminals.objects.filter(terminal_code=terminal_code).exclude(pk=terminal_id).exists():
+            return JsonResponse({'error': 'A terminal with this code already exists'}, status=400)
+
+        terminal.terminal_name = terminal_name
+        terminal.terminal_code = terminal_code
+        terminal.terminal_type = data.get('terminal_type', terminal.terminal_type)
+        terminal.primary_voltage_kv = float(primary_voltage_kv)
+        sec_v = data.get('secondary_voltage_kv')
+        terminal.secondary_voltage_kv = float(sec_v) if sec_v is not None else None
+        terminal.voltage_class = data.get('voltage_class', terminal.voltage_class)
+        lat = data.get('latitude')
+        lng = data.get('longitude')
+        if lat is not None:
+            terminal.latitude = float(lat)
+        if lng is not None:
+            terminal.longitude = float(lng)
+        elev = data.get('elevation')
+        terminal.elevation = float(elev) if elev is not None else None
+        terminal.owner = data.get('owner') or None
+        terminal.active = bool(data.get('active', True))
+        terminal.save()
+
+        return JsonResponse({
+            'success': True,
+            'message': f'Terminal "{terminal_name}" updated successfully',
+            'terminal': {
+                'idterminals': terminal.idterminals,
+                'terminal_name': terminal.terminal_name,
+                'terminal_code': terminal.terminal_code,
+                'latitude': terminal.latitude,
+                'longitude': terminal.longitude,
+                'primary_voltage_kv': terminal.primary_voltage_kv,
+                'active': terminal.active,
+            }
+        })
+    except Terminals.DoesNotExist:
+        return JsonResponse({'error': 'Terminal not found'}, status=404)
+    except (ValueError, TypeError) as e:
+        return JsonResponse({'error': f'Invalid value: {e}'}, status=400)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+def ajax_update_gridline(request, gridline_id):
+    """AJAX endpoint to update a grid line's attributes from the map"""
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST required'}, status=405)
+    try:
+        gridline = GridLines.objects.get(pk=gridline_id)
+        data = json.loads(request.body)
+
+        line_name = data.get('line_name', '').strip()
+        line_code = data.get('line_code', '').strip()
+        voltage_level = data.get('voltage_level')
+
+        if not line_name:
+            return JsonResponse({'error': 'Line name is required'}, status=400)
+        if not line_code:
+            return JsonResponse({'error': 'Line code is required'}, status=400)
+        if voltage_level is None:
+            return JsonResponse({'error': 'Voltage level is required'}, status=400)
+
+        if GridLines.objects.filter(line_name=line_name).exclude(pk=gridline_id).exists():
+            return JsonResponse({'error': 'A grid line with this name already exists'}, status=400)
+        if GridLines.objects.filter(line_code=line_code).exclude(pk=gridline_id).exists():
+            return JsonResponse({'error': 'A grid line with this code already exists'}, status=400)
+
+        gridline.line_name = line_name
+        gridline.line_code = line_code
+        gridline.line_type = data.get('line_type', gridline.line_type)
+        gridline.voltage_level = float(voltage_level)
+        length = data.get('length_km')
+        if length is not None:
+            gridline.length_km = float(length)
+        thermal = data.get('thermal_capacity_mw')
+        if thermal is not None:
+            gridline.thermal_capacity_mw = float(thermal)
+        from_lat = data.get('from_latitude')
+        from_lng = data.get('from_longitude')
+        to_lat = data.get('to_latitude')
+        to_lng = data.get('to_longitude')
+        if from_lat is not None:
+            gridline.from_latitude = float(from_lat)
+        if from_lng is not None:
+            gridline.from_longitude = float(from_lng)
+        if to_lat is not None:
+            gridline.to_latitude = float(to_lat)
+        if to_lng is not None:
+            gridline.to_longitude = float(to_lng)
+        gridline.owner = data.get('owner') or None
+        gridline.active = bool(data.get('active', True))
+        gridline.save()
+
+        return JsonResponse({
+            'success': True,
+            'message': f'Grid line "{line_name}" updated successfully',
+            'gridline': {
+                'idgridlines': gridline.idgridlines,
+                'line_name': gridline.line_name,
+                'line_code': gridline.line_code,
+                'from_latitude': gridline.from_latitude,
+                'from_longitude': gridline.from_longitude,
+                'to_latitude': gridline.to_latitude,
+                'to_longitude': gridline.to_longitude,
+                'active': gridline.active,
+            }
+        })
+    except GridLines.DoesNotExist:
+        return JsonResponse({'error': 'Grid line not found'}, status=404)
+    except (ValueError, TypeError) as e:
+        return JsonResponse({'error': f'Invalid value: {e}'}, status=400)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)

@@ -179,18 +179,194 @@
     </div>
 </div>
 
+<!-- Terminal Edit Modal -->
+<div id="terminalEditModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:10001;">
+  <div style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); background:white; padding:24px; border-radius:8px; max-width:680px; width:90%; max-height:88vh; overflow-y:auto;">
+    <h4 style="margin-bottom:16px;">Edit Terminal</h4>
+    <div id="terminalEditError" style="display:none; color:#842029; background:#f8d7da; padding:10px; border-radius:4px; margin-bottom:12px;"></div>
+    <div class="row g-3">
+      <div class="col-md-6">
+        <label class="form-label">Terminal Name <span class="text-danger">*</span></label>
+        <input type="text" class="form-control" id="te_name">
+      </div>
+      <div class="col-md-6">
+        <label class="form-label">Terminal Code <span class="text-danger">*</span></label>
+        <input type="text" class="form-control" id="te_code">
+      </div>
+      <div class="col-md-6">
+        <label class="form-label">Type</label>
+        <select class="form-select" id="te_type">
+          <option value="substation">Substation</option>
+          <option value="switching_station">Switching Station</option>
+          <option value="distribution_substation">Distribution Substation</option>
+          <option value="transmission_substation">Transmission Substation</option>
+          <option value="converter_station">Converter Station</option>
+          <option value="terminal_station">Terminal Station</option>
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Primary Voltage (kV) <span class="text-danger">*</span></label>
+        <input type="number" class="form-control" id="te_primary_voltage" step="0.1" min="0">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Secondary Voltage (kV)</label>
+        <input type="number" class="form-control" id="te_secondary_voltage" step="0.1" min="0">
+      </div>
+      <div class="col-md-6">
+        <label class="form-label">Voltage Class</label>
+        <select class="form-select" id="te_voltage_class">
+          <option value="low">Low Voltage (&lt; 1kV)</option>
+          <option value="medium">Medium Voltage (1–35kV)</option>
+          <option value="high">High Voltage (35–138kV)</option>
+          <option value="extra_high">Extra High Voltage (138–800kV)</option>
+          <option value="ultra_high">Ultra High Voltage (&gt; 800kV)</option>
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Latitude</label>
+        <input type="number" class="form-control" id="te_lat" step="0.000001">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Longitude</label>
+        <input type="number" class="form-control" id="te_lng" step="0.000001">
+      </div>
+      <div class="col-md-6 d-flex align-items-end">
+        <button type="button" class="btn btn-outline-info w-100" onclick="startPickTerminalLocation()">&#128205; Pick Location from Map</button>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Elevation (m)</label>
+        <input type="number" class="form-control" id="te_elevation" step="0.1">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Owner</label>
+        <input type="text" class="form-control" id="te_owner">
+      </div>
+      <div class="col-md-3 d-flex align-items-end">
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" id="te_active">
+          <label class="form-check-label" for="te_active">Active</label>
+        </div>
+      </div>
+    </div>
+    <div class="d-flex gap-2 mt-4 justify-content-end">
+      <button type="button" class="btn btn-primary" onclick="saveTerminalEdit()">Save Changes</button>
+      <button type="button" class="btn btn-outline-secondary" onclick="closeTerminalEdit()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Gridline Edit Modal -->
+<div id="gridlineEditModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:10001;">
+  <div style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); background:white; padding:24px; border-radius:8px; max-width:720px; width:90%; max-height:88vh; overflow-y:auto;">
+    <h4 style="margin-bottom:16px;">Edit Grid Line</h4>
+    <div id="gridlineEditError" style="display:none; color:#842029; background:#f8d7da; padding:10px; border-radius:4px; margin-bottom:12px;"></div>
+    <div class="row g-3">
+      <div class="col-md-6">
+        <label class="form-label">Line Name <span class="text-danger">*</span></label>
+        <input type="text" class="form-control" id="gle_name">
+      </div>
+      <div class="col-md-6">
+        <label class="form-label">Line Code <span class="text-danger">*</span></label>
+        <input type="text" class="form-control" id="gle_code">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Type</label>
+        <select class="form-select" id="gle_type">
+          <option value="transmission">Transmission</option>
+          <option value="distribution">Distribution</option>
+          <option value="subtransmission">Sub-transmission</option>
+        </select>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Voltage (kV) <span class="text-danger">*</span></label>
+        <input type="number" class="form-control" id="gle_voltage" step="0.1" min="0">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Length (km)</label>
+        <input type="number" class="form-control" id="gle_length" step="0.01" min="0">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Thermal Capacity (MW)</label>
+        <input type="number" class="form-control" id="gle_capacity" step="0.1" min="0">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Owner</label>
+        <input type="text" class="form-control" id="gle_owner">
+      </div>
+      <div class="col-md-4 d-flex align-items-end">
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" id="gle_active">
+          <label class="form-check-label" for="gle_active">Active</label>
+        </div>
+      </div>
+      <!-- From point -->
+      <div class="col-12"><hr class="my-0"><strong>From Point (Start)</strong></div>
+      <div class="col-md-4">
+        <label class="form-label">From Latitude</label>
+        <input type="number" class="form-control" id="gle_from_lat" step="0.000001">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">From Longitude</label>
+        <input type="number" class="form-control" id="gle_from_lng" step="0.000001">
+      </div>
+      <div class="col-md-4 d-flex align-items-end">
+        <button type="button" class="btn btn-outline-info w-100" onclick="startPickGridlineFrom()">&#128205; Pick From Point</button>
+      </div>
+      <!-- To point -->
+      <div class="col-12"><strong>To Point (End)</strong></div>
+      <div class="col-md-4">
+        <label class="form-label">To Latitude</label>
+        <input type="number" class="form-control" id="gle_to_lat" step="0.000001">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">To Longitude</label>
+        <input type="number" class="form-control" id="gle_to_lng" step="0.000001">
+      </div>
+      <div class="col-md-4 d-flex align-items-end">
+        <button type="button" class="btn btn-outline-info w-100" onclick="startPickGridlineTo()">&#128205; Pick To Point</button>
+      </div>
+    </div>
+    <div class="d-flex gap-2 mt-4 justify-content-end">
+      <button type="button" class="btn btn-primary" onclick="saveGridlineEdit()">Save Changes</button>
+      <button type="button" class="btn btn-outline-secondary" onclick="closeGridlineEdit()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Terminal Drag-Move Banner -->
+<div id="terminalDragBanner" style="display:none; position:fixed; top:70px; left:50%; transform:translateX(-50%); background:#198754; color:white; padding:10px 20px; border-radius:8px; z-index:10002; box-shadow:0 2px 10px rgba(0,0,0,0.3); white-space:nowrap; display:none;">
+  <span id="terminalDragBannerText">Drag the terminal marker to move it</span>
+  <button type="button" id="terminalDragSaveBtn" onclick="saveTerminalDrag()" style="margin-left:15px; background:white; border:none; color:#198754; border-radius:4px; padding:2px 10px; cursor:pointer; font-weight:600;">Save</button>
+  <button type="button" onclick="cancelTerminalDrag()" style="margin-left:6px; background:rgba(255,255,255,0.2); border:1px solid white; color:white; border-radius:4px; padding:2px 10px; cursor:pointer;">Cancel</button>
+</div>
+
+<!-- Facility Drag-Move Banner -->
+<div id="facilityDragBanner" style="display:none; position:fixed; top:70px; left:50%; transform:translateX(-50%); background:#0d6efd; color:white; padding:10px 20px; border-radius:8px; z-index:10002; box-shadow:0 2px 10px rgba(0,0,0,0.3); white-space:nowrap;">
+  <span id="facilityDragBannerText">Drag the facility marker to move it</span>
+  <button type="button" onclick="saveFacilityDrag()" style="margin-left:15px; background:white; border:none; color:#0d6efd; border-radius:4px; padding:2px 10px; cursor:pointer; font-weight:600;">Save</button>
+  <button type="button" onclick="cancelFacilityDrag()" style="margin-left:6px; background:rgba(255,255,255,0.2); border:1px solid white; color:white; border-radius:4px; padding:2px 10px; cursor:pointer;">Cancel</button>
+</div>
+
+<!-- Map Pick Location Banner -->
+<div id="mapPickBanner" style="display:none; position:fixed; top:70px; left:50%; transform:translateX(-50%); background:#0d6efd; color:white; padding:10px 20px; border-radius:8px; z-index:10002; box-shadow:0 2px 10px rgba(0,0,0,0.3); white-space:nowrap;">
+  <span id="mapPickBannerText">Click on the map to select a location</span>
+  <button type="button" onclick="cancelMapPick()" style="margin-left:15px; background:rgba(255,255,255,0.2); border:1px solid white; color:white; border-radius:4px; padding:2px 10px; cursor:pointer;">Cancel</button>
+</div>
+
 <!-- Add Grid Line Form (initially hidden) -->
 <div id="addGridLineForm" style="display: none; margin-bottom: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
     <h4 style="padding: 15px; background-color: #e8f5e8; margin: 0; border-top-left-radius: 8px; border-top-right-radius: 8px; border-bottom: 1px solid #dee2e6;">Add New Grid Line</h4>
     <div style="padding: 15px; background-color: white;">
-        <p class="text-muted mb-3">Click two points on the map to set the grid line endpoints, then open the full form to complete all details and save.</p>
+        <p class="text-muted mb-3">Click waypoints on the map to define the line path. The first click sets the start, each subsequent click adds a waypoint. At least 2 points are required.</p>
         <div style="padding: 10px; background-color: #f8f9fa; border-radius: 4px; margin-bottom: 15px; font-size: 0.9em;">
             <div>From: <strong><span id="grid_from_coords">Click on map for start point</span></strong></div>
             <div>To: <strong><span id="grid_to_coords">Click on map for end point</span></strong></div>
+            <div>Waypoints: <span id="grid_waypoint_count">0</span></div>
             <div>Length: <span id="grid_length_display">—</span></div>
         </div>
-        <div class="d-flex gap-2">
+        <div class="d-flex gap-2 flex-wrap">
             <button id="gridLineContinueBtn" class="btn btn-primary" disabled>Continue to Full Form →</button>
+            <button id="undoGridLinePoint" class="btn btn-outline-warning" disabled>Undo Last Point</button>
             <button id="cancelAddGridLine" class="btn btn-outline-secondary">Cancel</button>
         </div>
     </div>
@@ -781,6 +957,16 @@ var selectedLocation = null;
 var locationMarker = null;
 var gridLinePoints = [];
 var gridLineMarkers = [];
+var gridLinePreviewLine = null;
+var currentEditTerminalId = null;
+var currentEditGridlineId = null;
+var mapPickMode = null; // 'terminal_loc' | 'gridline_from' | 'gridline_to'
+var terminalDragMarker = null;
+var terminalDragId = null;
+var terminalDragOriginalLatLng = null;
+var facilityDragMarker = null;
+var facilityDragId = null;
+var facilityDragOriginalLatLng = null;
 
 // Grid line label functionality
 var gridLineLabels = [];
@@ -825,8 +1011,10 @@ map = L.map('map').setView([-33.45, 121.25], 7);
 map.createPane('gridLinesPane');
 map.getPane('gridLinesPane').style.zIndex = 450;
 map.getPane('gridLinesPane').style.pointerEvents = 'auto';
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: 'Map data © <a href="https://openstreetmap.org">OpenStreetMap</a> contributors'
+L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+    subdomains: 'abcd',
+    maxZoom: 19
 }).addTo(map);
 
 // ===== FUNCTION DEFINITIONS =====
@@ -951,15 +1139,26 @@ function loadTerminalsOnMap(terminalsData) {
         marker.terminalId = terminal.idterminals;
         marker.terminalData = terminal;
         
-        // Enhanced popup content
-        marker.bindPopup(terminal.popup_content);
-        
+        // Build popup with Details and Edit buttons (like facilities)
+        var termPopup = `
+            <div class="terminal-popup">
+                <h5>${terminal.terminal_name}</h5>
+                <p><strong>Type:</strong> ${terminal.terminal_type}</p>
+                <p><strong>Voltage:</strong> ${terminal.primary_voltage_kv} kV</p>
+                <p><strong>Connected Lines:</strong> ${terminal.connected_lines_count}</p>
+                <div style="margin-top:10px; display:flex; gap:6px; flex-wrap:wrap;">
+                    <button onclick="showTerminalDetails(${terminal.idterminals})" class="btn btn-sm btn-primary">Details</button>
+                    <button onclick="openTerminalEdit(${terminal.idterminals})" class="btn btn-sm btn-warning">Edit</button>
+                    <button onclick="startTerminalDrag(${terminal.idterminals})" class="btn btn-sm btn-success">Move</button>
+                </div>
+            </div>`;
+        marker.bindPopup(termPopup);
+
         // Click handler
         marker.on('click', function(e) {
             L.DomEvent.stopPropagation(e);
-            
             if (addTerminalMode) {
-                return; // Ignore clicks in add mode
+                return;
             } else {
                 this.openPopup();
             }
@@ -1030,9 +1229,10 @@ function loadFacilitiesOnMap(facilitiesData) {
                 <p><strong>Capacity:</strong> ${facility.capacity || 'N/A'} MW</p>
                 <p><strong>Grid Connection:</strong> <span style="color: ${connectionColor};">${connectionStatus}</span></p>
                 ${facility.primary_grid_line_name ? `<p><strong>Primary Line:</strong> ${facility.primary_grid_line_name}</p>` : ''}
-                <div style="margin-top: 10px;">
+                <div style="margin-top:10px; display:flex; gap:6px; flex-wrap:wrap;">
                     <button onclick="showFacilityDetails(${facility.idfacilities})" class="btn btn-sm btn-primary">Details</button>
                     <button onclick="manageFacilityConnections(${facility.idfacilities})" class="btn btn-sm btn-info">Connections</button>
+                    <button onclick="startFacilityDrag(${facility.idfacilities})" class="btn btn-sm btn-success">Move</button>
                 </div>
             </div>
         `;
@@ -1822,13 +2022,17 @@ document.addEventListener('DOMContentLoaded', function() {
                 gridLinePoints = [];
                 gridLineMarkers.forEach(marker => map.removeLayer(marker));
                 gridLineMarkers = [];
+                if (gridLinePreviewLine) { map.removeLayer(gridLinePreviewLine); gridLinePreviewLine = null; }
 
                 // Reset status display
                 document.getElementById('grid_from_coords').textContent = 'Click on map for start point';
                 document.getElementById('grid_to_coords').textContent = 'Click on map for end point';
+                document.getElementById('grid_waypoint_count').textContent = '0';
                 document.getElementById('grid_length_display').textContent = '—';
                 const continueBtn = document.getElementById('gridLineContinueBtn');
                 if (continueBtn) continueBtn.disabled = true;
+                const undoBtn = document.getElementById('undoGridLinePoint');
+                if (undoBtn) undoBtn.disabled = true;
             } else {
                 this.textContent = 'Add New Grid Line';
                 this.classList.remove('active');
@@ -1839,8 +2043,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 gridLineMarkers.forEach(marker => map.removeLayer(marker));
                 gridLineMarkers = [];
                 gridLinePoints = [];
+                if (gridLinePreviewLine) { map.removeLayer(gridLinePreviewLine); gridLinePreviewLine = null; }
                 const continueBtn = document.getElementById('gridLineContinueBtn');
                 if (continueBtn) continueBtn.disabled = true;
+                const undoBtn2 = document.getElementById('undoGridLinePoint');
+                if (undoBtn2) undoBtn2.disabled = true;
             }
         });
     }
@@ -1906,15 +2113,68 @@ document.addEventListener('DOMContentLoaded', function() {
     const gridLineContinueBtn = document.getElementById('gridLineContinueBtn');
     if (gridLineContinueBtn) {
         gridLineContinueBtn.addEventListener('click', function() {
-            if (gridLinePoints.length === 2) {
+            if (gridLinePoints.length >= 2) {
+                const last = gridLinePoints[gridLinePoints.length - 1];
+                const kmlGeometry = JSON.stringify({
+                    type: 'LineString',
+                    coordinates: gridLinePoints.map(p => [p.lng, p.lat])
+                });
                 const params = new URLSearchParams({
                     from_lat: gridLinePoints[0].lat,
                     from_lng: gridLinePoints[0].lng,
-                    to_lat: gridLinePoints[1].lat,
-                    to_lng: gridLinePoints[1].lng,
+                    to_lat: last.lat,
+                    to_lng: last.lng,
+                    kml_geometry: kmlGeometry,
                 });
                 window.location.href = '/gridlines/create/?' + params.toString();
             }
+        });
+    }
+
+    // Undo last gridline waypoint
+    const undoGridLinePoint = document.getElementById('undoGridLinePoint');
+    if (undoGridLinePoint) {
+        undoGridLinePoint.addEventListener('click', function() {
+            if (gridLinePoints.length === 0) return;
+
+            // Remove last point and its marker
+            gridLinePoints.pop();
+            const lastMarker = gridLineMarkers.pop();
+            if (lastMarker) map.removeLayer(lastMarker);
+
+            // Remove preview line
+            if (gridLinePreviewLine) { map.removeLayer(gridLinePreviewLine); gridLinePreviewLine = null; }
+
+            if (gridLinePoints.length >= 2) {
+                // Redraw preview line
+                gridLinePreviewLine = L.polyline(gridLinePoints, {
+                    color: 'red', weight: 3, opacity: 0.7, dashArray: '10, 10'
+                }).addTo(map);
+
+                let totalDistance = 0;
+                for (let i = 1; i < gridLinePoints.length; i++) {
+                    totalDistance += calculateDistance(
+                        gridLinePoints[i-1].lat, gridLinePoints[i-1].lng,
+                        gridLinePoints[i].lat, gridLinePoints[i].lng
+                    );
+                }
+                document.getElementById('grid_length_display').textContent = `${totalDistance.toFixed(2)} km`;
+                const last = gridLinePoints[gridLinePoints.length - 1];
+                document.getElementById('grid_to_coords').textContent =
+                    `${last.lat.toFixed(6)}, ${last.lng.toFixed(6)}`;
+            } else if (gridLinePoints.length === 1) {
+                document.getElementById('grid_to_coords').textContent = 'Click on map for end point';
+                document.getElementById('grid_length_display').textContent = '—';
+            } else {
+                document.getElementById('grid_from_coords').textContent = 'Click on map for start point';
+                document.getElementById('grid_to_coords').textContent = 'Click on map for end point';
+                document.getElementById('grid_length_display').textContent = '—';
+            }
+
+            document.getElementById('grid_waypoint_count').textContent = gridLinePoints.length;
+            const continueBtn = document.getElementById('gridLineContinueBtn');
+            if (continueBtn) continueBtn.disabled = gridLinePoints.length < 2;
+            this.disabled = gridLinePoints.length === 0;
         });
     }
     
@@ -2045,6 +2305,28 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Handle map clicks for facilities, terminals and grid line creation
     map.on('click', function(e) {
+        // Handle map-pick modes for edit modals
+        if (mapPickMode) {
+            var lat = e.latlng.lat.toFixed(6);
+            var lng = e.latlng.lng.toFixed(6);
+            if (mapPickMode === 'terminal_loc') {
+                document.getElementById('te_lat').value = lat;
+                document.getElementById('te_lng').value = lng;
+                cancelMapPick();
+                document.getElementById('terminalEditModal').style.display = 'block';
+            } else if (mapPickMode === 'gridline_from') {
+                document.getElementById('gle_from_lat').value = lat;
+                document.getElementById('gle_from_lng').value = lng;
+                cancelMapPick();
+                document.getElementById('gridlineEditModal').style.display = 'block';
+            } else if (mapPickMode === 'gridline_to') {
+                document.getElementById('gle_to_lat').value = lat;
+                document.getElementById('gle_to_lng').value = lng;
+                cancelMapPick();
+                document.getElementById('gridlineEditModal').style.display = 'block';
+            }
+            return; // don't process other click modes
+        }
         if (addTerminalMode) {
             selectedTerminalLocation = e.latlng;
             
@@ -2059,41 +2341,48 @@ document.addEventListener('DOMContentLoaded', function() {
             terminalLocationMarker.bindPopup('New Terminal Location').openPopup();
         }
         if (addGridLineMode) {
-            if (gridLinePoints.length < 2) {
-                gridLinePoints.push(e.latlng);
-                
-                const marker = L.marker(e.latlng).addTo(map);
-                gridLineMarkers.push(marker);
-                
-                if (gridLinePoints.length === 1) {
-                    document.getElementById('grid_from_coords').textContent = 
-                        `${e.latlng.lat.toFixed(6)}, ${e.latlng.lng.toFixed(6)}`;
-                    marker.bindPopup('Grid Line Start Point').openPopup();
-                } else if (gridLinePoints.length === 2) {
-                    document.getElementById('grid_to_coords').textContent =
-                        `${e.latlng.lat.toFixed(6)}, ${e.latlng.lng.toFixed(6)}`;
-                    marker.bindPopup('Grid Line End Point').openPopup();
+            gridLinePoints.push(e.latlng);
 
-                    const distance = calculateDistance(
-                        gridLinePoints[0].lat, gridLinePoints[0].lng,
-                        gridLinePoints[1].lat, gridLinePoints[1].lng
-                    );
-                    document.getElementById('grid_length_display').textContent =
-                        `${distance.toFixed(2)} km`;
+            const isFirst = gridLinePoints.length === 1;
+            const label = isFirst ? 'Start' : `Waypoint ${gridLinePoints.length}`;
+            const marker = L.marker(e.latlng, { title: label }).addTo(map);
+            gridLineMarkers.push(marker);
+            marker.bindPopup(isFirst ? 'Grid Line Start Point' : label).openPopup();
 
-                    const line = L.polyline(gridLinePoints, {
-                        color: 'red',
-                        weight: 3,
-                        opacity: 0.7,
-                        dashArray: '10, 10'
-                    }).addTo(map);
-                    gridLineMarkers.push(line);
-
-                    // Enable the continue button now both endpoints are set
-                    const continueBtn = document.getElementById('gridLineContinueBtn');
-                    if (continueBtn) continueBtn.disabled = false;
-                }
+            // Update from/to display
+            document.getElementById('grid_from_coords').textContent =
+                `${gridLinePoints[0].lat.toFixed(6)}, ${gridLinePoints[0].lng.toFixed(6)}`;
+            if (gridLinePoints.length >= 2) {
+                const last = gridLinePoints[gridLinePoints.length - 1];
+                document.getElementById('grid_to_coords').textContent =
+                    `${last.lat.toFixed(6)}, ${last.lng.toFixed(6)}`;
             }
+            document.getElementById('grid_waypoint_count').textContent = gridLinePoints.length;
+
+            // Remove old preview line and redraw with all points
+            if (gridLinePreviewLine) { map.removeLayer(gridLinePreviewLine); gridLinePreviewLine = null; }
+
+            if (gridLinePoints.length >= 2) {
+                let totalDistance = 0;
+                for (let i = 1; i < gridLinePoints.length; i++) {
+                    totalDistance += calculateDistance(
+                        gridLinePoints[i-1].lat, gridLinePoints[i-1].lng,
+                        gridLinePoints[i].lat, gridLinePoints[i].lng
+                    );
+                }
+                document.getElementById('grid_length_display').textContent =
+                    `${totalDistance.toFixed(2)} km`;
+
+                gridLinePreviewLine = L.polyline(gridLinePoints, {
+                    color: 'red', weight: 3, opacity: 0.7, dashArray: '10, 10'
+                }).addTo(map);
+
+                const continueBtn = document.getElementById('gridLineContinueBtn');
+                if (continueBtn) continueBtn.disabled = false;
+            }
+
+            const undoBtn = document.getElementById('undoGridLinePoint');
+            if (undoBtn) undoBtn.disabled = false;
         } else if (addFacilityMode) {
             selectedLocation = e.latlng;
             
@@ -2544,9 +2833,13 @@ function showGridLineDetails(gridLineId) {
                         `).join('')}
                     </div>
                     ` : '<p>No facilities connected to this line.</p>'}
+                    <div style="margin-top:16px; padding-top:12px; border-top:1px solid #dee2e6; display:flex; gap:10px; justify-content:flex-end;">
+                        <button onclick="highlightGridLine(${data.idgridlines}); document.querySelector('.modal-overlay').remove();" class="btn btn-sm btn-info">Show on Map</button>
+                        <button onclick="openGridlineEdit(${data.idgridlines})" class="btn btn-sm btn-warning">Edit Grid Line</button>
+                    </div>
                 </div>
             `;
-            
+
             showModal('Grid Line Details', detailsHtml);
         })
         .catch(error => {
@@ -3048,11 +3341,14 @@ function createTerminalDetailsHtml(data) {
                     <button onclick="showTerminalOnMap(${data.idterminals})" class="btn btn-sm btn-info">
                         Show on Map
                     </button>
+                    <button onclick="openTerminalEdit(${data.idterminals})" class="btn btn-sm btn-warning">
+                        Edit Terminal
+                    </button>
                 </div>
             </div>
         </div>
     `;
-    
+
     return html;
 }
 
@@ -3464,6 +3760,374 @@ function closeConnectionManagement() {
     document.getElementById('connectionManagementModal').style.display = 'none';
     connectionManagementMode = false;
     selectedFacilityForConnection = null;
+}
+
+// ===== TERMINAL DRAG-AND-DROP MOVE =====
+function startTerminalDrag(terminalId) {
+    map.closePopup();
+    terminalsLayer.eachLayer(function(marker) {
+        if (marker.terminalId !== terminalId) return;
+        terminalDragMarker = marker;
+        terminalDragId = terminalId;
+        terminalDragOriginalLatLng = marker.getLatLng();
+
+        marker.dragging.enable();
+        map.getContainer().style.cursor = 'grab';
+
+        // Live coordinate update while dragging
+        marker.on('drag.move', function() {
+            updateTerminalDragBanner(marker.getLatLng());
+        });
+        marker.on('dragend', function() {
+            updateTerminalDragBanner(marker.getLatLng());
+        });
+
+        showTerminalDragBanner(marker.getLatLng());
+    });
+}
+
+function showTerminalDragBanner(latlng) {
+    updateTerminalDragBanner(latlng);
+    document.getElementById('terminalDragBanner').style.display = 'block';
+}
+
+function updateTerminalDragBanner(latlng) {
+    document.getElementById('terminalDragBannerText').textContent =
+        'Drag to move  \u2014  ' + latlng.lat.toFixed(6) + ', ' + latlng.lng.toFixed(6);
+}
+
+function cancelTerminalDrag() {
+    if (terminalDragMarker) {
+        terminalDragMarker.setLatLng(terminalDragOriginalLatLng);
+        terminalDragMarker.dragging.disable();
+        terminalDragMarker.off('drag.move');
+        terminalDragMarker.off('dragend');
+    }
+    terminalDragMarker = null;
+    terminalDragId = null;
+    terminalDragOriginalLatLng = null;
+    document.getElementById('terminalDragBanner').style.display = 'none';
+    map.getContainer().style.cursor = '';
+}
+
+function saveTerminalDrag() {
+    if (!terminalDragMarker || !terminalDragId) return;
+    var latlng = terminalDragMarker.getLatLng();
+    fetch('/terminal/' + terminalDragId + '/move/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+        body: JSON.stringify({ latitude: latlng.lat, longitude: latlng.lng })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.error) { alert('Move failed: ' + data.error); return; }
+        terminalDragMarker.dragging.disable();
+        terminalDragMarker.off('drag.move');
+        terminalDragMarker.off('dragend');
+        // Update stored data so the popup stays correct
+        if (terminalDragMarker.terminalData) {
+            terminalDragMarker.terminalData.latitude = latlng.lat;
+            terminalDragMarker.terminalData.longitude = latlng.lng;
+        }
+        terminalDragMarker = null;
+        terminalDragId = null;
+        terminalDragOriginalLatLng = null;
+        document.getElementById('terminalDragBanner').style.display = 'none';
+        map.getContainer().style.cursor = '';
+        showMapSuccessBanner(data.message || 'Terminal moved successfully');
+    })
+    .catch(function(err) { alert('Move failed: ' + err.message); });
+}
+
+// ===== FACILITY DRAG-AND-DROP MOVE =====
+function startFacilityDrag(facilityId) {
+    map.closePopup();
+    facilityLayer.eachLayer(function(marker) {
+        if (marker.facilityId !== facilityId) return;
+        facilityDragMarker = marker;
+        facilityDragId = facilityId;
+        facilityDragOriginalLatLng = marker.getLatLng();
+
+        marker.dragging.enable();
+        map.getContainer().style.cursor = 'grab';
+
+        marker.on('drag.facility', function() {
+            updateFacilityDragBanner(marker.getLatLng());
+        });
+        marker.on('dragend', function() {
+            updateFacilityDragBanner(marker.getLatLng());
+        });
+
+        updateFacilityDragBanner(marker.getLatLng());
+        document.getElementById('facilityDragBanner').style.display = 'block';
+    });
+}
+
+function updateFacilityDragBanner(latlng) {
+    document.getElementById('facilityDragBannerText').textContent =
+        'Drag to move  \u2014  ' + latlng.lat.toFixed(6) + ', ' + latlng.lng.toFixed(6);
+}
+
+function cancelFacilityDrag() {
+    if (facilityDragMarker) {
+        facilityDragMarker.setLatLng(facilityDragOriginalLatLng);
+        facilityDragMarker.dragging.disable();
+        facilityDragMarker.off('drag.facility');
+        facilityDragMarker.off('dragend');
+    }
+    facilityDragMarker = null;
+    facilityDragId = null;
+    facilityDragOriginalLatLng = null;
+    document.getElementById('facilityDragBanner').style.display = 'none';
+    map.getContainer().style.cursor = '';
+}
+
+function saveFacilityDrag() {
+    if (!facilityDragMarker || !facilityDragId) return;
+    var latlng = facilityDragMarker.getLatLng();
+    fetch('/facility/' + facilityDragId + '/move/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+        body: JSON.stringify({ latitude: latlng.lat, longitude: latlng.lng })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.error) { alert('Move failed: ' + data.error); return; }
+        facilityDragMarker.dragging.disable();
+        facilityDragMarker.off('drag.facility');
+        facilityDragMarker.off('dragend');
+        if (facilityDragMarker.facilityData) {
+            facilityDragMarker.facilityData.latitude = latlng.lat;
+            facilityDragMarker.facilityData.longitude = latlng.lng;
+        }
+        facilityDragMarker = null;
+        facilityDragId = null;
+        facilityDragOriginalLatLng = null;
+        document.getElementById('facilityDragBanner').style.display = 'none';
+        map.getContainer().style.cursor = '';
+        showMapSuccessBanner(data.message || 'Facility moved successfully');
+    })
+    .catch(function(err) { alert('Move failed: ' + err.message); });
+}
+
+// ===== TERMINAL EDIT MODAL =====
+function openTerminalEdit(terminalId) {
+    currentEditTerminalId = terminalId;
+    document.getElementById('terminalEditError').style.display = 'none';
+    // Close any open modals first
+    document.getElementById('terminalDetailsModal').style.display = 'none';
+    document.querySelectorAll('.modal-overlay').forEach(function(m) { m.remove(); });
+
+    fetch('/terminal/' + terminalId + '/details/')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.error) { alert('Failed to load terminal: ' + data.error); return; }
+            document.getElementById('te_name').value = data.terminal_name || '';
+            document.getElementById('te_code').value = data.terminal_code || '';
+            document.getElementById('te_type').value = data.terminal_type || 'substation';
+            document.getElementById('te_primary_voltage').value = data.primary_voltage_kv || '';
+            document.getElementById('te_secondary_voltage').value = data.secondary_voltage_kv || '';
+            document.getElementById('te_voltage_class').value = data.voltage_class || 'high';
+            document.getElementById('te_lat').value = data.latitude || '';
+            document.getElementById('te_lng').value = data.longitude || '';
+            document.getElementById('te_elevation').value = data.elevation || '';
+            document.getElementById('te_owner').value = data.owner || '';
+            document.getElementById('te_active').checked = data.active !== false;
+            document.getElementById('terminalEditModal').style.display = 'block';
+        })
+        .catch(function(err) { alert('Failed to load terminal data: ' + err.message); });
+}
+
+function closeTerminalEdit() {
+    document.getElementById('terminalEditModal').style.display = 'none';
+    currentEditTerminalId = null;
+    cancelMapPick();
+}
+
+function startPickTerminalLocation() {
+    document.getElementById('terminalEditModal').style.display = 'none';
+    mapPickMode = 'terminal_loc';
+    document.getElementById('mapPickBannerText').textContent = 'Click on the map to set terminal location';
+    document.getElementById('mapPickBanner').style.display = 'block';
+    map.getContainer().style.cursor = 'crosshair';
+}
+
+function saveTerminalEdit() {
+    if (!currentEditTerminalId) return;
+    var name = document.getElementById('te_name').value.trim();
+    var code = document.getElementById('te_code').value.trim();
+    var voltage = document.getElementById('te_primary_voltage').value;
+    if (!name) { showTerminalEditError('Terminal name is required.'); return; }
+    if (!code) { showTerminalEditError('Terminal code is required.'); return; }
+    if (!voltage) { showTerminalEditError('Primary voltage is required.'); return; }
+
+    var secV = document.getElementById('te_secondary_voltage').value;
+    var elev = document.getElementById('te_elevation').value;
+    var lat = document.getElementById('te_lat').value;
+    var lng = document.getElementById('te_lng').value;
+    var payload = {
+        terminal_name: name,
+        terminal_code: code,
+        terminal_type: document.getElementById('te_type').value,
+        primary_voltage_kv: parseFloat(voltage),
+        secondary_voltage_kv: secV ? parseFloat(secV) : null,
+        voltage_class: document.getElementById('te_voltage_class').value,
+        latitude: lat ? parseFloat(lat) : null,
+        longitude: lng ? parseFloat(lng) : null,
+        elevation: elev ? parseFloat(elev) : null,
+        owner: document.getElementById('te_owner').value.trim() || null,
+        active: document.getElementById('te_active').checked,
+    };
+
+    fetch('/terminal/' + currentEditTerminalId + '/update/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+        body: JSON.stringify(payload)
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.error) { showTerminalEditError(data.error); return; }
+        closeTerminalEdit();
+        fetch('/get_terminals/')
+            .then(function(r) { return r.json(); })
+            .then(function(terminals) { loadTerminalsOnMap(terminals); });
+        showMapSuccessBanner(data.message || 'Terminal updated successfully');
+    })
+    .catch(function(err) { showTerminalEditError('Save failed: ' + err.message); });
+}
+
+function showTerminalEditError(msg) {
+    var el = document.getElementById('terminalEditError');
+    el.textContent = msg;
+    el.style.display = 'block';
+}
+
+// ===== GRIDLINE EDIT MODAL =====
+function openGridlineEdit(gridlineId) {
+    currentEditGridlineId = gridlineId;
+    document.getElementById('gridlineEditError').style.display = 'none';
+    document.querySelectorAll('.modal-overlay').forEach(function(m) { m.remove(); });
+
+    fetch('/grid_line/' + gridlineId + '/details/')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.error) { alert('Failed to load grid line: ' + data.error); return; }
+            document.getElementById('gle_name').value = data.line_name || '';
+            document.getElementById('gle_code').value = data.line_code || '';
+            document.getElementById('gle_type').value = data.line_type || 'transmission';
+            document.getElementById('gle_voltage').value = data.voltage_level || '';
+            document.getElementById('gle_length').value = data.length_km || '';
+            document.getElementById('gle_capacity').value = data.thermal_capacity_mw || '';
+            document.getElementById('gle_owner').value = data.owner || '';
+            document.getElementById('gle_active').checked = data.active !== false;
+            document.getElementById('gle_from_lat').value = data.from_latitude || '';
+            document.getElementById('gle_from_lng').value = data.from_longitude || '';
+            document.getElementById('gle_to_lat').value = data.to_latitude || '';
+            document.getElementById('gle_to_lng').value = data.to_longitude || '';
+            document.getElementById('gridlineEditModal').style.display = 'block';
+        })
+        .catch(function(err) { alert('Failed to load grid line data: ' + err.message); });
+}
+
+function closeGridlineEdit() {
+    document.getElementById('gridlineEditModal').style.display = 'none';
+    currentEditGridlineId = null;
+    cancelMapPick();
+}
+
+function startPickGridlineFrom() {
+    document.getElementById('gridlineEditModal').style.display = 'none';
+    mapPickMode = 'gridline_from';
+    document.getElementById('mapPickBannerText').textContent = 'Click on the map to set the From (start) point';
+    document.getElementById('mapPickBanner').style.display = 'block';
+    map.getContainer().style.cursor = 'crosshair';
+}
+
+function startPickGridlineTo() {
+    document.getElementById('gridlineEditModal').style.display = 'none';
+    mapPickMode = 'gridline_to';
+    document.getElementById('mapPickBannerText').textContent = 'Click on the map to set the To (end) point';
+    document.getElementById('mapPickBanner').style.display = 'block';
+    map.getContainer().style.cursor = 'crosshair';
+}
+
+function cancelMapPick() {
+    mapPickMode = null;
+    document.getElementById('mapPickBanner').style.display = 'none';
+    map.getContainer().style.cursor = '';
+}
+
+function saveGridlineEdit() {
+    if (!currentEditGridlineId) return;
+    var name = document.getElementById('gle_name').value.trim();
+    var code = document.getElementById('gle_code').value.trim();
+    var voltage = document.getElementById('gle_voltage').value;
+    if (!name) { showGridlineEditError('Line name is required.'); return; }
+    if (!code) { showGridlineEditError('Line code is required.'); return; }
+    if (!voltage) { showGridlineEditError('Voltage level is required.'); return; }
+
+    var payload = {
+        line_name: name,
+        line_code: code,
+        line_type: document.getElementById('gle_type').value,
+        voltage_level: parseFloat(voltage),
+        length_km: document.getElementById('gle_length').value ? parseFloat(document.getElementById('gle_length').value) : null,
+        thermal_capacity_mw: document.getElementById('gle_capacity').value ? parseFloat(document.getElementById('gle_capacity').value) : null,
+        from_latitude: document.getElementById('gle_from_lat').value ? parseFloat(document.getElementById('gle_from_lat').value) : null,
+        from_longitude: document.getElementById('gle_from_lng').value ? parseFloat(document.getElementById('gle_from_lng').value) : null,
+        to_latitude: document.getElementById('gle_to_lat').value ? parseFloat(document.getElementById('gle_to_lat').value) : null,
+        to_longitude: document.getElementById('gle_to_lng').value ? parseFloat(document.getElementById('gle_to_lng').value) : null,
+        owner: document.getElementById('gle_owner').value.trim() || null,
+        active: document.getElementById('gle_active').checked,
+    };
+
+    fetch('/grid_line/' + currentEditGridlineId + '/update/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+        body: JSON.stringify(payload)
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.error) { showGridlineEditError(data.error); return; }
+        closeGridlineEdit();
+        fetch('/get_grid_lines/')
+            .then(function(r) { return r.json(); })
+            .then(function(lines) { gridLines = lines; loadGridLinesOnMap(lines); });
+        showMapSuccessBanner(data.message || 'Grid line updated successfully');
+    })
+    .catch(function(err) { showGridlineEditError('Save failed: ' + err.message); });
+}
+
+function showGridlineEditError(msg) {
+    var el = document.getElementById('gridlineEditError');
+    el.textContent = msg;
+    el.style.display = 'block';
+}
+
+// ESC key: cancel drag / map-pick / close edit modals
+document.addEventListener('keydown', function(e) {
+    if (e.key !== 'Escape') return;
+    if (facilityDragMarker) {
+        cancelFacilityDrag();
+    } else if (terminalDragMarker) {
+        cancelTerminalDrag();
+    } else if (mapPickMode) {
+        cancelMapPick();
+        if (currentEditTerminalId) document.getElementById('terminalEditModal').style.display = 'block';
+        if (currentEditGridlineId) document.getElementById('gridlineEditModal').style.display = 'block';
+    } else if (document.getElementById('terminalEditModal').style.display !== 'none') {
+        closeTerminalEdit();
+    } else if (document.getElementById('gridlineEditModal').style.display !== 'none') {
+        closeGridlineEdit();
+    }
+});
+
+function showMapSuccessBanner(msg) {
+    var banner = document.createElement('div');
+    banner.style.cssText = 'position:fixed; top:20px; right:20px; background:#198754; color:white; padding:12px 20px; border-radius:6px; z-index:10003; box-shadow:0 2px 10px rgba(0,0,0,0.2); font-weight:500;';
+    banner.textContent = msg;
+    document.body.appendChild(banner);
+    setTimeout(function() { banner.remove(); }, 3000);
 }
 
 function highlightGridLine(gridLineId) {

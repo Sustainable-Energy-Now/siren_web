@@ -158,6 +158,17 @@ def gridline_create(request):
             commissioning_date = request.POST.get('commissioning_date') or None
             decommissioning_date = request.POST.get('decommissioning_date') or None
             commissioning_probability = request.POST.get('commissioning_probability') or None
+            kml_geometry_raw = request.POST.get('kml_geometry', '').strip()
+
+            # Validate kml_geometry if provided
+            kml_geometry_to_save = None
+            if kml_geometry_raw:
+                try:
+                    import json as _json
+                    _json.loads(kml_geometry_raw)  # validate JSON
+                    kml_geometry_to_save = kml_geometry_raw
+                except (ValueError, TypeError):
+                    pass
 
             # Validation
             if not line_name:
@@ -216,6 +227,7 @@ def gridline_create(request):
                 commissioning_date=commissioning_date,
                 decommissioning_date=decommissioning_date,
                 commissioning_probability=float(commissioning_probability) if commissioning_probability else None,
+                kml_geometry=kml_geometry_to_save,
             )
 
             messages.success(request, f'Grid line "{line_name}" created successfully.')

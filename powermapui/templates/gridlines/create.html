@@ -346,6 +346,9 @@
               </div>
             </div>
 
+            <!-- Hidden field: populated from map waypoints via URL param -->
+            <input type="hidden" id="kml_geometry" name="kml_geometry" value="">
+
             <div class="d-flex gap-2">
               <button type="submit" class="btn btn-primary">Create Grid Line</button>
               <a href="{% url 'powermapui:gridlines_list' %}" class="btn btn-outline-secondary">Cancel</a>
@@ -434,8 +437,10 @@
 
     // Initialise the embedded map
     const coordMap = L.map('coordMap').setView([-33.45, 121.25], 7);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© <a href="https://openstreetmap.org">OpenStreetMap</a> contributors'
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+        subdomains: 'abcd',
+        maxZoom: 19,
     }).addTo(coordMap);
 
     const fromIcon = new L.Icon.Default();
@@ -529,17 +534,56 @@
     const fromLng = parseFloat(params.get('from_lng'));
     const toLat   = parseFloat(params.get('to_lat'));
     const toLng   = parseFloat(params.get('to_lng'));
+    const kmlGeometryParam = params.get('kml_geometry');
+
+    // If waypoint geometry was passed from the map, store it and render the path
+    let kmlBounds = null;
+    if (kmlGeometryParam) {
+        document.getElementById('kml_geometry').value = kmlGeometryParam;
+        try {
+            const geoData = JSON.parse(kmlGeometryParam);
+            if (geoData.type === 'LineString' && Array.isArray(geoData.coordinates) && geoData.coordinates.length >= 2) {
+                // GeoJSON uses [lng, lat]; Leaflet uses [lat, lng]
+                const latLngs = geoData.coordinates.map(c => [c[1], c[0]]);
+
+                // Mark intermediate waypoints (not first/last — those get from/to markers)
+                for (let i = 1; i < latLngs.length - 1; i++) {
+                    L.circleMarker(latLngs[i], {
+                        radius: 5, color: '#555', fillColor: '#aaa', fillOpacity: 0.9, weight: 2
+                    }).addTo(coordMap).bindPopup(`Waypoint ${i + 1}`);
+                }
+
+                // Draw the full path (overrides the simple from-to line)
+                if (connectLine) { coordMap.removeLayer(connectLine); }
+                connectLine = L.polyline(latLngs, {
+                    color: '#0d6efd', weight: 2, dashArray: '6 4'
+                }).addTo(coordMap);
+
+                // Calculate total path length and pre-fill length field
+                let totalDist = 0;
+                for (let i = 1; i < geoData.coordinates.length; i++) {
+                    totalDist += haversineKm(
+                        geoData.coordinates[i-1][1], geoData.coordinates[i-1][0],
+                        geoData.coordinates[i][1],   geoData.coordinates[i][0]
+                    );
+                }
+                if (lengthInput && !lengthInput.value) lengthInput.value = totalDist.toFixed(3);
+                setStatus(`Route with ${geoData.coordinates.length} waypoints loaded. Total length: ${totalDist.toFixed(2)} km.`);
+                kmlBounds = L.latLngBounds(latLngs);
+            }
+        } catch (e) { /* ignore invalid geometry */ }
+    }
 
     if (!isNaN(fromLat) && !isNaN(fromLng)) {
         placeFromMarker(L.latLng(fromLat, fromLng));
         clickState = 1;
-        setStatus('From point set. Click on the map to set the end point (To).');
+        if (!kmlGeometryParam) setStatus('From point set. Click on the map to set the end point (To).');
     }
     if (!isNaN(toLat) && !isNaN(toLng)) {
         placeToMarker(L.latLng(toLat, toLng));
         clickState = 2;
-        updateLine();
-        const bounds = L.latLngBounds([L.latLng(fromLat, fromLng), L.latLng(toLat, toLng)]);
+        if (!kmlGeometryParam) updateLine();
+        const bounds = kmlBounds || L.latLngBounds([L.latLng(fromLat, fromLng), L.latLng(toLat, toLng)]);
         coordMap.fitBounds(bounds.pad(0.3));
     }
 
