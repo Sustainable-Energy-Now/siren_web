@@ -470,32 +470,6 @@
             </div>
         </div>
         
-        <!-- Wind turbine specific fields (initially hidden) -->
-        <div id="windTurbineFields" style="display: none;">
-            <h5>Wind Turbine Details</h5>
-            <div style="margin-bottom: 10px;">
-                <label for="turbine">Turbine Model:</label>
-                <select id="turbine" class="form-control">
-                    <option value="">Select Turbine Model</option>
-                    <!-- Options will be populated dynamically -->
-                </select>
-            </div>
-            <div style="margin-bottom: 10px;">
-                <label for="hub_height">Hub Height (m):</label>
-                <input type="number" id="hub_height" class="form-control" step="0.1" min="0">
-                <div class="technology-info">Height from ground to hub in meters</div>
-            </div>
-            <div style="margin-bottom: 10px;">
-                <label for="no_turbines">Number of Turbines:</label>
-                <input type="number" id="no_turbines" class="form-control" step="1" min="1" value="1">
-            </div>
-            <div style="margin-bottom: 10px;">
-                <label for="tilt">Tilt (degrees):</label>
-                <input type="number" id="tilt" class="form-control" step="1" min="0" max="90" value="5">
-                <div class="technology-info">Tilt angle of the rotors (typically 5° for onshore, 0° for offshore)</div>
-            </div>
-        </div>
-        
         <div style="margin-bottom: 15px;">
             <label>Location:</label>
             <div id="location-display" style="padding: 10px; background-color: #f8f9fa; border-radius: 4px;">
@@ -1662,153 +1636,6 @@ document.addEventListener('DOMContentLoaded', function() {
     // Safety resize after any layout reflow
     setTimeout(function() { map.invalidateSize(); }, 300);
     
-    const technologySelect = document.getElementById('technology_id');
-    if (technologySelect) {
-        technologySelect.addEventListener('change', async function() {
-            const selectedTechId = parseInt(this.value);
-            const windTurbineFields = document.getElementById('windTurbineFields');
-            const turbineSelect = document.getElementById('turbine');
-            
-            if (windTechnologyIds.includes(selectedTechId)) {
-                // Load turbines only when a wind technology is selected
-                if (!turbinesLoaded) {
-                    // Show loading indicator
-                    turbineSelect.disabled = true;
-                    
-                    // Clear existing options and add loading message
-                    while (turbineSelect.options.length > 1) {
-                        turbineSelect.remove(1);
-                    }
-                    
-                    const loadingOption = document.createElement('option');
-                    loadingOption.textContent = 'Loading turbines...';
-                    loadingOption.value = '';
-                    turbineSelect.appendChild(loadingOption);
-                    
-                    try {
-                        await loadTurbinesFromBackend();
-                    } catch (error) {
-                        alert('Failed to load turbine data. Please try again.');
-                        windTurbineFields.style.display = 'none';
-                        turbineSelect.disabled = false;
-                        return;
-                    }
-                    
-                    // Remove loading indicator
-                    turbineSelect.disabled = false;
-                    while (turbineSelect.options.length > 1) {
-                        turbineSelect.remove(1);
-                    }
-                }
-                
-                windTurbineFields.style.display = 'block';
-                windTurbineFields.classList.add('active');
-                
-                // Clear existing turbine options
-                while (turbineSelect.options.length > 1) {
-                    turbineSelect.remove(1);
-                }
-                
-                const techName = getTechnologyName(selectedTechId);
-                
-                // Map technology ID to application type
-                let applicationKey = '';
-                if (selectedTechId === ONSHORE_WIND) applicationKey = 'onshore';
-                else if (selectedTechId === OFFSHORE_WIND) applicationKey = 'offshore';
-                else if (selectedTechId === FLOATING_WIND) applicationKey = 'floating';
-                
-                // Populate turbine options
-                if (turbinesByApplication && turbinesByApplication[applicationKey]) {
-                    const optgroup = document.createElement('optgroup');
-                    optgroup.label = `${techName} Turbines`;
-                    
-                    turbinesByApplication[applicationKey].forEach(turbine => {
-                        const option = document.createElement('option');
-                        option.value = turbine.model;
-                        option.textContent = turbine.model;
-                        option.dataset.capacity = turbine.capacity / 1000; // Convert to MW
-                        option.dataset.hubHeight = turbine.hub_height || '';
-                        optgroup.appendChild(option);
-                    });
-                    
-                    if (optgroup.children.length > 0) {
-                        turbineSelect.appendChild(optgroup);
-                    } else {
-                        const noTurbinesOption = document.createElement('option');
-                        noTurbinesOption.textContent = 'No turbines available for this technology';
-                        noTurbinesOption.value = '';
-                        turbineSelect.appendChild(noTurbinesOption);
-                    }
-                } else {
-                    const noTurbinesOption = document.createElement('option');
-                    noTurbinesOption.textContent = 'No turbines available for this technology';
-                    noTurbinesOption.value = '';
-                    turbineSelect.appendChild(noTurbinesOption);
-                }
-            } else {
-                windTurbineFields.classList.remove('active');
-                windTurbineFields.style.display = 'none';
-                
-                // Clear wind-specific fields
-                if (turbineSelect) turbineSelect.value = '';
-                const hubHeight = document.getElementById('hub_height');
-                if (hubHeight) hubHeight.value = '';
-                const noTurbines = document.getElementById('no_turbines');
-                if (noTurbines) noTurbines.value = '';
-                const tilt = document.getElementById('tilt');
-                if (tilt) tilt.value = '';
-            }
-        });
-    } else {
-        console.error('Technology select element not found!');
-    }
-    
-    // Turbine selection change handler
-    const turbineSelect = document.getElementById('turbine');
-    if (turbineSelect) {
-        turbineSelect.addEventListener('change', function() {
-            const selectedTurbine = this.value;
-            const selectedOption = this.options[this.selectedIndex];
-            
-            if (selectedOption && selectedOption.dataset.hubHeight) {
-                document.getElementById('hub_height').value = selectedOption.dataset.hubHeight;
-            }
-            
-            // Set tilt based on technology
-            const selectedTechId = parseInt(document.getElementById('technology_id').value);
-            if (selectedTechId === ONSHORE_WIND) {
-                document.getElementById('tilt').value = 5;
-            } else {
-                document.getElementById('tilt').value = 0;
-            }
-            
-            if (!document.getElementById('no_turbines').value) {
-                document.getElementById('no_turbines').value = 1;
-            }
-            
-            if (selectedOption && selectedOption.dataset.capacity) {
-                const perTurbineCapacity = parseFloat(selectedOption.dataset.capacity);
-                const noTurbines = parseInt(document.getElementById('no_turbines').value) || 1;
-                const totalCapacity = perTurbineCapacity * noTurbines;
-                document.getElementById('capacity').value = totalCapacity.toFixed(2);
-            }
-        });
-    }
-    
-    // Number of turbines change handler
-    const noTurbinesInput = document.getElementById('no_turbines');
-    if (noTurbinesInput) {
-        noTurbinesInput.addEventListener('change', function() {
-            const selectedOption = document.getElementById('turbine').options[document.getElementById('turbine').selectedIndex];
-            if (selectedOption && selectedOption.dataset.capacity) {
-                const perTurbineCapacity = parseFloat(selectedOption.dataset.capacity);
-                const noTurbines = parseInt(this.value) || 1;
-                const totalCapacity = perTurbineCapacity * noTurbines;
-                document.getElementById('capacity').value = totalCapacity.toFixed(2);
-            }
-        });
-    }
-    
     // Set up event listeners for connection management
     const manageConnectionsBtn = document.getElementById('manageConnectionsBtn');
     if (manageConnectionsBtn) {
@@ -2265,31 +2092,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 };
             }
             
-            // Add wind turbine specific data if applicable
-            if (windTechnologyIds.includes(parseInt(technologyId))) {
-                const turbineSelect = document.getElementById('turbine');
-                data.turbine = turbineSelect.value;
-                data.hub_height = document.getElementById('hub_height').value || null;
-                data.no_turbines = document.getElementById('no_turbines').value || null;
-                data.tilt = document.getElementById('tilt').value || null;
-                
-                // Validate wind turbine fields
-                if (!data.turbine) {
-                    alert('Please select a turbine model.');
-                    return;
-                }
-                
-                if (!data.hub_height) {
-                    alert('Please enter hub height.');
-                    return;
-                }
-                
-                if (!data.no_turbines || parseInt(data.no_turbines) < 1) {
-                    alert('Please enter a valid number of turbines (at least 1).');
-                    return;
-                }
-            }
-            
             // Submit data to server
             fetch('/add_facility/', {
                 method: 'POST',
@@ -2302,24 +2104,33 @@ document.addEventListener('DOMContentLoaded', function() {
             .then(response => response.json())
             .then(data => {
                 if (data.status === 'success') {
-                    let message = 'Facility added successfully!';
-                    if (data.grid_connection) {
-                        message += `\nConnected to: ${data.grid_connection.grid_line_name}`;
-                        message += `\nConnection distance: ${data.grid_connection.connection_distance_km} km`;
-                    }
-                    alert(message);
-                    
                     // Add the new facility to the map
                     const newIcon = getIconForTechnology(parseInt(technologyId));
                     const newMarker = L.marker([selectedLocation.lat, selectedLocation.lng], { icon: newIcon })
                         .bindPopup(facilityName);
                     facilityLayer.addLayer(newMarker);
-                    
+
                     // Reset the add facility mode
                     const addFacilityBtn = document.getElementById('addFacilityBtn');
                     if (addFacilityBtn) {
                         addFacilityBtn.click();
                     }
+
+                    // Show facility created notification with link to add installations
+                    const facilityId = data.facility_id;
+                    let noticeHtml = `<strong>Facility "${data.facility_name}" created.</strong>`;
+                    if (data.grid_connection) {
+                        noticeHtml += ` Connected to <em>${data.grid_connection.grid_line_name}</em> (${data.grid_connection.connection_distance_km} km).`;
+                    }
+                    noticeHtml += ` <a href="/facilities/${facilityId}/" target="_blank" class="btn btn-sm btn-primary ms-2">Add Installations</a>`;
+
+                    const notice = document.createElement('div');
+                    notice.className = 'alert alert-success alert-dismissible fade show';
+                    notice.style.cssText = 'position:fixed;bottom:20px;right:20px;z-index:9999;max-width:480px;';
+                    notice.innerHTML = noticeHtml +
+                        '<button type="button" class="btn-close" data-bs-dismiss="alert"></button>';
+                    document.body.appendChild(notice);
+                    setTimeout(() => notice.remove(), 15000);
                 } else {
                     alert('Error: ' + data.message);
                 }

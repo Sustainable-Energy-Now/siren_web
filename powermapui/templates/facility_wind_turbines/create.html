@@ -21,10 +21,11 @@
                 <label for="facility" class="form-label">Facility <span class="text-danger">*</span></label>
                 <select class="form-select" id="facility" name="facility" required>
                   <option value="">Select a facility</option>
-                  {% for facility in facilities %}
-                    <option value="{{ facility.pk }}" 
-                            {% if form_data.facility == facility.pk|stringformat:"s" %}selected{% endif %}>
-                      {{ facility.facility_name }} ({{ facility.idzones.name|default:"No Zone" }})
+                  {% for fac in facilities %}
+                    <option value="{{ fac.pk }}"
+                            {% if form_data.facility == fac.pk|stringformat:"s" %}selected
+                            {% elif not form_data and facility and fac.pk == facility.pk %}selected{% endif %}>
+                      {{ fac.facility_name }} ({{ fac.idzones.name|default:"No Zone" }})
                     </option>
                   {% endfor %}
                 </select>

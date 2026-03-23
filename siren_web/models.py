@@ -67,7 +67,7 @@ class facilities(models.Model):
     """
     Energy facility that can contain multiple technology installations.
 
-    RESTRUCTURED: A facility can now have:
+    A facility can have:
     - Multiple wind turbine installations (different models, phases)
     - Multiple solar installations (fixed, tracking, different phases)
     - Multiple storage installations (batteries, PHES)
@@ -916,7 +916,6 @@ class CELProgram(models.Model):
     def __str__(self):
         return self.name
 
-
 class CELStage(models.Model):
     """
     A single stage or tranche of a CEL Program.
@@ -1080,7 +1079,6 @@ class CELStage(models.Model):
 
         return coords
 
-
 class CELStageGridLine(models.Model):
     """
     Associates a GridLine with a CEL stage, recording the capacity (MW)
@@ -1121,7 +1119,6 @@ class CELStageGridLine(models.Model):
     def __str__(self):
         return f'{self.cel_stage.name} → {self.grid_line.line_name} ({self.capacity_mw} MW)'
 
-
 class CELStageTerminal(models.Model):
     """
     Associates a Terminal with a CEL stage, recording the capacity (MW)
@@ -1161,7 +1158,6 @@ class CELStageTerminal(models.Model):
 
     def __str__(self):
         return f'{self.cel_stage.name} → {self.terminal.terminal_name} ({self.capacity_mw} MW)'
-
 
 class FacilityCELAlignment(models.Model):
     """
@@ -1270,7 +1266,6 @@ class FacilityCELAlignment(models.Model):
         if self.viability_score >= 0.40:
             return 'medium'
         return 'low'
-
 
 class FacilitySolar(models.Model):
     """
@@ -1477,7 +1472,6 @@ class FacilitySolar(models.Model):
         
         super().save(*args, **kwargs)
 
-
 class FacilityStorage(models.Model):
     """
     Through model for many-to-many relationship between facilities and Storage Technologies.
@@ -1652,7 +1646,6 @@ class FacilityStorage(models.Model):
             self.duration = self.energy_capacity / self.power_capacity
         
         super().save(*args, **kwargs)
-
 
 class WindTurbines(models.Model):
     """
@@ -1945,7 +1938,6 @@ class FacilityScada(models.Model):
     def __str__(self):
         return f"{self.facility.facility_code} @ {self.dispatch_interval}: {self.quantity}MW"
 
-
 class DailyPeakRE(models.Model):
     """Store daily peak instantaneous (5-minute) operational RE% calculated during SCADA fetch"""
     trading_date = models.DateField(unique=True, db_index=True)
@@ -1970,7 +1962,6 @@ class DailyPeakRE(models.Model):
 
     def __str__(self):
         return f"Peak RE {self.trading_date}: {self.peak_re_percentage:.1f}%"
-
 
 class TurbinePowerCurves(models.Model):
     idturbinepowercurves = models.AutoField(db_column='idturbinepowercurves', primary_key=True)
@@ -2703,7 +2694,6 @@ class ReportComment(models.Model):
             queryset = queryset.filter(quarter=quarter)
 
         return queryset.select_related('author')
-
 
 class PublishedReport(models.Model):
     """
