@@ -520,22 +520,6 @@ class Generatorattributes(models.Model):
     class Meta:
         db_table = 'GeneratorAttributes'
 
-class Genetics(models.Model):
-    idgenetics = models.AutoField(db_column='idGenetics', primary_key=True)  
-    parameter = models.CharField(db_column='Parameter', max_length=30, blank=True, null=True)  
-    weight = models.FloatField(db_column='Weight', null=True)  
-    better = models.FloatField(db_column='Better', null=True)  
-    worse = models.FloatField(db_column='Worse', null=True)  
-    minvalue = models.FloatField(db_column='MinValue', null=True)  
-    maxvalue = models.FloatField(db_column='MaxValue', null=True)  
-    step = models.FloatField(db_column='Step', null=True)  
-    betterspinner = models.IntegerField(db_column='BetterSpinner', blank=True, null=True)  
-    worsespinner = models.IntegerField(db_column='WorseSpinner', blank=True, null=True)  
-
-    class Meta:
-        db_table = 'Genetics'
-        db_table_comment = 'Parameters used for genetic optimisation'
-
 class GridLines(models.Model):
     """Model to store grid line data for calculating losses and capacity"""
     idgridlines = models.AutoField(primary_key=True, db_column='idgridlines')
@@ -2050,20 +2034,6 @@ class TurbinePowerCurves(models.Model):
             raise ValidationError("Number of turbines must be positive")
         if self.nameplate_capacity is not None and self.nameplate_capacity <= 0:
             raise ValidationError("Nameplate capacity must be positive")
-    
-class Optimisations(models.Model):
-    idoptimisation = models.AutoField(db_column='idOptimisation', primary_key=True)
-    idscenarios = models.ForeignKey('Scenarios', on_delete=models.CASCADE, db_column='idScenarios')
-    idtechnologies = models.ForeignKey('Technologies', on_delete=models.RESTRICT, db_column='idTechnologies')
-    name = models.CharField(db_column='Name', max_length=45, blank=True, null=True)  
-    approach = models.CharField(db_column='Approach', max_length=45, blank=True, null=True)  
-    capacity = models.FloatField(db_column='Capacity', null=True)  
-    capacitymax = models.FloatField(db_column='CapacityMax', null=True)  
-    capacitymin = models.FloatField(db_column='CapacityMin', null=True)  
-    capacitystep = models.FloatField(db_column='CapacityStep', null=True)  
-
-    class Meta:
-        db_table = 'Optimisations'
 
 class Reference(models.Model):
     """Data source references"""

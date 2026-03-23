@@ -753,6 +753,7 @@ def get_grid_line_details(request, grid_line_id):
             'from_longitude': grid_line.from_longitude,
             'to_latitude': grid_line.to_latitude,
             'to_longitude': grid_line.to_longitude,
+            'kml_geometry': grid_line.kml_geometry,
             'coordinates': grid_line.get_line_coordinates(),
             'connected_facilities': connected_facilities,
             'current_utilization_percent': current_utilization,
@@ -1318,6 +1319,15 @@ def ajax_update_gridline(request, gridline_id):
             gridline.to_longitude = float(to_lng)
         gridline.owner = data.get('owner') or None
         gridline.active = bool(data.get('active', True))
+        kml = data.get('kml_geometry')
+        if kml:
+            try:
+                json.loads(kml)   # validate JSON before storing
+                gridline.kml_geometry = kml
+            except (ValueError, TypeError):
+                pass
+        elif kml is None and 'kml_geometry' in data:
+            gridline.kml_geometry = None   # explicit clear
         gridline.save()
 
         return JsonResponse({

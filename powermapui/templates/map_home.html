@@ -325,11 +325,35 @@
       <div class="col-md-4 d-flex align-items-end">
         <button type="button" class="btn btn-outline-info w-100" onclick="startPickGridlineTo()">&#128205; Pick To Point</button>
       </div>
+      <!-- Route waypoints -->
+      <div class="col-12"><hr class="my-0"><div class="d-flex justify-content-between align-items-center"><strong>Route Waypoints</strong><span class="text-muted small" id="gle_waypoint_info">No custom route</span></div></div>
+      <div class="col-12 d-flex gap-2 flex-wrap">
+        <button type="button" class="btn btn-outline-primary btn-sm" onclick="startGridlineWaypointEdit()">&#9998; Re-draw Route on Map</button>
+        <button type="button" class="btn btn-outline-danger btn-sm" id="gle_clear_route_btn" onclick="clearGleRoute()">Clear Route</button>
+        <input type="hidden" id="gle_kml_geometry" value="">
+      </div>
     </div>
     <div class="d-flex gap-2 mt-4 justify-content-end">
       <button type="button" class="btn btn-primary" onclick="saveGridlineEdit()">Save Changes</button>
       <button type="button" class="btn btn-outline-secondary" onclick="closeGridlineEdit()">Cancel</button>
     </div>
+  </div>
+</div>
+
+<!-- Gridline Waypoint Edit Panel (shown while re-drawing route on map) -->
+<div id="gridlineWaypointPanel" style="display:none; position:fixed; bottom:20px; left:50%; transform:translateX(-50%); background:white; padding:15px 20px; border-radius:8px; z-index:10002; box-shadow:0 2px 15px rgba(0,0,0,0.3); min-width:420px;">
+  <h6 style="margin-bottom:8px;">Re-draw Grid Line Route</h6>
+  <p class="text-muted small mb-2">Click waypoints on the map. First click = start point. Existing route shown in blue.</p>
+  <div style="font-size:0.9em; background:#f8f9fa; padding:8px 10px; border-radius:4px; margin-bottom:10px;">
+    <div>From: <strong><span id="gwp_from">—</span></strong></div>
+    <div>To: <strong><span id="gwp_to">—</span></strong></div>
+    <div>Waypoints: <span id="gwp_count">0</span> &nbsp;|&nbsp; Length: <span id="gwp_length">—</span></div>
+  </div>
+  <div class="d-flex gap-2 flex-wrap">
+    <button id="gwp_apply_btn" class="btn btn-primary btn-sm" disabled onclick="saveGridlineWaypointEdit()">Apply Route</button>
+    <button id="gwp_undo_btn" class="btn btn-outline-warning btn-sm" disabled onclick="undoGridlineWaypoint()">Undo Last</button>
+    <button class="btn btn-outline-danger btn-sm" onclick="clearGridlineWaypoints()">Clear All</button>
+    <button class="btn btn-outline-secondary btn-sm" onclick="cancelGridlineWaypointEdit()">Cancel</button>
   </div>
 </div>
 
@@ -967,6 +991,10 @@ var terminalDragOriginalLatLng = null;
 var facilityDragMarker = null;
 var facilityDragId = null;
 var facilityDragOriginalLatLng = null;
+var gridlineWaypointEditMode = false;
+var gridlineWaypointPoints = [];
+var gridlineWaypointMarkers = [];
+var gridlineWaypointPreviewLine = null;
 
 // Grid line label functionality
 var gridLineLabels = [];
@@ -2306,6 +2334,17 @@ document.addEventListener('DOMContentLoaded', function() {
     // Handle map clicks for facilities, terminals and grid line creation
     map.on('click', function(e) {
         // Handle map-pick modes for edit modals
+        // Gridline waypoint re-draw mode
+        if (gridlineWaypointEditMode) {
+            gridlineWaypointPoints.push(e.latlng);
+            var isFirst = gridlineWaypointPoints.length === 1;
+            var wLabel = isFirst ? 'Start' : 'Waypoint ' + gridlineWaypointPoints.length;
+            var wMarker = L.marker(e.latlng, { title: wLabel }).addTo(map);
+            gridlineWaypointMarkers.push(wMarker);
+            gwpRefreshLine();
+            gwpUpdatePanel();
+            return;
+        }
         if (mapPickMode) {
             var lat = e.latlng.lat.toFixed(6);
             var lng = e.latlng.lng.toFixed(6);
@@ -4002,6 +4041,144 @@ function showTerminalEditError(msg) {
     el.style.display = 'block';
 }
 
+// ===== GRIDLINE WAYPOINT RE-DRAW =====
+function startGridlineWaypointEdit() {
+    document.getElementById('gridlineEditModal').style.display = 'none';
+    gridlineWaypointEditMode = true;
+    gridlineWaypointPoints = [];
+    gridlineWaypointMarkers.forEach(function(m) { map.removeLayer(m); });
+    gridlineWaypointMarkers = [];
+    if (gridlineWaypointPreviewLine) { map.removeLayer(gridlineWaypointPreviewLine); gridlineWaypointPreviewLine = null; }
+
+    // Pre-seed from existing kml_geometry or from/to coords
+    var kmlJson = document.getElementById('gle_kml_geometry').value;
+    if (kmlJson) {
+        try {
+            var geoData = JSON.parse(kmlJson);
+            if (geoData.type === 'LineString' && geoData.coordinates && geoData.coordinates.length >= 2) {
+                gridlineWaypointPoints = geoData.coordinates.map(function(c) { return L.latLng(c[1], c[0]); });
+            }
+        } catch(e) {}
+    }
+    if (gridlineWaypointPoints.length === 0) {
+        var fLat = parseFloat(document.getElementById('gle_from_lat').value);
+        var fLng = parseFloat(document.getElementById('gle_from_lng').value);
+        var tLat = parseFloat(document.getElementById('gle_to_lat').value);
+        var tLng = parseFloat(document.getElementById('gle_to_lng').value);
+        if (!isNaN(fLat) && !isNaN(fLng)) gridlineWaypointPoints.push(L.latLng(fLat, fLng));
+        if (!isNaN(tLat) && !isNaN(tLng)) gridlineWaypointPoints.push(L.latLng(tLat, tLng));
+    }
+
+    // Render pre-seeded points
+    gridlineWaypointPoints.forEach(function(latlng, i) {
+        var isFirst = i === 0;
+        var label = isFirst ? 'Start' : (i === gridlineWaypointPoints.length - 1 ? 'End' : 'Waypoint ' + (i + 1));
+        var m = L.marker(latlng, { title: label }).addTo(map);
+        gridlineWaypointMarkers.push(m);
+    });
+
+    gwpRefreshLine();
+    gwpUpdatePanel();
+    map.getContainer().style.cursor = 'crosshair';
+    document.getElementById('gridlineWaypointPanel').style.display = 'block';
+}
+
+function gwpRefreshLine() {
+    if (gridlineWaypointPreviewLine) { map.removeLayer(gridlineWaypointPreviewLine); gridlineWaypointPreviewLine = null; }
+    if (gridlineWaypointPoints.length >= 2) {
+        gridlineWaypointPreviewLine = L.polyline(gridlineWaypointPoints, {
+            color: '#0d6efd', weight: 3, opacity: 0.85, dashArray: '8,5'
+        }).addTo(map);
+    }
+}
+
+function gwpUpdatePanel() {
+    var n = gridlineWaypointPoints.length;
+    document.getElementById('gwp_count').textContent = n;
+    document.getElementById('gwp_from').textContent = n >= 1
+        ? gridlineWaypointPoints[0].lat.toFixed(6) + ', ' + gridlineWaypointPoints[0].lng.toFixed(6) : '—';
+    if (n >= 2) {
+        var last = gridlineWaypointPoints[n - 1];
+        document.getElementById('gwp_to').textContent = last.lat.toFixed(6) + ', ' + last.lng.toFixed(6);
+        var dist = 0;
+        for (var i = 1; i < n; i++) {
+            dist += calculateDistance(gridlineWaypointPoints[i-1].lat, gridlineWaypointPoints[i-1].lng,
+                                      gridlineWaypointPoints[i].lat,   gridlineWaypointPoints[i].lng);
+        }
+        document.getElementById('gwp_length').textContent = dist.toFixed(2) + ' km';
+    } else {
+        document.getElementById('gwp_to').textContent = '—';
+        document.getElementById('gwp_length').textContent = '—';
+    }
+    document.getElementById('gwp_apply_btn').disabled = n < 2;
+    document.getElementById('gwp_undo_btn').disabled = n === 0;
+}
+
+function undoGridlineWaypoint() {
+    if (!gridlineWaypointPoints.length) return;
+    gridlineWaypointPoints.pop();
+    var m = gridlineWaypointMarkers.pop();
+    if (m) map.removeLayer(m);
+    gwpRefreshLine();
+    gwpUpdatePanel();
+}
+
+function clearGridlineWaypoints() {
+    gridlineWaypointPoints = [];
+    gridlineWaypointMarkers.forEach(function(m) { map.removeLayer(m); });
+    gridlineWaypointMarkers = [];
+    gwpRefreshLine();
+    gwpUpdatePanel();
+}
+
+function saveGridlineWaypointEdit() {
+    if (gridlineWaypointPoints.length < 2) return;
+    var kmlGeometry = JSON.stringify({
+        type: 'LineString',
+        coordinates: gridlineWaypointPoints.map(function(p) { return [p.lng, p.lat]; })
+    });
+    document.getElementById('gle_kml_geometry').value = kmlGeometry;
+
+    var first = gridlineWaypointPoints[0];
+    var last  = gridlineWaypointPoints[gridlineWaypointPoints.length - 1];
+    document.getElementById('gle_from_lat').value = first.lat.toFixed(6);
+    document.getElementById('gle_from_lng').value = first.lng.toFixed(6);
+    document.getElementById('gle_to_lat').value   = last.lat.toFixed(6);
+    document.getElementById('gle_to_lng').value   = last.lng.toFixed(6);
+
+    var dist = 0;
+    for (var i = 1; i < gridlineWaypointPoints.length; i++) {
+        dist += calculateDistance(gridlineWaypointPoints[i-1].lat, gridlineWaypointPoints[i-1].lng,
+                                  gridlineWaypointPoints[i].lat,   gridlineWaypointPoints[i].lng);
+    }
+    document.getElementById('gle_length').value = dist.toFixed(3);
+    document.getElementById('gle_waypoint_info').textContent =
+        gridlineWaypointPoints.length + ' waypoints, ' + dist.toFixed(2) + ' km';
+
+    exitGridlineWaypointMode();
+    document.getElementById('gridlineEditModal').style.display = 'block';
+}
+
+function cancelGridlineWaypointEdit() {
+    exitGridlineWaypointMode();
+    document.getElementById('gridlineEditModal').style.display = 'block';
+}
+
+function exitGridlineWaypointMode() {
+    gridlineWaypointEditMode = false;
+    gridlineWaypointMarkers.forEach(function(m) { map.removeLayer(m); });
+    gridlineWaypointMarkers = [];
+    gridlineWaypointPoints = [];
+    if (gridlineWaypointPreviewLine) { map.removeLayer(gridlineWaypointPreviewLine); gridlineWaypointPreviewLine = null; }
+    document.getElementById('gridlineWaypointPanel').style.display = 'none';
+    map.getContainer().style.cursor = '';
+}
+
+function clearGleRoute() {
+    document.getElementById('gle_kml_geometry').value = '';
+    document.getElementById('gle_waypoint_info').textContent = 'No custom route';
+}
+
 // ===== GRIDLINE EDIT MODAL =====
 function openGridlineEdit(gridlineId) {
     currentEditGridlineId = gridlineId;
@@ -4024,6 +4201,18 @@ function openGridlineEdit(gridlineId) {
             document.getElementById('gle_from_lng').value = data.from_longitude || '';
             document.getElementById('gle_to_lat').value = data.to_latitude || '';
             document.getElementById('gle_to_lng').value = data.to_longitude || '';
+            // Populate waypoints from kml_geometry if present
+            var kml = data.kml_geometry || '';
+            document.getElementById('gle_kml_geometry').value = kml;
+            if (kml) {
+                try {
+                    var gd = JSON.parse(kml);
+                    var n = gd.coordinates ? gd.coordinates.length : 0;
+                    document.getElementById('gle_waypoint_info').textContent = n + ' waypoints';
+                } catch(e) { document.getElementById('gle_waypoint_info').textContent = 'Custom route'; }
+            } else {
+                document.getElementById('gle_waypoint_info').textContent = 'No custom route';
+            }
             document.getElementById('gridlineEditModal').style.display = 'block';
         })
         .catch(function(err) { alert('Failed to load grid line data: ' + err.message); });
@@ -4079,6 +4268,7 @@ function saveGridlineEdit() {
         to_longitude: document.getElementById('gle_to_lng').value ? parseFloat(document.getElementById('gle_to_lng').value) : null,
         owner: document.getElementById('gle_owner').value.trim() || null,
         active: document.getElementById('gle_active').checked,
+        kml_geometry: document.getElementById('gle_kml_geometry').value || null,
     };
 
     fetch('/grid_line/' + currentEditGridlineId + '/update/', {
@@ -4107,7 +4297,9 @@ function showGridlineEditError(msg) {
 // ESC key: cancel drag / map-pick / close edit modals
 document.addEventListener('keydown', function(e) {
     if (e.key !== 'Escape') return;
-    if (facilityDragMarker) {
+    if (gridlineWaypointEditMode) {
+        cancelGridlineWaypointEdit();
+    } else if (facilityDragMarker) {
         cancelFacilityDrag();
     } else if (terminalDragMarker) {
         cancelTerminalDrag();
