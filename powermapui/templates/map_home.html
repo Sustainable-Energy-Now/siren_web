@@ -180,183 +180,6 @@
 </div>
 
 <!-- Terminal Edit Modal -->
-<div id="terminalEditModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:10001;">
-  <div style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); background:white; padding:24px; border-radius:8px; max-width:680px; width:90%; max-height:88vh; overflow-y:auto;">
-    <h4 style="margin-bottom:16px;">Edit Terminal</h4>
-    <div id="terminalEditError" style="display:none; color:#842029; background:#f8d7da; padding:10px; border-radius:4px; margin-bottom:12px;"></div>
-    <div class="row g-3">
-      <div class="col-md-6">
-        <label class="form-label">Terminal Name <span class="text-danger">*</span></label>
-        <input type="text" class="form-control" id="te_name">
-      </div>
-      <div class="col-md-6">
-        <label class="form-label">Terminal Code <span class="text-danger">*</span></label>
-        <input type="text" class="form-control" id="te_code">
-      </div>
-      <div class="col-md-6">
-        <label class="form-label">Type</label>
-        <select class="form-select" id="te_type">
-          <option value="substation">Substation</option>
-          <option value="switching_station">Switching Station</option>
-          <option value="distribution_substation">Distribution Substation</option>
-          <option value="transmission_substation">Transmission Substation</option>
-          <option value="converter_station">Converter Station</option>
-          <option value="terminal_station">Terminal Station</option>
-        </select>
-      </div>
-      <div class="col-md-3">
-        <label class="form-label">Primary Voltage (kV) <span class="text-danger">*</span></label>
-        <input type="number" class="form-control" id="te_primary_voltage" step="0.1" min="0">
-      </div>
-      <div class="col-md-3">
-        <label class="form-label">Secondary Voltage (kV)</label>
-        <input type="number" class="form-control" id="te_secondary_voltage" step="0.1" min="0">
-      </div>
-      <div class="col-md-6">
-        <label class="form-label">Voltage Class</label>
-        <select class="form-select" id="te_voltage_class">
-          <option value="low">Low Voltage (&lt; 1kV)</option>
-          <option value="medium">Medium Voltage (1–35kV)</option>
-          <option value="high">High Voltage (35–138kV)</option>
-          <option value="extra_high">Extra High Voltage (138–800kV)</option>
-          <option value="ultra_high">Ultra High Voltage (&gt; 800kV)</option>
-        </select>
-      </div>
-      <div class="col-md-3">
-        <label class="form-label">Latitude</label>
-        <input type="number" class="form-control" id="te_lat" step="0.000001">
-      </div>
-      <div class="col-md-3">
-        <label class="form-label">Longitude</label>
-        <input type="number" class="form-control" id="te_lng" step="0.000001">
-      </div>
-      <div class="col-md-6 d-flex align-items-end">
-        <button type="button" class="btn btn-outline-info w-100" onclick="startPickTerminalLocation()">&#128205; Pick Location from Map</button>
-      </div>
-      <div class="col-md-3">
-        <label class="form-label">Elevation (m)</label>
-        <input type="number" class="form-control" id="te_elevation" step="0.1">
-      </div>
-      <div class="col-md-3">
-        <label class="form-label">Owner</label>
-        <input type="text" class="form-control" id="te_owner">
-      </div>
-      <div class="col-md-3 d-flex align-items-end">
-        <div class="form-check">
-          <input class="form-check-input" type="checkbox" id="te_active">
-          <label class="form-check-label" for="te_active">Active</label>
-        </div>
-      </div>
-    </div>
-    <div class="d-flex gap-2 mt-4 justify-content-end">
-      <button type="button" class="btn btn-primary" onclick="saveTerminalEdit()">Save Changes</button>
-      <button type="button" class="btn btn-outline-secondary" onclick="closeTerminalEdit()">Cancel</button>
-    </div>
-  </div>
-</div>
-
-<!-- Gridline Edit Modal -->
-<div id="gridlineEditModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:10001;">
-  <div style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); background:white; padding:24px; border-radius:8px; max-width:720px; width:90%; max-height:88vh; overflow-y:auto;">
-    <h4 style="margin-bottom:16px;">Edit Grid Line</h4>
-    <div id="gridlineEditError" style="display:none; color:#842029; background:#f8d7da; padding:10px; border-radius:4px; margin-bottom:12px;"></div>
-    <div class="row g-3">
-      <div class="col-md-6">
-        <label class="form-label">Line Name <span class="text-danger">*</span></label>
-        <input type="text" class="form-control" id="gle_name">
-      </div>
-      <div class="col-md-6">
-        <label class="form-label">Line Code <span class="text-danger">*</span></label>
-        <input type="text" class="form-control" id="gle_code">
-      </div>
-      <div class="col-md-4">
-        <label class="form-label">Type</label>
-        <select class="form-select" id="gle_type">
-          <option value="transmission">Transmission</option>
-          <option value="distribution">Distribution</option>
-          <option value="subtransmission">Sub-transmission</option>
-        </select>
-      </div>
-      <div class="col-md-4">
-        <label class="form-label">Voltage (kV) <span class="text-danger">*</span></label>
-        <input type="number" class="form-control" id="gle_voltage" step="0.1" min="0">
-      </div>
-      <div class="col-md-4">
-        <label class="form-label">Length (km)</label>
-        <input type="number" class="form-control" id="gle_length" step="0.01" min="0">
-      </div>
-      <div class="col-md-4">
-        <label class="form-label">Thermal Capacity (MW)</label>
-        <input type="number" class="form-control" id="gle_capacity" step="0.1" min="0">
-      </div>
-      <div class="col-md-4">
-        <label class="form-label">Owner</label>
-        <input type="text" class="form-control" id="gle_owner">
-      </div>
-      <div class="col-md-4 d-flex align-items-end">
-        <div class="form-check">
-          <input class="form-check-input" type="checkbox" id="gle_active">
-          <label class="form-check-label" for="gle_active">Active</label>
-        </div>
-      </div>
-      <!-- From point -->
-      <div class="col-12"><hr class="my-0"><strong>From Point (Start)</strong></div>
-      <div class="col-md-4">
-        <label class="form-label">From Latitude</label>
-        <input type="number" class="form-control" id="gle_from_lat" step="0.000001">
-      </div>
-      <div class="col-md-4">
-        <label class="form-label">From Longitude</label>
-        <input type="number" class="form-control" id="gle_from_lng" step="0.000001">
-      </div>
-      <div class="col-md-4 d-flex align-items-end">
-        <button type="button" class="btn btn-outline-info w-100" onclick="startPickGridlineFrom()">&#128205; Pick From Point</button>
-      </div>
-      <!-- To point -->
-      <div class="col-12"><strong>To Point (End)</strong></div>
-      <div class="col-md-4">
-        <label class="form-label">To Latitude</label>
-        <input type="number" class="form-control" id="gle_to_lat" step="0.000001">
-      </div>
-      <div class="col-md-4">
-        <label class="form-label">To Longitude</label>
-        <input type="number" class="form-control" id="gle_to_lng" step="0.000001">
-      </div>
-      <div class="col-md-4 d-flex align-items-end">
-        <button type="button" class="btn btn-outline-info w-100" onclick="startPickGridlineTo()">&#128205; Pick To Point</button>
-      </div>
-      <!-- Route waypoints -->
-      <div class="col-12"><hr class="my-0"><div class="d-flex justify-content-between align-items-center"><strong>Route Waypoints</strong><span class="text-muted small" id="gle_waypoint_info">No custom route</span></div></div>
-      <div class="col-12 d-flex gap-2 flex-wrap">
-        <button type="button" class="btn btn-outline-primary btn-sm" onclick="startGridlineWaypointEdit()">&#9998; Re-draw Route on Map</button>
-        <button type="button" class="btn btn-outline-danger btn-sm" id="gle_clear_route_btn" onclick="clearGleRoute()">Clear Route</button>
-        <input type="hidden" id="gle_kml_geometry" value="">
-      </div>
-    </div>
-    <div class="d-flex gap-2 mt-4 justify-content-end">
-      <button type="button" class="btn btn-primary" onclick="saveGridlineEdit()">Save Changes</button>
-      <button type="button" class="btn btn-outline-secondary" onclick="closeGridlineEdit()">Cancel</button>
-    </div>
-  </div>
-</div>
-
-<!-- Gridline Waypoint Edit Panel (shown while re-drawing route on map) -->
-<div id="gridlineWaypointPanel" style="display:none; position:fixed; bottom:20px; left:50%; transform:translateX(-50%); background:white; padding:15px 20px; border-radius:8px; z-index:10002; box-shadow:0 2px 15px rgba(0,0,0,0.3); min-width:420px;">
-  <h6 style="margin-bottom:8px;">Re-draw Grid Line Route</h6>
-  <p class="text-muted small mb-2">Click waypoints on the map. First click = start point. Existing route shown in blue.</p>
-  <div style="font-size:0.9em; background:#f8f9fa; padding:8px 10px; border-radius:4px; margin-bottom:10px;">
-    <div>From: <strong><span id="gwp_from">—</span></strong></div>
-    <div>To: <strong><span id="gwp_to">—</span></strong></div>
-    <div>Waypoints: <span id="gwp_count">0</span> &nbsp;|&nbsp; Length: <span id="gwp_length">—</span></div>
-  </div>
-  <div class="d-flex gap-2 flex-wrap">
-    <button id="gwp_apply_btn" class="btn btn-primary btn-sm" disabled onclick="saveGridlineWaypointEdit()">Apply Route</button>
-    <button id="gwp_undo_btn" class="btn btn-outline-warning btn-sm" disabled onclick="undoGridlineWaypoint()">Undo Last</button>
-    <button class="btn btn-outline-danger btn-sm" onclick="clearGridlineWaypoints()">Clear All</button>
-    <button class="btn btn-outline-secondary btn-sm" onclick="cancelGridlineWaypointEdit()">Cancel</button>
-  </div>
-</div>
-
 <!-- Terminal Drag-Move Banner -->
 <div id="terminalDragBanner" style="display:none; position:fixed; top:70px; left:50%; transform:translateX(-50%); background:#198754; color:white; padding:10px 20px; border-radius:8px; z-index:10002; box-shadow:0 2px 10px rgba(0,0,0,0.3); white-space:nowrap; display:none;">
   <span id="terminalDragBannerText">Drag the terminal marker to move it</span>
@@ -369,12 +192,6 @@
   <span id="facilityDragBannerText">Drag the facility marker to move it</span>
   <button type="button" onclick="saveFacilityDrag()" style="margin-left:15px; background:white; border:none; color:#0d6efd; border-radius:4px; padding:2px 10px; cursor:pointer; font-weight:600;">Save</button>
   <button type="button" onclick="cancelFacilityDrag()" style="margin-left:6px; background:rgba(255,255,255,0.2); border:1px solid white; color:white; border-radius:4px; padding:2px 10px; cursor:pointer;">Cancel</button>
-</div>
-
-<!-- Map Pick Location Banner -->
-<div id="mapPickBanner" style="display:none; position:fixed; top:70px; left:50%; transform:translateX(-50%); background:#0d6efd; color:white; padding:10px 20px; border-radius:8px; z-index:10002; box-shadow:0 2px 10px rgba(0,0,0,0.3); white-space:nowrap;">
-  <span id="mapPickBannerText">Click on the map to select a location</span>
-  <button type="button" onclick="cancelMapPick()" style="margin-left:15px; background:rgba(255,255,255,0.2); border:1px solid white; color:white; border-radius:4px; padding:2px 10px; cursor:pointer;">Cancel</button>
 </div>
 
 <!-- Add Grid Line Form (initially hidden) -->
@@ -956,19 +773,12 @@ var locationMarker = null;
 var gridLinePoints = [];
 var gridLineMarkers = [];
 var gridLinePreviewLine = null;
-var currentEditTerminalId = null;
-var currentEditGridlineId = null;
-var mapPickMode = null; // 'terminal_loc' | 'gridline_from' | 'gridline_to'
 var terminalDragMarker = null;
 var terminalDragId = null;
 var terminalDragOriginalLatLng = null;
 var facilityDragMarker = null;
 var facilityDragId = null;
 var facilityDragOriginalLatLng = null;
-var gridlineWaypointEditMode = false;
-var gridlineWaypointPoints = [];
-var gridlineWaypointMarkers = [];
-var gridlineWaypointPreviewLine = null;
 
 // Grid line label functionality
 var gridLineLabels = [];
@@ -1150,7 +960,7 @@ function loadTerminalsOnMap(terminalsData) {
                 <p><strong>Connected Lines:</strong> ${terminal.connected_lines_count}</p>
                 <div style="margin-top:10px; display:flex; gap:6px; flex-wrap:wrap;">
                     <button onclick="showTerminalDetails(${terminal.idterminals})" class="btn btn-sm btn-primary">Details</button>
-                    <button onclick="openTerminalEdit(${terminal.idterminals})" class="btn btn-sm btn-warning">Edit</button>
+                    <button onclick="window.open('/terminals/${terminal.idterminals}/', '_blank')" class="btn btn-sm btn-warning">Edit</button>
                     <button onclick="startTerminalDrag(${terminal.idterminals})" class="btn btn-sm btn-success">Move</button>
                 </div>
             </div>`;
@@ -1233,6 +1043,7 @@ function loadFacilitiesOnMap(facilitiesData) {
                 ${facility.primary_grid_line_name ? `<p><strong>Primary Line:</strong> ${facility.primary_grid_line_name}</p>` : ''}
                 <div style="margin-top:10px; display:flex; gap:6px; flex-wrap:wrap;">
                     <button onclick="showFacilityDetails(${facility.idfacilities})" class="btn btn-sm btn-primary">Details</button>
+                    <button onclick="window.open('/facilities/${facility.idfacilities}/', '_blank')" class="btn btn-sm btn-warning">Edit</button>
                     <button onclick="manageFacilityConnections(${facility.idfacilities})" class="btn btn-sm btn-info">Connections</button>
                     <button onclick="startFacilityDrag(${facility.idfacilities})" class="btn btn-sm btn-success">Move</button>
                 </div>
@@ -2144,39 +1955,6 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Handle map clicks for facilities, terminals and grid line creation
     map.on('click', function(e) {
-        // Handle map-pick modes for edit modals
-        // Gridline waypoint re-draw mode
-        if (gridlineWaypointEditMode) {
-            gridlineWaypointPoints.push(e.latlng);
-            var isFirst = gridlineWaypointPoints.length === 1;
-            var wLabel = isFirst ? 'Start' : 'Waypoint ' + gridlineWaypointPoints.length;
-            var wMarker = L.marker(e.latlng, { title: wLabel }).addTo(map);
-            gridlineWaypointMarkers.push(wMarker);
-            gwpRefreshLine();
-            gwpUpdatePanel();
-            return;
-        }
-        if (mapPickMode) {
-            var lat = e.latlng.lat.toFixed(6);
-            var lng = e.latlng.lng.toFixed(6);
-            if (mapPickMode === 'terminal_loc') {
-                document.getElementById('te_lat').value = lat;
-                document.getElementById('te_lng').value = lng;
-                cancelMapPick();
-                document.getElementById('terminalEditModal').style.display = 'block';
-            } else if (mapPickMode === 'gridline_from') {
-                document.getElementById('gle_from_lat').value = lat;
-                document.getElementById('gle_from_lng').value = lng;
-                cancelMapPick();
-                document.getElementById('gridlineEditModal').style.display = 'block';
-            } else if (mapPickMode === 'gridline_to') {
-                document.getElementById('gle_to_lat').value = lat;
-                document.getElementById('gle_to_lng').value = lng;
-                cancelMapPick();
-                document.getElementById('gridlineEditModal').style.display = 'block';
-            }
-            return; // don't process other click modes
-        }
         if (addTerminalMode) {
             selectedTerminalLocation = e.latlng;
             
@@ -2685,7 +2463,7 @@ function showGridLineDetails(gridLineId) {
                     ` : '<p>No facilities connected to this line.</p>'}
                     <div style="margin-top:16px; padding-top:12px; border-top:1px solid #dee2e6; display:flex; gap:10px; justify-content:flex-end;">
                         <button onclick="highlightGridLine(${data.idgridlines}); document.querySelector('.modal-overlay').remove();" class="btn btn-sm btn-info">Show on Map</button>
-                        <button onclick="openGridlineEdit(${data.idgridlines})" class="btn btn-sm btn-warning">Edit Grid Line</button>
+                        <button onclick="window.open('/gridlines/${data.idgridlines}/', '_blank')" class="btn btn-sm btn-warning">Edit Grid Line</button>
                     </div>
                 </div>
             `;
@@ -3191,7 +2969,7 @@ function createTerminalDetailsHtml(data) {
                     <button onclick="showTerminalOnMap(${data.idterminals})" class="btn btn-sm btn-info">
                         Show on Map
                     </button>
-                    <button onclick="openTerminalEdit(${data.idterminals})" class="btn btn-sm btn-warning">
+                    <button onclick="window.open('/terminals/${data.idterminals}/', '_blank')" class="btn btn-sm btn-warning">
                         Edit Terminal
                     </button>
                 </div>
@@ -3761,367 +3539,13 @@ function saveFacilityDrag() {
 }
 
 // ===== TERMINAL EDIT MODAL =====
-function openTerminalEdit(terminalId) {
-    currentEditTerminalId = terminalId;
-    document.getElementById('terminalEditError').style.display = 'none';
-    // Close any open modals first
-    document.getElementById('terminalDetailsModal').style.display = 'none';
-    document.querySelectorAll('.modal-overlay').forEach(function(m) { m.remove(); });
-
-    fetch('/terminal/' + terminalId + '/details/')
-        .then(function(r) { return r.json(); })
-        .then(function(data) {
-            if (data.error) { alert('Failed to load terminal: ' + data.error); return; }
-            document.getElementById('te_name').value = data.terminal_name || '';
-            document.getElementById('te_code').value = data.terminal_code || '';
-            document.getElementById('te_type').value = data.terminal_type || 'substation';
-            document.getElementById('te_primary_voltage').value = data.primary_voltage_kv || '';
-            document.getElementById('te_secondary_voltage').value = data.secondary_voltage_kv || '';
-            document.getElementById('te_voltage_class').value = data.voltage_class || 'high';
-            document.getElementById('te_lat').value = data.latitude || '';
-            document.getElementById('te_lng').value = data.longitude || '';
-            document.getElementById('te_elevation').value = data.elevation || '';
-            document.getElementById('te_owner').value = data.owner || '';
-            document.getElementById('te_active').checked = data.active !== false;
-            document.getElementById('terminalEditModal').style.display = 'block';
-        })
-        .catch(function(err) { alert('Failed to load terminal data: ' + err.message); });
-}
-
-function closeTerminalEdit() {
-    document.getElementById('terminalEditModal').style.display = 'none';
-    currentEditTerminalId = null;
-    cancelMapPick();
-}
-
-function startPickTerminalLocation() {
-    document.getElementById('terminalEditModal').style.display = 'none';
-    mapPickMode = 'terminal_loc';
-    document.getElementById('mapPickBannerText').textContent = 'Click on the map to set terminal location';
-    document.getElementById('mapPickBanner').style.display = 'block';
-    map.getContainer().style.cursor = 'crosshair';
-}
-
-function saveTerminalEdit() {
-    if (!currentEditTerminalId) return;
-    var name = document.getElementById('te_name').value.trim();
-    var code = document.getElementById('te_code').value.trim();
-    var voltage = document.getElementById('te_primary_voltage').value;
-    if (!name) { showTerminalEditError('Terminal name is required.'); return; }
-    if (!code) { showTerminalEditError('Terminal code is required.'); return; }
-    if (!voltage) { showTerminalEditError('Primary voltage is required.'); return; }
-
-    var secV = document.getElementById('te_secondary_voltage').value;
-    var elev = document.getElementById('te_elevation').value;
-    var lat = document.getElementById('te_lat').value;
-    var lng = document.getElementById('te_lng').value;
-    var payload = {
-        terminal_name: name,
-        terminal_code: code,
-        terminal_type: document.getElementById('te_type').value,
-        primary_voltage_kv: parseFloat(voltage),
-        secondary_voltage_kv: secV ? parseFloat(secV) : null,
-        voltage_class: document.getElementById('te_voltage_class').value,
-        latitude: lat ? parseFloat(lat) : null,
-        longitude: lng ? parseFloat(lng) : null,
-        elevation: elev ? parseFloat(elev) : null,
-        owner: document.getElementById('te_owner').value.trim() || null,
-        active: document.getElementById('te_active').checked,
-    };
-
-    fetch('/terminal/' + currentEditTerminalId + '/update/', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
-        body: JSON.stringify(payload)
-    })
-    .then(function(r) { return r.json(); })
-    .then(function(data) {
-        if (data.error) { showTerminalEditError(data.error); return; }
-        closeTerminalEdit();
-        fetch('/get_terminals/')
-            .then(function(r) { return r.json(); })
-            .then(function(terminals) { loadTerminalsOnMap(terminals); });
-        showMapSuccessBanner(data.message || 'Terminal updated successfully');
-    })
-    .catch(function(err) { showTerminalEditError('Save failed: ' + err.message); });
-}
-
-function showTerminalEditError(msg) {
-    var el = document.getElementById('terminalEditError');
-    el.textContent = msg;
-    el.style.display = 'block';
-}
-
-// ===== GRIDLINE WAYPOINT RE-DRAW =====
-function startGridlineWaypointEdit() {
-    document.getElementById('gridlineEditModal').style.display = 'none';
-    gridlineWaypointEditMode = true;
-    gridlineWaypointPoints = [];
-    gridlineWaypointMarkers.forEach(function(m) { map.removeLayer(m); });
-    gridlineWaypointMarkers = [];
-    if (gridlineWaypointPreviewLine) { map.removeLayer(gridlineWaypointPreviewLine); gridlineWaypointPreviewLine = null; }
-
-    // Pre-seed from existing kml_geometry or from/to coords
-    var kmlJson = document.getElementById('gle_kml_geometry').value;
-    if (kmlJson) {
-        try {
-            var geoData = JSON.parse(kmlJson);
-            if (geoData.type === 'LineString' && geoData.coordinates && geoData.coordinates.length >= 2) {
-                gridlineWaypointPoints = geoData.coordinates.map(function(c) { return L.latLng(c[1], c[0]); });
-            }
-        } catch(e) {}
-    }
-    if (gridlineWaypointPoints.length === 0) {
-        var fLat = parseFloat(document.getElementById('gle_from_lat').value);
-        var fLng = parseFloat(document.getElementById('gle_from_lng').value);
-        var tLat = parseFloat(document.getElementById('gle_to_lat').value);
-        var tLng = parseFloat(document.getElementById('gle_to_lng').value);
-        if (!isNaN(fLat) && !isNaN(fLng)) gridlineWaypointPoints.push(L.latLng(fLat, fLng));
-        if (!isNaN(tLat) && !isNaN(tLng)) gridlineWaypointPoints.push(L.latLng(tLat, tLng));
-    }
-
-    // Render pre-seeded points
-    gridlineWaypointPoints.forEach(function(latlng, i) {
-        var isFirst = i === 0;
-        var label = isFirst ? 'Start' : (i === gridlineWaypointPoints.length - 1 ? 'End' : 'Waypoint ' + (i + 1));
-        var m = L.marker(latlng, { title: label }).addTo(map);
-        gridlineWaypointMarkers.push(m);
-    });
-
-    gwpRefreshLine();
-    gwpUpdatePanel();
-    map.getContainer().style.cursor = 'crosshair';
-    document.getElementById('gridlineWaypointPanel').style.display = 'block';
-}
-
-function gwpRefreshLine() {
-    if (gridlineWaypointPreviewLine) { map.removeLayer(gridlineWaypointPreviewLine); gridlineWaypointPreviewLine = null; }
-    if (gridlineWaypointPoints.length >= 2) {
-        gridlineWaypointPreviewLine = L.polyline(gridlineWaypointPoints, {
-            color: '#0d6efd', weight: 3, opacity: 0.85, dashArray: '8,5'
-        }).addTo(map);
-    }
-}
-
-function gwpUpdatePanel() {
-    var n = gridlineWaypointPoints.length;
-    document.getElementById('gwp_count').textContent = n;
-    document.getElementById('gwp_from').textContent = n >= 1
-        ? gridlineWaypointPoints[0].lat.toFixed(6) + ', ' + gridlineWaypointPoints[0].lng.toFixed(6) : '—';
-    if (n >= 2) {
-        var last = gridlineWaypointPoints[n - 1];
-        document.getElementById('gwp_to').textContent = last.lat.toFixed(6) + ', ' + last.lng.toFixed(6);
-        var dist = 0;
-        for (var i = 1; i < n; i++) {
-            dist += calculateDistance(gridlineWaypointPoints[i-1].lat, gridlineWaypointPoints[i-1].lng,
-                                      gridlineWaypointPoints[i].lat,   gridlineWaypointPoints[i].lng);
-        }
-        document.getElementById('gwp_length').textContent = dist.toFixed(2) + ' km';
-    } else {
-        document.getElementById('gwp_to').textContent = '—';
-        document.getElementById('gwp_length').textContent = '—';
-    }
-    document.getElementById('gwp_apply_btn').disabled = n < 2;
-    document.getElementById('gwp_undo_btn').disabled = n === 0;
-}
-
-function undoGridlineWaypoint() {
-    if (!gridlineWaypointPoints.length) return;
-    gridlineWaypointPoints.pop();
-    var m = gridlineWaypointMarkers.pop();
-    if (m) map.removeLayer(m);
-    gwpRefreshLine();
-    gwpUpdatePanel();
-}
-
-function clearGridlineWaypoints() {
-    gridlineWaypointPoints = [];
-    gridlineWaypointMarkers.forEach(function(m) { map.removeLayer(m); });
-    gridlineWaypointMarkers = [];
-    gwpRefreshLine();
-    gwpUpdatePanel();
-}
-
-function saveGridlineWaypointEdit() {
-    if (gridlineWaypointPoints.length < 2) return;
-    var kmlGeometry = JSON.stringify({
-        type: 'LineString',
-        coordinates: gridlineWaypointPoints.map(function(p) { return [p.lng, p.lat]; })
-    });
-    document.getElementById('gle_kml_geometry').value = kmlGeometry;
-
-    var first = gridlineWaypointPoints[0];
-    var last  = gridlineWaypointPoints[gridlineWaypointPoints.length - 1];
-    document.getElementById('gle_from_lat').value = first.lat.toFixed(6);
-    document.getElementById('gle_from_lng').value = first.lng.toFixed(6);
-    document.getElementById('gle_to_lat').value   = last.lat.toFixed(6);
-    document.getElementById('gle_to_lng').value   = last.lng.toFixed(6);
-
-    var dist = 0;
-    for (var i = 1; i < gridlineWaypointPoints.length; i++) {
-        dist += calculateDistance(gridlineWaypointPoints[i-1].lat, gridlineWaypointPoints[i-1].lng,
-                                  gridlineWaypointPoints[i].lat,   gridlineWaypointPoints[i].lng);
-    }
-    document.getElementById('gle_length').value = dist.toFixed(3);
-    document.getElementById('gle_waypoint_info').textContent =
-        gridlineWaypointPoints.length + ' waypoints, ' + dist.toFixed(2) + ' km';
-
-    exitGridlineWaypointMode();
-    document.getElementById('gridlineEditModal').style.display = 'block';
-}
-
-function cancelGridlineWaypointEdit() {
-    exitGridlineWaypointMode();
-    document.getElementById('gridlineEditModal').style.display = 'block';
-}
-
-function exitGridlineWaypointMode() {
-    gridlineWaypointEditMode = false;
-    gridlineWaypointMarkers.forEach(function(m) { map.removeLayer(m); });
-    gridlineWaypointMarkers = [];
-    gridlineWaypointPoints = [];
-    if (gridlineWaypointPreviewLine) { map.removeLayer(gridlineWaypointPreviewLine); gridlineWaypointPreviewLine = null; }
-    document.getElementById('gridlineWaypointPanel').style.display = 'none';
-    map.getContainer().style.cursor = '';
-}
-
-function clearGleRoute() {
-    document.getElementById('gle_kml_geometry').value = '';
-    document.getElementById('gle_waypoint_info').textContent = 'No custom route';
-}
-
-// ===== GRIDLINE EDIT MODAL =====
-function openGridlineEdit(gridlineId) {
-    currentEditGridlineId = gridlineId;
-    document.getElementById('gridlineEditError').style.display = 'none';
-    document.querySelectorAll('.modal-overlay').forEach(function(m) { m.remove(); });
-
-    fetch('/grid_line/' + gridlineId + '/details/')
-        .then(function(r) { return r.json(); })
-        .then(function(data) {
-            if (data.error) { alert('Failed to load grid line: ' + data.error); return; }
-            document.getElementById('gle_name').value = data.line_name || '';
-            document.getElementById('gle_code').value = data.line_code || '';
-            document.getElementById('gle_type').value = data.line_type || 'transmission';
-            document.getElementById('gle_voltage').value = data.voltage_level || '';
-            document.getElementById('gle_length').value = data.length_km || '';
-            document.getElementById('gle_capacity').value = data.thermal_capacity_mw || '';
-            document.getElementById('gle_owner').value = data.owner || '';
-            document.getElementById('gle_active').checked = data.active !== false;
-            document.getElementById('gle_from_lat').value = data.from_latitude || '';
-            document.getElementById('gle_from_lng').value = data.from_longitude || '';
-            document.getElementById('gle_to_lat').value = data.to_latitude || '';
-            document.getElementById('gle_to_lng').value = data.to_longitude || '';
-            // Populate waypoints from kml_geometry if present
-            var kml = data.kml_geometry || '';
-            document.getElementById('gle_kml_geometry').value = kml;
-            if (kml) {
-                try {
-                    var gd = JSON.parse(kml);
-                    var n = gd.coordinates ? gd.coordinates.length : 0;
-                    document.getElementById('gle_waypoint_info').textContent = n + ' waypoints';
-                } catch(e) { document.getElementById('gle_waypoint_info').textContent = 'Custom route'; }
-            } else {
-                document.getElementById('gle_waypoint_info').textContent = 'No custom route';
-            }
-            document.getElementById('gridlineEditModal').style.display = 'block';
-        })
-        .catch(function(err) { alert('Failed to load grid line data: ' + err.message); });
-}
-
-function closeGridlineEdit() {
-    document.getElementById('gridlineEditModal').style.display = 'none';
-    currentEditGridlineId = null;
-    cancelMapPick();
-}
-
-function startPickGridlineFrom() {
-    document.getElementById('gridlineEditModal').style.display = 'none';
-    mapPickMode = 'gridline_from';
-    document.getElementById('mapPickBannerText').textContent = 'Click on the map to set the From (start) point';
-    document.getElementById('mapPickBanner').style.display = 'block';
-    map.getContainer().style.cursor = 'crosshair';
-}
-
-function startPickGridlineTo() {
-    document.getElementById('gridlineEditModal').style.display = 'none';
-    mapPickMode = 'gridline_to';
-    document.getElementById('mapPickBannerText').textContent = 'Click on the map to set the To (end) point';
-    document.getElementById('mapPickBanner').style.display = 'block';
-    map.getContainer().style.cursor = 'crosshair';
-}
-
-function cancelMapPick() {
-    mapPickMode = null;
-    document.getElementById('mapPickBanner').style.display = 'none';
-    map.getContainer().style.cursor = '';
-}
-
-function saveGridlineEdit() {
-    if (!currentEditGridlineId) return;
-    var name = document.getElementById('gle_name').value.trim();
-    var code = document.getElementById('gle_code').value.trim();
-    var voltage = document.getElementById('gle_voltage').value;
-    if (!name) { showGridlineEditError('Line name is required.'); return; }
-    if (!code) { showGridlineEditError('Line code is required.'); return; }
-    if (!voltage) { showGridlineEditError('Voltage level is required.'); return; }
-
-    var payload = {
-        line_name: name,
-        line_code: code,
-        line_type: document.getElementById('gle_type').value,
-        voltage_level: parseFloat(voltage),
-        length_km: document.getElementById('gle_length').value ? parseFloat(document.getElementById('gle_length').value) : null,
-        thermal_capacity_mw: document.getElementById('gle_capacity').value ? parseFloat(document.getElementById('gle_capacity').value) : null,
-        from_latitude: document.getElementById('gle_from_lat').value ? parseFloat(document.getElementById('gle_from_lat').value) : null,
-        from_longitude: document.getElementById('gle_from_lng').value ? parseFloat(document.getElementById('gle_from_lng').value) : null,
-        to_latitude: document.getElementById('gle_to_lat').value ? parseFloat(document.getElementById('gle_to_lat').value) : null,
-        to_longitude: document.getElementById('gle_to_lng').value ? parseFloat(document.getElementById('gle_to_lng').value) : null,
-        owner: document.getElementById('gle_owner').value.trim() || null,
-        active: document.getElementById('gle_active').checked,
-        kml_geometry: document.getElementById('gle_kml_geometry').value || null,
-    };
-
-    fetch('/grid_line/' + currentEditGridlineId + '/update/', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
-        body: JSON.stringify(payload)
-    })
-    .then(function(r) { return r.json(); })
-    .then(function(data) {
-        if (data.error) { showGridlineEditError(data.error); return; }
-        closeGridlineEdit();
-        fetch('/get_grid_lines/')
-            .then(function(r) { return r.json(); })
-            .then(function(lines) { gridLines = lines; loadGridLinesOnMap(lines); });
-        showMapSuccessBanner(data.message || 'Grid line updated successfully');
-    })
-    .catch(function(err) { showGridlineEditError('Save failed: ' + err.message); });
-}
-
-function showGridlineEditError(msg) {
-    var el = document.getElementById('gridlineEditError');
-    el.textContent = msg;
-    el.style.display = 'block';
-}
-
-// ESC key: cancel drag / map-pick / close edit modals
+// ESC key: cancel drag
 document.addEventListener('keydown', function(e) {
     if (e.key !== 'Escape') return;
-    if (gridlineWaypointEditMode) {
-        cancelGridlineWaypointEdit();
-    } else if (facilityDragMarker) {
+    if (facilityDragMarker) {
         cancelFacilityDrag();
     } else if (terminalDragMarker) {
         cancelTerminalDrag();
-    } else if (mapPickMode) {
-        cancelMapPick();
-        if (currentEditTerminalId) document.getElementById('terminalEditModal').style.display = 'block';
-        if (currentEditGridlineId) document.getElementById('gridlineEditModal').style.display = 'block';
-    } else if (document.getElementById('terminalEditModal').style.display !== 'none') {
-        closeTerminalEdit();
-    } else if (document.getElementById('gridlineEditModal').style.display !== 'none') {
-        closeGridlineEdit();
     }
 });
 
