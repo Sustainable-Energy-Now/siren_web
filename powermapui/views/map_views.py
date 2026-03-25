@@ -4,7 +4,6 @@ from django.db.models import Max, Q
 from django.http import JsonResponse
 from django.shortcuts import render
 from django.views.decorators.csrf import csrf_exempt
-from siren_web.forms import DemandScenarioSettings
 from siren_web.database_operations import fetch_module_settings_data, fetch_scenario_settings_data
 from siren_web.models import facilities, Technologies, Terminals, Scenarios, GridLines, FacilityGridConnections
 import json
@@ -73,74 +72,56 @@ def find_nearest_grid_line(facility_lat, facility_lon, max_distance_km=50):
     return nearest_line, min_distance, connection_point
 
 @login_required
-@settings_required(redirect_view='powermapui:powermapui_home')
 def home(request):
-    # Get weather_year and scenario from session or default to empty string
-    weather_year = request.session.get('weather_year', '')
-    demand_year = request.session.get('demand_year', '')
-    scenario = request.session.get('scenario', '')
     config_file = request.session.get('config_file')
-    success_message = ''
-    if request.method == 'POST':
-        # Handle form submission
-        demand_weather_scenario = DemandScenarioSettings(request.POST)
-        if demand_weather_scenario.is_valid():
-            demand_year = demand_weather_scenario.cleaned_data['demand_year']
-            request.session['demand_year'] = demand_year
-            
-            scenario = demand_weather_scenario.cleaned_data['scenario']
-            request.session['scenario'] = scenario
-            
-            success_message = "Settings updated."
-    
-    # Create form instance with current session values
-    demand_weather_scenario = DemandScenarioSettings(initial={
-        'demand_year': demand_year,
-        'scenario': scenario
-    })
-    
-    scenario_settings = {}
+    scenario_filter = request.GET.get('scenario_filter', '')
+
     scenario_settings = fetch_module_settings_data('Power')
     if not scenario_settings:
-        scenario_settings = fetch_scenario_settings_data(scenario)
-    
-    # Query facilities for the selected scenario with latitude and longitude available
-    if scenario:
-        # Filter facilities that belong to the selected scenario and have coordinates
-        scenario_obj = Scenarios.objects.get(title=scenario)
+        scenario_settings = fetch_scenario_settings_data(scenario_filter)
+
+    # Query facilities - all by default, filtered by scenario if specified
+    if scenario_filter:
+        try:
+            scenario_obj = Scenarios.objects.get(title=scenario_filter)
+            facilities_queryset = facilities.objects.filter(
+                scenarios=scenario_obj,
+                latitude__isnull=False,
+                longitude__isnull=False
+            ).select_related('idtechnologies', 'primary_grid_line').prefetch_related('grid_connections')
+        except Scenarios.DoesNotExist:
+            facilities_queryset = facilities.objects.none()
+    else:
         facilities_queryset = facilities.objects.filter(
-            scenarios=scenario_obj,
-            latitude__isnull=False, 
+            latitude__isnull=False,
             longitude__isnull=False
         ).select_related('idtechnologies', 'primary_grid_line').prefetch_related('grid_connections')
-        
-        facilities_data = []
-        for facility in facilities_queryset:
-            retirement_year = None
-            if facility.commissioning_date and facility.idtechnologies and facility.idtechnologies.lifetime:
-                retirement_year = facility.commissioning_date.year + int(facility.idtechnologies.lifetime)
-            facility_dict = {
-                'facility_name': facility.facility_name,
-                'idtechnologies': facility.idtechnologies.idtechnologies,
-                'latitude': facility.latitude,
-                'longitude': facility.longitude,
-                'idfacilities': facility.idfacilities,
-                'capacity': float(facility.capacity) if facility.capacity else 0,
-                'technology_name': facility.idtechnologies.technology_name,
-                'has_grid_connection': facility.grid_connections.exists(),
-                'primary_grid_line_id': facility.primary_grid_line.idgridlines if facility.primary_grid_line else None,
-                'primary_grid_line_name': facility.primary_grid_line.line_name if facility.primary_grid_line else None,
-                'connection_count': facility.grid_connections.count(),
-                'status': facility.status if facility.status else 'commissioned',
-                'commissioning_probability': float(facility.commissioning_probability) if facility.commissioning_probability is not None else 1.0,
-                'commissioning_date': facility.commissioning_date.isoformat() if facility.commissioning_date else None,
-                'decommissioning_date': facility.decommissioning_date.isoformat() if facility.decommissioning_date else None,
-                'technology_category': facility.idtechnologies.category if facility.idtechnologies and facility.idtechnologies.category else 'Unknown',
-                'retirement_year': retirement_year,
-            }
-            facilities_data.append(facility_dict)
-    else:
-        facilities_data = []
+
+    facilities_data = []
+    for facility in facilities_queryset:
+        retirement_year = None
+        if facility.commissioning_date and facility.idtechnologies and facility.idtechnologies.lifetime:
+            retirement_year = facility.commissioning_date.year + int(facility.idtechnologies.lifetime)
+        facility_dict = {
+            'facility_name': facility.facility_name,
+            'idtechnologies': facility.idtechnologies.idtechnologies,
+            'latitude': facility.latitude,
+            'longitude': facility.longitude,
+            'idfacilities': facility.idfacilities,
+            'capacity': float(facility.capacity) if facility.capacity else 0,
+            'technology_name': facility.idtechnologies.technology_name,
+            'has_grid_connection': facility.grid_connections.exists(),
+            'primary_grid_line_id': facility.primary_grid_line.idgridlines if facility.primary_grid_line else None,
+            'primary_grid_line_name': facility.primary_grid_line.line_name if facility.primary_grid_line else None,
+            'connection_count': facility.grid_connections.count(),
+            'status': facility.status if facility.status else 'commissioned',
+            'commissioning_probability': float(facility.commissioning_probability) if facility.commissioning_probability is not None else 1.0,
+            'commissioning_date': facility.commissioning_date.isoformat() if facility.commissioning_date else None,
+            'decommissioning_date': facility.decommissioning_date.isoformat() if facility.decommissioning_date else None,
+            'technology_category': facility.idtechnologies.category if facility.idtechnologies and facility.idtechnologies.category else 'Unknown',
+            'retirement_year': retirement_year,
+        }
+        facilities_data.append(facility_dict)
 
     # Compute year range and categories for filter controls
     categories = set()
@@ -221,13 +202,11 @@ def home(request):
         terminals_data.append(terminal_data)
     
     terminals_json = json.dumps(terminals_data)
+    all_scenarios = list(Scenarios.objects.order_by('title').values_list('title', flat=True))
     context = {
-        'demand_weather_scenario': demand_weather_scenario,
-        'weather_year': weather_year,
-        'demand_year': demand_year,
-        'scenario': scenario,
+        'scenario_filter': scenario_filter,
+        'all_scenarios': all_scenarios,
         'config_file': config_file,
-        'success_message': success_message,
         'facilities_json': facilities_json,
         'grid_lines_json': grid_lines_json,
         'terminals_json': terminals_json,
@@ -667,19 +646,22 @@ def get_facility_grid_connections(request, facility_id):
 @login_required
 # Refresh facilities when the scenario is changed
 def get_facilities_for_scenario(request):
-    """Return facilities data for the selected scenario"""
-    scenario_title = request.GET.get('scenario')
-
-    if not scenario_title:
-        return JsonResponse([], safe=False)
+    """Return facilities data for the selected scenario, or all facilities if none specified."""
+    scenario_title = request.GET.get('scenario', '')
 
     try:
-        scenario_obj = Scenarios.objects.get(title=scenario_title)
-        facilities_queryset = facilities.objects.filter(
-            scenarios=scenario_obj,
-            latitude__isnull=False,
-            longitude__isnull=False
-        ).select_related('idtechnologies', 'primary_grid_line').prefetch_related('grid_connections')
+        if scenario_title and scenario_title != 'all':
+            scenario_obj = Scenarios.objects.get(title=scenario_title)
+            facilities_queryset = facilities.objects.filter(
+                scenarios=scenario_obj,
+                latitude__isnull=False,
+                longitude__isnull=False
+            ).select_related('idtechnologies', 'primary_grid_line').prefetch_related('grid_connections')
+        else:
+            facilities_queryset = facilities.objects.filter(
+                latitude__isnull=False,
+                longitude__isnull=False
+            ).select_related('idtechnologies', 'primary_grid_line').prefetch_related('grid_connections')
 
         facilities_data = []
         for facility in facilities_queryset:

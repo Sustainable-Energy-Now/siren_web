@@ -3,56 +3,38 @@
 {% load static %}
 {% block powermapui_content %}
 
-<p>Powermap is the Siren module that models the renewable energy generation in the South West Interconnected System (SWIS).  
+<p>Powermap is the Siren module that models the renewable energy generation in the South West Interconnected System (SWIS).
     Power Map takes as input weather and facilities data. Powermap uses the System Advisor Model (SAM) developed by the National Renewable Energy Laboratory (NREL).
-    To use Powermap, begin by selecting a Demand Year and Scenario.
-    Facilities are grid infrastructure that use a particular technology. 
+    Facilities are grid infrastructure that use a particular technology.
     A Scenario is a collection of Facilities of different technologies. Output from Powermap
     is used as input to the Powermatch module.
 </p>
 
 <div class="map-controls" style="margin-bottom: 10px;">
-    <form method="post">
-        {% csrf_token %}
-        {{ demand_weather_scenario.demand_year.label_tag }}
-        {{ demand_weather_scenario.demand_year }}
-        {{ demand_weather_scenario.scenario.label_tag }}
-        {{ demand_weather_scenario.scenario }}
-        <button name="apply_settings" type="submit" class="btn-custom-swish2">Apply Settings</button>
-    </form>
-    
-    <!-- Add New Facility -->
-    {% if scenario %}
-        <button id="addFacilityBtn" class="btn btn-primary" type="button">
-                Add New Facility
-            </button>
-            <button id="addTerminalBtn" class="btn btn-warning" type="button">
-                Add New Terminal
-            </button>
-            <button id="addGridLineBtn" class="btn btn-success" type="button">
-                Add New Grid Line
-            </button>
-        <button id="manageConnectionsBtn" class="btn btn-info" type="button">
-            Manage Connections
-        </button>
-    {% else %}
-        <button class="btn btn-secondary" type="button" disabled title="Please select a scenario first">
-            Add New Facility (Disabled)
-        </button>
-        <button class="btn btn-secondary" type="button" disabled title="Please select a scenario first">
-            Add New Terminal (Disabled)
-        </button>
-        <button class="btn btn-secondary" type="button" disabled title="Please select a scenario first">
-            Add New Grid Line (Disabled)
-        </button>
-        <button class="btn btn-secondary" type="button" disabled title="Please select a scenario first">
-            Manage Connections (Disabled)
-        </button>
-        <small class="text-muted d-block mt-1">
-            Please select a scenario first
-        </small>
-    {% endif %}
-    
+    <div style="display: inline-flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+        <label for="scenario-filter-select" style="margin: 0; font-weight: 500;">Scenario:</label>
+        <select id="scenario-filter-select" class="form-control form-control-sm" style="width: auto; min-width: 180px;">
+            <option value="">All Facilities</option>
+            {% for sc in all_scenarios %}
+                <option value="{{ sc }}" {% if sc == scenario_filter %}selected{% endif %}>{{ sc }}</option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <!-- Add New Facility / Edit buttons (enabled only when a specific scenario is selected) -->
+    <button id="addFacilityBtn" class="btn btn-primary" type="button" {% if not scenario_filter %}disabled title="Select a scenario to add facilities"{% endif %}>
+        Add New Facility
+    </button>
+    <button id="addTerminalBtn" class="btn btn-warning" type="button" {% if not scenario_filter %}disabled title="Select a scenario to add terminals"{% endif %}>
+        Add New Terminal
+    </button>
+    <button id="addGridLineBtn" class="btn btn-success" type="button" {% if not scenario_filter %}disabled title="Select a scenario to add grid lines"{% endif %}>
+        Add New Grid Line
+    </button>
+    <button id="manageConnectionsBtn" class="btn btn-info" type="button" {% if not scenario_filter %}disabled title="Select a scenario to manage connections"{% endif %}>
+        Manage Connections
+    </button>
+
     <!-- Grid Line Controls -->
     <div style="margin-top: 10px; text-align: center;">
         <button onclick="toggleGridLineLabels()" class="btn btn-secondary btn-sm" style="margin: 2px;">
@@ -66,11 +48,6 @@
         </a>
     </div>
 </div>
-
-<br>
-{% if not scenario or not demand_year %}
-    <p>Demand Year and Scenario must be specified.</p>
-{% endif %}
 
 <!-- Connection Management Modal -->
 <div id="connectionManagementModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 10000;">
@@ -1333,7 +1310,8 @@ function getCookie(name) {
 }
 
 function getCurrentScenario() {
-    return '{{ scenario|escapejs }}';
+    const sel = document.getElementById('scenario-filter-select');
+    return sel ? sel.value : '';
 }
 
 function resetFacilityForm() {
@@ -1722,8 +1700,8 @@ document.addEventListener('DOMContentLoaded', function() {
     const addFacilityBtn = document.getElementById('addFacilityBtn');
     if (addFacilityBtn) {
         addFacilityBtn.addEventListener('click', function() {
-            const currentScenario = '{{ scenario|escapejs }}';
-            
+            const currentScenario = getCurrentScenario();
+
             if (!currentScenario) {
                 alert('Please select a scenario first.');
                 return;
@@ -2028,71 +2006,28 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
     
-    // Monitor form submission to detect scenario changes
-    const scenarioForm = document.querySelector('form');
-    if (scenarioForm) {
-        scenarioForm.addEventListener('submit', function(e) {
-            e.preventDefault(); // Prevent default form submission
-
-            const scenarioSelect = document.querySelector('select[name="scenario"]');
-            const demandYearSelect = document.querySelector('select[name="demand_year"]');
-
-            if (scenarioSelect) {
-                const selectedScenario = scenarioSelect.value;
-                const selectedDemandYear = demandYearSelect ? demandYearSelect.value : '';
-
-                const button = this.querySelector('button[name="apply_settings"]');
-                const originalText = button.textContent;
-                button.textContent = 'Applying...';
-                button.disabled = true;
-
-                // Get CSRF token
-                const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
-
-                // Submit form data via AJAX to update session
-                const formData = new FormData();
-                formData.append('csrfmiddlewaretoken', csrfToken);
-                formData.append('scenario', selectedScenario);
-                formData.append('demand_year', selectedDemandYear);
-
-                fetch(window.location.href, {
-                    method: 'POST',
-                    body: formData
-                })
-                .then(response => {
-                    if (!response.ok) {
-                        throw new Error('Failed to update settings');
-                    }
-                    // Refresh facilities with new scenario
-                    return refreshFacilities(selectedScenario);
-                })
-                .then(() => {
-                    button.textContent = originalText;
-                    button.disabled = false;
-
-                    // Show success message
-                    const successMsg = document.createElement('div');
-                    successMsg.className = 'alert alert-success';
-                    successMsg.style.cssText = 'position: fixed; top: 20px; right: 20px; z-index: 10000; padding: 10px 20px;';
-                    successMsg.textContent = 'Settings updated successfully';
-                    document.body.appendChild(successMsg);
-
-                    setTimeout(() => {
-                        successMsg.remove();
-                    }, 3000);
-
-                    // Reload page to update UI elements that depend on scenario
-                    setTimeout(() => {
-                        location.reload();
-                    }, 1000);
-                })
-                .catch(error => {
-                    console.error('Error updating settings:', error);
-                    button.textContent = originalText;
-                    button.disabled = false;
-                    alert('Error updating settings. Please try again.');
-                });
-            }
+    // Scenario filter dropdown — refresh facilities on change and toggle edit buttons
+    const scenarioFilterSelect = document.getElementById('scenario-filter-select');
+    if (scenarioFilterSelect) {
+        scenarioFilterSelect.addEventListener('change', function() {
+            const selectedScenario = this.value;
+            refreshFacilities(selectedScenario);
+            const editBtns = [
+                document.getElementById('addFacilityBtn'),
+                document.getElementById('addTerminalBtn'),
+                document.getElementById('addGridLineBtn'),
+                document.getElementById('manageConnectionsBtn'),
+            ];
+            editBtns.forEach(btn => {
+                if (!btn) return;
+                if (selectedScenario) {
+                    btn.disabled = false;
+                    btn.removeAttribute('title');
+                } else {
+                    btn.disabled = true;
+                    btn.title = 'Select a scenario to enable this action';
+                }
+            });
         });
     }
     
@@ -2330,18 +2265,15 @@ function closeGridUtilization() {
 
 
 function refreshFacilities(scenarioTitle) {
-    if (!scenarioTitle) {
-        facilityLayer.clearLayers();
-        return;
-    }
-    
     const loadingMessage = document.createElement('div');
     loadingMessage.id = 'loading-facilities';
     loadingMessage.style.cssText = 'position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0,0,0,0.8); color: white; padding: 20px; border-radius: 5px; z-index: 10000;';
     loadingMessage.textContent = 'Loading facilities...';
     document.body.appendChild(loadingMessage);
-    
-    const url = `/get_facilities/?scenario=${encodeURIComponent(scenarioTitle)}`;
+
+    const url = scenarioTitle
+        ? `/get_facilities/?scenario=${encodeURIComponent(scenarioTitle)}`
+        : '/get_facilities/';
     
     fetch(url)
         .then(response => {
