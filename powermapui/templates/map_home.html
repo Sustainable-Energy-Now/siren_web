@@ -34,6 +34,12 @@
     <button id="manageConnectionsBtn" class="btn btn-info" type="button" {% if not scenario_filter %}disabled title="Select a scenario to manage connections"{% endif %}>
         Manage Connections
     </button>
+    <a href="{% url 'powermapui:zones_list' %}" class="btn btn-outline-secondary" type="button">
+        Zones
+    </a>
+    <button id="drawZoneBtn" class="btn btn-outline-primary" type="button">
+        Draw Zone Boundary
+    </button>
 
     <!-- Grid Line Controls -->
     <div style="margin-top: 10px; text-align: center;">
@@ -186,6 +192,24 @@
             <button id="gridLineContinueBtn" class="btn btn-primary" disabled>Continue to Full Form →</button>
             <button id="undoGridLinePoint" class="btn btn-outline-warning" disabled>Undo Last Point</button>
             <button id="cancelAddGridLine" class="btn btn-outline-secondary">Cancel</button>
+        </div>
+    </div>
+</div>
+
+<!-- Draw Zone Boundary Form (initially hidden) -->
+<div id="drawZoneForm" style="display: none; margin-bottom: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
+    <h4 style="padding: 15px; background-color: #e8f0fe; margin: 0; border-top-left-radius: 8px; border-top-right-radius: 8px; border-bottom: 1px solid #dee2e6;">Draw Zone Boundary</h4>
+    <div style="padding: 15px; background-color: white;">
+        <p class="text-muted mb-3">Click waypoints on the map to define the zone boundary. At least 2 points are required.</p>
+        <div style="padding: 10px; background-color: #f8f9fa; border-radius: 4px; margin-bottom: 15px; font-size: 0.9em;">
+            <div>Start: <strong><span id="zone_start_coords">Click on map for start point</span></strong></div>
+            <div>Last point: <strong><span id="zone_end_coords">—</span></strong></div>
+            <div>Waypoints: <span id="zone_waypoint_count">0</span></div>
+        </div>
+        <div class="d-flex gap-2 flex-wrap">
+            <button id="zoneContinueBtn" class="btn btn-primary" disabled>Continue to Zone Form →</button>
+            <button id="undoZonePoint" class="btn btn-outline-warning" disabled>Undo Last Point</button>
+            <button id="cancelDrawZone" class="btn btn-outline-secondary">Cancel</button>
         </div>
     </div>
 </div>
@@ -750,6 +774,10 @@ var locationMarker = null;
 var gridLinePoints = [];
 var gridLineMarkers = [];
 var gridLinePreviewLine = null;
+var drawZoneMode = false;
+var zonePoints = [];
+var zoneMarkers = [];
+var zonePreviewLine = null;
 var terminalDragMarker = null;
 var terminalDragId = null;
 var terminalDragOriginalLatLng = null;
@@ -1822,6 +1850,101 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
+    // Draw Zone Boundary button functionality
+    const drawZoneBtn = document.getElementById('drawZoneBtn');
+    if (drawZoneBtn) {
+        drawZoneBtn.addEventListener('click', function () {
+            drawZoneMode = !drawZoneMode;
+
+            if (drawZoneMode) {
+                this.textContent = 'Cancel Zone Drawing';
+                this.classList.add('active');
+                document.getElementById('drawZoneForm').style.display = 'block';
+                map.getContainer().style.cursor = 'crosshair';
+
+                zonePoints = [];
+                zoneMarkers.forEach(m => map.removeLayer(m));
+                zoneMarkers = [];
+                if (zonePreviewLine) { map.removeLayer(zonePreviewLine); zonePreviewLine = null; }
+
+                document.getElementById('zone_start_coords').textContent = 'Click on map for start point';
+                document.getElementById('zone_end_coords').textContent = '—';
+                document.getElementById('zone_waypoint_count').textContent = '0';
+                const continueBtn = document.getElementById('zoneContinueBtn');
+                if (continueBtn) continueBtn.disabled = true;
+                const undoBtn = document.getElementById('undoZonePoint');
+                if (undoBtn) undoBtn.disabled = true;
+            } else {
+                this.textContent = 'Draw Zone Boundary';
+                this.classList.remove('active');
+                document.getElementById('drawZoneForm').style.display = 'none';
+                map.getContainer().style.cursor = '';
+
+                zoneMarkers.forEach(m => map.removeLayer(m));
+                zoneMarkers = [];
+                zonePoints = [];
+                if (zonePreviewLine) { map.removeLayer(zonePreviewLine); zonePreviewLine = null; }
+            }
+        });
+    }
+
+    // Cancel draw zone
+    const cancelDrawZone = document.getElementById('cancelDrawZone');
+    if (cancelDrawZone) {
+        cancelDrawZone.addEventListener('click', function () {
+            const drawZoneBtn = document.getElementById('drawZoneBtn');
+            if (drawZoneBtn && drawZoneMode) {
+                drawZoneBtn.click();
+            }
+        });
+    }
+
+    // Continue to zone form
+    const zoneContinueBtn = document.getElementById('zoneContinueBtn');
+    if (zoneContinueBtn) {
+        zoneContinueBtn.addEventListener('click', function () {
+            if (zonePoints.length >= 2) {
+                const kmlGeometry = JSON.stringify({
+                    type: 'LineString',
+                    coordinates: zonePoints.map(p => [p.lng, p.lat])
+                });
+                const params = new URLSearchParams({ kml_geometry: kmlGeometry });
+                window.location.href = '/zones/create/?' + params.toString();
+            }
+        });
+    }
+
+    // Undo last zone waypoint
+    const undoZonePoint = document.getElementById('undoZonePoint');
+    if (undoZonePoint) {
+        undoZonePoint.addEventListener('click', function () {
+            if (zonePoints.length === 0) return;
+            zonePoints.pop();
+            const lastMarker = zoneMarkers.pop();
+            if (lastMarker) map.removeLayer(lastMarker);
+
+            if (zonePreviewLine) { map.removeLayer(zonePreviewLine); zonePreviewLine = null; }
+            if (zonePoints.length >= 2) {
+                zonePreviewLine = L.polyline(zonePoints, {
+                    color: '#0d6efd', weight: 3, opacity: 0.7, dashArray: '10, 10'
+                }).addTo(map);
+                const last = zonePoints[zonePoints.length - 1];
+                document.getElementById('zone_end_coords').textContent =
+                    `${last.lat.toFixed(6)}, ${last.lng.toFixed(6)}`;
+            } else if (zonePoints.length === 1) {
+                document.getElementById('zone_end_coords').textContent = '—';
+            } else {
+                document.getElementById('zone_start_coords').textContent = 'Click on map for start point';
+                document.getElementById('zone_end_coords').textContent = '—';
+            }
+
+            document.getElementById('zone_waypoint_count').textContent = zonePoints.length;
+            const continueBtn = document.getElementById('zoneContinueBtn');
+            if (continueBtn) continueBtn.disabled = zonePoints.length < 2;
+            this.disabled = zonePoints.length === 0;
+        });
+    }
+
     // Submit facility button
     const submitAddFacility = document.getElementById('submitAddFacility');
     if (submitAddFacility) {
@@ -1989,7 +2112,35 @@ document.addEventListener('DOMContentLoaded', function() {
 
             const undoBtn = document.getElementById('undoGridLinePoint');
             if (undoBtn) undoBtn.disabled = false;
-        } else if (addFacilityMode) {
+        }
+        if (drawZoneMode) {
+            zonePoints.push(e.latlng);
+            const isFirst = zonePoints.length === 1;
+            const marker = L.marker(e.latlng, { title: isFirst ? 'Start' : `Waypoint ${zonePoints.length}` }).addTo(map);
+            zoneMarkers.push(marker);
+            marker.bindPopup(isFirst ? 'Zone Boundary Start' : `Waypoint ${zonePoints.length}`).openPopup();
+
+            document.getElementById('zone_start_coords').textContent =
+                `${zonePoints[0].lat.toFixed(6)}, ${zonePoints[0].lng.toFixed(6)}`;
+            if (zonePoints.length >= 2) {
+                const last = zonePoints[zonePoints.length - 1];
+                document.getElementById('zone_end_coords').textContent =
+                    `${last.lat.toFixed(6)}, ${last.lng.toFixed(6)}`;
+            }
+            document.getElementById('zone_waypoint_count').textContent = zonePoints.length;
+
+            if (zonePreviewLine) { map.removeLayer(zonePreviewLine); zonePreviewLine = null; }
+            if (zonePoints.length >= 2) {
+                zonePreviewLine = L.polyline(zonePoints, {
+                    color: '#0d6efd', weight: 3, opacity: 0.7, dashArray: '10, 10'
+                }).addTo(map);
+                const zoneContinueBtn = document.getElementById('zoneContinueBtn');
+                if (zoneContinueBtn) zoneContinueBtn.disabled = false;
+            }
+            const undoZoneBtn = document.getElementById('undoZonePoint');
+            if (undoZoneBtn) undoZoneBtn.disabled = false;
+        }
+        if (addFacilityMode) {
             selectedLocation = e.latlng;
             
             document.getElementById('selected_lat').textContent = 'Latitude: ' + selectedLocation.lat.toFixed(6);
@@ -2063,7 +2214,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         map.addLayer(boundaryLayer);
                         // Ensure grid lines stay on top after re-adding boundary
                         if (map.hasLayer(gridLinesLayer)) {
-                            gridLinesLayer.bringToFront();
+                            bringLayerGroupToFront(gridLinesLayer);
                         }
                     }, 100);
                 }
@@ -2071,13 +2222,32 @@ document.addEventListener('DOMContentLoaded', function() {
         });
         map.addLayer(boundaryLayer);
 
-        zoneLayer = new L.KML("{% static 'kml//SWIS_2023_Zones.kml' %}", {
-            async: true
+        {% if zones_kml_json != 'null' %}
+        var zonesData = {{ zones_kml_json|safe }};
+        zoneLayer = L.featureGroup();
+        zonesData.forEach(function(zone) {
+            // GeoJSON coordinates are [lon, lat, alt?] — convert to Leaflet [lat, lon]
+            var latlngs = zone.coordinates.map(function(c) { return [c[1], c[0]]; });
+            if (latlngs.length >= 2) {
+                var zPoly = L.polyline(latlngs, {color: '#3388ff', weight: 2});
+                if (zone.name) { zPoly.bindPopup('<h2>' + zone.name + '</h2>'); }
+                zoneLayer.addLayer(zPoly);
+            }
         });
+        map.addLayer(zoneLayer);
+        {% else %}
+        zoneLayer = new L.KML("{% static 'kml//SWIS_2023_Zones.kml' %}", {async: true});
         zoneLayer.on("loaded", function(e) {
             map.fitBounds(e.target.getBounds());
         });
         map.addLayer(zoneLayer);
+        {% endif %}
+    }
+
+    function bringLayerGroupToFront(lg) {
+        lg.eachLayer(function(l) {
+            if (typeof l.bringToFront === 'function') { l.bringToFront(); }
+        });
     }
 
     function initializeLayerControl() {
@@ -2094,29 +2264,27 @@ document.addEventListener('DOMContentLoaded', function() {
             var layerControl = L.control.layers(baseLayers, overlays).addTo(map);
 
             // Ensure interactive layers are above KML layers for proper event handling
-            // Bring grid lines, terminals, and facilities to front so they're clickable
             if (map.hasLayer(gridLinesLayer)) {
-                gridLinesLayer.bringToFront();
+                bringLayerGroupToFront(gridLinesLayer);
             }
             if (map.hasLayer(terminalsLayer)) {
-                terminalsLayer.bringToFront();
+                bringLayerGroupToFront(terminalsLayer);
             }
             if (map.hasLayer(facilityLayer)) {
-                facilityLayer.bringToFront();
+                bringLayerGroupToFront(facilityLayer);
             }
 
             // Listen for layer add events to maintain proper z-order
             map.on('overlayadd', function(e) {
-                // When any overlay is added, ensure interactive layers stay on top
                 setTimeout(function() {
                     if (map.hasLayer(gridLinesLayer)) {
-                        gridLinesLayer.bringToFront();
+                        bringLayerGroupToFront(gridLinesLayer);
                     }
                     if (map.hasLayer(terminalsLayer)) {
-                        terminalsLayer.bringToFront();
+                        bringLayerGroupToFront(terminalsLayer);
                     }
                     if (map.hasLayer(facilityLayer)) {
-                        facilityLayer.bringToFront();
+                        bringLayerGroupToFront(facilityLayer);
                     }
                 }, 10);
             });

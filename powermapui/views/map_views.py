@@ -5,7 +5,7 @@ from django.http import JsonResponse
 from django.shortcuts import render
 from django.views.decorators.csrf import csrf_exempt
 from siren_web.database_operations import fetch_module_settings_data, fetch_scenario_settings_data
-from siren_web.models import facilities, Technologies, Terminals, Scenarios, GridLines, FacilityGridConnections
+from siren_web.models import facilities, Technologies, Terminals, Scenarios, GridLines, FacilityGridConnections, Zones
 import json
 import math
 
@@ -77,7 +77,7 @@ def home(request):
     scenario_filter = request.GET.get('scenario_filter', '')
 
     scenario_settings = fetch_module_settings_data('Power')
-    if not scenario_settings:
+    if not scenario_settings and scenario_filter:
         scenario_settings = fetch_scenario_settings_data(scenario_filter)
 
     # Query facilities - all by default, filtered by scenario if specified
@@ -202,6 +202,21 @@ def home(request):
         terminals_data.append(terminal_data)
     
     terminals_json = json.dumps(terminals_data)
+
+    # Build zones data from zone records that have kml_data stored as GeoJSON geometry
+    zones_kml_json = 'null'
+    zones_data = []
+    for zone in Zones.objects.exclude(kml_data__isnull=True).exclude(kml_data=''):
+        try:
+            geom = json.loads(zone.kml_data)
+            coords = geom.get('coordinates', [])
+            if coords:
+                zones_data.append({'name': zone.name or '', 'coordinates': coords})
+        except (json.JSONDecodeError, AttributeError, ValueError):
+            pass
+    if zones_data:
+        zones_kml_json = json.dumps(zones_data)
+
     all_scenarios = list(Scenarios.objects.order_by('title').values_list('title', flat=True))
     context = {
         'scenario_filter': scenario_filter,
@@ -213,6 +228,7 @@ def home(request):
         'categories_json': json.dumps(sorted(categories)),
         'year_min': year_min,
         'year_max': year_max,
+        'zones_kml_json': zones_kml_json,
     }
     return render(request, 'map_home.html', context)
 

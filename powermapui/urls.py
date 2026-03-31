@@ -4,7 +4,7 @@ from powermapui.views import crud_scenario_views, facilities_views, facility_sol
     map_views, network_overview_views, pipeline_charts_views, cel_map_views, \
     power_views, storage_views, table_update_views, technologies_views, \
     terminals_connections_views, terminals_dashboard, terminals_views, wind_turbines_views, \
-    cel_views
+    cel_views, zone_views
 app_name = 'powermapui'
 
 urlpatterns = [
@@ -135,6 +135,13 @@ urlpatterns = [
     path('cel/stages/<int:stage_pk>/terminals/add/', cel_views.cel_stage_terminal_add, name='cel_stage_terminal_add'),
     path('cel/stage-terminals/<int:pk>/edit/', cel_views.cel_stage_terminal_edit, name='cel_stage_terminal_edit'),
     path('cel/stage-terminals/<int:pk>/remove/', cel_views.cel_stage_terminal_remove, name='cel_stage_terminal_remove'),
+
+    # ========== ZONES CRUD ==========
+    path('zones/', zone_views.zones_list, name='zones_list'),
+    path('zones/create/', zone_views.zone_create, name='zone_create'),
+    path('zones/<int:pk>/', zone_views.zone_detail, name='zone_detail'),
+    path('zones/<int:pk>/edit/', zone_views.zone_edit, name='zone_edit'),
+    path('zones/<int:pk>/delete/', zone_views.zone_delete, name='zone_delete'),
 
     path('tableupdate/', table_update_views.select_table, name='table_update'),
     path('tableupdate/process/', table_update_views.update_table, name='table_update_process'),

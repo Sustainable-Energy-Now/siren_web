@@ -542,6 +542,8 @@ class GridLines(models.Model):
     # Capacity constraints
     thermal_capacity_mw = models.FloatField(help_text="Thermal capacity in MW")
     emergency_capacity_mw = models.FloatField(null=True, blank=True, help_text="Emergency capacity in MW")
+    thermal_capacity_mva = models.FloatField(null=True, blank=True, help_text="Thermal capacity in MVA")
+    emergency_capacity_mva = models.FloatField(null=True, blank=True, help_text="Emergency capacity in MVA")
     
     # Geographic endpoints
     from_latitude = models.FloatField(help_text="Starting point latitude")
@@ -3555,9 +3557,10 @@ class variations(models.Model):
         db_table = 'variations'
         
 class Zones(models.Model):
-    idzones = models.PositiveIntegerField(db_column='idZones', primary_key=True)  
+    idzones = models.PositiveIntegerField(db_column='idZones', primary_key=True)
     name = models.CharField(unique=True, max_length=45, db_collation='utf8mb4_0900_ai_ci', blank=True, null=True)
     description = models.CharField(max_length=500, db_collation='utf8mb4_0900_ai_ci', blank=True, null=True)
+    kml_data = models.TextField(blank=True, null=True, help_text='KML Placemark data for this zone')
 
     class Meta:
         db_table = 'Zones'
