@@ -1,0 +1,79 @@
+{% extends 'powermapui_base.html' %}
+
+{% block powermapui_content %}
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h3>Zones</h3>
+      <small class="text-muted">{{ total_count }} zone{{ total_count|pluralize }} total</small>
+    </div>
+    <div class="d-flex gap-2">
+      <a href="{% url 'powermapui:map' %}" class="btn btn-outline-secondary btn-sm">View on Map</a>
+      <a href="{% url 'powermapui:zone_create' %}" class="btn btn-primary btn-sm">+ New Zone</a>
+    </div>
+  </div>
+
+  <!-- Search -->
+  <form method="get" class="mb-3">
+    <div class="input-group" style="max-width: 400px;">
+      <input type="text" class="form-control" name="search" placeholder="Search zones…" value="{{ search_query }}">
+      <button class="btn btn-outline-secondary" type="submit">Search</button>
+      {% if search_query %}
+        <a href="{% url 'powermapui:zones_list' %}" class="btn btn-outline-danger">Clear</a>
+      {% endif %}
+    </div>
+  </form>
+
+  <div class="card">
+    <div class="card-body p-0">
+      <table class="table table-hover mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>Name</th>
+            <th>Description</th>
+            <th>Waypoints</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for zone, waypoint_count in zones_with_count %}
+          <tr>
+            <td><strong>{{ zone.name|default:"—" }}</strong></td>
+            <td class="text-muted">{{ zone.description|default:"—"|truncatechars:80 }}</td>
+            <td>
+              {% if waypoint_count %}
+                <span class="badge bg-success">{{ waypoint_count }}</span>
+              {% else %}
+                <span class="badge bg-secondary">No geometry</span>
+              {% endif %}
+            </td>
+            <td>
+              <div class="d-flex gap-1">
+                <a href="{% url 'powermapui:zone_detail' zone.pk %}" class="btn btn-outline-secondary btn-sm">View</a>
+                <a href="{% url 'powermapui:zone_edit' zone.pk %}" class="btn btn-outline-primary btn-sm">Edit</a>
+              </div>
+            </td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="4" class="text-center text-muted py-4">No zones found.</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  {% if page_obj.has_other_pages %}
+  <nav class="mt-3">
+    <ul class="pagination pagination-sm">
+      {% if page_obj.has_previous %}
+        <li class="page-item"><a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}">‹</a></li>
+      {% endif %}
+      <li class="page-item disabled"><span class="page-link">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span></li>
+      {% if page_obj.has_next %}
+        <li class="page-item"><a class="page-link" href="?page={{ page_obj.next_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}">›</a></li>
+      {% endif %}
+    </ul>
+  </nav>
+  {% endif %}
+{% endblock %}

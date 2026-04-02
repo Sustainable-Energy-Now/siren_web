@@ -9,7 +9,6 @@
     </div>
     <div>
       <a href="{% url 'powermapui:terminal_facilities' terminal.pk %}" class="btn btn-info">View Facilities</a>
-      <a href="{% url 'powermapui:terminal_gridlines' terminal.pk %}" class="btn btn-primary">View Grid Lines</a>
       <a href="{% url 'powermapui:terminal_detail' terminal.pk %}" class="btn btn-outline-secondary">Back to Details</a>
     </div>
   </div>
@@ -164,9 +163,15 @@
                             <small class="text-info">→ To: {{ line.to_terminal.terminal_name }}</small>
                           {% endif %}
                         </div>
-                        <div>
-                          <form method="post" action="{% url 'powermapui:terminal_remove_gridline' terminal.pk line.pk %}" 
-                                onsubmit="return confirm('Remove this grid line connection?');" style="display: inline;">
+                        <div class="d-flex gap-1">
+                          <a href="{% url 'powermapui:gridline_detail' line.pk %}" class="btn btn-sm btn-outline-primary">View</a>
+                          <form method="post" action="{% url 'powermapui:terminal_swap_gridline_direction' terminal.pk %}">
+                            {% csrf_token %}
+                            <input type="hidden" name="gridline_id" value="{{ line.pk }}">
+                            <button type="submit" class="btn btn-sm btn-outline-warning" title="Swap to incoming">&#8594;</button>
+                          </form>
+                          <form method="post" action="{% url 'powermapui:terminal_remove_gridline' terminal.pk line.pk %}"
+                                onsubmit="return confirm('Remove this grid line connection?');">
                             {% csrf_token %}
                             <button type="submit" class="btn btn-sm btn-outline-danger">Remove</button>
                           </form>
@@ -212,9 +217,15 @@
                             <small class="text-info">← From: {{ line.from_terminal.terminal_name }}</small>
                           {% endif %}
                         </div>
-                        <div>
-                          <form method="post" action="{% url 'powermapui:terminal_remove_gridline' terminal.pk line.pk %}" 
-                                onsubmit="return confirm('Remove this grid line connection?');" style="display: inline;">
+                        <div class="d-flex gap-1">
+                          <a href="{% url 'powermapui:gridline_detail' line.pk %}" class="btn btn-sm btn-outline-primary">View</a>
+                          <form method="post" action="{% url 'powermapui:terminal_swap_gridline_direction' terminal.pk %}">
+                            {% csrf_token %}
+                            <input type="hidden" name="gridline_id" value="{{ line.pk }}">
+                            <button type="submit" class="btn btn-sm btn-outline-warning" title="Swap to outgoing">&#8592;</button>
+                          </form>
+                          <form method="post" action="{% url 'powermapui:terminal_remove_gridline' terminal.pk line.pk %}"
+                                onsubmit="return confirm('Remove this grid line connection?');">
                             {% csrf_token %}
                             <button type="submit" class="btn btn-sm btn-outline-danger">Remove</button>
                           </form>

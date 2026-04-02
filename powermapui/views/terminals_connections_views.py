@@ -219,75 +219,26 @@ def terminal_facilities_view(request, pk):
     
     return render(request, 'terminals/facilities.html', context)
 
-def terminal_gridlines_view(request, pk):
-    """View all grid lines connected to this terminal with details"""
-    terminal = get_object_or_404(Terminals, pk=pk)
-    
-    # Get detailed grid line information
-    outgoing_lines = []
-    for line in terminal.get_outgoing_lines():
-        facilities_count = line.connected_facilities.count()
-        total_capacity = sum(
-            f.capacity for f in line.connected_facilities.all() 
-            if f.capacity
-        )
-        
-        outgoing_lines.append({
-            'line': line,
-            'facilities_count': facilities_count,
-            'total_capacity': total_capacity,
-            'utilization': line.get_utilization_percent(total_capacity) if total_capacity else 0,
-        })
-    
-    incoming_lines = []
-    for line in terminal.get_incoming_lines():
-        facilities_count = line.connected_facilities.count()
-        total_capacity = sum(
-            f.capacity for f in line.connected_facilities.all() 
-            if f.capacity
-        )
-        
-        incoming_lines.append({
-            'line': line,
-            'facilities_count': facilities_count,
-            'total_capacity': total_capacity,
-            'utilization': line.get_utilization_percent(total_capacity) if total_capacity else 0,
-        })
-    
-    context = {
-        'terminal': terminal,
-        'outgoing_lines': outgoing_lines,
-        'incoming_lines': incoming_lines,
-        'total_lines': len(outgoing_lines) + len(incoming_lines),
-    }
-    
-    return render(request, 'terminals/gridlines.html', context)
-
 @require_POST
-def terminal_set_primary_gridline(request, pk):
-    """Set a grid line as the primary connection for the terminal"""
+def terminal_swap_gridline_direction(request, pk):
+    """Swap a grid line between outgoing and incoming for this terminal"""
     terminal = get_object_or_404(Terminals, pk=pk)
     gridline_id = request.POST.get('gridline_id')
-    
+
     if not gridline_id:
         messages.error(request, 'Grid line ID is required.')
-        return redirect('powermapui:terminal_gridlines', pk=pk)
-    
-    try:
-        gridline = get_object_or_404(GridLines, pk=gridline_id)
-        
-        # Verify the grid line is connected to this terminal
-        if gridline.from_terminal != terminal and gridline.to_terminal != terminal:
-            messages.error(request, 'This grid line is not connected to the terminal.')
-            return redirect('powermapui:terminal_gridlines', pk=pk)
-        
-        # Could implement a primary_gridline field on Terminal if needed
-        messages.info(request, 'Primary grid line designation noted. (Implementation can be extended based on requirements)')
-        
-    except Exception as e:
-        messages.error(request, f'Error setting primary grid line: {str(e)}')
-    
-    return redirect('powermapui:terminal_gridlines', pk=pk)
+        return redirect('powermapui:terminal_connections', pk=pk)
+
+    gridline = get_object_or_404(GridLines, pk=gridline_id)
+
+    if gridline.from_terminal == terminal or gridline.to_terminal == terminal:
+        gridline.from_terminal, gridline.to_terminal = gridline.to_terminal, gridline.from_terminal
+        gridline.save(update_fields=['from_terminal', 'to_terminal'])
+        messages.success(request, f'Direction of "{gridline.line_name}" swapped.')
+    else:
+        messages.error(request, 'This grid line is not connected to the terminal.')
+
+    return redirect('powermapui:terminal_connections', pk=pk)
 
 # RENAMED from bulk_connect_facility_to_terminal
 def connect_facility_to_terminal(request, terminal_pk, facility_pk):

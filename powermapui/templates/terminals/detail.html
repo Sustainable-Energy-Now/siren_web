@@ -228,14 +228,11 @@
             <a href="{% url 'powermapui:terminal_edit' terminal.pk %}" class="btn btn-warning btn-sm">
               Edit Terminal
             </a>
-            <a href="{% url 'powermapui:terminal_connections' terminal.pk %}" class="btn btn-primary btn-sm">
-              Manage Connections
-            </a>
             <a href="{% url 'powermapui:terminal_facilities' terminal.pk %}" class="btn btn-info btn-sm">
               View Connected Facilities
             </a>
-            <a href="{% url 'powermapui:terminal_gridlines' terminal.pk %}" class="btn btn-success btn-sm">
-              View Grid Lines
+            <a href="{% url 'powermapui:terminal_connections' terminal.pk %}" class="btn btn-success btn-sm">
+              Manage Connections
             </a>
             <a href="{% url 'powermapui:terminal_node_diagram' terminal.pk %}" class="btn btn-secondary btn-sm">
               Node Diagram

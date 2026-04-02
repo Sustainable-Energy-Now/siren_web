@@ -72,6 +72,11 @@ urlpatterns = [
     path('terminals/<int:pk>/remove-gridline/<int:gridline_id>/', terminals_connections_views.terminal_remove_gridline, name='terminal_remove_gridline'),
     path('gridlines/<int:pk>/', gridlines_views.gridline_detail, name='gridline_detail'),
 
+        # Terminal Views
+    path('terminals/<int:pk>/facilities/', terminals_connections_views.terminal_facilities_view, name='terminal_facilities'),
+    path('terminals/<int:pk>/swap-gridline/', terminals_connections_views.terminal_swap_gridline_direction, name='terminal_swap_gridline_direction'),
+    path('terminals/<int:pk>/network/', terminals_connections_views.terminal_node_diagram, name='terminal_node_diagram'),
+    
     # ========== TERMINAL DASHBOARD ==========
     path('terminals/dashboard/', terminals_dashboard.terminals_dashboard, name='terminals_dashboard'),
     path('terminals/health-check/', terminals_dashboard.terminal_health_check, name='terminal_health_check'),
@@ -82,11 +87,6 @@ urlpatterns = [
     path('gridlines/<int:pk>/', gridlines_views.gridline_detail, name='gridline_detail'),
     path('gridlines/<int:pk>/edit/', gridlines_views.gridline_edit, name='gridline_edit'),
     path('gridlines/<int:pk>/delete/', gridlines_views.gridline_delete, name='gridline_delete'),
-    
-        # Terminal Views
-    path('terminals/<int:pk>/facilities/', terminals_connections_views.terminal_facilities_view, name='terminal_facilities'),
-    path('terminals/<int:pk>/gridlines/', terminals_connections_views.terminal_gridlines_view, name='terminal_gridlines'),
-    path('terminals/<int:pk>/network/', terminals_connections_views.terminal_node_diagram, name='terminal_node_diagram'),
     
     # Facility Connection
     path('terminals/<int:terminal_pk>/connect-facility/<int:facility_pk>/', 

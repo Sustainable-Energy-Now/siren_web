@@ -1,0 +1,114 @@
+{% extends 'powermapui_base.html' %}
+
+{% block scripts %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+{% endblock %}
+
+{% block powermapui_content %}
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h3>{{ zone.name|default:"Zone" }}</h3>
+      <small class="text-muted">Zone ID: {{ zone.idzones }}</small>
+    </div>
+    <div class="d-flex gap-2">
+      <a href="{% url 'powermapui:zones_list' %}" class="btn btn-outline-secondary">Back to List</a>
+      <a href="{% url 'powermapui:zone_edit' zone.pk %}" class="btn btn-primary">Edit Zone</a>
+    </div>
+  </div>
+
+  {% if messages %}
+    {% for message in messages %}
+      <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+        {{ message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+      </div>
+    {% endfor %}
+  {% endif %}
+
+  <div class="row">
+    <div class="col-lg-8">
+      <!-- Boundary Map -->
+      <div class="card mb-3">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <h6 class="mb-0">Zone Boundary</h6>
+          {% if waypoint_count %}
+            <span class="badge bg-success">{{ waypoint_count }} waypoints</span>
+          {% else %}
+            <span class="badge bg-secondary">No geometry</span>
+          {% endif %}
+        </div>
+        <div class="card-body p-0">
+          <div id="zoneMap" style="height: 400px;"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-4">
+      <!-- Details -->
+      <div class="card mb-3">
+        <div class="card-header"><h6 class="mb-0">Zone Details</h6></div>
+        <div class="card-body">
+          <table class="table table-sm mb-0">
+            <tr>
+              <td><strong>ID:</strong></td>
+              <td>{{ zone.idzones }}</td>
+            </tr>
+            <tr>
+              <td><strong>Name:</strong></td>
+              <td>{{ zone.name|default:"—" }}</td>
+            </tr>
+            <tr>
+              <td><strong>Description:</strong></td>
+              <td>{{ zone.description|default:"—" }}</td>
+            </tr>
+            <tr>
+              <td><strong>Waypoints:</strong></td>
+              <td>{{ waypoint_count }}</td>
+            </tr>
+          </table>
+        </div>
+      </div>
+
+      <!-- Actions -->
+      <div class="card">
+        <div class="card-header"><h6 class="mb-0">Actions</h6></div>
+        <div class="card-body d-flex flex-column gap-2">
+          <a href="{% url 'powermapui:zone_edit' zone.pk %}" class="btn btn-primary">Edit Boundary</a>
+          <form method="post" action="{% url 'powermapui:zone_delete' zone.pk %}"
+                onsubmit="return confirm('Delete zone \'{{ zone.name }}\'? This cannot be undone.');">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-outline-danger w-100">Delete Zone</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    var zoneMap = L.map('zoneMap').setView([-31.0, 121.0], 6);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+        attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
+        subdomains: 'abcd',
+        maxZoom: 19,
+    }).addTo(zoneMap);
+
+    {% if geom_json %}
+    try {
+        var geom = {{ geom_json|safe }};
+        var coords = geom.coordinates || [];
+        if (coords.length >= 2) {
+            var latlngs = coords.map(function(c) { return [c[1], c[0]]; });
+            var poly = L.polyline(latlngs, { color: '#0d6efd', weight: 3 }).addTo(zoneMap);
+            zoneMap.fitBounds(poly.getBounds().pad(0.1));
+        }
+    } catch(e) {
+        console.warn('Could not parse zone geometry:', e);
+    }
+    {% endif %}
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,311 @@
+{% extends 'powermapui_base.html' %}
+
+{% block scripts %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+{% endblock %}
+
+{% block powermapui_content %}
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h3>Edit Zone</h3>
+      <small class="text-muted">{{ zone.name }}</small>
+    </div>
+    <div>
+      <a href="{% url 'powermapui:zone_detail' zone.pk %}" class="btn btn-outline-secondary">Back to Details</a>
+    </div>
+  </div>
+
+  {% if messages %}
+    {% for message in messages %}
+      <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+        {{ message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+      </div>
+    {% endfor %}
+  {% endif %}
+
+  <div class="row">
+    <div class="col-lg-8">
+      <div class="card">
+        <div class="card-body">
+          <form method="post" novalidate>
+            {% csrf_token %}
+
+            <!-- Basic Information -->
+            <h5 class="mb-3">Basic Information</h5>
+            <div class="row mb-3">
+              <div class="col-md-6">
+                <label for="name" class="form-label">Zone Name <span class="text-danger">*</span></label>
+                <input type="text"
+                       class="form-control"
+                       id="name"
+                       name="name"
+                       value="{{ zone.name|default:'' }}"
+                       required>
+              </div>
+            </div>
+            <div class="mb-4">
+              <label for="description" class="form-label">Description</label>
+              <textarea class="form-control"
+                        id="description"
+                        name="description"
+                        rows="2">{{ zone.description|default:'' }}</textarea>
+            </div>
+
+            <hr class="my-4">
+
+            <!-- Boundary Geometry -->
+            <h5 class="mb-3">Boundary Geometry</h5>
+            {% if zone.kml_data %}
+              <div class="alert alert-success py-2 mb-3">
+                <small>This zone has a boundary with <strong id="waypointCount">…</strong> waypoints. The map below shows the current boundary. Edit the JSON or draw a new boundary on the map to update it.</small>
+              </div>
+            {% else %}
+              <div class="alert alert-secondary py-2 mb-3">
+                <small>No boundary geometry stored. Use the <strong>Draw on Map</strong> button to draw a new boundary, or paste a GeoJSON LineString in the editor below.</small>
+              </div>
+            {% endif %}
+
+            <!-- Embedded map -->
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <small class="text-muted" id="mapStatus"></small>
+              <div class="d-flex gap-2">
+                <button type="button" class="btn btn-outline-success btn-sm" id="startDrawBtn">Draw on Map</button>
+                <button type="button" class="btn btn-outline-warning btn-sm" id="undoDrawBtn" style="display:none;">Undo Last Point</button>
+                <button type="button" class="btn btn-outline-danger btn-sm" id="finishDrawBtn" style="display:none;">Finish Drawing</button>
+                <button type="button" class="btn btn-outline-secondary btn-sm" id="toggleGeomJson">Edit raw JSON</button>
+              </div>
+            </div>
+            <div id="boundaryMap" style="height: 400px; border: 1px solid #dee2e6; border-radius: 4px;" class="mb-2"></div>
+
+            <!-- Raw JSON editor (hidden by default) -->
+            <div id="geomJsonPanel" style="display:none;" class="mb-3">
+              <label for="kml_geometry" class="form-label">
+                Boundary Geometry JSON
+                <small class="text-muted">(GeoJSON LineString, coordinates as [lng, lat] or [lng, lat, elev])</small>
+              </label>
+              <textarea class="form-control font-monospace"
+                        id="kml_geometry"
+                        name="kml_geometry"
+                        rows="8"
+                        style="font-size: 0.8em;">{{ zone.kml_data|default:'' }}</textarea>
+              <div class="d-flex gap-2 mt-2">
+                <button type="button" class="btn btn-outline-primary btn-sm" id="applyGeomJson">Apply to map</button>
+                <button type="button" class="btn btn-outline-danger btn-sm" id="clearGeomJson">Clear geometry</button>
+              </div>
+            </div>
+
+            <hr class="my-4">
+
+            <div class="d-flex gap-2">
+              <button type="submit" class="btn btn-primary">Update Zone</button>
+              <a href="{% url 'powermapui:zone_detail' zone.pk %}" class="btn btn-outline-secondary">Cancel</a>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-4">
+      <div class="card mb-3">
+        <div class="card-header"><h6 class="mb-0">Record Information</h6></div>
+        <div class="card-body">
+          <table class="table table-sm mb-0">
+            <tr>
+              <td><strong>Zone ID:</strong></td>
+              <td>{{ zone.idzones }}</td>
+            </tr>
+            <tr>
+              <td><strong>Name:</strong></td>
+              <td>{{ zone.name|default:"—" }}</td>
+            </tr>
+          </table>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><h6 class="mb-0">Drawing Guide</h6></div>
+        <div class="card-body small">
+          <p><strong>Draw on Map:</strong> Click "Draw on Map" then click points on the map to define the zone boundary. Click "Undo Last Point" to remove the last waypoint. Click "Finish Drawing" to apply the drawn boundary.</p>
+          <p><strong>Raw JSON:</strong> Click "Edit raw JSON" to paste or edit a GeoJSON LineString directly. Use [longitude, latitude] coordinate order.</p>
+          <p class="mb-0"><strong>Note:</strong> Save the form to persist changes to the database.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    // ── Map setup ─────────────────────────────────────────────────────────
+    var boundaryMap = L.map('boundaryMap').setView([-31.0, 121.0], 6);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+        attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
+        subdomains: 'abcd',
+        maxZoom: 19,
+    }).addTo(boundaryMap);
+
+    var statusEl = document.getElementById('mapStatus');
+    function setStatus(msg) { if (statusEl) statusEl.textContent = msg; }
+
+    var boundaryLine = null;   // current displayed line
+    var drawMode = false;
+    var drawPoints = [];       // {lat, lng} while drawing
+    var drawMarkers = [];
+    var drawPreviewLine = null;
+    var waypointCountEl = document.getElementById('waypointCount');
+    var geomTextarea = document.getElementById('kml_geometry');
+
+    // ── Draw existing geometry ────────────────────────────────────────────
+    function drawBoundary(coords) {
+        if (boundaryLine) { boundaryMap.removeLayer(boundaryLine); boundaryLine = null; }
+        if (!coords || coords.length < 2) return;
+        var latlngs = coords.map(function(c) { return [c[1], c[0]]; });
+        boundaryLine = L.polyline(latlngs, { color: '#0d6efd', weight: 3 }).addTo(boundaryMap);
+        if (waypointCountEl) waypointCountEl.textContent = coords.length;
+        return boundaryLine;
+    }
+
+    function fitToBoundary() {
+        if (boundaryLine) {
+            boundaryMap.fitBounds(boundaryLine.getBounds().pad(0.1));
+        }
+    }
+
+    // ── Load initial geometry ─────────────────────────────────────────────
+    (function loadInitial() {
+        var raw = geomTextarea ? geomTextarea.value.trim() : '';
+        if (raw) {
+            try {
+                var geom = JSON.parse(raw);
+                if (geom.coordinates && geom.coordinates.length) {
+                    drawBoundary(geom.coordinates);
+                    setStatus('Boundary: ' + geom.coordinates.length + ' waypoints.');
+                    fitToBoundary();
+                }
+            } catch(e) {
+                setStatus('Stored geometry JSON is not valid — check the raw editor.');
+            }
+        } else {
+            setStatus('No boundary geometry stored.');
+        }
+    })();
+
+    // ── Drawing mode ──────────────────────────────────────────────────────
+    function updateDrawPreview() {
+        if (drawPreviewLine) { boundaryMap.removeLayer(drawPreviewLine); drawPreviewLine = null; }
+        if (drawPoints.length >= 2) {
+            drawPreviewLine = L.polyline(drawPoints, {
+                color: 'red', weight: 3, opacity: 0.7, dashArray: '10, 10'
+            }).addTo(boundaryMap);
+        }
+        setStatus('Drawing: ' + drawPoints.length + ' point(s). ' +
+            (drawPoints.length >= 2 ? 'Click "Finish Drawing" to apply.' : 'Keep clicking to add waypoints.'));
+    }
+
+    document.getElementById('startDrawBtn').addEventListener('click', function () {
+        drawMode = true;
+        drawPoints = [];
+        drawMarkers.forEach(function(m) { boundaryMap.removeLayer(m); });
+        drawMarkers = [];
+        if (drawPreviewLine) { boundaryMap.removeLayer(drawPreviewLine); drawPreviewLine = null; }
+        boundaryMap.getContainer().style.cursor = 'crosshair';
+        this.style.display = 'none';
+        document.getElementById('undoDrawBtn').style.display = '';
+        document.getElementById('finishDrawBtn').style.display = '';
+        setStatus('Click on the map to add boundary waypoints.');
+    });
+
+    document.getElementById('undoDrawBtn').addEventListener('click', function () {
+        if (drawPoints.length === 0) return;
+        drawPoints.pop();
+        var lastMarker = drawMarkers.pop();
+        if (lastMarker) boundaryMap.removeLayer(lastMarker);
+        updateDrawPreview();
+        if (drawPoints.length === 0) setStatus('No points yet. Click on the map to start.');
+    });
+
+    document.getElementById('finishDrawBtn').addEventListener('click', function () {
+        if (drawPoints.length < 2) {
+            setStatus('At least 2 points are required to define a boundary.');
+            return;
+        }
+        // Build GeoJSON and push into textarea / map
+        var coords = drawPoints.map(function(p) { return [p.lng, p.lat]; });
+        var geomJson = JSON.stringify({ type: 'LineString', coordinates: coords });
+        geomTextarea.value = geomJson;
+
+        // Clean up draw state
+        drawMode = false;
+        drawPoints = [];
+        drawMarkers.forEach(function(m) { boundaryMap.removeLayer(m); });
+        drawMarkers = [];
+        if (drawPreviewLine) { boundaryMap.removeLayer(drawPreviewLine); drawPreviewLine = null; }
+        boundaryMap.getContainer().style.cursor = '';
+
+        // Render the finalised line
+        drawBoundary(coords);
+        fitToBoundary();
+        setStatus('Boundary drawn: ' + coords.length + ' waypoints. Save the form to persist.');
+
+        document.getElementById('startDrawBtn').style.display = '';
+        document.getElementById('undoDrawBtn').style.display = 'none';
+        document.getElementById('finishDrawBtn').style.display = 'none';
+    });
+
+    boundaryMap.on('click', function (e) {
+        if (!drawMode) return;
+        drawPoints.push(e.latlng);
+        var isFirst = drawPoints.length === 1;
+        var marker = L.marker(e.latlng, { title: isFirst ? 'Start' : 'Waypoint ' + drawPoints.length })
+            .addTo(boundaryMap)
+            .bindPopup(isFirst ? 'Start point' : 'Waypoint ' + drawPoints.length)
+            .openPopup();
+        drawMarkers.push(marker);
+        updateDrawPreview();
+    });
+
+    // ── Toggle raw JSON editor ────────────────────────────────────────────
+    document.getElementById('toggleGeomJson').addEventListener('click', function () {
+        var panel = document.getElementById('geomJsonPanel');
+        var visible = panel.style.display !== 'none';
+        panel.style.display = visible ? 'none' : 'block';
+        this.textContent = visible ? 'Edit raw JSON' : 'Hide JSON editor';
+        if (!visible) { setTimeout(function() { boundaryMap.invalidateSize(); }, 10); }
+    });
+
+    // ── Apply JSON to map ─────────────────────────────────────────────────
+    document.getElementById('applyGeomJson').addEventListener('click', function () {
+        var raw = geomTextarea.value.trim();
+        if (!raw) {
+            if (boundaryLine) { boundaryMap.removeLayer(boundaryLine); boundaryLine = null; }
+            setStatus('Geometry cleared from map (not yet saved).');
+            return;
+        }
+        try {
+            var geom = JSON.parse(raw);
+            if (!geom.coordinates || !Array.isArray(geom.coordinates)) {
+                setStatus('JSON must have a "coordinates" array.');
+                return;
+            }
+            drawBoundary(geom.coordinates);
+            setStatus('Boundary updated: ' + geom.coordinates.length + ' waypoints.');
+            fitToBoundary();
+        } catch(e) {
+            setStatus('Invalid JSON — ' + e.message);
+        }
+    });
+
+    // ── Clear geometry ────────────────────────────────────────────────────
+    document.getElementById('clearGeomJson').addEventListener('click', function () {
+        if (!confirm('Remove all boundary geometry for this zone?')) return;
+        geomTextarea.value = '';
+        if (boundaryLine) { boundaryMap.removeLayer(boundaryLine); boundaryLine = null; }
+        if (waypointCountEl) waypointCountEl.textContent = '0';
+        setStatus('Geometry cleared. Save the form to apply.');
+    });
+})();
+</script>
+{% endblock %}
