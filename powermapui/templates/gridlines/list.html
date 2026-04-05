@@ -89,7 +89,7 @@
           <th>Type</th>
           <th>Voltage (kV)</th>
           <th>Length (km)</th>
-          <th>Capacity (MW)</th>
+          <th>Capacity (MVA)</th>
           <th>From Terminal</th>
           <th>To Terminal</th>
           <th>Status</th>
@@ -111,8 +111,8 @@
             <td>{{ gridline.voltage_level }}</td>
             <td>{{ gridline.length_km|floatformat:2 }}</td>
             <td>
-              {% if gridline.thermal_capacity_mw %}
-                {{ gridline.thermal_capacity_mw|floatformat:0 }}
+              {% if gridline.thermal_capacity_mva %}
+                {{ gridline.thermal_capacity_mva|floatformat:0 }}
               {% else %}
                 -
               {% endif %}
@@ -226,7 +226,7 @@
             <small class="text-muted">Total Length (page)</small>
           </div>
           <div class="col-md-3">
-            <h5>{{ total_capacity|floatformat:0 }} MW</h5>
+            <h5>{{ total_capacity|floatformat:0 }} MVA</h5>
             <small class="text-muted">Total Capacity (page)</small>
           </div>
         </div>

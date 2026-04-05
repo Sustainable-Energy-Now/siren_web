@@ -1,4 +1,13 @@
 # Release Notes (Latest first)
+## Version 3.19.1 - April 03, 2026
+### ✨ Enhancements
+- Feature: Refactor Facility Create ([#71](https://github.com/Sustainable-Energy-Now/siren_web/issues/71))
+- Feature: Grid Elements Move ([#72](https://github.com/Sustainable-Energy-Now/siren_web/issues/72))
+- Feature: Grid Elements Edit ([#73](https://github.com/Sustainable-Energy-Now/siren_web/issues/73))
+- Feature: Grid Map Scenarios ([#74](https://github.com/Sustainable-Energy-Now/siren_web/issues/74))
+- Feature: Zones Refactor ([#75](https://github.com/Sustainable-Energy-Now/siren_web/issues/75))
+- Feature: Refactor Facility Create ([#76](https://github.com/Sustainable-Energy-Now/siren_web/issues/76))
+- Feature: Rework Terminals and Gridlines Capacity ([#77](https://github.com/Sustainable-Energy-Now/siren_web/issues/77))
 
 ## Version 3.19.0 - March 23, 2026
 ### ✨ Enhancements

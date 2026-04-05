@@ -567,8 +567,8 @@ def _stage_from_post(post_data, program=None, stage=None):
     expected_operational_date = post_data.get('expected_operational_date') or None
     actual_operational_date = post_data.get('actual_operational_date') or None
     capacity_new_mw = _float_or_none(post_data.get('capacity_new_mw'))
-    capacity_unlocked_existing_mw = _float_or_none(post_data.get('capacity_unlocked_existing_mw'))
-    reserved_capacity_mw = _float_or_none(post_data.get('reserved_capacity_mw'))
+    capacity_unlocked_existing_mw = _float_or_none(post_data.get('capacity_unlocked_existing_mw')) or 0
+    reserved_capacity_mw = _float_or_none(post_data.get('reserved_capacity_mw')) or 0
     alignment_radius_km_raw = post_data.get('alignment_radius_km', '50')
     served_region = post_data.get('served_region', '').strip()
     display_color = post_data.get('display_color', '#FF6B35').strip()
@@ -585,8 +585,11 @@ def _stage_from_post(post_data, program=None, stage=None):
     if not name:
         errors.append('Stage name is required.')
 
+    if capacity_new_mw is None:
+        errors.append('New Capacity (MW) is required.')
+
     try:
-        stage_number = int(stage_number_raw) if stage_number_raw else None
+        stage_number = int(stage_number_raw) if stage_number_raw else 1
     except ValueError:
         stage_number = None
         errors.append('Stage number must be a whole number.')

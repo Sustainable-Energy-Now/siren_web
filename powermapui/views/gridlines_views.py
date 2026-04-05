@@ -72,7 +72,7 @@ def gridlines_list(request):
     # Calculate statistics for current page
     connected_count = sum(1 for line in page_obj.object_list if line.from_terminal or line.to_terminal)
     total_length = sum(line.length_km for line in page_obj.object_list if line.length_km)
-    total_capacity = sum(line.thermal_capacity_mw for line in page_obj.object_list if line.thermal_capacity_mw)
+    total_capacity = sum(line.thermal_capacity_mva for line in page_obj.object_list if line.thermal_capacity_mva)
     
     context = {
         'page_obj': page_obj,
@@ -144,8 +144,8 @@ def gridline_create(request):
             reactance_per_km = request.POST.get('reactance_per_km')
             conductance_per_km = request.POST.get('conductance_per_km', '0')
             susceptance_per_km = request.POST.get('susceptance_per_km', '0')
-            thermal_capacity_mw = request.POST.get('thermal_capacity_mw')
-            emergency_capacity_mw = request.POST.get('emergency_capacity_mw')
+            thermal_capacity_mva = request.POST.get('thermal_capacity_mva')
+            emergency_capacity_mva = request.POST.get('emergency_capacity_mva')
             from_terminal_id = request.POST.get('from_terminal')
             to_terminal_id = request.POST.get('to_terminal')
             from_latitude = request.POST.get('from_latitude')
@@ -174,34 +174,34 @@ def gridline_create(request):
             if not line_name:
                 messages.error(request, 'Line name is required.')
                 return render(request, 'gridlines/create.html', get_create_context(request.POST))
-            
+
             if not line_code:
                 messages.error(request, 'Line code is required.')
                 return render(request, 'gridlines/create.html', get_create_context(request.POST))
-            
+
             if not voltage_level:
                 messages.error(request, 'Voltage level is required.')
                 return render(request, 'gridlines/create.html', get_create_context(request.POST))
-            
+
             # Check for duplicates
             if GridLines.objects.filter(line_name=line_name).exists():
                 messages.error(request, 'A grid line with this name already exists.')
                 return render(request, 'gridlines/create.html', get_create_context(request.POST))
-            
+
             if GridLines.objects.filter(line_code=line_code).exists():
                 messages.error(request, 'A grid line with this code already exists.')
                 return render(request, 'gridlines/create.html', get_create_context(request.POST))
-            
+
             # Get terminals
             from_terminal = None
             to_terminal = None
-            
+
             if from_terminal_id:
                 from_terminal = get_object_or_404(Terminals, pk=from_terminal_id)
-            
+
             if to_terminal_id:
                 to_terminal = get_object_or_404(Terminals, pk=to_terminal_id)
-            
+
             # Create the grid line
             gridline = GridLines.objects.create(
                 line_name=line_name,
@@ -213,8 +213,8 @@ def gridline_create(request):
                 reactance_per_km=float(reactance_per_km) if reactance_per_km else 0,
                 conductance_per_km=float(conductance_per_km) if conductance_per_km else 0,
                 susceptance_per_km=float(susceptance_per_km) if susceptance_per_km else 0,
-                thermal_capacity_mw=float(thermal_capacity_mw) if thermal_capacity_mw else None,
-                emergency_capacity_mw=float(emergency_capacity_mw) if emergency_capacity_mw else None,
+                thermal_capacity_mva=float(thermal_capacity_mva) if thermal_capacity_mva else None,
+                emergency_capacity_mva=float(emergency_capacity_mva) if emergency_capacity_mva else None,
                 from_terminal=from_terminal,
                 to_terminal=to_terminal,
                 from_latitude=float(from_latitude) if from_latitude else None,
@@ -259,8 +259,8 @@ def gridline_edit(request, pk):
             reactance_per_km = request.POST.get('reactance_per_km')
             conductance_per_km = request.POST.get('conductance_per_km', '0')
             susceptance_per_km = request.POST.get('susceptance_per_km', '0')
-            thermal_capacity_mw = request.POST.get('thermal_capacity_mw')
-            emergency_capacity_mw = request.POST.get('emergency_capacity_mw')
+            thermal_capacity_mva = request.POST.get('thermal_capacity_mva')
+            emergency_capacity_mva = request.POST.get('emergency_capacity_mva')
             from_terminal_id = request.POST.get('from_terminal')
             to_terminal_id = request.POST.get('to_terminal')
             from_latitude = request.POST.get('from_latitude')
@@ -312,8 +312,8 @@ def gridline_edit(request, pk):
             gridline.reactance_per_km = float(reactance_per_km) if reactance_per_km else 0
             gridline.conductance_per_km = float(conductance_per_km) if conductance_per_km else 0
             gridline.susceptance_per_km = float(susceptance_per_km) if susceptance_per_km else 0
-            gridline.thermal_capacity_mw = float(thermal_capacity_mw) if thermal_capacity_mw else None
-            gridline.emergency_capacity_mw = float(emergency_capacity_mw) if emergency_capacity_mw else None
+            gridline.thermal_capacity_mva = float(thermal_capacity_mva) if thermal_capacity_mva else None
+            gridline.emergency_capacity_mva = float(emergency_capacity_mva) if emergency_capacity_mva else None
             gridline.from_terminal = from_terminal
             gridline.to_terminal = to_terminal
             gridline.from_latitude = float(from_latitude) if from_latitude else None

@@ -62,8 +62,8 @@
                 <tr>
                   <td><strong>Thermal Capacity:</strong></td>
                   <td>
-                    {% if gridline.thermal_capacity_mw %}
-                      {{ gridline.thermal_capacity_mw|floatformat:1 }} MW
+                    {% if gridline.thermal_capacity_mva %}
+                      {{ gridline.thermal_capacity_mva|floatformat:1 }} MVA
                     {% else %}
                       Not specified
                     {% endif %}
@@ -72,8 +72,8 @@
                 <tr>
                   <td><strong>Emergency Capacity:</strong></td>
                   <td>
-                    {% if gridline.emergency_capacity_mw %}
-                      {{ gridline.emergency_capacity_mw|floatformat:1 }} MW
+                    {% if gridline.emergency_capacity_mva %}
+                      {{ gridline.emergency_capacity_mva|floatformat:1 }} MVA
                     {% else %}
                       Not specified
                     {% endif %}

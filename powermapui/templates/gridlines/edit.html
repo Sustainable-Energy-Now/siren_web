@@ -158,25 +158,25 @@
             <h5 class="mb-3">Capacity</h5>
             <div class="row mb-4">
               <div class="col-md-6">
-                <label for="thermal_capacity_mw" class="form-label">Thermal Capacity (MW)</label>
-                <input type="number" 
-                       class="form-control" 
-                       id="thermal_capacity_mw" 
-                       name="thermal_capacity_mw" 
-                       step="0.1" 
+                <label for="thermal_capacity_mva" class="form-label">Thermal Capacity (MVA)</label>
+                <input type="number"
+                       class="form-control"
+                       id="thermal_capacity_mva"
+                       name="thermal_capacity_mva"
+                       step="0.1"
                        min="0"
-                       value="{{ form_data.thermal_capacity_mw|default:gridline.thermal_capacity_mw|default:'' }}">
+                       value="{{ form_data.thermal_capacity_mva|default:gridline.thermal_capacity_mva|default:'' }}">
                 <div class="form-text">Normal operating capacity</div>
               </div>
               <div class="col-md-6">
-                <label for="emergency_capacity_mw" class="form-label">Emergency Capacity (MW)</label>
-                <input type="number" 
-                       class="form-control" 
-                       id="emergency_capacity_mw" 
-                       name="emergency_capacity_mw" 
-                       step="0.1" 
+                <label for="emergency_capacity_mva" class="form-label">Emergency Capacity (MVA)</label>
+                <input type="number"
+                       class="form-control"
+                       id="emergency_capacity_mva"
+                       name="emergency_capacity_mva"
+                       step="0.1"
                        min="0"
-                       value="{{ form_data.emergency_capacity_mw|default:gridline.emergency_capacity_mw|default:'' }}">
+                       value="{{ form_data.emergency_capacity_mva|default:gridline.emergency_capacity_mva|default:'' }}">
                 <div class="form-text">Emergency operating capacity</div>
               </div>
             </div>

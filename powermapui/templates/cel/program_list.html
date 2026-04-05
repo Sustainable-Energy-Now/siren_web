@@ -22,6 +22,7 @@
         <div class="btn-group btn-group-sm">
           <a href="{% url 'powermapui:cel_program_detail' program.pk %}" class="btn btn-outline-primary">View</a>
           <a href="{% url 'powermapui:cel_program_edit' program.pk %}" class="btn btn-outline-secondary">Edit</a>
+          <a href="{% url 'powermapui:cel_stage_create' program.pk %}" class="btn btn-outline-success" target="_blank">+ Add Stage</a>
         </div>
       </div>
       {% with stages=program.stages.all %}

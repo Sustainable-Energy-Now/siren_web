@@ -648,9 +648,9 @@ class GridLines(models.Model):
     
     def get_utilization_percent(self, current_flow_mw):
         """Get current utilization as percentage of thermal capacity"""
-        if self.thermal_capacity_mw == 0:
+        if not self.thermal_capacity_mva:
             return 0
-        return (abs(current_flow_mw) / self.thermal_capacity_mw) * 100
+        return (abs(current_flow_mw) / self.thermal_capacity_mva) * 100
     
     def set_kml_geometry_data(self, geometry_dict):
         """Store geometry data as JSON string in the kml_geometry TextField"""
@@ -752,7 +752,7 @@ class GridLines(models.Model):
     def get_popup_content(self):
         """Get HTML content for map popup"""
         status = "Active" if self.active else "Inactive"
-        emergency_cap = f" / {self.emergency_capacity_mw} MW (Emergency)" if self.emergency_capacity_mw else ""
+        emergency_cap = f" / {self.emergency_capacity_mva} MVA (Emergency)" if self.emergency_capacity_mva else ""
         
         return f"""
         <div class="grid-line-popup">
@@ -762,7 +762,7 @@ class GridLines(models.Model):
                 <tr><td><strong>Type:</strong></td><td>{self.line_type.title()}</td></tr>
                 <tr><td><strong>Voltage:</strong></td><td>{self.voltage_level} kV</td></tr>
                 <tr><td><strong>Length:</strong></td><td>{self.length_km} km</td></tr>
-                <tr><td><strong>Capacity:</strong></td><td>{self.thermal_capacity_mw}{emergency_cap} MW</td></tr>
+                <tr><td><strong>Capacity:</strong></td><td>{self.thermal_capacity_mva}{emergency_cap} MVA</td></tr>
                 <tr><td><strong>Status:</strong></td><td>{status}</td></tr>
                 {f'<tr><td><strong>Owner:</strong></td><td>{self.owner}</td></tr>' if self.owner else ''}
             </table>
@@ -785,7 +785,7 @@ class GridLines(models.Model):
                 Line Code: {self.line_code}<br/>
                 Type: {self.line_type}<br/>
                 Voltage: {self.voltage_level} kV<br/>
-                Capacity: {self.thermal_capacity_mw} MW<br/>
+                Capacity: {self.thermal_capacity_mva} MVA<br/>
                 Length: {self.length_km} km<br/>
                 Owner: {self.owner or 'Unknown'}
                 ]]>

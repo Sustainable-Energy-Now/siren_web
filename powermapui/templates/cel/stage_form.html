@@ -14,7 +14,7 @@
   <div class="col-lg-8">
     <div class="card">
       <div class="card-body">
-        <form method="post" novalidate>
+        <form method="post" novalidate class="needs-validation" id="stage-form">
           {% csrf_token %}
 
           <!-- Basic details -->
@@ -24,6 +24,7 @@
               <label for="name" class="form-label">Stage Name <span class="text-danger">*</span></label>
               <input type="text" class="form-control" id="name" name="name"
                      value="{{ initial.name }}" required>
+              <div class="invalid-feedback">Stage name is required.</div>
             </div>
             <div class="col-md-4">
               <label for="stage_number" class="form-label">Stage Number</label>
@@ -92,9 +93,10 @@
 
           <div class="row mb-3">
             <div class="col-md-4">
-              <label for="capacity_new_mw" class="form-label">New Capacity (MW)</label>
+              <label for="capacity_new_mw" class="form-label">New Capacity (MW) <span class="text-danger">*</span></label>
               <input type="number" class="form-control" id="capacity_new_mw" name="capacity_new_mw"
-                     step="1" min="0" value="{{ initial.capacity_new_mw }}">
+                     step="1" min="0" value="{{ initial.capacity_new_mw }}" required>
+              <div class="invalid-feedback">New Capacity (MW) is required.</div>
             </div>
             <div class="col-md-4">
               <label for="capacity_unlocked_existing_mw" class="form-label">Unlocked Existing (MW)</label>
@@ -208,4 +210,16 @@
     </div>
   </div>
 </div>
+<script>
+  (function () {
+    var form = document.getElementById('stage-form');
+    form.addEventListener('submit', function (e) {
+      if (!form.checkValidity()) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+      form.classList.add('was-validated');
+    }, false);
+  })();
+</script>
 {% endblock %}
