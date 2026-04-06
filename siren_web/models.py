@@ -540,7 +540,7 @@ class GridLines(models.Model):
     susceptance_per_km = models.FloatField(default=0, help_text="Susceptance per km (S/km)")
     
     # Capacity constraints
-    thermal_capacity_mw = models.FloatField(help_text="Thermal capacity in MW")
+    thermal_capacity_mw = models.FloatField(null=True, blank=True, help_text="Thermal capacity in MW")
     emergency_capacity_mw = models.FloatField(null=True, blank=True, help_text="Emergency capacity in MW")
     thermal_capacity_mva = models.FloatField(null=True, blank=True, help_text="Thermal capacity in MVA")
     emergency_capacity_mva = models.FloatField(null=True, blank=True, help_text="Emergency capacity in MVA")

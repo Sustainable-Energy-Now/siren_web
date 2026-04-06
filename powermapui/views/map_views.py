@@ -755,7 +755,7 @@ def get_grid_line_details(request, grid_line_id):
             'coordinates': grid_line.get_line_coordinates(),
             'connected_facilities': connected_facilities,
             'current_utilization_percent': current_utilization,
-            'losses_at_full_capacity': grid_line.calculate_line_losses_mw(grid_line.thermal_capacity_mw)
+            'losses_at_full_capacity': grid_line.calculate_line_losses_mw(grid_line.thermal_capacity_mw or 0)
         }
         
         return JsonResponse(grid_line_data)
@@ -1109,7 +1109,7 @@ def get_grid_lines(request):
     for line_data in grid_lines:
         line = GridLines.objects.get(idgridlines=line_data['idgridlines'])
         connected_capacity = sum(f.capacity or 0 for f in line.connected_facilities.all())
-        utilization = (connected_capacity / line_data['thermal_capacity_mw']) * 100 if line_data['thermal_capacity_mw'] > 0 else 0
+        utilization = (connected_capacity / line_data['thermal_capacity_mw']) * 100 if (line_data['thermal_capacity_mw'] or 0) > 0 else 0
         
         line_data.update({
             'connected_facilities_count': line.connected_facilities.count(),
@@ -1137,8 +1137,9 @@ def find_nearest_grid_lines(request):
         
         if distance <= max_distance:
             connected_capacity = sum(f.capacity or 0 for f in grid_line.connected_facilities.all())
-            available_capacity = grid_line.thermal_capacity_mw - connected_capacity
-            
+            capacity = grid_line.thermal_capacity_mw or 0
+            available_capacity = capacity - connected_capacity
+
             nearby_lines.append({
                 'idgridlines': grid_line.idgridlines,
                 'line_name': grid_line.line_name,
@@ -1148,11 +1149,11 @@ def find_nearest_grid_lines(request):
                 'thermal_capacity_mw': grid_line.thermal_capacity_mw,
                 'connected_capacity_mw': connected_capacity,
                 'available_capacity_mw': available_capacity,
-                'utilization_percent': round((connected_capacity / grid_line.thermal_capacity_mw) * 100, 1),
+                'utilization_percent': round((connected_capacity / capacity) * 100, 1) if capacity > 0 else 0,
                 'distance_km': round(distance, 2),
                 'connection_point_lat': connection_point[0] if connection_point else grid_line.from_latitude,
                 'connection_point_lon': connection_point[1] if connection_point else grid_line.from_longitude,
-                'suitability_score': max(0, 100 - (distance * 2) - (connected_capacity / grid_line.thermal_capacity_mw * 50))
+                'suitability_score': max(0, 100 - (distance * 2) - (connected_capacity / capacity * 50 if capacity > 0 else 0))
             })
     
     # Sort by suitability score (combination of distance and available capacity)

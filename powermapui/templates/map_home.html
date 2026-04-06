@@ -21,17 +21,17 @@
         </select>
     </div>
 
-    <!-- Add New Facility / Edit buttons (enabled only when a specific scenario is selected) -->
-    <button id="addFacilityBtn" class="btn btn-primary" type="button" {% if not scenario_filter %}disabled title="Select a scenario to add facilities"{% endif %}>
+    <!-- Add New Facility / Edit buttons -->
+    <button id="addFacilityBtn" class="btn btn-primary" type="button">
         Add New Facility
     </button>
-    <button id="addTerminalBtn" class="btn btn-warning" type="button" {% if not scenario_filter %}disabled title="Select a scenario to add terminals"{% endif %}>
+    <button id="addTerminalBtn" class="btn btn-warning" type="button">
         Add New Terminal
     </button>
-    <button id="addGridLineBtn" class="btn btn-success" type="button" {% if not scenario_filter %}disabled title="Select a scenario to add grid lines"{% endif %}>
+    <button id="addGridLineBtn" class="btn btn-success" type="button">
         Add New Grid Line
     </button>
-    <button id="manageConnectionsBtn" class="btn btn-info" type="button" {% if not scenario_filter %}disabled title="Select a scenario to manage connections"{% endif %}>
+    <button id="manageConnectionsBtn" class="btn btn-info" type="button">
         Manage Connections
     </button>
     <a href="{% url 'powermapui:zones_list' %}" class="btn btn-outline-secondary" type="button">

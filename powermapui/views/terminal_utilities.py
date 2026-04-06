@@ -335,7 +335,7 @@ def suggest_terminal_connections(terminal, max_distance_km=50):
         distance_score = max(0, 100 - (distance / max_distance_km * 100))
         
         # Calculate capacity score
-        capacity_score = min(100, line.thermal_capacity_mw / 10)  # Scale to 100
+        capacity_score = min(100, (line.thermal_capacity_mw or 0) / 10)  # Scale to 100
         
         # Overall score (weighted average)
         overall_score = (voltage_score * 0.5 + distance_score * 0.3 + capacity_score * 0.2)
