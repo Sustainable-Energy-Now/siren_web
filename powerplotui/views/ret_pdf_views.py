@@ -645,6 +645,10 @@ def publish_annual_report(request, year):
         total_biomass = sum(r.biomass_generation for r in annual_data)
         total_gas = sum(r.gas_generation for r in annual_data)
         total_coal = sum(r.coal_generation or 0 for r in annual_data)
+        total_hydro_discharge = sum(r.hydro_discharge for r in annual_data)
+        total_hydro_charge = sum(r.hydro_charge for r in annual_data)
+        total_storage_discharge = sum(r.storage_discharge for r in annual_data)
+        total_storage_charge = sum(r.storage_charge for r in annual_data)
 
         re_pct_operational = (total_renewable_operational / total_operational_demand * 100) if total_operational_demand > 0 else 0
         re_pct_underlying = (total_renewable / total_underlying_demand * 100) if total_underlying_demand > 0 else 0
@@ -663,6 +667,10 @@ def publish_annual_report(request, year):
             'biomass_generation': total_biomass,
             'gas_generation': total_gas,
             'coal_generation': total_coal,
+            'hydro_discharge': total_hydro_discharge,
+            'hydro_charge': total_hydro_charge,
+            'storage_discharge': total_storage_discharge,
+            'storage_charge': total_storage_charge,
         }
 
         from powerplotui.views.ret_dashboard_views import aggregate_wholesale_price_stats
@@ -755,6 +763,23 @@ def publish_annual_report(request, year):
         annual_trends_chart_img = generate_annual_trends_chart_image(year)
         scenario_comparison_chart_img = generate_scenario_comparison_chart_image(scenarios)
 
+        from powerplotui.views.ret_dashboard_views import _format_perth_time
+        from django.contrib.staticfiles import finders as static_finders
+        from django.conf import settings as django_settings
+        from django.utils import timezone
+        import os
+
+        # Embed logo as base64
+        logo_b64 = None
+        logo_rel = 'img/SEN_LOGO_HERO.png'
+        logo_path = static_finders.find(logo_rel)
+        if not logo_path and hasattr(django_settings, 'STATIC_ROOT') and django_settings.STATIC_ROOT:
+            logo_path = os.path.join(django_settings.STATIC_ROOT, logo_rel)
+        if logo_path and os.path.exists(logo_path):
+            with open(logo_path, 'rb') as _f:
+                logo_b64 = f'data:image/png;base64,{base64.b64encode(_f.read()).decode()}'
+
+        comments = ReportComment.get_comments_for_report('annual', year)
         context = {
             'year': year,
             'annual_data': annual_data,
@@ -767,9 +792,11 @@ def publish_annual_report(request, year):
             'total_new_capacity': total_new_capacity,
             'scenarios': scenarios,
             'completed_quarters': completed_quarters,
-            'comments': ReportComment.get_comments_for_report('annual', year),
-            'executive_summary': ReportComment.get_comments_for_report('annual', year).filter(category='executive_summary').first(),
+            'comments': comments,
+            'executive_summary': comments.filter(category='executive_summary').first(),
             'report_type': 'annual',
+            'logo_b64': logo_b64,
+            'now': _format_perth_time(timezone.now()),
             # Chart images for PDF
             'annual_generation_chart_img': annual_generation_chart_img,
             'annual_trends_chart_img': annual_trends_chart_img,

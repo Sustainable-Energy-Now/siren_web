@@ -636,66 +636,6 @@
         {{ annual_trends_chart|safe }}
     </div>
 
-    {% if scenarios %}
-    <div class="section-header">
-        <h2>2040 Step Change Target Progress</h2>
-    </div>
-
-    <div class="chart-container">
-        {{ scenario_comparison_chart|safe }}
-    </div>
-
-    <table class="stats-table">
-        <thead>
-            <tr>
-                <th>Year</th>
-                <th class="value">Projected RE% 2040</th>
-                <th class="value">Projected Emissions</th>
-                <th class="value">Probability</th>
-                <th>Status</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for scenario in scenarios %}
-            <tr>
-                <td><strong>{{ scenario.year }}</strong></td>
-                <td
-                    class="value {% if scenario.target_re_percentage >= 75 %}positive{% else %}negative{% endif %}">
-                    {{ scenario.target_re_percentage|floatformat:1 }}%
-                </td>
-                <td class="value">
-                    {% if scenario.target_emissions_tonnes %}
-                    {{ scenario.target_emissions_tonnes|floatformat:0|intcomma }} t
-                    {% else %}
-                    N/A
-                    {% endif %}
-                </td>
-                <td class="value">
-                    {% with latest_mc=scenario.monte_carlo_runs.first %}
-                    {% if latest_mc %}
-                        <span title="Monte Carlo simulation: {{latest_mc.num_iterations|intcomma}} iterations, {{latest_mc.run_date|date:'Y-m-d'}}">
-                            {{ latest_mc.probability_85_percent|floatformat:0 }}%
-                        </span>
-                    {% elif scenario.probability_percentage %}
-                        {{ scenario.probability_percentage|floatformat:0 }}%
-                    {% else %}
-                        N/A
-                    {% endif %}
-                    {% endwith %}
-                </td>
-                <td>
-                    {% if scenario.target_re_percentage >= 75 %}
-                    <span style="color: #27ae60;">✓ Meets Target</span>
-                    {% else %}
-                    <span style="color: #e74c3c;">⚠ Below Target</span>
-                    {% endif %}
-                </td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-    {% endif %}
-
     <!-- New Capacity Commissioned -->
     {% if new_capacity %}
     <div class="section-header">

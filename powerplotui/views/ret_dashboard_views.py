@@ -1047,8 +1047,9 @@ def annual_review(request, year):
         'executive_summary': executive_summary,
         'report_type': 'annual',
         'next_report': next_report,
+        'now': _format_perth_time(timezone.now()),
     }
-    
+
     return render(request, 'ret_dashboard/annual_review.html', context)
 
 def get_monthly_summary_json(performance):
