@@ -46,7 +46,7 @@ LOGGING = {
             'level': 'INFO',
             'propagate': False,
         },
-        # Suppress verbose font subsetting messages from WeasyPrint
+        # Suppress verbose messages from WeasyPrint and font tools
         'fontTools.subset': {
             'handlers': ['console'],
             'level': 'WARNING',
@@ -54,7 +54,18 @@ LOGGING = {
         },
         'weasyprint': {
             'handlers': ['console'],
-            'level': 'INFO',
+            'level': 'WARNING',
+            'propagate': False,
+        },
+        # Suppress Kaleido/Choreographer chart-rendering debug noise
+        'kaleido': {
+            'handlers': ['console'],
+            'level': 'WARNING',
+            'propagate': False,
+        },
+        'choreographer': {
+            'handlers': ['console'],
+            'level': 'WARNING',
             'propagate': False,
         },
     },

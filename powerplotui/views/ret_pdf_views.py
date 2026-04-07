@@ -241,6 +241,98 @@ def generate_scenario_comparison_chart_image(scenarios):
         logger.warning(f"Failed to generate scenario comparison chart: {str(e)}")
         return None
 
+def generate_quarterly_generation_chart_image(quarterly_data):
+    """Generate stacked bar chart of monthly generation by technology for a quarter."""
+    if not PLOTLY_AVAILABLE:
+        return None
+
+    from calendar import month_name as cal_month_name
+
+    months = [cal_month_name[record.month] for record in quarterly_data]
+
+    fig = go.Figure()
+    traces = [
+        ('Wind',           '#4CAF50', 'wind_generation'),
+        ('Solar (Utility)','#FFC107', 'solar_generation'),
+        ('Biomass',        '#8BC34A', 'biomass_generation'),
+        ('Hydro',          '#03A9F4', 'hydro_discharge'),
+        ('Battery',        '#9C27B0', 'storage_discharge'),
+        ('Gas',            '#9E9E9E', 'gas_generation'),
+        ('Coal',           '#5D4037', 'coal_generation'),
+    ]
+    for name, color, attr in traces:
+        fig.add_trace(go.Bar(
+            name=name,
+            x=months,
+            y=[getattr(r, attr, 0) or 0 for r in quarterly_data],
+            marker_color=color,
+        ))
+
+    fig.update_layout(
+        barmode='stack',
+        title='Monthly Operational Generation by Technology',
+        xaxis_title='Month',
+        yaxis_title='Generation (GWh)',
+        legend=dict(orientation='h', y=1.15),
+        height=380,
+        width=760,
+        margin=dict(l=60, r=20, t=80, b=50),
+    )
+
+    try:
+        img_bytes = fig.to_image(format="png", engine="kaleido")
+        return f"data:image/png;base64,{base64.b64encode(img_bytes).decode()}"
+    except Exception as e:
+        logger.warning(f"Failed to generate quarterly generation chart: {e}")
+        return None
+
+
+def generate_quarterly_yoy_chart_image(quarter, quarterly_summary, prev_quarter_summary):
+    """Generate year-over-year RE% comparison bar chart for a quarter."""
+    if not PLOTLY_AVAILABLE:
+        return None
+
+    prev_year = (quarterly_summary.get('year', 0) or 0) - 1  # fallback; labels come from caller
+
+    labels = [
+        f"Q{quarter} Prev Year (Op)",
+        f"Q{quarter} This Year (Op)",
+        f"Q{quarter} Prev Year (Und)",
+        f"Q{quarter} This Year (Und)",
+    ]
+    values = [
+        prev_quarter_summary.get('re_percentage_operational', 0) if prev_quarter_summary else 0,
+        quarterly_summary.get('re_percentage_operational', 0),
+        prev_quarter_summary.get('re_percentage_underlying', 0) if prev_quarter_summary else 0,
+        quarterly_summary.get('re_percentage_underlying', 0),
+    ]
+    colors = ['#90CAF9', '#2196F3', '#A5D6A7', '#4CAF50']
+
+    fig = go.Figure(data=[go.Bar(
+        x=labels,
+        y=values,
+        marker_color=colors,
+        text=[f"{v:.1f}%" for v in values],
+        textposition='auto',
+    )])
+
+    fig.update_layout(
+        title='Renewable Energy % Comparison (Operational vs Underlying)',
+        yaxis=dict(title='RE%', range=[0, 100]),
+        showlegend=False,
+        height=350,
+        width=760,
+        margin=dict(l=60, r=20, t=60, b=80),
+    )
+
+    try:
+        img_bytes = fig.to_image(format="png", engine="kaleido")
+        return f"data:image/png;base64,{base64.b64encode(img_bytes).decode()}"
+    except Exception as e:
+        logger.warning(f"Failed to generate quarterly YoY chart: {e}")
+        return None
+
+
 def generate_pdf_from_html(html_content, base_url):
     """
     Generate PDF from HTML content using WeasyPrint.
@@ -423,6 +515,38 @@ def publish_quarterly_report(request, year, quarter):
         ).select_related('facility').order_by('commissioned_date')
 
         from calendar import month_name
+        from django.contrib.staticfiles import finders as static_finders
+        from django.conf import settings as django_settings
+        from django.utils import timezone
+        import os
+        from powerplotui.views.ret_dashboard_views import _format_perth_time
+        now_str = _format_perth_time(timezone.now())
+
+        # Embed logo as base64 so WeasyPrint doesn't need to fetch static URLs
+        logo_b64 = None
+        logo_rel = 'img/SEN_LOGO_HERO.png'
+        logo_path = static_finders.find(logo_rel)
+        if not logo_path and hasattr(django_settings, 'STATIC_ROOT') and django_settings.STATIC_ROOT:
+            logo_path = os.path.join(django_settings.STATIC_ROOT, logo_rel)
+        if logo_path and os.path.exists(logo_path):
+            with open(logo_path, 'rb') as _f:
+                logo_b64 = f'data:image/png;base64,{base64.b64encode(_f.read()).decode()}'
+
+        # Calculate target status
+        target_status = None
+        if target and ytd_summary:
+            ytd_re_pct = ytd_summary.get('re_percentage_operational', 0)
+            gap = ytd_re_pct - target.target_re_percentage
+            target_status = {
+                'status': 'ahead' if gap >= 0 else 'behind',
+                'gap': gap,
+            }
+
+        # Generate static chart images for PDF
+        generation_chart = generate_quarterly_generation_chart_image(quarterly_data)
+        yoy_chart = generate_quarterly_yoy_chart_image(quarter, quarterly_summary, prev_quarter_summary)
+
+        comments = ReportComment.get_comments_for_report('quarterly', year, quarter=quarter)
         context = {
             'year': year,
             'quarter': quarter,
@@ -434,10 +558,15 @@ def publish_quarterly_report(request, year, quarter):
             'ytd_summary': ytd_summary,
             'prev_ytd_summary': prev_ytd_summary,
             'target': target,
+            'target_status': target_status,
             'new_capacity': new_capacity,
-            'comments': ReportComment.get_comments_for_report('quarterly', year, quarter=quarter),
-            'executive_summary': ReportComment.get_comments_for_report('quarterly', year, quarter=quarter).filter(category='executive_summary').first(),
+            'comments': comments,
+            'executive_summary': comments.filter(category='executive_summary').first(),
             'report_type': 'quarterly',
+            'logo_b64': logo_b64,
+            'now': now_str,
+            'generation_chart': generation_chart,
+            'yoy_chart': yoy_chart,
         }
 
         # Render HTML version (with interactive Plotly charts - uses regular template)

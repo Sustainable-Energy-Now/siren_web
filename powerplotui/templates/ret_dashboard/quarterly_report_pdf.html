@@ -23,9 +23,16 @@
             color: white;
             padding: 30px;
             margin-bottom: 20px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
+        }
+
+        .report-header-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .report-header-table td {
+            vertical-align: middle;
+            padding: 0;
         }
 
         .report-header h1 {
@@ -39,10 +46,6 @@
             opacity: 0.9;
         }
 
-        .report-header img {
-            height: 60px;
-            width: auto;
-        }
 
         .section {
             margin-bottom: 25px;
@@ -64,53 +67,68 @@
             font-size: 16px;
         }
 
-        .summary-cards {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 15px;
+        /* Metric cards — table-based layout for WeasyPrint compatibility */
+        .summary-cards-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 8px;
             margin-bottom: 20px;
         }
 
         .summary-card {
-            flex: 1 1 200px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 20px;
-            border-radius: 6px;
-            min-width: 180px;
+            background: white;
+            padding: 16px 18px;
+            border-radius: 8px;
+            border-left: 5px solid #bdc3c7;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+            vertical-align: top;
+            width: 25%;
         }
 
         .summary-card.success {
-            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+            border-left-color: #27ae60;
+            background: #f0faf4;
         }
 
         .summary-card.warning {
-            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            border-left-color: #e74c3c;
+            background: #fff5f5;
         }
 
         .summary-card.info {
-            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            border-left-color: #3498db;
+            background: #f0f7ff;
         }
 
         .summary-card.price {
-            background: linear-gradient(135deg, #ff9a56 0%, #ff6b35 100%);
+            border-left-color: #f39c12;
+            background: #fffbf0;
         }
 
         .summary-card .label {
-            font-size: 12px;
-            opacity: 0.9;
-            margin-bottom: 8px;
+            font-size: 11px;
+            color: #7f8c8d;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+            margin-bottom: 6px;
         }
 
         .summary-card .value {
-            font-size: 24px;
+            font-size: 26px;
             font-weight: 700;
-            margin-bottom: 5px;
+            color: #2c3e50;
+            margin-bottom: 4px;
         }
 
+        .summary-card.success .value { color: #1a7a42; }
+        .summary-card.warning .value { color: #c0392b; }
+        .summary-card.info .value    { color: #1a6fa8; }
+        .summary-card.price .value   { color: #b7770d; }
+
         .summary-card .change {
-            font-size: 13px;
-            opacity: 0.95;
+            font-size: 12px;
+            color: #95a5a6;
         }
 
         .data-table {
@@ -170,166 +188,248 @@
             margin: 6px 0;
             line-height: 1.5;
         }
+
+        /* Price stat cards */
+        .price-cards-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 8px;
+            margin-bottom: 15px;
+        }
+
+        .price-card {
+            background: white;
+            padding: 14px 16px;
+            border-radius: 8px;
+            border-left: 4px solid #f39c12;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+            vertical-align: top;
+        }
+
+        .price-card.negative { border-left-color: #4caf50; }
+        .price-card.spike    { border-left-color: #f44336; }
+
+        .stat-label {
+            font-size: 11px;
+            color: #7f8c8d;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+            margin-bottom: 4px;
+        }
+
+        .stat-value {
+            font-size: 20px;
+            font-weight: 700;
+            color: #2c3e50;
+            margin-bottom: 2px;
+        }
+
+        .stat-detail {
+            font-size: 11px;
+            color: #95a5a6;
+        }
+
+        /* Technology table row colours */
+        .renewable-row { background: #e8f5e9; }
+        .info-row { background: #e3f2fd; font-style: italic; }
+
+        /* Page headers and footers */
+        @page {
+            size: A4;
+            margin: 2cm 1.5cm 2.5cm 1.5cm;
+
+            @top-center {
+                content: "SEN SWIS Renewable Energy Target — Q{{ quarter }} {{ year }}";
+                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                font-size: 9pt;
+                color: #7f8c8d;
+                border-bottom: 1px solid #bdc3c7;
+                padding-bottom: 4pt;
+            }
+
+            @bottom-left {
+                content: "Published: {{ now }}";
+                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                font-size: 8pt;
+                color: #95a5a6;
+            }
+
+            @bottom-right {
+                content: "Page " counter(page) " of " counter(pages);
+                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                font-size: 8pt;
+                color: #95a5a6;
+            }
+        }
+
+        /* First page — no top header (the report header block serves that role) */
+        @page :first {
+            @top-center { content: ""; border: none; }
+        }
     </style>
 </head>
 <body>
 <div class="quarterly-report">
     <!-- Report Header -->
     <div class="report-header">
-        <div>
-            <h1>SWIS Quarterly Report</h1>
-            <div class="subtitle">Q{{ quarter }} {{ year }} ({{ quarter_start_month }} - {{ quarter_end_month }})</div>
-        </div>
-        <img src="{% static 'img/SEN_LOGO_HERO.png' %}" alt="SEN Logo">
-    </div>
-
-    <!-- Quick Navigation Links -->
-    <div style="margin: 0 0 20px 0; padding: 15px; background: #ecf0f1; border-radius: 8px; display: flex; gap: 15px; align-items: center; flex-wrap: wrap;">
-        <strong style="color: #2c3e50;">Other Reports:</strong>
-        <a href="{% url 'ret_dashboard' %}"
-            style="color: #3498db; text-decoration: none; padding: 8px 15px; background: white; border-radius: 4px; font-weight: 500;">📊
-            Monthly Dashboard</a>
-        <a href="{% url 'annual_review' year %}"
-            style="color: #3498db; text-decoration: none; padding: 8px 15px; background: white; border-radius: 4px; font-weight: 500;">📑
-            {{ year }} Annual Review</a>
-        <a href="{% url 'display_module_help' 'ret_dashboard' %}" target="_blank"
-            style="color: #3498db; text-decoration: none; padding: 8px 15px; background: white; border-radius: 4px; font-weight: 500;">❓
-            Help</a>
+        <table class="report-header-table">
+            <tr>
+                <td>
+                    <h1>SWIS Renewable Energy Target Quarterly Report</h1>
+                    <div class="subtitle">Q{{ quarter }} {{ year }} ({{ quarter_start_month }} - {{ quarter_end_month }})</div>
+                </td>
+                <td style="text-align: right; width: 120px;">
+                    {% if logo_b64 %}<img src="{{ logo_b64 }}" alt="SEN Logo" style="height: 70px; width: auto;">{% endif %}
+                </td>
+            </tr>
+        </table>
     </div>
 
     <!-- Executive Summary -->
     <div class="section">
         <h2>Executive Summary</h2>
 
-        <div class="summary-cards">
-            <div class="summary-card success">
-                <div class="label">Q{{ quarter }} RE% (Operational)</div>
-                <div class="value">{{ quarterly_summary.re_percentage_operational|floatformat:1 }}%</div>
-                <div class="change">Grid-sent electricity</div>
-            </div>
-
-            <div class="summary-card success">
-                <div class="label">Q{{ quarter }} RE% (Underlying)</div>
-                <div class="value">{{ quarterly_summary.re_percentage_underlying|floatformat:1 }}%</div>
-                <div class="change">Including rooftop solar</div>
-            </div>
-
-            <div class="summary-card info">
-                <div class="label">YTD RE% (Operational)</div>
-                <div class="value">{{ ytd_summary.re_percentage_operational|floatformat:1 }}%</div>
-                <div class="change">
-                    {% if prev_ytd_summary %}
-                    vs {{ prev_ytd_summary.re_percentage_operational|floatformat:1 }}% in {{ year|add:"-1" }}
-                    {% endif %}
-                </div>
-            </div>
-
-            <div class="summary-card info">
-                <div class="label">YTD RE% (Underlying)</div>
-                <div class="value">{{ ytd_summary.re_percentage_underlying|floatformat:1 }}%</div>
-                <div class="change">
-                    {% if prev_ytd_summary %}
-                    vs {{ prev_ytd_summary.re_percentage_underlying|floatformat:1 }}% in {{ year|add:"-1" }}
-                    {% endif %}
-                </div>
-            </div>
-
-            {% if target %}
-            <div class="summary-card {% if ytd_summary.re_percentage_operational >= target.target_re_percentage %}positive{% else %}warning{% endif %}">
-                <div class="label">{{ year }} Target {% if ytd_summary.re_percentage_operational >= target.target_re_percentage %}Exceeded{% else %}Shortfall{% endif %}</div>
-                <div class="value">{% with shortfall=target.target_re_percentage|sub:ytd_summary.re_percentage_operational %}{% if shortfall > 0 %}{{ shortfall|floatformat:1 }} pp{% else %}On track{% endif %}{% endwith %}</div>
-                <div class="change">
-                    ⚠ RE% (Operational) target is {{ target.target_re_percentage|floatformat:0 }}% by year end.
-                </div>
-            </div>
-            {% endif %}
-
-            <div class="summary-card warning">
-                <div class="label">Q{{ quarter }} Emissions</div>
-                <div class="value">{{ quarterly_summary.total_emissions|floatformat:0|intcomma }}</div>
-                <div class="change">tonnes CO₂-e</div>
-            </div>
-
-            <div class="summary-card warning">
-                <div class="label">YTD Emissions</div>
-                <div class="value">{{ ytd_summary.total_emissions|floatformat:0|intcomma }}</div>
-                <div class="change">
-                    {% if prev_ytd_summary %}
-                    {% with change=ytd_summary.total_emissions|sub:prev_ytd_summary.total_emissions %}
-                    {% with pct=change|div:prev_ytd_summary.total_emissions|mul:100 %}
-                    {% if pct >= 0 %}+{% endif %}{{ pct|floatformat:1 }}% vs {{ year|add:"-1" }}
-                    {% endwith %}
-                    {% endwith %}
-                    {% else %}
-                    tonnes CO₂-e
-                    {% endif %}
-                </div>
-            </div>
-
+        <p style="font-size: 14px; line-height: 1.8; margin-top: 0;">
+            The South West Interconnected System (SWIS) achieved
+            <strong>{{ quarterly_summary.re_percentage_operational|floatformat:1 }}%</strong> renewable energy
+            (operational demand basis) and <strong>{{ quarterly_summary.re_percentage_underlying|floatformat:1 }}%</strong>
+            (underlying demand basis, including rooftop solar) in Q{{ quarter }} {{ year }}.
+            Year-to-date renewable energy performance stands at
+            <strong>{{ ytd_summary.re_percentage_operational|floatformat:1 }}%</strong> (operational) and
+            <strong>{{ ytd_summary.re_percentage_underlying|floatformat:1 }}%</strong> (underlying).
+            Total quarterly emissions were
+            <strong>{{ quarterly_summary.total_emissions|floatformat:0|intcomma }} tonnes CO₂-e</strong>{% if prev_quarter_summary %},
+            {% with change=quarterly_summary.total_emissions|sub:prev_quarter_summary.total_emissions|div:prev_quarter_summary.total_emissions|mul:100 %}
+            {% if change < 0 %}a reduction of <strong>{{ change|mul:-1|floatformat:1 }}%</strong>{% else %}an increase of <strong>{{ change|floatformat:1 }}%</strong>{% endif %} from Q{{ quarter }} {{ year|add:"-1" }}.
+            {% endwith %}
+            {% else %}.{% endif %}
             {% if quarterly_summary.wholesale_price_avg %}
-            <div class="summary-card price">
-                <div class="label">Q{{ quarter }} Avg Price</div>
-                <div class="value">${{ quarterly_summary.wholesale_price_avg|floatformat:2 }}</div>
-                <div class="change">$/MWh wholesale</div>
-            </div>
+            The average wholesale electricity price was <strong>${{ quarterly_summary.wholesale_price_avg|floatformat:2 }}/MWh</strong>.
             {% endif %}
-        </div>
-
-        <div class="info-box">
-            <strong>Note:</strong>
-            <strong>Operational Consumption</strong> = Total consumption from grid sources.
-            <strong>Underlying Consumption</strong> = Operational + rooftop solar (DPV).
-        </div>
+        </p>
 
         {% if executive_summary and executive_summary.content %}
-        <div style="margin-top: 15px; font-size: 14px; line-height: 1.6;">
+        <div style="font-size: 14px; line-height: 1.6; color: #2c3e50; margin-top: 15px;">
             {{ executive_summary.content|linebreaks }}
         </div>
         {% endif %}
     </div>
 
-    <!-- Wholesale Price Statistics -->
+    <!-- Demand Definitions -->
+    <div class="info-box" style="background: #e3f2fd; border-left-color: #2196f3;">
+        <strong>Operational Demand:</strong> Represents the total load required from the grid, excluding behind-the-meter rooftop solar and small, non-scheduled generation.<br>
+        <strong>Underlying Demand:</strong> Total electricity usage by consumers, including electricity sourced from the grid, behind-the-meter rooftop solar (PV), and battery storage.
+    </div>
+
+    <!-- Key Findings -->
+    <div class="section">
+        <h2>Key Findings</h2>
+        <table class="summary-cards-table">
+            <tr>
+                <td class="summary-card success">
+                    <div class="label">Q{{ quarter }} RE% (Operational)</div>
+                    <div class="value">{{ quarterly_summary.re_percentage_operational|floatformat:1 }}%</div>
+                    <div class="change">Grid-sent electricity</div>
+                </td>
+                <td class="summary-card success">
+                    <div class="label">Q{{ quarter }} RE% (Underlying)</div>
+                    <div class="value">{{ quarterly_summary.re_percentage_underlying|floatformat:1 }}%</div>
+                    <div class="change">Including rooftop solar</div>
+                </td>
+                <td class="summary-card {% if target and ytd_summary.re_percentage_operational >= target.target_re_percentage %}success{% else %}info{% endif %}">
+                    <div class="label">YTD RE% (Operational)</div>
+                    <div class="value">{{ ytd_summary.re_percentage_operational|floatformat:1 }}%</div>
+                    <div class="change">{% if prev_ytd_summary %}vs {{ prev_ytd_summary.re_percentage_operational|floatformat:1 }}% in {{ year|add:"-1" }}{% endif %}</div>
+                </td>
+                <td class="summary-card {% if target and ytd_summary.re_percentage_underlying >= target.target_re_percentage %}success{% else %}info{% endif %}">
+                    <div class="label">YTD RE% (Underlying)</div>
+                    <div class="value">{{ ytd_summary.re_percentage_underlying|floatformat:1 }}%</div>
+                    <div class="change">{% if prev_ytd_summary %}vs {{ prev_ytd_summary.re_percentage_underlying|floatformat:1 }}% in {{ year|add:"-1" }}{% endif %}</div>
+                </td>
+            </tr>
+            <tr>
+                {% if target %}
+                <td class="summary-card {% if ytd_summary.re_percentage_operational >= target.target_re_percentage %}success{% else %}warning{% endif %}">
+                    <div class="label">{{ year }} Target {% if ytd_summary.re_percentage_operational >= target.target_re_percentage %}Exceeded{% else %}Shortfall{% endif %}</div>
+                    <div class="value">{% with shortfall=target.target_re_percentage|sub:ytd_summary.re_percentage_operational %}{% if shortfall > 0 %}{{ shortfall|floatformat:1 }} pp{% else %}On track{% endif %}{% endwith %}</div>
+                    <div class="change">RE% (Operational) target is {{ target.target_re_percentage|floatformat:0 }}% by year end.</div>
+                </td>
+                {% endif %}
+                <td class="summary-card warning">
+                    <div class="label">Q{{ quarter }} Emissions</div>
+                    <div class="value">{{ quarterly_summary.total_emissions|floatformat:0|intcomma }}</div>
+                    <div class="change">tonnes CO₂-e
+                        {% if prev_quarter_summary %}
+                        {% with change=quarterly_summary.total_emissions|sub:prev_quarter_summary.total_emissions|div:prev_quarter_summary.total_emissions|mul:100 %}
+                        ({% if change >= 0 %}+{% endif %}{{ change|floatformat:1 }}% vs {{ year|add:"-1" }})
+                        {% endwith %}
+                        {% endif %}
+                    </div>
+                </td>
+                <td class="summary-card warning">
+                    <div class="label">YTD Emissions</div>
+                    <div class="value">{{ ytd_summary.total_emissions|floatformat:0|intcomma }}</div>
+                    <div class="change">
+                        {% if prev_ytd_summary %}
+                        {% with change=ytd_summary.total_emissions|sub:prev_ytd_summary.total_emissions|div:prev_ytd_summary.total_emissions|mul:100 %}
+                        {% if change >= 0 %}+{% endif %}{{ change|floatformat:1 }}% vs {{ year|add:"-1" }}
+                        {% endwith %}
+                        {% else %}tonnes CO₂-e{% endif %}
+                    </div>
+                </td>
+                {% if quarterly_summary.wholesale_price_avg %}
+                <td class="summary-card price">
+                    <div class="label">Q{{ quarter }} Avg Price</div>
+                    <div class="value">${{ quarterly_summary.wholesale_price_avg|floatformat:2 }}</div>
+                    <div class="change">$/MWh wholesale</div>
+                </td>
+                {% endif %}
+            </tr>
+        </table>
+    </div>
+
+    <!-- Wholesale Price Summary -->
     {% if quarterly_summary.wholesale_price_avg %}
     <div class="section">
-        <h2>Wholesale Price Statistics</h2>
+        <h2>Wholesale Price Summary</h2>
 
-        <table class="data-table">
-            <thead>
-                <tr>
-                    <th>Metric</th>
-                    <th class="value">Value</th>
-                </tr>
-            </thead>
-            <tbody>
-                <tr>
-                    <td>Average Price</td>
-                    <td class="value">${{ quarterly_summary.wholesale_price_avg|floatformat:2 }}/MWh</td>
-                </tr>
+        <table class="price-cards-table">
+            <tr>
+                <td class="price-card">
+                    <div class="stat-label">Average Price</div>
+                    <div class="stat-value">${{ quarterly_summary.wholesale_price_avg|floatformat:2 }}</div>
+                    <div class="stat-detail">$/MWh</div>
+                </td>
                 {% if quarterly_summary.wholesale_price_max %}
-                <tr>
-                    <td>Maximum Price</td>
-                    <td class="value">${{ quarterly_summary.wholesale_price_max|floatformat:2 }}/MWh</td>
-                </tr>
+                <td class="price-card">
+                    <div class="stat-label">Maximum Price</div>
+                    <div class="stat-value">${{ quarterly_summary.wholesale_price_max|floatformat:2 }}</div>
+                    <div class="stat-detail">{% if quarterly_summary.wholesale_price_max_datetime %}{{ quarterly_summary.wholesale_price_max_datetime|date:"d M, g:i A" }}{% endif %}</div>
+                </td>
                 {% endif %}
                 {% if quarterly_summary.wholesale_price_min %}
-                <tr>
-                    <td>Minimum Price</td>
-                    <td class="value">${{ quarterly_summary.wholesale_price_min|floatformat:2 }}/MWh</td>
-                </tr>
+                <td class="price-card">
+                    <div class="stat-label">Minimum Price</div>
+                    <div class="stat-value">${{ quarterly_summary.wholesale_price_min|floatformat:2 }}</div>
+                    <div class="stat-detail">{% if quarterly_summary.wholesale_price_min_datetime %}{{ quarterly_summary.wholesale_price_min_datetime|date:"d M, g:i A" }}{% endif %}</div>
+                </td>
                 {% endif %}
                 {% if quarterly_summary.wholesale_negative_count is not None %}
-                <tr>
-                    <td>Negative Price Intervals</td>
-                    <td class="value">{{ quarterly_summary.wholesale_negative_count|intcomma }} intervals</td>
-                </tr>
+                <td class="price-card negative">
+                    <div class="stat-label">Negative Price Intervals</div>
+                    <div class="stat-value">{{ quarterly_summary.wholesale_negative_count|intcomma }}</div>
+                    <div class="stat-detail">intervals &lt; $0/MWh</div>
+                </td>
                 {% endif %}
                 {% if quarterly_summary.wholesale_spike_count is not None %}
-                <tr>
-                    <td>Price Spikes (&gt;$300/MWh)</td>
-                    <td class="value">{{ quarterly_summary.wholesale_spike_count|intcomma }} intervals</td>
-                </tr>
+                <td class="price-card spike">
+                    <div class="stat-label">Price Spikes</div>
+                    <div class="stat-value">{{ quarterly_summary.wholesale_spike_count|intcomma }}</div>
+                    <div class="stat-detail">intervals &gt; $300/MWh</div>
+                </td>
                 {% endif %}
-            </tbody>
+            </tr>
         </table>
 
         <h3>Monthly Wholesale Price Breakdown</h3>
@@ -337,68 +437,47 @@
             <thead>
                 <tr>
                     <th>Month</th>
-                    <th class="value">Avg ($/MWh)</th>
-                    <th class="value">Max ($/MWh)</th>
-                    <th class="value">Min ($/MWh)</th>
-                    <th class="value">Negative</th>
-                    <th class="value">Spikes</th>
+                    <th class="value">Avg Price ($/MWh)</th>
+                    <th class="value">Max Price ($/MWh)</th>
+                    <th class="value">Min Price ($/MWh)</th>
+                    <th class="value">Negative Intervals</th>
+                    <th class="value">Spike Intervals</th>
                 </tr>
             </thead>
             <tbody>
                 {% for monthly in quarterly_data %}
                 <tr>
                     <td><strong>{{ monthly.get_month_name }}</strong></td>
-                    <td class="value">
-                        {% if monthly.wholesale_price_avg is not None %}
-                        ${{ monthly.wholesale_price_avg|floatformat:2 }}
-                        {% else %}
-                        —
-                        {% endif %}
-                    </td>
-                    <td class="value">
-                        {% if monthly.wholesale_price_max is not None %}
-                        ${{ monthly.wholesale_price_max|floatformat:2 }}
-                        {% else %}
-                        —
-                        {% endif %}
-                    </td>
-                    <td class="value">
-                        {% if monthly.wholesale_price_min is not None %}
-                        ${{ monthly.wholesale_price_min|floatformat:2 }}
-                        {% else %}
-                        —
-                        {% endif %}
-                    </td>
-                    <td class="value">
-                        {% if monthly.wholesale_negative_count is not None %}
-                        {{ monthly.wholesale_negative_count|intcomma }}
-                        {% else %}
-                        —
-                        {% endif %}
-                    </td>
-                    <td class="value">
-                        {% if monthly.wholesale_spike_count is not None %}
-                        {{ monthly.wholesale_spike_count|intcomma }}
-                        {% else %}
-                        —
-                        {% endif %}
-                    </td>
+                    <td class="value">{% if monthly.wholesale_price_avg is not None %}${{ monthly.wholesale_price_avg|floatformat:2 }}{% else %}—{% endif %}</td>
+                    <td class="value">{% if monthly.wholesale_price_max is not None %}${{ monthly.wholesale_price_max|floatformat:2 }}{% else %}—{% endif %}</td>
+                    <td class="value">{% if monthly.wholesale_price_min is not None %}${{ monthly.wholesale_price_min|floatformat:2 }}{% else %}—{% endif %}</td>
+                    <td class="value">{% if monthly.wholesale_negative_count is not None %}{{ monthly.wholesale_negative_count|intcomma }}{% else %}—{% endif %}</td>
+                    <td class="value">{% if monthly.wholesale_spike_count is not None %}{{ monthly.wholesale_spike_count|intcomma }}{% else %}—{% endif %}</td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
+
+        {% if prev_quarter_summary.wholesale_price_avg %}
+        <div class="info-box" style="margin-top: 15px;">
+            <strong>Year-over-Year Comparison:</strong>
+            Q{{ quarter }} {{ year|add:"-1" }} average wholesale price was ${{ prev_quarter_summary.wholesale_price_avg|floatformat:2 }}/MWh
+            {% with change=quarterly_summary.wholesale_price_avg|sub:prev_quarter_summary.wholesale_price_avg|div:prev_quarter_summary.wholesale_price_avg|mul:100 %}
+            ({% if change >= 0 %}+{% endif %}{{ change|floatformat:1 }}% change)
+            {% endwith %}
+        </div>
+        {% endif %}
     </div>
     {% endif %}
 
     <!-- Monthly Performance Breakdown -->
     <div class="section">
         <h2>Monthly Performance Breakdown</h2>
-
         <table class="data-table">
             <thead>
                 <tr>
                     <th>Month</th>
-                    <th class="value">Underlying Consumption (GWh)</th>
+                    <th class="value">Underlying Demand (GWh)</th>
                     <th class="value">Renewable Gen (GWh)</th>
                     <th class="value">RE% (Operational)</th>
                     <th class="value">vs Target (pp)</th>
@@ -416,17 +495,17 @@
                     <td class="value">
                         {% if target %}
                             {% if monthly.re_percentage_underlying >= target.target_re_percentage %}
-                            <span style="color: #27ae60;">✓ +{{ monthly.re_percentage_underlying|sub:target.target_re_percentage|floatformat:1 }}</span>
+                            <span style="color: #27ae60;">+{{ monthly.re_percentage_underlying|sub:target.target_re_percentage|floatformat:1 }}</span>
                             {% else %}
                             <span style="color: #e74c3c;">{{ monthly.re_percentage_underlying|sub:target.target_re_percentage|floatformat:1 }}</span>
                             {% endif %}
-                        {% else %}
-                        —
-                        {% endif %}
+                        {% else %}-{% endif %}
                     </td>
                     <td class="value">{{ monthly.re_percentage_underlying|floatformat:1 }}%</td>
                     <td class="value">{{ monthly.total_emissions_tonnes|floatformat:0|intcomma }}</td>
                 </tr>
+                {% empty %}
+                <tr><td colspan="7" style="text-align:center;padding:20px;">No monthly data available.</td></tr>
                 {% endfor %}
                 {% if quarterly_summary %}
                 <tr class="total-row">
@@ -446,7 +525,6 @@
     <!-- Year-to-Date Cumulative -->
     <div class="section">
         <h2>Cumulative Year-to-Date Performance</h2>
-
         <table class="data-table">
             <thead>
                 <tr>
@@ -466,11 +544,7 @@
                     <td class="value"><strong>{{ ytd_summary.re_percentage_operational|floatformat:1 }}%</strong></td>
                     {% if prev_ytd_summary %}
                     <td class="value">{{ prev_ytd_summary.re_percentage_operational|floatformat:1 }}%</td>
-                    <td class="value">
-                        {% with change=ytd_summary.re_percentage_operational|sub:prev_ytd_summary.re_percentage_operational %}
-                        {% if change >= 0 %}+{% endif %}{{ change|floatformat:1 }} pp
-                        {% endwith %}
-                    </td>
+                    <td class="value">{% with change=ytd_summary.re_percentage_operational|sub:prev_ytd_summary.re_percentage_operational %}{% if change >= 0 %}+{% endif %}{{ change|floatformat:1 }} pp{% endwith %}</td>
                     {% endif %}
                 </tr>
                 <tr>
@@ -479,11 +553,7 @@
                     <td class="value"><strong>{{ ytd_summary.re_percentage_underlying|floatformat:1 }}%</strong></td>
                     {% if prev_ytd_summary %}
                     <td class="value">{{ prev_ytd_summary.re_percentage_underlying|floatformat:1 }}%</td>
-                    <td class="value">
-                        {% with change=ytd_summary.re_percentage_underlying|sub:prev_ytd_summary.re_percentage_underlying %}
-                        {% if change >= 0 %}+{% endif %}{{ change|floatformat:1 }} pp
-                        {% endwith %}
-                    </td>
+                    <td class="value">{% with change=ytd_summary.re_percentage_underlying|sub:prev_ytd_summary.re_percentage_underlying %}{% if change >= 0 %}+{% endif %}{{ change|floatformat:1 }} pp{% endwith %}</td>
                     {% endif %}
                 </tr>
                 <tr>
@@ -492,13 +562,7 @@
                     <td class="value">{{ ytd_summary.total_emissions|floatformat:0|intcomma }}</td>
                     {% if prev_ytd_summary %}
                     <td class="value">{{ prev_ytd_summary.total_emissions|floatformat:0|intcomma }}</td>
-                    <td class="value">
-                        {% with change=ytd_summary.total_emissions|sub:prev_ytd_summary.total_emissions %}
-                        {% with pct_change=change|div:prev_ytd_summary.total_emissions|mul:100 %}
-                        {% if pct_change >= 0 %}+{% endif %}{{ pct_change|floatformat:1 }}%
-                        {% endwith %}
-                        {% endwith %}
-                    </td>
+                    <td class="value">{% with change=ytd_summary.total_emissions|sub:prev_ytd_summary.total_emissions %}{% with pct=change|div:prev_ytd_summary.total_emissions|mul:100 %}{% if pct >= 0 %}+{% endif %}{{ pct|floatformat:1 }}%{% endwith %}{% endwith %}</td>
                     {% endif %}
                 </tr>
                 <tr>
@@ -507,11 +571,7 @@
                     <td class="value">{{ ytd_summary.emissions_intensity|div:1000|floatformat:3 }}</td>
                     {% if prev_ytd_summary %}
                     <td class="value">{{ prev_ytd_summary.emissions_intensity|div:1000|floatformat:3 }}</td>
-                    <td class="value">
-                        {% with change=ytd_summary.emissions_intensity|sub:prev_ytd_summary.emissions_intensity %}
-                        {% if change >= 0 %}+{% endif %}{{ change|div:1000|floatformat:3 }}
-                        {% endwith %}
-                    </td>
+                    <td class="value">{% with change=ytd_summary.emissions_intensity|sub:prev_ytd_summary.emissions_intensity %}{% if change >= 0 %}+{% endif %}{{ change|div:1000|floatformat:3 }}{% endwith %}</td>
                     {% endif %}
                 </tr>
                 {% if ytd_summary.wholesale_price_avg %}
@@ -521,28 +581,136 @@
                     <td class="value">${{ ytd_summary.wholesale_price_avg|floatformat:2 }}</td>
                     {% if prev_ytd_summary.wholesale_price_avg %}
                     <td class="value">${{ prev_ytd_summary.wholesale_price_avg|floatformat:2 }}</td>
-                    <td class="value">
-                        {% with change=ytd_summary.wholesale_price_avg|sub:prev_ytd_summary.wholesale_price_avg|div:prev_ytd_summary.wholesale_price_avg|mul:100 %}
-                        {% if change >= 0 %}+{% endif %}{{ change|floatformat:1 }}%
-                        {% endwith %}
-                    </td>
+                    <td class="value">{% with change=ytd_summary.wholesale_price_avg|sub:prev_ytd_summary.wholesale_price_avg|div:prev_ytd_summary.wholesale_price_avg|mul:100 %}{% if change >= 0 %}+{% endif %}{{ change|floatformat:1 }}%{% endwith %}</td>
                     {% else %}
-                    <td class="value">—</td>
-                    <td class="value">—</td>
+                    <td class="value">—</td><td class="value">—</td>
                     {% endif %}
                 </tr>
                 {% endif %}
             </tbody>
         </table>
 
-        {% if target %}
+        {% if target and target_status %}
         <p style="margin-top: 15px; font-size: 13px;">
-            {% if ytd_summary.re_percentage_underlying >= target.target_re_percentage %}
-            ✓ YTD performance is <strong>{{ ytd_summary.re_percentage_underlying|sub:target.target_re_percentage|floatformat:1 }} percentage points ahead</strong> of the {{ year }} annual target.
+            {% if target_status.status == 'ahead' %}
+            ✓ YTD performance is <strong>{{ target_status.gap|floatformat:1 }} percentage points ahead</strong> of the {{ year }} annual target.
             {% else %}
-            ⚠ YTD performance is <strong>{{ target.target_re_percentage|sub:ytd_summary.re_percentage_underlying|floatformat:1 }} percentage points behind</strong> the {{ year }} annual target.
+            ⚠ YTD performance is <strong>{{ target_status.gap|mul:-1|floatformat:1 }} percentage points behind</strong> the {{ year }} annual target. Acceleration needed in the remaining quarter(s).
             {% endif %}
         </p>
+        {% endif %}
+    </div>
+
+    <!-- Generation by Technology for the Quarter -->
+    <div class="section">
+        <h2>Generation by Technology for the Quarter (Q{{ quarter }})</h2>
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Technology</th>
+                    <th class="value">Gen (GWh)</th>
+                    <th class="value">% of Operational</th>
+                    <th class="value">% of Underlying</th>
+                    <th class="value">Emissions</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr class="renewable-row">
+                    <td><strong>Wind</strong></td>
+                    <td class="value">{{ quarterly_summary.wind_generation|floatformat:0|intcomma }}</td>
+                    <td class="value">{{ quarterly_summary.wind_generation|div:quarterly_summary.operational_demand|mul:100|floatformat:1 }}%</td>
+                    <td class="value">{{ quarterly_summary.wind_generation|div:quarterly_summary.underlying_demand|mul:100|floatformat:1 }}%</td>
+                    <td class="value">0</td>
+                </tr>
+                <tr class="renewable-row">
+                    <td><strong>Solar (Utility)</strong></td>
+                    <td class="value">{{ quarterly_summary.solar_generation|floatformat:0|intcomma }}</td>
+                    <td class="value">{{ quarterly_summary.solar_generation|div:quarterly_summary.operational_demand|mul:100|floatformat:1 }}%</td>
+                    <td class="value">{{ quarterly_summary.solar_generation|div:quarterly_summary.underlying_demand|mul:100|floatformat:1 }}%</td>
+                    <td class="value">0</td>
+                </tr>
+                <tr class="renewable-row">
+                    <td><strong>Solar (Rooftop)</strong></td>
+                    <td class="value">{{ quarterly_summary.dpv_generation|floatformat:0|intcomma }}</td>
+                    <td class="value">—</td>
+                    <td class="value">{{ quarterly_summary.dpv_generation|div:quarterly_summary.underlying_demand|mul:100|floatformat:1 }}%</td>
+                    <td class="value">0</td>
+                </tr>
+                <tr class="renewable-row">
+                    <td><strong>Biomass</strong></td>
+                    <td class="value">{{ quarterly_summary.biomass_generation|floatformat:0|intcomma }}</td>
+                    <td class="value">{{ quarterly_summary.biomass_generation|div:quarterly_summary.operational_demand|mul:100|floatformat:1 }}%</td>
+                    <td class="value">{{ quarterly_summary.biomass_generation|div:quarterly_summary.underlying_demand|mul:100|floatformat:1 }}%</td>
+                    <td class="value">0</td>
+                </tr>
+                <tr class="renewable-row">
+                    <td><strong>Hydro</strong></td>
+                    <td class="value">{{ quarterly_summary.hydro_discharge|floatformat:0|intcomma }}</td>
+                    <td class="value">{{ quarterly_summary.hydro_discharge|div:quarterly_summary.operational_demand|mul:100|floatformat:1 }}%</td>
+                    <td class="value">{{ quarterly_summary.hydro_discharge|div:quarterly_summary.underlying_demand|mul:100|floatformat:1 }}%</td>
+                    <td class="value">0</td>
+                </tr>
+                <tr class="renewable-row">
+                    <td><strong>Battery</strong></td>
+                    <td class="value">{{ quarterly_summary.storage_discharge|floatformat:0|intcomma }}</td>
+                    <td class="value">{{ quarterly_summary.storage_discharge|div:quarterly_summary.operational_demand|mul:100|floatformat:1 }}%</td>
+                    <td class="value">{{ quarterly_summary.storage_discharge|div:quarterly_summary.underlying_demand|mul:100|floatformat:1 }}%</td>
+                    <td class="value">0</td>
+                </tr>
+                <tr>
+                    <td>Gas</td>
+                    <td class="value">{{ quarterly_summary.gas_generation|floatformat:0|intcomma }}</td>
+                    <td class="value">{{ quarterly_summary.gas_generation|div:quarterly_summary.operational_demand|mul:100|floatformat:1 }}%</td>
+                    <td class="value">{{ quarterly_summary.gas_generation|div:quarterly_summary.underlying_demand|mul:100|floatformat:1 }}%</td>
+                    <td class="value">{{ quarterly_summary.gas_generation|mul:380|floatformat:0|intcomma }} t</td>
+                </tr>
+                <tr>
+                    <td>Coal</td>
+                    <td class="value">{{ quarterly_summary.coal_generation|floatformat:1 }}</td>
+                    <td class="value">{{ quarterly_summary.coal_generation|div:quarterly_summary.operational_demand|mul:100|floatformat:1 }}%</td>
+                    <td class="value">{{ quarterly_summary.coal_generation|div:quarterly_summary.underlying_demand|mul:100|floatformat:1 }}%</td>
+                    <td class="value">{{ quarterly_summary.coal_generation|mul:900|floatformat:0|intcomma }} t</td>
+                </tr>
+                {% if quarterly_summary.storage_charge > 0 %}
+                <tr class="info-row">
+                    <td><em>Battery Charge</em></td>
+                    <td class="value"><em>{{ quarterly_summary.storage_charge|floatformat:1 }}</em></td>
+                    <td class="value" colspan="3"></td>
+                </tr>
+                {% endif %}
+                {% if quarterly_summary.hydro_charge > 0 %}
+                <tr class="info-row">
+                    <td><em>Hydro Pumping</em></td>
+                    <td class="value"><em>{{ quarterly_summary.hydro_charge|floatformat:1 }}</em></td>
+                    <td class="value" colspan="3"></td>
+                </tr>
+                {% endif %}
+            </tbody>
+            <tfoot>
+                <tr class="total-row">
+                    <td><strong>Total RE%</strong></td>
+                    <td class="value">—</td>
+                    <td class="value"><strong>{{ quarterly_summary.re_percentage_operational|floatformat:1 }}%</strong></td>
+                    <td class="value"><strong>{{ quarterly_summary.re_percentage_underlying|floatformat:1 }}%</strong></td>
+                    <td class="value">—</td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+
+    <!-- Operational Generation Mix Analysis -->
+    <div class="section">
+        <h2>Operational Generation Mix Analysis</h2>
+        {% if generation_chart %}
+        <h3>Monthly Generation Breakdown (Q{{ quarter }} {{ year }})</h3>
+        <img src="{{ generation_chart }}" alt="Monthly Generation Breakdown" style="width:100%; max-width:760px; display:block; margin:10px 0 20px 0;">
+        {% else %}
+        <div class="info-box"><strong>Note:</strong> Chart generation requires the kaleido package. View the online report for interactive charts.</div>
+        {% endif %}
+
+        {% if yoy_chart %}
+        <h3>Year-over-Year RE% Comparison (Q{{ quarter }})</h3>
+        <img src="{{ yoy_chart }}" alt="Year-over-Year RE% Comparison" style="width:100%; max-width:760px; display:block; margin:10px 0;">
         {% endif %}
     </div>
 
@@ -550,38 +718,22 @@
     {% if new_capacity %}
     <div class="section">
         <h2>New Capacity Commissioned in Q{{ quarter }} {{ year }}</h2>
-
-        <table class="data-table">
-            <thead>
-                <tr>
-                    <th>Facility</th>
-                    <th>Technology</th>
-                    <th class="value">Capacity (MW)</th>
-                    <th>Commissioned</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for facility in new_capacity %}
-                <tr>
-                    <td><strong>{{ facility.facility.facility_name }}</strong></td>
-                    <td>{{ facility.technology_type }}</td>
-                    <td class="value">{{ facility.capacity_mw|floatformat:0 }}</td>
-                    <td>{{ facility.commissioned_date|date:"d M Y" }}</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-
-        <p style="margin-top: 15px;">
-            <strong>Total New Capacity Q{{ quarter }} {{ year }}: {{ new_capacity|sum_attr:"capacity_mw"|floatformat:0 }} MW renewable</strong>
-        </p>
+        <ul style="margin:10px 0; padding-left:20px;">
+            {% for facility in new_capacity %}
+            <li style="margin:8px 0;">
+                <strong>{{ facility.facility.facility_name }}</strong> —
+                {{ facility.capacity_mw|floatformat:0 }} MW ({{ facility.technology_type }})<br>
+                <small style="color:#666;">Commissioned: {{ facility.commissioned_date|date:"d F Y" }}</small>
+            </li>
+            {% endfor %}
+        </ul>
+        <p style="margin-top:10px;"><strong>Total New Capacity Q{{ quarter }} {{ year }}: {{ new_capacity|sum_attr:"capacity_mw"|floatformat:0 }} MW renewable</strong></p>
     </div>
     {% endif %}
 
     <!-- Key Observations -->
     <div class="section">
         <h2>Key Observations</h2>
-
         <div class="observations">
             <h3>Positive Developments</h3>
             <ul>
@@ -591,7 +743,7 @@
                 {% if prev_ytd_summary and ytd_summary.total_emissions < prev_ytd_summary.total_emissions %}
                 <li>YTD emissions reduced by {{ prev_ytd_summary.total_emissions|sub:ytd_summary.total_emissions|floatformat:0|intcomma }} tonnes CO₂-e ({{ prev_ytd_summary.total_emissions|sub:ytd_summary.total_emissions|div:prev_ytd_summary.total_emissions|mul:100|floatformat:1 }}%) compared to same period last year</li>
                 {% endif %}
-                <li>Wind generation contributed {{ quarterly_summary.wind_generation|percent:quarterly_summary.underlying_demand|floatformat:1 }}% of total underlying consumption</li>
+                <li>Wind generation contributed {{ quarterly_summary.wind_generation|percent:quarterly_summary.underlying_demand|floatformat:1 }}% of total underlying demand</li>
                 <li>Combined solar (utility + rooftop) provided {{ quarterly_summary.solar_generation|add:quarterly_summary.dpv_generation|percent:quarterly_summary.underlying_demand|floatformat:1 }}% of electricity</li>
                 {% if quarterly_summary.wholesale_negative_count and quarterly_summary.wholesale_negative_count > 0 %}
                 <li>{{ quarterly_summary.wholesale_negative_count|intcomma }} intervals of negative wholesale prices indicate strong renewable energy penetration</li>
@@ -613,20 +765,9 @@
         </div>
     </div>
 
-    <!-- Quarterly Trends Note -->
-    <div class="section">
-        <h2>Quarterly Trends</h2>
-        <div class="info-box">
-            <p style="margin: 0; font-size: 13px;">
-                <strong>Note:</strong> Interactive charts showing Monthly Generation Breakdown and Year-over-Year RE% Comparison
-                are available in the online version of this report. Please view the report online for detailed trend visualizations.
-            </p>
-        </div>
-    </div>
-
     <!-- Footer -->
     <div style="margin-top: 30px; padding: 15px; background: #ecf0f1; font-size: 12px;">
-        <p style="margin: 0;"><strong>Report Generated:</strong> {{ now|date:"d F Y, g:i A" }}</p>
+        <p style="margin: 0;"><strong>Published:</strong> {{ now }}</p>
         <p style="margin: 5px 0 0 0;"><strong>Contact:</strong> <a href="mailto:modelling.lead@sen.asn.au">modelling.lead@sen.asn.au</a></p>
     </div>
 </div>

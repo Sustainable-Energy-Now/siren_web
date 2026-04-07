@@ -21,6 +21,19 @@ from django.utils import timezone
 from datetime import datetime, timedelta
 from calendar import month_name, monthrange
 import json
+import zoneinfo
+
+PERTH_TZ = zoneinfo.ZoneInfo('Australia/Perth')
+
+
+def _format_perth_time(dt):
+    """Format a UTC-aware datetime as a Perth (AWST, GMT+8) local time string.
+    Uses cross-platform formatting (no %-d Linux extension)."""
+    local = dt.astimezone(PERTH_TZ)
+    day = local.day  # no leading zero
+    hour = local.hour % 12 or 12
+    ampm = 'AM' if local.hour < 12 else 'PM'
+    return local.strftime(f'{day} %B %Y, {hour}:%M {ampm}')
 from django.http import JsonResponse
 
 from siren_web.models import (
@@ -825,8 +838,9 @@ def quarterly_report(request, year, quarter):
         'comments': comments,
         'executive_summary': executive_summary,
         'report_type': 'quarterly',
+        'now': _format_perth_time(timezone.now()),
     }
-    
+
     return render(request, 'ret_dashboard/quarterly_report.html', context)
 
 # =============================================================================
