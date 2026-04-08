@@ -820,7 +820,8 @@ def quarterly_report(request, year, quarter):
     executive_summary = comments.filter(category='executive_summary').first()
     # Calculate completed quarters for the report year
     completed_quarters = get_completed_quarters(year)
-    
+    recent_quarters = get_recent_completed_quarters(4)
+
     context = {
         'year': year,
         'quarter': quarter,
@@ -835,6 +836,8 @@ def quarterly_report(request, year, quarter):
         'target': target,
         'target_status': target_status,
         'completed_quarters': completed_quarters,
+        'recent_quarters': recent_quarters,
+        'annual_review_year': datetime.today().year - 1,
         'comments': comments,
         'executive_summary': executive_summary,
         'report_type': 'quarterly',
@@ -1043,6 +1046,7 @@ def annual_review(request, year):
         'scenario_chart': scenario_chart,
         'scenarios': scenarios,
         'completed_quarters': completed_quarters,
+        'recent_quarters': get_recent_completed_quarters(4),
         'comments': comments,
         'executive_summary': executive_summary,
         'report_type': 'annual',

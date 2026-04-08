@@ -357,29 +357,16 @@
     <a href="{% url 'ret_dashboard' %}"
         style="color: #3498db; text-decoration: none; padding: 8px 15px; background: white; border-radius: 4px; font-weight: 500;">📊
         Monthly Dashboard</a>
-    {% if 1 in completed_quarters %}
-    <a href="{% url 'quarterly_report' year 1 %}"
+    {% for q in recent_quarters reversed %}
+    {% if q.year != year or q.quarter != quarter %}
+    <a href="{% url 'quarterly_report' q.year q.quarter %}"
         style="color: #3498db; text-decoration: none; padding: 8px 15px; background: white; border-radius: 4px; font-weight: 500;">📈
-        Q1 Report</a>
+        Q{{ q.quarter }} {{ q.year }}</a>
     {% endif %}
-    {% if 2 in completed_quarters %}
-    <a href="{% url 'quarterly_report' year 2 %}"
-        style="color: #3498db; text-decoration: none; padding: 8px 15px; background: white; border-radius: 4px; font-weight: 500;">📈
-        Q2 Report</a>
-    {% endif %}
-    {% if 3 in completed_quarters %}
-    <a href="{% url 'quarterly_report' year 3 %}"
-        style="color: #3498db; text-decoration: none; padding: 8px 15px; background: white; border-radius: 4px; font-weight: 500;">📈
-        Q3 Report</a>
-    {% endif %}
-    {% if 4 in completed_quarters %}
-    <a href="{% url 'quarterly_report' year 4 %}"
-        style="color: #3498db; text-decoration: none; padding: 8px 15px; background: white; border-radius: 4px; font-weight: 500;">📈
-        Q4 Report</a>
-    {% endif %}
-    <a href="{% url 'annual_review' year %}"
+    {% endfor %}
+    <a href="{% url 'annual_review' annual_review_year %}"
         style="color: #3498db; text-decoration: none; padding: 8px 15px; background: white; border-radius: 4px; font-weight: 500;">📑
-        {{ year }} Annual Review</a>
+        {{ annual_review_year }} Annual Review</a>
     <a href="{% url 'published_reports_list' %}"
         style="color: #3498db; text-decoration: none; padding: 8px 15px; background: white; border-radius: 4px; font-weight: 500;">📚
         Published Reports</a>
