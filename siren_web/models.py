@@ -745,8 +745,8 @@ class GridLines(models.Model):
         return {
             'color': color,
             'weight': weight,
-            'opacity': 0.8 if self.active else 0.4,
-            'dashArray': None if self.active else '5, 5'
+            'opacity': 0.4 if self.status == 'planned' else (0.8 if self.active else 0.4),
+            'dashArray': None if self.status == 'commissioned' else '5, 5'
         }
     
     def get_popup_content(self):

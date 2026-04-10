@@ -34,6 +34,9 @@
     <button id="manageConnectionsBtn" class="btn btn-info" type="button">
         Manage Connections
     </button>
+    <button id="findOnMapBtn" class="btn btn-outline-dark" type="button" onclick="openFindOnMap()">
+        Find on Map
+    </button>
     <a href="{% url 'powermapui:zones_list' %}" class="btn btn-outline-secondary" type="button">
         Zones
     </a>
@@ -77,6 +80,29 @@
         </div>
         <div style="margin-top: 20px; text-align: right;">
             <button onclick="closeGridUtilization()" class="btn btn-secondary">Close</button>
+        </div>
+    </div>
+</div>
+
+<!-- Find on Map Modal -->
+<div id="findOnMapModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 10000;">
+    <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 20px; border-radius: 8px; width: 420px; max-width: 95vw;">
+        <h4 style="margin-top: 0;">Find on Map</h4>
+        <div style="margin-bottom: 12px;">
+            <label style="font-weight: 500; margin-bottom: 4px; display: block;">Type</label>
+            <select id="findOnMapType" class="form-control" onchange="updateFindOnMapList()">
+                <option value="facility">Facility</option>
+                <option value="terminal">Terminal</option>
+                <option value="gridline">Grid Line</option>
+            </select>
+        </div>
+        <div style="margin-bottom: 12px;">
+            <label style="font-weight: 500; margin-bottom: 4px; display: block;">Name</label>
+            <input type="text" id="findOnMapSearch" class="form-control" placeholder="Type to filter..." oninput="filterFindOnMapList()">
+        </div>
+        <div id="findOnMapList" style="max-height: 240px; overflow-y: auto; border: 1px solid #dee2e6; border-radius: 4px; margin-bottom: 16px;"></div>
+        <div style="text-align: right;">
+            <button onclick="closeFindOnMap()" class="btn btn-secondary">Close</button>
         </div>
     </div>
 </div>
@@ -951,7 +977,10 @@ function loadTerminalsOnMap(terminalsData) {
         }
         
         var icon = createTerminalIcon(terminal);
-        var marker = L.marker([terminal.latitude, terminal.longitude], { icon: icon });
+        var marker = L.marker([terminal.latitude, terminal.longitude], {
+            icon: icon,
+            opacity: terminal.status === 'commissioned' ? 1.0 : 0.4
+        });
         
         marker.terminalId = terminal.idterminals;
         marker.terminalData = terminal;
@@ -964,8 +993,8 @@ function loadTerminalsOnMap(terminalsData) {
                 <p><strong>Voltage:</strong> ${terminal.primary_voltage_kv} kV</p>
                 <p><strong>Connected Lines:</strong> ${terminal.connected_lines_count}</p>
                 <div style="margin-top:10px; display:flex; gap:6px; flex-wrap:wrap;">
-                    <button onclick="showTerminalDetails(${terminal.idterminals})" class="btn btn-sm btn-primary">Details</button>
-                    <button onclick="window.open('/terminals/${terminal.idterminals}/', '_blank')" class="btn btn-sm btn-warning">Edit</button>
+                    <button onclick="window.open('/terminals/${terminal.idterminals}/', '_blank')" class="btn btn-sm btn-primary">Details</button>
+                    <button onclick="window.open('/terminals/${terminal.idterminals}/edit/', '_blank')" class="btn btn-sm btn-warning">Edit</button>
                     <button onclick="startTerminalDrag(${terminal.idterminals})" class="btn btn-sm btn-success">Move</button>
                 </div>
             </div>`;
@@ -1047,8 +1076,8 @@ function loadFacilitiesOnMap(facilitiesData) {
                 <p><strong>Grid Connection:</strong> <span style="color: ${connectionColor};">${connectionStatus}</span></p>
                 ${facility.primary_grid_line_name ? `<p><strong>Primary Line:</strong> ${facility.primary_grid_line_name}</p>` : ''}
                 <div style="margin-top:10px; display:flex; gap:6px; flex-wrap:wrap;">
-                    <button onclick="showFacilityDetails(${facility.idfacilities})" class="btn btn-sm btn-primary">Details</button>
-                    <button onclick="window.open('/facilities/${facility.idfacilities}/', '_blank')" class="btn btn-sm btn-warning">Edit</button>
+                    <button onclick="window.open('/facilities/${facility.idfacilities}/', '_blank')" class="btn btn-sm btn-primary">Details</button>
+                    <button onclick="window.open('/facilities/${facility.idfacilities}/edit/', '_blank')" class="btn btn-sm btn-warning">Edit</button>
                     <button onclick="manageFacilityConnections(${facility.idfacilities})" class="btn btn-sm btn-info">Connections</button>
                     <button onclick="startFacilityDrag(${facility.idfacilities})" class="btn btn-sm btn-success">Move</button>
                 </div>
@@ -1250,13 +1279,26 @@ function loadGridLinesOnMap(gridLinesData) {
         // IMMEDIATELY attach the click handler and grid line ID
         polyline.gridLineId = gridLine.idgridlines;
         polyline.gridLineData = gridLine;
-        
+
+        // Build popup with Details and Edit buttons (like terminals)
+        var glPopup = `
+            <div class="gridline-popup">
+                <h5>${gridLine.line_name}</h5>
+                <p><strong>Voltage:</strong> ${gridLine.voltage_level} kV</p>
+                <p><strong>Capacity:</strong> ${gridLine.thermal_capacity_mw} MW</p>
+                <p><strong>Connected Facilities:</strong> ${gridLine.connected_facilities_count}</p>
+                <div style="margin-top:10px; display:flex; gap:6px; flex-wrap:wrap;">
+                    <button onclick="window.open('/gridlines/${gridLine.idgridlines}/', '_blank')" class="btn btn-sm btn-primary">Details</button>
+                    <button onclick="window.open('/gridlines/${gridLine.idgridlines}/edit/', '_blank')" class="btn btn-sm btn-warning">Edit</button>
+                </div>
+            </div>`;
+        polyline.bindPopup(glPopup);
+
         // Attach click handler directly to the polyline
         polyline.on('click', function(e) {
             // Stop event propagation to prevent map click
             L.DomEvent.stopPropagation(e);
-            // Show grid line details
-            showGridLineDetails(this.gridLineId);
+            this.openPopup();
         });
         
         // Optional: Add hover effects for better UX
@@ -2562,8 +2604,7 @@ function showGridLineDetails(gridLineId) {
                     </div>
                     ` : '<p>No facilities connected to this line.</p>'}
                     <div style="margin-top:16px; padding-top:12px; border-top:1px solid #dee2e6; display:flex; gap:10px; justify-content:flex-end;">
-                        <button onclick="highlightGridLine(${data.idgridlines}); document.querySelector('.modal-overlay').remove();" class="btn btn-sm btn-info">Show on Map</button>
-                        <button onclick="window.open('/gridlines/${data.idgridlines}/', '_blank')" class="btn btn-sm btn-warning">Edit Grid Line</button>
+                            <button onclick="window.open('/gridlines/${data.idgridlines}/', '_blank')" class="btn btn-sm btn-warning">Edit Grid Line</button>
                     </div>
                 </div>
             `;
@@ -2759,9 +2800,6 @@ function createFacilityDetailsHtml(data) {
     html += `
         <div style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #dee2e6;">
             <div style="display: flex; gap: 10px; justify-content: flex-end;">
-                <button onclick="showFacilityOnMap(${data.facility_id})" class="btn btn-sm btn-info">
-                    Show on Map
-                </button>
                 <button onclick="calculateGridLosses(${data.facility_id})" class="btn btn-sm btn-warning">
                     Calculate Losses
                 </button>
@@ -3066,9 +3104,6 @@ function createTerminalDetailsHtml(data) {
     html += `
             <div style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #dee2e6;">
                 <div style="display: flex; gap: 10px; justify-content: flex-end;">
-                    <button onclick="showTerminalOnMap(${data.idterminals})" class="btn btn-sm btn-info">
-                        Show on Map
-                    </button>
                     <button onclick="window.open('/terminals/${data.idterminals}/', '_blank')" class="btn btn-sm btn-warning">
                         Edit Terminal
                     </button>
@@ -3681,6 +3716,65 @@ function highlightGridLine(gridLineId) {
     });
     
     closeGridUtilization();
+}
+
+// Find on Map
+function openFindOnMap() {
+    document.getElementById('findOnMapSearch').value = '';
+    document.getElementById('findOnMapType').value = 'facility';
+    updateFindOnMapList();
+    document.getElementById('findOnMapModal').style.display = 'block';
+}
+
+function closeFindOnMap() {
+    document.getElementById('findOnMapModal').style.display = 'none';
+}
+
+function updateFindOnMapList() {
+    document.getElementById('findOnMapSearch').value = '';
+    filterFindOnMapList();
+}
+
+function filterFindOnMapList() {
+    var type = document.getElementById('findOnMapType').value;
+    var query = document.getElementById('findOnMapSearch').value.toLowerCase();
+    var items = [];
+
+    if (type === 'facility') {
+        items = facilities.map(f => ({ id: f.idfacilities, name: f.facility_name }));
+    } else if (type === 'terminal') {
+        items = terminals.map(t => ({ id: t.idterminals, name: t.terminal_name }));
+    } else if (type === 'gridline') {
+        items = gridLines.map(g => ({ id: g.idgridlines, name: g.line_name }));
+    }
+
+    var filtered = query ? items.filter(i => i.name && i.name.toLowerCase().includes(query)) : items;
+    filtered.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+
+    var listEl = document.getElementById('findOnMapList');
+    if (filtered.length === 0) {
+        listEl.innerHTML = '<div style="padding: 10px; color: #666;">No results found.</div>';
+        return;
+    }
+
+    listEl.innerHTML = filtered.map(item => `
+        <div onclick="findOnMapSelect('${type}', ${item.id})"
+             style="padding: 8px 12px; cursor: pointer; border-bottom: 1px solid #f0f0f0;"
+             onmouseover="this.style.background='#f5f5f5'" onmouseout="this.style.background=''">
+            ${item.name || '(unnamed)'}
+        </div>
+    `).join('');
+}
+
+function findOnMapSelect(type, id) {
+    closeFindOnMap();
+    if (type === 'facility') {
+        showFacilityOnMap(id);
+    } else if (type === 'terminal') {
+        showTerminalOnMap(id);
+    } else if (type === 'gridline') {
+        highlightGridLine(id);
+    }
 }
 </script>
 

@@ -191,6 +191,7 @@ def home(request):
             'latitude': terminal.latitude,
             'longitude': terminal.longitude,
             'active': terminal.active,
+            'status': terminal.status,
             'owner': terminal.owner,
             'connected_lines_count': connected_lines.count(),
             'connected_facilities_count': terminal.get_connected_facilities_count(),

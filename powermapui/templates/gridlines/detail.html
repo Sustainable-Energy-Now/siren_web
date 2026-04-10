@@ -46,12 +46,30 @@
                   <td>{{ gridline.length_km|floatformat:2 }} km</td>
                 </tr>
                 <tr>
-                  <td><strong>Status:</strong></td>
+                  <td><strong>Lifecycle Status:</strong></td>
+                  <td>
+                    {% if gridline.status == 'proposed' %}
+                      <span class="badge bg-secondary">Proposed</span>
+                    {% elif gridline.status == 'planned' %}
+                      <span class="badge bg-info">Planned</span>
+                    {% elif gridline.status == 'under_construction' %}
+                      <span class="badge bg-warning text-dark">Under Construction</span>
+                    {% elif gridline.status == 'commissioned' %}
+                      <span class="badge bg-success">Commissioned</span>
+                    {% elif gridline.status == 'decommissioned' %}
+                      <span class="badge bg-dark">Decommissioned</span>
+                    {% else %}
+                      <span class="text-muted">Not specified</span>
+                    {% endif %}
+                  </td>
+                </tr>
+                <tr>
+                  <td><strong>Active:</strong></td>
                   <td>
                     {% if gridline.active %}
-                      <span class="badge bg-success">Active</span>
+                      <span class="badge bg-success">Yes</span>
                     {% else %}
-                      <span class="badge bg-secondary">Inactive</span>
+                      <span class="badge bg-secondary">No</span>
                     {% endif %}
                   </td>
                 </tr>
@@ -95,8 +113,16 @@
                   <td>{{ gridline.owner|default:"Not specified" }}</td>
                 </tr>
                 <tr>
-                  <td><strong>Commissioned:</strong></td>
-                  <td>{{ gridline.commissioned_date|default:"Not specified" }}</td>
+                  <td><strong>Commissioning Probability:</strong></td>
+                  <td>{{ gridline.commissioning_probability|floatformat:2|default:"Not specified" }}</td>
+                </tr>
+                <tr>
+                  <td><strong>Commissioning Date:</strong></td>
+                  <td>{{ gridline.commissioning_date|date:"d M Y"|default:"Not specified" }}</td>
+                </tr>
+                <tr>
+                  <td><strong>Decommissioning Date:</strong></td>
+                  <td>{{ gridline.decommissioning_date|date:"d M Y"|default:"Not specified" }}</td>
                 </tr>
               </table>
             </div>

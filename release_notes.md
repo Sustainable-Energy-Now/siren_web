@@ -1,4 +1,10 @@
 # Release Notes (Latest first)
+## Version 3.19.2 - April 10, 2026
+### ✨ Enhancements
+- Feature: Find on Map ([#78](https://github.com/Sustainable-Energy-Now/siren_web/issues/78))
+- Feature: Improved RET Report UX ([#79](https://github.com/Sustainable-Energy-Now/siren_web/issues/79))
+- Feature: CEL UX Improvements ([#80](https://github.com/Sustainable-Energy-Now/siren_web/issues/80))
+
 ## Version 3.19.1 - April 03, 2026
 ### ✨ Enhancements
 - Feature: Refactor Facility Create ([#71](https://github.com/Sustainable-Energy-Now/siren_web/issues/71))

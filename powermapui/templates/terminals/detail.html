@@ -38,12 +38,30 @@
                   </td>
                 </tr>
                 <tr>
-                  <td><strong>Status:</strong></td>
+                  <td><strong>Lifecycle Status:</strong></td>
+                  <td>
+                    {% if terminal.status == 'proposed' %}
+                      <span class="badge bg-secondary">Proposed</span>
+                    {% elif terminal.status == 'planned' %}
+                      <span class="badge bg-info">Planned</span>
+                    {% elif terminal.status == 'under_construction' %}
+                      <span class="badge bg-warning text-dark">Under Construction</span>
+                    {% elif terminal.status == 'commissioned' %}
+                      <span class="badge bg-success">Commissioned</span>
+                    {% elif terminal.status == 'decommissioned' %}
+                      <span class="badge bg-dark">Decommissioned</span>
+                    {% else %}
+                      <span class="text-muted">Not specified</span>
+                    {% endif %}
+                  </td>
+                </tr>
+                <tr>
+                  <td><strong>Active:</strong></td>
                   <td>
                     {% if terminal.active %}
-                      <span class="badge bg-success">Active</span>
+                      <span class="badge bg-success">Yes</span>
                     {% else %}
-                      <span class="badge bg-secondary">Inactive</span>
+                      <span class="badge bg-secondary">No</span>
                     {% endif %}
                   </td>
                 </tr>
@@ -87,6 +105,18 @@
                   <td><strong>SCADA ID:</strong></td>
                   <td>{{ terminal.scada_id|default:"Not specified" }}</td>
                 </tr>
+                <tr>
+                  <td><strong>Commissioning Probability:</strong></td>
+                  <td>{{ terminal.commissioning_probability|floatformat:2|default:"Not specified" }}</td>
+                </tr>
+                <tr>
+                  <td><strong>Commissioning Date:</strong></td>
+                  <td>{{ terminal.commissioning_date|date:"d M Y"|default:"Not specified" }}</td>
+                </tr>
+                <tr>
+                  <td><strong>Decommissioning Date:</strong></td>
+                  <td>{{ terminal.decommissioning_date|date:"d M Y"|default:"Not specified" }}</td>
+                </tr>
               </table>
             </div>
           </div>
@@ -128,38 +158,18 @@
         </div>
       </div>
 
-      <!-- Ownership and Operations -->
+      <!-- Ownership -->
       <div class="card mb-4">
         <div class="card-header">
-          <h5 class="mb-0">Ownership and Operations</h5>
+          <h5 class="mb-0">Ownership</h5>
         </div>
         <div class="card-body">
-          <div class="row">
-            <div class="col-md-6">
-              <table class="table table-sm">
-                <tr>
-                  <td><strong>Owner:</strong></td>
-                  <td>{{ terminal.owner|default:"Not specified" }}</td>
-                </tr>
-                <tr>
-                  <td><strong>Operator:</strong></td>
-                  <td>{{ terminal.operator|default:"Not specified" }}</td>
-                </tr>
-              </table>
-            </div>
-            <div class="col-md-6">
-              <table class="table table-sm">
-                <tr>
-                  <td><strong>Maintenance Zone:</strong></td>
-                  <td>{{ terminal.maintenance_zone|default:"Not specified" }}</td>
-                </tr>
-                <tr>
-                  <td><strong>Control Center:</strong></td>
-                  <td>{{ terminal.control_center|default:"Not specified" }}</td>
-                </tr>
-              </table>
-            </div>
-          </div>
+          <table class="table table-sm mb-0">
+            <tr>
+              <td><strong>Owner:</strong></td>
+              <td>{{ terminal.owner|default:"Not specified" }}</td>
+            </tr>
+          </table>
         </div>
       </div>
 
@@ -296,16 +306,16 @@
                 <td>{{ terminal.short_circuit_capacity_mva|floatformat:1 }} MVA</td>
               </tr>
             {% endif %}
-            {% if terminal.commissioned_date %}
+            {% if terminal.commissioning_date %}
               <tr>
                 <td><strong>Commissioned:</strong></td>
-                <td>{{ terminal.commissioned_date }}</td>
+                <td>{{ terminal.commissioning_date|date:"Y-m-d" }}</td>
               </tr>
             {% endif %}
-            {% if terminal.decommissioned_date %}
+            {% if terminal.decommissioning_date %}
               <tr>
                 <td><strong>Decommissioned:</strong></td>
-                <td>{{ terminal.decommissioned_date }}</td>
+                <td>{{ terminal.decommissioning_date|date:"Y-m-d" }}</td>
               </tr>
             {% endif %}
             <tr>
