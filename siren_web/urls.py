@@ -30,7 +30,10 @@ urlpatterns = [
     path('references/<int:pk>/', reference_views.reference_detail, name='reference_detail'),
     path('references/<int:pk>/edit/', reference_views.reference_update, name='reference_update'),
     path('references/<int:pk>/delete/', reference_views.reference_delete, name='reference_delete'),
+    path('references/<int:pk>/attributes/add/', reference_views.reference_attribute_add, name='reference_attribute_add'),
+    path('references/<int:pk>/attributes/<int:attr_pk>/remove/', reference_views.reference_attribute_remove, name='reference_attribute_remove'),
     path('references/api/search/', reference_views.reference_search_api, name='reference_search_api'),
+    path('references/api/model-fields/', reference_views.reference_model_fields_api, name='reference_model_fields_api'),
     path('gendocs/', include('gendocs.urls')),
     path('config_views/', config_views.edit_config, name='edit_config'),
     # Main help system URLs

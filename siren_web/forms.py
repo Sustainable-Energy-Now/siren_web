@@ -7,7 +7,7 @@ from siren_web.models import Scenarios, TechnologyYears
 from crispy_forms.helper import FormHelper
 from crispy_forms.layout import Layout, Div, Field, Submit
 from crispy_forms.bootstrap import FormActions
-from .models import Reference
+from .models import Reference, ReferenceAttribute
 
 
 def get_weather_year_choices():
@@ -151,5 +151,23 @@ class ReferenceForm(forms.ModelForm):
         # Make source field required
         self.fields['source'].required = True
         # Add CSS classes for styling
+        for field_name, field in self.fields.items():
+            field.widget.attrs['class'] = 'form-control'
+
+
+class ReferenceAttributeForm(forms.ModelForm):
+    """Form for linking a Reference to a model attribute"""
+
+    class Meta:
+        model = ReferenceAttribute
+        fields = ['model_name', 'attribute_name', 'description']
+        widgets = {
+            'model_name': forms.TextInput(attrs={'placeholder': 'e.g. Scenarios'}),
+            'attribute_name': forms.TextInput(attrs={'placeholder': 'e.g. capacity'}),
+            'description': forms.TextInput(attrs={'placeholder': 'How this reference provides this data'}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         for field_name, field in self.fields.items():
             field.widget.attrs['class'] = 'form-control'

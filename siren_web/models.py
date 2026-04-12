@@ -2106,6 +2106,40 @@ class Reference(models.Model):
         """Check if this is a web-based source"""
         return self.reference_type == 'web' or (self.location and self.location.startswith('http'))
 
+
+class ReferenceAttribute(models.Model):
+    """Links a Reference to the specific model attributes it provides data for"""
+    reference = models.ForeignKey(
+        Reference,
+        on_delete=models.CASCADE,
+        related_name='attributes',
+    )
+    model_name = models.CharField(
+        max_length=100,
+        help_text="Django model name (e.g. 'Scenarios', 'FacilityScada')"
+    )
+    attribute_name = models.CharField(
+        max_length=100,
+        help_text="Model field or attribute name (e.g. 'capacity', 'quantity')"
+    )
+    description = models.CharField(
+        max_length=300,
+        blank=True,
+        help_text="How this reference provides data for this attribute"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'ReferenceAttribute'
+        ordering = ['model_name', 'attribute_name']
+        unique_together = [['reference', 'model_name', 'attribute_name']]
+        verbose_name = 'Reference Attribute'
+        verbose_name_plural = 'Reference Attributes'
+
+    def __str__(self):
+        return f"{self.model_name}.{self.attribute_name}"
+
+
 class MonthlyREPerformance(models.Model):
     """Store monthly renewable energy performance data"""
     year = models.IntegerField(db_index=True)
