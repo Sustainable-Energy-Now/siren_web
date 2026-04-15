@@ -50,7 +50,7 @@ def technologies(request):
         'discharge_max': 'The maxiumum percentage of storage capacity that can be discharged.',
         'discount_rate': 'The discount rate applied to the technology.',
         'dispatchable': 'The technology can be dispatched at any time when required.',
-        'emissions': 'CO2 emmissions in kg/mWh',
+        'emissions': 'CO2 emissions in kg CO2-e/kWh',
         'fuel': 'The cost of fuel consumed by the technology.',
         'fom': 'The fixed operating cost of the technology.',
         'lifetime': 'The operational lifetime of the technology.',

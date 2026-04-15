@@ -1072,7 +1072,7 @@ def get_monthly_summary_json(performance):
         'operational_demand': round(performance.operational_demand, 2),
         'renewable_generation': round(performance.total_renewable_generation, 2),
         'total_emissions': round(performance.total_emissions_tonnes, 2),
-        'emissions_intensity': round(performance.emissions_intensity_kg_mwh, 2),
+        'emissions_intensity': round(performance.emissions_intensity_kg_kwh, 2),
         'data_complete': performance.data_complete,
         'updated_at': performance.updated_at.isoformat() if performance.updated_at else None,
     }

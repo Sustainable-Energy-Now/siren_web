@@ -52,7 +52,7 @@ class TechnologyForm(forms.ModelForm):
             'renewable': '1 = renewable, 0 = non-renewable',
             'dispatchable': '1 = dispatchable, 0 = non-dispatchable',
             'lifetime': 'Technology lifetime in years',
-            'emissions': 'Emissions intensity (tCO2/MWh)',
+            'emissions': 'Emissions intensity (kg CO2-e/kWh)',
             'area': 'Land area requirement (km2/MW)',
             'water_usage': 'Water usage (ML/MWh)',
         }

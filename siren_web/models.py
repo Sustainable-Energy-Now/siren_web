@@ -2171,7 +2171,7 @@ class MonthlyREPerformance(models.Model):
 
     # Emissions data
     total_emissions_tonnes = models.FloatField(help_text="Total emissions in tonnes CO2-e")
-    emissions_intensity_kg_mwh = models.FloatField(help_text="Grid emissions intensity kg CO2-e/MWh")
+    emissions_intensity_kg_kwh = models.FloatField(help_text="Grid emissions intensity kg CO2-e/kWh")
     
     # Peak/minimum stats
     peak_demand_mw = models.FloatField(null=True, blank=True)
@@ -2569,7 +2569,7 @@ class MonthlyREPerformance(models.Model):
             'total_emissions': total_emissions,
             'total_emissions_tonnes': total_emissions,
             'emissions_intensity': emissions_intensity,
-            'emissions_intensity_kg_mwh': emissions_intensity,
+            'emissions_intensity_kg_kwh': emissions_intensity,
             
             # Wholesale prices
             'wholesale_price_avg': avg_wholesale_price,

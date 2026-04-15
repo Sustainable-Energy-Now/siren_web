@@ -190,7 +190,7 @@ class Command(BaseCommand):
                 'hydro_discharge': generation_data.get('hydro_discharge', 0),
                 'hydro_charge': generation_data.get('hydro_charge', 0),
                 'total_emissions_tonnes': emissions_data['total_emissions'],
-                'emissions_intensity_kg_mwh': emissions_data['emissions_intensity'],
+                'emissions_intensity_kg_kwh': emissions_data['emissions_intensity'],
                 'peak_demand_mw': peak_min_data.get('peak_mw'),
                 'peak_demand_datetime': peak_min_data.get('peak_datetime'),
                 'minimum_demand_mw': peak_min_data.get('min_mw'),
@@ -462,48 +462,63 @@ class Command(BaseCommand):
     def calculate_emissions(self, scada_data):
         """Calculate total emissions using facility emission intensities.
 
+        Falls back to the related technology's emissions value when a facility
+        has no emission_intensity set.
+
+        Units:
+          Facilities.emission_intensity : t CO2-e/MWh  (= kg CO2-e/kWh numerically)
+          Technologies.emissions        : kg CO2-e/kWh
+        Result intensity is returned in kg CO2-e/kWh.
+
         SCADA quantity is in MW at half-hourly intervals.
         Energy (MWh) = sum(MW) * 0.5 hours per interval.
         """
 
         total_emissions_kg = 0
-        total_generation_mwh = 0
+        total_generation_kwh = 0
 
-        # Aggregate by facility
+        # Aggregate by facility, fetching both facility and technology intensities
         facility_totals = scada_data.values(
-            'facility__emission_intensity'
+            'facility__emission_intensity',
+            'facility__idtechnologies__emissions'
         ).annotate(
             total_mw=Sum('quantity'),
             facility_id=F('facility')
         )
 
         for item in facility_totals:
-            emission_intensity = item.get('facility__emission_intensity')
             total_mw = float(item['total_mw'] or 0)
 
-            # Convert MW (half-hourly) to MWh: MW * 0.5 hours
-            generation_mwh = total_mw * 0.5
+            # Convert MW (half-hourly) to kWh: MW * 0.5h * 1000
+            generation_kwh = total_mw * 0.5 * 1000
 
-            if emission_intensity and generation_mwh > 0:
-                # emission_intensity is in t CO2-e per MWh
-                # Convert to kg: t * 1000
-                emissions_kg = generation_mwh * float(emission_intensity * 1000)
-                total_emissions_kg += emissions_kg
+            if generation_kwh > 0:
+                facility_intensity = item.get('facility__emission_intensity')
+                tech_emissions = item.get('facility__idtechnologies__emissions')
 
-            total_generation_mwh += generation_mwh
+                if facility_intensity is not None:
+                    # t CO2-e/MWh == kg CO2-e/kWh; use value directly
+                    emissions_kg = generation_kwh * float(facility_intensity)
+                    total_emissions_kg += emissions_kg
+                elif tech_emissions is not None:
+                    # kg CO2-e/kWh; use directly
+                    emissions_kg = generation_kwh * float(tech_emissions)
+                    total_emissions_kg += emissions_kg
+
+            total_generation_kwh += generation_kwh
 
         # Convert kg to tonnes
         total_emissions_tonnes = total_emissions_kg / 1000.0
 
-        # Calculate average emissions intensity for the month
-        if total_generation_mwh > 0:
-            emissions_intensity = total_emissions_kg / total_generation_mwh
+        # Average emissions intensity in kg CO2-e/kWh
+        if total_generation_kwh > 0:
+            emissions_intensity = total_emissions_kg / total_generation_kwh
         else:
             emissions_intensity = 0
 
         return {
             'total_emissions': total_emissions_tonnes,
-            'emissions_intensity': emissions_intensity  # kg CO2-e per MWh
+            'emissions_intensity': emissions_intensity  # kg CO2-e/kWh
         }
 
     def get_peak_minimum(self, scada_data):
