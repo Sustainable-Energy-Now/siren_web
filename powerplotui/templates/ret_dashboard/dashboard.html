@@ -513,9 +513,15 @@
                 of grid electricity came from zero-emission sources</li>
             <li><strong>Including rooftop:</strong> {{ performance.re_percentage_underlying|floatformat:0 }}% 
                 of total electricity (grid + rooftop solar) was renewable</li>
-            <li><strong>On track:</strong> Current trajectory will 
-                {% if base_case_scenario.target_re_percentage >= 75 %}exceed{% else %}fall short of{% endif %} 
-                75% renewable energy by 2040</li>
+            <li><strong>On track:</strong> Current trajectory will
+                {% if target_2040 %}
+                    {% if base_case_scenario.target_re_percentage >= target_2040.target_re_percentage %}exceed{% else %}fall short of{% endif %}
+                    {{ target_2040.target_re_percentage|floatformat:0 }}%
+                {% else %}
+                    {% if base_case_scenario.target_re_percentage >= 100 %}exceed{% else %}fall short of{% endif %}
+                    100%
+                {% endif %}
+                renewable energy by 2040</li>
         </ul>
     </div>
     

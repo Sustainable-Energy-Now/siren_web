@@ -58,19 +58,25 @@ def ret_dashboard(request, year=None, month=None):
     Main dashboard view for renewable energy tracking.
     Shows monthly performance vs targets.
     """
-    # Default to most recent month with available data if not specified
+    # Default to last complete month if not specified
     now = timezone.now()
     if not year and not month:
-        # Try to get the most recent month with data
-        latest_record = MonthlyREPerformance.objects.order_by('-year', '-month').first()
-        if latest_record:
-            year = latest_record.year
-            month = latest_record.month
+        # Use the last complete calendar month as the default
+        target_date = (now.replace(day=1) - timedelta(days=1))
+        default_year = target_date.year
+        default_month = target_date.month
+        # Only use it if data exists for that month; otherwise find the most recent available
+        if MonthlyREPerformance.objects.filter(year=default_year, month=default_month).exists():
+            year = default_year
+            month = default_month
         else:
-            # Fallback to last complete month if no data exists at all
-            target_date = (now.replace(day=1) - timedelta(days=1))
-            year = target_date.year
-            month = target_date.month
+            latest_record = MonthlyREPerformance.objects.order_by('-year', '-month').first()
+            if latest_record:
+                year = latest_record.year
+                month = latest_record.month
+            else:
+                year = default_year
+                month = default_month
     if not year:
         year = now.year
     if not month:
@@ -126,6 +132,9 @@ def ret_dashboard(request, year=None, month=None):
     # Get 2040 scenario projections
     scenarios = TargetScenario.objects.filter(is_active=True)
     base_case = scenarios.filter(scenario_type='base_case').first()
+    target_2040 = TargetScenario.objects.filter(
+        scenario_type='base_case', year=2040
+    ).first()
     
     # Generate charts - TWO separate pie charts for operational and underlying
     generation_mix_operational_chart = generate_generation_mix_operational_chart(performance)
@@ -163,6 +172,7 @@ def ret_dashboard(request, year=None, month=None):
         'new_capacity': new_capacity,
         'upcoming_capacity': upcoming_capacity,
         'base_case_scenario': base_case,
+        'target_2040': target_2040,
         # Two separate charts
         'generation_mix_operational_chart': generation_mix_operational_chart,
         'generation_mix_underlying_chart': generation_mix_underlying_chart,
@@ -635,8 +645,11 @@ def generate_scenario_comparison_chart(scenarios):
 # =============================================================================
 
 def get_available_months():
-    """Get list of months with available data for dropdown"""
-    records = MonthlyREPerformance.objects.filter(year__gte=2025).order_by('-year', '-month')
+    """Get list of months with available data for dropdown, excluding the current month"""
+    now = timezone.now()
+    records = MonthlyREPerformance.objects.filter(year__gte=2025).exclude(
+        year=now.year, month=now.month
+    ).order_by('-year', '-month')
     
     months = []
     for record in records:

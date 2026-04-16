@@ -348,6 +348,9 @@
                         <a href="#" class="toc-sublink" data-section="2" data-subsection="purpose">Purpose</a>
                     </li>
                     <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="2" data-subsection="navigation-bar">Navigation Bar</a>
+                    </li>
+                    <li class="toc-subitem">
                         <a href="#" class="toc-sublink" data-section="2" data-subsection="key-sections">Key Sections</a>
                     </li></ul></li>
                 <li class="toc-item">
@@ -384,7 +387,7 @@
                     <a href="#" class="toc-link " data-section="6">Glossary of Terms</a>
                 </li><ul class="toc-subsections">
                     <li class="toc-subitem">
-                        <a href="#" class="toc-sublink" data-section="6" data-subsection="consumption-measures">Consumption Measures</a>
+                        <a href="#" class="toc-sublink" data-section="6" data-subsection="demand-measures">Demand Measures</a>
                     </li>
                     <li class="toc-subitem">
                         <a href="#" class="toc-sublink" data-section="6" data-subsection="generation-technologies">Generation Technologies</a>
@@ -451,7 +454,7 @@
                 </li></li>
             </ul>
             <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid rgba(255,255,255,0.2); font-size: 0.9em;">
-                <p><strong>Generated:</strong><br>February 17, 2026</p>
+                <p><strong>Generated:</strong><br>April 16, 2026</p>
                 <p><strong>Sections:</strong> 11</p>
             </div>
         </nav>
@@ -507,40 +510,139 @@
             <div class="page-section " data-section="2">
                 <h2 id="monthly-dashboard">Monthly Dashboard</h2>
 <h3 id="purpose">Purpose</h3>
-<p>The Monthly Dashboard provides a real-time snapshot of SWIS renewable energy performance for the current reporting period, including year-to-date progress and comparison against targets.</p>
+<p>The Monthly Dashboard provides a snapshot of SWIS renewable energy performance for the selected reporting period, including year-to-date progress and comparison against targets.</p>
+<h3 id="navigation-bar">Navigation Bar</h3>
+<p>Links to recent quarterly reports, the annual review, published reports, a help page, and a print button appear at the top of the page. The <strong>Select Period</strong> dropdown lets you navigate to any available month.</p>
 <h3 id="key-sections">Key Sections</h3>
+<h4 id="visualizations">Visualizations</h4>
+<p>Two pie charts are displayed side by side showing the generation mix for the month:
+- <strong>Left chart</strong> — operational generation mix (excludes rooftop solar)
+- <strong>Right chart</strong> — underlying generation mix (includes rooftop solar/DPV)</p>
+<p>Below the pie charts, the <strong>Pathway to 2040 Target</strong> line chart shows historical monthly RE% performance and the year-to-date cumulative line plotted against the target trajectory.</p>
 <h4 id="re-performance">RE Performance</h4>
-<p>Displays the renewable energy percentage for both consumption measures:
-- <strong>RE% (Operational Consumption)</strong>: Renewable generation as a percentage of grid-sent electricity
-- <strong>RE% (Underlying Consumption)</strong>: Renewable generation as a percentage of total consumption including rooftop solar</p>
-<h4 id="year-to-date-summary">Year to Date Summary</h4>
+<p>Displays the renewable energy percentage for both demand measures, each with a prior-year comparison:
+- <strong>RE% (Operational Demand)</strong>: Renewable generation as a percentage of grid-sent electricity
+- <strong>RE% (Underlying Demand)</strong>: Renewable generation as a percentage of total demand including rooftop solar</p>
+<h4 id="understanding-demand-measures">Understanding Demand Measures</h4>
+<p>An information box defines the two demand measures:
+- <strong>Operational Demand</strong>: Total load required from the grid, excluding behind-the-meter rooftop solar and small, non-scheduled generation.
+- <strong>Underlying Demand</strong>: Total electricity usage by consumers, including grid supply, behind-the-meter rooftop solar (PV), and battery storage.</p>
+<h4 id="year-to-date">Year to Date</h4>
 <p>Cumulative performance metrics from January to the current month:
-- YTD RE% (Operational and Underlying)
-- Target comparison and status
-- Total emissions</p>
-<h4 id="generation-mix">Generation Mix</h4>
-<p>Breakdown of electricity generation by technology:
-- Wind generation
-- Solar (Utility-scale)
-- Solar (Rooftop/DPV)
-- Biomass
-- Gas
-- Coal
-- Storage (charge/discharge)</p>
+- YTD RE% (Operational)
+- YTD RE% (Underlying) — including rooftop solar
+- Target status — shows the target percentage and whether performance is ahead of or behind the trajectory
+- YTD Emissions (Kt CO₂-e) with year-on-year change indicator</p>
+<h4 id="monthly-highlights-generation-mix">Monthly Highlights — Generation Mix</h4>
+<p>A detailed table breaking down electricity generation for the month:</p>
+<table>
+<thead>
+<tr>
+<th>Technology</th>
+<th>Generation (GWh)</th>
+<th>% of Operational Demand</th>
+<th>% of Underlying Demand</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Wind</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>Solar (Utility)</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>Solar (Rooftop)</td>
+<td></td>
+<td>—</td>
+<td></td>
+</tr>
+<tr>
+<td>Biomass</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>Hydro</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>Battery</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>Gas</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>Coal</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><em>Battery Charge</em> (if &gt; 0)</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><em>Hydro Pumping</em> (if &gt; 0)</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<p>The table footer shows the Total RE% for both demand measures.</p>
+<p>Renewable rows are shown with a green background; fossil fuel rows in white; storage charge/pumping rows in blue italics.</p>
 <h4 id="key-statistics">Key Statistics</h4>
-<p>Notable performance indicators:
-- Grid emissions intensity (kg CO2-e/MWh)
-- Best renewable hour (highest instantaneous RE%)
-- Peak demand (MW and timestamp)
-- Minimum demand (MW and timestamp)</p>
+<p>Notable performance indicators shown as metric cards:
+- <strong>Operational Demand</strong> (GWh) with prior-year change
+- <strong>Underlying Demand</strong> (GWh, includes rooftop solar) with prior-year change
+- <strong>Avg Grid Emissions Intensity</strong> (kg CO₂-e/kWh)
+- <strong>Best Renewable Hour</strong> — highest one-hour operational RE% and its date/time
+- <strong>Peak Instantaneous Operational RE%</strong> — highest half-hourly RE% and its date/time
+- <strong>Peak Operational Demand</strong> (MW and date/time)
+- <strong>Minimum Operational Demand</strong> (MW and date/time)</p>
 <h4 id="wholesale-price-statistics">Wholesale Price Statistics</h4>
-<p>Market price analysis for the period:
-- Average, maximum, and minimum prices
-- Price volatility (standard deviation)
-- Negative price interval count
-- Price spike interval count (&gt;$300/MWh)</p>
-<h4 id="pathway-chart">Pathway Chart</h4>
-<p>Visual representation of progress towards the 2040 target, showing historical performance and projected trajectory.</p>
+<p>Market price analysis for the period (shown only if price data is available):
+- Average price ($/MWh) with prior-year comparison
+- Maximum price ($/MWh) with date/time; card shows a warning colour if price exceeded $300/MWh
+- Minimum price ($/MWh) with date/time; card shows positive colour if price was negative
+- Price Volatility — standard deviation ($/MWh)
+- <strong>Negative Price Intervals</strong> — count of trading intervals with price &lt; $0/MWh, with prior-year comparison
+- <strong>Price Spike Intervals</strong> — count of trading intervals with price &gt; $300/MWh, with prior-year comparison</p>
+<p>An information box explains negative prices, price spikes, and volatility.</p>
+<h4 id="new-capacity">New Capacity</h4>
+<p>Shown only when new capacity data exists for the period:
+- List of facilities commissioned during the month with capacity (MW) and commissioning date
+- Total new renewable capacity for the month
+- Upcoming capacity (facilities expected to commission in the next 3 months)</p>
+<h4 id="emissions-performance">Emissions Performance</h4>
+<p>A two-row table covering the current month and year-to-date:
+- Total Emissions (Kt CO₂-e)
+- Emissions Intensity (kg/kWh)
+- Year-on-year change (%)</p>
+<h4 id="what-this-means">What This Means</h4>
+<p>Two information boxes providing contextual interpretation of the month's data:
+- <strong>For Consumers</strong>: Emissions reduction, grid renewables percentage, underlying RE% including rooftop, and 2040 trajectory status
+- <strong>For the Grid</strong>: Integration challenges, storage performance, negative pricing opportunities</p>
+<h4 id="comments">Comments</h4>
+<p>Authenticated users can add, view, and manage comments for the monthly report.</p>
 <hr />
             </div>
             <div class="page-section " data-section="3">
@@ -549,44 +651,53 @@
 <p>The Quarterly Report provides detailed analysis of performance over a three-month period, enabling trend identification and progress assessment against annual targets.</p>
 <h3 id="key-sections">Key Sections</h3>
 <h4 id="executive-summary">Executive Summary</h4>
-<p>Editable summary highlighting key achievements, challenges, and insights for the quarter. Includes:
-- Quarterly RE% achievements
-- Emissions performance
-- Year-over-year comparisons
-- Wholesale price summary</p>
+<p>Auto-generated narrative showing quarterly RE% (both measures), year-to-date RE%, total quarterly emissions and the year-on-year change, and average wholesale price. Authenticated users can add additional commentary via the <strong>Add to Summary</strong> button. A demand definitions information box appears below the summary.</p>
 <h4 id="key-findings">Key Findings</h4>
 <p>Summary metrics displayed as cards:
-- Q[N] RE% (Operational and Underlying)
-- YTD RE% (Operational and Underlying)
-- Target status and gap
-- Quarterly and YTD emissions
-- Average wholesale price</p>
+- Q[N] RE% (Operational) — grid-sent electricity
+- Q[N] RE% (Underlying) — including rooftop solar
+- YTD RE% (Operational) with prior-year comparison
+- YTD RE% (Underlying) with prior-year comparison
+- Year target status — shows shortfall in percentage points or "On track"
+- Q[N] Emissions (tonnes CO₂-e) with year-on-year change
+- YTD Emissions (tonnes CO₂-e) with year-on-year change
+- Q[N] Average Wholesale Price ($/MWh) — shown only if price data is available</p>
+<h4 id="wholesale-price-summary">Wholesale Price Summary</h4>
+<p>Shown only if wholesale price data is available. Includes:
+- Price stat cards: Average, Maximum, Minimum prices; Negative Price Intervals; Price Spike Intervals
+- <strong>Monthly Wholesale Price Breakdown</strong> table with columns: Month, Avg Price, Max Price, Min Price, Negative Intervals, Spike Intervals
+- Year-on-year wholesale price comparison</p>
 <h4 id="monthly-performance-breakdown">Monthly Performance Breakdown</h4>
 <p>Detailed table showing each month's performance:
-- Underlying consumption
-- Renewable generation
-- RE% (both measures)
-- Emissions
-- Variance from target</p>
+- Underlying Demand (GWh)
+- Renewable Generation (GWh)
+- RE% (Operational)
+- Variance from target (pp) — shown in green if ahead, red if behind
+- RE% (Underlying)
+- Emissions (tonnes CO₂-e)</p>
+<p>The table includes a quarterly total row.</p>
 <h4 id="cumulative-year-to-date-performance">Cumulative Year-to-Date Performance</h4>
-<p>Comparison table showing:
-- Current quarter vs YTD performance
-- Year-over-year changes
-- Percentage point improvements</p>
-<h4 id="generation-mix-analysis">Generation Mix Analysis</h4>
-<p>Quarterly generation breakdown by technology with:
-- Generation volumes (GWh)
-- Percentage of operational consumption
-- Percentage of underlying consumption
-- Associated emissions</p>
-<h4 id="quarterly-trends">Quarterly Trends</h4>
-<p>Interactive charts showing:
-- Monthly generation breakdown (stacked bar)
-- Year-over-year RE% comparison</p>
+<p>Comparison table with columns for Q[N] current year, YTD current year, YTD prior year, and change:
+- RE% (Operational) — change shown in percentage points (pp)
+- RE% (Underlying) — change shown in pp
+- Total Emissions (tonnes CO₂-e) — change shown as %
+- Emissions Intensity (kg CO₂-e/kWh) — change shown as absolute
+- Average Wholesale Price ($/MWh) — shown if price data available</p>
+<p>A status note below the table confirms whether YTD performance is ahead of or behind the annual target.</p>
+<h4 id="generation-by-technology-for-the-quarter">Generation by Technology for the Quarter</h4>
+<p>A detailed table with columns: Technology, Generation (GWh), % of Operational Demand, % of Underlying Demand, Emissions. Covers Wind, Solar (Utility), Solar (Rooftop), Biomass, Hydro, Battery, Gas, Coal, plus Battery Charge and Hydro Pumping rows (shown only when &gt; 0). The table footer shows Total RE% for both demand measures.</p>
+<h4 id="operational-generation-mix-analysis">Operational Generation Mix Analysis</h4>
+<p>Two interactive charts:
+- <strong>Monthly Generation Breakdown</strong> — stacked bar chart of operational generation by technology (Wind, Solar, Biomass, Hydro, Battery, Gas, Coal) for each month of the quarter. Hover over columns to see exact generation values.
+- <strong>Year-over-Year RE% Comparison</strong> — bar chart comparing both demand measures (Operational and Underlying) for the same quarter in the current and prior year (four bars total).</p>
+<h4 id="new-capacity-commissioned">New Capacity Commissioned</h4>
+<p>Shown only when facilities were commissioned during the quarter. Lists each facility with name, capacity (MW), technology type, and commissioning date, plus the total new renewable capacity for the quarter.</p>
 <h4 id="key-observations">Key Observations</h4>
-<p>Analysis sections for:
-- <strong>Positive Developments</strong>: Achievements and improvements
-- <strong>Challenges and Risks</strong>: Areas requiring attention</p>
+<p>Two analysis sections auto-populated with data-driven observations:
+- <strong>Positive Developments</strong>: Year-on-year RE% improvement, emissions reduction, wind and solar contribution highlights, and negative pricing incidence.
+- <strong>Challenges and Risks</strong>: RE% shortfall against target, price spike intervals, and general monitoring notes.</p>
+<h4 id="comments">Comments</h4>
+<p>Authenticated users can add comments. Not shown in published versions of the report.</p>
 <hr />
             </div>
             <div class="page-section " data-section="4">
@@ -595,49 +706,40 @@
 <p>The Annual Review provides a comprehensive assessment of the full calendar year's performance, including progress towards long-term targets and strategic recommendations.</p>
 <h3 id="key-sections">Key Sections</h3>
 <h4 id="executive-summary">Executive Summary</h4>
-<p>Editable annual summary with:
-- Annual RE% achievements
-- Total emissions and year-over-year change
-- Average wholesale price
-- Strategic insights</p>
+<p>Auto-generated narrative covering annual RE% (both measures), total emissions and year-on-year change, and average wholesale price. Authenticated users can add additional commentary via <strong>Add to Summary</strong>. A demand definitions information box appears below the summary.</p>
 <h4 id="key-findings">Key Findings</h4>
-<p>Annual performance metrics:
-- RE% (Operational and Underlying)
-- Total consumption
-- Total emissions
-- New commissioned capacity</p>
+<p>Annual performance metrics shown as cards:
+- RE% (Operational) — with target status colour
+- RE% (Underlying) — with target status message
+- Total Consumption (GWh, underlying) with year-on-year change
+- Total Emissions (tonnes CO₂-e) with year-on-year change
+- New Capacity (MW renewable) commissioned during the year</p>
 <h4 id="wholesale-price-summary">Wholesale Price Summary</h4>
-<p>Complete annual price analysis:
-- Average, maximum, minimum prices
-- Monthly breakdown table
-- Negative price and spike interval analysis
-- Price insights and trends</p>
+<p>Shown only if wholesale price data is available. Includes:
+- Metric cards: Average Price (with YoY change), Maximum Price (with month and date/time), Minimum Price (with month and date/time), Negative Price Intervals (with prior-year comparison), Price Spike Intervals (with prior-year comparison)
+- <strong>Monthly Wholesale Price Breakdown</strong> table with columns: Month, Avg ($/MWh), Max ($/MWh), Min ($/MWh), Std Dev, Negative intervals, Spike intervals. Includes an annual Total/Avg footer row.
+- <strong>Wholesale Price Insights</strong> information box with auto-generated commentary on negative pricing, price spikes, and year-on-year price movement.</p>
 <h4 id="performance-summary">Performance Summary</h4>
-<p>Year-over-year comparison table:
-- Operational and underlying consumption
-- Renewable generation
-- RE% changes (percentage points)</p>
+<p>Year-over-year comparison table (current year vs prior year with change column):
+- Operational Demand (GWh)
+- Underlying Demand (GWh)
+- Renewable Generation (GWh)
+- RE% (Operational) — change shown in pp
+- RE% (Underlying) — change shown in pp</p>
 <h4 id="generation-mix-analysis">Generation Mix Analysis</h4>
-<p>Annual technology breakdown with:
-- Generation volumes
-- Percentage contributions
-- Emissions by technology</p>
-<h4 id="2040-target-progress">2040 Target Progress</h4>
-<p>Assessment of long-term target trajectory:
-- Projected 2040 RE%
-- Monte Carlo probability analysis
-- Target achievement status</p>
+<p>Annual technology breakdown table with columns: Technology, Generation (GWh), % of Operational Demand, % of Underlying Demand, Emissions. Covers Wind, Solar (Utility), Solar (Rooftop), Biomass, Hydro, Battery, Gas, Coal, plus Battery Charge and Hydro Pumping rows. The table footer shows Total RE% for both demand measures.</p>
+<h4 id="annual-trends">Annual Trends</h4>
+<p>Two interactive Plotly charts:
+- <strong>Monthly Generation by Technology</strong> — stacked bar chart showing monthly generation across the year by technology, illustrating seasonal patterns.
+- <strong>Multi-Year RE% Comparison</strong> — line/trend chart overlaying historical annual performance for context.</p>
 <h4 id="new-capacity-commissioned">New Capacity Commissioned</h4>
-<p>Table of facilities commissioned during the year:
-- Facility name
-- Technology type
-- Capacity (MW)
-- Commissioning date</p>
+<p>Shown only when facilities were commissioned during the year. A summary heading shows total MW, followed by a table with columns: Facility, Technology, Capacity (MW), Commissioned date.</p>
 <h4 id="recommendations">Recommendations</h4>
-<p>Strategic guidance including:
-- Target confirmation
-- Priority actions
-- Pipeline management recommendations</p>
+<p>Two information boxes:
+- <strong>Target Confirmation</strong>: States the recommended 2040 target with supporting rationale and Monte Carlo probability.
+- <strong>Priority Actions</strong>: Specific pipeline management, battery storage, grid investment, interim milestone, and price management actions.</p>
+<h4 id="comments">Comments</h4>
+<p>Authenticated users can add comments. Not shown in published versions of the report.</p>
 <hr />
             </div>
             <div class="page-section " data-section="5">
@@ -655,82 +757,63 @@
 <tbody>
 <tr>
 <td><strong>Base Case</strong></td>
-<td>Planned and probable facilities commissioned on schedule with historical capacity factors</td>
+<td>Planned and probable facilities commissioned on schedule with historical capacity factors and planned consumption growth (the most likely pathway)</td>
 </tr>
 <tr>
 <td><strong>Accelerated Pipeline</strong></td>
-<td>All possible facilities included, faster commissioning, optimistic capacity factors</td>
+<td>All possible facilities included, faster commissioning, optimistic capacity factors and additional unplanned consumption growth</td>
 </tr>
 <tr>
 <td><strong>Delayed Pipeline</strong></td>
-<td>Only planned facilities, 12-month average delay, conservative capacity factors</td>
+<td>Only planned facilities, 12-month average delay, conservative capacity factors, less than planned consumption growth</td>
 </tr>
 </tbody>
 </table>
+<p>A Scenario Type Definitions information box on the page summarises the assumptions for each scenario.</p>
 <h3 id="key-sections">Key Sections</h3>
+<h4 id="executive-summary">Executive Summary</h4>
+<p>A brief narrative stating the three scenario types and the Base Case probability of achieving the 100% 2040 target based on Monte Carlo analysis.</p>
 <h4 id="key-targets-overview">Key Targets Overview</h4>
-<p>Summary of milestone targets:
-- 2040 RE Target (100%)
-- 2030 Interim Target
-- Current RE% baseline
-- Achievement probability</p>
-<h4 id="re-trajectory">RE% Trajectory</h4>
-<p>Projection chart showing RE% pathways for all scenarios from current year to 2040.</p>
+<p>Four summary metric cards:
+- 2040 RE Target (100%, underlying consumption basis)
+- 2030 Interim Target (82%, underlying consumption basis)
+- Current RE% — the latest annual result
+- Achievement Probability — Base Case probability at the 100% target from Monte Carlo analysis</p>
+<h4 id="re-trajectory-by-scenario">RE% Trajectory by Scenario</h4>
+<p>An interactive chart showing RE% pathways from the current year to 2040. Features:
+- <strong>Scenario selector dropdown</strong> — switches which scenario's stacked area fill is shown (Base Case, Accelerated Pipeline, Delayed Pipeline)
+- <strong>Stacked area fill</strong> — shows the energy mix breakdown (Wind, Solar Utility, DPV, Storage Discharge, Other RE) for the selected scenario
+- <strong>RE% lines</strong> for all three scenarios simultaneously (solid, dashed, dotted) plus the Actual historical line and Target milestone line (2030: 82%, 2040: 100%)
+- <strong>Energy Mix hover panel</strong> — appears to the right of the chart; hover over any year on the chart to see DPV, Solar (Utility), Wind, Storage (MWh), Other RE generation values, the RE%, and underlying demand for that year under the selected scenario</p>
 <h4 id="scenario-projections-summary">Scenario Projections Summary</h4>
-<p>Year-by-year projection table including:
-- RE%
-- Wind, Solar, DPV generation
-- Storage capacity
-- Emissions
-- Target type (Interim/Major)</p>
-<h4 id="scenario-comparison">Scenario Comparison</h4>
-<p>2040 outcomes comparison:
-- RE% by scenario
-- Variance from target
-- Achievement probability
-- Total generation
-- Emissions</p>
+<p>A year-by-year projection table for the <strong>Base Case (Step Change)</strong> scenario showing: Year, RE%, Wind (GWh), Solar (GWh), DPV (GWh), Storage (MWh), Emissions (kt), Target Type (Ordinary / Interim Target / Major Target). Milestone years (2030, 2040) are highlighted.</p>
+<h4 id="scenario-comparison-2040-target">Scenario Comparison — 2040 Target</h4>
+<p>A three-row table comparing all scenarios at 2040: Scenario name, 2040 RE%, variance from 100% target (pp), probability of achievement, total RE generation (GWh), Emissions (kt), and Status.</p>
 <h4 id="projected-facility-pipeline">Projected Facility Pipeline</h4>
-<p>Upcoming capacity additions:
-- Facility name
-- Technology
-- Capacity (MW)
-- Status (Under Construction/Planned/Probable)
-- Expected commissioning
-- Probability</p>
-<h4 id="cumulative-capacity">Cumulative Capacity</h4>
-<p>Technology capacity growth over time:
-- Wind (MW)
-- Solar Utility (MW)
-- DPV (MW)
-- Storage (MW)
-- Total RE (MW)</p>
+<p>Summary capacity cards showing current MW by status (Commissioned, Under Construction, Planned, Probable), followed by a detailed table of upcoming facility commissioning (2025–2030) with columns: Facility, Technology, Capacity (MW), Status, Expected Commissioning, Probability.</p>
+<h4 id="projected-generation-mix-transition">Projected Generation Mix Transition</h4>
+<p>A stacked bar chart (Base Case) showing absolute generation (GWh) by technology — Wind, Solar (Utility), DPV (Rooftop Solar), Biomass/Other RE, Gas — for key years from 2025 to 2040, illustrating the shift from fossil fuels to renewables.</p>
+<h4 id="cumulative-capacity-by-technology">Cumulative Capacity by Technology</h4>
+<p>A table showing installed capacity (MW) for key years (2025, 2027, 2030, 2035, 2040): Wind, Solar Utility, DPV, Storage, Total RE.</p>
 <h4 id="consumption-projections">Consumption Projections</h4>
-<p>Consumption growth forecasts:
-- Operational consumption
-- DPV generation
-- Underlying consumption
-- Growth rate</p>
-<h4 id="emissions-trajectory">Emissions Trajectory</h4>
-<p>Projected emissions reduction:
-- Baseline emissions
-- 2030 projected
-- 2040 projected
-- Cumulative reduction</p>
-<h4 id="risk-analysis">Risk Analysis</h4>
-<p>Assessment of factors affecting outcomes:
-- <strong>Downside Risks</strong>: Project delays, grid constraints, financing challenges
-- <strong>Upside Opportunities</strong>: Technology improvements, policy support, cost declines</p>
-<h4 id="monte-carlo-analysis">Monte Carlo Analysis</h4>
-<p>Probabilistic assessment including:
-- Simulation parameters
-- Probability distribution
-- Achievement probability by RE% threshold</p>
+<p>An interactive line chart (Base Case) showing Underlying Demand and Operational Demand from 2025 to 2040, with actual historical demand overlaid. Followed by a table with columns: Year, Operational Consumption (GWh), DPV Generation (GWh), Underlying Consumption (GWh), Growth Rate.</p>
+<h4 id="emissions-reduction-trajectory">Emissions Reduction Trajectory</h4>
+<p>An interactive line chart showing projected emissions (kt CO₂-e) under all three scenarios plus actual historical emissions. Followed by four metric cards: 2024 Baseline, 2030 Projected (Base), 2040 Projected (Base), and Cumulative Reduction (2025–2040).</p>
+<h4 id="key-risks-and-sensitivities">Key Risks and Sensitivities</h4>
+<p>Two information boxes:
+- <strong>Downside Risks</strong>: Project delays, grid constraints, financing challenges, resource variability
+- <strong>Upside Opportunities</strong>: Technology improvements, policy support, storage cost decline, DPV growth</p>
+<h4 id="monte-carlo-probability-analysis">Monte Carlo Probability Analysis</h4>
+<p>Explains the simulation parameters (10,000 iterations, commissioning probability by status, commissioning delay distribution, capacity factor variance, consumption growth uncertainty), followed by an interactive bar chart and a table showing the probability of achieving each target RE% threshold (80%, 85%, 90%, 95%, 100%) under the Base Case.</p>
+<h4 id="recommendations">Recommendations</h4>
+<p>Two information boxes:
+- <strong>Target Confirmation</strong>: States the recommended 2040 target, achievement probability, and supporting rationale
+- <strong>Priority Actions</strong>: Pipeline management, battery storage, grid investment, and interim milestone actions</p>
 <hr />
             </div>
             <div class="page-section " data-section="6">
                 <h2 id="glossary-of-terms">Glossary of Terms</h2>
-<h3 id="consumption-measures">Consumption Measures</h3>
+<h3 id="demand-measures">Demand Measures</h3>
 <table>
 <thead>
 <tr>
@@ -740,12 +823,12 @@
 </thead>
 <tbody>
 <tr>
-<td><strong>Operational Consumption</strong></td>
-<td>Total electricity consumption from grid sources. Represents electricity delivered through the transmission and distribution network.</td>
+<td><strong>Operational Demand</strong></td>
+<td>The half-hourly average output from all large-scale grid connected generators. It doesn't include energy consumed by market scheduled loads e.g. pumped hydro and utility scale batteries. Represents electricity delivered through the transmission and distribution network.</td>
 </tr>
 <tr>
-<td><strong>Underlying Consumption</strong></td>
-<td>Operational consumption plus rooftop solar generation consumed behind the meter. Represents total electricity consumption including self-consumed distributed generation.</td>
+<td><strong>Underlying Demand</strong></td>
+<td>Operational demand plus half-hourly estimates of rooftop solar generation, yielding an estimate of total supply from "both ends of the grid."</td>
 </tr>
 <tr>
 <td><strong>Peak Demand</strong></td>
@@ -776,11 +859,19 @@
 </tr>
 <tr>
 <td><strong>Solar (Rooftop/DPV)</strong></td>
-<td>Distributed Photovoltaic - residential and commercial rooftop solar systems.</td>
+<td>Distributed Photovoltaic — residential and commercial rooftop solar systems.</td>
 </tr>
 <tr>
 <td><strong>Biomass</strong></td>
 <td>Generation from organic waste materials (e.g., landfill gas, wood waste).</td>
+</tr>
+<tr>
+<td><strong>Hydro</strong></td>
+<td>Pumped hydro electricity storage discharging to the grid.</td>
+</tr>
+<tr>
+<td><strong>Battery</strong></td>
+<td>Utility-scale storage batteries discharging to the grid.</td>
 </tr>
 <tr>
 <td><strong>Gas</strong></td>
@@ -791,12 +882,12 @@
 <td>Generation from coal-fired power stations.</td>
 </tr>
 <tr>
-<td><strong>Storage Charge</strong></td>
-<td>Electricity consumed by battery and pumped hydro storage systems when charging.</td>
+<td><strong>Battery Charge</strong></td>
+<td>Electricity consumed by battery storage systems when charging.</td>
 </tr>
 <tr>
-<td><strong>Storage Discharge</strong></td>
-<td>Electricity supplied by battery and pumped hydro storage systems when discharging.</td>
+<td><strong>Hydro Pumping</strong></td>
+<td>Electricity consumed by pumped hydro storage systems when pumping.</td>
 </tr>
 </tbody>
 </table>
@@ -811,7 +902,7 @@
 <tbody>
 <tr>
 <td><strong>RE%</strong></td>
-<td>Renewable Energy Percentage - the proportion of consumption met by renewable generation.</td>
+<td>Renewable Energy Percentage — the proportion of demand met by renewable generation.</td>
 </tr>
 <tr>
 <td><strong>Capacity Factor</strong></td>
@@ -819,19 +910,19 @@
 </tr>
 <tr>
 <td><strong>Emissions Intensity</strong></td>
-<td>CO2-equivalent emissions per unit of electricity (kg CO2-e/MWh).</td>
+<td>CO₂-equivalent emissions per unit of electricity (kg CO₂-e/kWh).</td>
 </tr>
 <tr>
 <td><strong>YTD</strong></td>
-<td>Year-to-Date - cumulative performance from January to the current period.</td>
+<td>Year-to-Date — cumulative performance from January to the current period.</td>
 </tr>
 <tr>
 <td><strong>YoY</strong></td>
-<td>Year-over-Year - comparison with the same period in the previous year.</td>
+<td>Year-over-Year — comparison with the same period in the previous year.</td>
 </tr>
 <tr>
 <td><strong>pp</strong></td>
-<td>Percentage points - absolute change in percentage values.</td>
+<td>Percentage points — absolute change in percentage values.</td>
 </tr>
 </tbody>
 </table>
@@ -858,15 +949,15 @@
 </tr>
 <tr>
 <td><strong>Trading Interval</strong></td>
-<td>An interval is one of the 30min blocks of time used for controlling the electricity delivered to the grid.</td>
+<td>An interval is one of the 30-minute blocks of time used for controlling the electricity delivered to the grid.</td>
 </tr>
 <tr>
 <td><strong>Negative Price</strong></td>
-<td>When the wholesale price falls below $0/MWh. . Generators are allowed to offer negative prices during intervals, when generation exceeds demand, to avoid the costs of stopping and restarting generating plant.  Coal and to a lesser extent gas plants have these costs.</td>
+<td>When the wholesale price falls below $0/MWh. Generators are allowed to offer negative prices during intervals when generation exceeds demand, to avoid the costs of stopping and restarting generating plant. Coal and to a lesser extent gas plants have these costs.</td>
 </tr>
 <tr>
 <td><strong>Price Spike</strong></td>
-<td>A trading interval where the balancing price suddenly jumps from earlier prices, usually at or near the offer price ceiling</td>
+<td>A trading interval where the balancing price suddenly jumps from earlier prices, usually at or near the offer price ceiling.</td>
 </tr>
 <tr>
 <td><strong>Price Volatility</strong></td>
@@ -938,33 +1029,33 @@
                 <h2 id="formulae-and-calculations">Formulae and Calculations</h2>
 <h3 id="renewable-energy-percentage">Renewable Energy Percentage</h3>
 <p><strong>RE% (Operational)</strong></p>
-<div class="codehilite"><pre><span></span><code>RE% (Operational) = (Renewable Generation / Operational Consumption) x 100
+<div class="codehilite"><pre><span></span><code>RE% (Operational) = (Renewable Generation / Operational Demand) x 100
 
 Where:
-  Renewable Generation = Wind + Solar (Utility) + Biomass + Storage Discharge
-  Operational Consumption = Total consumption from grid sources. This represents electricity delivered through the grid.
+  Renewable Generation = Wind + Solar (Utility) + Biomass + Hydro Discharge + Battery Discharge
+  Operational Demand = Total demand from grid sources (excludes rooftop solar and storage charging)
 </code></pre></div>
 
 <p><strong>RE% (Underlying)</strong></p>
-<div class="codehilite"><pre><span></span><code><span class="nx">RE</span><span class="o">%</span><span class="w"> </span><span class="p">(</span><span class="nx">Underlying</span><span class="p">)</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="p">(</span><span class="nx">Total</span><span class="w"> </span><span class="nx">Renewable</span><span class="w"> </span><span class="nx">Generation</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="nx">Underlying</span><span class="w"> </span><span class="nx">Consumption</span><span class="p">)</span><span class="w"> </span><span class="nx">x</span><span class="w"> </span><span class="mi">100</span>
+<div class="codehilite"><pre><span></span><code><span class="nx">RE</span><span class="o">%</span><span class="w"> </span><span class="p">(</span><span class="nx">Underlying</span><span class="p">)</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="p">(</span><span class="nx">Total</span><span class="w"> </span><span class="nx">Renewable</span><span class="w"> </span><span class="nx">Generation</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="nx">Underlying</span><span class="w"> </span><span class="nx">Demand</span><span class="p">)</span><span class="w"> </span><span class="nx">x</span><span class="w"> </span><span class="mi">100</span>
 
 <span class="nx">Where</span><span class="p">:</span>
-<span class="w">  </span><span class="nx">Total</span><span class="w"> </span><span class="nx">Renewable</span><span class="w"> </span><span class="nx">Generation</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nx">Wind</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="nx">Solar</span><span class="w"> </span><span class="p">(</span><span class="nx">Utility</span><span class="p">)</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="nx">Solar</span><span class="w"> </span><span class="p">(</span><span class="nx">DPV</span><span class="p">)</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="nx">Biomass</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="nx">Storage</span><span class="w"> </span><span class="nx">Discharge</span>
-<span class="w">  </span><span class="nx">Underlying</span><span class="w"> </span><span class="nx">Consumption</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nx">Operational</span><span class="w"> </span><span class="nx">Consumption</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="nx">Estimated</span><span class="w"> </span><span class="k">Self</span><span class="w"> </span><span class="nx">Consumed</span><span class="w"> </span><span class="nx">DPV</span><span class="w"> </span><span class="nx">Generation</span>
+<span class="w">  </span><span class="nx">Total</span><span class="w"> </span><span class="nx">Renewable</span><span class="w"> </span><span class="nx">Generation</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nx">Wind</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="nx">Solar</span><span class="w"> </span><span class="p">(</span><span class="nx">Utility</span><span class="p">)</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="nx">Solar</span><span class="w"> </span><span class="p">(</span><span class="nx">DPV</span><span class="p">)</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="nx">Biomass</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="nx">Hydro</span><span class="w"> </span><span class="nx">Discharge</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="nx">Battery</span><span class="w"> </span><span class="nx">Discharge</span>
+<span class="w">  </span><span class="nx">Underlying</span><span class="w"> </span><span class="nx">Demand</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nx">Operational</span><span class="w"> </span><span class="nx">Demand</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="nx">Estimated</span><span class="w"> </span><span class="k">Self</span><span class="o">-</span><span class="nx">Consumed</span><span class="w"> </span><span class="nx">DPV</span><span class="w"> </span><span class="nx">Generation</span>
 </code></pre></div>
 
 <h3 id="emissions-calculations">Emissions Calculations</h3>
 <p><strong>Total Emissions</strong></p>
-<div class="codehilite"><pre><span></span><code>Total Emissions (tonnes CO2-e) = Sum of (Generation by Fuel Type x Emissions Factor)
+<div class="codehilite"><pre><span></span><code>Total Emissions (tonnes CO₂-e) = Sum of (Generation by Fuel Type x Emissions Factor)
 
 Emissions Factors:
-  Gas:  380 kg CO2-e/MWh (typical CCGT)
-  Coal: 900 kg CO2-e/MWh (typical black coal)
-  Wind, Solar, Biomass: 0 kg CO2-e/MWh
+  Gas:  380 kg CO₂-e/MWh (typical CCGT)
+  Coal: 900 kg CO₂-e/MWh (typical black coal)
+  Wind, Solar, Biomass, Hydro, Battery: 0 kg CO₂-e/MWh
 </code></pre></div>
 
 <p><strong>Emissions Intensity</strong></p>
-<div class="codehilite"><pre><span></span><code>Emissions Intensity (kg CO2-e/MWh) = Total Emissions / Operational Consumption
+<div class="codehilite"><pre><span></span><code>Emissions Intensity (kg CO₂-e/kWh) = Total Emissions (kg) / Operational Demand (kWh)
 </code></pre></div>
 
 <h3 id="year-over-year-change">Year-over-Year Change</h3>
@@ -991,15 +1082,15 @@ Status:
 
 <h3 id="quarterly-aggregations">Quarterly Aggregations</h3>
 <p><strong>Quarterly Summary</strong></p>
-<div class="codehilite"><pre><span></span><code>Quarterly Consumption = Sum of Monthly Consumptions (Jan-Mar, Apr-Jun, Jul-Sep, Oct-Dec)
+<div class="codehilite"><pre><span></span><code>Quarterly Demand = Sum of Monthly Demands (Jan–Mar, Apr–Jun, Jul–Sep, Oct–Dec)
 Quarterly Generation = Sum of Monthly Generations
-Quarterly RE% = (Quarterly Renewable Generation / Quarterly Consumption) x 100
+Quarterly RE% = (Quarterly Renewable Generation / Quarterly Demand) x 100
 </code></pre></div>
 
 <p><strong>Year-to-Date Summary</strong></p>
-<div class="codehilite"><pre><span></span><code>YTD Consumption = Sum of all monthly consumption from January to current month
+<div class="codehilite"><pre><span></span><code>YTD Demand = Sum of all monthly demand from January to current month
 YTD Generation = Sum of all monthly generations from January to current month
-YTD RE% = (YTD Renewable Generation / YTD Consumption) x 100
+YTD RE% = (YTD Renewable Generation / YTD Demand) x 100
 </code></pre></div>
 
 <h3 id="wholesale-price-statistics">Wholesale Price Statistics</h3>
@@ -1024,10 +1115,10 @@ YTD RE% = (YTD Renewable Generation / YTD Consumption) x 100
 <div class="codehilite"><pre><span></span><code><span class="n">Probability</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="n">Count</span><span class="w"> </span><span class="n">of</span><span class="w"> </span><span class="n">simulations</span><span class="w"> </span><span class="n">achieving</span><span class="w"> </span><span class="n">target</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="n">Total</span><span class="w"> </span><span class="n">simulations</span><span class="p">)</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="mi">100</span>
 
 <span class="n">Parameters</span><span class="p">:</span>
-<span class="w">  </span><span class="o">-</span><span class="w"> </span><span class="n">Commissioning</span><span class="w"> </span><span class="n">probability</span><span class="w"> </span><span class="n">by</span><span class="w"> </span><span class="n">status</span>
-<span class="w">  </span><span class="o">-</span><span class="w"> </span><span class="n">Commissioning</span><span class="w"> </span><span class="n">delay</span><span class="w"> </span><span class="n">distribution</span>
-<span class="w">  </span><span class="o">-</span><span class="w"> </span><span class="n">Capacity</span><span class="w"> </span><span class="n">factor</span><span class="w"> </span><span class="n">variance</span>
-<span class="w">  </span><span class="o">-</span><span class="w"> </span><span class="n">Consumption</span><span class="w"> </span><span class="n">growth</span><span class="w"> </span><span class="n">uncertainty</span>
+<span class="w">  </span><span class="o">-</span><span class="w"> </span><span class="n">Commissioning</span><span class="w"> </span><span class="n">probability</span><span class="w"> </span><span class="n">by</span><span class="w"> </span><span class="n">status</span><span class="w"> </span><span class="p">(</span><span class="n">Planned</span><span class="p">:</span><span class="w"> </span><span class="mi">85</span><span class="o">%</span><span class="p">,</span><span class="w"> </span><span class="n">Probable</span><span class="p">:</span><span class="w"> </span><span class="mi">60</span><span class="o">%</span><span class="p">,</span><span class="w"> </span><span class="n">Possible</span><span class="p">:</span><span class="w"> </span><span class="mi">35</span><span class="o">%</span><span class="p">)</span>
+<span class="w">  </span><span class="o">-</span><span class="w"> </span><span class="n">Commissioning</span><span class="w"> </span><span class="n">delay</span><span class="w"> </span><span class="n">distribution</span><span class="w"> </span><span class="p">(</span><span class="n">Normal</span><span class="p">,</span><span class="w"> </span><span class="n">mean</span><span class="w"> </span><span class="mi">6</span><span class="w"> </span><span class="n">months</span><span class="p">,</span><span class="w"> </span><span class="n">std</span><span class="w"> </span><span class="n">dev</span><span class="w"> </span><span class="mi">4</span><span class="w"> </span><span class="n">months</span><span class="p">)</span>
+<span class="w">  </span><span class="o">-</span><span class="w"> </span><span class="n">Capacity</span><span class="w"> </span><span class="n">factor</span><span class="w"> </span><span class="n">variance</span><span class="w"> </span><span class="p">(</span><span class="err">±</span><span class="mi">10</span><span class="o">%</span><span class="w"> </span><span class="n">based</span><span class="w"> </span><span class="n">on</span><span class="w"> </span><span class="n">historical</span><span class="w"> </span><span class="n">data</span><span class="p">)</span>
+<span class="w">  </span><span class="o">-</span><span class="w"> </span><span class="n">Consumption</span><span class="w"> </span><span class="n">growth</span><span class="w"> </span><span class="n">uncertainty</span><span class="w"> </span><span class="p">(</span><span class="err">±</span><span class="mf">0.5</span><span class="o">%</span><span class="w"> </span><span class="n">annual</span><span class="w"> </span><span class="n">variation</span><span class="p">)</span>
 </code></pre></div>
 
 <hr />
@@ -1036,48 +1127,53 @@ YTD RE% = (YTD Renewable Generation / YTD Consumption) x 100
                 <h2 id="report-usage-tips">Report Usage Tips</h2>
 <h3 id="report-actions">Report Actions</h3>
 <ul>
-<li><strong>Print</strong>: Use the Print button or browser print function</li>
-<li><strong>Publish</strong>: Authenticated users can publish reports for external distribution</li>
-<li><strong>Comment</strong>: Add comments and observations to reports (authenticated users)</li>
-<li><strong>Edit Summary</strong>: Modify executive summaries for published reports</li>
+<li><strong>Print</strong>: Use the Print button or browser print function (the period selector is hidden in print view)</li>
+<li><strong>Publish</strong>: Authenticated users can publish quarterly and annual reports for external distribution; comments sections are hidden in published versions</li>
+<li><strong>Comment</strong>: Add comments and observations to reports (authenticated users only)</li>
+<li><strong>Add to Summary</strong>: Modify executive summaries for quarterly and annual reports (authenticated users only)</li>
 </ul>
 <h3 id="interactive-charts">Interactive Charts</h3>
 <ul>
 <li><strong>Hover</strong>: View exact values for data points</li>
 <li><strong>Zoom</strong>: Click and drag to zoom into specific periods</li>
 <li><strong>Pan</strong>: Use controls to move across the chart</li>
-<li><strong>Download</strong>: Save charts as PNG images</li>
+<li><strong>Scenario selector</strong>: On the Scenario Projections trajectory chart, use the dropdown to change which scenario's stacked area is displayed</li>
+<li><strong>Energy Mix panel</strong>: On the Scenario Projections trajectory chart, hover over any year to see the full generation mix breakdown in the panel on the right</li>
 </ul>
 <hr />
             </div>
             <div class="page-section " data-section="9">
                 <h2 id="frequently-asked-questions">Frequently Asked Questions</h2>
 <h3 id="general">General</h3>
-<p><strong>Q: What is the difference between Operational and Underlying Consumption?</strong>
-A: Operational consumption measures electricity delivered through the grid. Underlying consumption includes operational consumption plus rooftop solar generation consumed by households before export. Underlying consumption represents total electricity consumption.</p>
+<p><strong>Q: What is the difference between Operational and Underlying Demand?</strong>
+A: Operational demand measures electricity delivered through the grid. Underlying demand includes operational demand plus rooftop solar generation consumed by households before export. Underlying demand represents total electricity consumption.</p>
 <p><strong>Q: Why are there two RE% measures?</strong>
 A: RE% (Operational) shows renewables contribution to grid electricity, while RE% (Underlying) includes behind-the-meter solar, giving a complete picture of renewable energy in the system.</p>
 <p><strong>Q: What is the 2040 target?</strong>
-A: The proposed SWIS target is for 100% renewable energy by 2040, measured on an operational consumption basis.</p>
+A: The proposed SWIS target is for 100% renewable energy by 2040, measured on an underlying demand basis. An interim target of 82% applies for 2030.</p>
 <h3 id="data-and-calculations">Data and Calculations</h3>
 <p><strong>Q: Where does the data come from?</strong>
 A: Generation data comes from AEMO SCADA systems, demand data from system operator reports, and DPV estimates from network operators. Wholesale prices are from WEM market data.</p>
 <p><strong>Q: How often is data updated?</strong>
-A: Monthly performance data is typically available within 2-3 days of month end. Real-time data is updated every 5 minutes.</p>
+A: Monthly performance data is typically available within 2–3 days of month end.</p>
 <p><strong>Q: Why don't storage emissions show in the table?</strong>
-A: Storage (batteries, pumped hydro) doesn't generate emissions directly - it stores and releases electricity. The emissions are attributed to the original generation source.</p>
+A: Storage (batteries, pumped hydro) doesn't generate emissions directly — it stores and releases electricity. The emissions are attributed to the original generation source.</p>
+<p><strong>Q: What units are used for emissions intensity?</strong>
+A: Emissions intensity is displayed in kg CO₂-e/kWh on the dashboard cards and tables.</p>
 <h3 id="reports">Reports</h3>
 <p><strong>Q: Can I download reports?</strong>
 A: Yes, use the Print function to save as PDF, or published reports are available in the Published Reports section.</p>
 <p><strong>Q: What does "Published" mean for a report?</strong>
-A: Published reports are frozen versions that have been reviewed and approved for external distribution. They cannot be edited.</p>
+A: Published reports are frozen versions that have been reviewed and approved for external distribution. They cannot be edited and do not show the comments section.</p>
+<p><strong>Q: What are the scenario projection numbers based on?</strong>
+A: When live scenario data exists in the database, the charts and tables reflect that data. When no database records are present, the page displays illustrative example data and shows a notice at the top of the page.</p>
 <hr />
             </div>
             <div class="page-section " data-section="10">
                 <h2 id="support">Support</h2>
 <p>For technical support or questions about the RET Dashboard:
 - <strong>Email</strong>: modelling.lead@sen.asn.au</p>
-<p><em>Last updated: February 2026</em></p>
+<p><em>Last updated: April 2026</em></p>
             </div>
         </main>
     </div>
