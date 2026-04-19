@@ -54,8 +54,8 @@ def get_terminal_statistics(terminal):
     outgoing_lines = terminal.get_outgoing_lines()
     incoming_lines = terminal.get_incoming_lines()
     
-    total_line_capacity_out = sum(line.thermal_capacity_mw for line in outgoing_lines)
-    total_line_capacity_in = sum(line.thermal_capacity_mw for line in incoming_lines)
+    total_line_capacity_out = sum(line.thermal_capacity_mw or 0 for line in outgoing_lines)
+    total_line_capacity_in = sum(line.thermal_capacity_mw or 0 for line in incoming_lines)
     
     # Facility statistics
     connected_facilities = []
