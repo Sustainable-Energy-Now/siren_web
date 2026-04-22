@@ -31,9 +31,6 @@
     <button id="addGridLineBtn" class="btn btn-success" type="button">
         Add New Grid Line
     </button>
-    <button id="manageConnectionsBtn" class="btn btn-info" type="button">
-        Manage Connections
-    </button>
     <button id="findOnMapBtn" class="btn btn-outline-dark" type="button" onclick="openFindOnMap()">
         Find on Map
     </button>
@@ -46,9 +43,6 @@
 
     <!-- Grid Line Controls -->
     <div style="margin-top: 10px; text-align: center;">
-        <button onclick="toggleGridLineLabels()" class="btn btn-secondary btn-sm" style="margin: 2px;">
-            Toggle Grid Line Labels
-        </button>
         <button onclick="showGridUtilization()" class="btn btn-secondary btn-sm" style="margin: 2px;">
             Show Grid Utilization
         </button>
@@ -486,18 +480,18 @@ crossorigin=""></script>
         border-radius: 4px;
         position: relative;
     }
-    
+
     .grid-connection-item:hover {
         background-color: #e3f2fd !important;
         transform: translateY(-1px);
         box-shadow: 0 2px 5px rgba(0,0,0,0.1);
     }
-    
+
     .grid-connection-item.primary {
         background-color: #e8f5e8;
         border-color: #28a745;
     }
-    
+
     .grid-connection-item .connection-actions {
         position: absolute;
         top: 5px;
@@ -505,11 +499,11 @@ crossorigin=""></script>
         opacity: 0;
         transition: opacity 0.2s;
     }
-    
+
     .grid-connection-item:hover .connection-actions {
         opacity: 1;
     }
-    
+
     .utilization-bar {
         width: 100%;
         height: 20px;
@@ -709,10 +703,7 @@ crossorigin=""></script>
     .facility-connection {
         background: #f8f9fa;
     }
-    .grid-line-label {
-        pointer-events: none;
-    }
-    .modal-overlay {
+.modal-overlay {
         font-family: Arial, sans-serif;
         animation: fadeIn 0.3s ease;
     }
@@ -780,8 +771,6 @@ var sfStatusLabels = {
     commissioned: 'Commissioned', decommissioned: 'Decommissioned'
 };
 
-// Global variables for connection management
-var connectionManagementMode = false;
 var selectedFacilityForConnection = null;
 
 // Global variables for terminals
@@ -811,9 +800,6 @@ var facilityDragMarker = null;
 var facilityDragId = null;
 var facilityDragOriginalLatLng = null;
 
-// Grid line label functionality
-var gridLineLabels = [];
-var showLabels = false;
 
 // Layer groups
 var facilityLayer = L.layerGroup();
@@ -1086,15 +1072,9 @@ function loadFacilitiesOnMap(facilitiesData) {
         
         marker.bindPopup(popupContent);
         
-        // Click handler for connection management mode
         marker.on('click', function(e) {
             L.DomEvent.stopPropagation(e);
-            
-            if (connectionManagementMode) {
-                manageFacilityConnections(this.facilityId);
-            } else {
-                this.openPopup();
-            }
+            this.openPopup();
         });
         
         // Enhanced hover effects
@@ -1494,24 +1474,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Safety resize after any layout reflow
     setTimeout(function() { map.invalidateSize(); }, 300);
-    
-    // Set up event listeners for connection management
-    const manageConnectionsBtn = document.getElementById('manageConnectionsBtn');
-    if (manageConnectionsBtn) {
-        manageConnectionsBtn.addEventListener('click', function() {
-            connectionManagementMode = !connectionManagementMode;
-            
-            if (connectionManagementMode) {
-                this.textContent = 'Exit Connection Mode';
-                this.classList.add('active');
-                alert('Click on any facility to manage its grid connections.');
-            } else {
-                this.textContent = 'Manage Connections';
-                this.classList.remove('active');
-                closeConnectionManagement();
-            }
-        });
-    }
     
     // Enhanced grid connection option handlers
     document.querySelectorAll('input[name="grid_connection_option"]').forEach(radio => {
@@ -2209,7 +2171,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 document.getElementById('addFacilityBtn'),
                 document.getElementById('addTerminalBtn'),
                 document.getElementById('addGridLineBtn'),
-                document.getElementById('manageConnectionsBtn'),
             ];
             editBtns.forEach(btn => {
                 if (!btn) return;
@@ -2337,35 +2298,6 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 // ===== ADDITIONAL FUNCTION DEFINITIONS (outside DOMContentLoaded) =====
-
-function toggleGridLineLabels() {
-    showLabels = !showLabels;
-    
-    if (showLabels) {
-        gridLines.forEach(function(gridLine) {
-            if (gridLine.coordinates && gridLine.coordinates.length > 0) {
-                const midIndex = Math.floor(gridLine.coordinates.length / 2);
-                const midPoint = gridLine.coordinates[midIndex];
-                
-                const label = L.marker(midPoint, {
-                    icon: L.divIcon({
-                        className: 'grid-line-label',
-                        html: `<div style="background: rgba(255,255,255,0.8); padding: 2px 4px; border-radius: 3px; font-size: 10px; font-weight: bold;">${gridLine.line_name}</div>`,
-                        iconSize: [0, 0],
-                        iconAnchor: [0, 0]
-                    })
-                }).addTo(map);
-                
-                gridLineLabels.push(label);
-            }
-        });
-    } else {
-        gridLineLabels.forEach(function(label) {
-            map.removeLayer(label);
-        });
-        gridLineLabels = [];
-    }
-}
 
 // Show terminal details modal
 function showTerminalDetails(terminalId) {
@@ -2917,7 +2849,7 @@ function editFacility(facilityId) {
 
 function manageFacilityConnections(facilityId) {
     selectedFacilityForConnection = facilityId;
-    
+
     fetch(`/facility/${facilityId}/connections/`)
         .then(response => response.json())
         .then(data => {
@@ -2925,7 +2857,6 @@ function manageFacilityConnections(facilityId) {
                 alert('Error: ' + data.error);
                 return;
             }
-            
             showConnectionManagementModal(data);
         })
         .catch(error => {
@@ -3521,7 +3452,6 @@ function removeConnection(connectionId) {
 
 function closeConnectionManagement() {
     document.getElementById('connectionManagementModal').style.display = 'none';
-    connectionManagementMode = false;
     selectedFacilityForConnection = null;
 }
 
