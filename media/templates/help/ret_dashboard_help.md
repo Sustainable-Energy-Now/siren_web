@@ -1,8 +1,8 @@
-# Guide to the RET Dashboard Reports
+# Guide to the RE Dashboard Reports
 
 ## Overview
 
-The Renewable Energy Target (RET) Dashboard is a comprehensive reporting system for tracking the South West Interconnected System's (SWIS) progress towards a renewable energy target. It provides monthly performance monitoring, quarterly analysis, annual reviews, and long-term scenario projections to support energy transition planning and stakeholder reporting.
+The Renewable Energy (RE) Dashboard is a comprehensive reporting system for tracking WA's Main Grid's progress transitiioning to renewable energy. It provides monthly performance monitoring, quarterly analysis, annual reviews, and long-term scenario projections to support energy transition planning and stakeholder reporting.
 
 ---
 
@@ -22,10 +22,7 @@ The RET Dashboard system includes four main report types:
 ## Monthly Dashboard
 
 ### Purpose
-The Monthly Dashboard provides a snapshot of SWIS renewable energy performance for the selected reporting period, including year-to-date progress and comparison against targets.
-
-### Navigation Bar
-Links to recent quarterly reports, the annual review, published reports, a help page, and a print button appear at the top of the page. The **Select Period** dropdown lets you navigate to any available month.
+The Monthly Dashboard provides a real-time snapshot of WA's Main Grid's renewable energy performance for the current reporting period, including year-to-date progress and comparison against targets.
 
 ### Key Sections
 
@@ -525,7 +522,7 @@ A: Operational demand measures electricity delivered through the grid. Underlyin
 A: RE% (Operational) shows renewables contribution to grid electricity, while RE% (Underlying) includes behind-the-meter solar, giving a complete picture of renewable energy in the system.
 
 **Q: What is the 2040 target?**
-A: The proposed SWIS target is for 100% renewable energy by 2040, measured on an underlying demand basis. An interim target of 82% applies for 2030.
+A: The proposed target for WA's Main Grid's is for 100% renewable energy by 2040, measured on an operational consumption basis.
 
 ### Data and Calculations
 

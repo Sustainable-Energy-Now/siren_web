@@ -3,11 +3,11 @@
 {% load humanize %}
 {% load math_filters %}
 
-{% block title %}SWIS Renewable Energy Target Dashboard - {{ month_name }} {{ year }}{% endblock %}
+{% block title %}WA's Main Grid's Renewable Energy Dashboard - {{ month_name }} {{ year }}{% endblock %}
 
 {% block content %}
 <header>
-    <h1>SWIS Renewable Energy Target Dashboard</h1>
+    <h1>WA's Main Grid's Renewable Energy Dashboard</h1>
     <p style="color: #7f8c8d; font-size: 1.1em;">
         {{ month_name }} {{ year }}
     </p>
@@ -46,11 +46,6 @@
         {% endfor %}
     </select>
     <button onclick="loadDashboard()">View</button>
-</div>
-
-<!-- Charts - Visualizations -->
-<div class="section-header">
-    <h2>Visualizations</h2>
 </div>
 
 <!-- Generation Mix Charts - Side by Side -->

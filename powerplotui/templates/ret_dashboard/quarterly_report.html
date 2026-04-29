@@ -342,7 +342,7 @@
 {% block content %}
 <header style="display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 20px;">
     <div>
-        <h1>SWIS Renewable Energy Target Quarterly Report</h1>
+        <h1>WA's Main Grid's Renewable Energy Quarterly Report</h1>
         <div class="subtitle">Q{{ quarter }} {{ year }} ({{ quarter_start_month }} - {{ quarter_end_month }})</div>
         <div style="color: #7f8c8d; font-size: 0.9em; margin-top: 6px;">Published: {{ now }}</div>
     </div>
@@ -394,7 +394,7 @@
         <div id="exec-summary-display">
             <!-- Default dynamic text -->
             <p style="font-size: 1.1em; line-height: 1.8;">
-                The South West Interconnected System (SWIS) achieved
+                WA's Main Grid 
                 <strong>{{ quarterly_summary.re_percentage_operational|floatformat:1 }}%</strong> renewable energy
                 (operational demand basis) and <strong>{{ quarterly_summary.re_percentage_underlying|floatformat:1 }}%</strong>
                 (underlying demand basis, including rooftop solar) in Q{{ quarter }} {{ year }}.

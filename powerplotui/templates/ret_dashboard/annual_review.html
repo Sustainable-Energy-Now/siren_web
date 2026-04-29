@@ -3,13 +3,13 @@
 {% load math_filters %}
 {% load static %}
 
-{% block title %}SWIS Renewable Energy Target Annual Review {{ year }}{% endblock %}
+{% block title %}WA's Main Grid's Renewable Energy Annual Review {{ year }}{% endblock %}
 
 {% block content %}
 <header style="display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 20px;">
     <div>
         <h1>Annual Progress Review {{ year }}</h2>
-        <h2>Towards a SWIS 2040 Renewable Energy Target</h2>
+        <h2>Towards WA's Main Grid's 2040 Renewable Energy Target</h2>
         <p style="color: #7f8c8d; font-size: 1.1em;">
             Review Period: Calendar Year {{ year }}
         </p>
@@ -60,7 +60,7 @@
     <div id="exec-summary-display">
         <!-- Default dynamic text -->
         <p style="font-size: 1.1em; line-height: 1.8;">
-            The South West Interconnected System (SWIS) achieved
+            WA's Main Grid achieved
             <strong>{{ annual_summary.re_percentage_operational|floatformat:1 }}%</strong> renewable energy
             (operational demand basis) and <strong>{{ annual_summary.re_percentage_underlying|floatformat:1 }}%</strong>
             (underlying demand basis, including rooftop solar) in {{ year }}. Total grid emissions were
