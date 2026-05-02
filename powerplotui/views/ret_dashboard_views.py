@@ -445,7 +445,7 @@ def generate_pathway_chart(current_year, current_month):
         ))
     
     fig.update_layout(
-        title='Pathway to 2040 Target (Operational RE%)',
+        title=dict(text='Pathway to 2040 WA Gov Target (Operational RE%)', font=dict(color='red')),
         xaxis_title='Year',
         yaxis_title='Renewable Energy %',
         height=400,
