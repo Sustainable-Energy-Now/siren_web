@@ -2,7 +2,8 @@
 
 ## Overview
 
-The Renewable Energy (RE) Dashboard is a comprehensive reporting system for tracking WA's Main Grid's progress transitiioning to renewable energy. It provides monthly performance monitoring, quarterly analysis, annual reviews, and long-term scenario projections to support energy transition planning and stakeholder reporting.
+The Renewable Energy (RE) Dashboard is a comprehensive reporting system for tracking WA's Main Grid's (the South West Interconnected System or the SWIS) progress transitioning to renewable energy. It provides monthly performance monitoring, quarterly analysis, annual reviews, and long-term scenario projections to support energy transition planning and stakeholder reporting.
+Data sources are primarily AEMO data with SEN analysis.
 
 ---
 
@@ -19,6 +20,25 @@ The RET Dashboard system includes four main report types:
 
 ---
 
+## DPV Estimate
+
+AEMO **estimates** Distributed PhotoVoltaic (DPV) generation in the South West Interconnected System (SWIS) by combining real-time SCADA data from large generation with dynamic modeling that incorporates satellite weather data, inverter fleet installation and performance, historical solar irradiance and post code data. 
+
+DPV generation is calculated to differentiate between **operational demand** (what the grid sees) and **underlying demand** (total load) to manage minimum system load constraints (minimum operational load), which are critical for grid stability during low grid load periods. 
+
+DPV contribution remains an estimate as the load at the household met by rooftop solar is not measured - despite the roll-out of  smart meters. This may well change in the future when household level demand management becomes more sophisticated (a step up from emergency solar management) and flexible exports from battery backed solar is incorporated into grid management.
+
+---
+
+## Understanding Wholesale Prices
+**Negative prices:** Can occur due to generators bidding strategies (e.g. coal generators have minimum generation levels or RE generators with large scale generation certificates). This incentivises storage charging and demand response from large scale consumers.
+**Price spikes (>$300/MWh):** Typically occur during periods of high demand and / or low generation.
+**Volatility:** Measured by standard deviation indicating how much prices fluctuate around the average wholesale price over time. A higher standard deviation signifies more variable, unpredictable, and risky price movements. A lower SD indicates stable, predictable price movements, less risky, stable assets and lower risk premium on pricing.
+
+**Link to Retail Prices:** Wholesale prices make up roughly 45% of a typical retail bill, the rest being transmission and distribution (45%) with the remaining being metering, retail charges and Government programs (10%). 
+**Cheaper renewable energy sources puts downward pressure on retail prices**.
+[SEN has prepared a fact sheet on Energy Prices and Increasing Renewable Energy in a WA Context](https://sen.asn.au/wp-content/uploads/SEN-Did-You-Know-Fact-Sheet-RE-and-Prices.pdf)
+---
 ## Monthly Dashboard
 
 ### Purpose
