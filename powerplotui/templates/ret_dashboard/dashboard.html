@@ -75,7 +75,7 @@
     <!-- Monthly RE% Operational -->
     <div class="metric-card positive">
         <div class="metric-label">RE% (<span class="demand-help" tabindex="0"
-            data-bs-toggle="popover" data-bs-trigger="click focus" data-bs-placement="bottom"
+            data-bs-toggle="popover" data-bs-trigger="click" data-bs-placement="bottom"
             data-bs-html="true" data-bs-title="Operational Demand"
             data-bs-content='Total load required from the grid, excluding behind-the-meter rooftop solar and small, non-scheduled generation.<br><a href="{% url "display_module_help" "ret_dashboard" %}#understanding-demand-measures" target="_blank">Full details →</a>'
             >Operational Demand <sup>ⓘ</sup></span>)</div>
@@ -93,7 +93,7 @@
     <!-- Monthly RE% Underlying -->
     <div class="metric-card positive">
         <div class="metric-label">RE% (<span class="demand-help" tabindex="0"
-            data-bs-toggle="popover" data-bs-trigger="click focus" data-bs-placement="bottom"
+            data-bs-toggle="popover" data-bs-trigger="click" data-bs-placement="bottom"
             data-bs-html="true" data-bs-title="Underlying Demand"
             data-bs-content='Total electricity usage by consumers, including grid supply, behind-the-meter rooftop solar (PV), and battery storage.<br><a href="{% url "display_module_help" "ret_dashboard" %}#understanding-demand-measures" target="_blank">Full details →</a>'
             >Underlying Demand <sup>ⓘ</sup></span>)</div>
@@ -118,7 +118,7 @@
     <!-- YTD RE Percentage - Operational -->
     <div class="metric-card {% if target_status.status == 'ahead' %}positive{% elif target_status.status == 'behind' %}warning{% else %}neutral{% endif %}">
         <div class="metric-label">YTD RE% (<span class="demand-help" tabindex="0"
-            data-bs-toggle="popover" data-bs-trigger="click focus" data-bs-placement="bottom"
+            data-bs-toggle="popover" data-bs-trigger="click" data-bs-placement="bottom"
             data-bs-html="true" data-bs-title="Operational Demand"
             data-bs-content='Total load required from the grid, excluding behind-the-meter rooftop solar and small, non-scheduled generation.<br><a href="{% url "display_module_help" "ret_dashboard" %}#understanding-demand-measures" target="_blank">Full details →</a>'
             >Operational <sup>ⓘ</sup></span>)</div>
@@ -326,10 +326,15 @@
     {% endif %}
 </div>
 
-<!-- Wholesale Price Statistics -->
+<!-- Wholesale Prices -->
 {% if performance.wholesale_price_avg is not None %}
 <div class="section-header">
-    <h2>Wholesale Price Statistics</h2>
+    <h2>Wholesale Prices <span class="demand-help" tabindex="0"
+        data-bs-toggle="popover" data-bs-trigger="click"
+        data-bs-placement="bottom" data-bs-html="true"
+        data-bs-title="Wholesale Prices"
+        data-bs-content='The price paid for electricity in the wholesale market ($/MWh). Includes average, peak, minimum, and price event counts for the period.<br><a href="{% url "display_module_help" "ret_dashboard" %}#wholesale-market-terms" target="_blank">Full details →</a>'
+        ><sup>ⓘ</sup></span></h2>
 </div>
 
 <div class="metric-grid" style="grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));">
@@ -368,7 +373,11 @@
     
     {% if performance.wholesale_price_std_dev is not None %}
     <div class="metric-card neutral">
-        <div class="metric-label">Price Volatility (Std Dev)</div>
+        <div class="metric-label"><span class="demand-help" tabindex="0"
+            data-bs-toggle="popover" data-bs-trigger="click" data-bs-placement="bottom"
+            data-bs-html="true" data-bs-title="Price Volatility"
+            data-bs-content='Measured by standard deviation — how much prices fluctuate around the average. Higher = more variable and unpredictable; lower = more stable pricing.<br><a href="{% url "display_module_help" "ret_dashboard" %}#wholesale-market-terms" target="_blank">Full details →</a>'
+            >Price Volatility (Std Dev) <sup>ⓘ</sup></span></div>
         <div class="metric-value">${{ performance.wholesale_price_std_dev|floatformat:2 }}</div>
         <div class="metric-sublabel">$/MWh</div>
     </div>
@@ -380,7 +389,11 @@
 <div class="metric-grid" style="grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); margin-top: 20px;">
     {% if performance.wholesale_negative_count is not None %}
     <div class="metric-card {% if performance.wholesale_negative_count > 0 %}positive{% else %}neutral{% endif %}">
-        <div class="metric-label">Negative Price Intervals</div>
+        <div class="metric-label"><span class="demand-help" tabindex="0"
+            data-bs-toggle="popover" data-bs-trigger="click" data-bs-placement="bottom"
+            data-bs-html="true" data-bs-title="Negative Prices"
+            data-bs-content='Occur when generators bid negative prices during intervals where generation exceeds demand — e.g. coal plants with minimum generation levels or RE generators with large-scale certificates. Incentivises storage charging and demand response.<br><a href="{% url "display_module_help" "ret_dashboard" %}#wholesale-market-terms" target="_blank">Full details →</a>'
+            >Negative Price Intervals <sup>ⓘ</sup></span></div>
         <div class="metric-value">{{ performance.wholesale_negative_count|intcomma }}</div>
         <div class="metric-sublabel">trading intervals with price &lt; $0/MWh</div>
         {% if prev_year_performance.wholesale_negative_count is not None %}
@@ -393,7 +406,11 @@
     
     {% if performance.wholesale_spike_count is not None %}
     <div class="metric-card {% if performance.wholesale_spike_count > 0 %}warning{% else %}neutral{% endif %}">
-        <div class="metric-label">Price Spike Intervals</div>
+        <div class="metric-label"><span class="demand-help" tabindex="0"
+            data-bs-toggle="popover" data-bs-trigger="click" data-bs-placement="bottom"
+            data-bs-html="true" data-bs-title="Price Spikes (&gt;$300/MWh)"
+            data-bs-content='Typically occur during periods of high demand and/or low generation. Intervals where the wholesale price exceeds $300/MWh.<br><a href="{% url "display_module_help" "ret_dashboard" %}#wholesale-market-terms" target="_blank">Full details →</a>'
+            >Price Spike Intervals <sup>ⓘ</sup></span></div>
         <div class="metric-value">{{ performance.wholesale_spike_count|intcomma }}</div>
         <div class="metric-sublabel">trading intervals with price &gt; $300/MWh</div>
         {% if prev_year_performance.wholesale_spike_count is not None %}
@@ -406,15 +423,6 @@
 </div>
 {% endif %}
 
-<!-- Wholesale Price Info Box -->
-<div class="info-box" style="background: #fff3e0; border-left-color: #ff9800; margin-top: 20px;">
-    <h3 style="margin-top: 0;">Understanding Wholesale Prices</h3>
-    <p style="margin-bottom: 0;">
-        <strong>Negative prices:</strong> Can occur due to generators bidding strategies (e.g. coal generators have minimum generation levels or RE generators with large scale generation certificates). This incentivises storage charging and demand response from large scale consumers.<br>
-        <strong>Price spikes (&gt;$300/MWh):</strong> Typically occur during periods of high demand and / or low generation.<br>
-        <strong>Volatility:</strong> Measured by standard deviation indicating how much prices fluctuate around the average wholesale price over time. A higher standard deviation signifies more variable, unpredictable, and risky price movements. A lower SD indicates stable, predictable price movements, less risky, stable assets and lower risk premium on pricing.
-    </p>
-</div>
 {% endif %}
 
 <!-- New Capacity -->
@@ -507,15 +515,17 @@
     <div class="info-box">
         <h3>For Consumers</h3>
         <ul class="bullet-list">
+            <li><strong>Downward pressure on energy costs:</strong> More cheaper renewable energy sources in the energy mix puts downward pressure on retail prices. The greater the number of 5-minute settlement periods without more expensive coal or gas fired generation in the mix the lower the period wholesale price. More renewable energy with battery storage reduces price volatility, price spikes and wholesale prices.</li>
+            <li>Whilst around 30% of households have access to cheap electricity from rooftop solar and batteries, this leaves the majority disadvantaged. Lower energy costs for everyone via home electrification and lower retail prices is the goal.</li>
             {% if emissions_change and emissions_change < 0 %}
-            <li><strong>Lower emissions:</strong> Every kWh consumed in {{ month_name }} had 
+            <li><strong>Lower emissions:</strong> Every kWh consumed in {{ month_name }} had
                 {{ emissions_change|mul:-1|floatformat:1 }}% lower carbon intensity than {{ month_name }} {{ year|add:"-1" }}</li>
             {% endif %}
-            <li><strong>Grid renewables:</strong> {{ performance.re_percentage_operational|floatformat:0 }}% 
+            <li><strong>Grid renewables:</strong> {{ performance.re_percentage_operational|floatformat:0 }}%
                 of grid electricity came from zero-emission sources</li>
-            <li><strong>Including rooftop:</strong> {{ performance.re_percentage_underlying|floatformat:0 }}% 
+            <li><strong>Including rooftop:</strong> {{ performance.re_percentage_underlying|floatformat:0 }}%
                 of total electricity (grid + rooftop solar) was renewable</li>
-            <li><strong>On track:</strong> Current trajectory will
+            <li><strong>Tracking:</strong> Current trajectory will
                 {% if target_2040 %}
                     {% if base_case_scenario.target_re_percentage >= target_2040.target_re_percentage %}exceed{% else %}fall short of{% endif %}
                     {{ target_2040.target_re_percentage|floatformat:0 }}%
@@ -526,20 +536,28 @@
                 renewable energy by 2040</li>
         </ul>
     </div>
-    
+
     <div class="info-box">
         <h3>For the Grid</h3>
         <ul class="bullet-list">
-            <li><strong>Growing integration challenge:</strong> Need more battery storage and grid flexibility</li>
+            <li><strong>Growing integration challenge:</strong> WA's main grid, the SWIS, remains 'constrained' meaning it needs expansion to accommodate geographically dispersed wind and solar farms. It also means a "pipeline of renewable energy projects" is meaningless unless they have a suitable and timely network connection. Co-location of generation and load on the SWIS in a private network is a great idea, however it does not currently exist. In addition to transmission, bulk energy generation, more battery energy storage systems (BESS) and grid flexibility required.</li>
             <li><strong>Strong performance:</strong> New wind and solar facilities performing at/above expectations</li>
             {% if performance.storage_discharge > 0 %}
-            <li><strong>Storage value:</strong> BESS + Hydro avoided ~{{ performance.storage_discharge|floatformat:0 }} GWh 
+            <li><strong>Storage value:</strong> BESS + Hydro avoided ~{{ performance.storage_discharge|floatformat:0 }} GWh
                 of curtailment this month</li>
             {% endif %}
             {% if performance.wholesale_negative_count and performance.wholesale_negative_count > 0 %}
             <li><strong>Negative pricing:</strong> {{ performance.wholesale_negative_count }} intervals of negative prices
                 indicate opportunities for storage and demand response</li>
             {% endif %}
+        </ul>
+    </div>
+
+    <div class="info-box">
+        <h3>For WA</h3>
+        <ul class="bullet-list">
+            <li><strong>Overall Energy Security, Costs and Carbon Emissions:</strong> There is more power generated outside of the SWIS. SWIS generation currently represents around 10% of WA's overall emissions which continue to rise.</li>
+            <li>Decarbonising the SWIS is important as it represents first steps and builds political capital and community support for wider decarbonisation largely via electrification. CCS, DAC and hydrogen as a fuel are false promises.</li>
         </ul>
     </div>
 </div>
@@ -783,8 +801,9 @@
     white-space: nowrap;
 }
 .demand-help sup {
-    font-size: 0.65em;
+    font-size: 0.55em;
     opacity: 0.7;
+    vertical-align: super;
 }
 
 @media print {
