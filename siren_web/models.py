@@ -2251,27 +2251,24 @@ class MonthlyREPerformance(models.Model):
     def renewable_gen_operational(self):
         """
         Renewable generation for operational demand basis.
-        Includes: wind, solar, biomass, hydro discharge, battery discharge.
-        Excludes: DPV (behind-the-meter), charging loads.
+        Includes: wind, solar, biomass.
+        Excludes: DPV (behind-the-meter), charging loads, hydro discharge (storage), battery discharge (storage).
         """
         return (self.wind_generation +
                 self.solar_generation +
-                self.biomass_generation +
-                self.hydro_discharge +
-                self.storage_discharge)
-    
+                self.biomass_generation)
+
     @property
     def total_renewable_generation(self):
         """
         Total renewable generation for underlying demand basis.
-        Includes: wind, solar, DPV, biomass, hydro discharge, battery discharge.
+        Includes: wind, solar, DPV, biomass.
+        Excludes: hydro discharge (storage), battery discharge (storage).
         """
         return (self.wind_generation +
                 self.solar_generation +
                 self.dpv_generation +
-                self.biomass_generation +
-                self.hydro_discharge +
-                self.storage_discharge)
+                self.biomass_generation)
     
     # -------------------------------------------------------------------------
     # RE Percentage Properties
@@ -2281,17 +2278,19 @@ class MonthlyREPerformance(models.Model):
     def re_percentage_operational(self):
         """
         Calculate RE% based on operational demand.
-        RE% = (wind + solar + biomass + hydro discharge + battery discharge) / operational_demand
+        RE% = (wind + solar + biomass) / operational_demand
+        Excludes storage sources (BESS, hydro) as they are not primary generation.
         """
         if self.operational_demand > 0:
             return (self.renewable_gen_operational / self.operational_demand) * 100
         return 0
-    
+
     @property
     def re_percentage_underlying(self):
         """
         Calculate RE% based on underlying demand (PRIMARY METRIC).
-        RE% = (wind + solar + biomass + hydro discharge + battery discharge + DPV) / underlying_demand
+        RE% = (wind + solar + biomass + DPV) / underlying_demand
+        Excludes storage sources (BESS, hydro) as they are not primary generation.
         """
         if self.underlying_demand > 0:
             return (self.total_renewable_generation / self.underlying_demand) * 100
@@ -2517,8 +2516,8 @@ class MonthlyREPerformance(models.Model):
         total_spike_count = sum(spike_counts) if spike_counts else None
             
         # Calculate renewable totals
-        # RE includes wind, solar, biomass, hydro discharge, battery discharge
-        renewable_gen_operational = wind + solar + biomass + hydro_discharge + storage_discharge
+        # RE includes wind, solar, biomass only — excludes storage (BESS, hydro)
+        renewable_gen_operational = wind + solar + biomass
         renewable_gen_underlying = renewable_gen_operational + dpv
         
         # Calculate RE percentages
