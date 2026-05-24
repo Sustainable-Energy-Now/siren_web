@@ -766,6 +766,34 @@ class SirenWebHelpGenerator:
                     }}, 100); // wait a bit to ensure section is visible
                 }});
             }});
+
+            // Handle fragment/hash navigation from external links (e.g. modal "Full details" links)
+            const hash = window.location.hash;
+            if (hash) {{
+                try {{
+                    const targetEl = document.querySelector(hash);
+                    if (targetEl) {{
+                        const parentSection = targetEl.closest('.page-section');
+                        if (parentSection) {{
+                            const sectionIndex = parentSection.dataset.section;
+                            pageSections.forEach(sec => {{
+                                sec.classList.toggle("active", sec.dataset.section === sectionIndex);
+                            }});
+                            tocLinks.forEach(l => l.classList.remove("active"));
+                            const activeLink = document.querySelector(`.toc-link[data-section="${{sectionIndex}}"]`);
+                            if (activeLink) activeLink.classList.add("active");
+                            if (currentPage) currentPage.textContent = parseInt(sectionIndex) + 1;
+                            setTimeout(() => {{
+                                targetEl.scrollIntoView({{ behavior: "smooth", block: "start" }});
+                                targetEl.style.transition = "background-color 0.5s ease";
+                                const originalBg = targetEl.style.backgroundColor;
+                                targetEl.style.backgroundColor = "#fffa9e";
+                                setTimeout(() => {{ targetEl.style.backgroundColor = originalBg; }}, 1200);
+                            }}, 100);
+                        }}
+                    }}
+                }} catch (e) {{}}
+            }}
         }});
 
     </script>

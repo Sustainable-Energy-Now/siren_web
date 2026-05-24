@@ -1273,7 +1273,7 @@
                     </li></ul></li>
             </ul>
             <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid rgba(255,255,255,0.2); font-size: 0.9em;">
-                <p><strong>Generated:</strong><br>March 18, 2026</p>
+                <p><strong>Generated:</strong><br>May 24, 2026</p>
                 <p><strong>Sections:</strong> 83</p>
             </div>
         </nav>
@@ -5086,6 +5086,34 @@ EOF</p>
                     }, 100); // wait a bit to ensure section is visible
                 });
             });
+
+            // Handle fragment/hash navigation from external links (e.g. modal "Full details" links)
+            const hash = window.location.hash;
+            if (hash) {
+                try {
+                    const targetEl = document.querySelector(hash);
+                    if (targetEl) {
+                        const parentSection = targetEl.closest('.page-section');
+                        if (parentSection) {
+                            const sectionIndex = parentSection.dataset.section;
+                            pageSections.forEach(sec => {
+                                sec.classList.toggle("active", sec.dataset.section === sectionIndex);
+                            });
+                            tocLinks.forEach(l => l.classList.remove("active"));
+                            const activeLink = document.querySelector(`.toc-link[data-section="${sectionIndex}"]`);
+                            if (activeLink) activeLink.classList.add("active");
+                            if (currentPage) currentPage.textContent = parseInt(sectionIndex) + 1;
+                            setTimeout(() => {
+                                targetEl.scrollIntoView({ behavior: "smooth", block: "start" });
+                                targetEl.style.transition = "background-color 0.5s ease";
+                                const originalBg = targetEl.style.backgroundColor;
+                                targetEl.style.backgroundColor = "#fffa9e";
+                                setTimeout(() => { targetEl.style.backgroundColor = originalBg; }, 1200);
+                            }, 100);
+                        }
+                    }
+                } catch (e) {}
+            }
         });
 
     </script>

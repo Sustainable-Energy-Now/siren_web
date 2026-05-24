@@ -74,7 +74,11 @@
 <div class="metric-grid">
     <!-- Monthly RE% Operational -->
     <div class="metric-card positive">
-        <div class="metric-label">RE% (<span class="demand-help" tabindex="0"
+        <div class="metric-label"><span class="demand-help" tabindex="0"
+            data-bs-toggle="popover" data-bs-trigger="click" data-bs-placement="bottom"
+            data-bs-html="true" data-bs-title="RE%"
+            data-bs-content='The percentage of renewable energy fuel types of the total.<br><a href="{% url "display_module_help" "ret_dashboard" %}#re-contribution-and-bess" target="_blank">Full details →</a>'
+            >RE% <sup>ⓘ</sup></span>(<span class="demand-help" tabindex="0"
             data-bs-toggle="popover" data-bs-trigger="click" data-bs-placement="bottom"
             data-bs-html="true" data-bs-title="Operational Demand"
             data-bs-content='Total load required from the grid, excluding behind-the-meter rooftop solar and small, non-scheduled generation.<br><a href="{% url "display_module_help" "ret_dashboard" %}#understanding-demand-measures" target="_blank">Full details →</a>'
@@ -92,7 +96,11 @@
 
     <!-- Monthly RE% Underlying -->
     <div class="metric-card positive">
-        <div class="metric-label">RE% (<span class="demand-help" tabindex="0"
+        <div class="metric-label"><span class="demand-help" tabindex="0"
+            data-bs-toggle="popover" data-bs-trigger="click" data-bs-placement="bottom"
+            data-bs-html="true" data-bs-title="RE%"
+            data-bs-content='The percentage of renewable energy fuel types of the total.<br><a href="{% url "display_module_help" "ret_dashboard" %}#re-contribution-and-bess" target="_blank">Full details →</a>'
+            >RE% <sup>ⓘ</sup></span>(<span class="demand-help" tabindex="0"
             data-bs-toggle="popover" data-bs-trigger="click" data-bs-placement="bottom"
             data-bs-html="true" data-bs-title="Underlying Demand"
             data-bs-content='Total electricity usage by consumers, including grid supply, behind-the-meter rooftop solar (PV), and battery storage.<br><a href="{% url "display_module_help" "ret_dashboard" %}#understanding-demand-measures" target="_blank">Full details →</a>'
@@ -127,10 +135,10 @@
     
     <!-- YTD RE Percentage - Underlying -->
     <div class="metric-card {% if target_status.status == 'ahead' %}positive{% elif target_status.status == 'behind' %}warning{% else %}neutral{% endif %}">
-        <div class="metric-label">YTD RE% (<span class="demand-help"
-            data-popover-title="Underlying Demand"
-            data-popover-content="Total electricity usage by consumers, including grid supply, behind-the-meter rooftop solar (PV), and battery storage."
-            data-popover-link="{% url 'display_module_help' 'ret_dashboard' %}#understanding-demand-measures"
+        <div class="metric-label">YTD RE% (<span class="demand-help" tabindex="0"
+            data-bs-toggle="popover" data-bs-trigger="click" data-bs-placement="bottom"
+            data-bs-html="true" data-bs-title="Underlying Demand"
+            data-bs-content='Total electricity usage by consumers, including grid supply, behind-the-meter rooftop solar (PV), and battery storage.<br><a href="{% url "display_module_help" "ret_dashboard" %}#understanding-demand-measures" target="_blank">Full details →</a>'
             >Underlying <sup>ⓘ</sup></span>)</div>
         <div class="metric-value">{{ ytd_summary.re_percentage_underlying|floatformat:1 }}%</div>
         <div class="metric-sublabel">Including rooftop solar</div>

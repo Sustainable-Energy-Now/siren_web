@@ -20,6 +20,25 @@ The RET Dashboard system includes four main report types:
 
 ---
 
+## RE Contribution % and BESS
+
+Our reporting for RE % aligns with AEMO which changed in their Quarterly Dynamics report for Q1 2026 (table 9).
+
+Whereas previously AEMO counted batteries’ discharge as part of the RE supply, from Q1 2026 this is no longer the case.  This is because batteries are not generators, instead they effectively shift demand. 
+
+In a given interval where batteries are ostensibly contributing to supply, they are in some other interval contributing equally to demand, and thus in summarising overall contributions these two actions cancel out - round-trip inefficiencies in batteries notwithstanding.
+
+That’s not to say BESS’s impact on energy usage is not significant. 
+
+---
+
+## Understanding Demand Measures
+There are references to two demand measures:
+- **Operational Demand**: Total load required from the grid, excluding behind-the-meter rooftop solar and small, non-scheduled generation.
+- **Underlying Demand**: Total electricity usage by consumers, including grid supply, behind-the-meter rooftop solar (PV), and battery storage.
+
+---
+
 ## DPV Estimate
 
 AEMO **estimates** Distributed PhotoVoltaic (DPV) generation in the South West Interconnected System (SWIS) by combining real-time SCADA data from large generation with dynamic modeling that incorporates satellite weather data, inverter fleet installation and performance, historical solar irradiance and post code data. 
@@ -47,21 +66,16 @@ The Monthly Dashboard provides a real-time snapshot of WA's Main Grid's renewabl
 ### Key Sections
 
 #### Visualizations
-Two pie charts are displayed side by side showing the generation mix for the month:
+Two donut charts are displayed side by side showing the generation mix for the month:
 - **Left chart** — operational generation mix (excludes rooftop solar)
 - **Right chart** — underlying generation mix (includes rooftop solar/DPV)
 
-Below the pie charts, the **Pathway to 2040 Target** line chart shows historical monthly RE% performance and the year-to-date cumulative line plotted against the target trajectory.
+Below the donut charts, the **Pathway to 2040 Target** line chart shows historical monthly RE% performance and the year-to-date cumulative line plotted against the target trajectory.
 
 #### RE Performance
 Displays the renewable energy percentage for both demand measures, each with a prior-year comparison:
 - **RE% (Operational Demand)**: Renewable generation as a percentage of grid-sent electricity
 - **RE% (Underlying Demand)**: Renewable generation as a percentage of total demand including rooftop solar
-
-#### Understanding Demand Measures
-An information box defines the two demand measures:
-- **Operational Demand**: Total load required from the grid, excluding behind-the-meter rooftop solar and small, non-scheduled generation.
-- **Underlying Demand**: Total electricity usage by consumers, including grid supply, behind-the-meter rooftop solar (PV), and battery storage.
 
 #### Year to Date
 Cumulative performance metrics from January to the current month:
@@ -100,7 +114,7 @@ Notable performance indicators shown as metric cards:
 - **Peak Operational Demand** (MW and date/time)
 - **Minimum Operational Demand** (MW and date/time)
 
-#### Wholesale Price Statistics
+#### Wholesale Prices
 Market price analysis for the period (shown only if price data is available):
 - Average price ($/MWh) with prior-year comparison
 - Maximum price ($/MWh) with date/time; card shows a warning colour if price exceeded $300/MWh
@@ -124,9 +138,10 @@ A two-row table covering the current month and year-to-date:
 - Year-on-year change (%)
 
 #### What This Means
-Two information boxes providing contextual interpretation of the month's data:
+Three information boxes providing contextual interpretation of the month's data:
 - **For Consumers**: Emissions reduction, grid renewables percentage, underlying RE% including rooftop, and 2040 trajectory status
 - **For the Grid**: Integration challenges, storage performance, negative pricing opportunities
+- **For WA**: Overall challenges to the state beyond the South West grid.
 
 #### Comments
 Authenticated users can add, view, and manage comments for the monthly report.

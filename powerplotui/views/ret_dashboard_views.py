@@ -219,18 +219,16 @@ def generate_generation_mix_operational_chart(performance):
     Generate Plotly pie chart for OPERATIONAL generation mix.
 
     Shows grid-sent generation only (excludes rooftop solar/DPV).
-    Includes hydro discharge and battery discharge as renewable.
+    Storage technologies (hydro, battery) excluded as they don't contribute to RE%.
     """
     import plotly.graph_objects as go
 
-    labels = ['Wind', 'Solar (Utility)', 'Biomass', 'Hydro', 'Battery', 'Gas']
+    labels = ['Wind', 'Solar (Utility)', 'Biomass', 'Gas']
 
     values = [
         performance.wind_generation,
         performance.solar_generation,
         performance.biomass_generation,
-        performance.hydro_discharge,
-        performance.storage_discharge,
         performance.gas_generation,
     ]
 
@@ -239,8 +237,8 @@ def generate_generation_mix_operational_chart(performance):
         labels.append('Coal')
         values.append(performance.coal_generation)
 
-    # Colors - green/warm for renewables, purple for storage, gray for fossil
-    colors = ['#27ae60', '#f39c12', '#16a085', '#1abc9c', '#9b59b6', '#95a5a6', '#7f8c8d']
+    # Colors - green/warm for renewables, gray for fossil
+    colors = ['#27ae60', '#f39c12', '#16a085', '#95a5a6', '#7f8c8d']
     
     fig = go.Figure(data=[go.Pie(
         labels=labels,
@@ -284,20 +282,17 @@ def generate_generation_mix_underlying_chart(performance):
     Generate Plotly pie chart for UNDERLYING generation mix.
 
     Shows total generation including rooftop solar (DPV).
-    Includes hydro discharge and battery discharge as renewable.
+    Storage technologies (hydro, battery) excluded as they don't contribute to RE%.
     """
     import plotly.graph_objects as go
 
-    labels = ['Wind', 'Solar (Utility)', 'Solar (Rooftop/DPV)', 'Biomass',
-              'Hydro', 'Battery', 'Gas']
+    labels = ['Wind', 'Solar (Utility)', 'Solar (Rooftop/DPV)', 'Biomass', 'Gas']
 
     values = [
         performance.wind_generation,
         performance.solar_generation,
         performance.dpv_generation,
         performance.biomass_generation,
-        performance.hydro_discharge,
-        performance.storage_discharge,
         performance.gas_generation,
     ]
 
@@ -306,8 +301,8 @@ def generate_generation_mix_underlying_chart(performance):
         labels.append('Coal')
         values.append(performance.coal_generation)
 
-    # Colors - green/warm for renewables, purple for storage, gray for fossil
-    colors = ['#27ae60', '#f39c12', '#f1c40f', '#16a085', '#1abc9c', '#9b59b6', '#95a5a6', '#7f8c8d']
+    # Colors - green/warm for renewables, gray for fossil
+    colors = ['#27ae60', '#f39c12', '#f1c40f', '#16a085', '#95a5a6', '#7f8c8d']
     
     fig = go.Figure(data=[go.Pie(
         labels=labels,
