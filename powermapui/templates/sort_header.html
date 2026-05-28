@@ -1,0 +1,19 @@
+{% comment %}
+Reusable sortable column header for the project viability dashboard.
+Usage: {% include 'sort_header.html' with col="field_name" label="Display" %}
+{% endcomment %}
+{% if sort_by == col %}
+  {% if sort_dir == 'asc' %}
+    <a href="?scenario_filter={{ scenario_filter }}&sort={{ col }}&dir=desc" class="text-white text-decoration-none">
+      {{ label }} &#9650;
+    </a>
+  {% else %}
+    <a href="?scenario_filter={{ scenario_filter }}&sort={{ col }}&dir=asc" class="text-white text-decoration-none">
+      {{ label }} &#9660;
+    </a>
+  {% endif %}
+{% else %}
+  <a href="?scenario_filter={{ scenario_filter }}&sort={{ col }}&dir=desc" class="text-white-50 text-decoration-none">
+    {{ label }}
+  </a>
+{% endif %}

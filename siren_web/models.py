@@ -63,6 +63,62 @@ CEL_FUNDING_STATUS_WEIGHTS = {
     'operational': 1.00,
 }
 
+# Build probability factor choices (Section 5.1)
+PPA_STATUS_CHOICES = [
+    ('none', 'None'),
+    ('hoa', 'Heads of Agreement'),
+    ('signed', 'Signed'),
+]
+
+EPC_STATUS_CHOICES = [
+    ('none', 'Not Started'),
+    ('progressing', 'Progressing'),
+    ('locked', 'Locked'),
+]
+
+DEVELOPER_STRENGTH_CHOICES = [
+    ('weak', 'Weak'),
+    ('moderate', 'Moderate'),
+    ('strong', 'Strong'),
+    ('very_strong', 'Very Strong'),
+]
+
+REVENUE_STACK_CHOICES = [
+    ('merchant', 'Merchant'),
+    ('cis_merchant', 'CIS + Merchant'),
+    ('ppa_cis', 'PPA + CIS'),
+    ('ppa', 'PPA'),
+    ('capacity', 'Capacity-style'),
+]
+
+COMMUNITY_FN_STATUS_CHOICES = [
+    ('unknown', 'Unknown'),
+    ('typical', 'Typical'),
+    ('active', 'Active Engagement'),
+    ('opposition', 'Known Opposition'),
+]
+
+PORTFOLIO_PRIORITY_CHOICES = [
+    ('low', 'Low'),
+    ('medium', 'Medium'),
+    ('high', 'High'),
+]
+
+COAL_RETIREMENT_ALIGNMENT_CHOICES = [
+    ('none', 'None'),
+    ('ok', 'OK'),
+    ('good', 'Good'),
+    ('strong', 'Strong'),
+    ('critical', 'Critical'),
+]
+
+TECH_COMPLEXITY_CHOICES = [
+    ('simple', 'Simple (wind or solar)'),
+    ('moderate', 'Moderate'),
+    ('hybrid', 'Hybrid (wind+BESS or solar+BESS)'),
+    ('high', 'High complexity'),
+]
+
 class facilities(models.Model):
     """
     Energy facility that can contain multiple technology installations.
@@ -104,6 +160,77 @@ class facilities(models.Model):
         blank=True,
         validators=[MinValueValidator(0.0), MaxValueValidator(1.0)],
         help_text="Probability of commissioning (0-1), relevant for proposed/planned facilities"
+    )
+
+    # =========================================================================
+    # BUILD PROBABILITY FACTORS
+    # =========================================================================
+    ppa_status = models.CharField(
+        max_length=10,
+        choices=PPA_STATUS_CHOICES,
+        default='none',
+        blank=True,
+        help_text="Power Purchase Agreement status"
+    )
+    ppa_counterparty = models.CharField(
+        max_length=100,
+        blank=True,
+        default='',
+        help_text="Name of the PPA counterparty (e.g. Synergy, AGL)"
+    )
+    fid_expected_date = models.DateField(
+        null=True,
+        blank=True,
+        help_text="Expected Final Investment Decision date"
+    )
+    epc_status = models.CharField(
+        max_length=20,
+        choices=EPC_STATUS_CHOICES,
+        default='none',
+        blank=True,
+        help_text="EPC contract status: not started, in negotiation, or locked"
+    )
+    developer_strength = models.CharField(
+        max_length=15,
+        choices=DEVELOPER_STRENGTH_CHOICES,
+        default='moderate',
+        blank=True,
+        help_text="Developer's assessed financial strength and track record"
+    )
+    revenue_stack = models.CharField(
+        max_length=20,
+        choices=REVENUE_STACK_CHOICES,
+        default='merchant',
+        blank=True,
+        help_text="Revenue certainty classification"
+    )
+    community_fn_status = models.CharField(
+        max_length=20,
+        choices=COMMUNITY_FN_STATUS_CHOICES,
+        default='unknown',
+        blank=True,
+        help_text="First Nations and community engagement status"
+    )
+    portfolio_priority = models.CharField(
+        max_length=10,
+        choices=PORTFOLIO_PRIORITY_CHOICES,
+        default='medium',
+        blank=True,
+        help_text="Developer's internal priority for this project"
+    )
+    coal_retirement_alignment = models.CharField(
+        max_length=10,
+        choices=COAL_RETIREMENT_ALIGNMENT_CHOICES,
+        default='none',
+        blank=True,
+        help_text="Strategic alignment with WA coal plant retirement schedule"
+    )
+    tech_complexity = models.CharField(
+        max_length=10,
+        choices=TECH_COMPLEXITY_CHOICES,
+        default='simple',
+        blank=True,
+        help_text="Execution risk tier of the technology configuration"
     )
 
     # For backward compatibility during migration, keep as nullable
@@ -507,6 +634,33 @@ class facilities(models.Model):
             return round(base * alignment.viability_score, 3)
 
         return base
+
+    @property
+    def multi_factor_build_probability(self):
+        """
+        Weighted composite build probability aggregating all structured factors.
+        Weights sum to 1.00. Returns a float in [0.0, 1.0].
+        """
+        MAPS = {
+            'ppa': {'none': 0.0, 'hoa': 0.5, 'signed': 1.0},
+            'epc': {'none': 0.0, 'progressing': 0.5, 'locked': 1.0},
+            'dev': {'weak': 0.25, 'moderate': 0.5, 'strong': 0.75, 'very_strong': 1.0},
+            'rev': {'merchant': 0.2, 'cis_merchant': 0.5, 'ppa_cis': 0.8,
+                    'ppa': 0.7, 'capacity': 0.9},
+            'fn':  {'opposition': 0.0, 'unknown': 0.5, 'typical': 0.7, 'active': 1.0},
+        }
+        best_cel = self.cel_alignments.order_by('-viability_score').first()
+        cel_score = best_cel.viability_score if best_cel else 0.0
+        return round(
+            0.20 * (self.commissioning_probability or 0.0) +
+            0.20 * MAPS['ppa'].get(self.ppa_status, 0.0) +
+            0.15 * MAPS['epc'].get(self.epc_status, 0.0) +
+            0.15 * MAPS['dev'].get(self.developer_strength, 0.5) +
+            0.15 * (cel_score or 0.0) +
+            0.10 * MAPS['rev'].get(self.revenue_stack, 0.2) +
+            0.05 * MAPS['fn'].get(self.community_fn_status, 0.5),
+            3
+        )
 
 class Generatorattributes(models.Model):
     """Technology-level attributes for conventional generators"""

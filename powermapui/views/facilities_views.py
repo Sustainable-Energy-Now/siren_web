@@ -330,7 +330,18 @@ def facility_edit(request, pk):
             commissioning_date = request.POST.get('commissioning_date')
             decommissioning_date = request.POST.get('decommissioning_date')
             commissioning_probability = request.POST.get('commissioning_probability')
-            
+            # Build probability factor fields
+            ppa_status = request.POST.get('ppa_status', 'none')
+            ppa_counterparty = request.POST.get('ppa_counterparty', '')
+            fid_expected_date = request.POST.get('fid_expected_date')
+            epc_status = request.POST.get('epc_status', 'none')
+            developer_strength = request.POST.get('developer_strength', 'moderate')
+            revenue_stack = request.POST.get('revenue_stack', 'merchant')
+            community_fn_status = request.POST.get('community_fn_status', 'unknown')
+            portfolio_priority = request.POST.get('portfolio_priority', 'medium')
+            coal_retirement_alignment = request.POST.get('coal_retirement_alignment', 'none')
+            tech_complexity = request.POST.get('tech_complexity', 'simple')
+
             # Validation
             if not facility_name:
                 messages.error(request, 'Facility name is required.')
@@ -396,6 +407,21 @@ def facility_edit(request, pk):
             facility.commissioning_date = parsed_commissioning_date
             facility.decommissioning_date = parsed_decommissioning_date
             facility.commissioning_probability = float(commissioning_probability) if commissioning_probability else None
+            # Build probability factor fields
+            facility.ppa_status = ppa_status
+            facility.ppa_counterparty = ppa_counterparty
+            facility.epc_status = epc_status
+            facility.developer_strength = developer_strength
+            facility.revenue_stack = revenue_stack
+            facility.community_fn_status = community_fn_status
+            facility.portfolio_priority = portfolio_priority
+            facility.coal_retirement_alignment = coal_retirement_alignment
+            facility.tech_complexity = tech_complexity
+            if fid_expected_date:
+                from datetime import datetime
+                facility.fid_expected_date = datetime.strptime(fid_expected_date, '%Y-%m-%d').date()
+            else:
+                facility.fid_expected_date = None
             facility.save()
             
             # Update scenarios - remove old, add new

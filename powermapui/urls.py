@@ -4,7 +4,7 @@ from powermapui.views import crud_scenario_views, facilities_views, facility_sol
     map_views, network_overview_views, pipeline_charts_views, cel_map_views, \
     power_views, storage_views, table_update_views, technologies_views, \
     terminals_connections_views, terminals_dashboard, terminals_views, wind_turbines_views, \
-    cel_views, zone_views
+    cel_views, zone_views, project_viability_views
 app_name = 'powermapui'
 
 urlpatterns = [
@@ -15,6 +15,7 @@ urlpatterns = [
     path('infrastructure-network/', network_overview_views.infrastructure_network, name='infrastructure_network'),
     path('pipeline-gantt/', pipeline_charts_views.pipeline_gantt, name='pipeline_gantt'),
     path('pipeline-waterfall/', pipeline_charts_views.pipeline_waterfall, name='pipeline_waterfall'),
+    path('project-viability/', project_viability_views.project_viability_dashboard, name='project_viability_dashboard'),
     path('add_facility/', map_views.add_facility, name='add_facility'),
     path('get_facilities/', map_views.get_facilities_for_scenario, name='get_facilities_for_scenario'),
     path('get_technologies/', map_views.get_technologies, name='get_technologies'),

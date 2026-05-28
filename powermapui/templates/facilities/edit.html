@@ -192,6 +192,116 @@
               </div>
             </div>
 
+            <hr class="my-4">
+            <h5 class="mb-3">Build Probability Factors</h5>
+            <p class="text-muted small mb-3">These factors feed into the multi-factor build probability composite score.</p>
+
+            <div class="row mb-3">
+              <div class="col-md-4">
+                <label for="ppa_status" class="form-label">PPA Status</label>
+                <select class="form-select" id="ppa_status" name="ppa_status">
+                  <option value="none" {% if form_data.ppa_status|default:facility.ppa_status == 'none' %}selected{% endif %}>None</option>
+                  <option value="hoa" {% if form_data.ppa_status|default:facility.ppa_status == 'hoa' %}selected{% endif %}>Heads of Agreement</option>
+                  <option value="signed" {% if form_data.ppa_status|default:facility.ppa_status == 'signed' %}selected{% endif %}>Signed</option>
+                </select>
+                <div class="form-text">Power Purchase Agreement status</div>
+              </div>
+              <div class="col-md-4">
+                <label for="ppa_counterparty" class="form-label">PPA Counterparty</label>
+                <input type="text" class="form-control" id="ppa_counterparty" name="ppa_counterparty"
+                       value="{{ form_data.ppa_counterparty|default:facility.ppa_counterparty|default:'' }}"
+                       placeholder="e.g. Synergy, AGL">
+                <div class="form-text">Name of the PPA counterparty</div>
+              </div>
+              <div class="col-md-4">
+                <label for="fid_expected_date" class="form-label">FID Expected Date</label>
+                <input type="date" class="form-control" id="fid_expected_date" name="fid_expected_date"
+                       value="{{ form_data.fid_expected_date|default:facility.fid_expected_date|date:'Y-m-d'|default:'' }}">
+                <div class="form-text">Expected Final Investment Decision date</div>
+              </div>
+            </div>
+
+            <div class="row mb-3">
+              <div class="col-md-4">
+                <label for="epc_status" class="form-label">EPC / Supply Chain Status</label>
+                <select class="form-select" id="epc_status" name="epc_status">
+                  <option value="none" {% if form_data.epc_status|default:facility.epc_status == 'none' %}selected{% endif %}>Not Started</option>
+                  <option value="progressing" {% if form_data.epc_status|default:facility.epc_status == 'progressing' %}selected{% endif %}>Progressing</option>
+                  <option value="locked" {% if form_data.epc_status|default:facility.epc_status == 'locked' %}selected{% endif %}>Locked</option>
+                </select>
+                <div class="form-text">Engineering, Procurement & Construction contract status</div>
+              </div>
+              <div class="col-md-4">
+                <label for="developer_strength" class="form-label">Developer Strength</label>
+                <select class="form-select" id="developer_strength" name="developer_strength">
+                  <option value="weak" {% if form_data.developer_strength|default:facility.developer_strength == 'weak' %}selected{% endif %}>Weak</option>
+                  <option value="moderate" {% if form_data.developer_strength|default:facility.developer_strength == 'moderate' %}selected{% endif %}>Moderate</option>
+                  <option value="strong" {% if form_data.developer_strength|default:facility.developer_strength == 'strong' %}selected{% endif %}>Strong</option>
+                  <option value="very_strong" {% if form_data.developer_strength|default:facility.developer_strength == 'very_strong' %}selected{% endif %}>Very Strong</option>
+                </select>
+                <div class="form-text">Developer's financial strength and WA track record</div>
+              </div>
+              <div class="col-md-4">
+                <label for="revenue_stack" class="form-label">Revenue Stack</label>
+                <select class="form-select" id="revenue_stack" name="revenue_stack">
+                  <option value="merchant" {% if form_data.revenue_stack|default:facility.revenue_stack == 'merchant' %}selected{% endif %}>Merchant</option>
+                  <option value="cis_merchant" {% if form_data.revenue_stack|default:facility.revenue_stack == 'cis_merchant' %}selected{% endif %}>CIS + Merchant</option>
+                  <option value="ppa_cis" {% if form_data.revenue_stack|default:facility.revenue_stack == 'ppa_cis' %}selected{% endif %}>PPA + CIS</option>
+                  <option value="ppa" {% if form_data.revenue_stack|default:facility.revenue_stack == 'ppa' %}selected{% endif %}>PPA</option>
+                  <option value="capacity" {% if form_data.revenue_stack|default:facility.revenue_stack == 'capacity' %}selected{% endif %}>Capacity-style</option>
+                </select>
+                <div class="form-text">Revenue certainty classification</div>
+              </div>
+            </div>
+
+            <div class="row mb-3">
+              <div class="col-md-4">
+                <label for="community_fn_status" class="form-label">Community / First Nations Status</label>
+                <select class="form-select" id="community_fn_status" name="community_fn_status">
+                  <option value="unknown" {% if form_data.community_fn_status|default:facility.community_fn_status == 'unknown' %}selected{% endif %}>Unknown</option>
+                  <option value="typical" {% if form_data.community_fn_status|default:facility.community_fn_status == 'typical' %}selected{% endif %}>Typical</option>
+                  <option value="active" {% if form_data.community_fn_status|default:facility.community_fn_status == 'active' %}selected{% endif %}>Active Engagement</option>
+                  <option value="opposition" {% if form_data.community_fn_status|default:facility.community_fn_status == 'opposition' %}selected{% endif %}>Known Opposition</option>
+                </select>
+                <div class="form-text">First Nations and community engagement status</div>
+              </div>
+              <div class="col-md-4">
+                <label for="portfolio_priority" class="form-label">Portfolio Priority</label>
+                <select class="form-select" id="portfolio_priority" name="portfolio_priority">
+                  <option value="low" {% if form_data.portfolio_priority|default:facility.portfolio_priority == 'low' %}selected{% endif %}>Low</option>
+                  <option value="medium" {% if form_data.portfolio_priority|default:facility.portfolio_priority == 'medium' %}selected{% endif %}>Medium</option>
+                  <option value="high" {% if form_data.portfolio_priority|default:facility.portfolio_priority == 'high' %}selected{% endif %}>High</option>
+                </select>
+                <div class="form-text">Developer's internal priority for this project</div>
+              </div>
+              <div class="col-md-4">
+                <label for="coal_retirement_alignment" class="form-label">Coal Retirement Alignment</label>
+                <select class="form-select" id="coal_retirement_alignment" name="coal_retirement_alignment">
+                  <option value="none" {% if form_data.coal_retirement_alignment|default:facility.coal_retirement_alignment == 'none' %}selected{% endif %}>None</option>
+                  <option value="ok" {% if form_data.coal_retirement_alignment|default:facility.coal_retirement_alignment == 'ok' %}selected{% endif %}>OK</option>
+                  <option value="good" {% if form_data.coal_retirement_alignment|default:facility.coal_retirement_alignment == 'good' %}selected{% endif %}>Good</option>
+                  <option value="strong" {% if form_data.coal_retirement_alignment|default:facility.coal_retirement_alignment == 'strong' %}selected{% endif %}>Strong</option>
+                  <option value="critical" {% if form_data.coal_retirement_alignment|default:facility.coal_retirement_alignment == 'critical' %}selected{% endif %}>Critical</option>
+                </select>
+                <div class="form-text">Alignment with WA coal plant retirement schedule</div>
+              </div>
+            </div>
+
+            <div class="row mb-4">
+              <div class="col-md-4">
+                <label for="tech_complexity" class="form-label">Technology Complexity</label>
+                <select class="form-select" id="tech_complexity" name="tech_complexity">
+                  <option value="simple" {% if form_data.tech_complexity|default:facility.tech_complexity == 'simple' %}selected{% endif %}>Simple (wind or solar)</option>
+                  <option value="moderate" {% if form_data.tech_complexity|default:facility.tech_complexity == 'moderate' %}selected{% endif %}>Moderate</option>
+                  <option value="hybrid" {% if form_data.tech_complexity|default:facility.tech_complexity == 'hybrid' %}selected{% endif %}>Hybrid (wind+BESS or solar+BESS)</option>
+                  <option value="high" {% if form_data.tech_complexity|default:facility.tech_complexity == 'high' %}selected{% endif %}>High complexity</option>
+                </select>
+                <div class="form-text">Execution risk tier of the technology configuration</div>
+              </div>
+            </div>
+
+            <hr class="my-4">
+
             <div class="mb-4">
               <label class="form-label">Scenarios</label>
               <div class="form-text mb-2">Select the scenarios this facility belongs to</div>

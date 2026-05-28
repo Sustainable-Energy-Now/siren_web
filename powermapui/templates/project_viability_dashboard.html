@@ -1,0 +1,163 @@
+<!-- powermapui/templates/project_viability_dashboard.html -->
+{% extends 'powermapui_base.html' %}
+
+{% block powermapui_content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h3>Project Build Probability Dashboard</h3>
+  <a href="?{% if scenario_filter %}scenario_filter={{ scenario_filter }}&{% endif %}sort={{ sort_by }}&dir={{ sort_dir }}&export=csv"
+     class="btn btn-outline-secondary btn-sm">Export CSV</a>
+</div>
+
+<p class="text-muted">
+  Showing proposed, planned, and under-construction facilities ranked by multi-factor build probability.
+  Traffic-light colours match the external framework: <span class="text-success fw-bold">green</span> = favourable,
+  <span class="text-warning fw-bold">amber</span> = partial, <span class="text-danger fw-bold">red</span> = unfavourable.
+</p>
+
+<!-- Filters -->
+<div class="card mb-3">
+  <div class="card-body py-2">
+    <form method="get" class="row g-2 align-items-end">
+      <input type="hidden" name="sort" value="{{ sort_by }}">
+      <input type="hidden" name="dir" value="{{ sort_dir }}">
+      <div class="col-md-4">
+        <label for="scenario_filter" class="form-label mb-1">Scenario</label>
+        <select name="scenario_filter" id="scenario_filter" class="form-select form-select-sm">
+          <option value="">All Scenarios</option>
+          {% for sc in all_scenarios %}
+            <option value="{{ sc.idscenarios }}" {% if scenario_filter == sc.idscenarios|stringformat:"s" %}selected{% endif %}>
+              {{ sc.title }}
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-auto">
+        <button type="submit" class="btn btn-primary btn-sm">Filter</button>
+        <a href="{% url 'powermapui:project_viability_dashboard' %}" class="btn btn-outline-secondary btn-sm ms-1">Clear</a>
+      </div>
+      <div class="col-auto ms-auto">
+        <small class="text-muted">{{ row_count }} facilit{{ row_count|pluralize:"y,ies" }}</small>
+      </div>
+    </form>
+  </div>
+</div>
+
+{% if rows %}
+<div class="table-responsive">
+  <table class="table table-sm table-bordered table-hover align-middle" id="viability-table">
+    <thead class="table-dark">
+      <tr>
+        {% with base_url="?scenario_filter="|add:scenario_filter %}
+        <th>{% include 'sort_header.html' with col="facility_name" label="Facility" %}</th>
+        <th>Status</th>
+        <th class="text-end">{% include 'sort_header.html' with col="capacity" label="MW" %}</th>
+        <th class="text-center">PPA</th>
+        <th>Counterparty</th>
+        <th class="text-center">FID</th>
+        <th class="text-center">EPC</th>
+        <th class="text-center">Developer</th>
+        <th class="text-center">Revenue</th>
+        <th class="text-center">Comm/FN</th>
+        <th class="text-center">Portfolio</th>
+        <th class="text-center">Coal Align</th>
+        <th class="text-center">Tech</th>
+        <th class="text-end">{% include 'sort_header.html' with col="commissioning_probability" label="Base P" %}</th>
+        <th class="text-end">{% include 'sort_header.html' with col="cel_viability_score" label="CEL" %}</th>
+        <th class="text-end">{% include 'sort_header.html' with col="effective_commissioning_probability" label="Eff. P" %}</th>
+        <th class="text-end">{% include 'sort_header.html' with col="multi_factor_build_probability" label="MF Score" %}</th>
+        {% endwith %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in rows %}
+      <tr>
+        <td>
+          <a href="{% url 'powermapui:facility_detail' r.pk %}" class="text-decoration-none">{{ r.facility_name }}</a>
+        </td>
+        <td><small>{{ r.status }}</small></td>
+        <td class="text-end">
+          {% if r.capacity %}{{ r.capacity|floatformat:0 }}{% else %}&mdash;{% endif %}
+        </td>
+        <td class="text-center">
+          <span class="{{ r.ppa_status_colour }}">{{ r.ppa_status_display }}</span>
+        </td>
+        <td><small>{{ r.ppa_counterparty|default:"&mdash;" }}</small></td>
+        <td class="text-center">
+          <small>{{ r.fid_expected_date|default:"&mdash;" }}</small>
+        </td>
+        <td class="text-center">
+          <span class="{{ r.epc_status_colour }}">{{ r.epc_status_display }}</span>
+        </td>
+        <td class="text-center">
+          <span class="{{ r.developer_strength_colour }}">{{ r.developer_strength_display }}</span>
+        </td>
+        <td class="text-center">
+          <span class="{{ r.revenue_stack_colour }}">{{ r.revenue_stack_display }}</span>
+        </td>
+        <td class="text-center">
+          <span class="{{ r.community_fn_status_colour }}">{{ r.community_fn_status_display }}</span>
+        </td>
+        <td class="text-center">
+          <span class="{{ r.portfolio_priority_colour }}">{{ r.portfolio_priority_display }}</span>
+        </td>
+        <td class="text-center">
+          <span class="{{ r.coal_retirement_alignment_colour }}">{{ r.coal_retirement_alignment_display }}</span>
+        </td>
+        <td class="text-center">
+          <span class="{{ r.tech_complexity_colour }}">{{ r.tech_complexity_display }}</span>
+        </td>
+        <td class="text-end">
+          {% if r.commissioning_probability is not None %}
+            <span class="{{ r.commissioning_probability_colour }}">{{ r.commissioning_probability|floatformat:2 }}</span>
+          {% else %}&mdash;{% endif %}
+        </td>
+        <td class="text-end">
+          {% if r.cel_viability_score is not None %}
+            <span class="{{ r.cel_viability_colour }}">{{ r.cel_viability_score|floatformat:2 }}</span>
+          {% else %}&mdash;{% endif %}
+        </td>
+        <td class="text-end">
+          {% if r.effective_commissioning_probability is not None %}
+            <span class="{{ r.effective_colour }}">{{ r.effective_commissioning_probability|floatformat:2 }}</span>
+          {% else %}&mdash;{% endif %}
+        </td>
+        <td class="text-end">
+          <span class="{{ r.multi_factor_colour }}">{{ r.multi_factor_build_probability|floatformat:3 }}</span>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- Legend -->
+<div class="card mt-3">
+  <div class="card-header py-1"><small><strong>Column Guide</strong></small></div>
+  <div class="card-body py-2">
+    <div class="row small text-muted">
+      <div class="col-md-4">
+        <strong>Base P</strong> — Analyst's commissioning probability<br>
+        <strong>CEL</strong> — Best CEL transmission viability score<br>
+        <strong>Eff. P</strong> — Base P &times; CEL score
+      </div>
+      <div class="col-md-5">
+        <strong>MF Score</strong> — Weighted composite (weights: Base P 20%, PPA 20%, EPC 15%,
+        Developer 15%, CEL 15%, Revenue 10%, Comm/FN 5%)
+      </div>
+      <div class="col-md-3">
+        <span class="text-success fw-bold">Green</span> &ge; 0.65 &nbsp;
+        <span class="text-warning fw-bold">Amber</span> &ge; 0.40 &nbsp;
+        <span class="text-danger fw-bold">Red</span> &lt; 0.40
+      </div>
+    </div>
+  </div>
+</div>
+
+{% else %}
+<div class="alert alert-info">
+  No proposed, planned, or under-construction facilities found
+  {% if scenario_filter %}in the selected scenario{% endif %}.
+</div>
+{% endif %}
+
+{% endblock %}
