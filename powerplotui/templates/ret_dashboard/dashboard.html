@@ -89,7 +89,11 @@
         </div>
         <div class="metric-change">
             {% if prev_year_performance %}
-                {{ prev_year_performance.re_percentage_operational|floatformat:1 }}% in {{ month_name }} {{ year|add:"-1" }}
+                {% with change=performance.re_percentage_operational|sub:prev_year_performance.re_percentage_operational %}
+                {% if change >= 0 %}↑{% else %}↓{% endif %}
+                {% if change >= 0 %}{{ change|floatformat:1 }}{% else %}{{ change|mul:-1|floatformat:1 }}{% endif %}pp
+                vs {{ prev_year_performance.re_percentage_operational|floatformat:1 }}% in {{ month_name }} {{ year|add:"-1" }}
+                {% endwith %}
             {% endif %}
         </div>
     </div>
@@ -111,7 +115,11 @@
         </div>
         <div class="metric-change">
             {% if prev_year_performance %}
-                {{ prev_year_performance.re_percentage_underlying|floatformat:1 }}% in {{ month_name }} {{ year|add:"-1" }}
+                {% with change=performance.re_percentage_underlying|sub:prev_year_performance.re_percentage_underlying %}
+                {% if change >= 0 %}↑{% else %}↓{% endif %}
+                {% if change >= 0 %}{{ change|floatformat:1 }}{% else %}{{ change|mul:-1|floatformat:1 }}{% endif %}pp
+                vs {{ prev_year_performance.re_percentage_underlying|floatformat:1 }}% in {{ month_name }} {{ year|add:"-1" }}
+                {% endwith %}
             {% endif %}
         </div>
     </div>
@@ -131,8 +139,17 @@
             data-bs-content='Total load required from the grid, excluding behind-the-meter rooftop solar and small, non-scheduled generation.<br><a href="{% url "display_module_help" "ret_dashboard" %}#understanding-demand-measures" target="_blank">Full details →</a>'
             >Operational <sup>ⓘ</sup></span>)</div>
         <div class="metric-value">{{ ytd_summary.re_percentage_operational|floatformat:1 }}%</div>
+        {% if prev_ytd_summary %}
+        <div class="metric-change">
+            {% with change=ytd_summary.re_percentage_operational|sub:prev_ytd_summary.re_percentage_operational %}
+            {% if change >= 0 %}↑{% else %}↓{% endif %}
+            {% if change >= 0 %}{{ change|floatformat:1 }}{% else %}{{ change|mul:-1|floatformat:1 }}{% endif %}pp
+            vs {{ prev_ytd_summary.re_percentage_operational|floatformat:1 }}% in {{ year|add:"-1" }}
+            {% endwith %}
+        </div>
+        {% endif %}
     </div>
-    
+
     <!-- YTD RE Percentage - Underlying -->
     <div class="metric-card {% if target_status.status == 'ahead' %}positive{% elif target_status.status == 'behind' %}warning{% else %}neutral{% endif %}">
         <div class="metric-label">YTD RE% (<span class="demand-help" tabindex="0"
@@ -142,8 +159,17 @@
             >Underlying <sup>ⓘ</sup></span>)</div>
         <div class="metric-value">{{ ytd_summary.re_percentage_underlying|floatformat:1 }}%</div>
         <div class="metric-sublabel">Including rooftop solar</div>
+        {% if prev_ytd_summary %}
+        <div class="metric-change">
+            {% with change=ytd_summary.re_percentage_underlying|sub:prev_ytd_summary.re_percentage_underlying %}
+            {% if change >= 0 %}↑{% else %}↓{% endif %}
+            {% if change >= 0 %}{{ change|floatformat:1 }}{% else %}{{ change|mul:-1|floatformat:1 }}{% endif %}pp
+            vs {{ prev_ytd_summary.re_percentage_underlying|floatformat:1 }}% in {{ year|add:"-1" }}
+            {% endwith %}
+        </div>
+        {% endif %}
     </div>
-    
+
     <!-- Target Status -->
     <div class="metric-card {% if target_status.status == 'ahead' %}positive{% elif target_status.status == 'behind' %}negative{% else %}neutral{% endif %}">
         <div class="metric-label">Target for {{ target.target_year }}</div>
@@ -299,6 +325,15 @@
         <div class="metric-label">Avg Grid Emissions Intensity</div>
         <div class="metric-value">{{ performance.emissions_intensity_kg_kwh|floatformat:3 }}</div>
         <div class="metric-sublabel">kg CO₂-e/kWh</div>
+        {% if prev_year_performance %}
+        <div class="metric-change">
+            {% with change=performance.emissions_intensity_kg_kwh|sub:prev_year_performance.emissions_intensity_kg_kwh|div:prev_year_performance.emissions_intensity_kg_kwh|mul:100 %}
+            {% if change >= 0 %}↑{% else %}↓{% endif %}
+            {% if change >= 0 %}{{ change|floatformat:1 }}%{% else %}{{ change|mul:-1|floatformat:1 }}%{% endif %}
+            in {{ month_name }} {{ year|add:"-1" }}
+            {% endwith %}
+        </div>
+        {% endif %}
     </div>
     
     {% if performance.best_re_hour_percentage %}
@@ -306,6 +341,15 @@
         <div class="metric-label">Best Renewable Hour</div>
         <div class="metric-value">{{ performance.best_re_hour_percentage|floatformat:1 }}%</div>
         <div class="metric-sublabel">{{ performance.best_re_hour_datetime|date:"d M, g:i A" }}</div>
+        {% if prev_year_performance and prev_year_performance.best_re_hour_percentage %}
+        <div class="metric-change">
+            {% with change=performance.best_re_hour_percentage|sub:prev_year_performance.best_re_hour_percentage %}
+            {% if change >= 0 %}↑{% else %}↓{% endif %}
+            {% if change >= 0 %}{{ change|floatformat:1 }}{% else %}{{ change|mul:-1|floatformat:1 }}{% endif %}pp
+            vs {{ prev_year_performance.best_re_hour_percentage|floatformat:1 }}% in {{ month_name }} {{ year|add:"-1" }}
+            {% endwith %}
+        </div>
+        {% endif %}
     </div>
     {% endif %}
 
@@ -314,6 +358,15 @@
         <div class="metric-label">Peak Instantaneous Operational RE%</div>
         <div class="metric-value">{{ performance.peak_instantaneous_re_percentage|floatformat:1 }}%</div>
         <div class="metric-sublabel">{{ performance.peak_instantaneous_re_datetime|date:"d M, g:i A" }}</div>
+        {% if prev_year_performance and prev_year_performance.peak_instantaneous_re_percentage %}
+        <div class="metric-change">
+            {% with change=performance.peak_instantaneous_re_percentage|sub:prev_year_performance.peak_instantaneous_re_percentage %}
+            {% if change >= 0 %}↑{% else %}↓{% endif %}
+            {% if change >= 0 %}{{ change|floatformat:1 }}{% else %}{{ change|mul:-1|floatformat:1 }}{% endif %}pp
+            vs {{ prev_year_performance.peak_instantaneous_re_percentage|floatformat:1 }}% in {{ month_name }} {{ year|add:"-1" }}
+            {% endwith %}
+        </div>
+        {% endif %}
     </div>
     {% endif %}
     
@@ -322,6 +375,15 @@
         <div class="metric-label">Peak Operational Demand</div>
         <div class="metric-value">{{ performance.peak_demand_mw|floatformat:0|intcomma }}</div>
         <div class="metric-sublabel">MW on {{ performance.peak_demand_datetime|date:"d M, g:i A" }}</div>
+        {% if prev_year_performance and prev_year_performance.peak_demand_mw %}
+        <div class="metric-change">
+            {% with change=performance.peak_demand_mw|sub:prev_year_performance.peak_demand_mw|div:prev_year_performance.peak_demand_mw|mul:100 %}
+            {% if change >= 0 %}↑{% else %}↓{% endif %}
+            {% if change >= 0 %}{{ change|floatformat:1 }}%{% else %}{{ change|mul:-1|floatformat:1 }}%{% endif %}
+            vs {{ prev_year_performance.peak_demand_mw|floatformat:0|intcomma }} MW in {{ month_name }} {{ year|add:"-1" }}
+            {% endwith %}
+        </div>
+        {% endif %}
     </div>
     {% endif %}
     
@@ -330,6 +392,15 @@
         <div class="metric-label">Minimum Operational Demand</div>
         <div class="metric-value">{{ performance.minimum_demand_mw|floatformat:0|intcomma }}</div>
         <div class="metric-sublabel">MW on {{ performance.minimum_demand_datetime|date:"d M, g:i A" }}</div>
+        {% if prev_year_performance and prev_year_performance.minimum_demand_mw %}
+        <div class="metric-change">
+            {% with change=performance.minimum_demand_mw|sub:prev_year_performance.minimum_demand_mw|div:prev_year_performance.minimum_demand_mw|mul:100 %}
+            {% if change >= 0 %}↑{% else %}↓{% endif %}
+            {% if change >= 0 %}{{ change|floatformat:1 }}%{% else %}{{ change|mul:-1|floatformat:1 }}%{% endif %}
+            vs {{ prev_year_performance.minimum_demand_mw|floatformat:0|intcomma }} MW in {{ month_name }} {{ year|add:"-1" }}
+            {% endwith %}
+        </div>
+        {% endif %}
     </div>
     {% endif %}
 </div>
@@ -352,7 +423,11 @@
         <div class="metric-sublabel">$/MWh</div>
         {% if prev_year_performance.wholesale_price_avg %}
         <div class="metric-change">
-            ${{ prev_year_performance.wholesale_price_avg|floatformat:2 }}/MWh in {{ year|add:"-1" }}
+            {% with change=performance.wholesale_price_avg|sub:prev_year_performance.wholesale_price_avg|div:prev_year_performance.wholesale_price_avg|mul:100 %}
+            {% if change >= 0 %}↑{% else %}↓{% endif %}
+            {% if change >= 0 %}{{ change|floatformat:1 }}%{% else %}{{ change|mul:-1|floatformat:1 }}%{% endif %}
+            vs ${{ prev_year_performance.wholesale_price_avg|floatformat:2 }}/MWh in {{ year|add:"-1" }}
+            {% endwith %}
         </div>
         {% endif %}
     </div>
@@ -365,6 +440,15 @@
         {% if performance.wholesale_price_max_datetime %}
         <div class="metric-change">{{ performance.wholesale_price_max_datetime|date:"d M, g:i A" }}</div>
         {% endif %}
+        {% if prev_year_performance and prev_year_performance.wholesale_price_max is not None %}
+        <div class="metric-change">
+            {% with change=performance.wholesale_price_max|sub:prev_year_performance.wholesale_price_max|div:prev_year_performance.wholesale_price_max|mul:100 %}
+            {% if change >= 0 %}↑{% else %}↓{% endif %}
+            {% if change >= 0 %}{{ change|floatformat:1 }}%{% else %}{{ change|mul:-1|floatformat:1 }}%{% endif %}
+            vs ${{ prev_year_performance.wholesale_price_max|floatformat:2 }}/MWh in {{ year|add:"-1" }}
+            {% endwith %}
+        </div>
+        {% endif %}
     </div>
     {% endif %}
     
@@ -375,6 +459,15 @@
         <div class="metric-sublabel">$/MWh</div>
         {% if performance.wholesale_price_min_datetime %}
         <div class="metric-change">{{ performance.wholesale_price_min_datetime|date:"d M, g:i A" }}</div>
+        {% endif %}
+        {% if prev_year_performance and prev_year_performance.wholesale_price_min is not None %}
+        <div class="metric-change">
+            {% with change=performance.wholesale_price_min|sub:prev_year_performance.wholesale_price_min|div:prev_year_performance.wholesale_price_min|mul:100 %}
+            {% if change >= 0 %}↑{% else %}↓{% endif %}
+            {% if change >= 0 %}{{ change|floatformat:1 }}%{% else %}{{ change|mul:-1|floatformat:1 }}%{% endif %}
+            vs ${{ prev_year_performance.wholesale_price_min|floatformat:2 }}/MWh in {{ year|add:"-1" }}
+            {% endwith %}
+        </div>
         {% endif %}
     </div>
     {% endif %}
@@ -388,6 +481,15 @@
             >Price Volatility (Std Dev) <sup>ⓘ</sup></span></div>
         <div class="metric-value">${{ performance.wholesale_price_std_dev|floatformat:2 }}</div>
         <div class="metric-sublabel">$/MWh</div>
+        {% if prev_year_performance and prev_year_performance.wholesale_price_std_dev is not None %}
+        <div class="metric-change">
+            {% with change=performance.wholesale_price_std_dev|sub:prev_year_performance.wholesale_price_std_dev|div:prev_year_performance.wholesale_price_std_dev|mul:100 %}
+            {% if change >= 0 %}↑{% else %}↓{% endif %}
+            {% if change >= 0 %}{{ change|floatformat:1 }}%{% else %}{{ change|mul:-1|floatformat:1 }}%{% endif %}
+            vs ${{ prev_year_performance.wholesale_price_std_dev|floatformat:2 }}/MWh in {{ year|add:"-1" }}
+            {% endwith %}
+        </div>
+        {% endif %}
     </div>
     {% endif %}
 </div>
@@ -406,7 +508,10 @@
         <div class="metric-sublabel">trading intervals with price &lt; $0/MWh</div>
         {% if prev_year_performance.wholesale_negative_count is not None %}
         <div class="metric-change">
-            {{ prev_year_performance.wholesale_negative_count|intcomma }} intervals in {{ year|add:"-1" }}
+            {% with diff=performance.wholesale_negative_count|sub:prev_year_performance.wholesale_negative_count %}
+            {% if diff >= 0 %}↑{% else %}↓{% endif %}
+            vs {{ prev_year_performance.wholesale_negative_count|intcomma }} intervals in {{ year|add:"-1" }}
+            {% endwith %}
         </div>
         {% endif %}
     </div>
@@ -423,7 +528,10 @@
         <div class="metric-sublabel">trading intervals with price &gt; $300/MWh</div>
         {% if prev_year_performance.wholesale_spike_count is not None %}
         <div class="metric-change">
-            {{ prev_year_performance.wholesale_spike_count|intcomma }} intervals in {{ year|add:"-1" }}
+            {% with diff=performance.wholesale_spike_count|sub:prev_year_performance.wholesale_spike_count %}
+            {% if diff >= 0 %}↑{% else %}↓{% endif %}
+            vs {{ prev_year_performance.wholesale_spike_count|intcomma }} intervals in {{ year|add:"-1" }}
+            {% endwith %}
         </div>
         {% endif %}
     </div>
