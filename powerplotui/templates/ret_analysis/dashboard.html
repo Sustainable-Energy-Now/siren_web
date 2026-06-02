@@ -1,0 +1,157 @@
+{% extends 'powerplotui_base.html' %}
+
+{% block title %}RET Replacement Scenarios Analysis{% endblock %}
+
+{% block powerplotui_content %}
+<style>
+  .ret-section { margin-bottom: 40px; }
+  .ret-table { width: 100%; border-collapse: collapse; font-size: 0.88em; }
+  .ret-table th, .ret-table td { border: 1px solid #dee2e6; padding: 6px 10px; text-align: right; }
+  .ret-table th { background: #2c3e50; color: #fff; text-align: center; }
+  .ret-table td:first-child { text-align: center; font-weight: 600; }
+  .ret-table td.feasibility { text-align: left; font-size: 0.85em; }
+  .feasible { color: #27ae60; }
+  .tight { color: #e67e22; }
+  .shortfall { color: #c0392b; }
+  .chart-container { width: 100%; margin-top: 20px; }
+  .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+  .tab-buttons { display: flex; gap: 8px; margin-bottom: 16px; }
+  .tab-btn { padding: 8px 20px; border: 2px solid #2c3e50; background: white; cursor: pointer;
+              border-radius: 4px; font-size: 0.95em; }
+  .tab-btn.active { background: #2c3e50; color: white; }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+  .col-coal { background: #f5f5f5; }
+  .col-gas { background: #fafafa; }
+  .highlight-total td { font-weight: 600; background: #eaf4fb; }
+</style>
+
+<div class="page-header">
+  <h2>RET Replacement Scenarios Analysis — SWIS 2030</h2>
+  <a href="{% url 'ret_analysis_config' %}" class="btn btn-secondary btn-sm">Edit Config</a>
+</div>
+
+<p style="color:#555; margin-bottom:20px;">
+  Analysis of how RET levels (55%–85%) displace coal and gas generation across two 2030 demand forecasts.
+  Benchmarks are loaded from config: <strong>{{ config_file }}</strong>.
+</p>
+
+<div class="tab-buttons">
+  <button class="tab-btn active" onclick="showTab('expected')">
+    Forecast 1 — {{ expected_demand|floatformat:0 }} TWh Expected
+  </button>
+  <button class="tab-btn" onclick="showTab('high')">
+    Forecast 2 — {{ high_demand|floatformat:0 }} TWh High
+  </button>
+</div>
+
+<!-- ===== FORECAST 1 ===== -->
+<div id="tab-expected" class="tab-panel active">
+  <h3>Forecast 1 — {{ expected_demand|floatformat:0 }} TWh 2030 Operational Demand</h3>
+
+  <div style="overflow-x:auto;">
+    <table class="ret-table">
+      <thead>
+        <tr>
+          <th>RET %</th>
+          <th>Required RE<br>(GWh)</th>
+          <th>Additional RE<br>Needed (GWh)</th>
+          <th>Pipeline Feasibility</th>
+          {% for name in fossil_headers %}
+          <th style="font-size:0.8em;">{{ name }}<br>(GWh displaced)</th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in rows_expected %}
+        <tr>
+          <td>{{ row.ret_pct }}%</td>
+          <td>{{ row.required_re_gwh|floatformat:0 }}</td>
+          <td>{{ row.additional_needed_gwh|floatformat:0 }}</td>
+          <td class="feasibility {{ row.feasibility_class }}">{{ row.feasibility_text }}</td>
+          {% for d in row.displacement %}
+          <td>
+            {% if d.displaced_gwh > 0 %}
+              {{ d.displaced_gwh|floatformat:0 }}
+              {% if d.displaced_gwh == d.total_gwh %}
+                <span style="color:#27ae60;" title="Fully displaced">✓</span>
+              {% endif %}
+            {% else %}—{% endif %}
+          </td>
+          {% endfor %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="chart-container">
+    <div id="chart-expected"></div>
+  </div>
+</div>
+
+<!-- ===== FORECAST 2 ===== -->
+<div id="tab-high" class="tab-panel">
+  <h3>Forecast 2 — {{ high_demand|floatformat:0 }} TWh High 2030 Operational Demand</h3>
+
+  <div style="overflow-x:auto;">
+    <table class="ret-table">
+      <thead>
+        <tr>
+          <th>RET %</th>
+          <th>Required RE<br>(GWh)</th>
+          <th>Additional RE<br>Needed (GWh)</th>
+          <th>Pipeline Feasibility</th>
+          {% for name in fossil_headers %}
+          <th style="font-size:0.8em;">{{ name }}<br>(GWh displaced)</th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in rows_high %}
+        <tr>
+          <td>{{ row.ret_pct }}%</td>
+          <td>{{ row.required_re_gwh|floatformat:0 }}</td>
+          <td>{{ row.additional_needed_gwh|floatformat:0 }}</td>
+          <td class="feasibility {{ row.feasibility_class }}">{{ row.feasibility_text }}</td>
+          {% for d in row.displacement %}
+          <td>
+            {% if d.displaced_gwh > 0 %}
+              {{ d.displaced_gwh|floatformat:0 }}
+              {% if d.displaced_gwh == d.total_gwh %}
+                <span style="color:#27ae60;" title="Fully displaced">✓</span>
+              {% endif %}
+            {% else %}—{% endif %}
+          </td>
+          {% endfor %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="chart-container">
+    <div id="chart-high"></div>
+  </div>
+</div>
+
+<script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+<script>
+  const chartExpected = {{ chart_expected_json|safe }};
+  const chartHigh = {{ chart_high_json|safe }};
+
+  Plotly.newPlot('chart-expected', chartExpected.data, chartExpected.layout, {responsive: true});
+  Plotly.newPlot('chart-high', chartHigh.data, chartHigh.layout, {responsive: true});
+
+  function showTab(id) {
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById('tab-' + id).classList.add('active');
+    event.target.classList.add('active');
+    // Trigger Plotly resize after tab switch
+    setTimeout(() => {
+      Plotly.relayout('chart-' + id, {});
+    }, 50);
+  }
+</script>
+{% endblock %}

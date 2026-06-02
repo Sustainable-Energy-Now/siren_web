@@ -1,0 +1,188 @@
+{% extends 'powerplotui_base.html' %}
+
+{% block title %}RET Analysis Configuration{% endblock %}
+
+{% block powerplotui_content %}
+<style>
+  .config-section { margin-bottom: 30px; padding: 20px; background: #f8f9fa;
+                    border: 1px solid #dee2e6; border-radius: 6px; }
+  .config-section h3 { margin-top: 0; color: #2c3e50; border-bottom: 2px solid #2c3e50;
+                        padding-bottom: 8px; margin-bottom: 16px; }
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 24px; }
+  .form-group { display: flex; flex-direction: column; }
+  .form-group label { font-weight: 600; margin-bottom: 4px; color: #495057; font-size: 0.9em; }
+  .form-group input, .form-group select { padding: 6px 10px; border: 1px solid #ced4da;
+                                          border-radius: 4px; font-size: 0.95em; }
+  .fossil-table { width: 100%; border-collapse: collapse; font-size: 0.9em; }
+  .fossil-table th { background: #2c3e50; color: white; padding: 8px 12px; text-align: left; }
+  .fossil-table td { padding: 6px 8px; border-bottom: 1px solid #dee2e6; }
+  .fossil-table input, .fossil-table select { width: 100%; padding: 4px 8px; border: 1px solid #ced4da;
+                                               border-radius: 3px; font-size: 0.9em; }
+  .btn-remove { background: #e74c3c; color: white; border: none; padding: 4px 10px;
+                border-radius: 3px; cursor: pointer; font-size: 0.8em; }
+  .btn-add { background: #27ae60; color: white; border: none; padding: 8px 16px;
+              border-radius: 4px; cursor: pointer; margin-top: 10px; }
+  .actions { display: flex; gap: 12px; margin-top: 20px; align-items: center; }
+</style>
+
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+  <h2>RET Analysis Configuration</h2>
+  <a href="{% url 'ret_analysis' %}" class="btn btn-secondary btn-sm">Back to Analysis</a>
+</div>
+
+<p style="color:#555; margin-bottom:20px;">
+  Editing: <strong>{{ config_file }}</strong> — <code>[ret_analysis]</code> section.
+  Changes are written directly to the config file.
+</p>
+
+{% if messages %}
+  {% for message in messages %}
+  <div style="padding:12px 16px; margin-bottom:16px; border-radius:4px;
+    {% if message.tags == 'success' %}background:#d4edda; color:#155724; border-left:4px solid #27ae60;
+    {% else %}background:#f8d7da; color:#721c24; border-left:4px solid #c0392b;{% endif %}">
+    {{ message }}
+  </div>
+  {% endfor %}
+{% endif %}
+
+<form method="post">
+  {% csrf_token %}
+
+  <!-- Demand Forecasts -->
+  <div class="config-section">
+    <h3>Demand Forecasts (TWh)</h3>
+    <div class="form-grid">
+      <div class="form-group">
+        <label for="expected_demand_twh">Expected demand 2030 (TWh)</label>
+        <input type="number" step="0.1" id="expected_demand_twh" name="expected_demand_twh"
+               value="{{ ret_config.expected_demand_twh }}" required>
+      </div>
+      <div class="form-group">
+        <label for="high_demand_twh">High demand 2030 (TWh)</label>
+        <input type="number" step="0.1" id="high_demand_twh" name="high_demand_twh"
+               value="{{ ret_config.high_demand_twh }}" required>
+      </div>
+    </div>
+  </div>
+
+  <!-- RE Capacity Factors -->
+  <div class="config-section">
+    <h3>Assumed RE Capacity Factors</h3>
+    <div class="form-grid">
+      <div class="form-group">
+        <label for="wind_capacity_factor">Wind capacity factor (0–1)</label>
+        <input type="number" step="0.01" min="0" max="1" id="wind_capacity_factor"
+               name="wind_capacity_factor" value="{{ ret_config.wind_capacity_factor }}" required>
+      </div>
+      <div class="form-group">
+        <label for="solar_capacity_factor">Solar capacity factor (0–1)</label>
+        <input type="number" step="0.01" min="0" max="1" id="solar_capacity_factor"
+               name="solar_capacity_factor" value="{{ ret_config.solar_capacity_factor }}" required>
+      </div>
+    </div>
+  </div>
+
+  <!-- Baseline & Pipeline -->
+  <div class="config-section">
+    <h3>Current RE Baseline &amp; Pipeline</h3>
+    <div class="form-grid">
+      <div class="form-group">
+        <label for="current_re_baseline_gwh">Current grid-scale RE baseline (GWh)</label>
+        <input type="number" step="1" id="current_re_baseline_gwh" name="current_re_baseline_gwh"
+               value="{{ ret_config.current_re_baseline_gwh }}" required>
+      </div>
+      <div class="form-group">
+        <label for="pipeline_wind_gw">Pipeline wind addition by 2030 (GW)</label>
+        <input type="number" step="0.01" id="pipeline_wind_gw" name="pipeline_wind_gw"
+               value="{{ ret_config.pipeline_wind_gw }}" required>
+      </div>
+      <div class="form-group">
+        <label for="pipeline_solar_gw">Pipeline solar addition by 2030 (GW)</label>
+        <input type="number" step="0.01" id="pipeline_solar_gw" name="pipeline_solar_gw"
+               value="{{ ret_config.pipeline_solar_gw }}" required>
+      </div>
+    </div>
+  </div>
+
+  <!-- Fossil Sources -->
+  <div class="config-section">
+    <h3>Fossil Fuelled Generation &amp; Displacement Priorities</h3>
+    <p style="color:#666; font-size:0.9em; margin-bottom:12px;">
+      Sources are displaced in priority order (lowest number first). Add or remove rows as needed.
+    </p>
+    <div style="overflow-x:auto;">
+      <table class="fossil-table" id="fossil-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Facility Name</th>
+            <th>Annual Generation (GWh)</th>
+            <th>Displacement Priority</th>
+            <th>Fuel Type</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="fossil-tbody">
+          {% for source in ret_config.fossil_sources %}
+          <tr class="fossil-row">
+            <td style="text-align:center; color:#888;">{{ forloop.counter }}</td>
+            <td><input type="text" name="fossil_name" value="{{ source.name }}" required></td>
+            <td><input type="number" step="1" name="fossil_gwh" value="{{ source.gwh|floatformat:0 }}" required></td>
+            <td><input type="number" step="1" min="1" name="fossil_priority" value="{{ source.priority }}" required></td>
+            <td>
+              <select name="fossil_fuel_type">
+                <option value="coal" {% if source.fuel_type == 'coal' %}selected{% endif %}>Coal</option>
+                <option value="gas" {% if source.fuel_type == 'gas' %}selected{% endif %}>Gas</option>
+                <option value="other" {% if source.fuel_type == 'other' %}selected{% endif %}>Other</option>
+              </select>
+            </td>
+            <td><button type="button" class="btn-remove" onclick="removeRow(this)">Remove</button></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <button type="button" class="btn-add" onclick="addRow()">+ Add Fossil Source</button>
+  </div>
+
+  <div class="actions">
+    <button type="submit" class="btn btn-primary">Save Configuration</button>
+    <a href="{% url 'ret_analysis' %}" class="btn btn-secondary">Cancel</a>
+  </div>
+</form>
+
+<script>
+function removeRow(btn) {
+  btn.closest('tr').remove();
+  renumberRows();
+}
+
+function addRow() {
+  const tbody = document.getElementById('fossil-tbody');
+  const count = tbody.querySelectorAll('tr').length + 1;
+  const tr = document.createElement('tr');
+  tr.className = 'fossil-row';
+  tr.innerHTML = `
+    <td style="text-align:center; color:#888;">${count}</td>
+    <td><input type="text" name="fossil_name" placeholder="Facility name" required></td>
+    <td><input type="number" step="1" name="fossil_gwh" placeholder="GWh" required></td>
+    <td><input type="number" step="1" min="1" name="fossil_priority" value="${count}" required></td>
+    <td>
+      <select name="fossil_fuel_type">
+        <option value="coal">Coal</option>
+        <option value="gas" selected>Gas</option>
+        <option value="other">Other</option>
+      </select>
+    </td>
+    <td><button type="button" class="btn-remove" onclick="removeRow(this)">Remove</button></td>
+  `;
+  tbody.appendChild(tr);
+}
+
+function renumberRows() {
+  document.querySelectorAll('#fossil-tbody tr').forEach((tr, i) => {
+    tr.querySelector('td:first-child').textContent = i + 1;
+  });
+}
+</script>
+{% endblock %}

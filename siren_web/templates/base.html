@@ -93,9 +93,10 @@
     <div class="top-right">
         {% if user.is_authenticated %}
             <p>Welcome, {{ user.username }}!</p>
-            <form action="{% url 'logout' %}" method="post">
+            <a href="{% url 'password_change' %}" class="btn btn-link btn-sm">Change Password</a>
+            <form action="{% url 'logout' %}" method="post" style="display:inline;">
                 {% csrf_token %}
-                <button type="submit" class="btn btn-link">Logout</button>
+                <button type="submit" class="btn btn-link btn-sm">Logout</button>
             </form>
         {% else %}
             <a href="/accounts/login/">Login</a>
