@@ -5,7 +5,7 @@ from .views.variants_views import VariantsView
 from .views.echart_views import eChartView
 from .views import facility_scada_views, plot3D_views, powerplotui_home_views, ret_dashboard_views, \
     ret_comments_views, ret_targets_views, ret_pdf_views, supplyfactors_views, scada_views, \
-    generation_comparison_views, risk_analysis_views, scenario_projections_views
+    generation_comparison_views, risk_analysis_views, scenario_projections_views, ret_analysis_views
 
 urlpatterns = [
     path('powerplotui/', powerplotui_home_views.powerplotui_home, name='powerplotui_home'),
@@ -61,6 +61,10 @@ urlpatterns = [
     path('published_reports/<int:report_id>/view/', ret_pdf_views.view_published_report, name='view_published_report'),
     path('published_reports/<int:report_id>/download/', ret_pdf_views.download_published_report, name='download_published_report'),
     path('published_reports/<int:report_id>/view_html/', ret_pdf_views.view_published_html, name='view_published_html'),
+
+    # RET Replacement Scenarios Analysis
+    path('ret-analysis/', ret_analysis_views.ret_analysis_dashboard, name='ret_analysis'),
+    path('ret-analysis/config/', ret_analysis_views.ret_analysis_config, name='ret_analysis_config'),
 
     # Main targets list view
     path('ret_dashboard/targets/', ret_targets_views.ret_targets_list, name='ret_targets_list'),

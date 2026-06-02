@@ -1,7 +1,7 @@
 from django.shortcuts import render
 from docxtpl import DocxTemplate
 import os
-from siren_web.models import facilities, Scenarios, Technologies
+from siren_web.models import facilities, Scenarios
 from siren_web.database_operations import fetch_full_generator_storage_data
 from django.http import HttpResponse, JsonResponse
 from django.contrib.auth.decorators import login_required
