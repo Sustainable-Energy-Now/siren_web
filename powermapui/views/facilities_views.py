@@ -341,6 +341,7 @@ def facility_edit(request, pk):
             portfolio_priority = request.POST.get('portfolio_priority', 'medium')
             coal_retirement_alignment = request.POST.get('coal_retirement_alignment', 'none')
             tech_complexity = request.POST.get('tech_complexity', 'simple')
+            approvals = request.POST.get('approvals', 'early')
 
             # Validation
             if not facility_name:
@@ -417,6 +418,7 @@ def facility_edit(request, pk):
             facility.portfolio_priority = portfolio_priority
             facility.coal_retirement_alignment = coal_retirement_alignment
             facility.tech_complexity = tech_complexity
+            facility.approvals = approvals
             if fid_expected_date:
                 from datetime import datetime
                 facility.fid_expected_date = datetime.strptime(fid_expected_date, '%Y-%m-%d').date()

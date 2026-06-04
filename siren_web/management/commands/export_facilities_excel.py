@@ -80,6 +80,12 @@ class Command(BaseCommand):
             'Zone', 'Capacity (MW)', 'Capacity Factor', 'Latitude', 'Longitude',
             'Emission Intensity', 'Power File', 'Direction',
             'Legacy Technology',
+            # Build probability factors
+            'PPA Status', 'PPA Counterparty', 'FID Expected Date',
+            'EPC Status', 'Developer Strength', 'Revenue Stack',
+            'Approvals', 'Community / First Nations Status',
+            'Portfolio Priority', 'Coal Retirement Alignment',
+            'Tech Complexity', 'Multi-Factor Build Probability',
         ]
         rows = []
         for f in facilities.objects.select_related('idzones', 'idtechnologies').order_by('facility_name'):
@@ -104,6 +110,19 @@ class Command(BaseCommand):
                 f.power_file,
                 f.direction,
                 f.idtechnologies.technology_name if f.idtechnologies else None,
+                # Build probability factors
+                f.get_ppa_status_display(),
+                f.ppa_counterparty or None,
+                f.fid_expected_date,
+                f.get_epc_status_display(),
+                f.get_developer_strength_display(),
+                f.get_revenue_stack_display(),
+                f.get_approvals_display(),
+                f.get_community_fn_status_display(),
+                f.get_portfolio_priority_display(),
+                f.get_coal_retirement_alignment_display(),
+                f.get_tech_complexity_display(),
+                f.multi_factor_build_probability,
             ])
         write_sheet(ws, headers, rows)
         self.stdout.write(f'  Facilities: {len(rows)} rows')

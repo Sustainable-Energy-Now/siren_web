@@ -61,6 +61,7 @@
         <th class="text-center">Portfolio</th>
         <th class="text-center">Coal Align</th>
         <th class="text-center">Tech</th>
+        <th class="text-center">Approvals</th>
         <th class="text-end">{% include 'sort_header.html' with col="commissioning_probability" label="Base P" %}</th>
         <th class="text-end">{% include 'sort_header.html' with col="cel_viability_score" label="CEL" %}</th>
         <th class="text-end">{% include 'sort_header.html' with col="effective_commissioning_probability" label="Eff. P" %}</th>
@@ -105,6 +106,9 @@
         </td>
         <td class="text-center">
           <span class="{{ r.tech_complexity_colour }}">{{ r.tech_complexity_display }}</span>
+        </td>
+        <td class="text-center">
+          <span class="{{ r.approvals_colour }}">{{ r.approvals_display }}</span>
         </td>
         <td class="text-end">
           {% if r.commissioning_probability is not None %}

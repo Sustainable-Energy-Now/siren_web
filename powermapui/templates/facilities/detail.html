@@ -143,6 +143,142 @@
         </div>
       </div>
 
+      <!-- Build Probability Factors -->
+      {% if facility.status in 'proposed,planned,under_construction' or facility.commissioning_probability is not None %}
+      <div class="card mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <h5 class="mb-0">Build Probability Factors</h5>
+          <span class="badge fs-6
+            {% with s=facility.multi_factor_build_probability %}
+            {% if s >= 0.65 %}bg-success{% elif s >= 0.40 %}bg-warning text-dark{% else %}bg-danger{% endif %}
+            {% endwith %}">
+            MF Score: {{ facility.multi_factor_build_probability|floatformat:3 }}
+          </span>
+        </div>
+        <div class="card-body">
+          <div class="row">
+            <div class="col-md-6">
+              <table class="table table-sm mb-0">
+                <tr>
+                  <td><strong>PPA Status:</strong></td>
+                  <td>
+                    <span class="
+                      {% if facility.ppa_status == 'signed' %}text-success fw-bold
+                      {% elif facility.ppa_status == 'hoa' %}text-warning fw-bold
+                      {% else %}text-danger{% endif %}">
+                      {{ facility.get_ppa_status_display }}
+                    </span>
+                    {% if facility.ppa_counterparty %}
+                      <small class="text-muted ms-1">({{ facility.ppa_counterparty }})</small>
+                    {% endif %}
+                  </td>
+                </tr>
+                <tr>
+                  <td><strong>FID Expected:</strong></td>
+                  <td>{{ facility.fid_expected_date|date:"M Y"|default:"&mdash;" }}</td>
+                </tr>
+                <tr>
+                  <td><strong>EPC Status:</strong></td>
+                  <td>
+                    <span class="
+                      {% if facility.epc_status == 'locked' %}text-success fw-bold
+                      {% elif facility.epc_status == 'progressing' %}text-warning fw-bold
+                      {% else %}text-danger{% endif %}">
+                      {{ facility.get_epc_status_display }}
+                    </span>
+                  </td>
+                </tr>
+                <tr>
+                  <td><strong>Developer Strength:</strong></td>
+                  <td>
+                    <span class="
+                      {% if facility.developer_strength in 'strong,very_strong' %}text-success fw-bold
+                      {% elif facility.developer_strength == 'moderate' %}text-warning fw-bold
+                      {% else %}text-danger{% endif %}">
+                      {{ facility.get_developer_strength_display }}
+                    </span>
+                  </td>
+                </tr>
+                <tr>
+                  <td><strong>Revenue Stack:</strong></td>
+                  <td>
+                    <span class="
+                      {% if facility.revenue_stack in 'capacity,ppa_cis,ppa' %}text-success fw-bold
+                      {% elif facility.revenue_stack == 'cis_merchant' %}text-warning fw-bold
+                      {% else %}text-danger{% endif %}">
+                      {{ facility.get_revenue_stack_display }}
+                    </span>
+                  </td>
+                </tr>
+                <tr>
+                  <td><strong>Approvals:</strong></td>
+                  <td>
+                    <span class="
+                      {% if facility.approvals in 'advanced,approved' %}text-success fw-bold
+                      {% elif facility.approvals == 'progressing' %}text-warning fw-bold
+                      {% else %}text-danger{% endif %}">
+                      {{ facility.get_approvals_display }}
+                    </span>
+                  </td>
+                </tr>
+              </table>
+            </div>
+            <div class="col-md-6">
+              <table class="table table-sm mb-0">
+                <tr>
+                  <td><strong>Community / First Nations:</strong></td>
+                  <td>
+                    <span class="
+                      {% if facility.community_fn_status in 'active,typical' %}text-success fw-bold
+                      {% elif facility.community_fn_status == 'unknown' %}text-warning fw-bold
+                      {% else %}text-danger{% endif %}">
+                      {{ facility.get_community_fn_status_display }}
+                    </span>
+                  </td>
+                </tr>
+                <tr>
+                  <td><strong>Portfolio Priority:</strong></td>
+                  <td>
+                    <span class="
+                      {% if facility.portfolio_priority == 'high' %}text-success fw-bold
+                      {% elif facility.portfolio_priority == 'medium' %}text-warning fw-bold
+                      {% else %}text-danger{% endif %}">
+                      {{ facility.get_portfolio_priority_display }}
+                    </span>
+                  </td>
+                </tr>
+                <tr>
+                  <td><strong>Coal Retirement Alignment:</strong></td>
+                  <td>
+                    <span class="
+                      {% if facility.coal_retirement_alignment in 'critical,strong,good' %}text-success fw-bold
+                      {% elif facility.coal_retirement_alignment == 'ok' %}text-warning fw-bold
+                      {% else %}text-danger{% endif %}">
+                      {{ facility.get_coal_retirement_alignment_display }}
+                    </span>
+                  </td>
+                </tr>
+                <tr>
+                  <td><strong>Technology Complexity:</strong></td>
+                  <td>
+                    <span class="
+                      {% if facility.tech_complexity == 'simple' %}text-success fw-bold
+                      {% elif facility.tech_complexity in 'moderate,hybrid' %}text-warning fw-bold
+                      {% else %}text-danger{% endif %}">
+                      {{ facility.get_tech_complexity_display }}
+                    </span>
+                  </td>
+                </tr>
+              </table>
+              <div class="mt-3 p-2 bg-light rounded small text-muted">
+                <strong>Score weights:</strong> PPA 20% &bull; Base P 20% &bull; EPC 15% &bull; Developer 15% &bull; CEL 15% &bull; Revenue 10% &bull; Comm/FN 5%
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+
       <!-- CEL Transmission Alignment -->
       <div class="card mb-4">
         <div class="card-header d-flex justify-content-between align-items-center">

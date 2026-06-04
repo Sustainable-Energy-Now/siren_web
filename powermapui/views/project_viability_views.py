@@ -40,6 +40,7 @@ def _traffic_light(value, field):
         'coal_retirement_alignment': {'critical': GREEN, 'strong': GREEN, 'good': GREEN,
                                       'ok': AMBER, 'none': RED},
         'tech_complexity':          {'simple': GREEN, 'moderate': AMBER, 'hybrid': AMBER, 'high': RED},
+        'approvals':                {'approved': GREEN, 'advanced': GREEN, 'progressing': AMBER, 'early': RED},
     }
     colour = mapping.get(field, {}).get(value, AMBER)
     return f'text-{colour}'
@@ -89,6 +90,8 @@ def _build_facility_row(f):
         'coal_retirement_alignment_colour': tl('coal_retirement_alignment'),
         'tech_complexity_display': f.get_tech_complexity_display(),
         'tech_complexity_colour': tl('tech_complexity'),
+        'approvals_display': f.get_approvals_display(),
+        'approvals_colour': tl('approvals'),
         # Probability scores
         'commissioning_probability': f.commissioning_probability,
         'commissioning_probability_colour': _score_colour(f.commissioning_probability),
@@ -161,7 +164,7 @@ def _export_csv(rows):
         'Facility', 'Status', 'Capacity (MW)',
         'PPA Status', 'PPA Counterparty', 'FID Expected',
         'EPC Status', 'Developer Strength', 'Revenue Stack',
-        'Community/FN Status', 'Portfolio Priority',
+        'Approvals', 'Community/FN Status', 'Portfolio Priority',
         'Coal Retirement Alignment', 'Tech Complexity',
         'Commissioning Probability', 'CEL Viability Score',
         'Effective Commissioning Probability', 'Multi-Factor Build Probability',
@@ -171,7 +174,7 @@ def _export_csv(rows):
             r['facility_name'], r['status'], r['capacity'],
             r['ppa_status_display'], r['ppa_counterparty'], r['fid_expected_date'],
             r['epc_status_display'], r['developer_strength_display'], r['revenue_stack_display'],
-            r['community_fn_status_display'], r['portfolio_priority_display'],
+            r['approvals_display'], r['community_fn_status_display'], r['portfolio_priority_display'],
             r['coal_retirement_alignment_display'], r['tech_complexity_display'],
             r['commissioning_probability'], r['cel_viability_score'],
             r['effective_commissioning_probability'], r['multi_factor_build_probability'],

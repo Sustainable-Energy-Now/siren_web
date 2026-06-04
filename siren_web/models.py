@@ -73,13 +73,19 @@ PPA_STATUS_CHOICES = [
 EPC_STATUS_CHOICES = [
     ('none', 'Not Started'),
     ('progressing', 'Progressing'),
+    ('unclear', 'Unclear'),
+    ('likely', 'Likely'),
+    ('not locked', 'Not Locked'),
     ('locked', 'Locked'),
 ]
 
 DEVELOPER_STRENGTH_CHOICES = [
+    ('unknown', 'Unknown'),
     ('weak', 'Weak'),
+    ('smaller player', 'Smaller Player'),
     ('moderate', 'Moderate'),
     ('strong', 'Strong'),
+    ('state backed', 'State-backed'),
     ('very_strong', 'Very Strong'),
 ]
 
@@ -89,6 +95,8 @@ REVENUE_STACK_CHOICES = [
     ('ppa_cis', 'PPA + CIS'),
     ('ppa', 'PPA'),
     ('capacity', 'Capacity-style'),
+    ('portfolio backed', 'Portfolio Backed'),
+    ('strong', 'Strong'),
 ]
 
 COMMUNITY_FN_STATUS_CHOICES = [
@@ -117,6 +125,13 @@ TECH_COMPLEXITY_CHOICES = [
     ('moderate', 'Moderate'),
     ('hybrid', 'Hybrid (wind+BESS or solar+BESS)'),
     ('high', 'High complexity'),
+]
+
+APPROVALS_STATUS_CHOICES = [
+    ('early', 'Early Stage'),
+    ('progressing', 'Progressing'),
+    ('advanced', 'Advanced'),
+    ('approved', 'Approved'),
 ]
 
 class facilities(models.Model):
@@ -231,6 +246,13 @@ class facilities(models.Model):
         default='simple',
         blank=True,
         help_text="Execution risk tier of the technology configuration"
+    )
+    approvals = models.CharField(
+        max_length=15,
+        choices=APPROVALS_STATUS_CHOICES,
+        default='early',
+        blank=True,
+        help_text="Progress through environmental and planning approval processes"
     )
 
     # For backward compatibility during migration, keep as nullable

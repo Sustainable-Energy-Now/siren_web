@@ -298,6 +298,16 @@
                 </select>
                 <div class="form-text">Execution risk tier of the technology configuration</div>
               </div>
+              <div class="col-md-4">
+                <label for="approvals" class="form-label">Approvals Status</label>
+                <select class="form-select" id="approvals" name="approvals">
+                  <option value="early" {% if form_data.approvals|default:facility.approvals == 'early' %}selected{% endif %}>Early Stage</option>
+                  <option value="progressing" {% if form_data.approvals|default:facility.approvals == 'progressing' %}selected{% endif %}>Progressing</option>
+                  <option value="advanced" {% if form_data.approvals|default:facility.approvals == 'advanced' %}selected{% endif %}>Advanced</option>
+                  <option value="approved" {% if form_data.approvals|default:facility.approvals == 'approved' %}selected{% endif %}>Approved</option>
+                </select>
+                <div class="form-text">Progress through environmental and planning approval processes</div>
+              </div>
             </div>
 
             <hr class="my-4">
