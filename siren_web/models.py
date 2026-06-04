@@ -477,10 +477,11 @@ class facilities(models.Model):
         installations = self.facilitywindturbines_set.filter(is_active=True)
         summary = []
         for installation in installations:
+            wt = installation.wind_turbine
             summary.append({
                 'technology': str(installation.idtechnologies) if installation.idtechnologies else None,
-                'model': installation.wind_turbine.turbine_model,
-                'manufacturer': installation.wind_turbine.manufacturer,
+                'model': wt.turbine_model if wt else 'Unspecified',
+                'manufacturer': wt.manufacturer if wt else None,
                 'count': installation.no_turbines,
                 'capacity_mw': installation.total_capacity,
                 'hub_height': installation.hub_height,
@@ -1942,9 +1943,11 @@ class FacilityWindTurbines(models.Model):
         db_column='idfacilities'
     )
     idwindturbines = models.ForeignKey(
-        WindTurbines, 
-        on_delete=models.CASCADE, 
-        db_column='idwindturbines'
+        WindTurbines,
+        on_delete=models.SET_NULL,
+        db_column='idwindturbines',
+        null=True,
+        blank=True,
     )
     
     # NEW: Link to technology type (e.g., "Onshore Wind", "Offshore Wind")
@@ -2028,7 +2031,8 @@ class FacilityWindTurbines(models.Model):
 
     def __str__(self):
         name = self.installation_name or "Wind"
-        return f"{self.facility.facility_name} - {self.wind_turbine.turbine_model} ({self.no_turbines} units) [{name}]"
+        turbine = self.wind_turbine.turbine_model if self.wind_turbine else "Unspecified"
+        return f"{self.facility.facility_name} - {turbine} ({self.no_turbines} units) [{name}]"
     
     @property
     def wind_turbine(self):
@@ -2053,7 +2057,7 @@ class FacilityWindTurbines(models.Model):
         """
         if self.nameplate_capacity:
             return self.nameplate_capacity
-        if self.wind_turbine.rated_power and self.no_turbines:
+        if self.wind_turbine and self.wind_turbine.rated_power and self.no_turbines:
             # rated_power is in kW, convert to MW
             return (self.wind_turbine.rated_power * self.no_turbines) / 1000
         return None

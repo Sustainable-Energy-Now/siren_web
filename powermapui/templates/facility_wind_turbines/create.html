@@ -7,7 +7,8 @@
     <a href="{% url 'powermapui:facilities_list' %}" class="btn btn-outline-secondary">Back to List</a>
   </div>
 
-  <p>Install a wind turbine model at a specific facility. This creates the association between a facility and turbine type, with installation-specific parameters like quantity, orientation, and timing.</p>
+  <p>Install a wind turbine model at a specific facility. Select a turbine from the catalogue or choose
+     <strong>Unspecified</strong> to enter the turbine capacity directly.</p>
 
   <div class="row">
     <div class="col-lg-8">
@@ -15,7 +16,7 @@
         <div class="card-body">
           <form method="post" novalidate>
             {% csrf_token %}
-            
+
             <div class="row mb-3">
               <div class="col-md-6">
                 <label for="facility" class="form-label">Facility <span class="text-danger">*</span></label>
@@ -35,49 +36,71 @@
                 <label for="turbine" class="form-label">Wind Turbine Model <span class="text-danger">*</span></label>
                 <select class="form-select" id="turbine" name="turbine" required>
                   <option value="">Select a turbine model</option>
+                  <option value="unspecified"
+                          data-unspecified="true"
+                          {% if form_data.turbine == 'unspecified' %}selected{% endif %}>
+                    — Unspecified (enter capacity manually) —
+                  </option>
                   {% for turbine in turbines %}
-                    <option value="{{ turbine.pk }}" 
+                    <option value="{{ turbine.pk }}"
                             data-manufacturer="{{ turbine.manufacturer|default:'Unknown' }}"
-                            data-power="{{ turbine.rated_power|default:'N/A' }}"
+                            data-power="{{ turbine.rated_power|default:'' }}"
                             {% if form_data.turbine == turbine.pk|stringformat:"s" %}selected{% endif %}>
                       {{ turbine.manufacturer|default:"Unknown" }} {{ turbine.turbine_model }}
                       {% if turbine.rated_power %} ({{ turbine.rated_power|floatformat:0 }} kW){% endif %}
                     </option>
                   {% endfor %}
                 </select>
-                <div class="form-text">Select the wind turbine model to install</div>
+                <div class="form-text">Select the wind turbine model to install, or choose Unspecified</div>
+              </div>
+            </div>
+
+            <!-- Manual capacity — shown only when Unspecified is selected -->
+            <div class="row mb-3" id="unspecified-capacity-row" style="display:none;">
+              <div class="col-md-4">
+                <label for="turbine_capacity_kw" class="form-label">
+                  Turbine Capacity (kW) <span class="text-danger">*</span>
+                </label>
+                <input type="number"
+                       class="form-control"
+                       id="turbine_capacity_kw"
+                       name="turbine_capacity_kw"
+                       min="0"
+                       step="0.1"
+                       value="{{ form_data.turbine_capacity_kw|default:'' }}">
+                <div class="form-text">Rated capacity per turbine in kW</div>
               </div>
             </div>
 
             <div class="row mb-3">
               <div class="col-md-4">
                 <label for="no_turbines" class="form-label">Number of Turbines <span class="text-danger">*</span></label>
-                <input type="number" 
-                       class="form-control non-negative" 
-                       id="no_turbines" 
-                       name="no_turbines" 
-                       min="1" 
+                <input type="number"
+                       class="form-control non-negative"
+                       id="no_turbines"
+                       name="no_turbines"
+                       min="1"
                        value="{{ form_data.no_turbines|default:'1' }}"
                        required>
                 <div class="form-text">Total number of turbines to install</div>
               </div>
               <div class="col-md-4">
                 <label for="tilt" class="form-label">Tilt Angle (degrees)</label>
-                <input type="number" 
-                       class="form-control" 
-                       id="tilt" 
-                       name="tilt" 
-                       min="-90" 
+                <input type="number"
+                       class="form-control"
+                       id="tilt"
+                       name="tilt"
+                       min="-90"
                        max="90"
                        value="{{ form_data.tilt|default:'' }}">
                 <div class="form-text">Turbine blade tilt angle</div>
               </div>
               <div class="col-md-4">
                 <label for="direction" class="form-label">Primary Direction</label>
-                <input type="text" 
-                       class="form-control" 
-                       id="direction" 
-                       name="direction" 
+                <input type="text"
+                       class="form-control"
+                       id="direction"
+                       name="direction"
                        value="{{ form_data.direction|default:'' }}"
                        maxlength="28">
                 <div class="form-text">e.g., North, SW, 225°</div>
@@ -87,10 +110,10 @@
             <div class="row mb-3">
               <div class="col-md-6">
                 <label for="installation_date" class="form-label">Installation Date</label>
-                <input type="date" 
-                       class="form-control" 
-                       id="installation_date" 
-                       name="installation_date" 
+                <input type="date"
+                       class="form-control"
+                       id="installation_date"
+                       name="installation_date"
                        value="{{ form_data.installation_date|default:'' }}">
                 <div class="form-text">Date when turbines were/will be installed</div>
               </div>
@@ -98,9 +121,9 @@
 
             <div class="mb-4">
               <label for="notes" class="form-label">Installation Notes</label>
-              <textarea class="form-control" 
-                        id="notes" 
-                        name="notes" 
+              <textarea class="form-control"
+                        id="notes"
+                        name="notes"
                         rows="3">{{ form_data.notes|default:'' }}</textarea>
               <div class="form-text">Additional notes about this installation</div>
             </div>
@@ -115,15 +138,13 @@
     </div>
 
     <div class="col-lg-4">
-      <!-- Selected Turbine Info -->
+      <!-- Selected Turbine Info (hidden for Unspecified) -->
       <div class="card" id="turbine-info" style="display: none;">
         <div class="card-header">
           <h6 class="mb-0">Selected Turbine Specifications</h6>
         </div>
         <div class="card-body">
-          <div id="turbine-details">
-            <!-- Populated by JavaScript -->
-          </div>
+          <div id="turbine-details"></div>
         </div>
       </div>
 
@@ -135,9 +156,9 @@
         <div class="card-body">
           <div class="d-flex justify-content-between align-items-center">
             <span>Total Capacity:</span>
-            <strong id="total-capacity">0 kW</strong>
+            <strong id="total-capacity">—</strong>
           </div>
-          <small class="text-muted">Based on number of turbines × rated power</small>
+          <small class="text-muted" id="capacity-formula"></small>
         </div>
       </div>
 
@@ -146,80 +167,94 @@
         <div class="card-header">
           <h6 class="mb-0">Installation Guidelines</h6>
         </div>
-        <div class="card-body">
-          <div class="small">
-            <p><strong>Duplicate Check:</strong> The system prevents installing the same turbine model twice at the same facility.</p>
-            
-            <p><strong>Tilt Angle:</strong> Typically 0° for horizontal axis turbines. Negative values tilt backward, positive forward.</p>
-            
-            <p><strong>Direction:</strong> Can be compass directions (N, NE, SW) or degrees (0°-360°).</p>
-          </div>
+        <div class="card-body small">
+          <p><strong>Unspecified model:</strong> Use when the turbine type is not yet in the catalogue.
+             Enter the rated capacity per turbine; total capacity = number × capacity.</p>
+          <p><strong>Duplicate Check:</strong> The system prevents installing the same turbine model
+             twice at the same facility. Multiple Unspecified installations are allowed.</p>
+          <p><strong>Tilt Angle:</strong> Typically 0° for horizontal axis turbines.</p>
         </div>
       </div>
     </div>
   </div>
 
   <script>
-    document.addEventListener('DOMContentLoaded', function() {
+    document.addEventListener('DOMContentLoaded', function () {
       const turbineSelect = document.getElementById('turbine');
       const noTurbinesInput = document.getElementById('no_turbines');
+      const capacityKwInput = document.getElementById('turbine_capacity_kw');
+      const unspecifiedRow = document.getElementById('unspecified-capacity-row');
       const turbineInfoCard = document.getElementById('turbine-info');
       const turbineDetails = document.getElementById('turbine-details');
       const capacityCalc = document.getElementById('capacity-calc');
       const totalCapacitySpan = document.getElementById('total-capacity');
+      const capacityFormula = document.getElementById('capacity-formula');
 
-      function updateTurbineInfo() {
-        const selectedOption = turbineSelect.selectedOptions[0];
-        if (selectedOption && selectedOption.value) {
-          const manufacturer = selectedOption.dataset.manufacturer || 'Unknown';
-          const power = selectedOption.dataset.power || 'N/A';
-          const model = selectedOption.textContent.split('(')[0].trim();
+      function isUnspecified() {
+        const opt = turbineSelect.selectedOptions[0];
+        return opt && opt.dataset.unspecified === 'true';
+      }
 
+      function updateUI() {
+        const opt = turbineSelect.selectedOptions[0];
+        if (!opt || !opt.value) {
+          turbineInfoCard.style.display = 'none';
+          capacityCalc.style.display = 'none';
+          unspecifiedRow.style.display = 'none';
+          return;
+        }
+
+        if (isUnspecified()) {
+          turbineInfoCard.style.display = 'none';
+          unspecifiedRow.style.display = '';
+          capacityKwInput.setAttribute('required', 'required');
+          capacityCalc.style.display = 'block';
+          updateCapacity();
+        } else {
+          unspecifiedRow.style.display = 'none';
+          capacityKwInput.removeAttribute('required');
+          const power = parseFloat(opt.dataset.power) || 0;
+          const manufacturer = opt.dataset.manufacturer || 'Unknown';
+          const model = opt.textContent.split('(')[0].trim();
           turbineDetails.innerHTML = `
             <table class="table table-sm mb-0">
               <tr><td><strong>Model:</strong></td><td>${model}</td></tr>
               <tr><td><strong>Manufacturer:</strong></td><td>${manufacturer}</td></tr>
-              <tr><td><strong>Rated Power:</strong></td><td>${power} kW</td></tr>
-            </table>
-          `;
-          
+              <tr><td><strong>Rated Power:</strong></td><td>${power ? power.toLocaleString() + ' kW' : 'N/A'}</td></tr>
+            </table>`;
           turbineInfoCard.style.display = 'block';
           capacityCalc.style.display = 'block';
-          updateCapacityCalculation();
-        } else {
-          turbineInfoCard.style.display = 'none';
-          capacityCalc.style.display = 'none';
+          updateCapacity();
         }
       }
 
-      function updateCapacityCalculation() {
-        const selectedOption = turbineSelect.selectedOptions[0];
+      function updateCapacity() {
         const noTurbines = parseInt(noTurbinesInput.value) || 0;
-        
-        if (selectedOption && selectedOption.value) {
-          const power = parseFloat(selectedOption.dataset.power) || 0;
-          const totalCapacity = power * noTurbines;
-          
-          if (totalCapacity > 0) {
-            totalCapacitySpan.textContent = totalCapacity.toLocaleString() + ' kW';
-          } else {
-            totalCapacitySpan.textContent = '0 kW';
-          }
+        if (isUnspecified()) {
+          const kw = parseFloat(capacityKwInput.value) || 0;
+          const total = kw * noTurbines;
+          totalCapacitySpan.textContent = total > 0 ? total.toLocaleString() + ' kW  (' + (total/1000).toFixed(2) + ' MW)' : '—';
+          capacityFormula.textContent = `${noTurbines} × ${kw.toLocaleString()} kW`;
+        } else {
+          const opt = turbineSelect.selectedOptions[0];
+          if (!opt || !opt.value) return;
+          const power = parseFloat(opt.dataset.power) || 0;
+          const total = power * noTurbines;
+          totalCapacitySpan.textContent = total > 0 ? total.toLocaleString() + ' kW  (' + (total/1000).toFixed(2) + ' MW)' : '—';
+          capacityFormula.textContent = `${noTurbines} × ${power.toLocaleString()} kW`;
         }
       }
 
-      turbineSelect.addEventListener('change', updateTurbineInfo);
-      noTurbinesInput.addEventListener('input', updateCapacityCalculation);
+      turbineSelect.addEventListener('change', updateUI);
+      noTurbinesInput.addEventListener('input', updateCapacity);
+      capacityKwInput.addEventListener('input', updateCapacity);
 
-      // Initialize on page load
-      updateTurbineInfo();
+      // Initialise on page load (handles POST-back with form_data)
+      updateUI();
     });
+
     document.querySelectorAll('.non-negative').forEach(input => {
-      input.addEventListener('input', function() {
-        if (this.value <= 0) {
-          this.value = 1;
-        }
-      });
+      input.addEventListener('input', function () { if (this.value <= 0) this.value = 1; });
     });
   </script>
 {% endblock %}

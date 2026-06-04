@@ -613,61 +613,69 @@ def power_curve_data_json(request, pk):
 
 def facility_wind_turbine_create(request, facility_id=None):
     """Create a new facility wind turbine installation"""
-    # If facility_id is provided in URL, get the facility object
     facility = None
     if facility_id:
         facility = get_object_or_404(facilities, pk=facility_id)
 
     if request.method == 'POST':
         try:
-            # Get facility_id from POST data (overrides URL parameter)
             post_facility_id = request.POST.get('facility')
-            turbine_id = request.POST.get('turbine')
+            turbine_id = request.POST.get('turbine', '').strip()
             no_turbines = request.POST.get('no_turbines')
+            turbine_capacity_kw = request.POST.get('turbine_capacity_kw', '').strip()
             tilt = request.POST.get('tilt')
             direction = request.POST.get('direction', '').strip()
             installation_date = request.POST.get('installation_date')
             notes = request.POST.get('notes', '').strip()
 
-            # Validation
-            if not post_facility_id or not turbine_id or not no_turbines:
-                messages.error(request, 'Facility, turbine, and number of turbines are required.')
+            is_unspecified = (turbine_id == 'unspecified')
+
+            def _error(msg):
+                messages.error(request, msg)
                 return render(request, 'facility_wind_turbines/create.html', {
                     'facility': facility,
                     'facilities': facilities.objects.all().order_by('facility_name'),
                     'turbines': WindTurbines.objects.all().order_by('manufacturer', 'turbine_model'),
-                    'form_data': request.POST
+                    'form_data': request.POST,
                 })
+
+            if not post_facility_id or not no_turbines:
+                return _error('Facility and number of turbines are required.')
+            if not is_unspecified and not turbine_id:
+                return _error('Please select a turbine model or choose Unspecified.')
+            if is_unspecified and not turbine_capacity_kw:
+                return _error('Turbine capacity (kW) is required when the turbine model is Unspecified.')
 
             post_facility = get_object_or_404(facilities, pk=post_facility_id)
-            turbine = get_object_or_404(WindTurbines, pk=turbine_id)
+            n_turbines = int(no_turbines)
 
-            # Check for duplicate installation
-            if FacilityWindTurbines.objects.filter(idfacilities=post_facility, idwindturbines=turbine).exists():
-                messages.error(request, 'This turbine model is already installed at this facility.')
-                return render(request, 'facility_wind_turbines/create.html', {
-                    'facility': facility,
-                    'facilities': facilities.objects.all().order_by('facility_name'),
-                    'turbines': WindTurbines.objects.all().order_by('manufacturer', 'turbine_model'),
-                    'form_data': request.POST
-                })
+            if is_unspecified:
+                turbine_obj = None
+                nameplate_capacity = n_turbines * float(turbine_capacity_kw) / 1000
+            else:
+                turbine_obj = get_object_or_404(WindTurbines, pk=turbine_id)
+                nameplate_capacity = None
+                if FacilityWindTurbines.objects.filter(
+                    idfacilities=post_facility, idwindturbines=turbine_obj
+                ).exists():
+                    return _error('This turbine model is already installed at this facility.')
 
-            # Create the installation
-            installation = FacilityWindTurbines.objects.create(
+            FacilityWindTurbines.objects.create(
                 idfacilities=post_facility,
-                idwindturbines=turbine,
-                no_turbines=int(no_turbines),
+                idwindturbines=turbine_obj,
+                no_turbines=n_turbines,
+                nameplate_capacity=nameplate_capacity,
                 tilt=int(tilt) if tilt else None,
                 direction=direction if direction else None,
                 installation_date=installation_date if installation_date else None,
                 notes=notes if notes else None,
-                is_active=True
+                is_active=True,
             )
 
             messages.success(request, f'Wind turbine installation created successfully for {post_facility.facility_name}.')
             return redirect('powermapui:facility_detail', pk=post_facility.idfacilities)
 
-        except ValueError as e:
+        except ValueError:
             messages.error(request, 'Invalid numeric value provided.')
         except Exception as e:
             messages.error(request, f'Error creating installation: {str(e)}')
@@ -675,36 +683,55 @@ def facility_wind_turbine_create(request, facility_id=None):
     context = {
         'facility': facility,
         'facilities': facilities.objects.all().order_by('facility_name'),
-        'turbines': WindTurbines.objects.all().order_by('manufacturer', 'turbine_model')
+        'turbines': WindTurbines.objects.all().order_by('manufacturer', 'turbine_model'),
     }
-
     if request.method == 'POST':
         context['form_data'] = request.POST
-
     return render(request, 'facility_wind_turbines/create.html', context)
 
 def facility_wind_turbine_edit(request, pk):
     """Edit an existing facility wind turbine installation"""
     installation = get_object_or_404(FacilityWindTurbines, pk=pk)
-    
+    all_turbines = WindTurbines.objects.all().order_by('manufacturer', 'turbine_model')
+
     if request.method == 'POST':
         try:
             installation_name = request.POST.get('installation_name', '').strip()
+            turbine_id = request.POST.get('turbine', '').strip()
             no_turbines = request.POST.get('no_turbines')
+            turbine_capacity_kw = request.POST.get('turbine_capacity_kw', '').strip()
             tilt = request.POST.get('tilt')
             direction = request.POST.get('direction', '').strip()
             installation_date = request.POST.get('installation_date')
             notes = request.POST.get('notes', '').strip()
             is_active = request.POST.get('is_active') == 'on'
 
-            # Validation
-            if not no_turbines:
-                messages.error(request, 'Number of turbines is required.')
-                return render(request, 'facility_wind_turbines/edit.html', {'installation': installation})
+            is_unspecified = (turbine_id == 'unspecified')
 
-            # Update the installation
+            def _error(msg):
+                messages.error(request, msg)
+                return render(request, 'facility_wind_turbines/edit.html', {
+                    'installation': installation,
+                    'turbines': all_turbines,
+                })
+
+            if not no_turbines:
+                return _error('Number of turbines is required.')
+            if is_unspecified and not turbine_capacity_kw:
+                return _error('Turbine capacity (kW) is required when the turbine model is Unspecified.')
+
+            n_turbines = int(no_turbines)
             installation.installation_name = installation_name if installation_name else None
-            installation.no_turbines = int(no_turbines)
+            installation.no_turbines = n_turbines
+
+            if is_unspecified:
+                installation.idwindturbines = None
+                installation.nameplate_capacity = n_turbines * float(turbine_capacity_kw) / 1000
+            else:
+                new_turbine = get_object_or_404(WindTurbines, pk=turbine_id)
+                installation.idwindturbines = new_turbine
+                installation.nameplate_capacity = None  # let it compute from rated_power
+
             installation.tilt = int(tilt) if tilt else None
             installation.direction = direction if direction else None
             installation.installation_date = installation_date if installation_date else None
@@ -712,15 +739,24 @@ def facility_wind_turbine_edit(request, pk):
             installation.is_active = is_active
             installation.save()
 
-            messages.success(request, f'Wind turbine installation updated successfully.')
+            messages.success(request, 'Wind turbine installation updated successfully.')
             return redirect('powermapui:facility_detail', pk=installation.idfacilities.idfacilities)
-            
-        except ValueError as e:
+
+        except ValueError:
             messages.error(request, 'Invalid numeric value provided.')
         except Exception as e:
             messages.error(request, f'Error updating installation: {str(e)}')
-    
-    context = {'installation': installation}
+
+    # Pre-compute per-turbine capacity for unspecified installations
+    current_capacity_kw = None
+    if installation.idwindturbines is None and installation.nameplate_capacity and installation.no_turbines:
+        current_capacity_kw = round(installation.nameplate_capacity * 1000 / installation.no_turbines, 2)
+
+    context = {
+        'installation': installation,
+        'turbines': all_turbines,
+        'current_capacity_kw': current_capacity_kw,
+    }
     return render(request, 'facility_wind_turbines/edit.html', context)
 
 @require_POST
@@ -730,7 +766,7 @@ def facility_wind_turbine_delete(request, pk):
 
     facility_id = installation.idfacilities.idfacilities
     facility_name = installation.idfacilities.facility_name
-    turbine_model = installation.idwindturbines.turbine_model
+    turbine_model = installation.idwindturbines.turbine_model if installation.idwindturbines else 'Unspecified'
 
     installation.delete()
     messages.success(request, f'Removed {turbine_model} installation from {facility_name}.')

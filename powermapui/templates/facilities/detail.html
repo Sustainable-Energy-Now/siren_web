@@ -451,8 +451,14 @@
                   {% for inst in wind_installations %}
                     <tr>
                       <td>{{ inst.installation_name|default:"Unnamed" }}</td>
-                      <td><span class="badge bg-info">{{ inst.idtechnologies.technology_name }}</span></td>
-                      <td>{{ inst.idwindturbines.turbine_model }}</td>
+                      <td><span class="badge bg-info">{{ inst.idtechnologies.technology_name|default:"—" }}</span></td>
+                      <td>
+                        {% if inst.idwindturbines %}
+                          {{ inst.idwindturbines.manufacturer|default:"" }} {{ inst.idwindturbines.turbine_model }}
+                        {% else %}
+                          <span class="text-muted fst-italic">Unspecified</span>
+                        {% endif %}
+                      </td>
                       <td>{{ inst.no_turbines }}</td>
                       <td>{{ inst.total_capacity|floatformat:2 }} MW</td>
                       <td>{{ inst.commissioning_date|default:"-" }}</td>
