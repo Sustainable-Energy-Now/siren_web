@@ -30,6 +30,7 @@ DEFAULTS = {
     'current_re_baseline_gwh': '5600',
     'pipeline_wind_gw': '2.07',
     'pipeline_solar_gw': '0.55',
+    'curtailment_rate': '0.05',
     'fossil_count': '8',
     'fossil_1': 'Synergy coal - Muja,2946,1,coal',
     'fossil_2': 'Synergy coal - Collie,871,2,coal',
@@ -84,6 +85,7 @@ def get_ret_config(config_path):
         'current_re_baseline_gwh': float(_get('current_re_baseline_gwh') or 5600),
         'pipeline_wind_gw': float(_get('pipeline_wind_gw') or 2.07),
         'pipeline_solar_gw': float(_get('pipeline_solar_gw') or 0.55),
+        'curtailment_rate': float(_get('curtailment_rate') or 0.05),
         'fossil_count': fossil_count,
         'fossil_sources': fossil_sources,
     }
@@ -101,6 +103,7 @@ def save_ret_config(config_path, post_data):
         'expected_demand_twh', 'high_demand_twh',
         'wind_capacity_factor', 'solar_capacity_factor',
         'current_re_baseline_gwh', 'pipeline_wind_gw', 'pipeline_solar_gw',
+        'curtailment_rate',
     ]
     for key in scalar_keys:
         val = post_data.get(key, '').strip()
@@ -173,7 +176,11 @@ def compute_ret_analysis(demand_twh, ret_config):
 
     pipeline_wind_gwh = wind_gw * 1000 * wind_cf * 8760 / 1000
     pipeline_solar_gwh = solar_gw * 1000 * solar_cf * 8760 / 1000
-    pipeline_total_gwh = pipeline_wind_gwh + pipeline_solar_gwh
+    pipeline_gross_gwh = pipeline_wind_gwh + pipeline_solar_gwh
+
+    curtailment_rate = ret_config['curtailment_rate']
+    pipeline_curtailed_gwh = pipeline_gross_gwh * curtailment_rate
+    pipeline_delivered_gwh = pipeline_gross_gwh - pipeline_curtailed_gwh
 
     fossil_sources = ret_config['fossil_sources']
 
@@ -181,7 +188,8 @@ def compute_ret_analysis(demand_twh, ret_config):
     for ret_pct in RET_LEVELS:
         required_re = round(demand_gwh * ret_pct / 100, 0)
         additional_needed = round(required_re - baseline, 0)
-        feasibility_gap = required_re - (baseline + pipeline_total_gwh)
+        # Feasibility uses delivered (post-curtailment) pipeline energy
+        feasibility_gap = required_re - (baseline + pipeline_delivered_gwh)
 
         if feasibility_gap <= 0:
             feasibility_text = f"Met by pipeline (surplus {abs(feasibility_gap):,.0f} GWh)"
@@ -207,6 +215,8 @@ def compute_ret_analysis(demand_twh, ret_config):
             'feasibility_gap': round(feasibility_gap, 0),
             'feasibility_text': feasibility_text,
             'feasibility_class': feasibility_class,
+            'pipeline_curtailed_gwh': round(pipeline_curtailed_gwh, 0),
+            'pipeline_delivered_gwh': round(pipeline_delivered_gwh, 0),
             'displacement': displacement,
             'displaced_coal': displaced_coal,
             'displaced_gas': displaced_gas,
@@ -227,6 +237,7 @@ def _build_chart_data(rows, demand_label):
     additional_re_gas = [r['displaced_gas'] for r in rows]
     residual_coal = [r['residual_coal'] for r in rows]
     residual_gas = [r['residual_gas'] for r in rows]
+    curtailed = [r['pipeline_curtailed_gwh'] for r in rows]
 
     traces = [
         {
@@ -243,6 +254,11 @@ def _build_chart_data(rows, demand_label):
             'type': 'bar', 'orientation': 'h',
             'name': 'Additional RE displacing gas', 'x': additional_re_gas, 'y': ret_labels,
             'marker': {'color': '#82e0aa'},
+        },
+        {
+            'type': 'bar', 'orientation': 'h',
+            'name': 'Curtailed RE (pipeline loss)', 'x': curtailed, 'y': ret_labels,
+            'marker': {'color': '#f39c12', 'pattern': {'shape': '/'}},
         },
         {
             'type': 'bar', 'orientation': 'h',
@@ -293,6 +309,7 @@ def ret_analysis_dashboard(request):
         'fossil_headers': fossil_headers,
         'chart_expected_json': json.dumps(chart_expected),
         'chart_high_json': json.dumps(chart_high),
+        'curtailment_pct': ret_config['curtailment_rate'] * 100,
         'config_file': request.session.get('config_file', DEFAULT_CONFIG_FILE),
     }
     return render(request, 'ret_analysis/dashboard.html', context)

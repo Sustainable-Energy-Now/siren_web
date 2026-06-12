@@ -31,9 +31,16 @@
   <a href="{% url 'ret_analysis_config' %}" class="btn btn-secondary btn-sm">Edit Config</a>
 </div>
 
-<p style="color:#555; margin-bottom:20px;">
+<p style="color:#555; margin-bottom:12px;">
   Analysis of how RET levels (55%–85%) displace coal and gas generation across two 2030 demand forecasts.
   Benchmarks are loaded from config: <strong>{{ config_file }}</strong>.
+</p>
+<p style="margin-bottom:20px;">
+  <span style="background:#fff3cd; border:1px solid #ffc107; padding:5px 12px; border-radius:4px; font-size:0.9em;">
+    Pipeline curtailment: <strong>{{ curtailment_pct|floatformat:1 }}%</strong> applied to pipeline RE —
+    pipeline delivered energy is reduced accordingly.
+    <a href="{% url 'ret_analysis_config' %}" style="margin-left:8px;">Edit</a>
+  </span>
 </p>
 
 <div class="tab-buttons">
