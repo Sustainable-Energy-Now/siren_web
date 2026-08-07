@@ -33,7 +33,6 @@ def reference_list(request):
         references = references.filter(
             Q(source__icontains=search_query) |
             Q(title__icontains=search_query) |
-            Q(author__icontains=search_query) |
             Q(notes__icontains=search_query) |
             Q(tags__icontains=search_query)
         )
@@ -42,6 +41,11 @@ def reference_list(request):
     ref_type = request.GET.get('type', '')
     if ref_type:
         references = references.filter(reference_type=ref_type)
+
+    # Filter by author
+    author_filter = request.GET.get('author', '')
+    if author_filter:
+        references = references.filter(author=author_filter)
 
     # Filter by model name
     model_filter = request.GET.get('model', '')
@@ -64,6 +68,17 @@ def reference_list(request):
         .order_by('model_name')
     )
 
+    # Distinct authors for filter dropdown
+    authors = (
+        Reference.objects
+        .filter(is_active=True)
+        .exclude(author='')
+        .exclude(author__isnull=True)
+        .values_list('author', flat=True)
+        .distinct()
+        .order_by('author')
+    )
+
     context = {
         'page_obj': page_obj,
         'search_query': search_query,
@@ -71,6 +86,8 @@ def reference_list(request):
         'reference_types': Reference.REFERENCE_TYPES,
         'model_filter': model_filter,
         'model_names': model_names,
+        'author_filter': author_filter,
+        'authors': authors,
         'total_count': references.count(),
     }
     return render(request, 'references/list.html', context)
