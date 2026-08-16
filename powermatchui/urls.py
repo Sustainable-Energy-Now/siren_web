@@ -2,7 +2,7 @@
 from django.urls import path, include
 from .views import variations_views, baseline_scenario_views, demand_projection_views, \
     merit_order_views, \
-    powermatchui_home_views, under_construction_views, demand_factor_views
+    powermatchui_home_views, under_construction_views, demand_factor_views, esoo_scenario_views
 app_name = 'powermatchui'
 
 urlpatterns = [
@@ -48,4 +48,7 @@ urlpatterns = [
     # API endpoints for factor details
     path('api/demand-factors/<int:pk>/details/', demand_factor_views.api_get_factor_details, name='api_get_factor_details'),
     path('api/demand-factors/scenario/<int:scenario_id>/summary/', demand_factor_views.api_scenario_factor_summary, name='api_scenario_factor_summary'),
+
+    # WEM ESOO demand-forecast scenario selector (FR-G1-01)
+    path('esoo-scenario/', esoo_scenario_views.esoo_scenario_selector, name='esoo_scenario_selector'),
 ]

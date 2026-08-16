@@ -1,0 +1,254 @@
+{% extends 'scada/base.html' %}
+{% load math_filters %}
+
+{% block title %}WEM ESOO Demand Forecast Bias Tracking{% endblock %}
+
+{% block content %}
+<header style="margin-bottom: 20px;">
+    <h1>WEM ESOO Demand Forecast Bias Tracking</h1>
+    <p style="color: #7f8c8d; font-size: 1.1em;">
+        How AEMO's WEM ESOO demand forecasts have compared with what actually happened, by year-ahead horizon.
+    </p>
+</header>
+
+<div class="info-box" style="background: #e3f2fd; border-left-color: #2196f3;">
+    <p style="margin-bottom: 0;">
+        This page is <strong>validation-first</strong>: before any archive-wide bias figures are shown, this
+        pipeline's own statistics are checked against AEMO's own published forecast-vs-actual comparison
+        (Table 11 of the 2026 WEM ESOO). The extended section below only appears once that check has run.
+    </p>
+</div>
+
+<!-- ==================================================================== -->
+<!-- Validation-first backcast (Table 11)                                  -->
+<!-- ==================================================================== -->
+<div class="section-header">
+    <h2>Validation-first Backcast — Table 11, 2026 WEM ESOO</h2>
+</div>
+
+{% if table11.status == 'error' %}
+<div class="info-box warning">
+    <h4>Validation could not run</h4>
+    <p>{{ table11.message }}</p>
+</div>
+{% else %}
+<div class="metric-grid">
+    <div class="metric-card {% if table11.all_match %}positive{% else %}negative{% endif %}">
+        <div class="metric-label">Overall Result</div>
+        <div class="metric-value" style="font-size: 1.4em;">
+            {% if table11.all_match %}✓ Matches AEMO's own figures{% else %}⚠ Divergence found{% endif %}
+        </div>
+        <div class="metric-sublabel">3 events from Table 11, p.40</div>
+    </div>
+    <div class="metric-card neutral">
+        <div class="metric-label">Reference Vintage</div>
+        <div class="metric-value" style="font-size: 1.4em;">{{ table11.reference_vintage_year }} WEM ESOO</div>
+        <div class="metric-sublabel">Extracted from the {{ table11.vintage_year }} WEM ESOO PDF</div>
+    </div>
+</div>
+
+<p style="color: #7f8c8d; margin: 10px 0 20px 0;">
+    Both the "forecast" and "actual" numbers below come from the same AEMO-published table — this check
+    verifies that this pipeline's own alignment and error functions
+    (<code>align_forecast_actual_pairs</code>, per-pair <code>.error</code>) reproduce what AEMO itself
+    states, not that the archive's loaded EsooFigure/AnnualDemandActual rows are correct (this sandbox has
+    no way to check those independently).
+</p>
+
+<table class="stats-table">
+    <thead>
+        <tr>
+            <th>Event</th>
+            <th>Trading Interval</th>
+            <th class="value">Actual (MW)</th>
+            <th class="value">POE10</th>
+            <th class="value">POE50</th>
+            <th class="value">POE90</th>
+            <th>Check</th>
+            <th>Result</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for e in table11.events %}
+        <tr>
+            <td><strong>{{ e.label }}</strong><br><span style="color:#7f8c8d; font-size:0.85em;">{{ e.metric_label }}</span></td>
+            <td>{{ e.trading_interval }}</td>
+            <td class="value">{{ e.actual_mw|floatformat:0 }}</td>
+            <td class="value">{{ e.poe10_mw|floatformat:0 }}</td>
+            <td class="value">{{ e.poe50_mw|floatformat:0 }}</td>
+            <td class="value">{{ e.poe90_mw|floatformat:0 }}</td>
+            <td>{% if e.check_type == 'exact' %}Exact gap{% else %}Band placement{% endif %}</td>
+            <td class="value {% if e.matched %}positive{% else %}negative{% endif %}">
+                {% if e.matched %}✓ match{% else %}✗ no match{% endif %}
+            </td>
+        </tr>
+        <tr>
+            <td colspan="8" style="background:#f8f9fa; font-size: 0.88em; color:#555; padding: 8px 15px;">
+                <em>AEMO's text:</em> {{ e.quote }}<br>
+                <em>Computed:</em> {{ e.detail }}
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endif %}
+
+<!-- ==================================================================== -->
+<!-- Extended archive-wide bias tracking                                   -->
+<!-- ==================================================================== -->
+<div class="section-header">
+    <h2>Extended Bias Tracking (Full Archive)</h2>
+</div>
+
+{% if not extended %}
+<div class="info-box warning">
+    <h4>No actuals populated yet</h4>
+    <p>
+        <code>AnnualDemandActual</code> has no rows yet. Run
+        <code>python manage.py compute_annual_demand_actuals --years &lt;start&gt;-&lt;end&gt;</code>
+        to populate it from SCADA data, then reload this page.
+    </p>
+</div>
+{% else %}
+<p style="color: #7f8c8d;">
+    {{ extended.n_figures }} forecast figures × {{ extended.n_actuals }} actual-metric records aligned into
+    {{ extended.n_pairs }} forecast/actual pairs.
+    {% if extended.minimum_excluded_n %}
+    {{ extended.minimum_excluded_n }} 'minimum demand' pair(s) excluded from band calibration — AEMO's
+    exceedance-direction convention for minimum demand is still an open question (spec OQ-3).
+    {% endif %}
+    {% if extended.refused %}
+    {{ extended.refused|length }} figure(s) refused during alignment due to a demand_basis mismatch (see below).
+    {% endif %}
+</p>
+
+<h3>Central-estimate Bias by Metric &amp; Horizon</h3>
+<p style="color: #7f8c8d;">
+    Expected scenario / POE50 only (the central-estimate lens). A directional verdict is only shown once
+    there is enough evidence (n ≥ 5 and a significant t-test) — otherwise this literally reads
+    "Insufficient evidence", never "no bias".
+</p>
+
+<div class="chart-container">
+    {% if bias_chart_html %}{{ bias_chart_html|safe }}{% else %}<p>No central-estimate pairs available.</p>{% endif %}
+</div>
+
+<table class="stats-table">
+    <thead>
+        <tr>
+            <th>Metric</th>
+            <th class="value">Horizon</th>
+            <th class="value">n</th>
+            <th class="value">ME</th>
+            <th class="value">MAE</th>
+            <th class="value">Mean % Error</th>
+            <th>Verdict</th>
+            <th class="value">p-value</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for r in extended.bias_rows %}
+        <tr>
+            <td>{{ r.metric_label }}</td>
+            <td class="value">+{{ r.horizon }}y</td>
+            <td class="value">{{ r.n }}</td>
+            <td class="value">{{ r.me|floatformat:1 }} {{ r.unit }}</td>
+            <td class="value">{{ r.mae|floatformat:1 }} {{ r.unit }}</td>
+            <td class="value">{% if r.me_pct != None %}{{ r.me_pct|floatformat:1 }}%{% else %}—{% endif %}</td>
+            <td>
+                <span class="verdict-badge {{ r.verdict }}">{{ r.verdict_label }}</span>
+            </td>
+            <td class="value">{% if r.p_value != None %}{{ r.p_value|floatformat:3 }}{% else %}—{% endif %}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<h3>Band Calibration</h3>
+<p style="color: #7f8c8d;">
+    For each POE band, the fraction of years the actual exceeded the forecast should roughly match the
+    nominal POE fraction if the band is well-calibrated. 'minimum demand' is excluded — see note above.
+</p>
+
+<div class="chart-container">
+    {% if calibration_chart_html %}{{ calibration_chart_html|safe }}{% else %}<p>No calibration pairs available.</p>{% endif %}
+</div>
+
+<table class="stats-table">
+    <thead>
+        <tr>
+            <th>Metric</th>
+            <th class="value">POE</th>
+            <th class="value">n</th>
+            <th class="value">Realised Frequency</th>
+            <th class="value">Nominal Frequency</th>
+            <th>Direction</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for r in extended.calibration_rows %}
+        <tr>
+            <td>{{ r.metric_label }}</td>
+            <td class="value">POE{{ r.poe }}</td>
+            <td class="value">{{ r.n }}</td>
+            <td class="value">{{ r.realised_frequency|mul:100|floatformat:1 }}%</td>
+            <td class="value">{{ r.nominal_frequency|mul:100|floatformat:1 }}%</td>
+            <td>{{ r.direction }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+{% if extended.refused %}
+<div class="info-box warning">
+    <h4>Refused pairs (demand_basis mismatch)</h4>
+    <ul class="bullet-list">
+        {% for r in extended.refused %}
+        <li>{{ r.figure.metric }} / {{ r.figure.forecast_year }}: {{ r.reason }}</li>
+        {% endfor %}
+    </ul>
+</div>
+{% endif %}
+{% endif %}
+
+<style>
+    .verdict-badge {
+        display: inline-block;
+        padding: 3px 10px;
+        border-radius: 12px;
+        font-size: 0.85em;
+        font-weight: 600;
+        color: white;
+    }
+    .verdict-badge.forecasts_run_high { background: #e74c3c; }
+    .verdict-badge.forecasts_run_low { background: #3498db; }
+    .verdict-badge.insufficient_evidence { background: #95a5a6; }
+
+    .section-header {
+        background: white;
+        padding: 30px;
+        margin-bottom: 30px;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+    .section-header h2 {
+        color: #1e3c72;
+        border-bottom: 3px solid #4CAF50;
+        padding-bottom: 10px;
+        margin-bottom: 20px;
+        font-size: 1.8em;
+    }
+    .metric-card.positive { border-left-color: #27ae60; background: linear-gradient(135deg, #ffffff 0%, #e8f5e9 100%); }
+    .metric-card.negative { border-left-color: #e74c3c; background: linear-gradient(135deg, #ffffff 0%, #ffebee 100%); }
+    .metric-card.neutral { border-left-color: #3498db; background: linear-gradient(135deg, #ffffff 0%, #e3f2fd 100%); }
+    td.value.positive { color: #27ae60; font-weight: 700; }
+    td.value.negative { color: #e74c3c; font-weight: 700; }
+    .chart-container {
+        background: white;
+        padding: 20px;
+        border-radius: 8px;
+        margin: 20px 0;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    }
+</style>
+{% endblock %}

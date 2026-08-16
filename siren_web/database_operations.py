@@ -164,22 +164,77 @@ def get_supply_by_technology(demand_year, scenario):
 
     return total_supply_by_technology
 
+def _expected_intervals_per_year(interval_minutes):
+    """Number of dispatch intervals in a (365-day) year at the given
+    scenario resolution, e.g. 8760 for hourly, 17520 for half-hourly."""
+    return 8760 * 60 // interval_minutes
+
+
+def _upsample_column_if_needed(values, interval_minutes):
+    """
+    FR-G1 resolution shim: a scenario's Load facility may be stored at
+    interval_minutes resolution (e.g. 30 for an ESOO-derived demand trace)
+    while other facilities already in the same scenario (wind/solar/
+    storage) are still stored at the legacy hourly resolution (8760
+    supplyfactors rows/year), since they were generated before this
+    scenario existed and don't need regenerating.
+
+    When that mismatch is detected (interval_minutes != 60 but this
+    column's row count still matches an hourly year), each hourly value is
+    repeated across its sub-hourly slots so every column in load_and_supply
+    ends up the same length. This is a stated simplification, not a real
+    resample: it assumes the supply-side shape is constant within the hour
+    it was stored for, so sub-hourly demand/supply shape correlation
+    (e.g. a solar ramp partway through an hour) isn't modelled. Callers
+    that need genuine sub-hourly supply-side shape must regenerate that
+    facility's supplyfactors at the finer resolution instead of relying on
+    this shim.
+
+    For interval_minutes == 60 (every scenario created before this field
+    existed), this is always a no-op: the expected count already equals
+    the stored count, so the branch below never triggers.
+    """
+    if interval_minutes == 60:
+        return values
+
+    expected = _expected_intervals_per_year(interval_minutes)
+    n = len(values)
+    if n == expected or n == 0:
+        return values
+
+    # Hourly-stored column (8760, or 8784 in a leap year) being consumed by
+    # a finer-resolution scenario: repeat each value across its sub-hourly
+    # slots. Only handles a clean integer up-sampling factor; anything else
+    # is left untouched rather than guessed at.
+    if expected % n == 0:
+        factor = expected // n
+        return [v for v in values for _ in range(factor)]
+
+    # Row count doesn't match either the native hourly count or the
+    # target resolution and isn't a clean multiple — leave as-is rather
+    # than silently misalign the trace; the dispatch loop will simply see
+    # a shorter column than expected for this technology.
+    return values
+
+
 def fetch_supplyfactors_data(demand_year, scenario):
     try:
         # Cache ScenariosTechnologies data for efficient lookup
         # This table is small (~6 rows) so we can afford to load it all
 
         scenarios_tech_query, scenario_obj = fetch_scenario_technologies(scenario)
-        
+
+        interval_minutes = getattr(scenario_obj, 'interval_minutes', 60) or 60
+
         # Create lookup dictionaries for merit order by technology ID
         tech_merit_order_lookup = {}
         tech_capacity_lookup = {}
-        
+
         for st_row in scenarios_tech_query:
             tech_id = st_row.idtechnologies.idtechnologies
             tech_merit_order_lookup[tech_id] = st_row.merit_order
             tech_capacity_lookup[tech_id] = st_row.capacity
-        
+
         # Read supplyfactors table using Django ORM
         # Filter by facilities that are associated with the scenario
         supplyfactors_query = supplyfactors.objects.filter(
@@ -190,28 +245,36 @@ def fetch_supplyfactors_data(demand_year, scenario):
         ).order_by(
             'hour'  # Order by hour
         )
-        
-        # Create a dictionary of supplyfactors from the model 
+
+        # Create a dictionary of supplyfactors from the model
         load_and_supply = {}
-        
+
         for supplyfactors_row in supplyfactors_query:
             technology = supplyfactors_row.idfacilities.idtechnologies
             name = technology.technology_name
             tech_id = technology.idtechnologies
-            
+
             # Look up mult and merit order from our cached ScenariosTechnologies data
             merit_order = tech_merit_order_lookup.get(tech_id)
-            
+
             # Skip if this technology doesn't have merit_order data in ScenariosTechnologies
             if merit_order is None:
                 continue
-                
+
             load = supplyfactors_row.quantum
-            
+
             if merit_order not in load_and_supply:
                 load_and_supply[merit_order] = []
             load_and_supply[merit_order].append(load)
-            
+
+        # Resolution shim: bring any hourly-stored columns up to this
+        # scenario's interval_minutes resolution so they line up with a
+        # finer-resolution Load column (see _upsample_column_if_needed).
+        # No-op whenever interval_minutes == 60 (every pre-existing scenario).
+        if interval_minutes != 60:
+            for merit_order, values in load_and_supply.items():
+                load_and_supply[merit_order] = _upsample_column_if_needed(values, interval_minutes)
+
     except Exception as e:
         # Handle any errors that occur during the database query
         print(f"Error fetching supplyfactors data: {e}")
@@ -305,12 +368,18 @@ def fetch_technology_attributes(demand_year, scenario):
         # Initialize dictionaries to hold results
         technology_attributes = {}
         technology_attributes['Load'] = Technology(
-            category='Load', 
+            category='Load',
             capacity=0,
             generator_name='Load',
             tech_type='L',
             merit_order=0,
-            multiplier=1)
+            multiplier=1,
+            # Carries the scenario's dispatch resolution through to
+            # balance_grid_load.PowerMatchProcessor, which has no other
+            # access to the Scenarios row. Defaults to 60 (hourly) on the
+            # Scenarios model, so every pre-existing scenario behaves
+            # exactly as before.
+            interval_minutes=getattr(scenario_obj, 'interval_minutes', 60) or 60)
         
     except Exception as e:
         print("Error executing TechnologyYears query:", e)

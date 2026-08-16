@@ -27,10 +27,19 @@ class Analysis(models.Model):
         db_table = 'Analysis'
 
 class Scenarios(models.Model):
-    idscenarios = models.AutoField(db_column='idScenarios', primary_key=True)  
-    title = models.CharField(db_column='Title', unique=True, max_length=45, blank=True, null=True)  
-    dateexported = models.DateField(db_column='DateExported', blank=True, null=True)  
-    description = models.CharField(db_column='Description', max_length=500, blank=True, null=True)  
+    idscenarios = models.AutoField(db_column='idScenarios', primary_key=True)
+    title = models.CharField(db_column='Title', unique=True, max_length=45, blank=True, null=True)
+    dateexported = models.DateField(db_column='DateExported', blank=True, null=True)
+    description = models.CharField(db_column='Description', max_length=500, blank=True, null=True)
+    interval_minutes = models.PositiveIntegerField(
+        default=60,
+        help_text=(
+            "Dispatch time-step length in minutes for this scenario's supplyfactors "
+            "data (e.g. 60 for hourly, 30 for half-hourly). Purely additive: every "
+            "scenario created before this field existed keeps its implicit hourly "
+            "behaviour via the default of 60."
+        ),
+    )
 
     class Meta:
         db_table = 'Scenarios'
@@ -4790,3 +4799,303 @@ class DjangoSession(models.Model):
     class Meta:
         managed = False
         db_table = 'django_session'
+
+# ============================================================
+# WEM ESOO Demand Forecast Tracking — Foundation models (WS1)
+# Canonical basis is operational demand (D3); every figure carries
+# full provenance (D7). See project docs for the requirements spec.
+# ============================================================
+
+ESOO_TIER_CHOICES = [
+    ('modern_comparable', 'Modern comparable (AEMO era)'),
+    ('heritage', 'Heritage (IMO era)'),
+]
+
+ESOO_INGESTION_STATUS_CHOICES = [
+    ('pending', 'Pending'),
+    ('retrieved', 'Retrieved'),
+    ('validated', 'Validated'),
+    ('quarantined', 'Quarantined'),
+]
+
+ESOO_DOMAIN_CHOICES = [
+    ('demand', 'Demand'),
+    ('supply_adequacy', 'Supply adequacy (reference only, not a Powermatch input)'),
+]
+
+ESOO_METRIC_CHOICES = [
+    ('energy', 'Annual energy'),
+    ('peak_summer', 'Peak demand (summer)'),
+    ('peak_winter', 'Peak demand (winter)'),
+    ('minimum', 'Minimum demand'),
+    ('rct', 'Reserve Capacity Target'),
+    ('eue', 'Expected Unserved Energy'),
+    ('capacity_outlook', 'Capacity outlook'),
+]
+# Added after inspecting the real 2026 WEM ESOO PDF: AEMO reports summer and
+# winter peak as two distinct series (Table 10), not a single 'peak' figure
+# as originally assumed — D2/D1 didn't anticipate this seasonal split.
+
+ESOO_SCENARIO_CHOICES = [
+    ('low', 'Low'),
+    ('expected', 'Expected'),
+    ('high', 'High'),
+    ('not_applicable', 'Not applicable'),
+]
+
+ESOO_POE_LEVEL_CHOICES = [
+    (10, 'POE10'),
+    (50, 'POE50'),
+    (90, 'POE90'),
+]
+
+ESOO_DEMAND_BASIS_CHOICES = [
+    ('operational', 'Operational'),
+    ('underlying', 'Underlying'),
+    ('other', 'Other'),
+]
+
+ESOO_EXTRACTION_METHOD_CHOICES = [
+    ('structured', 'Structured source'),
+    ('pdf', 'PDF fallback'),
+]
+
+ESOO_VALIDATION_STATUS_CHOICES = [
+    ('pending', 'Pending'),
+    ('passed', 'Passed'),
+    ('quarantined', 'Quarantined'),
+]
+
+ESOO_TAXONOMY_MAPPING_CHOICES = ESOO_SCENARIO_CHOICES + [
+    ('non_mappable', 'Non-mappable'),
+]
+
+
+class EsooMethodVersion(models.Model):
+    """
+    Timeline of AEMO forecasting-method versions (FR-F06). Lets G2 segment
+    or annotate bias results at known method breaks (obstacle O2) instead
+    of misreading a method change as a demand-forecast bias.
+    """
+    idesoomethodversion = models.AutoField(db_column='idesoomethodversion', primary_key=True)
+    version_label = models.CharField(max_length=100, unique=True)
+    effective_from_vintage = models.PositiveIntegerField(
+        help_text="First ESOO publication year this method version applies from"
+    )
+    description = models.TextField(blank=True)
+    is_breaking_change = models.BooleanField(
+        default=False,
+        help_text="Whether G2 bias analysis should segment/annotate at this version"
+    )
+
+    class Meta:
+        db_table = 'esoo_method_version'
+        ordering = ['effective_from_vintage']
+        verbose_name = 'ESOO Method Version'
+        verbose_name_plural = 'ESOO Method Versions'
+
+    def __str__(self):
+        return f"{self.version_label} (from {self.effective_from_vintage})"
+
+
+class EsooVintage(models.Model):
+    """
+    One row per WEM ESOO edition (or IMO-era predecessor), tiered per D4.
+    Root of the FR-F01 acquisition manifest.
+    """
+    idesoovintage = models.AutoField(db_column='idesoovintage', primary_key=True)
+    year = models.PositiveIntegerField(unique=True, help_text="ESOO publication year, e.g. 2024")
+    tier = models.CharField(max_length=20, choices=ESOO_TIER_CHOICES)
+    publication_date = models.DateField(null=True, blank=True)
+    source_url = models.URLField(max_length=500, blank=True)
+    checksum = models.CharField(
+        max_length=64, blank=True,
+        help_text="SHA-256 hex digest of the retrieved source document"
+    )
+    local_file_path = models.CharField(
+        max_length=500, blank=True,
+        help_text="Path (relative to ESOO_ARCHIVE_DIR) of the retrieved document"
+    )
+    method_version = models.ForeignKey(
+        EsooMethodVersion, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='vintages'
+    )
+    ingestion_status = models.CharField(
+        max_length=20, choices=ESOO_INGESTION_STATUS_CHOICES, default='pending'
+    )
+    notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'esoo_vintage'
+        ordering = ['year']
+        verbose_name = 'ESOO Vintage'
+        verbose_name_plural = 'ESOO Vintages'
+
+    def __str__(self):
+        return f"WEM ESOO {self.year} ({self.get_tier_display()})"
+
+
+ESOO_DOC_TYPE_CHOICES = [
+    ('report', 'Main ESOO report (PDF)'),
+    ('data_register', 'Data Register workbook (XLSX) — or its "Figures" half, in years AEMO split it'),
+    ('data_register_tables', 'Data Register "Tables" workbook (XLSX) — years where AEMO split the register in two'),
+    ('demand_traces', 'Demand Traces workbook (XLSB)'),
+    ('reliability_methodology', 'EY Reliability Assessment Methodology report'),
+    ('other', 'Other'),
+]
+# data_register_tables added after finding AEMO split the Data Register into
+# separate "Figures" and "Tables" workbooks for 2018-2020 (and "Figures"
+# only, no separate Tables file, for 2021/2023) before consolidating back
+# into one file per year from ~2022 onward.
+
+
+class EsooSourceDocument(models.Model):
+    """
+    Additional source documents for a vintage beyond the main report
+    (tracked on EsooVintage itself for backward compatibility). Added
+    after inspecting the 2026 vintage's real publication set: AEMO
+    publishes the Data Register workbook (structured data behind every
+    report figure — the FR-F02 structured-source-first target) and a
+    Demand Traces workbook (half-hourly, bears on OQ-1) alongside the PDF.
+    """
+    idesoosourcedocument = models.AutoField(db_column='idesoosourcedocument', primary_key=True)
+    vintage = models.ForeignKey(EsooVintage, on_delete=models.CASCADE, related_name='source_documents')
+    doc_type = models.CharField(max_length=30, choices=ESOO_DOC_TYPE_CHOICES)
+    source_url = models.URLField(max_length=500, blank=True)
+    checksum = models.CharField(max_length=64, blank=True)
+    local_file_path = models.CharField(
+        max_length=500, blank=True,
+        help_text="Path (relative to ESOO_ARCHIVE_DIR) of the retrieved document"
+    )
+    retrieved_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = 'esoo_source_document'
+        unique_together = [['vintage', 'doc_type']]
+        verbose_name = 'ESOO Source Document'
+        verbose_name_plural = 'ESOO Source Documents'
+
+    def __str__(self):
+        return f"{self.vintage.year} {self.get_doc_type_display()}"
+
+
+class EsooTaxonomyMapping(models.Model):
+    """
+    Maps a vintage's native scenario taxonomy onto the canonical
+    Low/Expected/High structure, or marks it non-mappable (FR-F05,
+    obstacle O3).
+    """
+    idesootaxonomymapping = models.AutoField(db_column='idesootaxonomymapping', primary_key=True)
+    vintage = models.ForeignKey(EsooVintage, on_delete=models.CASCADE, related_name='taxonomy_mappings')
+    native_label = models.CharField(
+        max_length=200,
+        help_text="The vintage's own scenario label, e.g. 'high customer response'"
+    )
+    mapped_scenario = models.CharField(max_length=20, choices=ESOO_TAXONOMY_MAPPING_CHOICES)
+    notes = models.TextField(blank=True, help_text="Rationale for the mapping decision")
+
+    class Meta:
+        db_table = 'esoo_taxonomy_mapping'
+        unique_together = [['vintage', 'native_label']]
+        verbose_name = 'ESOO Taxonomy Mapping'
+        verbose_name_plural = 'ESOO Taxonomy Mappings'
+
+    def __str__(self):
+        return f"{self.vintage.year}: {self.native_label} → {self.get_mapped_scenario_display()}"
+
+
+class EsooFigure(models.Model):
+    """
+    Canonical per-figure record (FR-F03/F04), covering both demand
+    figures and supply-adequacy reference figures (FR-G1-06). The
+    `domain` field enforces D5's separation in code: only domain='demand'
+    rows are ever read by the Powermatch-input pipeline.
+    """
+    idesoofigure = models.AutoField(db_column='idesoofigure', primary_key=True)
+    vintage = models.ForeignKey(EsooVintage, on_delete=models.CASCADE, related_name='figures')
+
+    domain = models.CharField(max_length=20, choices=ESOO_DOMAIN_CHOICES, default='demand')
+    metric = models.CharField(max_length=20, choices=ESOO_METRIC_CHOICES)
+    forecast_year = models.PositiveIntegerField(help_text="Year this figure forecasts")
+    demand_growth_scenario = models.CharField(
+        max_length=20, choices=ESOO_SCENARIO_CHOICES, default='not_applicable',
+        help_text="Low/Expected/High — distinct from the project 'Scenarios' model"
+    )
+    poe_level = models.PositiveIntegerField(
+        choices=ESOO_POE_LEVEL_CHOICES, null=True, blank=True,
+        help_text="10/50/90, or null where not applicable (e.g. energy)"
+    )
+    demand_basis = models.CharField(max_length=20, choices=ESOO_DEMAND_BASIS_CHOICES, default='operational')
+
+    value = models.FloatField()
+    unit = models.CharField(max_length=10, help_text="GWh for energy, MW for peak/minimum")
+
+    # Provenance (FR-F04)
+    source_document = models.CharField(max_length=255, blank=True)
+    source_version = models.CharField(max_length=100, blank=True, help_text="Published version/revision of the source")
+    table_ref = models.CharField(max_length=100, blank=True)
+    page_ref = models.CharField(max_length=50, blank=True)
+    cell_ref = models.CharField(max_length=100, blank=True)
+    extraction_date = models.DateField(null=True, blank=True)
+    extraction_method = models.CharField(max_length=20, choices=ESOO_EXTRACTION_METHOD_CHOICES, default='structured')
+    reconciliation_adjustment = models.TextField(
+        blank=True,
+        help_text="Demand-definition crosswalk applied (FR-F07); blank if published operational figure used unadjusted"
+    )
+
+    # Validation (FR-F08)
+    validation_status = models.CharField(max_length=20, choices=ESOO_VALIDATION_STATUS_CHOICES, default='pending')
+    validation_notes = models.TextField(blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'esoo_figure'
+        unique_together = [[
+            'vintage', 'domain', 'metric', 'forecast_year',
+            'demand_growth_scenario', 'poe_level', 'demand_basis',
+        ]]
+        indexes = [
+            models.Index(fields=['vintage', 'domain', 'metric']),
+            models.Index(fields=['forecast_year']),
+            models.Index(fields=['validation_status']),
+        ]
+        verbose_name = 'ESOO Figure'
+        verbose_name_plural = 'ESOO Figures'
+
+    def __str__(self):
+        return f"{self.vintage.year}/{self.forecast_year} {self.metric} {self.demand_growth_scenario} POE{self.poe_level or '-'} = {self.value} {self.unit}"
+
+
+class AnnualDemandActual(models.Model):
+    """
+    SCADA-derived actual annual demand on the canonical operational basis
+    (D3) — the realised side of every G2 bias comparison (FR-G2-01).
+    Populated by compute_annual_demand_actuals (Phase 3b), listed here
+    because it shares the Foundation's canonical-basis discipline.
+    """
+    idannualdemandactual = models.AutoField(db_column='idannualdemandactual', primary_key=True)
+    year = models.PositiveIntegerField()
+    demand_basis = models.CharField(
+        max_length=20,
+        choices=[('operational', 'Operational'), ('underlying', 'Underlying')],
+        default='operational',
+    )
+    annual_energy_gwh = models.FloatField(null=True, blank=True)
+    peak_demand_mw = models.FloatField(null=True, blank=True)
+    peak_datetime = models.DateTimeField(null=True, blank=True)
+    minimum_demand_mw = models.FloatField(null=True, blank=True)
+    minimum_datetime = models.DateTimeField(null=True, blank=True)
+    computed_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'annual_demand_actual'
+        unique_together = [['year', 'demand_basis']]
+        ordering = ['year']
+        verbose_name = 'Annual Demand Actual'
+        verbose_name_plural = 'Annual Demand Actuals'
+
+    def __str__(self):
+        return f"{self.year} ({self.demand_basis}): {self.annual_energy_gwh} GWh, peak {self.peak_demand_mw} MW"

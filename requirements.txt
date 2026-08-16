@@ -45,6 +45,7 @@ NREL-PySAM==7.1.0
 openpyxl==3.1.5
 packaging==25.0
 pandas==2.2.3
+pdfplumber==0.11.10
 pillow==12.0.0
 pipreqs==0.4.13
 plotly==6.3.1

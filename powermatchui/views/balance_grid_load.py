@@ -230,8 +230,24 @@ class PowerMatchProcessor:
     
     def _calculate_energy_balance(self, technology_attributes, load_and_supply, config) -> EnergyBalance:
         """
-        Calculate hourly energy balance with proper merit order dispatch including storage
+        Calculate energy balance with proper merit order dispatch including storage,
+        one interval at a time over the year.
+
+        Interval length is read from technology_attributes['Load'].interval_minutes
+        (propagated from Scenarios.interval_minutes by
+        database_operations.fetch_technology_attributes). Every scenario created
+        before that field existed has interval_minutes == 60 (the field's default),
+        so n_intervals == 8760 and interval_hours == 1.0 here reproduce the previous
+        hardcoded hourly behaviour exactly — this is a true no-op for those scenarios.
         """
+        # Get load data
+        load_col = technology_attributes['Load'].merit_order
+        load_multiplier = technology_attributes['Load'].multiplier
+
+        interval_minutes = getattr(technology_attributes['Load'], 'interval_minutes', 60) or 60
+        n_intervals = 8760 * 60 // interval_minutes
+        interval_hours = interval_minutes / 60
+
         # Initialize tracking arrays
         hourly_load = []
         hourly_shortfall = []
@@ -240,11 +256,7 @@ class PowerMatchProcessor:
         technology_generation = {}
         technology_totals = {}
         technology_to_meet_load = {}
-        
-        # Get load data
-        load_col = technology_attributes['Load'].merit_order
-        load_multiplier = technology_attributes['Load'].multiplier
-        
+
         # Initialize storage states and store as instance variable
         self.storage_states = self._initialize_storage_states(technology_attributes)
         
@@ -270,33 +282,38 @@ class PowerMatchProcessor:
                 minimum_generators[tech_name] = min_generation
                 total_minimum_generation += min_generation
         
-        # Process each hour
-        for h in range(8760):
-            # Get hourly load
+        # Process each interval (n_intervals == 8760 / interval_hours == 1.0 for
+        # every hourly scenario, reproducing the previous fixed range(8760) loop)
+        for h in range(n_intervals):
+            # Get load for this interval
             load_h = load_and_supply[load_col][h] * load_multiplier
             hourly_load.append(load_h)
-            
+
             # Track what each technology contributes to meeting load
             hour_to_meet_load = {}
             for tech_name in technology_attributes.keys():
                 if tech_name != 'Load':
                     hour_to_meet_load[tech_name] = 0.0
-            
-            # Apply parasitic losses to storage first
+
+            # Apply parasitic losses to storage first. parasitic_loss is a daily
+            # rate; scale by this interval's fraction of a day (interval_hours/24)
+            # rather than the fixed /24 (one hour's fraction) so a half-hourly
+            # scenario applies half as much loss per interval, twice as often.
             for storage_state in self.storage_states:
                 if storage_state.current_level > 0:
-                    parasitic_loss = storage_state.current_level * storage_state.parasitic_loss / 24
+                    parasitic_loss = storage_state.current_level * storage_state.parasitic_loss * interval_hours / 24
                     storage_state.current_level = max(0, storage_state.current_level - parasitic_loss)
                     storage_state.total_losses += parasitic_loss
-            
+
             # First pass: Handle minimum capacity requirements for dispatchable generators
             remaining_demand = load_h
             hour_curtailment = 0.0
-            
+
             for tech_name, min_generation in minimum_generators.items():
-                # Generate at minimum capacity regardless of demand
-                hour_generation = min_generation
-                
+                # min_generation is a MW capacity; convert to this interval's
+                # energy contribution (MW * interval_hours).
+                hour_generation = min_generation * interval_hours
+
                 # Track generation
                 technology_generation[tech_name].append(hour_generation)
                 technology_totals[tech_name] += hour_generation
@@ -331,7 +348,7 @@ class PowerMatchProcessor:
                 
                 if details.tech_type == 'S':  # Storage
                     hour_generation = self._dispatch_storage_hour(
-                        tech_name, self.storage_states, remaining_demand, h
+                        tech_name, self.storage_states, remaining_demand, h, interval_hours
                     )
                     hour_to_meet_load[tech_name] = hour_generation
                     remaining_demand = max(0, remaining_demand - hour_generation)
@@ -347,7 +364,7 @@ class PowerMatchProcessor:
                             
                             if available_capacity > 0 and remaining_demand > 0:
                                 hour_generation = self._dispatch_generator_hour_above_minimum(
-                                    tech_name, details, available_capacity, remaining_demand, h
+                                    tech_name, details, available_capacity, remaining_demand, h, interval_hours
                                 )
                                 # Add to existing generation from minimum pass
                                 technology_generation[tech_name][h] += hour_generation
@@ -360,14 +377,14 @@ class PowerMatchProcessor:
                         else:
                             # Regular dispatchable generator without minimum requirements
                             hour_generation = self._dispatch_generator_hour(
-                                tech_name, details, remaining_demand, h
+                                tech_name, details, remaining_demand, h, interval_hours
                             )
                             hour_to_meet_load[tech_name] = hour_generation
                             remaining_demand = max(0, remaining_demand - hour_generation)
-                    
+
                     else:  # Non-dispatchable renewable
                         available_generation = self._get_renewable_generation(
-                            tech_name, details, load_and_supply, h
+                            tech_name, details, load_and_supply, h, interval_hours
                         )
                         
                         if remaining_demand > 0:
@@ -395,7 +412,7 @@ class PowerMatchProcessor:
             
             # Handle any excess capacity for storage charging
             if hour_curtailment > 0:
-                charged_energy = self._charge_storage_systems(self.storage_states, hour_curtailment)
+                charged_energy = self._charge_storage_systems(self.storage_states, hour_curtailment, interval_hours)
                 hour_curtailment -= charged_energy
             
             # Record hourly results
@@ -430,14 +447,16 @@ class PowerMatchProcessor:
             correlation_data=correlation_data
         )
 
-    def _dispatch_generator_hour_above_minimum(self, tech_name, details, available_capacity, remaining_demand, hour) -> float:
-        """Dispatch generator above minimum capacity for one hour"""
+    def _dispatch_generator_hour_above_minimum(self, tech_name, details, available_capacity, remaining_demand, hour, interval_hours=1.0) -> float:
+        """Dispatch generator above minimum capacity for one interval"""
         if remaining_demand <= 0 or available_capacity <= 0:
             return 0.0
-        
-        # Calculate maximum additional generation above minimum
+
+        # available_capacity is a MW capacity; capacity_max is a fraction of it.
+        # Scale to this interval's energy (MW * interval_hours).
         max_capacity = available_capacity * details.capacity_max if details.capacity_max > 0 else available_capacity
-        
+        max_capacity *= interval_hours
+
         # Calculate generation needed
         if remaining_demand >= max_capacity:
             generation = max_capacity
@@ -479,17 +498,20 @@ class PowerMatchProcessor:
         
         return storage_states
     
-    def _get_renewable_generation(self, tech_name, details, load_and_supply, hour) -> float:
-        """Get available renewable generation for this hour"""
+    def _get_renewable_generation(self, tech_name, details, load_and_supply, hour, interval_hours=1.0) -> float:
+        """Get available renewable generation for this interval"""
         merit_order = details.merit_order
         if merit_order > 0 and merit_order < len(load_and_supply) and hour < len(load_and_supply[merit_order]):
+            # load_and_supply already holds one value per interval at the
+            # scenario's native resolution, so no interval_hours scaling here.
             return load_and_supply[merit_order][hour] * details.multiplier
         else:
-            # Constant generation facility or missing data
-            return details.capacity * details.multiplier
-    
-    def _dispatch_storage_hour(self, tech_name, storage_states, remaining_demand, hour) -> float:
-        """Dispatch storage for one hour"""
+            # Constant generation facility or missing data: capacity is a MW
+            # rating, scale to this interval's energy.
+            return details.capacity * details.multiplier * interval_hours
+
+    def _dispatch_storage_hour(self, tech_name, storage_states, remaining_demand, hour, interval_hours=1.0) -> float:
+        """Dispatch storage for one interval"""
         # Find this storage system
         storage_state = None
         for state in storage_states:
@@ -514,12 +536,13 @@ class PowerMatchProcessor:
             else:
                 return 0.0
         
-        # Calculate discharge amount
+        # Calculate discharge amount. discharge_rate is a MW rating; scale to
+        # this interval's maximum deliverable energy (MW * interval_hours).
         energy_needed_from_storage = remaining_demand / storage_state.discharge_efficiency
         max_discharge = min(
             energy_needed_from_storage,
             available_energy,
-            storage_state.discharge_rate
+            storage_state.discharge_rate * interval_hours
         )
         
         # Apply warm-up penalty if first hour of operation
@@ -552,15 +575,17 @@ class PowerMatchProcessor:
         """Check if storage should start a discharge run based on minimum runtime"""
         return current_demand > 0
     
-    def _dispatch_generator_hour(self, tech_name, details, remaining_demand, hour) -> float:
-        """Dispatch generator for one hour"""
+    def _dispatch_generator_hour(self, tech_name, details, remaining_demand, hour, interval_hours=1.0) -> float:
+        """Dispatch generator for one interval"""
         if remaining_demand <= 0:
             return 0.0
-        
+
+        # capacity/capacity_max/capacity_min combine into MW ratings; scale
+        # to this interval's energy (MW * interval_hours).
         capacity = details.capacity * details.multiplier
-        max_capacity = capacity * details.capacity_max if details.capacity_max > 0 else capacity
-        min_capacity = capacity * details.capacity_min
-        
+        max_capacity = (capacity * details.capacity_max if details.capacity_max > 0 else capacity) * interval_hours
+        min_capacity = capacity * details.capacity_min * interval_hours
+
         # Calculate generation
         if remaining_demand >= max_capacity:
             generation = max_capacity
@@ -568,28 +593,29 @@ class PowerMatchProcessor:
             generation = min_capacity  # Must run at minimum
         else:
             generation = remaining_demand
-        
+
         return generation
-    
-    def _charge_storage_systems(self, storage_states, available_energy) -> float:
+
+    def _charge_storage_systems(self, storage_states, available_energy, interval_hours=1.0) -> float:
         """Charge storage systems with available excess energy"""
         charged_total = 0.0
-        
+
         for storage_state in storage_states:
             if available_energy <= 0:
                 break
-            
+
             # Calculate available storage capacity
             available_capacity = storage_state.max_level - storage_state.current_level
             if available_capacity <= 0:
                 continue
-            
-            # Calculate maximum charge considering efficiency
+
+            # Calculate maximum charge considering efficiency. charge_rate is
+            # a MW rating; scale to this interval's maximum charge energy.
             max_charge_raw = available_capacity / storage_state.charge_efficiency
             max_charge = min(
                 available_energy,
                 max_charge_raw,
-                storage_state.charge_rate
+                storage_state.charge_rate * interval_hours
             )
             
             if max_charge > 0:
@@ -906,8 +932,14 @@ class PowerMatchProcessor:
         return summary_array, hourly_array
     
     def _create_hourly_array(self, energy_balance) -> np.ndarray:
-        """Create hourly data array for detailed output"""
-        num_hours = 8760
+        """Create detailed interval-by-interval output array.
+
+        Sized from the actual energy_balance data rather than a fixed 8760,
+        so this stays correct for a half-hourly (or other resolution)
+        scenario's longer arrays; for an hourly scenario len(hourly_load)
+        is still 8760, so this is a no-op change.
+        """
+        num_hours = len(energy_balance.hourly_load)
         technologies = list(energy_balance.technology_generation.keys())
         num_cols = len(technologies) + 4  # technologies + load + shortfall + surplus + curtailment
         

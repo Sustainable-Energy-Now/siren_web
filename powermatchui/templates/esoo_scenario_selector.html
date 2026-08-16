@@ -1,0 +1,165 @@
+{% extends 'powermatchui_base.html' %}
+{% load static %}
+
+{% block powermatchui_content %}
+<div class="container-fluid mt-4">
+    <div class="row">
+        <div class="col-md-10 offset-md-1">
+            <h3>WEM ESOO Demand Scenario</h3>
+            <p class="text-muted">
+                Pick a WEM ESOO demand-forecast vintage, growth scenario and POE level, and build
+                it into a Powermatch-ready scenario: a half-hourly demand trace, fitted to the
+                published peak / minimum / annual-energy anchors for that combination and written
+                as a Load facility's supply factors.
+            </p>
+
+            <div class="card">
+                <div class="card-body">
+                    <form method="post">
+                        {% csrf_token %}
+
+                        <div class="row mb-3">
+                            <div class="col-md-3">
+                                <label for="vintage" class="form-label">
+                                    ESOO Vintage <span class="text-danger">*</span>
+                                </label>
+                                <select class="form-select" id="vintage" name="vintage" required>
+                                    <option value="">Select a vintage...</option>
+                                    {% for v in vintages %}
+                                    <option value="{{ v.idesoovintage }}"
+                                            {% if selected_vintage_id|stringformat:"s" == v.idesoovintage|stringformat:"s" %}selected{% endif %}>
+                                        {{ v.year }} ({{ v.get_tier_display }})
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+
+                            <div class="col-md-3">
+                                <label for="esoo_scenario" class="form-label">
+                                    Demand Growth Scenario <span class="text-danger">*</span>
+                                </label>
+                                <select class="form-select" id="esoo_scenario" name="esoo_scenario" required>
+                                    <option value="">Select a scenario...</option>
+                                    {% for value, label in scenario_choices %}
+                                    <option value="{{ value }}" {% if selected_scenario == value %}selected{% endif %}>
+                                        {{ label }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+
+                            <div class="col-md-3">
+                                <label for="poe_level" class="form-label">
+                                    POE Level <span class="text-danger">*</span>
+                                </label>
+                                <select class="form-select" id="poe_level" name="poe_level" required>
+                                    <option value="">Select POE...</option>
+                                    {% for value, label in poe_choices %}
+                                    <option value="{{ value }}" {% if selected_poe|stringformat:"s" == value|stringformat:"s" %}selected{% endif %}>
+                                        {{ label }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                                <div class="form-text">
+                                    Applied to the peak and (where published) energy anchors. The
+                                    minimum-demand anchor always prefers POE90, falling back to the
+                                    closest POE actually published for that combination.
+                                </div>
+                            </div>
+
+                            <div class="col-md-3">
+                                <label for="forecast_year" class="form-label">
+                                    Forecast Year <span class="text-danger">*</span>
+                                </label>
+                                <input type="number" class="form-control" id="forecast_year" name="forecast_year"
+                                       value="{{ selected_forecast_year }}" min="2017" max="2045" required>
+                                <div class="form-text">
+                                    A year within the selected vintage's forecast horizon.
+                                </div>
+                            </div>
+                        </div>
+
+                        <button type="submit" class="btn btn-primary">Build Scenario</button>
+                    </form>
+                </div>
+            </div>
+
+            {% if result %}
+            <div class="card mt-4">
+                <div class="card-header">Scenario Built</div>
+                <div class="card-body">
+                    <table class="table table-sm">
+                        <tbody>
+                            <tr><th scope="row">Scenario</th><td>{{ result.title }} (id {{ result.scenario.idscenarios }})</td></tr>
+                            <tr><th scope="row">Interval length</th><td>{{ result.scenario.interval_minutes }} minutes</td></tr>
+                            <tr><th scope="row">Forecast year</th><td>{{ result.forecast_year }}</td></tr>
+                            <tr><th scope="row">Reference-year shape</th><td>{{ result.reference_year }}</td></tr>
+                            <tr><th scope="row">Supply factor rows written</th><td>{{ result.n_rows }}</td></tr>
+                            <tr><th scope="row">LDC shape exponent (gamma)</th><td>{{ result.gamma|floatformat:3 }}</td></tr>
+                            <tr>
+                                <th scope="row">Target vs. achieved</th>
+                                <td>
+                                    Peak: {{ result.peak_mw|floatformat:1 }} MW target,
+                                    {{ result.achieved_peak_mw|floatformat:1 }} MW achieved<br>
+                                    Minimum: {{ result.minimum_mw|floatformat:1 }} MW target,
+                                    {{ result.achieved_minimum_mw|floatformat:1 }} MW achieved<br>
+                                    Energy: {{ result.energy_mwh|floatformat:0 }} MWh target,
+                                    {{ result.achieved_energy_mwh|floatformat:0 }} MWh achieved
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    <p class="text-muted mb-0">
+                        This scenario has not been run through Powermatch dispatch yet — use
+                        <a href="/baseline_scenario/">Baseline Scenario</a> or
+                        <a href="/merit_order/">Set Merit Order</a> to add generation/storage
+                        facilities and dispatch against it.
+                    </p>
+                </div>
+            </div>
+            {% endif %}
+
+            {% if supply_adequacy_figures %}
+            <div class="card mt-4">
+                <div class="card-header">
+                    Supply Adequacy Reference Data (read-only — not a Powermatch input)
+                </div>
+                <div class="card-body">
+                    <p class="text-muted">
+                        Reserve Capacity Target and capacity outlook figures published alongside
+                        this vintage's demand forecasts. Shown for context only — these values are
+                        never used to build the demand trace above.
+                    </p>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-striped">
+                            <thead>
+                                <tr>
+                                    <th>Forecast Year</th>
+                                    <th>Metric</th>
+                                    <th>Scenario</th>
+                                    <th>POE</th>
+                                    <th>Value</th>
+                                    <th>Unit</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for figure in supply_adequacy_figures %}
+                                <tr>
+                                    <td>{{ figure.forecast_year }}</td>
+                                    <td>{{ figure.get_metric_display }}</td>
+                                    <td>{{ figure.get_demand_growth_scenario_display }}</td>
+                                    <td>{{ figure.poe_level|default:"-" }}</td>
+                                    <td>{{ figure.value }}</td>
+                                    <td>{{ figure.unit }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
