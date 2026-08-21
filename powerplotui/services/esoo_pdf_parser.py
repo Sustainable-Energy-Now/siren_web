@@ -276,3 +276,303 @@ def parse_esoo_pdf_to_figures(vintage) -> List[dict]:
         figure.setdefault('extraction_method', 'pdf')
 
     return figures
+
+
+# ============================================================
+# D4 heritage tier — IMO-era WEM Statement of Opportunities editions
+# (pre-AEMO; archive currently covers 2006-2012).
+#
+# Format is fundamentally different from the modern AEMO Data Register
+# (and from the modern-tier PDF tables above): plain narrative-report
+# appendix tables, not clean spreadsheet cells. Confirmed by inspecting
+# the 2006, 2009 and 2012 editions directly, appendix NUMBERING and even
+# structure shift across vintages, the same lesson learned building the
+# modern workbook extractor's SHEET_PLANS:
+#   - 2006: one combined "Maximum Demand" appendix (no Summer/Winter
+#     split), Appendix 3 (demand) + Appendix 4 (energy).
+#   - 2009, 2012: separate Summer/Winter Maximum Demand appendices,
+#     numbered differently in each edition (Appendix 2/3/4 in 2009,
+#     Appendix 3/4/5 in 2012).
+#   - Energy appendix wording varies too: "FORECAST OF SENT OUT ENERGY"
+#     (2006), "Forecasts of Energy Sent-Out" (2009, hyphenated),
+#     "Forecasts of Energy Sent Out ... Capacity Year" / "... Financial
+#     Year" as TWO separate tables (2012 only).
+# Rather than a per-vintage page/appendix-number config, this scans the
+# whole document by CONTENT (the "<season> Maximum Demand Forecasts with
+# <scenario> Economic Growth" and "Forecasts of ... Sent[- ]Out Energy
+# ... (GWh)" header text is consistent even when appendix numbers and
+# page layout aren't), the same principle as the SHEET_PLANS engine but
+# applied to text instead of spreadsheet cells.
+# ============================================================
+
+_IMO_DEMAND_HEADER_RE = re.compile(
+    r'(Summer\s+Maximum\s+Demand|Winter\s+Maximum\s+Demand|Maximum\s+Demand)\s+'
+    r'Forecasts?\s+with\s+(Expected|High|Low)\s+Economic\s+Growth',
+    re.IGNORECASE,
+)
+_IMO_ENERGY_HEADER_RE = re.compile(
+    r'Forecasts?\s+of\s+(?:Energy\s+Sent[\s-]*Out|Sent[\s-]*Out\s+Energy)'
+    r'.*?\(?GWh\)?(?:\s*[-–—]\s*(Capacity\s+Year|Financial\s+Year))?',
+    re.IGNORECASE,
+)
+_IMO_DEMAND_COLHEADER_RE = re.compile(r'^(?:Year\s+)?(?:\d+%\s*Po?E\s*)+$', re.IGNORECASE)
+_IMO_ENERGY_COLHEADER_RE = re.compile(r'^(?:Year\s+)?Expected\s+High\s+Low$', re.IGNORECASE)
+_IMO_ROW_RE = re.compile(r'^(\d{4}(?:/\d{2})?)\s+(.+)$')
+_IMO_NUMBER_RE = re.compile(r'-?[\d,]+(?:\.\d+)?')
+
+_IMO_DEMAND_POE_ORDER = (10, 50, 90)
+_IMO_ENERGY_SCENARIO_ORDER = ('expected', 'high', 'low')
+
+# Table-of-contents entries repeat the exact same appendix heading text,
+# followed by dot-leaders and a page number (e.g. 'Maximum Demand
+# Forecasts with Expected Economic Growth (MW)..................v') --
+# confirmed to false-trigger the header regexes above on the ToC page,
+# many pages before the real appendix, corrupting everything in between
+# with unrelated tables. A run of 2+ dots is a reliable, simple signature
+# a genuine appendix heading never has.
+_IMO_TOC_LEADER_RE = re.compile(r'\.{2,}')
+
+# In 2009/2012, the Summer/Winter qualifier is repeated on the per-scenario
+# sub-header ('Summer Maximum Demand Forecasts with Expected Economic
+# Growth'). In 2008, it is NOT -- the sub-header is just 'Maximum Demand
+# Forecasts with Expected Economic Growth' for BOTH its Summer and Winter
+# appendices, with the season only stated once on the Appendix TITLE line
+# ('Appendix 2 - Forecasts of Summer Maximum Demand' / 'Appendix 3 -
+# Forecasts of Winter Maximum Demand'). Confirmed as a real bug: without
+# tracking this separately, both appendices' sub-headers fell back to the
+# same default season and silently collided on the same natural key, with
+# the second table's values overwriting the first's. This title-line
+# regex captures the season as a fallback for a sub-header that doesn't
+# repeat it.
+_IMO_APPENDIX_TITLE_SEASON_RE = re.compile(
+    r'Appendix\s+\d+.*?Forecasts?\s+of\s+(Summer\s+Maximum\s+Demand|Winter\s+Maximum\s+Demand|Maximum\s+Demand)',
+    re.IGNORECASE,
+)
+
+# A new 'Appendix N' heading unambiguously marks a transition to different
+# content -- confirmed necessary after finding a real bug: the energy
+# table on one page's Appendix 5 (Sent-out Energy) has no explicit 'end of
+# table' marker, so the very next appendix's *different* table (Appendix
+# 6, Generation and DSM Capacity -- 5 numeric columns, coincidentally also
+# year-led) was silently consumed as more energy rows, overwriting correct
+# data with bogus constants-per-year for every subsequent year. Reset
+# state on ANY 'Appendix N' heading, even one this parser doesn't
+# otherwise recognise, rather than only on a demand/energy header match.
+_IMO_APPENDIX_HEADING_RE = re.compile(r'^Appendix\s+\d+\b', re.IGNORECASE)
+
+
+def _imo_year_to_forecast_year(label: str) -> int:
+    """'2012/13' -> 2012. A bare 'YYYY' label (used for Winter Maximum
+    Demand rows in some vintages, e.g. 2012's '2012' vs its Summer
+    table's '2012/13') is taken to denote the SAME capacity year, i.e.
+    also forecast_year=int(label[:4]). This is an ASSUMPTION -- no IMO
+    edition inspected so far states explicitly what the bare-year Winter
+    label means -- not a confirmed fact; revisit if a vintage's own text
+    ever clarifies it (heritage tier, D4/D7)."""
+    return int(label[:4])
+
+
+def _imo_clean_numbers(rest: str):
+    """Return the numeric values in `rest` if `rest` is nothing BUT
+    numbers (plus an optional '(Projected)'-style annotation) -- None
+    otherwise. Guards against page furniture that happens to start with
+    a 4-digit token, e.g. a running footer like '2009 Statement of
+    Opportunities Report Page 50 of 56', being mistaken for a real data
+    row (it would match _IMO_ROW_RE's leading-year pattern, but 'Page 50
+    of 56' fails this cleanliness check and gets rejected)."""
+    cleaned = re.sub(r'\((?:Projected|Estimate[d]?|Actual)\)', '', rest, flags=re.IGNORECASE)
+    numbers = _IMO_NUMBER_RE.findall(cleaned)
+    leftover = _IMO_NUMBER_RE.sub('', cleaned).strip()
+    if leftover or not numbers:
+        return None
+    values = []
+    for n in numbers:
+        try:
+            values.append(float(n.replace(',', '')))
+        except ValueError:
+            return None
+    return values
+
+
+def _imo_page_lines(pdf_path):
+    """Yield (page_num, line_text) for every non-blank line, in reading
+    order. Plain-text regex parsing (not extract_tables()) is the robust
+    choice here: multiple scenario sub-tables can share a page without
+    reliably separating into distinct pdfplumber Table objects, but the
+    'with <Scenario> Economic Growth' header text in front of each one
+    always does."""
+    with pdfplumber.open(pdf_path) as pdf:
+        for page_num, page in enumerate(pdf.pages, start=1):
+            text = page.extract_text() or ''
+            for line in text.split('\n'):
+                line = line.strip()
+                if line:
+                    yield page_num, line
+
+
+def _parse_imo_appendices(pdf_path):
+    """Single pass producing raw (not yet EsooFigure-shaped) demand and
+    energy rows tagged with page/scenario/metric context. See the
+    heritage-tier section docstring above for why this is content-driven
+    rather than a per-vintage page/appendix-number config."""
+    demand_rows = []
+    energy_rows = []
+
+    demand_metric = None
+    demand_scenario = None
+    energy_variant = None  # 'capacity_year' | 'financial_year'
+    energy_active = False
+    appendix_season = None  # fallback season from the enclosing Appendix's title line
+
+    for page_num, line in _imo_page_lines(pdf_path):
+        if _IMO_TOC_LEADER_RE.search(line):
+            continue  # table-of-contents entry, not a real appendix heading or data row
+
+        title_season = _IMO_APPENDIX_TITLE_SEASON_RE.search(line)
+        if title_season:
+            season_text = title_season.group(1).lower()
+            appendix_season = 'winter' if 'winter' in season_text else ('summer' if 'summer' in season_text else None)
+            demand_metric = None
+            energy_active = False
+            continue
+
+        dm = _IMO_DEMAND_HEADER_RE.search(line)
+        if dm:
+            season_text = dm.group(1).lower()
+            if 'winter' in season_text:
+                demand_metric = 'peak_winter'
+            elif 'summer' in season_text:
+                demand_metric = 'peak_summer'
+            else:
+                # Sub-header doesn't repeat the season itself (2008-style)
+                # -- fall back to the enclosing Appendix title's season;
+                # if that's also unset (2006/2007-style single combined
+                # appendix, no Summer/Winter split at all), default to
+                # peak_summer, matching the convention used throughout
+                # this project for an unqualified/general system peak.
+                demand_metric = 'peak_winter' if appendix_season == 'winter' else 'peak_summer'
+            demand_scenario = dm.group(2).lower()
+            energy_active = False
+            continue
+
+        em = _IMO_ENERGY_HEADER_RE.search(line)
+        if em:
+            variant_text = (em.group(1) or '').lower()
+            energy_variant = 'financial_year' if 'financial' in variant_text else 'capacity_year'
+            energy_active = True
+            demand_metric = None
+            continue
+
+        if _IMO_APPENDIX_HEADING_RE.match(line):
+            # A new appendix that ISN'T itself a demand/energy header we
+            # recognise -- e.g. 'Appendix 6 Generation and DSM Capacity'.
+            # Stop treating subsequent rows as belonging to whatever table
+            # was active before.
+            demand_metric = None
+            appendix_season = None
+            energy_active = False
+            continue
+
+        if _IMO_DEMAND_COLHEADER_RE.match(line) or _IMO_ENERGY_COLHEADER_RE.match(line):
+            continue  # column-header line, not data
+
+        row_match = _IMO_ROW_RE.match(line)
+        if not row_match:
+            continue
+        year_label, rest = row_match.groups()
+        values = _imo_clean_numbers(rest)
+        if values is None:
+            continue
+
+        if energy_active:
+            energy_rows.append({
+                'page': page_num, 'variant': energy_variant,
+                'year_label': year_label, 'values': values[:3],
+            })
+        elif demand_metric:
+            demand_rows.append({
+                'page': page_num, 'metric': demand_metric, 'scenario': demand_scenario,
+                'year_label': year_label, 'values': values[:3],
+            })
+
+    return demand_rows, energy_rows
+
+
+def parse_imo_heritage_pdf_to_figures(vintage) -> List[dict]:
+    """
+    D4 heritage-tier PDF extraction entry point for IMO-era WEM SOO
+    editions. See the section docstring above for the format differences
+    from the modern-tier extractors this parses instead of.
+
+    Demand basis: IMO reports 'Sent Out Energy' and 'Maximum Demand' --
+    mapped to this schema's 'operational' basis (grid-supplied) as the
+    closest available match, per FR-F07, but NOT confirmed identical to
+    AEMO's later operational definition; every figure carries that
+    caveat in reconciliation_adjustment rather than asserting equivalence
+    silently.
+
+    Raises ValueError if no recognisable appendix content is found at
+    all -- surfacing an unfamiliar layout rather than silently returning
+    nothing (FR-F07: "without fabricating precision").
+    """
+    if not vintage.local_file_path:
+        raise ValueError(f"EsooVintage {vintage.year} has no local_file_path; fetch it first.")
+
+    pdf_path = Path(settings.ESOO_ARCHIVE_DIR) / vintage.local_file_path
+    demand_rows, energy_rows = _parse_imo_appendices(pdf_path)
+
+    if not demand_rows and not energy_rows:
+        raise ValueError(
+            f"No IMO-style demand/energy appendix tables found in {vintage.local_file_path} -- "
+            f"layout may differ from the 2006/2009/2012 editions this parser was built against; "
+            f"inspect the PDF directly before extending _IMO_DEMAND_HEADER_RE/_IMO_ENERGY_HEADER_RE."
+        )
+
+    figures = []
+    basis_note = (
+        "IMO-era 'Sent Out'/'Maximum Demand' terminology mapped to this project's "
+        "operational basis as the closest available match (heritage tier, D4) -- not "
+        "confirmed identical to AEMO's later operational definition."
+    )
+
+    for row in demand_rows:
+        for poe_level, value in zip(_IMO_DEMAND_POE_ORDER, row['values']):
+            figures.append({
+                'domain': 'demand', 'metric': row['metric'],
+                'forecast_year': _imo_year_to_forecast_year(row['year_label']),
+                'demand_growth_scenario': row['scenario'], 'poe_level': poe_level,
+                'demand_basis': 'operational', 'value': value, 'unit': 'MW',
+                'table_ref': f"Appendix ({row['metric']}, {row['scenario']})",
+                'page_ref': str(row['page']), 'cell_ref': f"{row['year_label']} / POE{poe_level}",
+                'reconciliation_adjustment': basis_note,
+            })
+
+    # Prefer the Capacity Year energy table over a Financial Year one when
+    # a vintage publishes both (2012-style) -- matches this project's
+    # established forecast_year convention (WEM Capacity Year, Oct-Oct)
+    # rather than whichever table happened to print first in the PDF.
+    variants_present = {row['variant'] for row in energy_rows}
+    energy_variant_to_use = 'capacity_year' if 'capacity_year' in variants_present else 'financial_year'
+
+    for row in energy_rows:
+        if row['variant'] != energy_variant_to_use:
+            continue
+        for scenario, value in zip(_IMO_ENERGY_SCENARIO_ORDER, row['values']):
+            figures.append({
+                'domain': 'demand', 'metric': 'energy',
+                'forecast_year': _imo_year_to_forecast_year(row['year_label']),
+                'demand_growth_scenario': scenario, 'poe_level': None,
+                'demand_basis': 'operational', 'value': value, 'unit': 'GWh',
+                'table_ref': f"Appendix (energy sent out, {row['variant']})",
+                'page_ref': str(row['page']), 'cell_ref': f"{row['year_label']} / {scenario}",
+                'reconciliation_adjustment': basis_note,
+            })
+
+    today = date.today()
+    for figure in figures:
+        figure.setdefault('source_document', vintage.local_file_path)
+        figure.setdefault('source_version', str(vintage.year))
+        figure.setdefault('extraction_date', today)
+        figure.setdefault('extraction_method', 'pdf')
+
+    return figures

@@ -867,7 +867,12 @@ def export_scada_to_excel(request):
         worksheet.title = 'Technology SCADA'
 
         tech_names = ', '.join(technologies.values_list('technology_name', flat=True))
-        headers = [get_x_label(aggregation), f'{tech_names} Generation (MW)']
+        # Values are summed MWh per period -- only numerically equal to
+        # average MW when aggregation='hour' (a 1-hour bucket). For
+        # week/month buckets this is a cumulative energy total, so label
+        # it MWh regardless of aggregation to avoid overstating what a
+        # week/month "MW" figure would mean.
+        headers = [get_x_label(aggregation), f'{tech_names} Generation (MWh)']
         worksheet.append(headers)
 
         for i, period in enumerate(data['periods']):

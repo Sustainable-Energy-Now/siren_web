@@ -865,9 +865,12 @@ class FacilityManager:
         result = []
         
         for facility in facilities_qs:
-            # Convert to MWh (5-minute intervals = 5/60 hours)
-            total_mwh = facility.total_quantity * (5/60) if facility.total_quantity else 0
-            
+            # FacilityScada.quantity is already half-hourly ENERGY (MWh),
+            # not a 5-minute power reading -- confirmed 2026-08-19 against
+            # live AEMO data (see compute_annual_demand_actuals.py's module
+            # docstring). Summing it directly gives total MWh, no scaling.
+            total_mwh = facility.total_quantity if facility.total_quantity else 0
+
             # Convert MWh to GWh
             monthly_generation_gwh = total_mwh / 1000
             
@@ -996,9 +999,10 @@ class FacilityManager:
         result = []
         
         for facility in facilities_qs:
-            # Convert to MWh (5-minute intervals = 5/60 hours)
+            # FacilityScada.quantity is already half-hourly MWh -- no
+            # scaling needed (this one was already correct).
             total_mwh = facility.total_quantity if facility.total_quantity else 0
-            
+
             # Convert MWh to GWh
             monthly_generation_gwh = total_mwh / 1000
             

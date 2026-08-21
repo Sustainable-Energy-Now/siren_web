@@ -24,7 +24,7 @@ class FacilityAnalyzer:
         - negative_intervals: Count of intervals consuming
         """
         data = FacilityScada.objects.filter(
-            facility__facility_code=facility_code
+            facility__facility_code=facility_code,
             dispatch_interval__gte=start_date,
             dispatch_interval__lt=end_date
         ).order_by('dispatch_interval')
@@ -33,31 +33,35 @@ class FacilityAnalyzer:
             return None
         
         df = pd.DataFrame(data.values('dispatch_interval', 'quantity'))
-        
-        df['energy_mwh'] = df['quantity'] # Assuming quantity is already in MWh for the interval
-        
+
+        # quantity is half-hourly ENERGY (MWh), confirmed 2026-08-19 against
+        # live AEMO data (see compute_annual_demand_actuals.py's module
+        # docstring). Average/max MW for a half-hourly interval = MWh / 0.5h.
+        df['energy_mwh'] = df['quantity']
+        df['power_mw'] = df['quantity'] * 2
+
         # Separate positive and negative
         positive_df = df[df['quantity'] > 0]
         negative_df = df[df['quantity'] < 0]
         zero_df = df[df['quantity'] == 0]
-        
+
         analysis = {
             'facility_code': facility_code,
             'start_date': start_date,
             'end_date': end_date,
             'total_intervals': len(df),
-            
+
             # Generation (positive)
             'generation_intervals': len(positive_df),
             'total_generation_mwh': float(positive_df['energy_mwh'].sum()) if len(positive_df) > 0 else 0,
-            'avg_generation_mw': float(positive_df['quantity'].mean()) if len(positive_df) > 0 else 0,
-            'max_generation_mw': float(positive_df['quantity'].max()) if len(positive_df) > 0 else 0,
-            
+            'avg_generation_mw': float(positive_df['power_mw'].mean()) if len(positive_df) > 0 else 0,
+            'max_generation_mw': float(positive_df['power_mw'].max()) if len(positive_df) > 0 else 0,
+
             # Consumption (negative)
             'consumption_intervals': len(negative_df),
             'total_consumption_mwh': abs(float(negative_df['energy_mwh'].sum())) if len(negative_df) > 0 else 0,
-            'avg_consumption_mw': abs(float(negative_df['quantity'].mean())) if len(negative_df) > 0 else 0,
-            'max_consumption_mw': abs(float(negative_df['quantity'].min())) if len(negative_df) > 0 else 0,
+            'avg_consumption_mw': abs(float(negative_df['power_mw'].mean())) if len(negative_df) > 0 else 0,
+            'max_consumption_mw': abs(float(negative_df['power_mw'].min())) if len(negative_df) > 0 else 0,
             
             # Offline/Zero
             'zero_intervals': len(zero_df),

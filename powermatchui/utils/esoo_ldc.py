@@ -88,6 +88,7 @@ def fit_ldc_to_anchors(
     interval_hours: float = 0.5,
     reference_year: Optional[str] = None,
     gamma_bracket=(1e-4, 1e4),
+    target_n_intervals: Optional[int] = None,
 ) -> LDCFit:
     """
     Construct a target LDC that exactly reproduces target_peak,
@@ -95,6 +96,23 @@ def fit_ldc_to_anchors(
     duration-curve shape (a chronological or unsorted array of MW values
     for one reference year, e.g. from FacilityScada or the AEMO Demand
     Traces workbook) as the shape prior (D10).
+
+    `target_n_intervals` is the number of intervals the *target* forecast
+    year actually spans (e.g. 17520 for a non-leap half-hourly year) and
+    is used only to convert target_energy_mwh into a target average MW.
+    It defaults to len(reference_shape) for backward compatibility, but
+    callers should always pass the target year's real interval count
+    explicitly: if the reference year is shorter than a full year (a
+    still-in-progress current year, or a year with data gaps), using its
+    length here would silently inflate the implied target average — and
+    with it gamma — even though the reference shape's own length is a
+    separate, correct concern (the number of chronological slots the
+    synthesised trace is rank-mapped onto, handled entirely by
+    esoo_trace_synthesis.py). Conflating the two produced a real bug:
+    building a scenario against an in-progress current year understated
+    the reference length relative to the target year's full-year energy
+    figure, inflating the target average and forcing gamma to an
+    extreme, misleadingly-flagged-as-"non-stationarity" value.
 
     Raises LDCConstructionError if the anchors are inconsistent (the
     energy-implied average must lie strictly between target_minimum and
@@ -110,8 +128,9 @@ def fit_ldc_to_anchors(
     reference_ldc = compute_duration_curve(reference_shape)
     normalised_ref = peak_normalise(reference_ldc)
     n = normalised_ref.size
+    n_target = target_n_intervals if target_n_intervals is not None else n
 
-    target_average = target_energy_mwh / (n * interval_hours)
+    target_average = target_energy_mwh / (n_target * interval_hours)
     if not (target_minimum < target_average < target_peak):
         raise LDCConstructionError(
             f"Energy-implied average ({target_average:.2f}) must lie strictly between "

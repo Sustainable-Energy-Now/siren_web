@@ -1,18 +1,26 @@
 # siren_web/management/commands/extract_esoo_figures.py
 """
 Runs a vintage's registered FIGURE_EXTRACTORS mapping(s) and loads the
-results into EsooFigure (FR-F02/F03/F04). Tries the structured workbook
-source first (esoo_workbook_parser) and the PDF fallback second
-(esoo_pdf_parser), per FR-F02's structured-source-first priority — where
-both cover the same natural key (e.g. the PDF's rounded Expected-scenario
-figures vs. the workbook's full-precision equivalents), the workbook's
-values are applied last and win.
+results into EsooFigure (FR-F02/F03/F04).
+
+Modern-comparable tier (D4): tries the structured workbook source first
+(esoo_workbook_parser) and the PDF fallback second (esoo_pdf_parser), per
+FR-F02's structured-source-first priority — where both cover the same
+natural key (e.g. the PDF's rounded Expected-scenario figures vs. the
+workbook's full-precision equivalents), the workbook's values are applied
+last and win.
+
+Heritage tier (D4): IMO-era editions have no structured workbook at all
+and a fundamentally different PDF layout (see esoo_pdf_parser.py's
+heritage-tier section) — dispatched to
+esoo_pdf_parser.parse_imo_heritage_pdf_to_figures() instead, no workbook
+attempt.
 """
 from django.core.management.base import BaseCommand
 from django.db import connection
 
 from siren_web.models import EsooVintage, EsooFigure
-from powerplotui.services.esoo_pdf_parser import parse_esoo_pdf_to_figures
+from powerplotui.services.esoo_pdf_parser import parse_esoo_pdf_to_figures, parse_imo_heritage_pdf_to_figures
 from powerplotui.services.esoo_workbook_parser import parse_esoo_workbook_to_figures
 
 KEY_FIELDS = ('domain', 'metric', 'forecast_year', 'demand_growth_scenario', 'poe_level', 'demand_basis')
@@ -46,31 +54,42 @@ class Command(BaseCommand):
         # query rather than reusing a connection MySQL has already dropped.
         connection.close()
 
-        pdf_figures = []
-        if not options['workbook_only']:
+        if vintage.tier == 'heritage':
             try:
-                pdf_figures = parse_esoo_pdf_to_figures(vintage)
-                self.stdout.write(f'PDF fallback: {len(pdf_figures)} candidate figure(s).')
-            except (NotImplementedError, ValueError) as e:
-                self.stdout.write(self.style.WARNING(f'PDF fallback skipped: {e}'))
+                ordered_figures = parse_imo_heritage_pdf_to_figures(vintage)
+                self.stdout.write(f'IMO heritage-tier PDF: {len(ordered_figures)} candidate figure(s).')
+            except ValueError as e:
+                self.stdout.write(self.style.ERROR(f'Heritage-tier extraction failed: {e}'))
+                return
+            if not ordered_figures:
+                self.stdout.write(self.style.ERROR('Nothing extracted.'))
+                return
+        else:
+            pdf_figures = []
+            if not options['workbook_only']:
+                try:
+                    pdf_figures = parse_esoo_pdf_to_figures(vintage)
+                    self.stdout.write(f'PDF fallback: {len(pdf_figures)} candidate figure(s).')
+                except (NotImplementedError, ValueError) as e:
+                    self.stdout.write(self.style.WARNING(f'PDF fallback skipped: {e}'))
 
-        connection.close()  # same reasoning — the workbook path also does a DB lookup then slow local parsing
+            connection.close()  # same reasoning — the workbook path also does a DB lookup then slow local parsing
 
-        workbook_figures = []
-        if not options['pdf_only']:
-            try:
-                workbook_figures = parse_esoo_workbook_to_figures(vintage)
-                self.stdout.write(f'Structured workbook: {len(workbook_figures)} candidate figure(s).')
-            except (NotImplementedError, ValueError) as e:
-                self.stdout.write(self.style.WARNING(f'Structured workbook skipped: {e}'))
+            workbook_figures = []
+            if not options['pdf_only']:
+                try:
+                    workbook_figures = parse_esoo_workbook_to_figures(vintage)
+                    self.stdout.write(f'Structured workbook: {len(workbook_figures)} candidate figure(s).')
+                except (NotImplementedError, ValueError) as e:
+                    self.stdout.write(self.style.WARNING(f'Structured workbook skipped: {e}'))
 
-        if not pdf_figures and not workbook_figures:
-            self.stdout.write(self.style.ERROR('Nothing extracted from either source.'))
-            return
+            if not pdf_figures and not workbook_figures:
+                self.stdout.write(self.style.ERROR('Nothing extracted from either source.'))
+                return
 
-        # Structured source applied last so it wins where both cover the
-        # same natural key (FR-F02 priority).
-        ordered_figures = pdf_figures + workbook_figures
+            # Structured source applied last so it wins where both cover the
+            # same natural key (FR-F02 priority).
+            ordered_figures = pdf_figures + workbook_figures
 
         if options['dry_run']:
             for f in ordered_figures:

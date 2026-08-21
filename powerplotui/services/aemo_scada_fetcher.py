@@ -660,8 +660,18 @@ class AEMOScadaFetcher:
                 quantity = VALUES(quantity)
         """
         
+        # mysqlclient's parameter binding formats datetimes via strftime()
+        # on their wall-clock fields and ignores tzinfo entirely -- unlike
+        # the Django ORM (which converts aware datetimes to UTC before
+        # handing them to the driver when USE_TZ=True). Going through a
+        # raw cursor here bypasses that conversion, so an aware AWST
+        # dispatch_interval (e.g. 08:00+08:00) would otherwise be written
+        # as literal "08:00:00", which Django's ORM then reads back and
+        # relabels as UTC -- an 8-hour mislabelling. Convert to UTC
+        # explicitly so the stored wall-clock value matches what the ORM
+        # would have written.
         values = [
-            (r['dispatch_interval'], r['facility_id'], r['quantity'])
+            (r['dispatch_interval'].astimezone(pytz.utc), r['facility_id'], r['quantity'])
             for r in hourly_records
         ]
         

@@ -67,6 +67,15 @@ INTERVAL_HOURS = 0.5  # FR-G1-01 always builds a half-hourly demand trace
 LOAD_TECHNOLOGY_NAME = 'Load'
 LOAD_TECHNOLOGY_SIGNATURE = 'LOAD'
 
+
+def _expected_half_hourly_intervals(year: int) -> int:
+    """Real half-hourly interval count for one calendar year -- used to
+    convert a target year's annual energy anchor into a target average MW
+    (fit_ldc_to_anchors' target_n_intervals), independent of however long
+    the reference year's own shape array happens to be."""
+    import calendar
+    return (366 if calendar.isleap(year) else 365) * 48
+
 # A reference year needs to be close to a full half-hourly year of
 # FacilityScada data (17520 intervals in a non-leap year, 17568 in a leap
 # year) to be trusted as a shape prior; this allows headroom for minor
@@ -195,10 +204,18 @@ def resolve_esoo_anchors(vintage: EsooVintage, esoo_scenario: str, poe: int, for
 
 def build_reference_shape():
     """
-    Aggregate real FacilityScada data (half-hourly, MW) to total system
-    operational demand per interval, for one reference year — the D10
-    "reference-year shape prior" fed to fit_ldc_to_anchors /
-    synthesize_chronological_trace.
+    Aggregate real FacilityScada data to total system operational demand
+    per interval, for one reference year — the D10 "reference-year shape
+    prior" fed to fit_ldc_to_anchors / synthesize_chronological_trace.
+
+    FacilityScada.quantity is half-hourly ENERGY (MWh), not power (MW) --
+    confirmed 2026-08-19 against live AEMO data (see
+    compute_annual_demand_actuals.py's module docstring). Average MW per
+    interval = MWh / 0.5h, so the per-interval sum below is doubled. This
+    scaling has no effect on fit_ldc_to_anchors' gamma or the synthesised
+    trace's shape -- peak_normalise() divides out any uniform constant --
+    but keeping it in true MW avoids a mislabelled variable and matters if
+    this shape is ever consumed anywhere that isn't normalisation-first.
 
     "Total system operational demand" is approximated here as the sum of
     all facilities' SCADA generation across the whole interval set, which
@@ -215,11 +232,16 @@ def build_reference_shape():
     (FR-G1-04's optional per-forecast-year cycling) is not wired up here;
     every call uses the single most recent complete year.
     """
+    # Count DISTINCT dispatch_interval values per year, not raw
+    # FacilityScada rows -- a plain Count('scada_year') counts one row per
+    # facility per interval (~76 facilities), so even a partial year
+    # trivially clears MIN_INTERVALS_FOR_REFERENCE_YEAR on row volume
+    # alone, letting an in-progress current year masquerade as complete.
     year_counts = (
         FacilityScada.objects
         .annotate(scada_year=ExtractYear('dispatch_interval'))
         .values('scada_year')
-        .annotate(n=Count('scada_year'))
+        .annotate(n=Count('dispatch_interval', distinct=True))
         .order_by('scada_year')
     )
     complete_years = [
@@ -238,10 +260,10 @@ def build_reference_shape():
         FacilityScada.objects
         .filter(dispatch_interval__year=int(reference_year))
         .values('dispatch_interval')
-        .annotate(total_mw=Sum('quantity'))
+        .annotate(total_mwh=Sum('quantity'))
         .order_by('dispatch_interval')
     )
-    reference_shape = np.array([float(r['total_mw']) for r in rows], dtype=float)
+    reference_shape = np.array([float(r['total_mwh']) * 2 for r in rows], dtype=float)
     if reference_shape.size == 0:
         raise ReferenceShapeError(f"No aggregated FacilityScada data found for reference year {reference_year}.")
 
@@ -290,6 +312,7 @@ def build_scenario_from_esoo(vintage: EsooVintage, esoo_scenario: str, poe: int,
         target_energy_mwh=energy_mwh,
         interval_hours=INTERVAL_HOURS,
         reference_year=reference_year,
+        target_n_intervals=_expected_half_hourly_intervals(forecast_year),
     )
 
     synthesis = synthesize_chronological_trace(

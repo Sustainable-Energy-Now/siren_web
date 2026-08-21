@@ -25,35 +25,46 @@ baked into every downstream bias statistic without any error being raised.
 So here, `--year N` means Capacity Year N-(N+1): the half-open window
 [1 Oct N 08:00 AWST, 1 Oct N+1 08:00 AWST).
 
-Unit convention: FacilityScada.quantity is MW, stored at HALF-HOURLY
-resolution. Confirmed from powerplotui/services/aemo_scada_fetcher.py's
-_save_data()/_aggregate_to_half_hourly(): every insert into facility_scada
-is keyed to a dispatch_interval rounded down to a :00/:30 boundary before
-the DB write (`unique_together = ['dispatch_interval', 'facility']` in the
-model reinforces this -- there is one row per facility per half hour, never
-per 5 minutes). So energy per interval is MW * 0.5h, matching
-update_ret_dashboard.py's convention (`* 0.5`), NOT
-powerplotui/views/scada_views.py's FacilityManager.get_all_facilities_with_
-performance(), which assumes 5-minute rows (`* (5/60)`) -- that assumption
-predates (or was simply never updated for) the half-hourly aggregation the
-fetcher actually performs, and using it here would inflate every
-annual_energy_gwh value by 0.5 / (5/60) = 6x, exactly the "factor of ~6"
-risk this command was built to avoid.
+Unit convention -- RESOLVED 2026-08-19 against real live AEMO data:
+FacilityScada.quantity is HALF-HOURLY ENERGY (MWh), not power (MW), stored
+at half-hourly resolution (`unique_together = ['dispatch_interval',
+'facility']` -- one row per facility per half hour).
 
-Secondary, UNRESOLVED caveat worth flagging (not fixed here -- it lives in
-the shared ingestion path, out of scope for this command):
-_aggregate_to_half_hourly() builds each half-hourly value by SUMMING six
-raw 5-minute AEMO quantities rather than averaging them, on the stated
-assumption that the raw 5-minute quantity is itself an energy value (mWh)
-rather than a power reading (MW). If that assumption is wrong -- and the
-JSON parser's `item.get('quantity') or item.get('mw')` fallback key
-naming suggests the raw field really is a power reading in MW -- every
-half-hourly FacilityScada.quantity is inflated ~6x relative to true average
-MW for that half hour, which would flow through to every number this
-command produces despite the half-hourly convention above being correctly
-identified. This needs verification against a real ingested day's data
-(impossible in this sandbox -- no DB access) before the numbers here are
-treated as ground truth; see the Phase 3b final report for detail.
+Verified directly against AEMO's live 5-minute SCADA feed: raw 5-minute
+`quantity` readings for a real baseload coal unit (BW1_BLUEWATERS_G2,
+217 MW nameplate) sat steady at ~17.9-17.95 across a full hour. Read as MW,
+that is an implausible ~8% capacity factor for baseload coal; read as
+5-minute MWh, it implies an average power of ~17.9 x 12 = ~215 MW, ~99% of
+nameplate -- exactly what a baseload coal unit should show. So the raw
+5-minute AEMO field is genuine energy (mWh), confirming
+_aggregate_to_half_hourly()'s SUM of six 5-minute values is the CORRECT way
+to build a half-hourly *energy* total -- that part was never the bug.
+
+The bug is downstream: every consumer of FacilityScada.quantity (this
+command as it stood before this fix, update_ret_dashboard.py, and
+powerplotui/views/scada_views.py's FacilityManager) treats that stored
+half-hourly MWh value as if it were an instantaneous/average MW power
+reading. Concretely, for THIS command:
+  - peak/minimum demand: the stored quantity for an interval IS that
+    interval's MWh, so the true average MW for the half hour is
+    quantity * 2 (MWh / 0.5h), not quantity directly. Using quantity
+    directly (as the previous version of this command did) understates
+    every peak/minimum by 2x -- this is exactly the ~2,112 MW vs AEMO's
+    real ~4,219 MW gap found during Phase 3b for the 2 Feb 2026 event.
+  - annual energy: quantity is ALREADY MWh per interval, so the correct
+    annual total is just sum(quantity) -- no further * 0.5 is needed (the
+    previous version applied an incorrect second * 0.5, understating
+    annual energy by 2x as well).
+
+update_ret_dashboard.py and scada_views.py carry the same MW/MWh
+misreading (the former's own docstring literally states "SCADA quantity is
+in MW"); scada_views.py's FacilityManager compounds it further by also
+assuming 5-minute rows (`* (5/60)`) against data that is actually
+half-hourly. Both are pre-existing, widely-relied-upon platform code
+(RET Dashboard, RE% reporting) -- left untouched here pending the user's
+decision on how to proceed, since fixing them has much wider blast radius
+(historical MonthlyREPerformance figures, potential backfill) than this
+command's own, not-yet-depended-upon output.
 """
 from datetime import datetime
 
@@ -176,14 +187,17 @@ class Command(BaseCommand):
         min_dt = None
 
         for row in interval_totals:
-            demand = float(row['total_demand'] or 0)
+            # row['total_demand'] is half-hourly ENERGY (MWh) -- see module
+            # docstring. Average power for the interval is MWh / 0.5h.
+            energy_mwh = float(row['total_demand'] or 0)
+            demand_mw = energy_mwh * 2
             dt = row['dispatch_interval']
             n_intervals += 1
-            energy_mw_sum += demand
-            if peak_mw is None or demand > peak_mw:
-                peak_mw, peak_dt = demand, dt
-            if min_mw is None or demand < min_mw:
-                min_mw, min_dt = demand, dt
+            energy_mw_sum += energy_mwh
+            if peak_mw is None or demand_mw > peak_mw:
+                peak_mw, peak_dt = demand_mw, dt
+            if min_mw is None or demand_mw < min_mw:
+                min_mw, min_dt = demand_mw, dt
 
         expected_intervals = round((end_dt - start_dt).total_seconds() / 1800)
         coverage_pct = (n_intervals / expected_intervals * 100) if expected_intervals else 0
@@ -201,9 +215,9 @@ class Command(BaseCommand):
                 f"-- incomplete year, treat this record with caution."
             ))
 
-        # Energy (MWh) = MW * 0.5h per interval; GWh = /1000. See module
-        # docstring for why 0.5 (half-hourly) is the correct factor here.
-        annual_energy_gwh = energy_mw_sum * 0.5 / 1000.0
+        # energy_mw_sum is already a sum of half-hourly MWh values (see
+        # module docstring) -- just convert to GWh, no further * 0.5.
+        annual_energy_gwh = energy_mw_sum / 1000.0
 
         actual, created = AnnualDemandActual.objects.update_or_create(
             year=year, demand_basis='operational',

@@ -15,8 +15,7 @@ Two things happen on this page, in a strict order:
    This runs entirely off numbers extracted directly from that PDF table
    (both the "forecast" and the "actual" side come from the same table) --
    it does NOT depend on EsooFigure/AnnualDemandActual being populated
-   correctly, which matters because this sandbox has no way to verify that
-   independently (no DB access).
+   correctly.
 2. Only then does the page show the "extended" archive-wide bias tracking
    built from the real EsooFigure (forecast side) and AnnualDemandActual
    (actual side, populated by compute_annual_demand_actuals) tables.
@@ -495,9 +494,24 @@ def bias_tracking_dashboard(request):
         bias_chart_html = _build_bias_chart(extended['bias_rows'])
         calibration_chart_html = _build_calibration_chart(extended['calibration_rows'])
 
+    # GR-4 (Transparency): the methodology write-up states real archive
+    # coverage rather than a hardcoded year range, so it can't go stale as
+    # more vintages are added.
+    vintages = EsooVintage.objects.all().order_by('year')
+    modern_years = [v.year for v in vintages if v.tier == 'modern_comparable']
+    heritage_years = [v.year for v in vintages if v.tier == 'heritage']
+    archive_coverage = {
+        'modern_min': min(modern_years) if modern_years else None,
+        'modern_max': max(modern_years) if modern_years else None,
+        'heritage_min': min(heritage_years) if heritage_years else None,
+        'heritage_max': max(heritage_years) if heritage_years else None,
+        'total_vintages': vintages.count(),
+    }
+
     return render(request, 'esoo_bias/bias_tracking.html', {
         'table11': table11,
         'extended': extended,
         'bias_chart_html': bias_chart_html,
         'calibration_chart_html': calibration_chart_html,
+        'archive_coverage': archive_coverage,
     })

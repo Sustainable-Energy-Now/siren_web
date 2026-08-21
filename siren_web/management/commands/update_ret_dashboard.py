@@ -324,8 +324,12 @@ class Command(BaseCommand):
     def calculate_generation(self, scada_data):
         """Calculate generation totals by technology fuel type from SCADA data.
 
-        SCADA quantity is in MW (power). Data is at half-hourly intervals.
-        Energy (MWh) = MW * 0.5 hours per interval.
+        FacilityScada.quantity is ENERGY (MWh) already, summed by
+        _aggregate_to_half_hourly() from AEMO's genuine 5-minute mWh
+        readings -- not an instantaneous MW power reading. Confirmed
+        2026-08-19 against live AEMO data (see compute_annual_demand_
+        actuals.py's module docstring for the verification). So a SUM of
+        quantity across intervals is already MWh -- no further * 0.5.
         """
 
         generation: dict[str, float] = {
@@ -380,8 +384,9 @@ class Command(BaseCommand):
             category = (item.get('facility__idtechnologies__category') or '').upper()
             total_mw = float(item['total_mw'] or 0)
 
-            # Convert from MW (half-hourly) to GWh: MW * 0.5h / 1000
-            gen_gwh = total_mw * 0.5 / 1000.0
+            # total_mw is already a sum of half-hourly MWh values -- just
+            # convert to GWh, no further * 0.5.
+            gen_gwh = total_mw / 1000.0
 
             if fuel_type == 'WIND':
                 generation['wind'] += gen_gwh
@@ -405,8 +410,8 @@ class Command(BaseCommand):
             category = (item.get('facility__idtechnologies__category') or '').upper()
             total_mw = float(item['total_mw'] or 0)
 
-            # Convert negative MW to positive GWh charge value
-            charge_gwh = abs(total_mw) * 0.5 / 1000.0
+            # total_mw is already a sum of half-hourly MWh values.
+            charge_gwh = abs(total_mw) / 1000.0
 
             if fuel_type == 'HYDRO':
                 generation['hydro_charge'] += charge_gwh
@@ -470,8 +475,13 @@ class Command(BaseCommand):
           Technologies.emissions        : kg CO2-e/kWh
         Result intensity is returned in kg CO2-e/kWh.
 
-        SCADA quantity is in MW at half-hourly intervals.
-        Energy (MWh) = sum(MW) * 0.5 hours per interval.
+        FacilityScada.quantity is already half-hourly ENERGY (MWh) -- see
+        calculate_generation()'s docstring. sum(quantity) is already MWh,
+        no further * 0.5.
+
+        Note: emissions_intensity (a ratio of two quantities each summed
+        the same way) is unaffected either way; only the absolute
+        total_emissions_tonnes figure depended on getting this right.
         """
 
         total_emissions_kg = 0
@@ -489,8 +499,8 @@ class Command(BaseCommand):
         for item in facility_totals:
             total_mw = float(item['total_mw'] or 0)
 
-            # Convert MW (half-hourly) to kWh: MW * 0.5h * 1000
-            generation_kwh = total_mw * 0.5 * 1000
+            # total_mw is already MWh; convert to kWh.
+            generation_kwh = total_mw * 1000
 
             if generation_kwh > 0:
                 facility_intensity = item.get('facility__emission_intensity')
@@ -552,12 +562,12 @@ class Command(BaseCommand):
         peak = max(hourly_demand, key=lambda x: x['total_demand'])
         minimum = min(hourly_demand, key=lambda x: x['total_demand'])
 
-        # total_demand is sum of facility MW (power) for each interval.
-        # Already in MW - no conversion needed.
+        # total_demand is sum of facility half-hourly ENERGY (MWh) for the
+        # interval, not power. Average MW for the half hour = MWh / 0.5h.
         return {
-            'peak_mw': float(peak['total_demand']),
+            'peak_mw': float(peak['total_demand']) * 2,
             'peak_datetime': peak['dispatch_interval'],
-            'min_mw': float(minimum['total_demand']),
+            'min_mw': float(minimum['total_demand']) * 2,
             'min_datetime': minimum['dispatch_interval'],
         }
 

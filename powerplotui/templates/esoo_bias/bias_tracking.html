@@ -20,6 +20,99 @@
 </div>
 
 <!-- ==================================================================== -->
+<!-- Methodology (GR-4: documented for a non-specialist audience)          -->
+<!-- ==================================================================== -->
+<details class="section-header" open style="padding: 25px 30px;">
+    <summary style="cursor: pointer; font-size: 1.3em; font-weight: 600; color: #1e3c72;">
+        What is this page, and how should I read it?
+    </summary>
+    <div style="margin-top: 18px; line-height: 1.6;">
+        <p>
+            Every year, AEMO (and before it, the IMO) publishes the <strong>WEM Electricity Statement of
+            Opportunities</strong> — a forecast of how much electricity Western Australia's main grid (the
+            SWIS) will need over the next 5&ndash;10 years. Those forecasts feed directly into decisions about
+            how much generation and storage capacity the system needs to keep the lights on. This page asks a
+            simple question: <strong>looking back, how close have those forecasts actually been?</strong>
+            Have they tended to run too high, too low, or about right — and does that change depending on how
+            far ahead AEMO was forecasting?
+        </p>
+
+        <h4 style="color:#1e3c72; margin-bottom:6px;">A few terms used on this page</h4>
+        <ul class="bullet-list">
+            <li>
+                <strong>Operational demand</strong> — the electricity actually drawn from the grid, i.e. not
+                counting power generated and used on-site (like rooftop solar). This is the figure the
+                system's reliability planning is built around, and the basis this page compares like-for-like.
+            </li>
+            <li>
+                <strong>POE10 / POE50 / POE90</strong> ("probability of exceedance") — AEMO doesn't publish one
+                forecast, it publishes a range. A "10% POE" peak demand is a figure AEMO expects to be
+                exceeded in only 1 year out of 10 (i.e. a fairly extreme, hot-summer case); "50% POE" is the
+                middle-of-the-road case; "90% POE" is the mild-weather, low end of the range.
+            </li>
+            <li>
+                <strong>Year-ahead horizon</strong> — how many years in advance a forecast was made for. A
+                forecast published in 2020 for the year 2021 is "1 year ahead"; the same publication's forecast
+                for 2025 is "5 years ahead". Forecasts generally get less accurate the further ahead they look,
+                so this page always breaks results down by horizon rather than lumping every forecast together.
+            </li>
+        </ul>
+
+        <h4 style="color:#1e3c72; margin-bottom:6px;">Why "validation-first"?</h4>
+        <p>
+            Before trusting any of our own bias statistics across the full archive, we first check that our
+            method reproduces numbers AEMO has <em>already published themselves</em> (Table 11 of the 2026
+            WEM ESOO, comparing 2025's forecast against what actually happened). If our approach can't
+            reproduce AEMO's own stated numbers for a case where the answer is already known, there's no
+            reason to trust it anywhere else. That check is shown first on this page, above the archive-wide
+            results.
+        </p>
+
+        <h4 style="color:#1e3c72; margin-bottom:6px;">Why does it sometimes say "Insufficient evidence" instead of an answer?</h4>
+        <p>
+            With only a handful of years of data for any given forecast horizon, it's easy to mistake ordinary
+            year-to-year weather variation for a genuine, persistent bias. This page will only call a bias
+            "high" or "low" once there's enough data (at least 5 comparable years) <em>and</em> a statistical
+            test confirms the pattern isn't simply due to chance. Below that bar, it reports "insufficient
+            evidence" rather than guessing — this is a deliberate choice to accrue evidence honestly over time
+            (as the archive grows year on year) rather than publish an early, potentially misleading verdict.
+        </p>
+
+        <h4 style="color:#1e3c72; margin-bottom:6px;">What's in the archive behind this page?</h4>
+        <p>
+            {% if archive_coverage.modern_min %}
+            Modern (AEMO-era) editions from <strong>{{ archive_coverage.modern_min }}</strong> to
+            <strong>{{ archive_coverage.modern_max }}</strong>{% if archive_coverage.heritage_min %}, extended
+            back to <strong>{{ archive_coverage.heritage_min }}</strong> using older (IMO-era) editions{% endif %} —
+            {{ archive_coverage.total_vintages }} publication years in total. Every figure on this page traces
+            back to a specific document, page and table — nothing here is estimated or interpolated.
+            {% else %}
+            No vintages are loaded yet.
+            {% endif %}
+        </p>
+
+        <h4 style="color:#1e3c72; margin-bottom:6px;">Known limitations, stated plainly</h4>
+        <ul class="bullet-list">
+            <li>
+                The IMO-era (pre-2017) editions used the term "sent out energy" and reported on a basis that
+                isn't confirmed to be identically defined to AEMO's later "operational demand" — the closest
+                available match has been used, with that caveat recorded against every such figure.
+            </li>
+            <li>
+                AEMO's exact convention for which direction counts as an "exceedance" for <em>minimum</em>
+                demand (as opposed to peak demand) hasn't been confirmed — minimum-demand figures are excluded
+                from the calibration check below until that's resolved, rather than guessed.
+            </li>
+            <li>
+                The "extended" section below depends on actual demand computed from real grid metering data;
+                if that hasn't been fully investigated and confirmed accurate for a given period, treat the
+                extended figures for that period with appropriate caution.
+            </li>
+        </ul>
+    </div>
+</details>
+
+<!-- ==================================================================== -->
 <!-- Validation-first backcast (Table 11)                                  -->
 <!-- ==================================================================== -->
 <div class="section-header">
