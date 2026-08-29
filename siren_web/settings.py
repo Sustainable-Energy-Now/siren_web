@@ -255,6 +255,11 @@ POWER_CURVES_DIR = BASE_DIR / 'siren_web' / 'siren_files' / 'siren_data' / 'plan
 ESOO_ARCHIVE_DIR = BASE_DIR / 'siren_web' / 'siren_files' / 'esoo_archive'
 EV_ARCHIVE_DIR = BASE_DIR / 'siren_web' / 'siren_files' / 'ev_archive'
 EV_TRACE_DIR = BASE_DIR / 'siren_web' / 'siren_files' / 'ev_traces'
+# ABS Postal Area (POA 2021) boundary shapefile for SWIS-boundary postcode
+# apportionment. Drop the ASGS Ed.3 file set (.shp/.shx/.dbf/.prj) here; see
+# siren_web/siren_files/gis/README.md.
+GIS_DATA_DIR = BASE_DIR / 'siren_web' / 'siren_files' / 'gis'
+POA_SHAPEFILE_PATH = GIS_DATA_DIR / 'POA_2021_AUST_GDA2020.shp'
 MEDIA_ROOT = BASE_DIR / 'media'
 if 'fetch_historical_scada' in sys.argv:
     DATABASES['default']['OPTIONS'] = {

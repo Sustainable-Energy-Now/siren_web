@@ -7,15 +7,9 @@
       <small class="text-muted">{{ total_count }} postcode{{ total_count|pluralize }} registered (FR-04/05, D9)</small>
     </div>
     <div class="d-flex gap-2">
+      <a href="{% url 'powermapui:swis_boundary_map' %}" class="btn btn-outline-primary btn-sm">Map view</a>
       <a href="{% url 'powermapui:swis_boundary_create' %}" class="btn btn-primary btn-sm">+ New Postcode</a>
     </div>
-  </div>
-
-  <div class="alert alert-info">
-    Centroid-in-SWIS membership per postcode, with a zone grouping and an apportionment_fraction field
-    reserved (unused this Sprint per D9) for edge postcodes. No automated GIS centroid computation is wired
-    up yet — populate via CSV bulk import or manual entry until a real postcode-boundary / SWIS-polygon
-    dataset is available.
   </div>
 
   <form method="get" class="row g-2 mb-3">

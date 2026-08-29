@@ -146,10 +146,15 @@ urlpatterns = [
 
     # ========== SWIS BOUNDARY MEMBERSHIP (EV FR-04/05) ==========
     path('swis-boundary/', ev_boundary_views.swis_boundary_list, name='swis_boundary_list'),
+    path('swis-boundary/map/', ev_boundary_views.swis_boundary_map, name='swis_boundary_map'),
     path('swis-boundary/create/', ev_boundary_views.swis_boundary_create, name='swis_boundary_create'),
+    path('swis-boundary/bulk-import/', ev_boundary_views.swis_boundary_bulk_import, name='swis_boundary_bulk_import'),
+    path('swis-boundary/membership/recompute/', ev_boundary_views.ajax_recompute_swis_membership, name='ajax_recompute_swis_membership'),
+    # SWIS boundary polygon geometry (edited on the grid map; DB is the source of truth)
+    path('swis-boundary/geometry/update/', map_views.ajax_update_swis_boundary, name='ajax_update_swis_boundary'),
     path('swis-boundary/<int:pk>/edit/', ev_boundary_views.swis_boundary_edit, name='swis_boundary_edit'),
     path('swis-boundary/<int:pk>/delete/', ev_boundary_views.swis_boundary_delete, name='swis_boundary_delete'),
-    path('swis-boundary/bulk-import/', ev_boundary_views.swis_boundary_bulk_import, name='swis_boundary_bulk_import'),
+    path('swis-boundary/<str:postcode>/membership/update/', ev_boundary_views.ajax_update_postcode_membership, name='ajax_update_postcode_membership'),
 
     path('tableupdate/', table_update_views.select_table, name='table_update'),
     path('tableupdate/process/', table_update_views.update_table, name='table_update_process'),

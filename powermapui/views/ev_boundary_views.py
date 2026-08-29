@@ -16,12 +16,18 @@ available, without changing the schema or this view's contract.
 """
 import csv
 import io
+import json
 
+from django.conf import settings
 from django.contrib import messages
 from django.core.paginator import Paginator
+from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 
-from siren_web.models import EV_BOUNDARY_STATUS_CHOICES, SwisBoundaryMembership
+from siren_web.models import (
+    EV_BOUNDARY_STATUS_CHOICES, SwisBoundaryMembership, PostcodeBoundary,
+)
+from powermapui.utils.swis_boundary import swis_boundary_geojson_str, load_swis_polygon
 
 
 def swis_boundary_list(request):
@@ -96,6 +102,108 @@ def swis_boundary_delete(request, pk):
         messages.success(request, f'{postcode} deleted.')
         return redirect('powermapui:swis_boundary_list')
     return render(request, 'ev_boundary/confirm_delete.html', {'membership': membership})
+
+
+_STATUS_VALUES = {c[0] for c in EV_BOUNDARY_STATUS_CHOICES}
+
+
+def swis_boundary_map(request):
+    """Map of the SWIS boundary + WA postcode polygons, shaded by membership
+    status, with click-to-edit apportionment."""
+    memberships = {m.postcode: m for m in SwisBoundaryMembership.objects.all()}
+
+    features = []
+    counts = {'in': 0, 'out': 0, 'partial': 0, 'unscored': 0}
+    for pb in PostcodeBoundary.objects.all():
+        try:
+            geometry = json.loads(pb.geojson)
+        except (ValueError, TypeError):
+            continue
+        m = memberships.get(pb.postcode)
+        status = m.membership_status if m else 'unscored'
+        counts[status] = counts.get(status, 0) + 1
+        features.append({
+            'type': 'Feature',
+            'geometry': geometry,
+            'properties': {
+                'postcode': pb.postcode,
+                'status': status,
+                'apportionment_fraction': (m.apportionment_fraction if m else None),
+                'zone_name': (m.zone_name if m else ''),
+                'note': (m.notes if m else ''),
+                'area_sqkm': pb.area_sqkm,
+            },
+        })
+
+    context = {
+        'swis_boundary_json': swis_boundary_geojson_str(),
+        'postcodes_json': json.dumps({'type': 'FeatureCollection', 'features': features}),
+        'has_shapefile': settings.POA_SHAPEFILE_PATH.exists(),
+        'poa_shapefile_path': str(settings.POA_SHAPEFILE_PATH),
+        'status_choices': EV_BOUNDARY_STATUS_CHOICES,
+        'counts': counts,
+        'postcode_count': len(features),
+    }
+    return render(request, 'ev_boundary/map.html', context)
+
+
+def ajax_update_postcode_membership(request, postcode):
+    """Save apportionment_fraction / membership_status for one postcode."""
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST required'}, status=405)
+    try:
+        data = json.loads(request.body)
+    except (ValueError, TypeError) as e:
+        return JsonResponse({'error': f'Invalid payload: {e}'}, status=400)
+
+    status = (data.get('membership_status') or '').strip()
+    if status not in _STATUS_VALUES:
+        return JsonResponse({'error': f'membership_status must be one of {sorted(_STATUS_VALUES)}'}, status=400)
+    try:
+        fraction = float(data.get('apportionment_fraction'))
+    except (TypeError, ValueError):
+        return JsonResponse({'error': 'apportionment_fraction must be a number'}, status=400)
+    fraction = max(0.0, min(1.0, fraction))
+
+    pb = PostcodeBoundary.objects.filter(postcode=postcode).first()
+    defaults = {'membership_status': status, 'apportionment_fraction': fraction}
+    if pb and pb.centroid_lat is not None:
+        defaults.update(centroid_lat=pb.centroid_lat, centroid_lon=pb.centroid_lon)
+    m, created = SwisBoundaryMembership.objects.get_or_create(postcode=postcode, defaults=defaults)
+    if not created:
+        m.membership_status = status
+        m.apportionment_fraction = fraction
+    m.notes = (m.notes + '\n' if m.notes else '') + 'Adjusted by hand on the SWIS boundary map.'
+    m.save()
+
+    return JsonResponse({
+        'status': 'ok',
+        'postcode': m.postcode,
+        'membership_status': m.membership_status,
+        'apportionment_fraction': m.apportionment_fraction,
+        'created': created,
+    })
+
+
+def ajax_recompute_swis_membership(request):
+    """Re-derive every WA postcode's membership from the current SWIS boundary."""
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST required'}, status=405)
+    if not settings.POA_SHAPEFILE_PATH.exists():
+        return JsonResponse({
+            'error': f'ABS POA shapefile not found at {settings.POA_SHAPEFILE_PATH}. '
+                     f'See {settings.GIS_DATA_DIR / "README.md"}.'
+        }, status=400)
+    try:
+        from powermapui.utils.swis_membership_service import derive_membership
+        result = derive_membership(load_swis_polygon(), settings.POA_SHAPEFILE_PATH)
+        return JsonResponse({
+            'status': 'ok',
+            'in': result['in'], 'out': result['out'], 'partial': result['partial'],
+            'created': result['created'], 'updated': result['updated'],
+        })
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
 
 
 def swis_boundary_bulk_import(request):

@@ -1,0 +1,286 @@
+{% extends 'powermapui_base.html' %}
+
+{% block powermapui_content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div>
+    <h3 class="mb-0">SWIS Boundary &amp; Postcode Apportionment</h3>
+    <small class="text-muted">{{ postcode_count }} WA postcode boundaries &middot;
+      in {{ counts.in|default:0 }} / partial {{ counts.partial|default:0 }} /
+      out {{ counts.out|default:0 }} / unscored {{ counts.unscored|default:0 }}</small>
+  </div>
+  <div class="d-flex gap-2">
+    <a href="{% url 'powermapui:swis_boundary_list' %}" class="btn btn-outline-secondary btn-sm">Table view</a>
+    <a href="{% url 'powermapui:map' %}" class="btn btn-outline-secondary btn-sm">Edit boundary (Grid Map)</a>
+    <button id="recomputeBtn" class="btn btn-primary btn-sm" {% if not has_shapefile %}disabled title="ABS POA shapefile not found"{% endif %}>
+      Recompute all from geometry
+    </button>
+  </div>
+</div>
+
+<form id="pc-search-form" class="d-flex gap-2 mb-2" style="max-width:360px" role="search">
+  <input id="pc-search" list="pc-list" class="form-control form-control-sm"
+         placeholder="Find postcode (e.g. 6008)…" autocomplete="off" inputmode="numeric" aria-label="Find postcode">
+  <datalist id="pc-list"></datalist>
+  <button class="btn btn-outline-primary btn-sm" type="submit">Go</button>
+</form>
+<div id="pc-search-msg" class="small text-danger mb-2 d-none"></div>
+
+{% if not has_shapefile %}
+<div class="alert alert-warning py-2">
+  Postcode boundaries are empty / cannot be recomputed: drop the ABS
+  <code>POA_2021_AUST_GDA2020</code> shapefile set into
+  <code>{{ poa_shapefile_path }}</code> (see that directory's <code>README.md</code>),
+  then run <code>python manage.py derive_swis_boundary_membership</code>.
+</div>
+{% endif %}
+
+<div id="recomputeResult" class="alert alert-info py-2 d-none"></div>
+
+<div class="row">
+  <div class="col-lg-9">
+    <div class="card"><div class="card-body p-0">
+      <div id="swis-map" style="width:100%; height:720px;"></div>
+    </div></div>
+  </div>
+
+  <div class="col-lg-3">
+    <div class="card mb-3">
+      <div class="card-header py-2"><strong>Status</strong></div>
+      <div class="card-body py-2" id="status-filters">
+        <div class="form-check">
+          <input class="form-check-input status-filter" type="checkbox" value="in" id="f-in" checked>
+          <label class="form-check-label small" for="f-in"><span class="swatch" style="background:#4CAF50"></span>In SWIS</label>
+        </div>
+        <div class="form-check">
+          <input class="form-check-input status-filter" type="checkbox" value="partial" id="f-partial" checked>
+          <label class="form-check-label small" for="f-partial"><span class="swatch" style="background:#FFC107"></span>Partial (edge)</label>
+        </div>
+        <div class="form-check">
+          <input class="form-check-input status-filter" type="checkbox" value="out" id="f-out" checked>
+          <label class="form-check-label small" for="f-out"><span class="swatch" style="background:#9E9E9E"></span>Out of SWIS</label>
+        </div>
+        <div class="form-check">
+          <input class="form-check-input status-filter" type="checkbox" value="unscored" id="f-unscored" checked>
+          <label class="form-check-label small" for="f-unscored"><span class="swatch" style="background:#E0E0E0"></span>Unscored</label>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" id="detail-card">
+      <div class="card-header py-2"><strong>Postcode</strong> <span id="d-postcode" class="text-muted">— click a postcode —</span></div>
+      <div class="card-body py-2">
+        <div id="detail-empty" class="text-muted small">Click a postcode polygon on the map to view and adjust its apportionment.</div>
+        <div id="detail-body" class="d-none">
+          <p class="small mb-1">Zone: <span id="d-zone" class="text-muted">—</span></p>
+          <p class="small mb-1">Area: <span id="d-area" class="text-muted">—</span> km&sup2;</p>
+          <p class="small text-muted" id="d-note"></p>
+
+          <label class="form-label small mb-1">Membership status</label>
+          <select id="d-status" class="form-select form-select-sm mb-2">
+            {% for value, label in status_choices %}
+            <option value="{{ value }}">{{ label }}</option>
+            {% endfor %}
+          </select>
+
+          <label class="form-label small mb-1">Apportionment fraction (0–1)</label>
+          <div class="d-flex align-items-center gap-2 mb-2">
+            <input type="range" class="form-range" id="d-frac-range" min="0" max="1" step="0.01" style="flex:1">
+            <input type="number" class="form-control form-control-sm" id="d-frac-num" min="0" max="1" step="0.01" style="width:80px">
+          </div>
+
+          <button id="d-save" class="btn btn-primary btn-sm w-100">Save</button>
+          <div id="d-msg" class="small mt-1"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script type="application/json" id="swis-boundary-data">{{ swis_boundary_json|safe }}</script>
+<script type="application/json" id="postcodes-data">{{ postcodes_json|safe }}</script>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.6.1/dist/maplibre-gl.css" />
+<script src="https://unpkg.com/maplibre-gl@5.6.1/dist/maplibre-gl.js"></script>
+<script src="https://unpkg.com/@maplibre/maplibre-gl-leaflet@0.1.4/leaflet-maplibre-gl.js"></script>
+
+<style>
+  .swatch { display:inline-block; width:12px; height:12px; border-radius:2px; margin-right:5px; vertical-align:middle; }
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  const STATUS_COLORS = { in:'#4CAF50', partial:'#FFC107', out:'#9E9E9E', unscored:'#E0E0E0' };
+  const boundaryData  = JSON.parse(document.getElementById('swis-boundary-data').textContent);
+  const postcodeData  = JSON.parse(document.getElementById('postcodes-data').textContent);
+
+  function getCookie(name) {
+    const m = document.cookie.match('(^|;)\\s*' + name + '\\s*=\\s*([^;]+)');
+    return m ? m.pop() : '';
+  }
+
+  const map = L.map('swis-map').setView([-30.5, 119.0], 5);
+  L.maplibreGL({
+    style: 'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json',
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+  }).addTo(map);
+
+  // SWIS boundary — read-only reference
+  let boundaryLayer = null;
+  if (boundaryData && boundaryData.type) {
+    boundaryLayer = L.geoJSON(boundaryData, {
+      interactive: false,
+      style: { color:'#ff7800', weight:3, opacity:0.9, dashArray:'6, 5', fill:false }
+    }).addTo(map);
+  }
+
+  function styleFor(feature) {
+    const s = feature.properties.status || 'unscored';
+    return { color:'#666', weight:1, fillColor: STATUS_COLORS[s] || '#E0E0E0', fillOpacity:0.35 };
+  }
+
+  let selected = null;
+  const postcodeLayer = L.geoJSON(postcodeData, {
+    style: styleFor,
+    onEachFeature: function (feature, layer) {
+      layer.on('click', function () { openDetail(feature, layer); });
+      layer.bindTooltip(feature.properties.postcode, { sticky:true });
+    }
+  }).addTo(map);
+
+  try {
+    const b = (boundaryLayer || postcodeLayer).getBounds();
+    if (b.isValid()) map.fitBounds(b);
+  } catch (e) {}
+
+  // ── Status filter ──
+  function applyFilter() {
+    const on = {};
+    document.querySelectorAll('.status-filter').forEach(cb => on[cb.value] = cb.checked);
+    postcodeLayer.eachLayer(l => {
+      const s = l.feature.properties.status || 'unscored';
+      if (on[s]) { l.setStyle({ fillOpacity:0.35, opacity:1 }); }
+      else { l.setStyle({ fillOpacity:0, opacity:0 }); }
+    });
+  }
+  document.querySelectorAll('.status-filter').forEach(cb => cb.addEventListener('change', applyFilter));
+
+  // ── Detail panel ──
+  const $ = id => document.getElementById(id);
+  function openDetail(feature, layer) {
+    if (selected) postcodeLayer.resetStyle(selected);
+    selected = layer;
+    layer.setStyle({ color:'#000', weight:3 });
+    const p = feature.properties;
+    $('d-postcode').textContent = p.postcode;
+    $('d-zone').textContent = p.zone_name || '—';
+    $('d-area').textContent = p.area_sqkm ? p.area_sqkm.toFixed(0) : '—';
+    $('d-note').textContent = p.note || '';
+    $('d-status').value = p.status === 'unscored' ? 'out' : p.status;
+    const frac = (p.apportionment_fraction != null) ? p.apportionment_fraction
+                 : (p.status === 'in' ? 1 : p.status === 'out' ? 0 : 0.5);
+    $('d-frac-range').value = frac;
+    $('d-frac-num').value = Number(frac).toFixed(2);
+    $('d-msg').textContent = '';
+    $('detail-empty').classList.add('d-none');
+    $('detail-body').classList.remove('d-none');
+  }
+
+  $('d-frac-range').addEventListener('input', e => $('d-frac-num').value = Number(e.target.value).toFixed(2));
+  $('d-frac-num').addEventListener('input', e => {
+    let v = Math.max(0, Math.min(1, parseFloat(e.target.value) || 0));
+    $('d-frac-range').value = v;
+  });
+
+  $('d-save').addEventListener('click', function () {
+    if (!selected) return;
+    const postcode = selected.feature.properties.postcode;
+    const payload = {
+      membership_status: $('d-status').value,
+      apportionment_fraction: parseFloat($('d-frac-num').value) || 0
+    };
+    $('d-msg').textContent = 'Saving…'; $('d-msg').className = 'small mt-1 text-muted';
+    fetch("{% url 'powermapui:ajax_update_postcode_membership' postcode='PC' %}".replace('PC', postcode), {
+      method: 'POST',
+      headers: { 'Content-Type':'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+      body: JSON.stringify(payload)
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (data.status === 'ok') {
+        selected.feature.properties.status = data.membership_status;
+        selected.feature.properties.apportionment_fraction = data.apportionment_fraction;
+        postcodeLayer.resetStyle(selected);
+        selected.setStyle(Object.assign(styleFor(selected.feature), { color:'#000', weight:3 }));
+        $('d-msg').textContent = 'Saved.'; $('d-msg').className = 'small mt-1 text-success';
+        applyFilter();
+      } else {
+        $('d-msg').textContent = data.error || 'Save failed'; $('d-msg').className = 'small mt-1 text-danger';
+      }
+    })
+    .catch(err => { $('d-msg').textContent = 'Network error: ' + err; $('d-msg').className = 'small mt-1 text-danger'; });
+  });
+
+  // ── Postcode search: position the map and select ──
+  const postcodeIndex = {};
+  postcodeLayer.eachLayer(l => { postcodeIndex[l.feature.properties.postcode] = l; });
+  const pcListEl = $('pc-list');
+  Object.keys(postcodeIndex).sort().forEach(pc => {
+    const o = document.createElement('option'); o.value = pc; pcListEl.appendChild(o);
+  });
+  function selectPostcode(raw) {
+    const pc = (raw || '').trim();
+    const msg = $('pc-search-msg');
+    const layer = postcodeIndex[pc];
+    if (!layer) {
+      msg.textContent = pc ? ('No postcode "' + pc + '" in the WA boundary set.') : 'Enter a postcode.';
+      msg.classList.remove('d-none');
+      return;
+    }
+    msg.classList.add('d-none');
+    // un-hide its status if the filter has it off, so the selection is visible
+    const st = layer.feature.properties.status || 'unscored';
+    const cb = document.getElementById('f-' + st);
+    if (cb && !cb.checked) { cb.checked = true; applyFilter(); }
+    map.fitBounds(layer.getBounds(), { maxZoom: 12, padding: [20, 20] });
+    openDetail(layer.feature, layer);
+  }
+  $('pc-search-form').addEventListener('submit', e => { e.preventDefault(); selectPostcode($('pc-search').value); });
+  $('pc-search').addEventListener('change', e => {
+    if (postcodeIndex[(e.target.value || '').trim()]) selectPostcode(e.target.value);
+  });
+
+  // ── Recompute ──
+  const recomputeBtn = $('recomputeBtn');
+  if (recomputeBtn) recomputeBtn.addEventListener('click', function () {
+    if (!confirm('Re-derive every WA postcode from the current SWIS boundary? This overwrites hand adjustments.')) return;
+    recomputeBtn.disabled = true;
+    const box = $('recomputeResult');
+    box.className = 'alert alert-info py-2'; box.textContent = 'Recomputing… (reads the ABS shapefile, ~10–30s)';
+    fetch("{% url 'powermapui:ajax_recompute_swis_membership' %}", {
+      method: 'POST', headers: { 'X-CSRFToken': getCookie('csrftoken') }
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (data.status === 'ok') {
+        box.className = 'alert alert-success py-2';
+        box.textContent = `Done — in ${data.in}, partial ${data.partial}, out ${data.out} `
+                        + `(created ${data.created}, updated ${data.updated}). Reloading…`;
+        setTimeout(() => location.reload(), 1200);
+      } else {
+        box.className = 'alert alert-danger py-2';
+        box.textContent = data.error || 'Recompute failed';
+        recomputeBtn.disabled = false;
+      }
+    })
+    .catch(err => {
+      box.className = 'alert alert-danger py-2'; box.textContent = 'Network error: ' + err;
+      recomputeBtn.disabled = false;
+    });
+  });
+});
+</script>
+{% endblock %}

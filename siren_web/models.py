@@ -5422,6 +5422,66 @@ class SwisBoundaryMembership(models.Model):
         return f"{self.postcode} ({self.get_membership_status_display()})"
 
 
+class SwisBoundary(models.Model):
+    """
+    Editable SWIS boundary polygon (single row, name='SWIS'). Seeded from
+    siren_web/static/geojson/swis_boundary.geojson by migration 0173, then
+    edited on the grid map (/map/). Consumed by derive_swis_boundary_membership
+    and the SWIS boundary map for postcode enclosure / apportionment.
+    """
+    idswisboundary = models.AutoField(primary_key=True)
+    name = models.CharField(max_length=50, default='SWIS', unique=True)
+    geojson = models.TextField(help_text='GeoJSON Polygon geometry, WGS84 lon/lat')
+    source = models.CharField(
+        max_length=20, default='kml_seed',
+        help_text="'kml_seed' (seeded from swis_boundary.geojson) or 'hand_edited'",
+    )
+    vertex_count = models.PositiveIntegerField(default=0)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'swis_boundary'
+        verbose_name = 'SWIS Boundary'
+        verbose_name_plural = 'SWIS Boundary'
+
+    def __str__(self):
+        return f"{self.name} boundary ({self.vertex_count} vertices, {self.source})"
+
+    def geometry(self):
+        """shapely geometry from the stored GeoJSON (buffer(0)-repaired)."""
+        from powermapui.utils.swis_boundary import geojson_to_shapely
+        return geojson_to_shapely(json.loads(self.geojson))
+
+    @classmethod
+    def get_solo(cls):
+        return cls.objects.filter(name='SWIS').first()
+
+
+class PostcodeBoundary(models.Model):
+    """
+    WA postcode (ABS POA 2021) polygon, web-simplified, for the SWIS boundary
+    apportionment map. Populated by derive_swis_boundary_membership /
+    powermapui.utils.swis_membership_service.
+    """
+    idpostcodeboundary = models.AutoField(primary_key=True)
+    postcode = models.CharField(max_length=10, unique=True)
+    geojson = models.TextField(help_text='Simplified GeoJSON geometry, WGS84 lon/lat')
+    centroid_lat = models.FloatField(null=True, blank=True)
+    centroid_lon = models.FloatField(null=True, blank=True)
+    area_sqkm = models.FloatField(null=True, blank=True)
+    source = models.CharField(max_length=40, default='ABS POA 2021')
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'postcode_boundary'
+        ordering = ['postcode']
+        verbose_name = 'Postcode Boundary'
+        verbose_name_plural = 'Postcode Boundaries'
+
+    def __str__(self):
+        return f"{self.postcode} boundary"
+
+
 class EvActualsRecord(models.Model):
     """
     WA actuals row from the FR-19-selected source (D7): year, region,

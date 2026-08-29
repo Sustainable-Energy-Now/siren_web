@@ -7,7 +7,7 @@ from django.contrib import admin
 from .models import (
     EvVintage, EvSourceDocument, EvUptakePostcodeFigure, EvSuppressionFlag,
     EvChargingProfile, SwisBoundaryMembership, EvActualsRecord, EvLoadTrace,
-    V2gInterfaceStub,
+    V2gInterfaceStub, SwisBoundary, PostcodeBoundary,
 )
 
 # EV Uptake & Charging Load Modelling (Phase 0 governance scaffold, GR-01)
@@ -48,6 +48,17 @@ class SwisBoundaryMembershipAdmin(admin.ModelAdmin):
     list_display = ['postcode', 'zone_name', 'membership_status', 'apportionment_fraction']
     list_filter = ['membership_status']
     search_fields = ['postcode', 'zone_name']
+
+
+@admin.register(SwisBoundary)
+class SwisBoundaryAdmin(admin.ModelAdmin):
+    list_display = ['name', 'source', 'vertex_count', 'updated_at']
+
+
+@admin.register(PostcodeBoundary)
+class PostcodeBoundaryAdmin(admin.ModelAdmin):
+    list_display = ['postcode', 'area_sqkm', 'source', 'updated_at']
+    search_fields = ['postcode']
 
 
 @admin.register(EvActualsRecord)

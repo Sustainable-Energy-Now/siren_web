@@ -5,7 +5,10 @@ from django.http import JsonResponse
 from django.shortcuts import render
 from django.views.decorators.csrf import csrf_exempt
 from siren_web.database_operations import fetch_module_settings_data, fetch_scenario_settings_data
-from siren_web.models import facilities, Technologies, Terminals, Scenarios, GridLines, FacilityGridConnections, Zones
+from siren_web.models import facilities, Technologies, Terminals, Scenarios, GridLines, FacilityGridConnections, Zones, SwisBoundary
+from powermapui.utils.swis_boundary import (
+    swis_boundary_geojson_str, geojson_to_shapely, polygon_vertex_count,
+)
 import json
 import math
 
@@ -230,8 +233,56 @@ def home(request):
         'year_min': year_min,
         'year_max': year_max,
         'zones_kml_json': zones_kml_json,
+        'swis_boundary_json': swis_boundary_geojson_str(),
     }
     return render(request, 'map_home.html', context)
+
+
+def _polygon_from_payload(data):
+    """Extract a GeoJSON Polygon dict from an update payload.
+
+    Accepts {'geometry': <GeoJSON Polygon>} (from layer.toGeoJSON().geometry)
+    or a raw GeoJSON geometry / Feature.
+    """
+    geom = data.get('geometry', data)
+    if isinstance(geom, dict) and geom.get('type') == 'Feature':
+        geom = geom.get('geometry')
+    if not isinstance(geom, dict) or geom.get('type') != 'Polygon':
+        return None, 'Expected a GeoJSON Polygon geometry'
+    rings = geom.get('coordinates') or []
+    if not rings or len(rings[0]) < 4:
+        return None, 'Polygon outer ring needs at least 4 points'
+    return geom, None
+
+
+def ajax_update_swis_boundary(request):
+    """Persist a hand-edited SWIS boundary polygon from the grid map."""
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST required'}, status=405)
+    try:
+        data = json.loads(request.body)
+        geom, err = _polygon_from_payload(data)
+        if err:
+            return JsonResponse({'error': err}, status=400)
+
+        shp = geojson_to_shapely(geom)
+        if not shp.is_valid or shp.is_empty:
+            return JsonResponse({'error': 'Polygon geometry is invalid or empty'}, status=400)
+
+        row, _ = SwisBoundary.objects.get_or_create(name='SWIS', defaults={'geojson': '{}'})
+        row.geojson = json.dumps(geom)
+        row.source = 'hand_edited'
+        row.vertex_count = polygon_vertex_count(geom)
+        row.save()
+        return JsonResponse({
+            'status': 'ok',
+            'vertex_count': row.vertex_count,
+            'updated_at': row.updated_at.isoformat(),
+        })
+    except (ValueError, TypeError) as e:
+        return JsonResponse({'error': f'Invalid payload: {e}'}, status=400)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
 
 @login_required
 @settings_required(redirect_view='powermapui:powermapui_home') 

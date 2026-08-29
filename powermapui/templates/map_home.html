@@ -40,6 +40,9 @@
     <button id="drawZoneBtn" class="btn btn-outline-primary" type="button">
         Draw Zone Boundary
     </button>
+    <button id="editSwisBoundaryBtn" class="btn btn-outline-danger" type="button" style="display:none;">
+        Edit SWIS Boundary
+    </button>
 
     <!-- Grid Line Controls -->
     <div style="margin-top: 10px; text-align: center;">
@@ -230,6 +233,22 @@
             <button id="zoneContinueBtn" class="btn btn-primary" disabled>Continue to Zone Form →</button>
             <button id="undoZonePoint" class="btn btn-outline-warning" disabled>Undo Last Point</button>
             <button id="cancelDrawZone" class="btn btn-outline-secondary">Cancel</button>
+        </div>
+    </div>
+</div>
+
+<!-- Edit SWIS Boundary panel (initially hidden) -->
+<div id="editSwisBoundaryForm" style="display: none; margin-bottom: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
+    <h4 style="padding: 15px; background-color: #fdecec; margin: 0; border-top-left-radius: 8px; border-top-right-radius: 8px; border-bottom: 1px solid #dee2e6;">Edit SWIS Boundary</h4>
+    <div style="padding: 15px; background-color: white;">
+        <p class="text-muted mb-2">Drag a vertex to move it, click a line segment to insert a vertex, right-click a vertex to delete it. Zoom in — handles are only shown for the visible part of the boundary.</p>
+        <div style="padding: 10px; background-color: #f8f9fa; border-radius: 4px; margin-bottom: 15px; font-size: 0.9em;">
+            <div>Vertices: <span id="swis_vertex_count">0</span></div>
+            <div id="swis_edit_status" class="text-muted">No unsaved changes</div>
+        </div>
+        <div class="d-flex gap-2 flex-wrap">
+            <button id="saveSwisBoundaryBtn" class="btn btn-primary" disabled>Save Boundary</button>
+            <button id="cancelSwisBoundaryEdit" class="btn btn-outline-secondary">Cancel</button>
         </div>
     </div>
 </div>
@@ -430,12 +449,13 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
 integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
 crossorigin=""></script>
+<!-- Leaflet-Geoman: SWIS boundary vertex editing -->
+<link rel="stylesheet" href="https://unpkg.com/@geoman-io/leaflet-geoman-free@2.20.0/dist/leaflet-geoman.css" />
+<script src="https://unpkg.com/@geoman-io/leaflet-geoman-free@2.20.0/dist/leaflet-geoman.js"></script>
 <!-- MapLibre GL + Leaflet bridge (vector basemap) -->
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.6.1/dist/maplibre-gl.css" />
 <script src="https://unpkg.com/maplibre-gl@5.6.1/dist/maplibre-gl.js"></script>
 <script src="https://unpkg.com/@maplibre/maplibre-gl-leaflet@0.1.4/leaflet-maplibre-gl.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet-omnivore/0.3.4/leaflet-omnivore.min.js"></script>
-<script src="https://cdn.jsdelivr.net/gh/shramov/leaflet-plugins/layer/vector/KML.js"></script>
 
 <style>
     .facility-details {
@@ -797,6 +817,10 @@ var drawZoneMode = false;
 var zonePoints = [];
 var zoneMarkers = [];
 var zonePreviewLine = null;
+var SWIS_BOUNDARY_STYLE = {
+    fillColor: '#ddffcc', fillOpacity: 0.4,
+    color: '#ff7800', weight: 3, opacity: 0.8, dashArray: '5, 5'
+};
 var terminalDragMarker = null;
 var terminalDragId = null;
 var terminalDragOriginalLatLng = null;
@@ -848,6 +872,13 @@ L.maplibreGL({
     style: 'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json',
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
 }).addTo(map);
+
+// SWIS boundary polygon (editable). 'null' when no DB row / KML available.
+var swisBoundaryGeoJSON = {{ swis_boundary_json|safe }};
+var boundaryPolygon = null;          // the editable L.Polygon sublayer
+var swisEditMode = false;
+var swisOriginalLatLngs = null;
+if (window.L && L.PM) { L.PM.setOptIn(true); }  // Geoman only touches opted-in layers
 
 // ===== FUNCTION DEFINITIONS =====
 
@@ -1952,6 +1983,118 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    // ===== Edit SWIS Boundary (Leaflet-Geoman) =====
+    (function initSwisBoundaryEditing() {
+        const editBtn = document.getElementById('editSwisBoundaryBtn');
+        if (!editBtn) return;
+
+        const panel = document.getElementById('editSwisBoundaryForm');
+        const countEl = document.getElementById('swis_vertex_count');
+        const statusEl = document.getElementById('swis_edit_status');
+        const saveBtn = document.getElementById('saveSwisBoundaryBtn');
+        const cancelBtn = document.getElementById('cancelSwisBoundaryEdit');
+        let dirty = false;
+
+        function ringVertexCount() {
+            if (!boundaryPolygon) return 0;
+            const ll = boundaryPolygon.getLatLngs();
+            const flat = Array.isArray(ll[0]) ? ll.flat(Infinity) : ll;
+            return flat.length;
+        }
+        function refreshCount() { countEl.textContent = ringVertexCount(); }
+        function markDirty() {
+            dirty = true;
+            saveBtn.disabled = false;
+            statusEl.textContent = 'Unsaved changes';
+            statusEl.className = 'text-danger';
+        }
+
+        function enterEditMode() {
+            if (!boundaryPolygon) { alert('SWIS boundary layer not ready.'); return; }
+            if (typeof drawZoneMode !== 'undefined' && drawZoneMode) {
+                alert('Finish drawing the zone boundary first.'); return;
+            }
+            if (typeof addGridLineMode !== 'undefined' && addGridLineMode) {
+                alert('Finish adding the grid line first.'); return;
+            }
+            swisEditMode = true;
+            swisOriginalLatLngs = JSON.parse(JSON.stringify(boundaryPolygon.getLatLngs()));
+            if (!map.hasLayer(boundaryLayer)) { map.addLayer(boundaryLayer); }
+            if (!boundaryPolygon.pm && L.PM && L.PM.reInitLayer) { L.PM.reInitLayer(boundaryPolygon); }
+            if (!boundaryPolygon.pm) { alert('Boundary editor could not initialise.'); swisEditMode = false; return; }
+            boundaryPolygon.pm.enable({
+                allowSelfIntersection: false,
+                limitMarkersToViewport: true,
+                limitMarkersToCount: 300
+            });
+            boundaryPolygon.on('pm:edit pm:markerdragend pm:vertexadded pm:vertexremoved', function () {
+                refreshCount(); markDirty();
+            });
+            panel.style.display = 'block';
+            editBtn.textContent = 'Close boundary editor';
+            editBtn.classList.add('active');
+            dirty = false; saveBtn.disabled = true;
+            statusEl.textContent = 'No unsaved changes'; statusEl.className = 'text-muted';
+            refreshCount();
+        }
+
+        function exitEditMode() {
+            swisEditMode = false;
+            if (boundaryPolygon && boundaryPolygon.pm) {
+                boundaryPolygon.pm.disable();
+                boundaryPolygon.off('pm:edit pm:markerdragend pm:vertexadded pm:vertexremoved');
+            }
+            panel.style.display = 'none';
+            editBtn.textContent = 'Edit SWIS Boundary';
+            editBtn.classList.remove('active');
+            dirty = false;
+        }
+
+        editBtn.addEventListener('click', function () {
+            if (swisEditMode) {
+                if (dirty && !confirm('Discard unsaved boundary changes?')) return;
+                if (dirty && swisOriginalLatLngs) boundaryPolygon.setLatLngs(swisOriginalLatLngs);
+                exitEditMode();
+            } else {
+                enterEditMode();
+            }
+        });
+
+        cancelBtn.addEventListener('click', function () {
+            if (dirty && swisOriginalLatLngs) boundaryPolygon.setLatLngs(swisOriginalLatLngs);
+            exitEditMode();
+        });
+
+        saveBtn.addEventListener('click', function () {
+            if (!boundaryPolygon) return;
+            saveBtn.disabled = true;
+            statusEl.textContent = 'Saving…'; statusEl.className = 'text-muted';
+            fetch("{% url 'powermapui:ajax_update_swis_boundary' %}", {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+                body: JSON.stringify({ geometry: boundaryPolygon.toGeoJSON().geometry })
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.status === 'ok') {
+                    dirty = false;
+                    swisOriginalLatLngs = JSON.parse(JSON.stringify(boundaryPolygon.getLatLngs()));
+                    statusEl.textContent = 'Saved (' + data.vertex_count + ' vertices)';
+                    statusEl.className = 'text-success';
+                } else {
+                    statusEl.textContent = 'Error: ' + (data.error || 'save failed');
+                    statusEl.className = 'text-danger';
+                    saveBtn.disabled = false;
+                }
+            })
+            .catch(err => {
+                statusEl.textContent = 'Network error: ' + err;
+                statusEl.className = 'text-danger';
+                saveBtn.disabled = false;
+            });
+        });
+    })();
+
     // Submit facility button
     const submitAddFacility = document.getElementById('submitAddFacility');
     if (submitAddFacility) {
@@ -2063,6 +2206,7 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Handle map clicks for facilities, terminals and grid line creation
     map.on('click', function(e) {
+        if (swisEditMode) { return; }  // Geoman owns clicks while editing the boundary
         if (addTerminalMode) {
             selectedTerminalLocation = e.latlng;
             
@@ -2189,64 +2333,63 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     // Load KML layers
-    function initializeKMLLayers() {
-        boundaryLayer = new L.KML("{% static 'kml//SWIS_Boundary.kml' %}", {
-            async: true
-        });
-        boundaryLayer.on("loaded", function(e) {
-            map.fitBounds(e.target.getBounds());
-            e.target.eachLayer(function(layer) {
-                if (layer instanceof L.Polygon) {
-                    layer.setStyle({
-                        fillColor: '#ddffcc',
-                        fillOpacity: 0.4,
-                        color: '#ff7800',
-                        weight: 3,
-                        opacity: 0.8,
-                        dashArray: '5, 5',
-                        dashOffset: '0'
-                    });
-                }
-            });
+    var _layerControlInited = false;
+    function maybeInitLayerControl() {
+        if (_layerControlInited || !boundaryLayer || !zoneLayer) return;
+        _layerControlInited = true;
+        initializeLayerControl();
+    }
 
-            initializeLayerControl();
-
-            // Workaround: Programmatically toggle SWIS Boundary layer to fix grid line interactivity
-            // This resolves the issue where the KML layer blocks mouse events on grid lines
-            setTimeout(function() {
-                if (map.hasLayer(boundaryLayer)) {
-                    map.removeLayer(boundaryLayer);
-                    setTimeout(function() {
-                        map.addLayer(boundaryLayer);
-                        // Ensure grid lines stay on top after re-adding boundary
-                        if (map.hasLayer(gridLinesLayer)) {
-                            bringLayerGroupToFront(gridLinesLayer);
-                        }
-                    }, 100);
-                }
-            }, 500);
-        });
+    function buildBoundaryLayer(geom) {
+        boundaryLayer = L.geoJSON(geom, { pmIgnore: false, style: SWIS_BOUNDARY_STYLE });
+        boundaryPolygon = boundaryLayer.getLayers()[0] || null;
         map.addLayer(boundaryLayer);
+        boundaryLayer.bringToBack();
+        try { map.fitBounds(boundaryLayer.getBounds()); } catch (e) {}
+        if (window.L && L.PM && boundaryPolygon) {
+            document.getElementById('editSwisBoundaryBtn').style.display = '';
+        }
+    }
 
-        {% if zones_kml_json != 'null' %}
-        var zonesData = {{ zones_kml_json|safe }};
+    function initializeKMLLayers() {
+        // ── SWIS boundary (editable; served from the DB, else the committed geojson) ──
+        if (swisBoundaryGeoJSON && swisBoundaryGeoJSON !== null) {
+            buildBoundaryLayer(swisBoundaryGeoJSON);
+            maybeInitLayerControl();
+        } else {
+            fetch("{% static 'geojson/swis_boundary.geojson' %}")
+                .then(function(r) { return r.json(); })
+                .then(function(g) { buildBoundaryLayer(g); maybeInitLayerControl(); })
+                .catch(function(err) { console.warn('SWIS boundary unavailable:', err); });
+        }
+
+        // ── Zones ──
         zoneLayer = L.featureGroup();
-        zonesData.forEach(function(zone) {
-            // GeoJSON coordinates are [lon, lat, alt?] — convert to Leaflet [lat, lon]
-            var latlngs = zone.coordinates.map(function(c) { return [c[1], c[0]]; });
-            if (latlngs.length >= 2) {
-                var zPoly = L.polyline(latlngs, {color: '#3388ff', weight: 2});
-                if (zone.name) { zPoly.bindPopup('<h2>' + zone.name + '</h2>'); }
-                zoneLayer.addLayer(zPoly);
-            }
-        });
         map.addLayer(zoneLayer);
+        function addZonePolyline(latlngs, name) {
+            if (latlngs.length < 2) return;
+            var zPoly = L.polyline(latlngs, { color: '#3388ff', weight: 2 });
+            if (name) { zPoly.bindPopup('<h2>' + name + '</h2>'); }
+            zoneLayer.addLayer(zPoly);
+        }
+        {% if zones_kml_json != 'null' %}
+        ({{ zones_kml_json|safe }}).forEach(function(zone) {
+            // stored coords are [lon, lat, alt?] — Leaflet wants [lat, lon]
+            addZonePolyline(zone.coordinates.map(function(c) { return [c[1], c[0]]; }), zone.name);
+        });
+        maybeInitLayerControl();
         {% else %}
-        zoneLayer = new L.KML("{% static 'kml//SWIS_2023_Zones.kml' %}", {async: true});
-        zoneLayer.on("loaded", function(e) {
-            map.fitBounds(e.target.getBounds());
-        });
-        map.addLayer(zoneLayer);
+        fetch("{% static 'geojson/swis_zones.geojson' %}")
+            .then(function(r) { return r.json(); })
+            .then(function(fc) {
+                (fc.features || []).forEach(function(f) {
+                    var coords = (f.geometry && f.geometry.coordinates) || [];
+                    addZonePolyline(coords.map(function(c) { return [c[1], c[0]]; }),
+                                    f.properties && f.properties.name);
+                });
+            })
+            .catch(function(err) { console.warn('SWIS zones unavailable:', err); });
+        maybeInitLayerControl();
         {% endif %}
     }
 
