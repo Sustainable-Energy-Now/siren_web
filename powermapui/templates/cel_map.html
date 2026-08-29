@@ -299,6 +299,10 @@
       integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
         integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<!-- MapLibre GL + Leaflet bridge (vector basemap) -->
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.6.1/dist/maplibre-gl.css" />
+<script src="https://unpkg.com/maplibre-gl@5.6.1/dist/maplibre-gl.js"></script>
+<script src="https://unpkg.com/@maplibre/maplibre-gl-leaflet@0.1.4/leaflet-maplibre-gl.js"></script>
 
 <script>
 document.addEventListener('DOMContentLoaded', function () {
@@ -342,10 +346,9 @@ document.addEventListener('DOMContentLoaded', function () {
 
   // ── Initialise map ──────────────────────────────────────────────────────
   const map = L.map('cel-map').setView([-31.95, 115.86], 6);
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+  L.maplibreGL({
+    style: 'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json',
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
-    subdomains: 'abcd',
-    maxZoom: 19,
   }).addTo(map);
 
   // ── Category filters ────────────────────────────────────────────────────

@@ -3,6 +3,9 @@
 {% block scripts %}
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.6.1/dist/maplibre-gl.css" />
+<script src="https://unpkg.com/maplibre-gl@5.6.1/dist/maplibre-gl.js"></script>
+<script src="https://unpkg.com/@maplibre/maplibre-gl-leaflet@0.1.4/leaflet-maplibre-gl.js"></script>
 {% endblock %}
 
 {% block powermapui_content %}
@@ -141,10 +144,9 @@
 (function () {
     // ── Map setup ─────────────────────────────────────────────────────────
     var boundaryMap = L.map('boundaryMap').setView([-31.0, 121.0], 6);
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+    L.maplibreGL({
+        style: 'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json',
         attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
-        subdomains: 'abcd',
-        maxZoom: 19,
     }).addTo(boundaryMap);
 
     var statusEl = document.getElementById('mapStatus');
