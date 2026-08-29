@@ -4,6 +4,67 @@ from django.forms import ModelForm, FileField
 from django.utils.html import format_html
 from .models import Reference
 from django.contrib import admin
+from .models import (
+    EvVintage, EvSourceDocument, EvUptakePostcodeFigure, EvSuppressionFlag,
+    EvChargingProfile, SwisBoundaryMembership, EvActualsRecord, EvLoadTrace,
+    V2gInterfaceStub,
+)
+
+# EV Uptake & Charging Load Modelling (Phase 0 governance scaffold, GR-01)
+@admin.register(EvVintage)
+class EvVintageAdmin(admin.ModelAdmin):
+    list_display = ['version', 'release_date', 'ingestion_status', 'updated_at']
+    list_filter = ['ingestion_status']
+    search_fields = ['version']
+
+
+@admin.register(EvSourceDocument)
+class EvSourceDocumentAdmin(admin.ModelAdmin):
+    list_display = ['vintage', 'doc_type', 'retrieved_at']
+    list_filter = ['doc_type']
+
+
+@admin.register(EvUptakePostcodeFigure)
+class EvUptakePostcodeFigureAdmin(admin.ModelAdmin):
+    list_display = ['vintage', 'postcode', 'forecast_year', 'csiro_scenario', 'consumption_kwh', 'validation_status']
+    list_filter = ['csiro_scenario', 'validation_status', 'forecast_year']
+    search_fields = ['postcode']
+
+
+@admin.register(EvSuppressionFlag)
+class EvSuppressionFlagAdmin(admin.ModelAdmin):
+    list_display = ['vintage', 'postcode', 'forecast_year', 'csiro_scenario', 'reason']
+    list_filter = ['reason', 'csiro_scenario']
+
+
+@admin.register(EvChargingProfile)
+class EvChargingProfileAdmin(admin.ModelAdmin):
+    list_display = ['source_document', 'region', 'charging_type_label', 'charging_mode', 'share_of_charging']
+    list_filter = ['region', 'charging_mode']
+
+
+@admin.register(SwisBoundaryMembership)
+class SwisBoundaryMembershipAdmin(admin.ModelAdmin):
+    list_display = ['postcode', 'zone_name', 'membership_status', 'apportionment_fraction']
+    list_filter = ['membership_status']
+    search_fields = ['postcode', 'zone_name']
+
+
+@admin.register(EvActualsRecord)
+class EvActualsRecordAdmin(admin.ModelAdmin):
+    list_display = ['year', 'region', 'source', 'fleet_count']
+    list_filter = ['source']
+
+
+@admin.register(EvLoadTrace)
+class EvLoadTraceAdmin(admin.ModelAdmin):
+    list_display = ['csiro_scenario', 'year', 'charging_mode', 'n_intervals', 'annual_energy_mwh', 'integral_check_pct']
+    list_filter = ['csiro_scenario', 'charging_mode']
+
+
+@admin.register(V2gInterfaceStub)
+class V2gInterfaceStubAdmin(admin.ModelAdmin):
+    list_display = ['csiro_scenario', 'v2g_capable_fraction', 'exportable_capacity_kw']
 
 @admin.register(Reference)
 class ReferenceAdmin(admin.ModelAdmin):

@@ -253,6 +253,8 @@ CRISPY_RENDERER_CLASS = "crispy_bootstrap5.renderers.AccordionJsRenderer"
 WEATHER_DATA_DIR = BASE_DIR / 'siren_web' / 'siren_files' / 'SWIS' / 'siren_data' / 'weather_files'
 POWER_CURVES_DIR = BASE_DIR / 'siren_web' / 'siren_files' / 'siren_data' / 'plant_data'
 ESOO_ARCHIVE_DIR = BASE_DIR / 'siren_web' / 'siren_files' / 'esoo_archive'
+EV_ARCHIVE_DIR = BASE_DIR / 'siren_web' / 'siren_files' / 'ev_archive'
+EV_TRACE_DIR = BASE_DIR / 'siren_web' / 'siren_files' / 'ev_traces'
 MEDIA_ROOT = BASE_DIR / 'media'
 if 'fetch_historical_scada' in sys.argv:
     DATABASES['default']['OPTIONS'] = {

@@ -1,0 +1,70 @@
+{% extends 'scada/base.html' %}
+
+{% block title %}EV Uptake & Charging Load Tracking{% endblock %}
+
+{% block content %}
+<header style="margin-bottom: 20px;">
+    <h1>EV Uptake Tracking (Outcome B)</h1>
+    <p style="color: #7f8c8d; font-size: 1.1em;">
+        How WA's accumulating EV fleet actuals compare with CSIRO's Low/Medium/High uptake projections,
+        and which trajectory WA is currently tracking toward.
+    </p>
+</header>
+
+<div class="info-box" style="background: #e3f2fd; border-left-color: #2196f3;">
+    <p style="margin-bottom: 0;">
+        This comparison is deliberately <strong>fleet count vs fleet count</strong> (not consumption), since
+        WA's actuals source only reports vehicle counts (O8) — the sensitivity capability (Outcome A) uses
+        consumption (kWh) as its load driver, but that basis is not available for actuals, so it is never
+        mixed into this comparison.
+    </p>
+</div>
+
+<div class="section-header" style="background: white; padding: 30px; margin-bottom: 30px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+    <h2 style="color: #1e3c72; border-bottom: 3px solid #4CAF50; padding-bottom: 10px; margin-bottom: 20px; font-size: 1.8em;">
+        Projection vs Actuals
+    </h2>
+
+    <p style="color: #7f8c8d;">
+        {{ n_figures }} validated postcode figures aggregated to state-wide fleet totals per scenario/year;
+        {{ n_actuals }} WA actuals year(s) loaded.
+    </p>
+
+    <div class="chart-container" style="background: white; padding: 20px; border-radius: 8px; margin: 20px 0; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+        {% if chart_html %}{{ chart_html|safe }}{% else %}
+        <p>No data yet — run <code>extract_ev_figures</code> / <code>validate_ev_data</code> and
+        <code>import_ev_actuals</code> to populate this chart.</p>
+        {% endif %}
+    </div>
+
+    {% if report.latest_flag %}
+    <div class="metric-grid" style="display:flex; gap:20px; flex-wrap:wrap;">
+        <div class="metric-card positive" style="border-left: 4px solid #27ae60; background: linear-gradient(135deg, #ffffff 0%, #e8f5e9 100%); padding: 16px; border-radius: 6px; min-width:220px;">
+            <div class="metric-label">Latest actuals year</div>
+            <div class="metric-value" style="font-size: 1.4em;">{{ report.latest_flag.year }}</div>
+        </div>
+        <div class="metric-card neutral" style="border-left: 4px solid #3498db; background: linear-gradient(135deg, #ffffff 0%, #e3f2fd 100%); padding: 16px; border-radius: 6px; min-width:220px;">
+            <div class="metric-label">Nearest CSIRO trajectory</div>
+            <div class="metric-value" style="font-size: 1.4em;">{{ report.latest_flag.nearest_scenario|title }}</div>
+        </div>
+        <div class="metric-card neutral" style="border-left: 4px solid #3498db; background: linear-gradient(135deg, #ffffff 0%, #e3f2fd 100%); padding: 16px; border-radius: 6px; min-width:220px;">
+            <div class="metric-label">Divergence</div>
+            <div class="metric-value" style="font-size: 1.4em;">
+                {{ report.latest_flag.divergence_fleet_count|floatformat:0 }}
+                ({{ report.latest_flag.divergence_pct|floatformat:1 }}%)
+            </div>
+        </div>
+    </div>
+    {% elif n_actuals %}
+    <div class="info-box warning">
+        <h4>No trajectory flag available</h4>
+        <p>Actuals exist but no CSIRO curve has a figure for the latest actuals year — nothing to compare against for that exact year.</p>
+    </div>
+    {% else %}
+    <div class="info-box warning">
+        <h4>No actuals loaded yet</h4>
+        <p>Run <code>python manage.py import_ev_actuals --csv &lt;path&gt; --source &lt;source&gt;</code> to populate WA actuals.</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

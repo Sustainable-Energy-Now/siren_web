@@ -4,7 +4,7 @@ from powermapui.views import crud_scenario_views, facilities_views, facility_sol
     map_views, network_overview_views, pipeline_charts_views, cel_map_views, \
     power_views, storage_views, table_update_views, technologies_views, \
     terminals_connections_views, terminals_dashboard, terminals_views, wind_turbines_views, \
-    cel_views, zone_views, project_viability_views
+    cel_views, zone_views, project_viability_views, ev_boundary_views
 app_name = 'powermapui'
 
 urlpatterns = [
@@ -143,6 +143,13 @@ urlpatterns = [
     path('zones/<int:pk>/', zone_views.zone_detail, name='zone_detail'),
     path('zones/<int:pk>/edit/', zone_views.zone_edit, name='zone_edit'),
     path('zones/<int:pk>/delete/', zone_views.zone_delete, name='zone_delete'),
+
+    # ========== SWIS BOUNDARY MEMBERSHIP (EV FR-04/05) ==========
+    path('swis-boundary/', ev_boundary_views.swis_boundary_list, name='swis_boundary_list'),
+    path('swis-boundary/create/', ev_boundary_views.swis_boundary_create, name='swis_boundary_create'),
+    path('swis-boundary/<int:pk>/edit/', ev_boundary_views.swis_boundary_edit, name='swis_boundary_edit'),
+    path('swis-boundary/<int:pk>/delete/', ev_boundary_views.swis_boundary_delete, name='swis_boundary_delete'),
+    path('swis-boundary/bulk-import/', ev_boundary_views.swis_boundary_bulk_import, name='swis_boundary_bulk_import'),
 
     path('tableupdate/', table_update_views.select_table, name='table_update'),
     path('tableupdate/process/', table_update_views.update_table, name='table_update_process'),

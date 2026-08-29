@@ -1,0 +1,15 @@
+{% extends 'powermapui_base.html' %}
+
+{% block powermapui_content %}
+  <h3>Delete {{ membership.postcode }}?</h3>
+  <div class="card">
+    <div class="card-body">
+      <p>This will permanently remove the SWIS boundary membership row for postcode {{ membership.postcode }}.</p>
+      <form method="post">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-danger">Delete</button>
+        <a href="{% url 'powermapui:swis_boundary_list' %}" class="btn btn-outline-secondary">Cancel</a>
+      </form>
+    </div>
+  </div>
+{% endblock %}

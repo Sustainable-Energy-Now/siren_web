@@ -1,0 +1,45 @@
+{% extends 'powermapui_base.html' %}
+
+{% block powermapui_content %}
+  <h3>{% if membership %}Edit {{ membership.postcode }}{% else %}New Postcode{% endif %}</h3>
+
+  <div class="card">
+    <div class="card-body">
+      <form method="post">
+        {% csrf_token %}
+        <div class="row mb-3">
+          {% if not membership %}
+          <div class="col-md-3">
+            <label class="form-label">Postcode <span class="text-danger">*</span></label>
+            <input type="text" name="postcode" class="form-control" required maxlength="10">
+          </div>
+          {% endif %}
+          <div class="col-md-3">
+            <label class="form-label">Zone name</label>
+            <input type="text" name="zone_name" class="form-control" value="{{ membership.zone_name|default:'' }}">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Membership status <span class="text-danger">*</span></label>
+            <select name="membership_status" class="form-select">
+              {% for value, label in status_choices %}
+              <option value="{{ value }}" {% if membership.membership_status == value %}selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Apportionment fraction</label>
+            <input type="number" step="0.01" min="0" max="1" name="apportionment_fraction" class="form-control"
+                   value="{{ membership.apportionment_fraction|default:'1.0' }}">
+            <div class="form-text">D9: reserved for edge postcodes; leave at 1.0 unless apportioning.</div>
+          </div>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Notes</label>
+          <textarea name="notes" class="form-control" rows="2">{{ membership.notes|default:'' }}</textarea>
+        </div>
+        <button type="submit" class="btn btn-primary">Save</button>
+        <a href="{% url 'powermapui:swis_boundary_list' %}" class="btn btn-outline-secondary">Cancel</a>
+      </form>
+    </div>
+  </div>
+{% endblock %}

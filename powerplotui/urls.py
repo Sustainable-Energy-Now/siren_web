@@ -6,7 +6,7 @@ from .views.echart_views import eChartView
 from .views import facility_scada_views, plot3D_views, powerplotui_home_views, ret_dashboard_views, \
     ret_comments_views, ret_targets_views, ret_pdf_views, supplyfactors_views, scada_views, \
     generation_comparison_views, risk_analysis_views, scenario_projections_views, ret_analysis_views, \
-    esoo_bias_views
+    esoo_bias_views, ev_uptake_views
 
 urlpatterns = [
     path('powerplotui/', powerplotui_home_views.powerplotui_home, name='powerplotui_home'),
@@ -69,6 +69,9 @@ urlpatterns = [
 
     # WEM ESOO Demand Forecast Bias Tracking (FR-G2)
     path('esoo-bias-tracking/', esoo_bias_views.bias_tracking_dashboard, name='esoo_bias_tracking'),
+
+    # EV Uptake & Charging Load Tracking (FR-13/14, Outcome B)
+    path('ev-uptake-tracking/', ev_uptake_views.ev_uptake_tracking, name='ev_uptake_tracking'),
 
     # Main targets list view
     path('ret_dashboard/targets/', ret_targets_views.ret_targets_list, name='ret_targets_list'),

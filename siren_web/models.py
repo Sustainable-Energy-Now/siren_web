@@ -5099,3 +5099,415 @@ class AnnualDemandActual(models.Model):
 
     def __str__(self):
         return f"{self.year} ({self.demand_basis}): {self.annual_energy_gwh} GWh, peak {self.peak_demand_mw} MW"
+
+
+# ============================================================
+# WEM ESOO EV Uptake & Charging Load Modelling — Foundation
+# models (Implementation Plan Phase 0-1, D1-D12). Mirrors the
+# ESOO Foundation models above field-for-field where applicable
+# (EvVintage/EvSourceDocument ~ EsooVintage/EsooSourceDocument);
+# EvSourceDocument is a distinct model rather than a literal reuse
+# of EsooSourceDocument because that model's `vintage` FK targets
+# EsooVintage specifically. Canonical scenario axis is CSIRO
+# Low/Medium/High uptake (D1); AEMO Step Change is pinned, not a
+# scenario axis (D8).
+# ============================================================
+
+EV_INGESTION_STATUS_CHOICES = [
+    ('pending', 'Pending'),
+    ('retrieved', 'Retrieved'),
+    ('validated', 'Validated'),
+    ('quarantined', 'Quarantined'),
+]
+
+EV_CSIRO_SCENARIO_CHOICES = [
+    ('low', 'Low'),
+    ('medium', 'Medium'),
+    ('high', 'High'),
+]
+
+EV_SOURCE_DOC_TYPE_CHOICES = [
+    ('csiro_postcode_fleet_csv', 'CSIRO postcode-level fleet/consumption CSV (one per TECH_TYPE, real CSIRO Data Shop export)'),
+    ('csiro_summary', 'CSIRO state-level summary CSV (WA_SUMMARY_*.csv, no postcode breakdown)'),
+    ('csiro_report', 'CSIRO EV Projections report/methodology document'),
+    ('aemo_isp_step_change', 'AEMO ISP Step Change charging-profile document'),
+    ('other', 'Other'),
+]
+
+EV_EXTRACTION_METHOD_CHOICES = [
+    ('structured', 'Structured source'),
+    ('pdf', 'PDF fallback'),
+]
+
+EV_VALIDATION_STATUS_CHOICES = [
+    ('pending', 'Pending'),
+    ('passed', 'Passed'),
+    ('failed', 'Failed'),
+]
+# D8/Phase 0 convention: a run against an undefined tolerance is stored as
+# 'pending', never treated as passing by default (statistical-honesty gate).
+
+EV_SUPPRESSION_REASON_CHOICES = [
+    ('suppressed_by_source', "Suppressed by CSIRO's own privacy threshold"),
+    ('unexplained', 'Unexplained (counts as pipeline data loss, FR-20)'),
+]
+
+EV_BOUNDARY_STATUS_CHOICES = [
+    ('in', 'In SWIS'),
+    ('out', 'Out of SWIS (NWIS/off-grid)'),
+    ('partial', 'Partial (edge postcode)'),
+]
+
+EV_CHARGING_TYPE_MODE_CHOICES = [
+    ('unmanaged', 'Unmanaged — arrival-based charging (D3 honest baseline)'),
+    ('managed', 'Managed — TOU/off-peak/coordinated charging (D3/D11 lever)'),
+    ('v2x', 'Vehicle-to-home/grid (dormant, D4/FR-17 — excluded from trace synthesis)'),
+    ('other', 'Unrecognised source label — excluded from trace synthesis until classified'),
+]
+# Classifies each AEMO charging-type row (e.g. "Off-peak and Solar
+# Charging", "Unscheduled Charging") into the D3 unmanaged/managed axis.
+# AEMO's own charging-type label vocabulary has already been observed to
+# drift between IASR EV workbook vintages (2023: Convenience/Daytime/
+# Nighttime/Highway Fast/Coordinated Charging; 2025: Unscheduled/TOU Grid
+# Solar/Public/Off-peak and Solar/TOU Dynamic Charging) -- classification
+# is done by keyword match in ev_charging_profile_parser.py, not a fixed
+# enum of source labels, so a future vintage's relabelling degrades to
+# 'other' (excluded, never silently mis-bucketed) rather than breaking.
+
+EV_ACTUALS_SOURCE_CHOICES = [
+    ('dot_wa_registrations', 'DoT WA vehicle registrations'),
+    ('abs_motor_vehicle_census', 'ABS Motor Vehicle Census'),
+    ('ev_council_fcai', 'EV Council / FCAI sales index'),
+]
+
+EV_CHARGING_MODE_CHOICES = [
+    ('unmanaged', 'Unmanaged (plug-in-on-arrival) — honest baseline, D3'),
+    ('managed', 'Managed (ToU redistribution lever), D3/D11'),
+]
+
+
+class EvVintage(models.Model):
+    """
+    One row per pinned CSIRO EV Projections release (D-scoped FR-01/02).
+    Root of the EV acquisition manifest, mirroring EsooVintage's role for
+    the ESOO pipeline (GR-01 provenance).
+    """
+    idevvintage = models.AutoField(db_column='idevvintage', primary_key=True)
+    version = models.CharField(
+        max_length=100, unique=True,
+        help_text="CSIRO EV Projections release identifier, e.g. '2024-Q3'"
+    )
+    release_date = models.DateField(null=True, blank=True)
+    licence = models.CharField(max_length=255, blank=True)
+    source_url = models.URLField(max_length=500, blank=True)
+    checksum = models.CharField(
+        max_length=64, blank=True,
+        help_text="SHA-256 hex digest of the retrieved source document"
+    )
+    local_file_path = models.CharField(
+        max_length=500, blank=True,
+        help_text="Path (relative to EV_ARCHIVE_DIR) of the retrieved document"
+    )
+    ingestion_status = models.CharField(
+        max_length=20, choices=EV_INGESTION_STATUS_CHOICES, default='pending'
+    )
+    notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'ev_vintage'
+        ordering = ['-release_date', 'version']
+        verbose_name = 'EV Vintage'
+        verbose_name_plural = 'EV Vintages'
+
+    def __str__(self):
+        return f"CSIRO EV Projections {self.version}"
+
+
+class EvSourceDocument(models.Model):
+    """
+    AEMO ISP Step Change charging-profile document(s) and CSIRO
+    documents beyond a single "core dataset" file, with checksum and
+    retrieved_at (FR-02/03, GR-01). Mirrors EsooSourceDocument's shape,
+    but unique_together includes local_file_path (not just doc_type)
+    because the real CSIRO EV Uptake Projections release is genuinely
+    multi-file: five csiro_postcode_fleet_csv rows share one vintage (one
+    per TECH_TYPE — BEV/PHEV/HV/HYB/ICE — see
+    powerplotui.services.ev_uptake_parser's module docstring), which the
+    original (vintage, doc_type) constraint couldn't represent.
+    """
+    idevsourcedocument = models.AutoField(db_column='idevsourcedocument', primary_key=True)
+    vintage = models.ForeignKey(EvVintage, on_delete=models.CASCADE, related_name='source_documents')
+    doc_type = models.CharField(max_length=30, choices=EV_SOURCE_DOC_TYPE_CHOICES)
+    source_url = models.URLField(max_length=500, blank=True)
+    checksum = models.CharField(max_length=64, blank=True)
+    local_file_path = models.CharField(
+        max_length=500, blank=True,
+        help_text="Path (relative to EV_ARCHIVE_DIR) of the retrieved document"
+    )
+    retrieved_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = 'ev_source_document'
+        unique_together = [['vintage', 'doc_type', 'local_file_path']]
+        verbose_name = 'EV Source Document'
+        verbose_name_plural = 'EV Source Documents'
+
+    def __str__(self):
+        return f"{self.vintage.version} {self.get_doc_type_display()}"
+
+
+class EvUptakePostcodeFigure(models.Model):
+    """
+    Canonical postcode x year x scenario row (FR-01/06): fleet_count,
+    consumption_kwh (D6's primary load driver), with full provenance and
+    a validation_status that defaults to 'pending' and is never
+    treated as passing by default (Phase 0 statistical-honesty gate;
+    see also the standing principle in Section 8 of the implementation
+    plan: everything downstream of this table must refuse to run
+    against figures that are not status='passed').
+    """
+    idevuptakepostcodefigure = models.AutoField(db_column='idevuptakepostcodefigure', primary_key=True)
+    vintage = models.ForeignKey(EvVintage, on_delete=models.CASCADE, related_name='postcode_figures')
+
+    postcode = models.CharField(max_length=10, help_text="WA postcode, e.g. '6000'")
+    forecast_year = models.PositiveIntegerField(help_text="Year this figure forecasts (2021-2050 per FR-01)")
+    csiro_scenario = models.CharField(max_length=10, choices=EV_CSIRO_SCENARIO_CHOICES)
+
+    fleet_count = models.FloatField(null=True, blank=True, help_text="D6: retained for context/tracking, not the primary driver")
+    consumption_kwh = models.FloatField(null=True, blank=True, help_text="D6: primary load driver")
+
+    source_version = models.CharField(max_length=100, blank=True)
+    extraction_method = models.CharField(max_length=20, choices=EV_EXTRACTION_METHOD_CHOICES, default='structured')
+    extraction_date = models.DateField(null=True, blank=True)
+
+    validation_status = models.CharField(max_length=20, choices=EV_VALIDATION_STATUS_CHOICES, default='pending')
+    validation_notes = models.TextField(blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'ev_uptake_postcode_figure'
+        unique_together = [['vintage', 'postcode', 'forecast_year', 'csiro_scenario']]
+        indexes = [
+            models.Index(fields=['vintage', 'csiro_scenario', 'forecast_year']),
+            models.Index(fields=['postcode']),
+            models.Index(fields=['validation_status']),
+        ]
+        verbose_name = 'EV Uptake Postcode Figure'
+        verbose_name_plural = 'EV Uptake Postcode Figures'
+
+    def __str__(self):
+        return f"{self.postcode}/{self.forecast_year} {self.csiro_scenario}: {self.consumption_kwh} kWh"
+
+
+class EvSuppressionFlag(models.Model):
+    """
+    Per non-loaded (postcode, year, scenario) combination: distinguishes
+    CSIRO's own privacy suppression from unexplained pipeline data loss
+    (FR-20, no ESOO analogue). Only 'unexplained' counts as loss.
+    """
+    idevsuppressionflag = models.AutoField(db_column='idevsuppressionflag', primary_key=True)
+    vintage = models.ForeignKey(EvVintage, on_delete=models.CASCADE, related_name='suppression_flags')
+    postcode = models.CharField(max_length=10)
+    forecast_year = models.PositiveIntegerField()
+    csiro_scenario = models.CharField(max_length=10, choices=EV_CSIRO_SCENARIO_CHOICES)
+    reason = models.CharField(max_length=25, choices=EV_SUPPRESSION_REASON_CHOICES)
+    threshold_note = models.CharField(
+        max_length=255, blank=True,
+        help_text="CSIRO's stated suppression threshold this row was matched against"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'ev_suppression_flag'
+        unique_together = [['vintage', 'postcode', 'forecast_year', 'csiro_scenario']]
+        verbose_name = 'EV Suppression Flag'
+        verbose_name_plural = 'EV Suppression Flags'
+
+    def __str__(self):
+        return f"{self.postcode}/{self.forecast_year} {self.csiro_scenario}: {self.get_reason_display()}"
+
+
+class EvChargingProfile(models.Model):
+    """
+    AEMO Step Change charging-type shares and weekday/weekend half-hourly
+    shape (FR-03), with source citation fields.
+
+    Schema revised 2026-08-26 after inspecting the real AEMO IASR EV
+    workbook (siren_web static/kml precedent applies here too — build
+    against real data, not a guessed contract): the originally-planned
+    home/public/commercial split does not match AEMO's actual taxonomy,
+    which classifies charging by *behaviour* (e.g. "Unscheduled
+    Charging", "Off-peak and Solar Charging"), not physical location, and
+    that taxonomy itself drifts between vintages (see
+    EV_CHARGING_TYPE_MODE_CHOICES). `region` is included because the 2025
+    workbook, unlike earlier vintages, publishes a 'WEM' region directly
+    (WA's own market) alongside the five NEM regions -- when a future/
+    older vintage lacks a WEM row, obstacle O5 (NEM-vs-WA profile
+    mismatch) applies and the borrowed NEM region used as a stand-in
+    should be recorded here for transparency.
+
+    One row per (source_document, region, charging_type_label) --
+    aggregated across AEMO's finer vehicle-class breakdown (Residential/
+    Commercial/Buses-and-Trucks, or the still-finer 10-class Profile_kW
+    breakdown) by simple unweighted mean, per D6's stance that vehicle-
+    class detail is "retained for context/tracking, not as primary
+    driver" for this Sprint's postcode-consumption-driven model. The
+    half-hourly shape is stored as a JSON list of 48 fractions (summing
+    to 1 across the day) rather than 48 separate columns.
+    """
+    idevchargingprofile = models.AutoField(db_column='idevchargingprofile', primary_key=True)
+    source_document = models.ForeignKey(
+        EvSourceDocument, on_delete=models.CASCADE, related_name='charging_profiles'
+    )
+    region = models.CharField(max_length=50, help_text="Source region, e.g. 'WEM' (WA) or a NEM region borrowed per O5")
+    charging_type_label = models.CharField(max_length=100, help_text="Raw AEMO charging-type label, e.g. 'Off-peak and Solar Charging'")
+    charging_mode = models.CharField(
+        max_length=10, choices=EV_CHARGING_TYPE_MODE_CHOICES,
+        help_text="D3 unmanaged/managed bucket this charging_type_label was classified into"
+    )
+    share_of_charging = models.FloatField(help_text="Fraction of fleet using this charging type (D8: Step Change scenario)")
+    weekday_halfhourly_shape = models.JSONField(
+        help_text="48 fractions (sum to 1) — relative charging energy per half-hour, weekday"
+    )
+    weekend_halfhourly_shape = models.JSONField(
+        help_text="48 fractions (sum to 1) — relative charging energy per half-hour, weekend"
+    )
+    report_citation = models.CharField(max_length=255, blank=True)
+    page_ref = models.CharField(max_length=50, blank=True)
+    table_ref = models.CharField(max_length=100, blank=True)
+    citation_year = models.PositiveIntegerField(null=True, blank=True)
+
+    class Meta:
+        db_table = 'ev_charging_profile'
+        unique_together = [['source_document', 'region', 'charging_type_label']]
+        verbose_name = 'EV Charging Profile'
+        verbose_name_plural = 'EV Charging Profiles'
+
+    def __str__(self):
+        return f"{self.source_document.vintage.version} {self.region}/{self.charging_type_label} ({self.share_of_charging:.0%}, {self.charging_mode})"
+
+
+class SwisBoundaryMembership(models.Model):
+    """
+    postcode -> zone -> SWIS aggregate hierarchy (D5/D9/FR-04/05):
+    in/out/partial flag per postcode, with an apportionment_fraction
+    field reserved (unused this Sprint per D9) for edge postcodes.
+    """
+    idswisboundarymembership = models.AutoField(db_column='idswisboundarymembership', primary_key=True)
+    postcode = models.CharField(max_length=10, unique=True)
+    zone_name = models.CharField(max_length=100, blank=True, help_text="Intermediate zone this postcode belongs to")
+    membership_status = models.CharField(max_length=10, choices=EV_BOUNDARY_STATUS_CHOICES)
+    apportionment_fraction = models.FloatField(
+        default=1.0,
+        help_text="D9: reserved for edge-postcode apportionment; unused (always 1.0) this Sprint"
+    )
+    centroid_lat = models.FloatField(null=True, blank=True)
+    centroid_lon = models.FloatField(null=True, blank=True)
+    notes = models.TextField(blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'swis_boundary_membership'
+        indexes = [
+            models.Index(fields=['membership_status']),
+            models.Index(fields=['zone_name']),
+        ]
+        verbose_name = 'SWIS Boundary Membership'
+        verbose_name_plural = 'SWIS Boundary Memberships'
+
+    def __str__(self):
+        return f"{self.postcode} ({self.get_membership_status_display()})"
+
+
+class EvActualsRecord(models.Model):
+    """
+    WA actuals row from the FR-19-selected source (D7): year, region,
+    fleet_count, source, resolution_ceiling. Feeds the Outcome B
+    tracking-inversion (FR-13/14).
+    """
+    idevactualsrecord = models.AutoField(db_column='idevactualsrecord', primary_key=True)
+    year = models.PositiveIntegerField()
+    region = models.CharField(max_length=100, default='WA', help_text="State-level unless/until a finer resolution is confirmed (O4)")
+    fleet_count = models.FloatField()
+    source = models.CharField(max_length=30, choices=EV_ACTUALS_SOURCE_CHOICES)
+    resolution_ceiling = models.CharField(
+        max_length=100, blank=True,
+        help_text="Finest geography this source actually supports, e.g. 'state total' (O4)"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'ev_actuals_record'
+        unique_together = [['year', 'region', 'source']]
+        ordering = ['year']
+        verbose_name = 'EV Actuals Record'
+        verbose_name_plural = 'EV Actuals Records'
+
+    def __str__(self):
+        return f"{self.year} {self.region} ({self.get_source_display()}): {self.fleet_count} vehicles"
+
+
+class EvLoadTrace(models.Model):
+    """
+    Half-hourly EV load array per CSIRO scenario per year (D12: 17,520
+    periods/year). Stored as a NumPy .npy file referenced by path (see
+    powermatchui.utils.ev_load_trace_store), not as one DB row per
+    half-hour — 17,520 periods x 30 years x 3 scenarios in a relational
+    table is the wrong shape for this data, per the file-based storage
+    direction already floated for supplyfactors-scale time series.
+    """
+    idevloadtrace = models.AutoField(db_column='idevloadtrace', primary_key=True)
+    csiro_scenario = models.CharField(max_length=10, choices=EV_CSIRO_SCENARIO_CHOICES)
+    year = models.PositiveIntegerField()
+    charging_mode = models.CharField(max_length=10, choices=EV_CHARGING_MODE_CHOICES, default='unmanaged')
+    file_path = models.CharField(
+        max_length=500,
+        help_text="Path (relative to EV_TRACE_DIR) of the stored .npy half-hourly trace"
+    )
+    n_intervals = models.PositiveIntegerField()
+    annual_energy_mwh = models.FloatField(
+        help_text="Source annual energy anchor; FR-09 requires the trace's integral to match this to <= 0.01%"
+    )
+    integral_check_pct = models.FloatField(
+        null=True, blank=True,
+        help_text="Achieved |integral - annual_energy_mwh| / annual_energy_mwh * 100 at build time (FR-09 near-exact check)"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'ev_load_trace'
+        unique_together = [['csiro_scenario', 'year', 'charging_mode']]
+        verbose_name = 'EV Load Trace'
+        verbose_name_plural = 'EV Load Traces'
+
+    def __str__(self):
+        return f"EV load {self.csiro_scenario}/{self.year} ({self.charging_mode}): {self.n_intervals} intervals"
+
+
+class V2gInterfaceStub(models.Model):
+    """
+    Dormant V2G schema/interface points only (D4/FR-17, Phase 2 stretch)
+    — no dispatch logic this Sprint (obstacle O9's hard boundary).
+    """
+    idv2ginterfacestub = models.AutoField(db_column='idv2ginterfacestub', primary_key=True)
+    csiro_scenario = models.CharField(max_length=10, choices=EV_CSIRO_SCENARIO_CHOICES)
+    v2g_capable_fraction = models.FloatField(default=0.0, help_text="Fraction of the fleet assumed V2G-capable; dormant")
+    availability_profile_slot = models.CharField(
+        max_length=100, blank=True,
+        help_text="Dormant placeholder describing when a V2G-capable vehicle is assumed plugged in/available"
+    )
+    exportable_capacity_kw = models.FloatField(default=0.0, help_text="Dormant; no dispatch logic reads this yet")
+    round_trip_efficiency = models.FloatField(default=0.0, help_text="Dormant; no dispatch logic reads this yet")
+    notes = models.TextField(blank=True, default='Phase 2 dormant schema only — FR-17. No V2G dispatch runs this Sprint (O9).')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'v2g_interface_stub'
+        verbose_name = 'V2G Interface Stub'
+        verbose_name_plural = 'V2G Interface Stubs'
+
+    def __str__(self):
+        return f"V2G stub ({self.csiro_scenario}) — dormant"

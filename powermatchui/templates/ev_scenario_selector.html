@@ -1,0 +1,105 @@
+{% extends 'powermatchui_base.html' %}
+{% load static %}
+
+{% block powermatchui_content %}
+<div class="container-fluid mt-4">
+    <div class="row">
+        <div class="col-md-10 offset-md-1">
+            <h3>EV Charging Load Scenario (Outcome A: Sensitivity)</h3>
+            <p class="text-muted">
+                Pick a half-hourly base scenario and a CSIRO EV uptake scenario (Low/Medium/High), and
+                build a derived Powermatch scenario whose demand is the base trace plus the selected
+                EV charging load, added as a toggleable layer (FR-11). The base scenario itself is
+                never modified — removing the EV layer just means using the base scenario directly.
+            </p>
+
+            <div class="card">
+                <div class="card-body">
+                    <form method="post">
+                        {% csrf_token %}
+
+                        <div class="row mb-3">
+                            <div class="col-md-3">
+                                <label for="base_scenario" class="form-label">
+                                    Base Scenario (half-hourly) <span class="text-danger">*</span>
+                                </label>
+                                <select class="form-select" id="base_scenario" name="base_scenario" required>
+                                    <option value="">Select a base scenario...</option>
+                                    {% for s in base_scenarios %}
+                                    <option value="{{ s.idscenarios }}"
+                                            {% if selected_base_id|stringformat:"s" == s.idscenarios|stringformat:"s" %}selected{% endif %}>
+                                        {{ s.title }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                                <div class="form-text">D12: only half-hourly (30-minute) scenarios can carry the EV layer directly.</div>
+                            </div>
+
+                            <div class="col-md-3">
+                                <label for="csiro_scenario" class="form-label">
+                                    CSIRO Uptake Scenario <span class="text-danger">*</span>
+                                </label>
+                                <select class="form-select" id="csiro_scenario" name="csiro_scenario" required>
+                                    <option value="">Select a scenario...</option>
+                                    {% for value, label in scenario_choices %}
+                                    <option value="{{ value }}" {% if selected_scenario == value %}selected{% endif %}>
+                                        {{ label }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+
+                            <div class="col-md-3">
+                                <label for="charging_mode" class="form-label">Charging Mode</label>
+                                <select class="form-select" id="charging_mode" name="charging_mode">
+                                    {% for value, label in charging_mode_choices %}
+                                    <option value="{{ value }}" {% if selected_charging_mode == value %}selected{% endif %}>
+                                        {{ label }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                                <div class="form-text">D3: unmanaged is the honest baseline; managed is a labelled lever (FR-10).</div>
+                            </div>
+
+                            <div class="col-md-3">
+                                <label for="forecast_year" class="form-label">
+                                    Forecast Year <span class="text-danger">*</span>
+                                </label>
+                                <input type="number" class="form-control" id="forecast_year" name="forecast_year"
+                                       value="{{ selected_forecast_year }}" min="2021" max="2050" required>
+                            </div>
+                        </div>
+
+                        <button type="submit" class="btn btn-primary">Build Scenario</button>
+                    </form>
+                </div>
+            </div>
+
+            {% if result %}
+            <div class="card mt-4">
+                <div class="card-header">Scenario Built</div>
+                <div class="card-body">
+                    <table class="table table-sm">
+                        <tbody>
+                            <tr><th scope="row">Scenario</th><td>{{ result.title }} (id {{ result.scenario.idscenarios }})</td></tr>
+                            <tr><th scope="row">Forecast year</th><td>{{ result.forecast_year }}</td></tr>
+                            <tr><th scope="row">CSIRO scenario</th><td>{{ result.csiro_scenario }}</td></tr>
+                            <tr><th scope="row">Charging mode</th><td>{{ result.charging_mode }}</td></tr>
+                            <tr><th scope="row">Supply factor rows written</th><td>{{ result.n_rows }}</td></tr>
+                            <tr><th scope="row">EV annual energy</th><td>{{ result.ev_annual_energy_mwh|floatformat:1 }} MWh</td></tr>
+                            <tr><th scope="row">Integral check (FR-09, target &le; 0.01%)</th><td>{{ result.integral_check_pct|floatformat:6 }}%</td></tr>
+                        </tbody>
+                    </table>
+                    <p class="text-muted mb-0">
+                        This scenario has not been run through Powermatch dispatch yet — use
+                        <a href="/baseline_scenario/">Baseline Scenario</a> or
+                        <a href="/merit_order/">Set Merit Order</a> to add generation/storage
+                        facilities and dispatch against it.
+                    </p>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
