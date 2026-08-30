@@ -8,6 +8,7 @@ from .models import (
     EvVintage, EvSourceDocument, EvUptakePostcodeFigure, EvSuppressionFlag,
     EvChargingProfile, SwisBoundaryMembership, EvActualsRecord, EvLoadTrace,
     V2gInterfaceStub, SwisBoundary, PostcodeBoundary,
+    EvActualsDocument, EvActualsQuarter,
 )
 
 # EV Uptake & Charging Load Modelling (Phase 0 governance scaffold, GR-01)
@@ -61,9 +62,24 @@ class PostcodeBoundaryAdmin(admin.ModelAdmin):
     search_fields = ['postcode']
 
 
+@admin.register(EvActualsDocument)
+class EvActualsDocumentAdmin(admin.ModelAdmin):
+    list_display = ['quarter_label', 'period_end', 'source', 'series_rows_extracted',
+                    'report_prepared_date', 'retrieved_at']
+    list_filter = ['source']
+    date_hierarchy = 'period_end'
+
+
+@admin.register(EvActualsQuarter)
+class EvActualsQuarterAdmin(admin.ModelAdmin):
+    list_display = ['period_end', 'region', 'source', 'bev_count', 'phev_count', 'total_count']
+    list_filter = ['source', 'region']
+    date_hierarchy = 'period_end'
+
+
 @admin.register(EvActualsRecord)
 class EvActualsRecordAdmin(admin.ModelAdmin):
-    list_display = ['year', 'region', 'source', 'fleet_count']
+    list_display = ['year', 'region', 'source', 'fleet_count', 'bev_count', 'phev_count', 'period_end']
     list_filter = ['source']
 
 

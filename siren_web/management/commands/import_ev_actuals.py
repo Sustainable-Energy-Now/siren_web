@@ -6,10 +6,12 @@ into EvActualsRecord. No ESOO analogue: the ESOO pipeline derives actuals
 from SCADA (compute_annual_demand_actuals), but EV fleet actuals come
 from a registration/census/sales source instead.
 
-Takes a plain CSV (year, region, fleet_count) rather than scraping a
-specific agency's site, since FR-19's source review (Section 10 Open
-Item) is a Phase 1 deliverable this command does not pre-empt -- point it
-at whichever source's exported CSV the review recommends.
+Takes a plain CSV (year, region, fleet_count) for whichever source is in
+hand. For the FR-19-selected primary source (DoT WA quarterly licensing
+PDFs) use `refresh_ev_actuals` instead -- it downloads the PDFs, extracts
+the Figure 1b series, and derives the annual rows automatically. This
+command remains for the fallback sources (ABS Motor Vehicle Census, EV
+Council / FCAI) which have no scriptable pipeline.
 """
 import csv
 from pathlib import Path

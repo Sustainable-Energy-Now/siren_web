@@ -158,6 +158,7 @@ data
 siren_web/static_collected/
 static_collected/
 siren_web/siren_files/
+powerplotui/tests_fixtures/*.pdf
 media/templates/help/backups/
 media/published_reports/
 .claude/

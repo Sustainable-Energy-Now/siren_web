@@ -1,9 +1,10 @@
-{% extends 'scada/base.html' %}
+{% extends 'powerplotui_base.html' %}
 {% load math_filters %}
 
 {% block title %}WEM ESOO Demand Forecast Bias Tracking{% endblock %}
 
-{% block content %}
+{% block powerplotui_content %}
+<div class="esoo-bias">
 <header style="margin-bottom: 20px;">
     <h1>WEM ESOO Demand Forecast Bias Tracking</h1>
     <p style="color: #7f8c8d; font-size: 1.1em;">
@@ -304,6 +305,34 @@
 {% endif %}
 
 <style>
+    /* --- ported from scada/base.html (this page now extends powerplotui_base.html) --- */
+    .esoo-bias h1 { color:#2c3e50; font-size:2.2em; margin-bottom:10px; }
+    .esoo-bias h3 { color:#34495e; font-size:1.4em; margin:25px 0 12px 0; }
+    .esoo-bias .info-box { background:#e8f4f8; border-left:4px solid #3498db;
+        padding:15px; margin:20px 0; border-radius:4px; }
+    .esoo-bias .info-box.warning { background:#fff3cd; border-left-color:#ffc107; }
+    .esoo-bias .info-box h4 { color:#2c3e50; margin-bottom:8px; }
+    .esoo-bias .metric-grid { display:grid;
+        grid-template-columns:repeat(auto-fit, minmax(250px, 1fr)); gap:20px; margin:20px 0; }
+    .esoo-bias .metric-card { background:white; padding:25px; border-radius:12px;
+        box-shadow:0 2px 8px rgba(0,0,0,0.1); border-left:4px solid #bdc3c7; }
+    .esoo-bias .metric-card.warning { border-left-color:#f39c12;
+        background:linear-gradient(135deg, #ffffff 0%, #fff8e1 100%); }
+    .esoo-bias .metric-label { font-size:0.9em; opacity:0.9; margin-bottom:8px; }
+    .esoo-bias .metric-value { font-size:2em; font-weight:bold; margin-bottom:5px; }
+    .esoo-bias .metric-sublabel { font-size:0.85em; opacity:0.95; color:#7f8c8d; }
+    .esoo-bias .stats-table { width:100%; border-collapse:collapse; margin:20px 0;
+        background:white; box-shadow:0 2px 4px rgba(0,0,0,0.1); }
+    .esoo-bias .stats-table th { background:#34495e; color:white; padding:12px;
+        text-align:left; font-weight:600; }
+    .esoo-bias .stats-table td { padding:12px; border-bottom:1px solid #ecf0f1; }
+    .esoo-bias .stats-table tr:hover { background:#f8f9fa; }
+    .esoo-bias .stats-table .value { text-align:right; font-weight:600; }
+    .esoo-bias ul.bullet-list { list-style:none; padding-left:0; }
+    .esoo-bias ul.bullet-list li { padding:8px 0 8px 25px; position:relative; }
+    .esoo-bias ul.bullet-list li:before { content:"\25AA"; position:absolute; left:5px;
+        color:#3498db; font-size:1.2em; }
+
     .verdict-badge {
         display: inline-block;
         padding: 3px 10px;
@@ -343,4 +372,5 @@
         box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
     }
 </style>
+</div>
 {% endblock %}

@@ -5482,20 +5482,100 @@ class PostcodeBoundary(models.Model):
         return f"{self.postcode} boundary"
 
 
+class EvActualsDocument(models.Model):
+    """
+    One retrieved WA DoT quarterly "EV licensing data" PDF, with checksum
+    and provenance (FR-19, GR-01). Mirrors EsooSourceDocument/
+    EvSourceDocument but stands alone — it belongs to no forecast vintage.
+    Populated by `manage.py refresh_ev_actuals`.
+    """
+    idevactualsdocument = models.AutoField(db_column='idevactualsdocument', primary_key=True)
+    source = models.CharField(max_length=30, choices=EV_ACTUALS_SOURCE_CHOICES, default='dot_wa_registrations')
+    quarter_label = models.CharField(max_length=20, help_text="e.g. 'Dec 2025'")
+    period_end = models.DateField(help_text="Last day of the quarter this report covers")
+    source_url = models.URLField(max_length=500, blank=True)
+    local_file_path = models.CharField(
+        max_length=500, blank=True,
+        help_text="Path (relative to EV_ARCHIVE_DIR) of the retrieved PDF"
+    )
+    checksum = models.CharField(max_length=64, blank=True, help_text="SHA-256 hex digest of the retrieved PDF")
+    report_prepared_date = models.DateField(null=True, blank=True, help_text="'Prepared by DoT…' date printed in the report")
+    series_rows_extracted = models.PositiveIntegerField(default=0, help_text="Figure 1b rows parsed from this PDF (0 for pre-2025 chart-only layouts)")
+    retrieved_at = models.DateTimeField(null=True, blank=True)
+    notes = models.TextField(blank=True)
+
+    class Meta:
+        db_table = 'ev_actuals_document'
+        unique_together = [['source', 'period_end']]
+        ordering = ['-period_end']
+        verbose_name = 'EV Actuals Document'
+        verbose_name_plural = 'EV Actuals Documents'
+
+    def __str__(self):
+        return f"{self.get_source_display()} {self.quarter_label}"
+
+
+class EvActualsQuarter(models.Model):
+    """
+    One quarter-end row of the cumulative WA EV fleet-stock series, as
+    published in the DoT report's "Figure 1b" table (BEV / PHEV / Total).
+    The modern source is semi-annual (Jun/Dec rows). DoT revises earlier
+    figures over time ("re-calculation"), so a row is kept pointing at the
+    most recent document it was seen in.
+    """
+    idevactualsquarter = models.AutoField(db_column='idevactualsquarter', primary_key=True)
+    document = models.ForeignKey(
+        EvActualsDocument, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='quarters', help_text="Most recent report this figure was read from"
+    )
+    source = models.CharField(max_length=30, choices=EV_ACTUALS_SOURCE_CHOICES, default='dot_wa_registrations')
+    region = models.CharField(max_length=100, default='WA')
+    period_end = models.DateField(help_text="Last day of the quarter")
+    bev_count = models.FloatField(null=True, blank=True)
+    phev_count = models.FloatField(null=True, blank=True, help_text="FCEV is suppressed by DoT, so Total = BEV + PHEV")
+    total_count = models.FloatField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'ev_actuals_quarter'
+        unique_together = [['source', 'region', 'period_end']]
+        ordering = ['period_end']
+        verbose_name = 'EV Actuals Quarter'
+        verbose_name_plural = 'EV Actuals Quarters'
+
+    def __str__(self):
+        return f"{self.region} {self.period_end}: {self.total_count} EVs"
+
+
 class EvActualsRecord(models.Model):
     """
     WA actuals row from the FR-19-selected source (D7): year, region,
     fleet_count, source, resolution_ceiling. Feeds the Outcome B
     tracking-inversion (FR-13/14).
+
+    This is the ANNUAL snapshot table the tracking dashboard compares
+    against the (annual) CSIRO scenario curves. `refresh_ev_actuals`
+    derives it from EvActualsQuarter: one row per calendar year, taking
+    that year's Dec quarter (or its latest available quarter). bev_count/
+    phev_count/period_end/document are the extra provenance carried down
+    from the quarter row; older manually-loaded rows leave them null.
     """
     idevactualsrecord = models.AutoField(db_column='idevactualsrecord', primary_key=True)
     year = models.PositiveIntegerField()
     region = models.CharField(max_length=100, default='WA', help_text="State-level unless/until a finer resolution is confirmed (O4)")
     fleet_count = models.FloatField()
+    bev_count = models.FloatField(null=True, blank=True)
+    phev_count = models.FloatField(null=True, blank=True)
     source = models.CharField(max_length=30, choices=EV_ACTUALS_SOURCE_CHOICES)
     resolution_ceiling = models.CharField(
         max_length=100, blank=True,
         help_text="Finest geography this source actually supports, e.g. 'state total' (O4)"
+    )
+    period_end = models.DateField(null=True, blank=True, help_text="The quarter-end this annual snapshot was taken from")
+    document = models.ForeignKey(
+        EvActualsDocument, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='annual_records'
     )
     created_at = models.DateTimeField(auto_now_add=True)
 

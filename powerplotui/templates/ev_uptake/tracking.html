@@ -1,8 +1,16 @@
-{% extends 'scada/base.html' %}
+{% extends 'powerplotui_base.html' %}
 
 {% block title %}EV Uptake & Charging Load Tracking{% endblock %}
 
-{% block content %}
+{% block powerplotui_content %}
+<style>
+    .ev-tracking .info-box { background:#e8f4f8; border-left:4px solid #3498db;
+        padding:15px; margin:20px 0; border-radius:4px; }
+    .ev-tracking .info-box.warning { background:#fff3cd; border-left-color:#ffc107; }
+    .ev-tracking .info-box h4 { color:#2c3e50; margin-bottom:8px; }
+    .ev-tracking .metric-label { font-size:0.9em; opacity:0.9; margin-bottom:8px; }
+</style>
+<div class="ev-tracking">
 <header style="margin-bottom: 20px;">
     <h1>EV Uptake Tracking (Outcome B)</h1>
     <p style="color: #7f8c8d; font-size: 1.1em;">
@@ -27,13 +35,13 @@
 
     <p style="color: #7f8c8d;">
         {{ n_figures }} validated postcode figures aggregated to state-wide fleet totals per scenario/year;
-        {{ n_actuals }} WA actuals year(s) loaded.
+        {{ n_actuals }} WA actuals year(s) and {{ n_actuals_quarters }} quarter(s) loaded.
     </p>
 
     <div class="chart-container" style="background: white; padding: 20px; border-radius: 8px; margin: 20px 0; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
         {% if chart_html %}{{ chart_html|safe }}{% else %}
         <p>No data yet — run <code>extract_ev_figures</code> / <code>validate_ev_data</code> and
-        <code>import_ev_actuals</code> to populate this chart.</p>
+        <code>refresh_ev_actuals</code> to populate this chart.</p>
         {% endif %}
     </div>
 
@@ -63,8 +71,10 @@
     {% else %}
     <div class="info-box warning">
         <h4>No actuals loaded yet</h4>
-        <p>Run <code>python manage.py import_ev_actuals --csv &lt;path&gt; --source &lt;source&gt;</code> to populate WA actuals.</p>
+        <p>Run <code>python manage.py refresh_ev_actuals</code> to download the DoT WA quarterly
+        licensing PDFs and populate WA actuals.</p>
     </div>
     {% endif %}
+</div>
 </div>
 {% endblock %}
