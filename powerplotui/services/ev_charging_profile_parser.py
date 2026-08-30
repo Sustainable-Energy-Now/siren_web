@@ -244,3 +244,84 @@ def build_ev_charging_profile_rows(
         rows.append({'_unmatched_share_labels': sorted(unmatched)})  # surfaced by the caller, not persisted
 
     return rows
+
+
+def parse_wem_annual_totals(workbook, sheet_name: str, scenario: str, region: str = 'WEM') -> Dict[int, float]:
+    """
+    FR-07 informational cross-reference: parses a Scenario > Region >
+    VehicleType > year-columns sheet ('BEV_PHEV_Consumption (GWh)' or
+    'BEV_Numbers') for one scenario/region, summing across vehicle types.
+    Returns {year: total}.
+
+    Unlike BEV_PHEV_Charge_Type (%) (Region outer, Scenario inner --
+    see combine_charging_type_shapes' caller), these "totals" sheets nest
+    the OTHER way around: Scenario outer, Region inner. Confirmed by
+    direct inspection (2026-08-27), not assumed from the other sheet's
+    layout.
+
+    Not paired with a strict tolerance (see
+    powermatchui.utils.ev_reconciliation's DEFAULT_TOLERANCE_PCT
+    comment): AEMO's scenario framework (Slower Growth/Step Change/
+    Accelerated Transition) is a different axis to CSIRO's postcode-file
+    Low/Medium/High, and the correspondence between them is an unconfirmed
+    working hypothesis (Step Change ~ Medium, per D8 calling Step Change
+    "AEMO's central planning anchor") -- report this as a ratio/sanity
+    check, not a pass/fail gate.
+    """
+    ws = workbook[sheet_name]
+
+    scenario_rows = []
+    for i, row in enumerate(ws.iter_rows(values_only=True)):
+        c1, c2 = row[1], row[2]
+        if c1 and c2 is None and str(c1).strip() not in KNOWN_REGION_LABELS:
+            scenario_rows.append((i, str(c1).strip()))
+    matches = [i for i, label in scenario_rows if label == scenario]
+    if not matches:
+        available = sorted({label for _, label in scenario_rows})
+        raise EvChargingProfileParseError(f"Scenario '{scenario}' not found in {sheet_name}. Available: {available}")
+    scenario_start = matches[0]
+    later = [i for i, _ in scenario_rows if i > scenario_start]
+    scenario_end = min(later) if later else None
+
+    region_start, region_end = None, None
+    for i, row in enumerate(ws.iter_rows(values_only=True)):
+        if i <= scenario_start or (scenario_end is not None and i >= scenario_end):
+            continue
+        c1, c2 = row[1], row[2]
+        if c1 and c2 is None and str(c1).strip() in KNOWN_REGION_LABELS:
+            if str(c1).strip() == region and region_start is None:
+                region_start = i
+            elif region_start is not None and region_end is None:
+                region_end = i
+    if region_start is None:
+        raise EvChargingProfileParseError(f"Region '{region}' not found under scenario '{scenario}' in {sheet_name}")
+    if region_end is None:
+        region_end = scenario_end
+
+    header_row_idx = region_start + 1
+    year_cols: Dict[int, int] = {}
+    for i, row in enumerate(ws.iter_rows(values_only=True)):
+        if i != header_row_idx:
+            continue
+        for col_idx, val in enumerate(row):
+            if isinstance(val, str) and val[:4].isdigit():
+                year_cols[col_idx] = int(val[:4])
+        break
+    if not year_cols:
+        raise EvChargingProfileParseError(f"No year-header row found at row {header_row_idx} in {sheet_name}")
+
+    totals: Dict[int, float] = defaultdict(float)
+    for i, row in enumerate(ws.iter_rows(values_only=True)):
+        if i <= header_row_idx or (region_end is not None and i >= region_end):
+            continue
+        label = row[1]
+        if not label or label == 'Vehicle Type':
+            continue
+        for col_idx, year in year_cols.items():
+            val = row[col_idx] if col_idx < len(row) else None
+            if val is not None:
+                totals[year] += float(val)
+
+    if not totals:
+        raise EvChargingProfileParseError(f"No data rows found for {scenario}/{region} in {sheet_name}")
+    return dict(totals)

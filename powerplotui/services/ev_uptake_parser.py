@@ -42,7 +42,7 @@ If a future CSIRO release turns out to suppress small-count cells
 differently, revisit this.
 """
 from pathlib import Path
-from typing import List, Tuple
+from typing import Dict, List, Tuple
 
 import pandas as pd
 
@@ -120,3 +120,46 @@ def parse_ev_postcode_dataset_to_figures(
         })
 
     return figures, []
+
+
+def parse_wa_summary_to_published_aggregates(
+    vintage, archive_dir: Path, month: str = DEFAULT_SNAPSHOT_MONTH,
+) -> Dict[Tuple[str, int], float]:
+    """
+    FR-07 pipeline-fidelity check: parses the vintage's registered
+    csiro_summary EvSourceDocument (WA_SUMMARY_*.csv — CSIRO's own
+    already-aggregated WA-STATEWIDE total, columns MONTH/YEAR/STATE/
+    TECH_TYPE/VEHICLE_TYPE/UNIT/SCENARIO/VALUE, no POSTCODE column) into
+    {(csiro_scenario, forecast_year): mwh}, using the same TECH_TYPE
+    filter (BEV+PHEV only, D6) and month convention (Dec, see module
+    docstring) as parse_ev_postcode_dataset_to_figures, so the two totals
+    are directly comparable via
+    powermatchui.utils.ev_reconciliation.aggregate_statewide_annual_energy.
+    """
+    from siren_web.models import EvSourceDocument
+
+    doc = EvSourceDocument.objects.filter(vintage=vintage, doc_type='csiro_summary').first()
+    if doc is None:
+        raise EvUptakeParseError(
+            f"No csiro_summary EvSourceDocument registered under vintage '{vintage.version}' "
+            "— run register_local_ev_files first."
+        )
+    path = archive_dir / doc.local_file_path
+    if not path.exists():
+        raise EvUptakeParseError(f"{path} does not exist")
+
+    df = pd.read_csv(path, dtype={'SCENARIO': str, 'TECH_TYPE': str, 'MONTH': str})
+    df = df[(df['MONTH'] == month) & (df['UNIT'] == 'MWh') & (df['TECH_TYPE'].isin(TECH_TYPES_FOR_CONSUMPTION))]
+    if df.empty:
+        raise EvUptakeParseError(f"No usable rows found in {path} for month='{month}'")
+
+    grouped = df.groupby(['YEAR', 'SCENARIO'])['VALUE'].sum()
+
+    published: Dict[Tuple[str, int], float] = {}
+    for (year, scenario), mwh in grouped.items():
+        csiro_scenario = SCENARIO_MAP.get(scenario)
+        if csiro_scenario is None:
+            continue
+        published[(csiro_scenario, int(year))] = float(mwh)
+
+    return published

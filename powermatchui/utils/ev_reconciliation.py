@@ -19,7 +19,23 @@ powerplotui.services.esoo_bias_analysis's pattern.
 from dataclasses import dataclass, field
 from typing import Dict, Iterable, List, Optional, Tuple
 
-DEFAULT_TOLERANCE_PCT = None  # Section 10 Open Item: exact FR-07 tolerance to be confirmed with the Sprint Leader
+DEFAULT_TOLERANCE_PCT = 0.1
+# Section 10 Open Item, resolved 2026-08-27: FR-07's check is a straight
+# summation of real CSIRO postcode figures against CSIRO's own published
+# state total (aggregate_statewide_annual_energy vs WA_SUMMARY_*.csv) --
+# pure arithmetic, no curve-fit/construction involved, so a tighter bound
+# than esoo_reconciliation's 0.5% (which backs a curve-fit construction)
+# is appropriate. 0.1% gives headroom for legitimate source-CSV rounding
+# without being loose enough to hide a real transform bug (wrong unit
+# conversion, a double-counted TECH_TYPE, a dropped scenario).
+#
+# This tolerance is NOT meaningful for a SWIS-filtered aggregate compared
+# against a WA-statewide reference -- SWIS deliberately excludes NWIS/
+# off-grid postcodes, so a SWIS total is *expected* to sit well below the
+# WA total by a real, legitimate geographic difference, not error. Always
+# pair aggregate_statewide_annual_energy (unfiltered) with a genuinely
+# state-wide published reference, and aggregate_swis_annual_energy
+# (SWIS-filtered) only with a genuinely SWIS/WEM-scoped reference.
 
 
 class BackcastNotValidatedError(ValueError):
@@ -82,6 +98,28 @@ def aggregate_swis_annual_energy(
     )
 
 
+def aggregate_statewide_annual_energy(figures: Iterable[dict]) -> Dict[Tuple[str, int], float]:
+    """
+    FR-07 pipeline-fidelity check, step 1: sum every figure's
+    consumption_kwh by (csiro_scenario, forecast_year) with NO
+    SwisBoundaryMembership filtering at all -- this reproduces CSIRO's
+    own WA-STATEWIDE total exactly (same geography as
+    WA_SUMMARY_*.csv), proving the aggregation arithmetic itself
+    (summation, unit conversion) is faithful to the source, independent
+    of any boundary-membership question. Do not compare this against a
+    SWIS/WEM-scoped reference -- see this module's DEFAULT_TOLERANCE_PCT
+    comment.
+    """
+    totals: Dict[Tuple[str, int], float] = {}
+    for f in figures:
+        consumption_kwh = f.get('consumption_kwh')
+        if consumption_kwh is None:
+            continue
+        key = (f['csiro_scenario'], f['forecast_year'])
+        totals[key] = totals.get(key, 0.0) + consumption_kwh / 1000.0  # kWh -> MWh
+    return totals
+
+
 @dataclass
 class BackcastCheck:
     csiro_scenario: str
@@ -95,19 +133,21 @@ class BackcastCheck:
 
 
 def run_backcast_gate(
-    aggregation: SwisAggregationResult, published_aggregates_mwh: Dict[Tuple[str, int], float],
+    aggregated_mwh_by_key: Dict[Tuple[str, int], float], published_aggregates_mwh: Dict[Tuple[str, int], float],
     tolerance_pct: Optional[float] = DEFAULT_TOLERANCE_PCT,
 ) -> List[BackcastCheck]:
     """
-    FR-07. Compares each aggregated (scenario, year) against CSIRO's own
-    published SWIS/WA aggregate for the same key. `tolerance_pct=None`
-    (the default) means no tolerance has been confirmed yet -- every
-    check comes back 'not_yet_validated', never 'passed' by default
-    (Section 10 Open Item: the Sprint Leader must confirm this value
-    before Phase 2 begins).
+    FR-07. Compares each aggregated (scenario, year) against a published
+    reference for the same key -- pass `aggregate_statewide_annual_energy(...)`
+    paired with a WA-statewide reference (the pipeline-fidelity check), or
+    `aggregate_swis_annual_energy(...).aggregated_mwh` paired with a
+    genuinely SWIS/WEM-scoped reference (never a WA-statewide one -- see
+    DEFAULT_TOLERANCE_PCT's comment). `tolerance_pct=None` means no
+    tolerance has been confirmed for this comparison -- every check comes
+    back 'not_yet_validated', never 'passed' by default.
     """
     checks: List[BackcastCheck] = []
-    for key, aggregated_mwh in sorted(aggregation.aggregated_mwh.items()):
+    for key, aggregated_mwh in sorted(aggregated_mwh_by_key.items()):
         csiro_scenario, forecast_year = key
         published_mwh = published_aggregates_mwh.get(key)
 
