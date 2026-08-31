@@ -8,7 +8,7 @@ Replaces an earlier, purely speculative single-file CSV/XLSX contract
 written before any real CSIRO export had been inspected. The real
 release (verified 2026-08-26 against a WA download dated 2022-07-03) is
 genuinely five separate files, one per TECH_TYPE, registered as
-EvSourceDocument(doc_type='csiro_postcode_fleet_csv') rows under one
+SourceDocument(doc_type='csiro_postcode_fleet_csv') rows under one
 EvVintage — not a single "core dataset" file:
 
   FLEET_CONSUMPTION_PROJECTIONS_{BEV,PHEV,HV,HYB,ICE}_POSTCODE_WA_*.csv
@@ -60,18 +60,18 @@ def parse_ev_postcode_dataset_to_figures(
     vintage, archive_dir: Path, month: str = DEFAULT_SNAPSHOT_MONTH,
 ) -> Tuple[List[dict], List[dict]]:
     """
-    Reads every csiro_postcode_fleet_csv EvSourceDocument registered
+    Reads every csiro_postcode_fleet_csv SourceDocument registered
     under `vintage`, and returns (figures, suppression_flags) as plain
     dicts ready for EvUptakePostcodeFigure.objects.update_or_create(...)
     / EvSuppressionFlag.objects.update_or_create(...) (the latter always
     empty — see module docstring).
     """
-    from siren_web.models import EvSourceDocument  # local import: keeps this module importable without Django configured, matching ev_charging_profile_parser's layering
+    from siren_web.models import SourceDocument  # local import: keeps this module importable without Django configured, matching ev_charging_profile_parser's layering
 
-    docs = EvSourceDocument.objects.filter(vintage=vintage, doc_type='csiro_postcode_fleet_csv')
+    docs = SourceDocument.objects.filter(ev_vintage=vintage, doc_type='csiro_postcode_fleet_csv')
     if not docs:
         raise EvUptakeParseError(
-            f"No csiro_postcode_fleet_csv EvSourceDocument rows registered under vintage '{vintage.version}' "
+            f"No csiro_postcode_fleet_csv SourceDocument rows registered under vintage '{vintage.version}' "
             "— run register_local_ev_files first."
         )
 
@@ -127,7 +127,7 @@ def parse_wa_summary_to_published_aggregates(
 ) -> Dict[Tuple[str, int], float]:
     """
     FR-07 pipeline-fidelity check: parses the vintage's registered
-    csiro_summary EvSourceDocument (WA_SUMMARY_*.csv — CSIRO's own
+    csiro_summary SourceDocument (WA_SUMMARY_*.csv — CSIRO's own
     already-aggregated WA-STATEWIDE total, columns MONTH/YEAR/STATE/
     TECH_TYPE/VEHICLE_TYPE/UNIT/SCENARIO/VALUE, no POSTCODE column) into
     {(csiro_scenario, forecast_year): mwh}, using the same TECH_TYPE
@@ -136,12 +136,12 @@ def parse_wa_summary_to_published_aggregates(
     are directly comparable via
     powermatchui.utils.ev_reconciliation.aggregate_statewide_annual_energy.
     """
-    from siren_web.models import EvSourceDocument
+    from siren_web.models import SourceDocument
 
-    doc = EvSourceDocument.objects.filter(vintage=vintage, doc_type='csiro_summary').first()
+    doc = SourceDocument.objects.filter(ev_vintage=vintage, doc_type='csiro_summary').first()
     if doc is None:
         raise EvUptakeParseError(
-            f"No csiro_summary EvSourceDocument registered under vintage '{vintage.version}' "
+            f"No csiro_summary SourceDocument registered under vintage '{vintage.version}' "
             "— run register_local_ev_files first."
         )
     path = archive_dir / doc.local_file_path

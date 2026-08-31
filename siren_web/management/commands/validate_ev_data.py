@@ -45,7 +45,7 @@ from powermatchui.utils.ev_reconciliation import (
 )
 from powerplotui.services.ev_charging_profile_parser import EvChargingProfileParseError, parse_wem_annual_totals
 from powerplotui.services.ev_uptake_parser import EvUptakeParseError, parse_wa_summary_to_published_aggregates
-from siren_web.models import EvSourceDocument, EvUptakePostcodeFigure, EvVintage, SwisBoundaryMembership
+from siren_web.models import EvUptakePostcodeFigure, EvVintage, SourceDocument, SwisBoundaryMembership
 
 
 class Command(BaseCommand):
@@ -210,8 +210,8 @@ class Command(BaseCommand):
     def _run_wem_reference_check(self, qs, wem_version, scenario):
         try:
             wem_vintage = EvVintage.objects.get(version=wem_version)
-            doc = EvSourceDocument.objects.get(vintage=wem_vintage, doc_type='aemo_isp_step_change')
-        except (EvVintage.DoesNotExist, EvSourceDocument.DoesNotExist) as e:
+            doc = SourceDocument.objects.get(ev_vintage=wem_vintage, doc_type='aemo_isp_step_change')
+        except (EvVintage.DoesNotExist, SourceDocument.DoesNotExist) as e:
             self.stdout.write(self.style.ERROR(f'Could not find AEMO workbook under vintage {wem_version!r}: {e}'))
             return
 

@@ -11,7 +11,7 @@ import requests
 from django.conf import settings
 from django.utils import timezone
 
-from siren_web.models import EsooVintage, EsooSourceDocument
+from siren_web.models import EsooVintage, SourceDocument
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +20,7 @@ class EsooVintageFetcher:
     """
     Downloads WEM ESOO annual editions and stores them under
     settings.ESOO_ARCHIVE_DIR/{year}/, checksummed and recorded on the
-    corresponding EsooVintage row (main report) or EsooSourceDocument
+    corresponding EsooVintage row (main report) or SourceDocument
     (Data Register, Demand Traces, and any other per-vintage document).
 
     URL_PATTERN / DOC_TYPE_URL_PATTERNS reflect AEMO's current per-year
@@ -129,7 +129,7 @@ class EsooVintageFetcher:
     def fetch_source_document(self, year, doc_type, url=None, force=False):
         """
         Download one additional per-vintage document (data_register,
-        demand_traces, ...) and record it on EsooSourceDocument. Raises
+        demand_traces, ...) and record it on SourceDocument. Raises
         requests.HTTPError (e.g. 403 from a Cloudflare challenge) rather
         than swallowing it — see class docstring for the demand_traces
         caveat and the register_local_file() manual fallback.
@@ -139,7 +139,7 @@ class EsooVintageFetcher:
         except EsooVintage.DoesNotExist:
             raise ValueError(f"No EsooVintage for {year}; fetch the main report first.")
 
-        doc, _ = EsooSourceDocument.objects.get_or_create(vintage=vintage, doc_type=doc_type)
+        doc, _ = SourceDocument.objects.get_or_create(esoo_vintage=vintage, doc_type=doc_type)
         if doc.local_file_path and not force:
             logger.info(f"ESOO {year} {doc_type} already retrieved; skipping. Pass force=True to re-fetch.")
             return doc
@@ -180,7 +180,7 @@ class EsooVintageFetcher:
         content = file_path.read_bytes()
         checksum = hashlib.sha256(content).hexdigest()
 
-        doc, _ = EsooSourceDocument.objects.get_or_create(vintage=vintage, doc_type=doc_type)
+        doc, _ = SourceDocument.objects.get_or_create(esoo_vintage=vintage, doc_type=doc_type)
         doc.checksum = checksum
         doc.local_file_path = file_path.relative_to(self.archive_dir).as_posix()  # see fetch_vintage() comment
         doc.retrieved_at = timezone.now()

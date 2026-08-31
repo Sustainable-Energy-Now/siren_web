@@ -4937,12 +4937,23 @@ class EsooVintage(models.Model):
         return f"WEM ESOO {self.year} ({self.get_tier_display()})"
 
 
-ESOO_DOC_TYPE_CHOICES = [
-    ('report', 'Main ESOO report (PDF)'),
-    ('data_register', 'Data Register workbook (XLSX) — or its "Figures" half, in years AEMO split it'),
-    ('data_register_tables', 'Data Register "Tables" workbook (XLSX) — years where AEMO split the register in two'),
-    ('demand_traces', 'Demand Traces workbook (XLSB)'),
-    ('reliability_methodology', 'EY Reliability Assessment Methodology report'),
+# Source-document type vocabulary spanning both forecast pipelines. Used
+# by the unified SourceDocument model (defined after EvVintage, below,
+# since it FKs both EsooVintage and EvVintage). The ESOO and EV value
+# strings are kept verbatim from the former ESOO_DOC_TYPE_CHOICES /
+# EV_SOURCE_DOC_TYPE_CHOICES so existing rows migrate unchanged.
+SOURCE_DOC_TYPE_CHOICES = [
+    # WEM ESOO — report + workbooks
+    ('report', 'ESOO — Main report (PDF)'),
+    ('data_register', 'ESOO — Data Register workbook (XLSX) — or its "Figures" half, in years AEMO split it'),
+    ('data_register_tables', 'ESOO — Data Register "Tables" workbook (XLSX) — years where AEMO split the register in two'),
+    ('demand_traces', 'ESOO — Demand Traces workbook (XLSB)'),
+    ('reliability_methodology', 'ESOO — EY Reliability Assessment Methodology report'),
+    # CSIRO EV Projections / AEMO ISP
+    ('csiro_postcode_fleet_csv', 'EV — CSIRO postcode-level fleet/consumption CSV (one per TECH_TYPE, real CSIRO Data Shop export)'),
+    ('csiro_summary', 'EV — CSIRO state-level summary CSV (WA_SUMMARY_*.csv, no postcode breakdown)'),
+    ('csiro_report', 'EV — CSIRO EV Projections report/methodology document'),
+    ('aemo_isp_step_change', 'EV — AEMO ISP Step Change charging-profile document'),
     ('other', 'Other'),
 ]
 # data_register_tables added after finding AEMO split the Data Register into
@@ -4951,34 +4962,11 @@ ESOO_DOC_TYPE_CHOICES = [
 # into one file per year from ~2022 onward.
 
 
-class EsooSourceDocument(models.Model):
-    """
-    Additional source documents for a vintage beyond the main report
-    (tracked on EsooVintage itself for backward compatibility). Added
-    after inspecting the 2026 vintage's real publication set: AEMO
-    publishes the Data Register workbook (structured data behind every
-    report figure — the FR-F02 structured-source-first target) and a
-    Demand Traces workbook (half-hourly, bears on OQ-1) alongside the PDF.
-    """
-    idesoosourcedocument = models.AutoField(db_column='idesoosourcedocument', primary_key=True)
-    vintage = models.ForeignKey(EsooVintage, on_delete=models.CASCADE, related_name='source_documents')
-    doc_type = models.CharField(max_length=30, choices=ESOO_DOC_TYPE_CHOICES)
-    source_url = models.URLField(max_length=500, blank=True)
-    checksum = models.CharField(max_length=64, blank=True)
-    local_file_path = models.CharField(
-        max_length=500, blank=True,
-        help_text="Path (relative to ESOO_ARCHIVE_DIR) of the retrieved document"
-    )
-    retrieved_at = models.DateTimeField(null=True, blank=True)
-
-    class Meta:
-        db_table = 'esoo_source_document'
-        unique_together = [['vintage', 'doc_type']]
-        verbose_name = 'ESOO Source Document'
-        verbose_name_plural = 'ESOO Source Documents'
-
-    def __str__(self):
-        return f"{self.vintage.year} {self.get_doc_type_display()}"
+# NOTE: the former EsooSourceDocument model has been merged into the
+# unified `SourceDocument` model, defined below the EV foundation models
+# (it FKs both EsooVintage and EvVintage). An EsooVintage's documents are
+# still reached as `vintage.source_documents` — the reverse accessor name
+# is unchanged.
 
 
 class EsooTaxonomyMapping(models.Model):
@@ -5105,10 +5093,9 @@ class AnnualDemandActual(models.Model):
 # WEM ESOO EV Uptake & Charging Load Modelling — Foundation
 # models (Implementation Plan Phase 0-1, D1-D12). Mirrors the
 # ESOO Foundation models above field-for-field where applicable
-# (EvVintage/EvSourceDocument ~ EsooVintage/EsooSourceDocument);
-# EvSourceDocument is a distinct model rather than a literal reuse
-# of EsooSourceDocument because that model's `vintage` FK targets
-# EsooVintage specifically. Canonical scenario axis is CSIRO
+# (EvVintage ~ EsooVintage). Retrieved source documents for both
+# pipelines share the single `SourceDocument` model, defined at the
+# end of this section. Canonical scenario axis is CSIRO
 # Low/Medium/High uptake (D1); AEMO Step Change is pinned, not a
 # scenario axis (D8).
 # ============================================================
@@ -5124,14 +5111,6 @@ EV_CSIRO_SCENARIO_CHOICES = [
     ('low', 'Low'),
     ('medium', 'Medium'),
     ('high', 'High'),
-]
-
-EV_SOURCE_DOC_TYPE_CHOICES = [
-    ('csiro_postcode_fleet_csv', 'CSIRO postcode-level fleet/consumption CSV (one per TECH_TYPE, real CSIRO Data Shop export)'),
-    ('csiro_summary', 'CSIRO state-level summary CSV (WA_SUMMARY_*.csv, no postcode breakdown)'),
-    ('csiro_report', 'CSIRO EV Projections report/methodology document'),
-    ('aemo_isp_step_change', 'AEMO ISP Step Change charging-profile document'),
-    ('other', 'Other'),
 ]
 
 EV_EXTRACTION_METHOD_CHOICES = [
@@ -5225,37 +5204,87 @@ class EvVintage(models.Model):
         return f"CSIRO EV Projections {self.version}"
 
 
-class EvSourceDocument(models.Model):
+class SourceDocument(models.Model):
     """
-    AEMO ISP Step Change charging-profile document(s) and CSIRO
-    documents beyond a single "core dataset" file, with checksum and
-    retrieved_at (FR-02/03, GR-01). Mirrors EsooSourceDocument's shape,
-    but unique_together includes local_file_path (not just doc_type)
-    because the real CSIRO EV Uptake Projections release is genuinely
-    multi-file: five csiro_postcode_fleet_csv rows share one vintage (one
-    per TECH_TYPE — BEV/PHEV/HV/HYB/ICE — see
-    powerplotui.services.ev_uptake_parser's module docstring), which the
-    original (vintage, doc_type) constraint couldn't represent.
+    A retrieved source document (report PDF, data workbook, CSV export)
+    backing exactly one forecast vintage — either a WEM ESOO vintage
+    (`esoo_vintage`) or a CSIRO EV Projections vintage (`ev_vintage`),
+    never both and never neither (enforced by a DB CheckConstraint).
+
+    Replaces the former EsooSourceDocument and EvSourceDocument, which
+    were field-for-field identical apart from which vintage model their
+    FK targeted. `doc_type`'s vocabulary (SOURCE_DOC_TYPE_CHOICES) spans
+    both pipelines.
+
+    `local_file_path` is part of the EV uniqueness key because the real
+    CSIRO EV Uptake Projections release is genuinely multi-file: five
+    csiro_postcode_fleet_csv rows share one vintage (one per TECH_TYPE —
+    BEV/PHEV/HV/HYB/ICE — see powerplotui.services.ev_uptake_parser's
+    module docstring). The ESOO side keeps its stricter one-row-per
+    (vintage, doc_type) rule. On MySQL each UniqueConstraint only bites
+    rows whose FK is non-NULL (NULLs compare as distinct), so the two
+    constraints don't interfere.
     """
-    idevsourcedocument = models.AutoField(db_column='idevsourcedocument', primary_key=True)
-    vintage = models.ForeignKey(EvVintage, on_delete=models.CASCADE, related_name='source_documents')
-    doc_type = models.CharField(max_length=30, choices=EV_SOURCE_DOC_TYPE_CHOICES)
+    idsourcedocument = models.AutoField(db_column='idsourcedocument', primary_key=True)
+    esoo_vintage = models.ForeignKey(
+        EsooVintage, on_delete=models.CASCADE, related_name='source_documents',
+        null=True, blank=True,
+    )
+    ev_vintage = models.ForeignKey(
+        EvVintage, on_delete=models.CASCADE, related_name='source_documents',
+        null=True, blank=True,
+    )
+    doc_type = models.CharField(max_length=30, choices=SOURCE_DOC_TYPE_CHOICES)
     source_url = models.URLField(max_length=500, blank=True)
     checksum = models.CharField(max_length=64, blank=True)
     local_file_path = models.CharField(
         max_length=500, blank=True,
-        help_text="Path (relative to EV_ARCHIVE_DIR) of the retrieved document"
+        help_text="Path (relative to ESOO_ARCHIVE_DIR / EV_ARCHIVE_DIR) of the retrieved document"
     )
     retrieved_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
-        db_table = 'ev_source_document'
-        unique_together = [['vintage', 'doc_type', 'local_file_path']]
-        verbose_name = 'EV Source Document'
-        verbose_name_plural = 'EV Source Documents'
+        db_table = 'source_document'
+        constraints = [
+            models.UniqueConstraint(
+                fields=['esoo_vintage', 'doc_type'],
+                name='uniq_esoo_source_document',
+            ),
+            models.UniqueConstraint(
+                fields=['ev_vintage', 'doc_type', 'local_file_path'],
+                name='uniq_ev_source_document',
+            ),
+            models.CheckConstraint(
+                check=(
+                    models.Q(esoo_vintage__isnull=False, ev_vintage__isnull=True)
+                    | models.Q(esoo_vintage__isnull=True, ev_vintage__isnull=False)
+                ),
+                name='source_document_exactly_one_vintage',
+            ),
+        ]
+        verbose_name = 'Source Document'
+        verbose_name_plural = 'Source Documents'
+
+    @property
+    def vintage(self):
+        """The owning vintage, whichever pipeline it belongs to."""
+        return self.esoo_vintage or self.ev_vintage
+
+    @property
+    def domain(self):
+        return 'esoo' if self.esoo_vintage_id else 'ev'
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+        if bool(self.esoo_vintage_id) == bool(self.ev_vintage_id):
+            raise ValidationError(
+                "Set exactly one of esoo_vintage / ev_vintage on a SourceDocument."
+            )
 
     def __str__(self):
-        return f"{self.vintage.version} {self.get_doc_type_display()}"
+        if self.esoo_vintage_id:
+            return f"{self.esoo_vintage.year} {self.get_doc_type_display()}"
+        return f"{self.ev_vintage.version} {self.get_doc_type_display()}"
 
 
 class EvUptakePostcodeFigure(models.Model):
@@ -5360,7 +5389,7 @@ class EvChargingProfile(models.Model):
     """
     idevchargingprofile = models.AutoField(db_column='idevchargingprofile', primary_key=True)
     source_document = models.ForeignKey(
-        EvSourceDocument, on_delete=models.CASCADE, related_name='charging_profiles'
+        SourceDocument, on_delete=models.CASCADE, related_name='charging_profiles'
     )
     region = models.CharField(max_length=50, help_text="Source region, e.g. 'WEM' (WA) or a NEM region borrowed per O5")
     charging_type_label = models.CharField(max_length=100, help_text="Raw AEMO charging-type label, e.g. 'Off-peak and Solar Charging'")
@@ -5485,8 +5514,8 @@ class PostcodeBoundary(models.Model):
 class EvActualsDocument(models.Model):
     """
     One retrieved WA DoT quarterly "EV licensing data" PDF, with checksum
-    and provenance (FR-19, GR-01). Mirrors EsooSourceDocument/
-    EvSourceDocument but stands alone — it belongs to no forecast vintage.
+    and provenance (FR-19, GR-01). Mirrors SourceDocument but stands
+    alone — it belongs to no forecast vintage.
     Populated by `manage.py refresh_ev_actuals`.
     """
     idevactualsdocument = models.AutoField(db_column='idevactualsdocument', primary_key=True)

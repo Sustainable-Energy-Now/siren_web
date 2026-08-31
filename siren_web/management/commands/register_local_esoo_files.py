@@ -1,7 +1,7 @@
 # siren_web/management/commands/register_local_esoo_files.py
 """
 Bulk-registers manually downloaded ESOO documents already sitting under
-ESOO_ARCHIVE_DIR/{year}/ into EsooVintage / EsooSourceDocument, without
+ESOO_ARCHIVE_DIR/{year}/ into EsooVintage / SourceDocument, without
 re-downloading them (FR-F01's checksum/manifest requirement). Use this
 after downloading a batch of historical vintages by hand — e.g. where
 AEMO's site layout or a Cloudflare challenge makes scripted retrieval
@@ -22,7 +22,7 @@ from django.conf import settings
 from django.core.management.base import BaseCommand
 from django.utils import timezone
 
-from siren_web.models import EsooSourceDocument, EsooVintage
+from siren_web.models import EsooVintage, SourceDocument
 
 
 def _checksum(path: Path) -> str:
@@ -116,7 +116,7 @@ class Command(BaseCommand):
                     self.stdout.write(self.style.SUCCESS(f'  + [report] {file_path.name}'))
                     registered += 1
                 else:
-                    doc, _ = EsooSourceDocument.objects.get_or_create(vintage=vintage, doc_type=doc_type)
+                    doc, _ = SourceDocument.objects.get_or_create(esoo_vintage=vintage, doc_type=doc_type)
                     if doc.local_file_path and not force:
                         self.stdout.write(f'  = [{doc_type}] already registered, skipped')
                         skipped += 1

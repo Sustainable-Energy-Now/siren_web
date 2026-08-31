@@ -25,7 +25,7 @@ class Command(BaseCommand):
             help=(
                 "Which document to fetch (default: report, the main PDF). "
                 "'data_register'/'demand_traces' require --year (single vintage) "
-                "and are stored on EsooSourceDocument, not EsooVintage."
+                "and are stored on SourceDocument, not EsooVintage."
             ),
         )
 

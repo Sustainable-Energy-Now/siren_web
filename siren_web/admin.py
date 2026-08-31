@@ -5,7 +5,7 @@ from django.utils.html import format_html
 from .models import Reference
 from django.contrib import admin
 from .models import (
-    EvVintage, EvSourceDocument, EvUptakePostcodeFigure, EvSuppressionFlag,
+    EvVintage, SourceDocument, EvUptakePostcodeFigure, EvSuppressionFlag,
     EvChargingProfile, SwisBoundaryMembership, EvActualsRecord, EvLoadTrace,
     V2gInterfaceStub, SwisBoundary, PostcodeBoundary,
     EvActualsDocument, EvActualsQuarter,
@@ -19,10 +19,11 @@ class EvVintageAdmin(admin.ModelAdmin):
     search_fields = ['version']
 
 
-@admin.register(EvSourceDocument)
-class EvSourceDocumentAdmin(admin.ModelAdmin):
-    list_display = ['vintage', 'doc_type', 'retrieved_at']
+@admin.register(SourceDocument)
+class SourceDocumentAdmin(admin.ModelAdmin):
+    list_display = ['__str__', 'domain', 'doc_type', 'retrieved_at']
     list_filter = ['doc_type']
+    raw_id_fields = ['esoo_vintage', 'ev_vintage']
 
 
 @admin.register(EvUptakePostcodeFigure)

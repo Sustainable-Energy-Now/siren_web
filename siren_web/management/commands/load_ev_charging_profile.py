@@ -1,6 +1,6 @@
 # siren_web/management/commands/load_ev_charging_profile.py
 """
-FR-03 — load AEMO's IASR EV workbook (registered as an EvSourceDocument,
+FR-03 — load AEMO's IASR EV workbook (registered as a SourceDocument,
 doc_type='aemo_isp_step_change', under a given EvVintage) into
 EvChargingProfile rows.
 
@@ -23,7 +23,7 @@ from powerplotui.services.ev_charging_profile_parser import (
     EvChargingProfileParseError,
     build_ev_charging_profile_rows,
 )
-from siren_web.models import EvChargingProfile, EvSourceDocument, EvVintage
+from siren_web.models import EvChargingProfile, EvVintage, SourceDocument
 
 KEY_FIELDS = ('region', 'charging_type_label')
 
@@ -50,16 +50,16 @@ class Command(BaseCommand):
             return
 
         try:
-            source_doc = EvSourceDocument.objects.get(vintage=vintage, doc_type='aemo_isp_step_change')
-        except EvSourceDocument.DoesNotExist:
+            source_doc = SourceDocument.objects.get(ev_vintage=vintage, doc_type='aemo_isp_step_change')
+        except SourceDocument.DoesNotExist:
             self.stdout.write(self.style.ERROR(
-                f"No aemo_isp_step_change EvSourceDocument registered under vintage '{version}' — "
+                f"No aemo_isp_step_change SourceDocument registered under vintage '{version}' — "
                 "register the AEMO workbook first (register_local_ev_files)."
             ))
             return
 
         if not source_doc.local_file_path:
-            self.stdout.write(self.style.ERROR(f'EvSourceDocument {source_doc.idevsourcedocument} has no local_file_path'))
+            self.stdout.write(self.style.ERROR(f'SourceDocument {source_doc.idsourcedocument} has no local_file_path'))
             return
 
         path = Path(settings.EV_ARCHIVE_DIR) / source_doc.local_file_path

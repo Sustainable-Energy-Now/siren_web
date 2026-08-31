@@ -420,7 +420,7 @@ FIGURE_EXTRACTORS: Dict[int, Callable] = {
 def parse_esoo_workbook_to_figures(vintage, doc_type='data_register') -> List[dict]:
     """
     FR-F02 structured-source entry point. Looks up the vintage's
-    EsooSourceDocument for doc_type (default 'data_register'), opens it,
+    SourceDocument for doc_type (default 'data_register'), opens it,
     and hands it to the registered FIGURE_EXTRACTORS mapper.
 
     Raises NotImplementedError if no mapper is registered for this vintage,

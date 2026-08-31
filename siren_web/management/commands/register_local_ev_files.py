@@ -2,7 +2,7 @@
 """
 Bulk-registers manually downloaded CSIRO EV Projections / AEMO ISP
 Step Change files already sitting under EV_ARCHIVE_DIR/{version}/ into
-EvVintage / EvSourceDocument, without re-downloading them (mirrors
+EvVintage / SourceDocument, without re-downloading them (mirrors
 register_local_esoo_files.py's manifest/checksum discipline).
 
 Filename -> doc_type is inferred against the REAL file names in the
@@ -19,7 +19,7 @@ workbook (both inspected directly, 2026-08-26 — not a guessed contract):
 
 EvVintage.local_file_path is deliberately left unset by this command:
 the real CSIRO release has no single "core dataset" file to point it at
-(it's the five EvSourceDocument rows above), so extract_ev_figures reads
+(it's the five SourceDocument rows above), so extract_ev_figures reads
 the vintage's whole archive folder rather than a single local_file_path.
 """
 import hashlib
@@ -30,7 +30,7 @@ from django.conf import settings
 from django.core.management.base import BaseCommand
 from django.utils import timezone
 
-from siren_web.models import EvSourceDocument, EvVintage
+from siren_web.models import EvVintage, SourceDocument
 
 _FLEET_CSV_RE = re.compile(r'^FLEET_CONSUMPTION_PROJECTIONS_[A-Z]+_POSTCODE_.*\.csv$', re.IGNORECASE)
 
@@ -96,13 +96,13 @@ class Command(BaseCommand):
 
                 rel_path = file_path.relative_to(archive_dir).as_posix()
 
-                doc = EvSourceDocument.objects.filter(vintage=vintage, doc_type=doc_type, local_file_path=rel_path).first()
+                doc = SourceDocument.objects.filter(ev_vintage=vintage, doc_type=doc_type, local_file_path=rel_path).first()
                 if doc and not force:
                     self.stdout.write(f'  = [{doc_type}] {file_path.name} already registered, skipped')
                     skipped += 1
                     continue
 
-                doc = doc or EvSourceDocument(vintage=vintage, doc_type=doc_type, local_file_path=rel_path)
+                doc = doc or SourceDocument(ev_vintage=vintage, doc_type=doc_type, local_file_path=rel_path)
                 doc.checksum = _checksum(file_path)
                 doc.retrieved_at = timezone.now()
                 doc.save()
