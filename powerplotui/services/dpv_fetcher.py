@@ -2,6 +2,7 @@
 import requests
 import csv
 import io
+from collections import defaultdict
 from datetime import datetime, timedelta
 from decimal import Decimal
 from django.db import transaction, connection
@@ -15,7 +16,7 @@ logger = logging.getLogger(__name__)
 class DPVDataFetcher:
     """Fetch and store DPV generation estimates from AEMO"""
     
-    BASE_URL = "https://data.wa.aemo.com.au/datafiles/distributed-pv/"
+    BASE_URL = "https://data.wa.aemo.com.au/datafiles/estimated-dpv-csv/"
     AWST = pytz.timezone('Australia/Perth')
     
     def __init__(self):
@@ -40,8 +41,8 @@ class DPVDataFetcher:
             year = year or now.year
             month = month or now.month
         
-        # Construct filename - AEMO uses format: distributed-pv-YYYY.csv
-        filename = f"distributed-pv-{year}.csv"
+        # Construct filename - AEMO uses format: distributed-pv-new-YYYY.csv
+        filename = f"distributed-pv-new-{year}.csv"
         url = f"{self.BASE_URL}{filename}"
         
         try:
@@ -67,68 +68,84 @@ class DPVDataFetcher:
         records = []
         csv_file = io.StringIO(csv_content)
         reader = csv.DictReader(csv_file)
-        
-        # Handle different possible header formats
-        headers = reader.fieldnames
-        
-        # Map possible column names (case-insensitive)
+
+        headers = reader.fieldnames or []
+
+        # Current AEMO format: 'Timestamp', 'Estimated DPV Generation(MW)'
+        timestamp_col = next((h for h in headers if 'timestamp' in h.lower()), None)
+        generation_col = next(
+            (h for h in headers if 'dpv generation' in h.lower() or 'estimated dpv' in h.lower()),
+            None,
+        )
+
+        # Legacy format columns (kept for backward compatibility with old files)
         date_col = next((h for h in headers if 'trading date' in h.lower()), None)
         interval_num_col = next((h for h in headers if 'interval number' in h.lower()), None)
         interval_col = next((h for h in headers if 'trading interval' in h.lower()), None)
-        generation_col = next((h for h in headers if 'dpv generation' in h.lower() or 'estimated dpv' in h.lower()), None)
         extracted_col = next((h for h in headers if 'extracted' in h.lower()), None)
-        
-        if not all([date_col, interval_num_col, generation_col]):
-            raise ValueError(f"Required columns not found. Headers: {headers}")
-        
-        logger.info(f"CSV columns mapped - Date: {date_col}, Interval: {interval_num_col}, Generation: {generation_col}")
-        
+
+        if generation_col is None:
+            raise ValueError(f"Generation column not found. Headers: {headers}")
+
+        new_format = timestamp_col is not None and date_col is None
+
+        if new_format:
+            logger.info(
+                f"CSV columns mapped (new format) - Timestamp: {timestamp_col}, "
+                f"Generation: {generation_col}"
+            )
+        else:
+            if not all([date_col, interval_num_col]):
+                raise ValueError(f"Required columns not found. Headers: {headers}")
+            logger.info(
+                f"CSV columns mapped (legacy format) - Date: {date_col}, "
+                f"Interval: {interval_num_col}, Generation: {generation_col}"
+            )
+
         row_count = 0
         for row in reader:
             try:
-                # Parse trading date
-                trading_date_str = row[date_col].strip()
-                trading_date = self._parse_date(trading_date_str)
-                
-                # Filter by month if specified (since file contains whole year)
+                if new_format:
+                    timestamp_str = (row.get(timestamp_col) or '').strip()
+                    if not timestamp_str:
+                        continue
+
+                    # 'Trading Interval' is the timestamp itself; 'Trading Date' and
+                    # 'Interval Number' are derived from it (they are no longer supplied).
+                    trading_interval = self._parse_datetime(timestamp_str)
+                    trading_date, interval_number = self._derive_interval(trading_interval)
+                else:
+                    trading_date_str = row[date_col].strip()
+                    trading_date = self._parse_date(trading_date_str)
+
+                    interval_number = int(row[interval_num_col].strip())
+
+                    if interval_col and row.get(interval_col):
+                        trading_interval = self._parse_datetime(row[interval_col].strip())
+                    else:
+                        # Pre-reform: 48 intervals (30-min), Post-reform: 288 (5-min)
+                        step = 5 if trading_date >= datetime(2023, 10, 1).date() else 30
+                        minutes = (interval_number - 1) * step
+                        trading_interval = datetime.combine(
+                            trading_date, datetime.min.time()
+                        ) + timedelta(minutes=minutes)
+                        trading_interval = self.AWST.localize(trading_interval)
+
+                # Filter by month if specified (file contains whole year)
                 if month and trading_date.month != month:
                     continue
-                
-                # Parse interval number
-                interval_number = int(row[interval_num_col].strip())
-                
-                # Parse trading interval
-                if interval_col and row.get(interval_col):
-                    trading_interval = self._parse_datetime(row[interval_col].strip())
-                else:
-                    # Calculate from trading_date and interval_number
-                    # Pre-reform: 48 intervals (30-min), Post-reform: 288 intervals (5-min)
-                    if trading_date >= datetime(2023, 10, 1).date():
-                        # 5-minute intervals
-                        minutes = (interval_number - 1) * 5
-                    else:
-                        # 30-minute intervals
-                        minutes = (interval_number - 1) * 30
-                    
-                    trading_interval = datetime.combine(
-                        trading_date,
-                        datetime.min.time()
-                    ) + timedelta(minutes=minutes)
-                    trading_interval = self.AWST.localize(trading_interval)
-                
-                # Parse generation value
-                generation_str = row[generation_col].strip()
-                if not generation_str or generation_str == '':
+
+                generation_str = (row.get(generation_col) or '').strip()
+                if not generation_str:
                     continue
-                    
+
                 estimated_generation = Decimal(generation_str)
-                
-                # Parse extracted_at
+
                 if extracted_col and row.get(extracted_col):
                     extracted_at = self._parse_datetime(row[extracted_col].strip())
                 else:
                     extracted_at = timezone.now()
-                
+
                 records.append({
                     'trading_date': trading_date,
                     'interval_number': interval_number,
@@ -136,18 +153,104 @@ class DPVDataFetcher:
                     'estimated_generation': estimated_generation,
                     'extracted_at': extracted_at
                 })
-                
+
                 row_count += 1
                 if row_count % 10000 == 0:
                     logger.info(f"Parsed {row_count} rows...")
-                
+
             except (ValueError, KeyError) as e:
                 logger.warning(f"Error parsing row: {row}. Error: {e}")
                 continue
-        
+
         logger.info(f"Parsed {len(records)} valid DPV records")
         return records
-    
+
+    def _derive_interval(self, trading_interval):
+        """
+        Derive (trading_date, interval_number) from a trading interval datetime.
+
+        AEMO no longer supplies the 'Trading Date' and 'Interval Number' columns,
+        so they are reconstructed from the timestamp. Interval numbering is
+        midnight-based (interval 1 == 00:00) to stay consistent with data already
+        stored from the legacy file format.
+        Pre-reform (before 2023-10-01): 48 x 30-min intervals.
+        Post-reform: 288 x 5-min intervals.
+        """
+        trading_date = trading_interval.date()
+        step = 5 if trading_date >= datetime(2023, 10, 1).date() else 30
+        minutes_since_midnight = trading_interval.hour * 60 + trading_interval.minute
+        interval_number = (minutes_since_midnight // step) + 1
+        return trading_date, interval_number
+
+    def _aggregate_to_half_hourly(self, records):
+        """
+        Consolidate sub-half-hourly DPV estimates into 30-minute intervals.
+
+        AEMO's 'estimated-dpv-csv' files report estimated generation every
+        5 minutes. The dpv_generation table and every downstream consumer
+        (update_ret_dashboard, ret_dashboard_views, load_analyzer, ...)
+        expect one row per 30-minute trading interval, with
+        estimated_generation being the average MW over that half hour
+        (energy = MW * 0.5h). We therefore average the 5-minute readings
+        that fall within each half hour.
+
+        Records already at 30-minute resolution (legacy file format /
+        pre-2023-10-01 data) form single-member groups and pass through
+        unchanged. interval_number is midnight-based (interval 1 ==
+        00:00-00:30) to match rows already stored from the legacy format.
+
+        Args:
+            records: list of dicts with trading_date, interval_number,
+                trading_interval, estimated_generation, extracted_at
+
+        Returns:
+            list of half-hourly aggregated records
+        """
+        if not records:
+            return []
+
+        groups = defaultdict(list)
+        for r in records:
+            ti = r['trading_interval']
+            hh_index = (ti.hour * 60 + ti.minute) // 30  # 0..47
+            groups[(r['trading_date'], hh_index)].append(r)
+
+        aggregated = []
+        unexpected = 0
+        for (trading_date, hh_index), group in groups.items():
+            half_hour_start = group[0]['trading_interval'].replace(
+                hour=(hh_index * 30) // 60,
+                minute=(hh_index * 30) % 60,
+                second=0,
+                microsecond=0,
+            )
+            avg_mw = sum(g['estimated_generation'] for g in group) / len(group)
+
+            aggregated.append({
+                'trading_date': trading_date,
+                'interval_number': hh_index + 1,
+                'trading_interval': half_hour_start,
+                'estimated_generation': avg_mw,
+                'extracted_at': max(g['extracted_at'] for g in group),
+            })
+
+            if len(group) not in (1, 6):
+                unexpected += 1
+
+        if unexpected:
+            logger.warning(
+                f"{unexpected} half-hour interval(s) had an unexpected reading "
+                "count (expected 6 five-minute readings, or 1 for legacy "
+                "30-minute data)"
+            )
+
+        aggregated.sort(key=lambda r: (r['trading_date'], r['interval_number']))
+        logger.info(
+            f"Consolidated {len(records)} readings into {len(aggregated)} "
+            "half-hourly DPV records"
+        )
+        return aggregated
+
     def _parse_date(self, date_str):
         """Parse date string in various formats"""
         date_formats = ['%d/%m/%Y', '%Y-%m-%d', '%d-%m-%Y', '%Y/%m/%d']
@@ -163,23 +266,35 @@ class DPVDataFetcher:
     def _parse_datetime(self, datetime_str):
         """Parse datetime string in various formats"""
         datetime_formats = [
-            '%d/%m/%Y %H:%M',
-            '%Y-%m-%d %H:%M',
-            '%d-%m-%Y %H:%M',
-            '%d/%m/%Y %H:%M:%S',
             '%Y-%m-%d %H:%M:%S',
+            '%Y-%m-%dT%H:%M:%S',
+            '%Y-%m-%d %H:%M',
+            '%Y-%m-%dT%H:%M',
+            '%d/%m/%Y %H:%M:%S',
+            '%d/%m/%Y %H:%M',
+            '%d-%m-%Y %H:%M:%S',
+            '%d-%m-%Y %H:%M',
+            '%Y/%m/%d %H:%M:%S',
+            '%Y/%m/%d %H:%M',
         ]
-        
+
+        cleaned = datetime_str.strip()
+        # Drop any timezone suffix / fractional seconds AEMO may add
+        if cleaned.endswith('Z'):
+            cleaned = cleaned[:-1]
+        if '.' in cleaned:
+            cleaned = cleaned.split('.', 1)[0]
+
         for fmt in datetime_formats:
             try:
-                dt = datetime.strptime(datetime_str, fmt)
+                dt = datetime.strptime(cleaned, fmt)
                 # Localize to AWST if naive
                 if dt.tzinfo is None:
                     dt = self.AWST.localize(dt)
                 return dt
             except ValueError:
                 continue
-        
+
         raise ValueError(f"Could not parse datetime: {datetime_str}")
     
     @transaction.atomic
@@ -191,7 +306,13 @@ class DPVDataFetcher:
         if not records:
             logger.warning("No records to save")
             return 0
-        
+
+        # AEMO now supplies 5-minute data; collapse it to the half-hourly
+        # resolution the dpv_generation table and its consumers expect.
+        records = self._aggregate_to_half_hourly(records)
+        if not records:
+            return 0
+
         # Use raw SQL for MariaDB's efficient bulk upsert
         sql = """
             INSERT INTO dpv_generation 
@@ -269,9 +390,9 @@ class DPVDataFetcher:
         Returns:
             int: number of records saved
         """
-        filename = f"distributed-pv-{year}.csv"
+        filename = f"distributed-pv-new-{year}.csv"
         url = f"{self.BASE_URL}{filename}"
-        
+
         try:
             logger.info(f"Fetching DPV data for entire year {year} from {url}")
             response = self.session.get(url, timeout=120)

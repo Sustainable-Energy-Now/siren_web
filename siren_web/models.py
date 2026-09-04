@@ -4858,6 +4858,9 @@ ESOO_DEMAND_BASIS_CHOICES = [
 ESOO_EXTRACTION_METHOD_CHOICES = [
     ('structured', 'Structured source'),
     ('pdf', 'PDF fallback'),
+    # Max 20 chars (field max_length) -- 'derived_dpv_subtraction' (23 chars)
+    # silently truncates otherwise.
+    ('dpv_subtraction', 'Derived: underlying minus DPV (FR-F07/D13 crosswalk)'),
 ]
 
 ESOO_VALIDATION_STATUS_CHOICES = [

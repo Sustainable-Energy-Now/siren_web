@@ -113,7 +113,7 @@ VERSION = __version__
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['127.0.0.1', 'siren-web.sen.asn.au']
+ALLOWED_HOSTS = ['127.0.0.1', 'siren-web.sen.asn.au', 'www.siren-web.sen.asn.au']
 
 # Application definition
 
