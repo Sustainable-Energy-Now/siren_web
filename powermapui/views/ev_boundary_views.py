@@ -7,12 +7,9 @@ zone_views.py, since Zones there models grid-line geometry (kml_data
 boundaries for the powermap), a different concept from this postcode-
 level administrative hierarchy.
 
-No real ABS postcode-boundary / SWIS-polygon GIS data has been wired up
-yet, so the centroid-in-polygon computation FR-04's acceptance criterion
-ultimately wants is not automated here -- this gives the reproducible
-membership *table* (manual entry + CSV bulk import) that a future
-geospatial command can populate programmatically once boundary files are
-available, without changing the schema or this view's contract.
+ABS postcode-boundary / SWIS-polygon GIS data has been downloaded to
+the siren_web/siren_files/gis folder so the centroid-in-polygon 
+computation required by FR-04's acceptance criterion can automated.
 """
 import csv
 import io

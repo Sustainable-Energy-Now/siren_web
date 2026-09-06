@@ -1,0 +1,169 @@
+{% extends 'powerplotui_base.html' %}
+
+{% block title %}EV Charging Profiles{% endblock %}
+
+{% block powerplotui_content %}
+<style>
+    .ev-charging { line-height: 1.6; }
+    .ev-charging h1 { color:#2c3e50; font-size:2.1em; margin-bottom:10px; }
+    .ev-charging h2 { color:#1e3c72; border-bottom:3px solid #4CAF50; padding-bottom:8px;
+        margin:30px 0 16px; font-size:1.6em; }
+    .ev-charging h3 { color:#34495e; font-size:1.25em; margin:22px 0 10px; }
+    .ev-charging .lede { color:#7f8c8d; font-size:1.1em; }
+    .ev-charging .info-box { background:#e8f4f8; border-left:4px solid #3498db;
+        padding:15px 18px; margin:18px 0; border-radius:4px; }
+    .ev-charging .info-box.warning { background:#fff3cd; border-left-color:#ffc107; }
+    .ev-charging .card { background:white; padding:22px 26px; margin:20px 0; border-radius:8px;
+        box-shadow:0 2px 6px rgba(0,0,0,0.08); }
+    .ev-charging table.profiles { width:100%; border-collapse:collapse; margin:14px 0;
+        background:white; box-shadow:0 2px 4px rgba(0,0,0,0.1); }
+    .ev-charging table.profiles caption { caption-side:top; text-align:left; padding:10px 12px;
+        background:#eef2f5; color:#2c3e50; font-size:0.92em; border:1px solid #dfe6ec; border-bottom:none; }
+    .ev-charging table.profiles caption .cap-item { margin-right:26px; }
+    .ev-charging table.profiles th { background:#34495e; color:white; padding:10px 12px; text-align:left; }
+    .ev-charging table.profiles td { padding:10px 12px; border-bottom:1px solid #ecf0f1; }
+    .ev-charging table.profiles tr:hover { background:#f8f9fa; }
+    .ev-charging td.num { text-align:right; font-variant-numeric:tabular-nums; }
+    .ev-charging .mode-pill { display:inline-block; padding:2px 10px; border-radius:12px;
+        font-size:0.82em; font-weight:600; color:white; }
+    .ev-charging .mode-unmanaged { background:#e74c3c; }
+    .ev-charging .mode-managed   { background:#27ae60; }
+    .ev-charging .mode-v2x       { background:#8e44ad; }
+    .ev-charging .mode-other     { background:#95a5a6; }
+    .ev-charging .chart { background:white; padding:16px; border-radius:8px; margin:18px 0;
+        box-shadow:0 2px 8px rgba(0,0,0,0.1); }
+    .ev-charging dl.terms dt { font-weight:600; color:#1e3c72; margin-top:12px; }
+    .ev-charging dl.terms dd { margin:2px 0 0 0; }
+</style>
+
+<div class="ev-charging">
+<header style="margin-bottom:18px;">
+    <h1>EV Charging Profiles</h1>
+    <p class="lede">
+        The daily charging shapes (from AEMO's IASR EV workbook, Step Change scenario) that turn a
+        projected annual EV energy figure into a half-hourly load trace.
+    </p>
+</header>
+
+<div class="info-box">
+    AEMO models EV charging as a mix of <em>charging types</em> —
+    behaviours like "plug in on arrival" or "charge overnight on a time-of-use tariff". Each type has a
+    characteristic <strong>time-of-day shape</strong> (what fraction of that vehicle's daily charging energy
+    lands in each half-hour) and a <strong>share</strong> (what fraction of the fleet charges that way).
+    The EV load model spreads the CSIRO-projected annual energy across the year using the share-weighted
+    combination of these shapes — so the shape of WA's future EV load peak depends entirely on this page's
+    data, not on the uptake projection.
+</div>
+
+<h2>How these profiles are used</h2>
+<div class="card">
+    <ol>
+        <li>Each charging type's weekday and weekend shape is normalised to sum to 1 across the 48 half-hours.</li>
+        <li>Shapes are combined into one <strong>composite weekday shape</strong> and one composite weekend
+            shape per charging <em>mode</em>, weighted by each type's share of charging
+            (<code>combine_charging_type_shapes</code>).</li>
+        <li>The composite is tiled across every real calendar day of the target year (weekday vs weekend by
+            the actual calendar) and scaled so its integral equals the projected annual EV energy to within
+            0.01% (<code>shape_annual_energy_to_halfhourly</code>).</li>
+        <li>The <strong>unmanaged</strong> composite is the baseline. The <strong>managed</strong>
+            composite is used where AEMO publishes real TOU / off-peak shapes for the region; otherwise a
+            clearly-labelled synthetic redistribution lever is applied instead.</li>
+    </ol>
+
+    <h3>Charging modes</h3>
+    <dl class="terms">
+        <dt><span class="mode-pill mode-unmanaged">unmanaged</span></dt>
+        <dd>Arrival-based charging (e.g. "Unscheduled", "Public"). Peaks in the afternoon/evening as people
+            get home or park — the worst case for the system peak. This is the baseline the model reports.</dd>
+        <dt><span class="mode-pill mode-managed">managed</span></dt>
+        <dd>Time-of-use, off-peak or coordinated charging (e.g. "Off-peak and Solar", "TOU Grid Solar").
+            Shifts load to the middle of the day (solar) or overnight.</dd>
+        <dt><span class="mode-pill mode-v2x">v2x</span></dt>
+        <dd>Vehicle-to-home / vehicle-to-grid. Recorded for completeness but <strong>excluded</strong> from
+            trace synthesis this Sprint (dormant, FR-17).</dd>
+        <dt><span class="mode-pill mode-other">other</span></dt>
+        <dd>A source label the classifier didn't recognise — excluded until classified, never silently
+            mis-bucketed.</dd>
+    </dl>
+</div>
+
+<h2>Loaded charging profiles</h2>
+{% if rows %}
+<p class="lede">
+    {{ n_profiles }} profile(s). Shares sum to {{ total_share|floatformat:2 }} —
+    {% if total_share > 1.01 %}&gt; 1.0 from unweighted vehicle-class averaging{% else %}&lt; 1.0 because
+    charging types with no static time-of-day shape (e.g. "TOU Dynamic Charging") are not listed{% endif %};
+    see Caveats. The composite re-normalises internally, so trace energy is still exact.
+</p>
+<table class="profiles">
+    <caption>
+        <span class="cap-item"><strong>Region:</strong> {{ regions|join:", " }}</span>
+        <span class="cap-item"><strong>Source:</strong> {{ sources|join:"; " }}</span>
+    </caption>
+    <thead>
+        <tr>
+            <th>Charging type</th>
+            <th>Mode</th>
+            <th class="num">Share</th>
+            <th class="num">Weekday peak</th>
+            <th class="num">Weekend peak</th>
+        </tr>
+    </thead>
+    <tbody>
+    {% for r in rows %}
+        <tr>
+            <td>{{ r.charging_type_label }}</td>
+            <td><span class="mode-pill mode-{{ r.charging_mode }}" title="{{ r.charging_mode_label }}">{{ r.charging_mode }}</span></td>
+            <td class="num">{{ r.share_of_charging|floatformat:3 }}</td>
+            <td class="num">{{ r.weekday_peak }}</td>
+            <td class="num">{{ r.weekend_peak }}</td>
+        </tr>
+    {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<div class="info-box warning">
+    <h4>No charging profiles loaded</h4>
+    <p>Run <code>python manage.py load_ev_charging_profile</code> against the AEMO IASR EV workbook to
+    populate <code>EvChargingProfile</code>, then reload this page.</p>
+</div>
+{% endif %}
+
+{% if charts %}
+<h2>Charging shapes</h2>
+<p class="lede">
+    Each line is one charging type: the fraction of that type's daily charging energy in each half-hour
+    (the traces sum to 1.0 across the day). Solid = unmanaged, dotted = managed / V2X.
+</p>
+{% for chart in charts %}
+<div class="chart">{{ chart|safe }}</div>
+{% endfor %}
+{% endif %}
+
+{% if composite_notes %}
+<div class="info-box warning">
+    <h4>Composite not available for every mode</h4>
+    <ul>{% for note in composite_notes %}<li>{{ note }}</li>{% endfor %}</ul>
+</div>
+{% endif %}
+
+<h2>Caveats</h2>
+<div class="card">
+    <ul>
+        <li><strong>Step Change scenario, single vintage.</strong> Shares are AEMO's Step Change behaviour;
+            only the CSIRO <em>uptake</em> varies in the model, not these shapes.</li>
+        <li><strong>Unweighted vehicle-class mean.</strong> Each row is averaged across AEMO's finer
+            vehicle-class breakdown by simple mean, not fleet-weighted — so raw shares need not sum to
+            exactly 100% (the composite re-normalises internally, so trace energy is still exact).</li>
+        <li><strong>No static shape for dynamic charging.</strong> AEMO's "TOU Dynamic Charging" has no
+            fixed time-of-day profile by design, so its share is absent from the managed composite —
+            treat the managed composite as a lower bound on real managed-charging uptake.</li>
+        <li><strong>WEM region.</strong> The 2025 workbook publishes a WA-specific ('WEM') profile directly;
+            older vintages would require borrowing a NEM region (obstacle O5).</li>
+        <li><strong>Managed lever is illustrative.</strong> Where a synthetic redistribution kernel is used
+            instead of real TOU shapes, it fixes only the objective family ("minimise SWIS net load"), not
+            an FR-18-approved constraint set.</li>
+    </ul>
+</div>
+</div>
+{% endblock %}

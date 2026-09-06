@@ -6,7 +6,7 @@ from .views.echart_views import eChartView
 from .views import facility_scada_views, plot3D_views, powerplotui_home_views, ret_dashboard_views, \
     ret_comments_views, ret_targets_views, ret_pdf_views, supplyfactors_views, scada_views, \
     generation_comparison_views, risk_analysis_views, scenario_projections_views, ret_analysis_views, \
-    esoo_bias_views, ev_uptake_views
+    esoo_bias_views, ev_uptake_views, ev_charging_views
 
 urlpatterns = [
     path('powerplotui/', powerplotui_home_views.powerplotui_home, name='powerplotui_home'),
@@ -72,6 +72,9 @@ urlpatterns = [
 
     # EV Uptake & Charging Load Tracking (FR-13/14, Outcome B)
     path('ev-uptake-tracking/', ev_uptake_views.ev_uptake_tracking, name='ev_uptake_tracking'),
+
+    # EV Charging Profiles (FR-03) — the AEMO Step Change charging shapes
+    path('ev-charging-profiles/', ev_charging_views.ev_charging_profiles, name='ev_charging_profiles'),
 
     # Main targets list view
     path('ret_dashboard/targets/', ret_targets_views.ret_targets_list, name='ret_targets_list'),
