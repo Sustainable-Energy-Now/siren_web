@@ -8,8 +8,21 @@ from .models import (
     EvVintage, SourceDocument, EvUptakePostcodeFigure, EvSuppressionFlag,
     EvChargingProfile, SwisBoundaryMembership, EvActualsRecord, EvLoadTrace,
     V2gInterfaceStub, SwisBoundary, PostcodeBoundary,
-    EvActualsDocument, EvActualsQuarter,
+    EvActualsDocument, EvActualsQuarter, CommandRun,
 )
+
+
+@admin.register(CommandRun)
+class CommandRunAdmin(admin.ModelAdmin):
+    list_display = ['idcommandrun', 'label', 'status', 'trigger_source',
+                    'triggered_by', 'return_code', 'created_at', 'finished_at']
+    list_filter = ['status', 'trigger_source', 'command_key']
+    search_fields = ['command_key', 'label', 'error_summary']
+    readonly_fields = [f.name for f in CommandRun._meta.fields]
+    list_per_page = 40
+
+    def has_add_permission(self, request):
+        return False
 
 # EV Uptake & Charging Load Modelling (Phase 0 governance scaffold, GR-01)
 @admin.register(EvVintage)

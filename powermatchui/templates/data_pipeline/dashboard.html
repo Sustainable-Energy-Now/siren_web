@@ -1,0 +1,187 @@
+{% extends 'powermatchui_base.html' %}
+{% load humanize %}
+
+{% block powermatchui_content %}
+<style>
+  .pipeline-wrap { max-width: 1100px; margin: 1.5rem auto; }
+  .freshness-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 1rem; }
+  .fresh-card { border: 1px solid #dee2e6; border-radius: .5rem; padding: 1rem; background: #fff; }
+  .fresh-card h5 { margin: 0 0 .35rem; font-size: 1rem; }
+  .fresh-card .detail { color: #555; font-size: .875rem; }
+  .fresh-card .latest { font-size: .8rem; color: #777; margin-top: .35rem; }
+  .dot { display: inline-block; width: .7rem; height: .7rem; border-radius: 50%; margin-right: .4rem; vertical-align: middle; }
+  .dot-ok { background: #198754; } .dot-warn { background: #ffc107; } .dot-stale { background: #dc3545; }
+  .badge-ok { background: #198754; } .badge-warn { background: #ffc107; color:#000; } .badge-stale { background: #dc3545; }
+  .cmd-card { border: 1px solid #dee2e6; border-radius: .5rem; padding: .85rem 1rem; margin-bottom: .6rem; background:#fff; }
+  .cmd-card .cmd-note { font-size: .82rem; color:#555; margin:.3rem 0 .5rem; }
+  .cmd-meta { font-size: .75rem; color:#888; }
+  .runs-table td, .runs-table th { font-size: .85rem; vertical-align: middle; }
+  .run-badge { font-size: .72rem; padding:.25em .5em; }
+  pre.run-out { background:#1e1e1e; color:#eee; padding:1rem; border-radius:.4rem; max-height:420px; overflow:auto; font-size:.8rem; }
+</style>
+
+<div class="pipeline-wrap">
+  <h3>Data Pipelines</h3>
+  <p class="text-muted">
+    Freshness of every ESOO / EV / SCADA data pipeline, and a place to run the periodic
+    ingest / validate commands in the background. Scheduled runs (cron) land in the same
+    history below.
+  </p>
+
+  {% if messages %}
+    {% for message in messages %}
+      <div class="alert alert-{{ message.tags }} py-2">{{ message }}</div>
+    {% endfor %}
+  {% endif %}
+
+  <h4 class="mt-4">Freshness</h4>
+  <div class="freshness-grid">
+    {% for card in cards %}
+      <div class="fresh-card">
+        <h5><span class="dot dot-{{ card.staleness }}"></span>{{ card.title }}</h5>
+        <div class="detail">{{ card.detail }}</div>
+        {% if card.latest %}<div class="latest">Latest: {{ card.latest }}{% if card.age_days is not None %} ({{ card.age_days }} day{{ card.age_days|pluralize }} ago){% endif %}</div>{% endif %}
+        {% if card.latest_period_end %}<div class="latest">Latest report period: {{ card.latest_period_end }}</div>{% endif %}
+        {% if card.vintages %}
+          <details class="mt-2">
+            <summary class="cmd-meta">{{ card.vintages|length }} vintage{{ card.vintages|length|pluralize }}</summary>
+            <table class="table table-sm mt-2 mb-0">
+              <tbody>
+              {% for v in card.vintages %}
+                <tr>
+                  <td>{{ v.year }}{{ v.version }}</td>
+                  <td class="cmd-meta">{{ v.ingestion_status }}</td>
+                  <td class="cmd-meta">
+                    {% if v.figures_total %}
+                      {{ v.figures_passed }} ok{% if v.figures_quarantined %}, {{ v.figures_quarantined }} quarantined{% endif %}{% if v.figures_failed %}, {{ v.figures_failed }} failed{% endif %}
+                    {% else %}no figures{% endif %}
+                  </td>
+                </tr>
+              {% endfor %}
+              </tbody>
+            </table>
+          </details>
+        {% endif %}
+        {% if card.missing_last_30d %}
+          <div class="latest text-danger">Missing: {{ card.missing_last_30d|join:", " }}</div>
+        {% endif %}
+      </div>
+    {% endfor %}
+  </div>
+
+  <h4 class="mt-5">Run a job</h4>
+  {% if not can_run %}
+    <div class="alert alert-secondary py-2">You need a staff account to submit pipeline jobs. The status above is read-only.</div>
+  {% endif %}
+
+  {% for group in command_groups %}
+    <h6 class="text-muted mt-3">{{ group.label }}</h6>
+    {% for cmd in group.commands %}
+      <div class="cmd-card">
+        <div class="d-flex justify-content-between align-items-start">
+          <div>
+            <strong>{{ cmd.label }}</strong>
+            <div class="cmd-note">{{ cmd.note }}</div>
+            <div class="cmd-meta">
+              runtime: {{ cmd.runtime_hint|default:"—" }}{% if not cmd.cron_safe %} · <span class="text-warning">not cron-safe (CPU heavy)</span>{% endif %}
+            </div>
+          </div>
+        </div>
+        {% if can_run %}
+        <form method="post" action="{% url 'powermatchui:submit_pipeline_command' %}" class="mt-2">
+          {% csrf_token %}
+          <input type="hidden" name="command_key" value="{{ cmd.key }}">
+          <div class="row g-2 align-items-end">
+            {% for p in cmd.params %}
+              <div class="col-auto">
+                <label class="form-label cmd-meta mb-0">{{ p.label }}{% if p.required %} *{% endif %}</label><br>
+                {% if p.kind == 'flag' %}
+                  <div class="form-check">
+                    <input class="form-check-input" type="checkbox" name="param_{{ p.name }}" id="p_{{ cmd.key }}_{{ p.name }}" {% if p.default %}checked{% endif %}>
+                    <label class="form-check-label cmd-meta" for="p_{{ cmd.key }}_{{ p.name }}">{{ p.help_text }}</label>
+                  </div>
+                {% elif p.kind == 'choice' %}
+                  <select class="form-select form-select-sm" name="param_{{ p.name }}">
+                    {% if not p.required %}<option value="">(all)</option>{% endif %}
+                    {% for c in p.choices %}<option value="{{ c }}" {% if c == p.default %}selected{% endif %}>{{ c }}</option>{% endfor %}
+                  </select>
+                {% else %}
+                  <input class="form-control form-control-sm" type="text" name="param_{{ p.name }}"
+                         value="{{ p.default|default_if_none:'' }}" placeholder="{{ p.help_text }}">
+                {% endif %}
+              </div>
+            {% endfor %}
+            <div class="col-auto">
+              <button type="submit" class="btn btn-sm btn-primary" {% if cmd.active_run_id %}disabled{% endif %}>
+                {% if cmd.active_run_id %}Running…{% else %}Run now{% endif %}
+              </button>
+            </div>
+          </div>
+          {% for p in cmd.params %}{% if p.kind != 'flag' and p.help_text %}<div class="cmd-meta mt-1">{{ p.label }}: {{ p.help_text }}</div>{% endif %}{% endfor %}
+        </form>
+        {% endif %}
+      </div>
+    {% endfor %}
+  {% endfor %}
+
+  <h4 class="mt-5">Recent runs</h4>
+  <table class="table table-sm runs-table">
+    <thead>
+      <tr><th>#</th><th>Command</th><th>Trigger</th><th>Status</th><th>Started</th><th>Duration</th><th></th></tr>
+    </thead>
+    <tbody>
+    {% for run in runs %}
+      <tr data-run-id="{{ run.pk }}" data-active="{{ run.is_active|yesno:'1,0' }}">
+        <td>{{ run.pk }}</td>
+        <td>{{ run.label }}<br><span class="cmd-meta">{{ run.management_command }} {{ run.args|join:" " }}</span></td>
+        <td class="cmd-meta">{{ run.get_trigger_source_display }}{% if run.triggered_by %}<br>{{ run.triggered_by.username }}{% endif %}</td>
+        <td>
+          <span class="badge run-badge js-run-status
+            {% if run.status == 'success' %}badge-ok{% elif run.status == 'failed' %}badge-stale{% elif run.status == 'cancelled' %}bg-secondary{% else %}badge-warn{% endif %}">
+            {{ run.get_status_display }}
+          </span>
+          {% if run.error_summary %}<div class="cmd-meta text-danger">{{ run.error_summary }}</div>{% endif %}
+        </td>
+        <td class="cmd-meta">{{ run.started_at|default:run.created_at|naturaltime }}</td>
+        <td class="cmd-meta js-run-duration">{% if run.duration_seconds %}{{ run.duration_seconds|floatformat:0 }}s{% else %}—{% endif %}</td>
+        <td><a href="{% url 'powermatchui:pipeline_run_detail' run.pk %}" class="btn btn-outline-secondary btn-sm">log</a></td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="7" class="text-muted">No runs yet.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<script>
+(function () {
+  const rows = Array.from(document.querySelectorAll('tr[data-run-id][data-active="1"]'));
+  if (!rows.length) return;
+  const base = "{% url 'powermatchui:pipeline_run_status' 0 %}".replace(/0\/status\/$/, '');
+  let ticks = 0;
+  const poll = () => {
+    ticks++;
+    let stillActive = false;
+    Promise.all(rows.map(row => {
+      const id = row.dataset.runId;
+      return fetch(base + id + '/status/').then(r => r.json()).then(d => {
+        const badge = row.querySelector('.js-run-status');
+        const dur = row.querySelector('.js-run-duration');
+        if (badge) {
+          badge.textContent = d.status_display;
+          badge.className = 'badge run-badge js-run-status ' +
+            (d.status === 'success' ? 'badge-ok' : d.status === 'failed' ? 'badge-stale' :
+             d.status === 'cancelled' ? 'bg-secondary' : 'badge-warn');
+        }
+        if (dur && d.duration_seconds) dur.textContent = Math.round(d.duration_seconds) + 's';
+        if (d.is_active) stillActive = true;
+      }).catch(() => { stillActive = true; });
+    })).then(() => {
+      if (stillActive && ticks < 200) setTimeout(poll, 3000);
+      else if (!stillActive) window.location.reload();
+    });
+  };
+  setTimeout(poll, 3000);
+})();
+</script>
+{% endblock %}

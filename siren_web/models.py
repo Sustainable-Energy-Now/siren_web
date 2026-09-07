@@ -5683,3 +5683,71 @@ class V2gInterfaceStub(models.Model):
 
     def __str__(self):
         return f"V2G stub ({self.csiro_scenario}) — dormant"
+
+
+# ---------------------------------------------------------------------------
+# Data-pipeline command runs
+# ---------------------------------------------------------------------------
+# One row per invocation of a periodic ESOO / EV / SCADA management command,
+# whether kicked off from the powermatchui "Data Pipelines" page or from
+# cron via `manage.py run_pipeline_command`. Both paths call the same
+# powermatchui.services.pipeline_runner.execute_run(), so this table is the
+# single history/status record for every scheduled data job.
+
+PIPELINE_RUN_STATUS_CHOICES = [
+    ('queued', 'Queued'),
+    ('running', 'Running'),
+    ('success', 'Success'),
+    ('failed', 'Failed'),
+    ('cancelled', 'Cancelled'),
+]
+
+PIPELINE_TRIGGER_CHOICES = [
+    ('web', 'Web UI'),
+    ('cron', 'Cron'),
+    ('cli', 'Manual CLI'),
+]
+
+
+class CommandRun(models.Model):
+    idcommandrun = models.AutoField(db_column='idcommandrun', primary_key=True)
+    command_key = models.CharField(
+        max_length=64,
+        help_text="Key into powermatchui.pipeline_registry.PIPELINE_COMMANDS",
+    )
+    management_command = models.CharField(max_length=64)
+    args = models.JSONField(default=list, help_text="Resolved argv actually passed to call_command")
+    label = models.CharField(max_length=120)
+    status = models.CharField(max_length=12, choices=PIPELINE_RUN_STATUS_CHOICES, default='queued')
+    trigger_source = models.CharField(max_length=8, choices=PIPELINE_TRIGGER_CHOICES, default='web')
+    triggered_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name='pipeline_command_runs',
+        db_constraint=False,  # Avoids FK constraint issues with unmanaged MyISAM auth_user table
+    )
+    return_code = models.IntegerField(null=True, blank=True)
+    output = models.TextField(blank=True, help_text="Combined stdout+stderr, tail-capped")
+    error_summary = models.CharField(max_length=500, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    started_at = models.DateTimeField(null=True, blank=True)
+    finished_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = 'pipeline_command_run'
+        ordering = ['-created_at']
+        verbose_name = 'Pipeline Command Run'
+        verbose_name_plural = 'Pipeline Command Runs'
+
+    def __str__(self):
+        return f"{self.label} [{self.status}] {self.created_at:%Y-%m-%d %H:%M}"
+
+    @property
+    def is_active(self):
+        return self.status in ('queued', 'running')
+
+    @property
+    def duration_seconds(self):
+        if self.started_at and self.finished_at:
+            return (self.finished_at - self.started_at).total_seconds()
+        if self.started_at:
+            return (timezone.now() - self.started_at).total_seconds()
+        return None

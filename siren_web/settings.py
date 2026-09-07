@@ -267,3 +267,34 @@ if 'fetch_historical_scada' in sys.argv:
         'charset': 'utf8mb4',
         'autocommit': True,
     }
+
+# The shared MySQL account has no CREATE privilege for a test_* database, so
+# run the test suite against a throwaway in-memory SQLite database instead.
+# Historical migrations carry MySQL-only collations, so build the schema
+# straight from model state (no migration replay) for tests.
+if 'test' in sys.argv:
+    DATABASES['default'] = {
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': ':memory:',
+    }
+
+    class _DisableMigrations:
+        def __contains__(self, _item):
+            return True
+
+        def __getitem__(self, _item):
+            return None
+
+    MIGRATION_MODULES = _DisableMigrations()
+
+    # A few models pin MySQL collations (db_collation=); teach the test
+    # SQLite connection to accept those names as a plain binary collation.
+    from django.db.backends.signals import connection_created
+
+    def _register_sqlite_collations(sender, connection, **kwargs):
+        if connection.vendor == 'sqlite':
+            cmp_ = lambda a, b: (a > b) - (a < b)
+            for name in ('utf8mb4_0900_ai_ci', 'utf8mb4_unicode_ci', 'utf8mb4_general_ci'):
+                connection.connection.create_collation(name, cmp_)
+
+    connection_created.connect(_register_sqlite_collations)

@@ -1,0 +1,33 @@
+{% extends 'powermatchui_base.html' %}
+{% load humanize %}
+
+{% block powermatchui_content %}
+<style>
+  .run-wrap { max-width: 1000px; margin: 1.5rem auto; }
+  pre.run-out { background:#1e1e1e; color:#eee; padding:1rem; border-radius:.4rem; max-height:600px; overflow:auto; font-size:.82rem; white-space:pre-wrap; }
+  .kv td { padding:.2rem .6rem; font-size:.88rem; }
+  .kv td:first-child { color:#777; }
+</style>
+
+<div class="run-wrap">
+  <p><a href="{% url 'powermatchui:data_pipeline_dashboard' %}">&larr; Data Pipelines</a></p>
+  <h3>Run #{{ run.pk }} — {{ run.label }}</h3>
+
+  <table class="kv mb-3">
+    <tr><td>Status</td><td><strong>{{ run.get_status_display }}</strong>{% if run.return_code is not None %} (exit {{ run.return_code }}){% endif %}</td></tr>
+    <tr><td>Command</td><td><code>manage.py {{ run.management_command }} {{ run.args|join:" " }}</code></td></tr>
+    <tr><td>Trigger</td><td>{{ run.get_trigger_source_display }}{% if run.triggered_by %} — {{ run.triggered_by.username }}{% endif %}</td></tr>
+    <tr><td>Created</td><td>{{ run.created_at }}</td></tr>
+    <tr><td>Started</td><td>{{ run.started_at|default:"—" }}</td></tr>
+    <tr><td>Finished</td><td>{{ run.finished_at|default:"—" }}{% if run.duration_seconds %} ({{ run.duration_seconds|floatformat:1 }}s){% endif %}</td></tr>
+    {% if run.error_summary %}<tr><td>Error</td><td class="text-danger">{{ run.error_summary }}</td></tr>{% endif %}
+  </table>
+
+  <h5>Output</h5>
+  <pre class="run-out">{{ run.output|default:"(no output captured)" }}</pre>
+
+  {% if run.is_active %}
+  <p class="text-muted">This run is still active — <a href="">refresh</a> for the latest output.</p>
+  {% endif %}
+</div>
+{% endblock %}

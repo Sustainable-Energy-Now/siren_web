@@ -3,7 +3,7 @@ from django.urls import path, include
 from .views import variations_views, baseline_scenario_views, demand_projection_views, \
     merit_order_views, \
     powermatchui_home_views, under_construction_views, demand_factor_views, esoo_scenario_views, \
-    ev_scenario_views
+    ev_scenario_views, data_pipeline_views
 app_name = 'powermatchui'
 
 urlpatterns = [
@@ -55,4 +55,10 @@ urlpatterns = [
 
     # EV Uptake & Charging Load scenario selector (FR-11, Outcome A)
     path('ev-scenario/', ev_scenario_views.ev_scenario_selector, name='ev_scenario_selector'),
+
+    # Data Pipelines — status + background submission of periodic ESOO/EV/SCADA commands
+    path('data-pipelines/', data_pipeline_views.data_pipeline_dashboard, name='data_pipeline_dashboard'),
+    path('data-pipelines/run/', data_pipeline_views.submit_pipeline_command, name='submit_pipeline_command'),
+    path('data-pipelines/run/<int:pk>/', data_pipeline_views.pipeline_run_detail, name='pipeline_run_detail'),
+    path('data-pipelines/run/<int:pk>/status/', data_pipeline_views.pipeline_run_status, name='pipeline_run_status'),
 ]
