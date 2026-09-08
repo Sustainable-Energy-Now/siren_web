@@ -56,6 +56,9 @@ urlpatterns = [
     # EV Uptake & Charging Load scenario selector (FR-11, Outcome A)
     path('ev-scenario/', ev_scenario_views.ev_scenario_selector, name='ev_scenario_selector'),
 
+    # EV uptake Low/Med/High sensitivity comparison (FR-12, Outcome A)
+    path('ev-scenario/compare/', ev_scenario_views.ev_scenario_compare, name='ev_scenario_compare'),
+
     # Data Pipelines — status + background submission of periodic ESOO/EV/SCADA commands
     path('data-pipelines/', data_pipeline_views.data_pipeline_dashboard, name='data_pipeline_dashboard'),
     path('data-pipelines/run/', data_pipeline_views.submit_pipeline_command, name='submit_pipeline_command'),

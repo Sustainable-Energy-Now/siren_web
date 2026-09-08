@@ -7,9 +7,8 @@ from crispy_forms.bootstrap import FormActions
 from siren_web.models import Analysis, Scenarios, variations, ReportComment
 
 class PlotForm(forms.Form):
-    scenario_choices = [(scenario.idscenarios, scenario.title) for scenario in Scenarios.objects.all()]
     scenario = forms.ChoiceField(
-        choices=scenario_choices,
+        choices=[],
         required=False,
         label="Choose a Scenario",
     )
@@ -69,6 +68,13 @@ class PlotForm(forms.Form):
         selected_scenario = kwargs.pop('selected_scenario', None)
         form_data = kwargs.pop('form_data', None)
         super().__init__(*args, **kwargs)
+
+        # Populated here, not in the class body: a class-body query runs at
+        # import time (e.g. during `manage.py check`), before the table is
+        # guaranteed to exist.
+        self.fields['scenario'].choices = [
+            (s.idscenarios, s.title) for s in Scenarios.objects.all()
+        ]
 
         # For unbound forms, just show basic choices from scenario
         if selected_scenario:

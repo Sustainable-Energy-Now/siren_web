@@ -31,10 +31,12 @@ file) -- it only trusts EvUptakePostcodeFigure rows already marked
 validation_status='passed', per the Section 8 standing principle.
 """
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import List, Optional
 
 import numpy as np
 
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import render
@@ -55,6 +57,11 @@ from siren_web.models import (
 )
 from powermatchui.utils.ev_load_trace_store import load_trace, save_trace
 from powermatchui.utils.ev_reconciliation import aggregate_swis_annual_energy
+from powermatchui.utils.ev_sensitivity_comparison import (
+    SCENARIO_ORDER,
+    SensitivityComparisonError,
+    compare_scenarios,
+)
 from powermatchui.utils.ev_trace_synthesis import (
     ChargingTypeProfile,
     TraceSynthesisError,
@@ -96,8 +103,10 @@ def _get_or_build_ev_load_trace(csiro_scenario: str, forecast_year: int, chargin
     existing = EvLoadTrace.objects.filter(
         csiro_scenario=csiro_scenario, year=forecast_year, charging_mode=charging_mode
     ).first()
-    if existing:
+    if existing and (Path(settings.EV_TRACE_DIR) / existing.file_path).exists():
         return existing
+    # A dangling row whose .npy file is gone (EV_TRACE_DIR is not
+    # committed) falls through and is rebuilt from source, not trusted.
 
     figures = list(
         EvUptakePostcodeFigure.objects.filter(
@@ -284,6 +293,123 @@ def build_scenario_from_ev(base_scenario: Scenarios, csiro_scenario: str, foreca
         ev_annual_energy_mwh=ev_trace_record.annual_energy_mwh,
         integral_check_pct=ev_trace_record.integral_check_pct or 0.0, notes=notes,
     )
+
+
+def compare_ev_sensitivity(base_scenario: Scenarios, forecast_year: int, charging_mode: str):
+    """
+    FR-12 orchestration. Resolve/build the EV load trace for every CSIRO
+    uptake scenario (Low/Medium/High), add each to the base scenario's own
+    half-hourly Load trace, and hand the arrays to the pure comparison.
+
+    Never creates derived Scenarios rows — the comparison is analysis, not
+    a build (use build_scenario_from_ev for that). Returns
+    (SensitivityReport | None, per_scenario_meta: dict, unavailable: list[(scenario, reason)]).
+    """
+    base_trace = _base_trace(base_scenario, forecast_year)
+
+    ev_traces, per_scenario_meta, unavailable = {}, {}, []
+    for scenario in SCENARIO_ORDER:
+        try:
+            record = _get_or_build_ev_load_trace(scenario, forecast_year, charging_mode)
+            arr = load_trace(record)
+        except (EvLoadNotAvailableError, FileNotFoundError) as e:
+            unavailable.append((scenario, str(e)))
+            continue
+        if arr.size != base_trace.size:
+            unavailable.append((
+                scenario,
+                f"EV trace has {arr.size} intervals but the base scenario has {base_trace.size} for {forecast_year}.",
+            ))
+            continue
+        ev_traces[scenario] = arr
+        per_scenario_meta[scenario] = record
+
+    if not ev_traces:
+        return None, {}, unavailable
+
+    report = compare_scenarios(base_trace, ev_traces, forecast_year, charging_mode)
+    for row in report.rows:
+        meta = per_scenario_meta.get(row.csiro_scenario)
+        if meta is not None:
+            row.integral_check_pct = meta.integral_check_pct
+            if meta.integral_check_pct and meta.integral_check_pct > 0.01:
+                row.notes.append(
+                    f"integral check {meta.integral_check_pct:.4f}% exceeds FR-09's 0.01% tolerance"
+                )
+    return report, per_scenario_meta, unavailable
+
+
+@login_required
+def ev_scenario_compare(request):
+    """FR-12 sensitivity comparison. Reads a base scenario / year / charging
+    mode from the query string and shows Low/Medium/High side by side."""
+    base_scenarios = (
+        Scenarios.objects.filter(interval_minutes=30)
+        .exclude(title__contains=' + EV ')
+        .order_by('title')
+    )
+    charging_mode_choices = EV_CHARGING_MODE_CHOICES
+
+    selected_base_id = request.GET.get('base_scenario') or ''
+    selected_charging_mode = request.GET.get('charging_mode', 'unmanaged')
+    selected_forecast_year = request.GET.get('forecast_year', '')
+
+    report = None
+    per_scenario_meta = {}
+    unavailable = []
+    error = None
+
+    if selected_base_id and selected_forecast_year:
+        try:
+            base_scenario = Scenarios.objects.get(pk=selected_base_id)
+            forecast_year = int(selected_forecast_year)
+        except (Scenarios.DoesNotExist, TypeError, ValueError):
+            error = "Select a valid base scenario and forecast year."
+        else:
+            try:
+                report, per_scenario_meta, unavailable = compare_ev_sensitivity(
+                    base_scenario, forecast_year, selected_charging_mode,
+                )
+            except (BaseTraceNotFoundError, SensitivityComparisonError) as e:
+                error = str(e)
+
+    return render(request, 'ev_scenario_compare.html', {
+        'base_scenarios': base_scenarios,
+        'charging_mode_choices': charging_mode_choices,
+        'selected_base_id': selected_base_id,
+        'selected_charging_mode': selected_charging_mode,
+        'selected_forecast_year': selected_forecast_year,
+        'report': report,
+        'chart_html': _build_comparison_chart(report) if report else '',
+        'unavailable': unavailable,
+        'error': error,
+    })
+
+
+def _build_comparison_chart(report):
+    """Peak-day half-hourly overlay: base demand for the worst-case day,
+    plus base+EV for each CSIRO scenario."""
+    import plotly.graph_objects as go
+
+    colours = {'low': '#3498db', 'medium': '#f39c12', 'high': '#e74c3c'}
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(
+        x=report.peak_day_times, y=report.peak_day_base_mw, mode='lines',
+        name='Base demand', line=dict(color='#2c3e50', width=3),
+    ))
+    for scenario, series in report.peak_day_net_mw.items():
+        fig.add_trace(go.Scatter(
+            x=report.peak_day_times, y=series, mode='lines',
+            name=f"Base + EV ({scenario})",
+            line=dict(color=colours.get(scenario, '#7f8c8d'), dash='dot'),
+        ))
+    fig.update_layout(
+        title=f"Worst-case day ({report.peak_day_date}): half-hourly demand, base vs base + EV",
+        xaxis_title='Time of day', yaxis_title='Demand (MW)',
+        height=430, hovermode='x unified',
+        xaxis=dict(tickmode='array', tickvals=report.peak_day_times[::4]),
+    )
+    return fig.to_html(include_plotlyjs='cdn', full_html=False, div_id='ev_sensitivity_chart')
 
 
 @login_required

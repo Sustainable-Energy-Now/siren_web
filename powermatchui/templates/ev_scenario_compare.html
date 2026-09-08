@@ -1,0 +1,138 @@
+{% extends 'powermatchui_base.html' %}
+{% load static %}
+
+{% block powermatchui_content %}
+<div class="container-fluid mt-4">
+  <div class="row">
+    <div class="col-md-11 offset-md-1">
+      <h3>EV Uptake Sensitivity — Low / Medium / High (FR-12)</h3>
+      <p class="text-muted">
+        How much the SWIS demand picture moves depending on which CSIRO EV-uptake trajectory eventuates.
+        For a chosen half-hourly base scenario, forecast year and charging mode, this adds each of the
+        Low / Medium / High EV charging loads to the base demand and compares them side by side.
+        Nothing is saved — this is analysis, not a scenario build. Use
+        <a href="{% url 'powermatchui:ev_scenario_selector' %}">Build EV Scenario</a> to persist one as a
+        Powermatch scenario.
+      </p>
+
+      <div class="card">
+        <div class="card-body">
+          <form method="get" class="row g-3 align-items-end">
+            <div class="col-md-4">
+              <label for="base_scenario" class="form-label">Base scenario (half-hourly) <span class="text-danger">*</span></label>
+              <select class="form-select" id="base_scenario" name="base_scenario" required>
+                <option value="">Select a base scenario...</option>
+                {% for s in base_scenarios %}
+                <option value="{{ s.idscenarios }}"
+                        {% if selected_base_id|stringformat:"s" == s.idscenarios|stringformat:"s" %}selected{% endif %}>
+                  {{ s.title }}
+                </option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-3">
+              <label for="charging_mode" class="form-label">Charging mode</label>
+              <select class="form-select" id="charging_mode" name="charging_mode">
+                {% for value, label in charging_mode_choices %}
+                <option value="{{ value }}" {% if selected_charging_mode == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-2">
+              <label for="forecast_year" class="form-label">Forecast year <span class="text-danger">*</span></label>
+              <input type="number" class="form-control" id="forecast_year" name="forecast_year"
+                     value="{{ selected_forecast_year }}" min="2021" max="2050" required>
+            </div>
+            <div class="col-md-3">
+              <button type="submit" class="btn btn-primary">Compare</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      {% if error %}
+      <div class="alert alert-danger mt-4">{{ error }}</div>
+      {% endif %}
+
+      {% for scenario, reason in unavailable %}
+      <div class="alert alert-warning mt-3 mb-0">
+        <strong>{{ scenario|title }}</strong> could not be compared: {{ reason }}
+      </div>
+      {% endfor %}
+
+      {% if report %}
+      <h4 class="mt-4">Comparison — {{ report.forecast_year }}, {{ report.charging_mode }} charging</h4>
+
+      <div class="table-responsive">
+        <table class="table table-sm table-bordered align-middle">
+          <thead class="table-light">
+            <tr>
+              <th>CSIRO scenario</th>
+              <th class="text-end">EV energy (GWh)</th>
+              <th class="text-end">EV % of base</th>
+              <th class="text-end">Base peak (MW)</th>
+              <th class="text-end">Net peak (MW)</th>
+              <th class="text-end">&Delta; peak (MW)</th>
+              <th class="text-end">&Delta; peak (%)</th>
+              <th>Net peak time</th>
+              <th>Peak moves?</th>
+              <th class="text-end">EV at base-peak (MW)</th>
+              <th class="text-end">&Delta; min demand (MW)</th>
+              <th class="text-end">Load factor base &rarr; net</th>
+              <th class="text-end">Integral check</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for r in report.rows %}
+            <tr>
+              <td><strong>{{ r.csiro_scenario|title }}</strong></td>
+              <td class="text-end">{% widthratio r.ev_annual_energy_mwh 1000 1 %}</td>
+              <td class="text-end">{{ r.ev_energy_pct_of_base|floatformat:1 }}%</td>
+              <td class="text-end">{{ r.base_peak_mw|floatformat:0 }}</td>
+              <td class="text-end">{{ r.net_peak_mw|floatformat:0 }}</td>
+              <td class="text-end">+{{ r.peak_delta_mw|floatformat:0 }}</td>
+              <td class="text-end">+{{ r.peak_delta_pct|floatformat:1 }}%</td>
+              <td>{{ r.net_peak_time }} <span class="text-muted">({{ r.net_peak_date }})</span></td>
+              <td>
+                {% if r.peak_shifts %}
+                  <span class="badge bg-warning text-dark" title="Base peak at {{ r.base_peak_time }}">yes &rarr; {{ r.net_peak_time }}</span>
+                {% else %}
+                  <span class="badge bg-secondary">no</span>
+                {% endif %}
+              </td>
+              <td class="text-end">{{ r.ev_at_base_peak_mw|floatformat:0 }}</td>
+              <td class="text-end">{{ r.min_delta_mw|floatformat:0 }}</td>
+              <td class="text-end">{{ r.base_load_factor|floatformat:3 }} &rarr; {{ r.net_load_factor|floatformat:3 }}</td>
+              <td class="text-end">
+                {% if r.integral_check_pct != None %}{{ r.integral_check_pct|floatformat:4 }}%{% else %}&mdash;{% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <p class="text-muted small">
+        GWh values shown as MWh &divide; 1000. <strong>EV at base-peak</strong> is the EV load coincident with
+        the base scenario's own peak interval — the part that adds directly to the system peak.
+        <strong>Peak moves?</strong> flags when adding EV shifts the peak to a different time of day.
+        Energy is spread evenly across the year (no seasonal shape signal), so &Delta; min demand reflects the
+        floor the intra-day charging shape adds every day.
+      </p>
+
+      {% for r in report.rows %}{% for n in r.notes %}
+      <div class="alert alert-warning py-2 mb-2">{{ r.csiro_scenario|title }}: {{ n }}</div>
+      {% endfor %}{% endfor %}
+
+      <div class="card mt-3">
+        <div class="card-body">
+          {{ chart_html|safe }}
+        </div>
+      </div>
+      {% elif not error %}
+      <p class="text-muted mt-4">Choose a base scenario, forecast year and charging mode, then Compare.</p>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}
