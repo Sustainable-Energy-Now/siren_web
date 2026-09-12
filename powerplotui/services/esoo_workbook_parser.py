@@ -237,6 +237,14 @@ SHEET_PLANS: Dict[int, List[dict]] = {
         # figures simply aren't available for this vintage.
         dict(sheet_name='Ch 2_F.8', metric='energy',
              domain='demand', demand_basis='underlying', unit='GWh', label_kind='scenario'),
+        # AEMO moved this series to the Executive Summary in 2025 (it was
+        # Ch2_F.13 in 2024) and dropped it to Expected-only (2024's version
+        # still had Low/Expected/High) -- confirmed against the downloaded
+        # workbook, not an extraction limitation. Sheet's own 'Unit' column
+        # says 'MWh' but the values are GWh-scale, same mislabelling as
+        # Ch2_F.8 above -- no value_scale needed.
+        dict(sheet_name='ES_F.2', metric='energy',
+             domain='demand', demand_basis='operational', unit='GWh', label_kind='scenario'),
         dict(sheet_name='Ch 2_F.15', metric='peak_summer',
              domain='demand', demand_basis='operational', unit='MW',
              label_kind='scenario', fixed_poe_level=10),
@@ -256,6 +264,15 @@ SHEET_PLANS: Dict[int, List[dict]] = {
         # _POE_LABEL_RE using search() instead of a full match.
         dict(sheet_name='Ch 2_F.6', metric='energy',
              domain='demand', demand_basis='underlying', unit='GWh', label_kind='scenario'),
+        # Ch2_F.13 is a SEPARATE chart from F.6 above -- same three
+        # scenarios, but operational basis instead of underlying (this is
+        # the vintage's last edition to carry Low/Expected/High on the
+        # operational series; 2025 narrows it to Expected-only, see that
+        # year's ES_F.2 entry). Confirmed against the downloaded workbook.
+        # Sheet's own 'Unit' column says 'MWh' but the values are
+        # GWh-scale, same mislabelling as Ch2_F.6 -- no value_scale needed.
+        dict(sheet_name='Ch 2_F.13', metric='energy',
+             domain='demand', demand_basis='operational', unit='GWh', label_kind='scenario'),
         dict(sheet_name='Ch 2_F.15', metric='peak_summer',
              domain='demand', demand_basis='operational', unit='MW',
              label_kind='scenario', fixed_poe_level=10),
