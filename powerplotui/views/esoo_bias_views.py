@@ -28,7 +28,6 @@ esoo_pdf_parser's module docstring, which flags it as "a strong candidate
 for D11/FR-G2-06's validation-first backcast reference" -- this is that.
 """
 import logging
-from collections import defaultdict
 from pathlib import Path
 
 import plotly.graph_objects as go
@@ -40,6 +39,8 @@ from powerplotui.services.esoo_bias_analysis import (
     assess_systematic_bias,
     compute_band_calibration,
     compute_central_estimate_errors,
+    melt_actual_to_metric_dicts,
+    raw_errors_by_group,
 )
 from powerplotui.services.esoo_pdf_parser import (
     _find_table_by_row_label,
@@ -47,7 +48,7 @@ from powerplotui.services.esoo_pdf_parser import (
     _to_number,
     extract_raw_tables,
 )
-from siren_web.models import AnnualDemandActual, EsooFigure, EsooVintage
+from siren_web.models import AnnualDemandActual, EsooFigure, EsooForecastAdjustment, EsooVintage
 
 logger = logging.getLogger(__name__)
 
@@ -274,76 +275,6 @@ def _validate_against_table11():
     }
 
 
-def _melt_actual_to_metric_dicts(actual):
-    """
-    AnnualDemandActual has one row per (year, demand_basis) with WIDE
-    columns (annual_energy_gwh, peak_demand_mw, minimum_demand_mw) -- not
-    one row per metric like EsooFigure. But EsooFigure separates peak into
-    'peak_summer'/'peak_winter' (two distinct forecast series), while
-    AnnualDemandActual only stores a single annual peak_demand_mw. Those
-    don't line up 1:1: a single calendar year genuinely has both a summer
-    peak event and a winter peak event, but this schema only records
-    whichever one turned out to be the higher of the two.
-
-    Rather than silently comparing that single actual peak against BOTH
-    peak_summer and peak_winter forecasts (which would be wrong for
-    whichever season it didn't occur in), this tags the actual peak with
-    the season implied by its own peak_datetime (per the 2026 WEM ESOO's
-    own season definitions, p.30: summer = Dec-Mar, winter = Jun-Aug) and
-    only emits a dict for that one metric. Years whose peak falls in a
-    shoulder month (Apr/May/Sep-Nov) emit no peak metric at all -- there is
-    no honest way to attribute it to either forecast series, and
-    align_forecast_actual_pairs treats "no actual" as "not yet scoreable",
-    not an error.
-
-    This is a real, currently-unresolved gap between the two schemas: this
-    project cannot validate a 'peak_winter' AND a 'peak_summer' forecast
-    for the same year from AnnualDemandActual as it stands, only whichever
-    one happened to be the annual max. Flagged in the Phase 3b report.
-    """
-    out = []
-    if actual.annual_energy_gwh is not None:
-        out.append({
-            'forecast_year': actual.year, 'metric': 'energy',
-            'demand_basis': actual.demand_basis, 'value': actual.annual_energy_gwh,
-        })
-    if actual.minimum_demand_mw is not None:
-        out.append({
-            'forecast_year': actual.year, 'metric': 'minimum',
-            'demand_basis': actual.demand_basis, 'value': actual.minimum_demand_mw,
-        })
-    if actual.peak_demand_mw is not None and actual.peak_datetime is not None:
-        month = actual.peak_datetime.month
-        if month in (12, 1, 2, 3):
-            peak_metric = 'peak_summer'
-        elif month in (6, 7, 8):
-            peak_metric = 'peak_winter'
-        else:
-            peak_metric = None  # shoulder month -- not attributable to either series
-        if peak_metric:
-            out.append({
-                'forecast_year': actual.year, 'metric': peak_metric,
-                'demand_basis': actual.demand_basis, 'value': actual.peak_demand_mw,
-            })
-    return out
-
-
-def _central_estimate_errors_by_group(pairs):
-    """
-    Raw per-pair signed errors grouped by (metric, horizon), central
-    estimate only (same filter as esoo_bias_analysis._is_central_estimate:
-    D12(a) -- Expected scenario, POE50 where a POE axis applies). Kept
-    separately from compute_central_estimate_errors() because that
-    function only returns aggregated me/mae/n, and assess_systematic_bias
-    needs the raw list to run its t-test.
-    """
-    grouped = defaultdict(list)
-    for p in pairs:
-        if p.demand_growth_scenario == 'expected' and (p.poe_level is None or p.poe_level == 50):
-            grouped[(p.metric, p.horizon)].append(p.error)
-    return grouped
-
-
 def _build_extended_bias_report():
     """
     FR-G2-03/04/08 extended, archive-wide bias report from real EsooFigure
@@ -364,12 +295,12 @@ def _build_extended_bias_report():
     ]
     actuals = []
     for a in AnnualDemandActual.objects.all():
-        actuals.extend(_melt_actual_to_metric_dicts(a))
+        actuals.extend(melt_actual_to_metric_dicts(a))
 
     pairs, refused = align_forecast_actual_pairs(figures, actuals)
 
     central_stats = compute_central_estimate_errors(pairs)
-    grouped_errors = _central_estimate_errors_by_group(pairs)
+    grouped_errors = raw_errors_by_group(pairs, demand_growth_scenario='expected', poe_level=50)
 
     bias_rows = []
     for key in sorted(central_stats.keys()):
@@ -508,10 +439,15 @@ def bias_tracking_dashboard(request):
         'total_vintages': vintages.count(),
     }
 
+    applied_adjustments = EsooForecastAdjustment.objects.filter(
+        applied_to_scenario__isnull=False
+    ).select_related('source_figure', 'source_figure__vintage', 'applied_to_scenario').order_by('-computed_at')
+
     return render(request, 'esoo_bias/bias_tracking.html', {
         'table11': table11,
         'extended': extended,
         'bias_chart_html': bias_chart_html,
         'calibration_chart_html': calibration_chart_html,
         'archive_coverage': archive_coverage,
+        'applied_adjustments': applied_adjustments,
     })

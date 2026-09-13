@@ -5092,6 +5092,89 @@ class AnnualDemandActual(models.Model):
         return f"{self.year} ({self.demand_basis}): {self.annual_energy_gwh} GWh, peak {self.peak_demand_mw} MW"
 
 
+ESOO_ADJUSTMENT_CATEGORY_CHOICES = [
+    ('growth_assumption', 'Growth assumption bias (residual mean error)'),
+    # Reserved: not yet computed by any pipeline, but kept here so the
+    # schema doesn't need to change once each is implemented (each needs
+    # data this project doesn't have yet -- see esoo_forecast_adjustment.py).
+    ('weather_normalization', 'Weather normalisation'),
+    ('pv_recalibration', 'Rooftop PV recalibration'),
+    ('block_load_removal', 'Block-load delay removal'),
+    ('industrial_load_survey', 'Industrial load survey correction'),
+]
+
+ESOO_ADJUSTMENT_VERDICT_CHOICES = [
+    ('forecasts_run_high', 'Forecasts run high'),
+    ('forecasts_run_low', 'Forecasts run low'),
+    ('insufficient_evidence', 'Insufficient evidence'),
+]
+
+ESOO_ADJUSTMENT_SOURCE_CHOICES = [
+    ('computed', 'Computed from bias analysis'),
+    ('manual', 'Manually entered or overridden'),
+]
+
+
+class EsooForecastAdjustment(models.Model):
+    """
+    A bias-correction applied (or considered and skipped) against one
+    EsooFigure forecast anchor, for use by the Powermatch-facing ESOO
+    scenario builder (powermatchui.views.esoo_scenario_views). Traces
+    back to the exact bias-tracking statistic that produced it (verdict,
+    p_value, n from esoo_bias_analysis.assess_systematic_bias), so every
+    correction is auditable rather than an opaque number.
+
+    `category` uses the same decomposition vocabulary as the underlying
+    analysis (growth assumption, weather, PV, block load, industrial
+    load) -- only `growth_assumption` is computed automatically today
+    (powermatchui.utils.esoo_forecast_adjustment); the others are manual-
+    only until their own data pipelines exist.
+
+    `source` distinguishes an automatically computed row from one an
+    analyst created or edited by hand, so automatic recomputation
+    (build_adjusted_anchors) never silently overwrites a manual entry or
+    override.
+    """
+    idesooforecastadjustment = models.AutoField(db_column='idesooforecastadjustment', primary_key=True)
+    source_figure = models.ForeignKey(EsooFigure, on_delete=models.CASCADE, related_name='adjustments')
+
+    category = models.CharField(max_length=30, choices=ESOO_ADJUSTMENT_CATEGORY_CHOICES)
+    horizon = models.IntegerField(help_text="forecast_year - vintage.year, denormalised for querying")
+
+    original_value = models.FloatField()
+    adjustment_value = models.FloatField(help_text="Signed correction; original_value + adjustment_value = adjusted_value")
+    adjusted_value = models.FloatField()
+    unit = models.CharField(max_length=10)
+
+    verdict = models.CharField(max_length=30, choices=ESOO_ADJUSTMENT_VERDICT_CHOICES, null=True, blank=True)
+    p_value = models.FloatField(null=True, blank=True)
+    n = models.PositiveIntegerField(null=True, blank=True)
+    methodology_notes = models.TextField(blank=True)
+
+    source = models.CharField(max_length=10, choices=ESOO_ADJUSTMENT_SOURCE_CHOICES, default='computed')
+    applied_to_scenario = models.ForeignKey(
+        'Scenarios', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='esoo_forecast_adjustments',
+        help_text="Set once this adjustment was actually used to build a Powermatch scenario",
+    )
+
+    computed_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'esoo_forecast_adjustment'
+        unique_together = [['source_figure', 'category']]
+        ordering = ['-computed_at']
+        verbose_name = 'ESOO Forecast Adjustment'
+        verbose_name_plural = 'ESOO Forecast Adjustments'
+
+    def __str__(self):
+        return (
+            f"{self.source_figure} [{self.get_category_display()}]: "
+            f"{self.original_value} -> {self.adjusted_value} {self.unit}"
+        )
+
+
 # ============================================================
 # WEM ESOO EV Uptake & Charging Load Modelling — Foundation
 # models (Implementation Plan Phase 0-1, D1-D12). Mirrors the

@@ -41,6 +41,7 @@ from django.shortcuts import redirect, render
 
 from siren_web.models import (
     EsooFigure,
+    EsooForecastAdjustment,
     EsooVintage,
     ESOO_POE_LEVEL_CHOICES,
     ESOO_SCENARIO_CHOICES,
@@ -52,6 +53,7 @@ from siren_web.models import (
     facilities,
     supplyfactors,
 )
+from powermatchui.utils.esoo_forecast_adjustment import build_adjusted_anchors
 from powermatchui.utils.esoo_ldc import LDCConstructionError, fit_ldc_to_anchors
 from powermatchui.utils.esoo_reconciliation import (
     TraceRejectedError,
@@ -112,18 +114,22 @@ class EsooScenarioBuildResult:
     achieved_peak_mw: float = 0.0
     achieved_minimum_mw: float = 0.0
     achieved_energy_mwh: float = 0.0
+    adjustments: list = field(default_factory=list)
+
+
+def _energy_value_to_mwh(value: float, unit: str, error_label: str) -> float:
+    normalised_unit = (unit or '').strip().upper()
+    if normalised_unit == 'GWH':
+        return value * 1000.0
+    if normalised_unit == 'MWH':
+        return value
+    raise AnchorNotFoundError(
+        f"{error_label} has unexpected unit '{unit}'; expected GWh or MWh — refusing to guess a conversion."
+    )
 
 
 def _energy_to_mwh(figure: EsooFigure) -> float:
-    unit = (figure.unit or '').strip().upper()
-    if unit == 'GWH':
-        return figure.value * 1000.0
-    if unit == 'MWH':
-        return figure.value
-    raise AnchorNotFoundError(
-        f"Energy figure (id={figure.idesoofigure}) has unexpected unit '{figure.unit}'; "
-        "expected GWh or MWh — refusing to guess a conversion."
-    )
+    return _energy_value_to_mwh(figure.value, figure.unit, f"Energy figure (id={figure.idesoofigure})")
 
 
 def _power_mw(figure: EsooFigure, label: str) -> float:
@@ -293,15 +299,40 @@ def _scenario_title(vintage: EsooVintage, esoo_scenario: str, poe: int, forecast
 
 
 def build_scenario_from_esoo(vintage: EsooVintage, esoo_scenario: str, poe: int, forecast_year: int,
-                              demand_basis: str = 'operational') -> EsooScenarioBuildResult:
+                              demand_basis: str = 'operational',
+                              apply_bias_correction: bool = False) -> EsooScenarioBuildResult:
     """
     FR-G1-01 orchestration: anchors -> LDC -> chronological trace ->
     reconciliation -> persisted supplyfactors, reusing the existing Load
     facility / Scenarios / supplyfactors mechanism.
+
+    `apply_bias_correction`: when true, each raw anchor is corrected by
+    its own metric's historical bias (powermatchui.utils.
+    esoo_forecast_adjustment) before being fed to the LDC fit -- e.g. a
+    peak anchor from a (scenario, POE) combination this project's ESOO
+    Bias Tracking has found runs systematically high is adjusted down by
+    that mean error. Anchor resolution itself (resolve_esoo_anchors,
+    AnchorNotFoundError) is unaffected either way; correction only ever
+    adjusts a value that was already found.
     """
     peak_mw, minimum_mw, energy_mwh, peak_fig, min_fig, energy_fig = resolve_esoo_anchors(
         vintage, esoo_scenario, poe, forecast_year, demand_basis
     )
+
+    adjustments = {}
+    if apply_bias_correction:
+        anchor_figures = {peak_fig.metric: peak_fig, min_fig.metric: min_fig, energy_fig.metric: energy_fig}
+        adjustments = build_adjusted_anchors(vintage, esoo_scenario, forecast_year, anchor_figures)
+        if peak_fig.metric in adjustments:
+            peak_mw = adjustments[peak_fig.metric].adjusted_value
+        if min_fig.metric in adjustments:
+            minimum_mw = adjustments[min_fig.metric].adjusted_value
+        if energy_fig.metric in adjustments:
+            energy_adjustment = adjustments[energy_fig.metric]
+            energy_mwh = _energy_value_to_mwh(
+                energy_adjustment.adjusted_value, energy_adjustment.unit,
+                f"Bias-adjusted energy figure (id={energy_fig.idesoofigure})",
+            )
 
     reference_shape, reference_year = build_reference_shape()
 
@@ -343,6 +374,13 @@ def build_scenario_from_esoo(vintage: EsooVintage, esoo_scenario: str, poe: int,
     if not created and scenario_obj.interval_minutes != 30:
         scenario_obj.interval_minutes = 30
         scenario_obj.save(update_fields=['interval_minutes'])
+
+    if adjustments:
+        figure_by_metric = {peak_fig.metric: peak_fig, min_fig.metric: min_fig, energy_fig.metric: energy_fig}
+        for metric, adj in adjustments.items():
+            EsooForecastAdjustment.objects.filter(
+                source_figure=figure_by_metric[metric], category=adj.category,
+            ).update(applied_to_scenario=scenario_obj)
 
     facility_obj, _ = facilities.objects.get_or_create(
         facility_name=title,
@@ -395,6 +433,7 @@ def build_scenario_from_esoo(vintage: EsooVintage, esoo_scenario: str, poe: int,
         achieved_peak_mw=report.achieved_peak,
         achieved_minimum_mw=report.achieved_minimum,
         achieved_energy_mwh=report.achieved_energy_mwh,
+        adjustments=list(adjustments.values()),
     )
 
 
@@ -421,6 +460,7 @@ def esoo_scenario_selector(request):
     selected_scenario = request.POST.get('esoo_scenario', '')
     selected_poe = request.POST.get('poe_level', '')
     selected_forecast_year = request.POST.get('forecast_year', '')
+    apply_bias_correction = request.POST.get('apply_bias_correction') == 'on'
 
     if request.method == 'POST':
         vintage = None
@@ -437,7 +477,10 @@ def esoo_scenario_selector(request):
 
         if vintage is not None and selected_scenario:
             try:
-                result = build_scenario_from_esoo(vintage, selected_scenario, poe, forecast_year)
+                result = build_scenario_from_esoo(
+                    vintage, selected_scenario, poe, forecast_year,
+                    apply_bias_correction=apply_bias_correction,
+                )
                 messages.success(
                     request,
                     f"Built Powermatch scenario '{result.title}' — {result.n_rows} half-hourly "
@@ -476,5 +519,6 @@ def esoo_scenario_selector(request):
         'selected_scenario': selected_scenario,
         'selected_poe': selected_poe,
         'selected_forecast_year': selected_forecast_year,
+        'apply_bias_correction': apply_bias_correction,
     }
     return render(request, 'esoo_scenario_selector.html', context)

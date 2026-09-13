@@ -84,6 +84,28 @@
                             </div>
                         </div>
 
+                        <div class="row mb-3">
+                            <div class="col-md-12">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="apply_bias_correction"
+                                           name="apply_bias_correction"
+                                           {% if apply_bias_correction %}checked{% endif %}>
+                                    <label class="form-check-label" for="apply_bias_correction">
+                                        Apply ESOO bias correction
+                                    </label>
+                                </div>
+                                <div class="form-text">
+                                    Corrects each anchor by its own metric's historical mean error at this
+                                    horizon, per the
+                                    <a href="{% url 'esoo_bias_tracking' %}">ESOO Bias Tracking</a> analysis —
+                                    only applied where there is enough evidence (n &ge; 5 and a significant
+                                    test); otherwise the raw AEMO figure is used unchanged. See
+                                    <a href="{% url 'powermatchui:esoo_adjustment_list' %}">applied/manual
+                                    adjustments</a>.
+                                </div>
+                            </div>
+                        </div>
+
                         <button type="submit" class="btn btn-primary">Build Scenario</button>
                     </form>
                 </div>
@@ -114,6 +136,47 @@
                             </tr>
                         </tbody>
                     </table>
+
+                    {% if result.adjustments %}
+                    <h6 class="mt-3">ESOO Bias Corrections Applied</h6>
+                    <table class="table table-sm table-bordered">
+                        <thead>
+                            <tr>
+                                <th>Metric</th>
+                                <th>Category</th>
+                                <th>Original</th>
+                                <th>Adjustment</th>
+                                <th>Adjusted</th>
+                                <th>Verdict</th>
+                                <th>n / p-value</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for adj in result.adjustments %}
+                            <tr {% if adj.verdict == 'insufficient_evidence' %}class="table-secondary"{% endif %}>
+                                <td>{{ adj.metric }}</td>
+                                <td>{{ adj.category }}</td>
+                                <td>{{ adj.original_value|floatformat:1 }} {{ adj.unit }}</td>
+                                <td>{{ adj.adjustment_value|floatformat:1 }} {{ adj.unit }}</td>
+                                <td>{{ adj.adjusted_value|floatformat:1 }} {{ adj.unit }}</td>
+                                <td>
+                                    {% if adj.verdict == 'insufficient_evidence' %}
+                                    <span class="badge bg-secondary">Insufficient evidence — no correction applied</span>
+                                    {% elif adj.verdict == 'forecasts_run_high' %}
+                                    <span class="badge bg-danger">Forecasts run high</span>
+                                    {% else %}
+                                    <span class="badge bg-primary">Forecasts run low</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    n={{ adj.n }}{% if adj.p_value != None %}, p={{ adj.p_value|floatformat:3 }}{% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                    {% endif %}
+
                     <p class="text-muted mb-0">
                         This scenario has not been run through Powermatch dispatch yet — use
                         <a href="/baseline_scenario/">Baseline Scenario</a> or

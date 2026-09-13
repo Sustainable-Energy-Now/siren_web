@@ -3,7 +3,7 @@ from django.urls import path, include
 from .views import variations_views, baseline_scenario_views, demand_projection_views, \
     merit_order_views, \
     powermatchui_home_views, under_construction_views, demand_factor_views, esoo_scenario_views, \
-    ev_scenario_views, data_pipeline_views, esoo_export_views
+    ev_scenario_views, data_pipeline_views, esoo_export_views, esoo_adjustment_views
 app_name = 'powermatchui'
 
 urlpatterns = [
@@ -55,6 +55,13 @@ urlpatterns = [
 
     # WEM ESOO Foundation models -> Excel download (all EsooVintage/EsooFigure/etc.)
     path('esoo-scenario/export/', esoo_export_views.export_esoo_excel, name='export_esoo_excel'),
+
+    # WEM ESOO Forecast Adjustments (bias-corrected anchors for Powermatch)
+    path('esoo-adjustments/', esoo_adjustment_views.adjustment_list, name='esoo_adjustment_list'),
+    path('esoo-adjustments/create/', esoo_adjustment_views.adjustment_create, name='esoo_adjustment_create'),
+    path('esoo-adjustments/<int:pk>/edit/', esoo_adjustment_views.adjustment_edit, name='esoo_adjustment_edit'),
+    path('esoo-adjustments/<int:pk>/delete/', esoo_adjustment_views.adjustment_delete, name='esoo_adjustment_delete'),
+    path('esoo-adjustments/<int:pk>/recompute/', esoo_adjustment_views.adjustment_recompute, name='esoo_adjustment_recompute'),
 
     # EV Uptake & Charging Load scenario selector (FR-11, Outcome A)
     path('ev-scenario/', ev_scenario_views.ev_scenario_selector, name='ev_scenario_selector'),

@@ -304,6 +304,46 @@
 {% endif %}
 {% endif %}
 
+<!-- ==================================================================== -->
+<!-- Applied to Powermatch scenarios                                       -->
+<!-- ==================================================================== -->
+<div class="section-header">
+    <h2>Applied to Powermatch Scenarios</h2>
+</div>
+<p style="color: #7f8c8d;">
+    Bias corrections from this analysis that have actually been used to build a
+    <a href="{% url 'powermatchui:esoo_scenario_selector' %}">Powermatch demand scenario</a> ("Apply ESOO
+    bias correction" checked). See
+    <a href="{% url 'powermatchui:esoo_adjustment_list' %}">all adjustments</a> (including ones not yet
+    applied, and manual entries) for the full picture.
+</p>
+{% if applied_adjustments %}
+<table class="stats-table">
+    <thead>
+        <tr>
+            <th>Figure</th>
+            <th>Category</th>
+            <th class="value">Original → Adjusted</th>
+            <th>Verdict</th>
+            <th>Applied To Scenario</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for adj in applied_adjustments %}
+        <tr>
+            <td>{{ adj.source_figure }}</td>
+            <td>{{ adj.get_category_display }}</td>
+            <td class="value">{{ adj.original_value|floatformat:1 }} → {{ adj.adjusted_value|floatformat:1 }} {{ adj.unit }}</td>
+            <td><span class="verdict-badge {{ adj.verdict }}">{{ adj.get_verdict_display }}</span></td>
+            <td>{{ adj.applied_to_scenario.title }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p style="color: #7f8c8d;"><em>No adjustments have been applied to a Powermatch scenario yet.</em></p>
+{% endif %}
+
 <style>
     /* --- ported from scada/base.html (this page now extends powerplotui_base.html) --- */
     .esoo-bias h1 { color:#2c3e50; font-size:2.2em; margin-bottom:10px; }

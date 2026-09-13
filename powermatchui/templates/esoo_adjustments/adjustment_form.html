@@ -1,0 +1,97 @@
+{% extends 'powermatchui_base.html' %}
+{% load static %}
+
+{% block powermatchui_content %}
+<div class="container-fluid mt-4">
+    <div class="row">
+        <div class="col-md-8 offset-md-2">
+            <h3>{% if editing %}Edit{% else %}Create{% endif %} ESOO Forecast Adjustment</h3>
+            <p class="text-muted">
+                {% if editing %}
+                Editing always marks this adjustment as manual, so a later automatic recompute (from
+                <a href="{% url 'esoo_bias_tracking' %}">ESOO Bias Tracking</a>) won't overwrite it.
+                {% else %}
+                Enter a correction against one ESOO forecast anchor. Use this for a category that isn't
+                computed automatically yet (weather normalisation, PV recalibration, block-load removal,
+                industrial-load survey), or to override a computed correction.
+                {% endif %}
+            </p>
+
+            <div class="card">
+                <div class="card-body">
+                    <form method="post">
+                        {% csrf_token %}
+
+                        <div class="mb-3">
+                            <label for="source_figure" class="form-label">
+                                Source Figure <span class="text-danger">*</span>
+                            </label>
+                            {% if editing %}
+                            <input type="text" class="form-control" value="{{ adjustment.source_figure }}" disabled readonly>
+                            <div class="form-text text-muted">Cannot be changed after creation — delete and recreate instead.</div>
+                            {% else %}
+                            <select class="form-select" id="source_figure" name="source_figure" required>
+                                <option value="">Select a forecast figure...</option>
+                                {% for f in figures %}
+                                <option value="{{ f.idesoofigure }}">{{ f }}</option>
+                                {% endfor %}
+                            </select>
+                            {% endif %}
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="category" class="form-label">
+                                Category <span class="text-danger">*</span>
+                            </label>
+                            {% if editing %}
+                            <input type="text" class="form-control" value="{{ adjustment.get_category_display }}" disabled readonly>
+                            <div class="form-text text-muted">Cannot be changed after creation — delete and recreate instead.</div>
+                            {% else %}
+                            <select class="form-select" id="category" name="category" required>
+                                <option value="">Select a category...</option>
+                                {% for value, label in category_choices %}
+                                <option value="{{ value }}">{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                            {% endif %}
+                        </div>
+
+                        {% if editing %}
+                        <div class="mb-3">
+                            <label class="form-label">Original Value</label>
+                            <input type="text" class="form-control" value="{{ adjustment.original_value }} {{ adjustment.unit }}" disabled readonly>
+                        </div>
+                        {% endif %}
+
+                        <div class="mb-3">
+                            <label for="adjustment_value" class="form-label">
+                                Adjustment <span class="text-danger">*</span>
+                            </label>
+                            <input type="number" class="form-control" id="adjustment_value" name="adjustment_value"
+                                   value="{% if editing %}{{ adjustment.adjustment_value }}{% else %}0{% endif %}"
+                                   step="0.01" required>
+                            <div class="form-text">
+                                Signed value in the figure's own unit (e.g. MW or GWh). Adjusted value = original
+                                + this correction. A negative value corrects an over-forecast downward.
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="methodology_notes" class="form-label">Methodology Notes</label>
+                            <textarea class="form-control" id="methodology_notes" name="methodology_notes" rows="3"
+                                      placeholder="What this correction is based on...">{% if editing %}{{ adjustment.methodology_notes }}{% endif %}</textarea>
+                        </div>
+
+                        <div class="d-grid gap-2 d-md-flex justify-content-md-end mt-4">
+                            <a href="{% url 'powermatchui:esoo_adjustment_list' %}" class="btn btn-secondary">Cancel</a>
+                            <button type="submit" class="btn btn-primary">
+                                {% if editing %}Update{% else %}Create{% endif %} Adjustment
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

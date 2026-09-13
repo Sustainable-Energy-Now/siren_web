@@ -110,21 +110,38 @@ def align_forecast_actual_pairs(figures, actuals) -> Tuple[List[ForecastActualPa
     return pairs, refused
 
 
-def _is_central_estimate(pair: ForecastActualPair) -> bool:
-    """D12(a): Expected scenario, and POE50 where a POE axis applies."""
-    if pair.demand_growth_scenario != 'expected':
-        return False
-    return pair.poe_level is None or pair.poe_level == 50
-
-
-def compute_central_estimate_errors(pairs: List[ForecastActualPair]) -> Dict[Tuple[str, int], dict]:
+def _matches_group(pair: ForecastActualPair, demand_growth_scenario: str, poe_level: Optional[int]) -> bool:
     """
-    FR-G2-03, lens (a). ME (signed) and MAE per (metric, horizon), central
-    estimate only (D12(a)). Sample size n always reported alongside (AC).
+    Shared filter behind compute_mean_error_by_group/raw_errors_by_group.
+    poe_level=50 keeps D12(a)'s existing allowance that energy figures
+    (no POE axis, poe_level=None) count as the central estimate alongside
+    an explicit POE50; any other requested poe_level (e.g. 10, the
+    Reserve-Capacity-binding forecast) requires an exact match, since
+    there's no POE-axis-absent convention to fall back to for those.
+    """
+    if pair.demand_growth_scenario != demand_growth_scenario:
+        return False
+    if poe_level == 50:
+        return pair.poe_level is None or pair.poe_level == 50
+    return pair.poe_level == poe_level
+
+
+def compute_mean_error_by_group(
+    pairs: List[ForecastActualPair],
+    demand_growth_scenario: str = 'expected',
+    poe_level: Optional[int] = 50,
+) -> Dict[Tuple[str, int], dict]:
+    """
+    Generalises FR-G2-03's central-estimate lens (D12(a)) to any
+    (demand_growth_scenario, poe_level) combination -- in particular the
+    POE10 'binding' forecast that actually sets the Reserve Capacity
+    Requirement and feeds Powermatch scenario-building
+    (esoo_scenario_views.resolve_esoo_anchors), which the
+    Expected/POE50-only central estimate never covers.
     """
     grouped: Dict[Tuple[str, int], List[ForecastActualPair]] = defaultdict(list)
     for p in pairs:
-        if _is_central_estimate(p):
+        if _matches_group(p, demand_growth_scenario, poe_level):
             grouped[(p.metric, p.horizon)].append(p)
 
     results = {}
@@ -137,6 +154,94 @@ def compute_central_estimate_errors(pairs: List[ForecastActualPair]) -> Dict[Tup
             'unit': group[0].unit,
         }
     return results
+
+
+def raw_errors_by_group(
+    pairs: List[ForecastActualPair],
+    demand_growth_scenario: str = 'expected',
+    poe_level: Optional[int] = 50,
+) -> Dict[Tuple[str, int], List[float]]:
+    """
+    Same grouping as compute_mean_error_by_group, but the raw per-pair
+    signed errors rather than aggregated me/mae/n -- assess_systematic_bias
+    needs the raw list to run its t-test.
+    """
+    grouped: Dict[Tuple[str, int], List[float]] = defaultdict(list)
+    for p in pairs:
+        if _matches_group(p, demand_growth_scenario, poe_level):
+            grouped[(p.metric, p.horizon)].append(p.error)
+    return grouped
+
+
+def melt_actual_to_metric_dicts(actual) -> List[dict]:
+    """
+    AnnualDemandActual has one row per (year, demand_basis) with WIDE
+    columns (annual_energy_gwh, peak_demand_mw, minimum_demand_mw) -- not
+    one row per metric like EsooFigure. But EsooFigure separates peak into
+    'peak_summer'/'peak_winter' (two distinct forecast series), while
+    AnnualDemandActual only stores a single annual peak_demand_mw. Those
+    don't line up 1:1: a single calendar year genuinely has both a summer
+    peak event and a winter peak event, but this schema only records
+    whichever one turned out to be the higher of the two.
+
+    Rather than silently comparing that single actual peak against BOTH
+    peak_summer and peak_winter forecasts (which would be wrong for
+    whichever season it didn't occur in), this tags the actual peak with
+    the season implied by its own peak_datetime (per the 2026 WEM ESOO's
+    own season definitions, p.30: summer = Dec-Mar, winter = Jun-Aug) and
+    only emits a dict for that one metric. Years whose peak falls in a
+    shoulder month (Apr/May/Sep-Nov) emit no peak metric at all -- there is
+    no honest way to attribute it to either forecast series, and
+    align_forecast_actual_pairs treats "no actual" as "not yet scoreable",
+    not an error.
+
+    This is a real, currently-unresolved gap between the two schemas: this
+    project cannot validate a 'peak_winter' AND a 'peak_summer' forecast
+    for the same year from AnnualDemandActual as it stands, only whichever
+    one happened to be the annual max. Flagged in the Phase 3b report.
+
+    Takes any object with AnnualDemandActual's attribute shape (year,
+    demand_basis, annual_energy_gwh, minimum_demand_mw, peak_demand_mw,
+    peak_datetime) -- not the Django queryset itself -- so it stays
+    testable without a database, matching this module's other functions.
+    """
+    out = []
+    if actual.annual_energy_gwh is not None:
+        out.append({
+            'forecast_year': actual.year, 'metric': 'energy',
+            'demand_basis': actual.demand_basis, 'value': actual.annual_energy_gwh,
+        })
+    if actual.minimum_demand_mw is not None:
+        out.append({
+            'forecast_year': actual.year, 'metric': 'minimum',
+            'demand_basis': actual.demand_basis, 'value': actual.minimum_demand_mw,
+        })
+    if actual.peak_demand_mw is not None and actual.peak_datetime is not None:
+        month = actual.peak_datetime.month
+        if month in (12, 1, 2, 3):
+            peak_metric = 'peak_summer'
+        elif month in (6, 7, 8):
+            peak_metric = 'peak_winter'
+        else:
+            peak_metric = None  # shoulder month -- not attributable to either series
+        if peak_metric:
+            out.append({
+                'forecast_year': actual.year, 'metric': peak_metric,
+                'demand_basis': actual.demand_basis, 'value': actual.peak_demand_mw,
+            })
+    return out
+
+
+def compute_central_estimate_errors(pairs: List[ForecastActualPair]) -> Dict[Tuple[str, int], dict]:
+    """
+    FR-G2-03, lens (a). ME (signed) and MAE per (metric, horizon), central
+    estimate only (D12(a): Expected scenario, POE50-or-no-POE-axis).
+    Thin wrapper over compute_mean_error_by_group's default arguments --
+    kept as its own name because "central estimate" is D12(a)'s specific,
+    named convention, and callers of the dashboard shouldn't need to know
+    it's poe_level=50 under the hood.
+    """
+    return compute_mean_error_by_group(pairs, demand_growth_scenario='expected', poe_level=50)
 
 
 def compute_band_calibration(

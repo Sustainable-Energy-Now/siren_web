@@ -1,0 +1,201 @@
+{% extends 'powermatchui_base.html' %}
+{% load static %}
+
+{% block powermatchui_content %}
+<div class="container-fluid mt-4">
+    <div class="row">
+        <div class="col-md-12">
+            <h3>WEM ESOO Forecast Adjustments</h3>
+            <p class="text-muted">
+                Bias corrections applied (or considered and skipped) against ESOO forecast anchors, for use
+                by the <a href="{% url 'powermatchui:esoo_scenario_selector' %}">ESOO Demand Scenario</a>
+                builder. "Computed" rows come from the
+                <a href="{% url 'esoo_bias_tracking' %}">ESOO Bias Tracking</a> analysis; "Manual" rows were
+                entered or overridden by hand.
+            </p>
+        </div>
+    </div>
+
+    <div class="row mb-3">
+        <div class="col-md-6">
+            <a href="{% url 'powermatchui:esoo_adjustment_create' %}" class="btn btn-primary">
+                Create Manual Adjustment
+            </a>
+        </div>
+    </div>
+
+    <div class="row mb-3">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-body">
+                    <form method="get" class="row g-3">
+                        <div class="col-md-2">
+                            <label for="vintage" class="form-label">Vintage</label>
+                            <select class="form-select" id="vintage" name="vintage" onchange="this.form.submit()">
+                                <option value="">All</option>
+                                {% for v in vintages %}
+                                <option value="{{ v.idesoovintage }}" {% if vintage_filter == v.idesoovintage|stringformat:"s" %}selected{% endif %}>
+                                    {{ v.year }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label for="metric" class="form-label">Metric</label>
+                            <select class="form-select" id="metric" name="metric" onchange="this.form.submit()">
+                                <option value="">All</option>
+                                {% for m in metric_choices %}
+                                <option value="{{ m }}" {% if metric_filter == m %}selected{% endif %}>{{ m }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label for="category" class="form-label">Category</label>
+                            <select class="form-select" id="category" name="category" onchange="this.form.submit()">
+                                <option value="">All</option>
+                                {% for value, label in category_choices %}
+                                <option value="{{ value }}" {% if category_filter == value %}selected{% endif %}>{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label for="verdict" class="form-label">Verdict</label>
+                            <select class="form-select" id="verdict" name="verdict" onchange="this.form.submit()">
+                                <option value="">All</option>
+                                {% for value, label in verdict_choices %}
+                                <option value="{{ value }}" {% if verdict_filter == value %}selected{% endif %}>{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label for="source" class="form-label">Source</label>
+                            <select class="form-select" id="source" name="source" onchange="this.form.submit()">
+                                <option value="">All</option>
+                                {% for value, label in source_choices %}
+                                <option value="{{ value }}" {% if source_filter == value %}selected{% endif %}>{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label for="applied_only" class="form-label">Applied</label>
+                            <div class="form-check form-switch mt-2">
+                                <input class="form-check-input" type="checkbox" id="applied_only" name="applied_only"
+                                       value="true" {% if applied_only %}checked{% endif %} onchange="this.form.submit()">
+                                <label class="form-check-label" for="applied_only">Used in a scenario</label>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-body">
+                    {% if page_obj %}
+                    <table class="table table-striped table-hover">
+                        <thead>
+                            <tr>
+                                <th>Figure</th>
+                                <th>Category</th>
+                                <th>Horizon</th>
+                                <th>Original → Adjusted</th>
+                                <th>Verdict</th>
+                                <th>n / p</th>
+                                <th>Source</th>
+                                <th>Applied To</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for adj in page_obj %}
+                            <tr>
+                                <td>{{ adj.source_figure }}</td>
+                                <td>{{ adj.get_category_display }}</td>
+                                <td>+{{ adj.horizon }}y</td>
+                                <td>{{ adj.original_value|floatformat:1 }} → {{ adj.adjusted_value|floatformat:1 }} {{ adj.unit }}</td>
+                                <td>
+                                    {% if adj.verdict %}
+                                    <span class="badge {% if adj.verdict == 'insufficient_evidence' %}bg-secondary{% elif adj.verdict == 'forecasts_run_high' %}bg-danger{% else %}bg-primary{% endif %}">
+                                        {{ adj.get_verdict_display }}
+                                    </span>
+                                    {% else %}
+                                    <span class="text-muted">—</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if adj.n != None %}n={{ adj.n }}{% endif %}
+                                    {% if adj.p_value != None %}, p={{ adj.p_value|floatformat:3 }}{% endif %}
+                                </td>
+                                <td>
+                                    {% if adj.source == 'manual' %}
+                                    <span class="badge bg-warning text-dark">Manual</span>
+                                    {% else %}
+                                    <span class="badge bg-info">Computed</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if adj.applied_to_scenario %}
+                                    {{ adj.applied_to_scenario.title }}
+                                    {% else %}
+                                    <span class="text-muted">—</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <div class="btn-group btn-group-sm" role="group">
+                                        <a href="{% url 'powermatchui:esoo_adjustment_edit' adj.pk %}"
+                                           class="btn btn-outline-primary">Edit</a>
+                                        {% if adj.source == 'computed' %}
+                                        <form method="post" action="{% url 'powermatchui:esoo_adjustment_recompute' adj.pk %}" style="display:inline;">
+                                            {% csrf_token %}
+                                            <button type="submit" class="btn btn-outline-secondary">Recompute</button>
+                                        </form>
+                                        {% endif %}
+                                        <form method="post" action="{% url 'powermatchui:esoo_adjustment_delete' adj.pk %}"
+                                              style="display:inline;" onsubmit="return confirm('Delete this adjustment?');">
+                                            {% csrf_token %}
+                                            <button type="submit" class="btn btn-outline-danger">Delete</button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+
+                    {% if page_obj.has_other_pages %}
+                    <nav aria-label="Page navigation">
+                        <ul class="pagination justify-content-center">
+                            {% if page_obj.has_previous %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ page_obj.previous_page_number }}">Previous</a>
+                            </li>
+                            {% endif %}
+                            <li class="page-item disabled">
+                                <span class="page-link">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+                            </li>
+                            {% if page_obj.has_next %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ page_obj.next_page_number }}">Next</a>
+                            </li>
+                            {% endif %}
+                        </ul>
+                    </nav>
+                    {% endif %}
+
+                    {% else %}
+                    <div class="alert alert-info">
+                        No adjustments found with the selected filters.
+                        <a href="{% url 'powermatchui:esoo_adjustment_create' %}">Create a manual adjustment</a>,
+                        build a scenario with "Apply ESOO bias correction" checked, or
+                        <a href="{% url 'powermatchui:esoo_adjustment_list' %}">clear filters</a>.
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

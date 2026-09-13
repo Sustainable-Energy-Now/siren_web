@@ -8,7 +8,7 @@ from .models import (
     EvVintage, SourceDocument, EvUptakePostcodeFigure, EvSuppressionFlag,
     EvChargingProfile, SwisBoundaryMembership, EvActualsRecord, EvLoadTrace,
     V2gInterfaceStub, SwisBoundary, PostcodeBoundary,
-    EvActualsDocument, EvActualsQuarter, CommandRun,
+    EvActualsDocument, EvActualsQuarter, CommandRun, EsooForecastAdjustment,
 )
 
 
@@ -37,6 +37,13 @@ class SourceDocumentAdmin(admin.ModelAdmin):
     list_display = ['__str__', 'domain', 'doc_type', 'retrieved_at']
     list_filter = ['doc_type']
     raw_id_fields = ['esoo_vintage', 'ev_vintage']
+
+
+@admin.register(EsooForecastAdjustment)
+class EsooForecastAdjustmentAdmin(admin.ModelAdmin):
+    list_display = ['__str__', 'category', 'verdict', 'source', 'applied_to_scenario', 'computed_at']
+    list_filter = ['category', 'verdict', 'source']
+    raw_id_fields = ['source_figure', 'applied_to_scenario']
 
 
 @admin.register(EvUptakePostcodeFigure)
