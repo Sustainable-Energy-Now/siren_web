@@ -1,7 +1,9 @@
 from django.shortcuts import render
 from django.http import JsonResponse, HttpResponse
-from siren_web.models import facilities, supplyfactors, Technologies
+from siren_web.models import facilities, Technologies, SupplyFactorMatrix
+from siren_web.services.supply_matrix import facility_trace, load_year_matrix, facility_row_index
 import math
+import numpy as np
 import openpyxl
 from openpyxl.utils import get_column_letter
 
@@ -25,8 +27,8 @@ def supply_plot_view(request):
         dispatchable=0
     ).order_by('technology_name')
     
-    # Get available years from supplyfactors
-    years = supplyfactors.objects.values_list('year', flat=True).distinct().order_by('year')
+    # Get available years from the supply factor matrix
+    years = SupplyFactorMatrix.objects.values_list('year', flat=True).order_by('year')
     
     context = {
         'facilities': renewable_facilities,
@@ -35,67 +37,116 @@ def supply_plot_view(request):
     }
     return render(request, 'facility_supply.html', context)
 
+def _aggregate_trace(hours, quantum, aggregation):
+    """Aggregate a numpy (hours, quantum) pair into hour/week/month buckets."""
+    if aggregation == 'hour':
+        return {'periods': hours.tolist(), 'quantum': quantum.tolist()}
+
+    bucket_key = get_week_from_hour if aggregation == 'week' else get_month_from_hour
+    buckets = {}
+    for h, q in zip(hours.tolist(), quantum.tolist()):
+        buckets.setdefault(bucket_key(h), []).append(q)
+
+    periods = sorted(buckets)
+    return {
+        'periods': periods,
+        'quantum': [float(np.mean(buckets[p])) for p in periods],
+    }
+
+
+def _x_label(aggregation):
+    return {'hour': 'Hour of Year', 'week': 'Week of Year', 'month': 'Month of Year'}[aggregation]
+
+
+def _slice_trace(trace, start_hour, end_hour):
+    """
+    Slice a raw (possibly NaN-containing) hourly trace to an optional
+    [start_hour, end_hour] range. Returns (hours, quantum, error_response);
+    error_response is None on success and should be returned as-is otherwise.
+    """
+    hours = np.arange(trace.shape[0])
+    quantum = np.nan_to_num(trace, nan=0.0)
+
+    if start_hour and end_hour:
+        try:
+            start_hour = int(start_hour)
+            end_hour = int(end_hour)
+        except ValueError:
+            return None, None, JsonResponse({'error': 'Invalid hour range'}, status=400)
+        mask = (hours >= start_hour) & (hours <= end_hour)
+        hours = hours[mask]
+        quantum = quantum[mask]
+
+    return hours, quantum, None
+
+
+def _slice_trace_lenient(trace, start_hour, end_hour):
+    """
+    As _slice_trace, but silently falls back to the full trace on an invalid
+    hour range instead of erroring — matches the historical (pass-on-error)
+    behaviour of the Excel export endpoint.
+    """
+    hours, quantum, err = _slice_trace(trace, start_hour, end_hour)
+    if err:
+        hours = np.arange(trace.shape[0])
+        quantum = np.nan_to_num(trace, nan=0.0)
+    return hours, quantum
+
+
 def get_supply_data(request):
-    """API endpoint to get supply data for a facility and year"""
+    """API endpoint to get supply data for a facility and year (matrix-backed)"""
     facility_id = request.GET.get('facility_id')
     year = request.GET.get('year')
     aggregation = request.GET.get('aggregation', 'hour')  # hour, week, or month
     start_hour = request.GET.get('start_hour')  # Optional hour range
     end_hour = request.GET.get('end_hour')
-    
+
     if not facility_id or not year:
         return JsonResponse({'error': 'facility_id and year are required'}, status=400)
-    
+
     try:
         facility = facilities.objects.select_related('idtechnologies').get(idfacilities=facility_id)
+        facility_id = int(facility_id)
         year = int(year)
-        
+
         # Verify facility has renewable technology
         if not facility.idtechnologies.renewable:
             return JsonResponse({
                 'error': f'{facility.facility_name} does not have renewable technology'
             }, status=400)
-            
+
     except facilities.DoesNotExist:
         return JsonResponse({'error': 'Facility not found'}, status=404)
     except ValueError:
         return JsonResponse({'error': 'Invalid year format'}, status=400)
-    
-    # Get supply data for the facility and year
-    supply_queryset = supplyfactors.objects.filter(
-        idfacilities=facility,
-        year=year
-    )
-    
-    # Apply hour range filter if provided
-    if start_hour and end_hour:
-        try:
-            start_hour = int(start_hour)
-            end_hour = int(end_hour)
-            supply_queryset = supply_queryset.filter(hour__gte=start_hour, hour__lte=end_hour)
-        except ValueError:
-            return JsonResponse({'error': 'Invalid hour range'}, status=400)
-    
-    supply_queryset = supply_queryset.order_by('hour')
-    
-    if not supply_queryset.exists():
+
+    # Get the facility's full-year trace from the packed per-year matrix
+    # (one query + one reshape) instead of filtering 8760 supplyfactors rows.
+    try:
+        trace = facility_trace(year, facility_id)
+    except SupplyFactorMatrix.DoesNotExist:
+        trace = None
+
+    if trace is None:
         return JsonResponse({
             'error': f'No supply data found for {facility.facility_name} in {year}'
         }, status=404)
-    
-    # Aggregate data based on selected time period
-    if aggregation == 'hour':
-        data = aggregate_by_hour(supply_queryset)
-        x_label = 'Hour of Year'
-    elif aggregation == 'week':
-        data = aggregate_by_week(supply_queryset)
-        x_label = 'Week of Year'
-    elif aggregation == 'month':
-        data = aggregate_by_month(supply_queryset)
-        x_label = 'Month of Year'
-    else:
+
+    hours, quantum, err = _slice_trace(trace, start_hour, end_hour)
+    if err:
+        return err
+
+    if hours.size == 0:
+        return JsonResponse({
+            'error': f'No supply data found for {facility.facility_name} in {year}'
+        }, status=404)
+
+    if aggregation not in ('hour', 'week', 'month'):
         return JsonResponse({'error': 'Invalid aggregation type'}, status=400)
-    
+
+    data = _aggregate_trace(hours, quantum, aggregation)
+    x_label = _x_label(aggregation)
+
     return JsonResponse({
         'facility_name': facility.facility_name,
         'facility_code': facility.facility_code,
@@ -105,10 +156,13 @@ def get_supply_data(request):
         'x_label': x_label,
         'periods': data['periods'],
         'quantum': data['quantum'],
-        'supply': data['supply'],
+        # `supply` was never populated as real per-hour data by any writer
+        # (always a constant 0 or 1) and isn't carried by the matrix; kept
+        # as zeros only for response-shape compatibility with the frontend.
+        'supply': [0.0] * len(data['periods']),
         'total_periods': len(data['periods']),
-        'start_hour': start_hour if start_hour else 1,
-        'end_hour': end_hour if end_hour else max(data['periods']) if data['periods'] else 8760,
+        'start_hour': int(start_hour) if start_hour else 1,
+        'end_hour': int(end_hour) if end_hour else (int(hours[-1]) if hours.size else 8760),
     })
 
 def get_comparison_data(request):
@@ -126,67 +180,55 @@ def get_comparison_data(request):
     try:
         facility1 = facilities.objects.select_related('idtechnologies').get(idfacilities=facility1_id)
         facility2 = facilities.objects.select_related('idtechnologies').get(idfacilities=facility2_id)
+        facility1_id = int(facility1_id)
+        facility2_id = int(facility2_id)
         year = int(year)
-        
+
         # Verify both facilities have renewable technology
         if not facility1.idtechnologies.renewable or not facility2.idtechnologies.renewable:
             return JsonResponse({'error': 'Both facilities must have renewable technology'}, status=400)
-            
+
     except facilities.DoesNotExist:
         return JsonResponse({'error': 'One or both facilities not found'}, status=404)
     except ValueError:
         return JsonResponse({'error': 'Invalid year format'}, status=400)
-    
-    # Get supply data for both facilities
-    supply1_queryset = supplyfactors.objects.filter(
-        idfacilities=facility1,
-        year=year
-    )
-    
-    supply2_queryset = supplyfactors.objects.filter(
-        idfacilities=facility2,
-        year=year
-    )
-    
-    # Apply hour range filter if provided
-    if start_hour and end_hour:
-        try:
-            start_hour = int(start_hour)
-            end_hour = int(end_hour)
-            supply1_queryset = supply1_queryset.filter(hour__gte=start_hour, hour__lte=end_hour)
-            supply2_queryset = supply2_queryset.filter(hour__gte=start_hour, hour__lte=end_hour)
-        except ValueError:
-            return JsonResponse({'error': 'Invalid hour range'}, status=400)
-    
-    supply1_queryset = supply1_queryset.order_by('hour')
-    supply2_queryset = supply2_queryset.order_by('hour')
-    
-    if not supply1_queryset.exists():
+
+    # Get each facility's full-year trace from the packed per-year matrix
+    try:
+        trace1 = facility_trace(year, facility1_id)
+        trace2 = facility_trace(year, facility2_id)
+    except SupplyFactorMatrix.DoesNotExist:
+        trace1 = trace2 = None
+
+    if trace1 is None:
         return JsonResponse({
             'error': f'No supply data found for {facility1.facility_name} in {year}'
         }, status=404)
-    
-    if not supply2_queryset.exists():
+
+    if trace2 is None:
         return JsonResponse({
             'error': f'No supply data found for {facility2.facility_name} in {year}'
         }, status=404)
-    
-    # Aggregate data based on selected time period
-    if aggregation == 'hour':
-        data1 = aggregate_by_hour(supply1_queryset)
-        data2 = aggregate_by_hour(supply2_queryset)
-        x_label = 'Hour of Year'
-    elif aggregation == 'week':
-        data1 = aggregate_by_week(supply1_queryset)
-        data2 = aggregate_by_week(supply2_queryset)
-        x_label = 'Week of Year'
-    elif aggregation == 'month':
-        data1 = aggregate_by_month(supply1_queryset)
-        data2 = aggregate_by_month(supply2_queryset)
-        x_label = 'Month of Year'
-    else:
+
+    hours1, quantum1, err = _slice_trace(trace1, start_hour, end_hour)
+    if err:
+        return err
+    hours2, quantum2, err = _slice_trace(trace2, start_hour, end_hour)
+    if err:
+        return err
+
+    if hours1.size == 0 or hours2.size == 0:
+        return JsonResponse({
+            'error': f'No supply data found for the given hour range in {year}'
+        }, status=404)
+
+    if aggregation not in ('hour', 'week', 'month'):
         return JsonResponse({'error': 'Invalid aggregation type'}, status=400)
-    
+
+    data1 = _aggregate_trace(hours1, quantum1, aggregation)
+    data2 = _aggregate_trace(hours2, quantum2, aggregation)
+    x_label = _x_label(aggregation)
+
     # Calculate correlation and complementarity metrics
     correlation_metrics = calculate_correlation_metrics(data1['quantum'], data2['quantum'])
     
@@ -282,91 +324,6 @@ def calculate_correlation_metrics(data1, data2):
 
 # Note: interpret_correlation is now imported from generation_utils
 
-def aggregate_by_hour(queryset):
-    """Return hourly data (no aggregation)"""
-    data = queryset.values('hour', 'quantum', 'supply')
-    
-    periods = []
-    quantum_values = []
-    supply_values = []
-    
-    for entry in data:
-        periods.append(entry['hour'])
-        quantum_values.append(entry['quantum'] if entry['quantum'] is not None else 0)
-        supply_values.append(entry['supply'] if entry['supply'] is not None else 0)
-    
-    return {
-        'periods': periods,
-        'quantum': quantum_values,
-        'supply': supply_values
-    }
-
-def aggregate_by_week(queryset):
-    """Aggregate data by week using shared utilities"""
-    periods = []
-    quantum_values = []
-    supply_values = []
-
-    week_data = {}
-
-    for entry in queryset.values('hour', 'quantum', 'supply'):
-        week = get_week_from_hour(entry['hour'])
-
-        if week not in week_data:
-            week_data[week] = {
-                'quantum_sum': 0,
-                'supply_sum': 0,
-                'count': 0
-            }
-
-        week_data[week]['quantum_sum'] += entry['quantum'] if entry['quantum'] is not None else 0
-        week_data[week]['supply_sum'] += entry['supply'] if entry['supply'] is not None else 0
-        week_data[week]['count'] += 1
-
-    for week in sorted(week_data.keys()):
-        periods.append(week)
-        quantum_values.append(week_data[week]['quantum_sum'] / week_data[week]['count'])
-        supply_values.append(week_data[week]['supply_sum'] / week_data[week]['count'])
-
-    return {
-        'periods': periods,
-        'quantum': quantum_values,
-        'supply': supply_values
-    }
-
-def aggregate_by_month(queryset):
-    """Aggregate data by month using shared utilities"""
-    periods = []
-    quantum_values = []
-    supply_values = []
-
-    month_data = {}
-
-    for entry in queryset.values('hour', 'quantum', 'supply'):
-        month = get_month_from_hour(entry['hour'])
-
-        if month not in month_data:
-            month_data[month] = {
-                'quantum_sum': 0,
-                'supply_sum': 0,
-                'count': 0
-            }
-
-        month_data[month]['quantum_sum'] += entry['quantum'] if entry['quantum'] is not None else 0
-        month_data[month]['supply_sum'] += entry['supply'] if entry['supply'] is not None else 0
-        month_data[month]['count'] += 1
-
-    for month in sorted(month_data.keys()):
-        periods.append(month)
-        quantum_values.append(month_data[month]['quantum_sum'] / month_data[month]['count'])
-        supply_values.append(month_data[month]['supply_sum'] / month_data[month]['count'])
-
-    return {
-        'periods': periods,
-        'quantum': quantum_values,
-        'supply': supply_values
-    }
-
 def get_facility_years(request):
     """API endpoint to get available years for a specific facility"""
     facility_id = request.GET.get('facility_id')
@@ -376,17 +333,20 @@ def get_facility_years(request):
     
     try:
         facility = facilities.objects.get(idfacilities=facility_id)
+        facility_id = int(facility_id)
     except facilities.DoesNotExist:
         return JsonResponse({'error': 'Facility not found'}, status=404)
-    
-    # Get years with data for this facility
-    years = supplyfactors.objects.filter(
-        idfacilities=facility
-    ).values_list('year', flat=True).distinct().order_by('year')
-    
+
+    # A facility's years are whichever years' matrices list it in facility_ids
+    years = sorted(
+        row.year
+        for row in SupplyFactorMatrix.objects.only('year', 'facility_ids')
+        if facility_id in row.facility_ids
+    )
+
     return JsonResponse({
         'facility_name': facility.facility_name,
-        'years': list(years),
+        'years': years,
     })
 
 def get_technology_data(request):
@@ -433,71 +393,43 @@ def get_technology_data(request):
         return JsonResponse({
             'error': f'No facilities found with the selected technologies'
         }, status=404)
-    
-    # Get supply data for all facilities with the selected technologies
-    supply_queryset = supplyfactors.objects.filter(
-        idfacilities__idtechnologies__in=technologies,
-        year=year
-    )
-    
-    # Apply hour range filter if provided
-    if start_hour and end_hour:
-        try:
-            start_hour = int(start_hour)
-            end_hour = int(end_hour)
-            supply_queryset = supply_queryset.filter(hour__gte=start_hour, hour__lte=end_hour)
-        except ValueError:
-            return JsonResponse({'error': 'Invalid hour range'}, status=400)
-    
-    supply_queryset = supply_queryset.order_by('hour')
-    
-    if not supply_queryset.exists():
+
+    wanted_facility_ids = list(tech_facilities.values_list('idfacilities', flat=True))
+
+    # Sum the wanted facilities straight out of the year's matrix — one query
+    # + one vectorised sum instead of a per-row Python accumulation.
+    try:
+        matrix_facility_ids, matrix = load_year_matrix(year)
+    except SupplyFactorMatrix.DoesNotExist:
         return JsonResponse({
             'error': f'No supply data found for the selected technologies in {year}'
         }, status=404)
-    
-    # Aggregate by hour first, summing across all facilities
-    hour_aggregated = {}
-    for entry in supply_queryset.values('hour', 'quantum', 'supply'):
-        hour = entry['hour']
-        if hour not in hour_aggregated:
-            hour_aggregated[hour] = {'quantum': 0, 'supply': 0}
-        hour_aggregated[hour]['quantum'] += entry['quantum'] if entry['quantum'] is not None else 0
-        hour_aggregated[hour]['supply'] += entry['supply'] if entry['supply'] is not None else 0
-    
-    # Convert to sorted lists
-    hours = sorted(hour_aggregated.keys())
-    quantum_by_hour = [hour_aggregated[h]['quantum'] for h in hours]
-    supply_by_hour = [hour_aggregated[h]['supply'] for h in hours]
-    
-    # Create a mock queryset-like structure for time aggregation
-    class HourData:
-        def __init__(self, hours, quantum, supply):
-            self.data = [{'hour': h, 'quantum': q, 'supply': s} 
-                        for h, q, s in zip(hours, quantum, supply)]
-        
-        def values(self, *fields):
-            return self.data
-    
-    hour_data = HourData(hours, quantum_by_hour, supply_by_hour)
-    
-    # Now aggregate by selected time period
-    if aggregation == 'hour':
-        data = {
-            'periods': hours,
-            'quantum': quantum_by_hour,
-            'supply': supply_by_hour
-        }
-        x_label = 'Hour of Year'
-    elif aggregation == 'week':
-        data = aggregate_by_week(hour_data)
-        x_label = 'Week of Year'
-    elif aggregation == 'month':
-        data = aggregate_by_month(hour_data)
-        x_label = 'Month of Year'
-    else:
+
+    idx = facility_row_index(matrix_facility_ids)
+    matched_rows = [idx[fid] for fid in wanted_facility_ids if fid in idx]
+
+    if not matched_rows:
+        return JsonResponse({
+            'error': f'No supply data found for the selected technologies in {year}'
+        }, status=404)
+
+    trace_sum = np.nansum(matrix[matched_rows, :], axis=0)
+
+    hours, quantum, err = _slice_trace(trace_sum, start_hour, end_hour)
+    if err:
+        return err
+
+    if hours.size == 0:
+        return JsonResponse({
+            'error': f'No supply data found for the selected technologies in {year}'
+        }, status=404)
+
+    if aggregation not in ('hour', 'week', 'month'):
         return JsonResponse({'error': 'Invalid aggregation type'}, status=400)
-    
+
+    data = _aggregate_trace(hours, quantum, aggregation)
+    x_label = _x_label(aggregation)
+
     # Count facilities and get technology names
     facility_count = tech_facilities.count()
     facility_names = list(tech_facilities.values_list('facility_name', flat=True))
@@ -520,7 +452,9 @@ def get_technology_data(request):
         'x_label': x_label,
         'periods': data['periods'],
         'quantum': data['quantum'],
-        'supply': data['supply'],
+        # Kept only for response-shape compatibility with the frontend
+        # (see get_supply_data) — no longer real per-hour data.
+        'supply': [0.0] * len(data['periods']),
         'total_periods': len(data['periods']),
         'facility_count': facility_count,
         'facilities': facility_names[:10],  # Return first 10 facility names
@@ -575,59 +509,44 @@ def get_technology_comparison_data(request):
     except ValueError:
         return JsonResponse({'error': 'Invalid year format'}, status=400)
     
-    # Get aggregated data for both technology groups
+    # Get aggregated data for both technology groups, summed straight out of
+    # the year's matrix (one query + one vectorised sum per group).
     def get_tech_group_aggregated_data(technologies, year, aggregation, start_hour, end_hour):
-        supply_queryset = supplyfactors.objects.filter(
-            idfacilities__idtechnologies__in=technologies,
-            year=year
+        wanted_facility_ids = list(
+            facilities.objects.filter(idtechnologies__in=technologies).values_list('idfacilities', flat=True)
         )
-        
-        # Apply hour range filter if provided
+
+        try:
+            matrix_facility_ids, matrix = load_year_matrix(year)
+        except SupplyFactorMatrix.DoesNotExist:
+            return None
+
+        idx = facility_row_index(matrix_facility_ids)
+        matched_rows = [idx[fid] for fid in wanted_facility_ids if fid in idx]
+        if not matched_rows:
+            return None
+
+        trace_sum = np.nansum(matrix[matched_rows, :], axis=0)
+
+        hours = np.arange(trace_sum.shape[0])
+        quantum = np.nan_to_num(trace_sum, nan=0.0)
         if start_hour and end_hour:
             try:
                 start_hour_int = int(start_hour)
                 end_hour_int = int(end_hour)
-                supply_queryset = supply_queryset.filter(hour__gte=start_hour_int, hour__lte=end_hour_int)
+                mask = (hours >= start_hour_int) & (hours <= end_hour_int)
+                hours, quantum = hours[mask], quantum[mask]
             except ValueError:
                 pass
-        
-        supply_queryset = supply_queryset.order_by('hour')
-        
-        if not supply_queryset.exists():
+
+        if hours.size == 0:
             return None
-        
-        # Aggregate by hour first
-        hour_aggregated = {}
-        for entry in supply_queryset.values('hour', 'quantum', 'supply'):
-            hour = entry['hour']
-            if hour not in hour_aggregated:
-                hour_aggregated[hour] = {'quantum': 0, 'supply': 0}
-            hour_aggregated[hour]['quantum'] += entry['quantum'] if entry['quantum'] is not None else 0
-            hour_aggregated[hour]['supply'] += entry['supply'] if entry['supply'] is not None else 0
-        
-        hours = sorted(hour_aggregated.keys())
-        quantum_by_hour = [hour_aggregated[h]['quantum'] for h in hours]
-        supply_by_hour = [hour_aggregated[h]['supply'] for h in hours]
-        
-        class HourData:
-            def __init__(self, hours, quantum, supply):
-                self.data = [{'hour': h, 'quantum': q, 'supply': s} 
-                            for h, q, s in zip(hours, quantum, supply)]
-            
-            def values(self, *fields):
-                return self.data
-        
-        hour_data = HourData(hours, quantum_by_hour, supply_by_hour)
-        
-        if aggregation == 'hour':
-            return {'periods': hours, 'quantum': quantum_by_hour, 'supply': supply_by_hour}
-        elif aggregation == 'week':
-            return aggregate_by_week(hour_data)
-        elif aggregation == 'month':
-            return aggregate_by_month(hour_data)
-        
-        return None
-    
+
+        return _aggregate_trace(hours, quantum, aggregation)
+
+    if aggregation not in ('hour', 'week', 'month'):
+        return JsonResponse({'error': 'Invalid aggregation type'}, status=400)
+
     data1 = get_tech_group_aggregated_data(technologies1, year, aggregation, start_hour, end_hour)
     data2 = get_tech_group_aggregated_data(technologies2, year, aggregation, start_hour, end_hour)
     
@@ -673,14 +592,8 @@ def get_technology_comparison_data(request):
             'facility_count': count
         })
     
-    # Determine x_label
-    if aggregation == 'hour':
-        x_label = 'Hour of Year'
-    elif aggregation == 'week':
-        x_label = 'Week of Year'
-    else:
-        x_label = 'Month of Year'
-    
+    x_label = _x_label(aggregation)
+
     return JsonResponse({
         'technology1': {
             'names': technology1_names,
@@ -722,6 +635,23 @@ def export_supply_to_excel(request):
     workbook = openpyxl.Workbook()
     worksheet = workbook.active
 
+    agg = aggregation if aggregation in ('hour', 'week', 'month') else 'hour'
+
+    def _group_trace_sum(technologies_qs):
+        """Sum a technology group's facility traces straight out of the year's matrix."""
+        wanted_facility_ids = list(
+            facilities.objects.filter(idtechnologies__in=technologies_qs).values_list('idfacilities', flat=True)
+        )
+        try:
+            matrix_facility_ids, matrix = load_year_matrix(year)
+        except SupplyFactorMatrix.DoesNotExist:
+            return np.zeros(0, dtype='float32')
+        idx = facility_row_index(matrix_facility_ids)
+        matched_rows = [idx[fid] for fid in wanted_facility_ids if fid in idx]
+        if not matched_rows:
+            return np.zeros(matrix.shape[1], dtype=matrix.dtype)
+        return np.nansum(matrix[matched_rows, :], axis=0)
+
     if export_type == 'single':
         facility_id = request.GET.get('facility_id')
         if not facility_id:
@@ -729,44 +659,28 @@ def export_supply_to_excel(request):
 
         try:
             facility = facilities.objects.select_related('idtechnologies').get(idfacilities=facility_id)
+            facility_id = int(facility_id)
         except facilities.DoesNotExist:
             return JsonResponse({'error': 'Facility not found'}, status=404)
 
-        supply_queryset = supplyfactors.objects.filter(
-            idfacilities=facility,
-            year=year
-        )
+        try:
+            trace = facility_trace(year, facility_id)
+        except SupplyFactorMatrix.DoesNotExist:
+            trace = None
 
-        if start_hour and end_hour:
-            try:
-                supply_queryset = supply_queryset.filter(
-                    hour__gte=int(start_hour),
-                    hour__lte=int(end_hour)
-                )
-            except ValueError:
-                pass
-
-        supply_queryset = supply_queryset.order_by('hour')
-
-        if not supply_queryset.exists():
+        if trace is None:
             return JsonResponse({'error': 'No data found'}, status=404)
 
-        if aggregation == 'hour':
-            data = aggregate_by_hour(supply_queryset)
-        elif aggregation == 'week':
-            data = aggregate_by_week(supply_queryset)
-        elif aggregation == 'month':
-            data = aggregate_by_month(supply_queryset)
-        else:
-            data = aggregate_by_hour(supply_queryset)
+        hours, quantum = _slice_trace_lenient(trace, start_hour, end_hour)
+        data = _aggregate_trace(hours, quantum, agg)
 
         worksheet.title = 'Supply Data'
-        x_label = 'Hour of Year' if aggregation == 'hour' else ('Week of Year' if aggregation == 'week' else 'Month of Year')
+        x_label = _x_label(agg)
         headers = [x_label, 'Generation (MW)', 'Supply (MW)']
         worksheet.append(headers)
 
         for i, period in enumerate(data['periods']):
-            worksheet.append([period, data['quantum'][i], data['supply'][i]])
+            worksheet.append([period, data['quantum'][i], 0])
 
         filename = f"supply_{facility.facility_code or facility.facility_name}_{year}_{aggregation}"
 
@@ -780,31 +694,26 @@ def export_supply_to_excel(request):
         try:
             facility1 = facilities.objects.select_related('idtechnologies').get(idfacilities=facility1_id)
             facility2 = facilities.objects.select_related('idtechnologies').get(idfacilities=facility2_id)
+            facility1_id = int(facility1_id)
+            facility2_id = int(facility2_id)
         except facilities.DoesNotExist:
             return JsonResponse({'error': 'Facility not found'}, status=404)
 
-        def get_facility_data(facility):
-            supply_qs = supplyfactors.objects.filter(idfacilities=facility, year=year)
-            if start_hour and end_hour:
-                try:
-                    supply_qs = supply_qs.filter(hour__gte=int(start_hour), hour__lte=int(end_hour))
-                except ValueError:
-                    pass
-            supply_qs = supply_qs.order_by('hour')
+        def get_facility_data(fid):
+            try:
+                trace = facility_trace(year, fid)
+            except SupplyFactorMatrix.DoesNotExist:
+                trace = None
+            if trace is None:
+                return {'periods': [], 'quantum': []}
+            hours, quantum = _slice_trace_lenient(trace, start_hour, end_hour)
+            return _aggregate_trace(hours, quantum, agg)
 
-            if aggregation == 'hour':
-                return aggregate_by_hour(supply_qs)
-            elif aggregation == 'week':
-                return aggregate_by_week(supply_qs)
-            elif aggregation == 'month':
-                return aggregate_by_month(supply_qs)
-            return aggregate_by_hour(supply_qs)
-
-        data1 = get_facility_data(facility1)
-        data2 = get_facility_data(facility2)
+        data1 = get_facility_data(facility1_id)
+        data2 = get_facility_data(facility2_id)
 
         worksheet.title = 'Facility Comparison'
-        x_label = 'Hour of Year' if aggregation == 'hour' else ('Week of Year' if aggregation == 'week' else 'Month of Year')
+        x_label = _x_label(agg)
         headers = [x_label, f'{facility1.facility_name} (MW)', f'{facility2.facility_name} (MW)']
         worksheet.append(headers)
 
@@ -822,75 +731,18 @@ def export_supply_to_excel(request):
             return JsonResponse({'error': 'At least one technology must be selected'}, status=400)
 
         technologies_qs = Technologies.objects.filter(idtechnologies__in=technology_ids)
-
-        supply_queryset = supplyfactors.objects.filter(
-            idfacilities__idtechnologies__in=technologies_qs,
-            year=year
-        )
-
-        if start_hour and end_hour:
-            try:
-                supply_queryset = supply_queryset.filter(
-                    hour__gte=int(start_hour),
-                    hour__lte=int(end_hour)
-                )
-            except ValueError:
-                pass
-
-        supply_queryset = supply_queryset.order_by('hour')
-
-        # Aggregate by hour first
-        hour_aggregated = {}
-        for entry in supply_queryset.values('hour', 'quantum', 'supply'):
-            hour = entry['hour']
-            if hour not in hour_aggregated:
-                hour_aggregated[hour] = {'quantum': 0, 'supply': 0}
-            hour_aggregated[hour]['quantum'] += entry['quantum'] if entry['quantum'] is not None else 0
-            hour_aggregated[hour]['supply'] += entry['supply'] if entry['supply'] is not None else 0
-
-        hours = sorted(hour_aggregated.keys())
-        quantum = [hour_aggregated[h]['quantum'] for h in hours]
-        supply = [hour_aggregated[h]['supply'] for h in hours]
-
-        if aggregation == 'week':
-            week_dict = {}
-            for h, q, s in zip(hours, quantum, supply):
-                week = get_week_from_hour(h)
-                if week not in week_dict:
-                    week_dict[week] = {'quantum': [], 'supply': []}
-                week_dict[week]['quantum'].append(q)
-                week_dict[week]['supply'].append(s)
-            weeks = sorted(week_dict.keys())
-            data = {
-                'periods': weeks,
-                'quantum': [sum(week_dict[w]['quantum']) / len(week_dict[w]['quantum']) for w in weeks],
-                'supply': [sum(week_dict[w]['supply']) / len(week_dict[w]['supply']) for w in weeks]
-            }
-        elif aggregation == 'month':
-            month_dict = {}
-            for h, q, s in zip(hours, quantum, supply):
-                month = get_month_from_hour(h)
-                if month not in month_dict:
-                    month_dict[month] = {'quantum': [], 'supply': []}
-                month_dict[month]['quantum'].append(q)
-                month_dict[month]['supply'].append(s)
-            months = sorted(month_dict.keys())
-            data = {
-                'periods': months,
-                'quantum': [sum(month_dict[m]['quantum']) / len(month_dict[m]['quantum']) for m in months],
-                'supply': [sum(month_dict[m]['supply']) / len(month_dict[m]['supply']) for m in months]
-            }
-        else:
-            data = {'periods': hours, 'quantum': quantum, 'supply': supply}
+        trace_sum = _group_trace_sum(technologies_qs)
+        hours, quantum = _slice_trace_lenient(trace_sum, start_hour, end_hour)
+        data = _aggregate_trace(hours, quantum, agg)
 
         worksheet.title = 'Technology Supply'
         tech_names = ', '.join(list(technologies_qs.values_list('technology_name', flat=True)))
-        x_label = 'Hour of Year' if aggregation == 'hour' else ('Week of Year' if aggregation == 'week' else 'Month of Year')
+        x_label = _x_label(agg)
         headers = [x_label, f'{tech_names} Generation (MW)', f'{tech_names} Supply (MW)']
         worksheet.append(headers)
 
         for i, period in enumerate(data['periods']):
-            worksheet.append([period, data['quantum'][i], data['supply'][i]])
+            worksheet.append([period, data['quantum'][i], 0])
 
         filename = f"supply_technology_{year}_{aggregation}"
 
@@ -905,46 +757,8 @@ def export_supply_to_excel(request):
         technologies2_qs = Technologies.objects.filter(idtechnologies__in=technology2_ids)
 
         def get_tech_data(technologies_list):
-            supply_qs = supplyfactors.objects.filter(
-                idfacilities__idtechnologies__in=technologies_list,
-                year=year
-            )
-            if start_hour and end_hour:
-                try:
-                    supply_qs = supply_qs.filter(hour__gte=int(start_hour), hour__lte=int(end_hour))
-                except ValueError:
-                    pass
-            supply_qs = supply_qs.order_by('hour')
-
-            hour_aggregated = {}
-            for entry in supply_qs.values('hour', 'quantum'):
-                hour = entry['hour']
-                if hour not in hour_aggregated:
-                    hour_aggregated[hour] = 0
-                hour_aggregated[hour] += entry['quantum'] if entry['quantum'] is not None else 0
-
-            hours = sorted(hour_aggregated.keys())
-            quantum = [hour_aggregated[h] for h in hours]
-
-            if aggregation == 'week':
-                week_dict = {}
-                for h, q in zip(hours, quantum):
-                    week = get_week_from_hour(h)
-                    if week not in week_dict:
-                        week_dict[week] = []
-                    week_dict[week].append(q)
-                weeks = sorted(week_dict.keys())
-                return {'periods': weeks, 'quantum': [sum(week_dict[w]) / len(week_dict[w]) for w in weeks]}
-            elif aggregation == 'month':
-                month_dict = {}
-                for h, q in zip(hours, quantum):
-                    month = get_month_from_hour(h)
-                    if month not in month_dict:
-                        month_dict[month] = []
-                    month_dict[month].append(q)
-                months = sorted(month_dict.keys())
-                return {'periods': months, 'quantum': [sum(month_dict[m]) / len(month_dict[m]) for m in months]}
-            return {'periods': hours, 'quantum': quantum}
+            hours, quantum = _slice_trace_lenient(_group_trace_sum(technologies_list), start_hour, end_hour)
+            return _aggregate_trace(hours, quantum, agg)
 
         data1 = get_tech_data(technologies1_qs)
         data2 = get_tech_data(technologies2_qs)
@@ -952,7 +766,7 @@ def export_supply_to_excel(request):
         worksheet.title = 'Technology Comparison'
         tech1_names = ', '.join(list(technologies1_qs.values_list('technology_name', flat=True)))
         tech2_names = ', '.join(list(technologies2_qs.values_list('technology_name', flat=True)))
-        x_label = 'Hour of Year' if aggregation == 'hour' else ('Week of Year' if aggregation == 'week' else 'Month of Year')
+        x_label = _x_label(agg)
         headers = [x_label, f'Group 1: {tech1_names} (MW)', f'Group 2: {tech2_names} (MW)']
         worksheet.append(headers)
 

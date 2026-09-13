@@ -477,8 +477,12 @@ class AEMOScadaFetcher:
                 if fuel_type in ('WIND', 'SOLAR', 'BIOMASS', 'HYDRO') or category == 'STORAGE':
                     re_facility_ids.add(f.idfacilities)
 
-        # Group records by dispatch_interval, sum RE and total generation
-        interval_totals = defaultdict(lambda: {'re_mw': 0.0, 'total_mw': 0.0})
+        # Group records by dispatch_interval, sum RE and total generation.
+        # `quantity` here is raw 5-minute ENERGY (MWh), not power -- see
+        # compute_annual_demand_actuals.py's module docstring. The keys below
+        # accumulate that energy; they're converted to true MW just before
+        # being returned.
+        interval_totals = defaultdict(lambda: {'re_mwh': 0.0, 'total_mwh': 0.0})
 
         for record in records:
             qty = float(record['quantity'])
@@ -486,25 +490,27 @@ class AEMOScadaFetcher:
                 continue
 
             dt = record['dispatch_interval']
-            interval_totals[dt]['total_mw'] += qty
+            interval_totals[dt]['total_mwh'] += qty
 
             if record['facility_id'] in re_facility_ids:
-                interval_totals[dt]['re_mw'] += qty
+                interval_totals[dt]['re_mwh'] += qty
 
         # Find daily peaks
         daily_peaks = {}
         for dt, totals in interval_totals.items():
-            if totals['total_mw'] <= 0:
+            if totals['total_mwh'] <= 0:
                 continue
-            re_pct = (totals['re_mw'] / totals['total_mw']) * 100
+            # RE% is a ratio so it's unaffected by the MWh-vs-MW distinction.
+            re_pct = (totals['re_mwh'] / totals['total_mwh']) * 100
             day = dt.date() if hasattr(dt, 'date') else dt
 
             if day not in daily_peaks or re_pct > daily_peaks[day]['percentage']:
                 daily_peaks[day] = {
                     'percentage': re_pct,
                     'datetime': dt,
-                    're_mw': totals['re_mw'],
-                    'total_mw': totals['total_mw'],
+                    # 5-minute MWh -> average MW over that interval: * (60/5).
+                    're_mw': totals['re_mwh'] * 12,
+                    'total_mw': totals['total_mwh'] * 12,
                 }
 
         return daily_peaks
@@ -569,16 +575,20 @@ class AEMOScadaFetcher:
 
         best = None
         for interval in interval_stats:
-            total = float(interval['total_gen'] or 0)
-            re = float(interval['re_gen'] or 0)
-            if total > 0:
-                pct = (re / total) * 100
+            # total_gen/re_gen are half-hourly ENERGY (MWh) sums, not power --
+            # see compute_annual_demand_actuals.py's module docstring.
+            total_mwh = float(interval['total_gen'] or 0)
+            re_mwh = float(interval['re_gen'] or 0)
+            if total_mwh > 0:
+                # RE% is a ratio so it's unaffected by the MWh-vs-MW distinction.
+                pct = (re_mwh / total_mwh) * 100
                 if best is None or pct > best['percentage']:
                     best = {
                         'percentage': pct,
                         'datetime': interval['dispatch_interval'],
-                        're_mw': re,
-                        'total_mw': total,
+                        # Half-hourly MWh -> average MW for the half hour: * 2.
+                        're_mw': re_mwh * 2,
+                        'total_mw': total_mwh * 2,
                     }
 
         return best

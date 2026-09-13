@@ -2113,9 +2113,17 @@ class FacilityScada(models.Model):
         on_delete=models.CASCADE,        db_column='idfacilities',
         related_name='scada_records'
     )
-    quantity = models.DecimalField(max_digits=12, decimal_places=6)  # MW
+    quantity = models.DecimalField(
+        max_digits=12,
+        decimal_places=6,
+        help_text=(
+            "Half-hourly energy in MWh, despite the field name. "
+            "To get average MW over the interval, multiply by 2. "
+            "See compute_annual_demand_actuals.py module docstring."
+        ),
+    )
     created_at = models.DateTimeField(auto_now_add=True)
-    
+
     class Meta:
         db_table = 'facility_scada'
         unique_together = ['dispatch_interval', 'facility']
@@ -2125,9 +2133,9 @@ class FacilityScada(models.Model):
             models.Index(fields=['facility', 'dispatch_interval']),
         ]
         ordering = ['-dispatch_interval', 'facility']
-    
+
     def __str__(self):
-        return f"{self.facility.facility_code} @ {self.dispatch_interval}: {self.quantity}MW"
+        return f"{self.facility.facility_code} @ {self.dispatch_interval}: {self.quantity}MWh"
 
 class DailyPeakRE(models.Model):
     """Store daily peak instantaneous (5-minute) operational RE% calculated during SCADA fetch"""
@@ -3504,7 +3512,7 @@ class Storageattributes(models.Model):
         return typical_values.get(storage_type, {})
 
 class supplyfactors(models.Model):
-    idsupplyfactors = models.AutoField(db_column='idsupplyfactors', primary_key=True)  
+    idsupplyfactors = models.AutoField(db_column='idsupplyfactors', primary_key=True)
     idfacilities = models.ForeignKey('facilities', on_delete=models.CASCADE, db_column='idfacilities', blank=True, null=True)
     year = models.PositiveIntegerField()
     hour = models.IntegerField(blank=True, null=True)
@@ -3513,6 +3521,32 @@ class supplyfactors(models.Model):
 
     class Meta:
         db_table = 'supplyfactors'
+
+
+class SupplyFactorMatrix(models.Model):
+    """
+    Compact per-year replacement for `supplyfactors`: one row holds every
+    facility's hourly generation trace for that year as a packed array,
+    instead of one `supplyfactors` row per (facility, hour).
+
+    `facility_ids[i]` gives the facilities.idfacilities for row i of the
+    unpacked (n_facilities x n_hours) matrix stored in `data`.
+    """
+    year = models.PositiveIntegerField(unique=True)
+    facility_ids = models.JSONField(help_text="Ordered facility ids; row i of the matrix belongs to facility_ids[i]")
+    n_hours = models.PositiveIntegerField(help_text="Columns in the matrix, e.g. 8760 for an hourly year")
+    dtype = models.CharField(max_length=10, default='float32')
+    data = models.BinaryField(help_text="facility_ids x n_hours array, row-major, packed as `dtype`")
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'supply_factor_matrix'
+
+    def unpack(self):
+        """Return (facility_ids, matrix) with matrix shape (len(facility_ids), n_hours)."""
+        import numpy as np
+        matrix = np.frombuffer(self.data, dtype=self.dtype).reshape(len(self.facility_ids), self.n_hours)
+        return self.facility_ids, matrix
 
 class Technologies(models.Model):
     """

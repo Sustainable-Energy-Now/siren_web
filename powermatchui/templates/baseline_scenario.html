@@ -309,9 +309,9 @@ let analysisRunning = false;
 const CONFIG = {
   csrf_token: '{{ csrf_token }}',
   urls: {
-    start_analysis: '{% url "run_baseline_progress" %}',
-    standard_analysis: '{% url "run_baseline" %}',
-    download_results: '{% url "download_results" %}'
+    start_analysis: '{% url "powermatchui:run_baseline_progress" %}',
+    standard_analysis: '{% url "powermatchui:run_baseline" %}',
+    download_results: '{% url "powermatchui:download_results" %}'
   }
 };
 
