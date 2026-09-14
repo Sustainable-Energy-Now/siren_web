@@ -5,10 +5,10 @@ from functools import wraps
 from django.shortcuts import redirect
 from django.contrib import messages
 
-def settings_required(redirect_view='home', require_demand_year=True):
+def settings_required(redirect_view='home', require_demand_year=True, require_weather_year=True):
     """
-    Decorator to ensure weather_year, scenario and (unless require_demand_year
-    is False) demand_year are set before accessing a view. Prevents running
+    Decorator to ensure scenario and (unless disabled) weather_year/
+    demand_year are set before accessing a view. Prevents running
     processes without proper configuration.
 
     require_demand_year=False is for views that derive their own year at
@@ -16,6 +16,12 @@ def settings_required(redirect_view='home', require_demand_year=True):
     siren_web.database_operations.resolve_baseline_year) — e.g. the
     baseline/PowerMatch views, whose year now comes from whichever Load
     facility is actually supplying demand.
+
+    require_weather_year=False is for views that derive their own weather
+    year instead — e.g. powermapui's Run Power view, which uses the
+    reference_year of the selected AEMO/ESOO demand forecast (see
+    Scenarios.reference_year) when one is set, falling back to session
+    weather_year only when no forecast is selected.
 
     Usage example:
         @login_required
@@ -31,7 +37,9 @@ def settings_required(redirect_view='home', require_demand_year=True):
             demand_year = request.session.get('demand_year')
             scenario = request.session.get('scenario')
 
-            if not weather_year or not scenario or (require_demand_year and not demand_year):
+            if (not scenario
+                    or (require_weather_year and not weather_year)
+                    or (require_demand_year and not demand_year)):
                 messages.warning(
                     request,
                     "Please set the weather year, demand year and scenario before proceeding."

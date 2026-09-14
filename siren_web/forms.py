@@ -3,7 +3,7 @@ import os
 from django import forms
 from django.conf import settings
 from django.forms.widgets import DateTimeInput
-from siren_web.models import Scenarios, TechnologyYears
+from siren_web.models import Scenarios, TechnologyYears, facilities
 from crispy_forms.helper import FormHelper
 from crispy_forms.layout import Layout, Div, Field, Submit
 from crispy_forms.bootstrap import FormActions
@@ -69,20 +69,59 @@ class DemandScenarioSettings(forms.Form):
         self.fields['demand_year'].choices = year_choices
 
 
-class PowerMatchScenarioSettings(DemandScenarioSettings):
+class WeatherScenarioSettings(DemandScenarioSettings):
     """
     Same as DemandScenarioSettings (weather year + scenario) but without
-    the Demand Year field -- PowerMatch/baseline runs now derive their own
-    year at run time from whichever Load facility is actually supplying
-    demand (see siren_web.database_operations.resolve_baseline_year)
-    rather than the user picking one up front. Used only by
-    PowermatchUIHomeView; powermapui and powerplotui keep the full
-    DemandScenarioSettings form since they still use session['demand_year']
-    for unrelated lookups.
+    the Demand Year field -- used wherever the app derives its own year at
+    run time from whichever Load facility is actually supplying demand
+    (see siren_web.database_operations.resolve_baseline_year) rather than
+    having the user pick one up front. Used by PowermatchUIHomeView and
+    PowermapUIHomeView, plus the individual powermapui dashboard views
+    (cel_map, infrastructure_network, pipeline_gantt/waterfall) that embed
+    their own local weather/scenario settings form. powerplotui keeps the
+    full DemandScenarioSettings form since it still uses
+    session['demand_year'] for unrelated lookups, and powermapui's own
+    technologies_views.technologies page keeps its own separate
+    DemandYearForm (below) since that page is a genuine year-by-year
+    technology cost/capacity browser, not a derived-year consumer.
     """
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         del self.fields['demand_year']
+
+
+class DemandScenarioOverrideForm(forms.Form):
+    """
+    Lets the user pick which AEMO/ESOO (or EV-layered) demand-forecast
+    scenario's Load trace to use, independently of session['scenario']
+    (the supply/facilities Scenario). Used by powermatchui's Baseline
+    Scenario page (a per-run dispatch override -- see
+    siren_web.database_operations.resolve_demand_override) and by
+    powermapui's Run Power page (which year's TechnologyYears data to
+    generate against -- see resolve_baseline_year). Selecting a facility
+    here never changes any ScenariosFacilities/ScenariosTechnologies row.
+    """
+    demand_scenario_facility = forms.ModelChoiceField(
+        queryset=facilities.objects.filter(
+            idtechnologies__technology_name='Load',
+            scenarios__interval_minutes=30,
+        ).distinct().order_by('facility_name'),
+        required=False,
+        empty_label="Use the supply scenario's own Load (default)",
+        label='AEMO/ESOO Demand Forecast',
+        widget=forms.Select(attrs={'class': 'form_input'})
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['demand_scenario_facility'].label_from_instance = lambda f: f.facility_name
+
+        self.helper = FormHelper()
+        self.helper.form_method = 'post'
+        self.helper.form_tag = False
+        self.helper.layout = Layout(
+            Field('demand_scenario_facility'),
+        )
 
 
 class DemandYearForm(forms.Form):

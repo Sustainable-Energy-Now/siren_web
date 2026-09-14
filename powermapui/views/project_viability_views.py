@@ -9,12 +9,10 @@ from common.decorators import settings_required
 
 def _get_session_context(request):
     weather_year = request.session.get('weather_year', '')
-    demand_year = request.session.get('demand_year', '')
     scenario = request.session.get('scenario', '')
     config_file = request.session.get('config_file')
     return {
         'weather_year': weather_year,
-        'demand_year': demand_year,
         'scenario': scenario,
         'config_file': config_file,
     }
@@ -105,7 +103,7 @@ def _build_facility_row(f):
 
 
 @login_required
-@settings_required(redirect_view='powermapui:powermapui_home')
+@settings_required(redirect_view='powermapui:powermapui_home', require_demand_year=False)
 def project_viability_dashboard(request):
     """Sortable, colour-coded build probability dashboard for proposed/planned facilities."""
     ctx = _get_session_context(request)

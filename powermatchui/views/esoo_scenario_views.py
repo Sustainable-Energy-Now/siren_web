@@ -365,15 +365,23 @@ def build_scenario_from_esoo(vintage: EsooVintage, esoo_scenario: str, poe: int,
         title=title,
         defaults={
             'interval_minutes': 30,
+            'reference_year': int(reference_year),
             'description': (
                 f"Auto-built from WEM ESOO {vintage.year} ({esoo_scenario}, POE{poe}) "
                 f"demand forecast for {forecast_year} (FR-G1-01)."
             ),
         },
     )
-    if not created and scenario_obj.interval_minutes != 30:
-        scenario_obj.interval_minutes = 30
-        scenario_obj.save(update_fields=['interval_minutes'])
+    if not created:
+        update_fields = []
+        if scenario_obj.interval_minutes != 30:
+            scenario_obj.interval_minutes = 30
+            update_fields.append('interval_minutes')
+        if scenario_obj.reference_year != int(reference_year):
+            scenario_obj.reference_year = int(reference_year)
+            update_fields.append('reference_year')
+        if update_fields:
+            scenario_obj.save(update_fields=update_fields)
 
     if adjustments:
         figure_by_metric = {peak_fig.metric: peak_fig, min_fig.metric: min_fig, energy_fig.metric: energy_fig}
@@ -420,7 +428,7 @@ def build_scenario_from_esoo(vintage: EsooVintage, esoo_scenario: str, poe: int,
         title=title,
         forecast_year=forecast_year,
         reference_year=reference_year,
-        n_rows=len(records),
+        n_rows=len(synthesis.trace),
         gamma=ldc_fit.gamma,
         ldc_notes=ldc_fit.notes,
         synthesis_notes=synthesis.notes,

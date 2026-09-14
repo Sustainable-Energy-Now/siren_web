@@ -242,6 +242,7 @@ class DemandOverride:
     year: int                 # the SupplyFactorMatrix year that actually holds this facility's trace
     interval_minutes: int     # the demand scenario's own native resolution
     facility_name: str
+    reference_year: int = None  # ESOO-built scenarios only -- see Scenarios.reference_year
 
 
 def resolve_demand_override(facility_id):
@@ -273,6 +274,7 @@ def resolve_demand_override(facility_id):
         scenariosfacilities__idfacilities=facility_obj
     ).order_by('-idscenarios').first()
     interval_minutes = getattr(demand_scenario_obj, 'interval_minutes', 30) or 30
+    reference_year = getattr(demand_scenario_obj, 'reference_year', None)
 
     for year in SupplyFactorMatrix.objects.order_by('-year').values_list('year', flat=True):
         if facility_has_trace(year, facility_obj.idfacilities):
@@ -281,6 +283,7 @@ def resolve_demand_override(facility_id):
                 year=year,
                 interval_minutes=interval_minutes,
                 facility_name=facility_obj.facility_name,
+                reference_year=reference_year,
             )
 
     logging.warning(
@@ -328,6 +331,31 @@ def resolve_baseline_year(scenario):
 
     own_override = resolve_demand_override(load_facility.idfacilities)
     return own_override.year if own_override else None
+
+
+def get_demand_scenario_context(request):
+    """
+    AEMO/ESOO demand-forecast override context (a DemandScenarioOverrideForm
+    plus the currently-selected facility's display title) shared by every
+    page that lets the user set/see session['demand_scenario_facility_id']
+    -- currently powermatchui's Baseline Scenario page and powermapui's
+    Run Power page. See resolve_demand_override / resolve_baseline_year for
+    how the selection is actually applied.
+    """
+    from siren_web.forms import DemandScenarioOverrideForm
+
+    demand_facility_id = request.session.get('demand_scenario_facility_id')
+    selected_demand_facility = (
+        facilities.objects.filter(pk=demand_facility_id).first() if demand_facility_id else None
+    )
+    return {
+        'demand_scenario_form': DemandScenarioOverrideForm(initial={
+            'demand_scenario_facility': demand_facility_id
+        }),
+        'selected_demand_scenario_title': (
+            selected_demand_facility.facility_name if selected_demand_facility else None
+        ),
+    }
 
 
 def fetch_supplyfactors_data(demand_year, scenario, demand_override=None):

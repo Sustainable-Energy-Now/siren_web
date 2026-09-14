@@ -1,7 +1,7 @@
 from django.contrib.auth.decorators import login_required
 from common.decorators import settings_required
 from django.shortcuts import render
-from siren_web.forms import DemandScenarioSettings
+from siren_web.forms import WeatherScenarioSettings
 from siren_web.models import facilities, Scenarios
 from collections import defaultdict
 import json
@@ -10,29 +10,24 @@ import json
 def _get_session_context(request):
     """Shared session/scenario handling for pipeline chart views."""
     weather_year = request.session.get('weather_year', '')
-    demand_year = request.session.get('demand_year', '')
     scenario = request.session.get('scenario', '')
     config_file = request.session.get('config_file')
     success_message = ''
 
     if request.method == 'POST':
-        form = DemandScenarioSettings(request.POST)
+        form = WeatherScenarioSettings(request.POST)
         if form.is_valid():
-            demand_year = form.cleaned_data['demand_year']
-            request.session['demand_year'] = demand_year
             scenario = form.cleaned_data['scenario']
             request.session['scenario'] = scenario
             success_message = "Settings updated."
 
-    form = DemandScenarioSettings(initial={
-        'demand_year': demand_year,
+    form = WeatherScenarioSettings(initial={
         'scenario': scenario
     })
 
     return {
         'demand_weather_scenario': form,
         'weather_year': weather_year,
-        'demand_year': demand_year,
         'scenario': scenario,
         'config_file': config_file,
         'success_message': success_message,
@@ -87,7 +82,7 @@ def _get_pipeline_facilities(scenario):
 
 
 @login_required
-@settings_required(redirect_view='powermapui:powermapui_home')
+@settings_required(redirect_view='powermapui:powermapui_home', require_demand_year=False)
 def pipeline_gantt(request):
     """Timeline / Gantt chart of facility lifespans."""
     ctx = _get_session_context(request)
@@ -106,7 +101,7 @@ def pipeline_gantt(request):
 
 
 @login_required
-@settings_required(redirect_view='powermapui:powermapui_home')
+@settings_required(redirect_view='powermapui:powermapui_home', require_demand_year=False)
 def pipeline_waterfall(request):
     """Capacity waterfall / stacked area chart over time."""
     ctx = _get_session_context(request)

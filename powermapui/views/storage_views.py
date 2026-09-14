@@ -8,7 +8,6 @@ from siren_web.models import Technologies, Storageattributes
 def storage_list(request):
     """List all storage technologies with search and pagination"""
     weather_year = request.session.get('weather_year', '')
-    demand_year = request.session.get('demand_year', '')
     scenario = request.session.get('scenario', '')
     config_file = request.session.get('config_file')
     
@@ -44,7 +43,6 @@ def storage_list(request):
     
     context = {
         'weather_year': weather_year,
-        'demand_year': demand_year,
         'scenario': scenario,
         'config_file': config_file,
         'page_obj': page_obj,
@@ -59,7 +57,6 @@ def storage_list(request):
 def storage_detail(request, pk):
     """Detail view for a specific storage technology"""
     weather_year = request.session.get('weather_year', '')
-    demand_year = request.session.get('demand_year', '')
     scenario = request.session.get('scenario', '')
     config_file = request.session.get('config_file')
     
@@ -106,7 +103,6 @@ def storage_detail(request, pk):
     
     context = {
         'weather_year': weather_year,
-        'demand_year': demand_year,
         'scenario': scenario,
         'config_file': config_file,
         'technology': technology,

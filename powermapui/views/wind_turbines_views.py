@@ -11,8 +11,7 @@ from io import StringIO
 
 def wind_turbines_list(request):
     """List all wind turbines with search and pagination"""
-    weather_year = request.session.get('weather_year', '') # Get weather_year, demand_year and scenario from session or default to empty string
-    demand_year = request.session.get('demand_year', '') 
+    weather_year = request.session.get('weather_year', '') # Get weather_year and scenario from session or default to empty string
     scenario= request.session.get('scenario', '')
     config_file = request.session.get('config_file')
     search_query = request.GET.get('search', '')
@@ -47,8 +46,6 @@ def wind_turbines_list(request):
     page_obj = paginator.get_page(page_number)
     
     context = {
-        'demand_year': demand_year,
-        'demand_year': demand_year,
         'scenario': scenario,
         'config_file': config_file,
         'page_obj': page_obj,
@@ -64,8 +61,7 @@ def wind_turbines_list(request):
 
 def wind_turbine_detail(request, pk):
     """Detail view for a specific wind turbine"""
-    weather_year = request.session.get('weather_year', '')
-    demand_year = request.session.get('demand_year', '') # Get demand_year and scenario from session or default to empty string
+    weather_year = request.session.get('weather_year', '') # Get scenario from session or default to empty string
     scenario= request.session.get('scenario', '')
     config_file = request.session.get('config_file')
     turbine = get_object_or_404(WindTurbines, pk=pk)
@@ -87,7 +83,6 @@ def wind_turbine_detail(request, pk):
     
     context = {
         'weather_year': weather_year,
-        'demand_year': demand_year,
         'scenario': scenario,
         'config_file': config_file,
         'turbine': turbine,

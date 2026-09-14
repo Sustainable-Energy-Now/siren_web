@@ -4,6 +4,7 @@ from decimal import Decimal
 from django.http import JsonResponse, StreamingHttpResponse, HttpResponse
 from django.shortcuts import render, redirect
 from django.contrib import messages
+from django.utils.http import url_has_allowed_host_and_scheme
 from common.decorators import settings_required
 import logging
 import numpy as np
@@ -15,7 +16,7 @@ from siren_web.database_operations import (
     fetch_analysis_scenario,
     fetch_technologies_with_multipliers, fetch_module_settings_data,
     fetch_scenario_settings_data, update_scenario_settings_data,
-    resolve_demand_override, resolve_baseline_year,
+    resolve_demand_override, resolve_baseline_year, get_demand_scenario_context,
 )
 from siren_web.models import Scenarios, ScenariosTechnologies, facilities
 from ..forms import BaselineScenarioForm, RunPowermatchForm, DemandScenarioOverrideForm
@@ -28,23 +29,6 @@ from .progress_handler import (
 progress_channels = {}
 progress_storage = {}
 logger = logging.getLogger(__name__)
-
-def _demand_scenario_context(request):
-    """AEMO/ESOO demand-forecast override context shared by both places
-    baseline_scenario.html gets rendered from -- see
-    siren_web.database_operations.resolve_demand_override."""
-    demand_facility_id = request.session.get('demand_scenario_facility_id')
-    selected_demand_facility = (
-        facilities.objects.filter(pk=demand_facility_id).first() if demand_facility_id else None
-    )
-    return {
-        'demand_scenario_form': DemandScenarioOverrideForm(initial={
-            'demand_scenario_facility': demand_facility_id
-        }),
-        'selected_demand_scenario_title': (
-            selected_demand_facility.facility_name if selected_demand_facility else None
-        ),
-    }
 
 
 @login_required
@@ -163,7 +147,7 @@ def baseline_scenario(request):
                 'scenario': scenario,
                 'config_file': config_file,
                 'success_message': 'Correct errors and resubmit.',
-                **_demand_scenario_context(request),
+                **get_demand_scenario_context(request),
             }
             return render(request, 'baseline_scenario.html', context)
     else:
@@ -210,7 +194,7 @@ def baseline_scenario(request):
         'scenario': scenario,
         'config_file': config_file,
         'success_message': success_message,
-        **_demand_scenario_context(request),
+        **get_demand_scenario_context(request),
     }
     return render(request, 'baseline_scenario.html', context)
 
@@ -219,13 +203,21 @@ def baseline_scenario(request):
 @settings_required(redirect_view='powermatchui:powermatchui_home', require_demand_year=False)
 def set_demand_scenario(request):
     """
-    Sets or clears session['demand_scenario_facility_id'] -- the per-run
-    AEMO/ESOO demand-forecast override applied by run_baseline_progress/
-    run_baseline via resolve_demand_override. This never creates or
-    changes any Scenarios/ScenariosFacilities/ScenariosTechnologies row;
-    it only decides which facility's trace fetch_supplyfactors_data uses
-    for the Load column on the next run.
+    Sets or clears session['demand_scenario_facility_id'] -- the app-wide
+    AEMO/ESOO demand-forecast override consumed via resolve_demand_override
+    / resolve_baseline_year (currently by powermatchui's baseline/variation
+    runs and powermapui's Run Power view). This never creates or changes
+    any Scenarios/ScenariosFacilities/ScenariosTechnologies row; it only
+    decides which facility's trace/year those consumers use next.
+
+    Shared across apps: any page can post here with a `next` field (a
+    relative path) to be sent back to itself instead of the default
+    Baseline Scenario page -- see power_views.generate_power's own form.
     """
+    next_url = request.POST.get('next') or request.GET.get('next')
+    if not next_url or not url_has_allowed_host_and_scheme(next_url, allowed_hosts={request.get_host()}):
+        next_url = None
+
     if request.method == 'POST':
         form = DemandScenarioOverrideForm(request.POST)
         if form.is_valid():
@@ -238,7 +230,7 @@ def set_demand_scenario(request):
                 messages.success(request, "Demand forecast reset to the supply scenario's own Load.")
         else:
             messages.error(request, "Invalid demand scenario selection.")
-    return redirect('powermatchui:baseline_scenario')
+    return redirect(next_url or 'powermatchui:baseline_scenario')
 
 
 @login_required
@@ -570,7 +562,7 @@ def run_baseline(request):
             'scenario': scenario,
             'config_file': config_file,
             'success_message': success_message,
-            **_demand_scenario_context(request),
+            **get_demand_scenario_context(request),
         }
         return render(request, 'baseline_scenario.html', context)
 

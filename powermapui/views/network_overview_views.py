@@ -1,33 +1,29 @@
 from django.contrib.auth.decorators import login_required
 from common.decorators import settings_required
 from django.shortcuts import render
-from siren_web.forms import DemandScenarioSettings
+from siren_web.forms import WeatherScenarioSettings
 from siren_web.database_operations import fetch_module_settings_data, fetch_scenario_settings_data
 from siren_web.models import facilities, Terminals, Scenarios, GridLines, FacilityGridConnections
 import json
 
 
 @login_required
-@settings_required(redirect_view='powermapui:powermapui_home')
+@settings_required(redirect_view='powermapui:powermapui_home', require_demand_year=False)
 def infrastructure_network(request):
     """Full infrastructure dependency network showing all terminals, facilities, and grid lines."""
     weather_year = request.session.get('weather_year', '')
-    demand_year = request.session.get('demand_year', '')
     scenario = request.session.get('scenario', '')
     config_file = request.session.get('config_file')
     success_message = ''
 
     if request.method == 'POST':
-        demand_weather_scenario = DemandScenarioSettings(request.POST)
+        demand_weather_scenario = WeatherScenarioSettings(request.POST)
         if demand_weather_scenario.is_valid():
-            demand_year = demand_weather_scenario.cleaned_data['demand_year']
-            request.session['demand_year'] = demand_year
             scenario = demand_weather_scenario.cleaned_data['scenario']
             request.session['scenario'] = scenario
             success_message = "Settings updated."
 
-    demand_weather_scenario = DemandScenarioSettings(initial={
-        'demand_year': demand_year,
+    demand_weather_scenario = WeatherScenarioSettings(initial={
         'scenario': scenario
     })
 
@@ -151,7 +147,6 @@ def infrastructure_network(request):
     context = {
         'demand_weather_scenario': demand_weather_scenario,
         'weather_year': weather_year,
-        'demand_year': demand_year,
         'scenario': scenario,
         'config_file': config_file,
         'success_message': success_message,

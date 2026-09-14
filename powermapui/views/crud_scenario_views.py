@@ -10,7 +10,6 @@ from siren_web.models import Scenarios, facilities, ScenariosFacilities
 import json
 
 def display_scenario(request):
-    demand_year = request.session.get('demand_year')
     scenario = request.session.get('scenario')
     config_file = request.session.get('config_file')
     all_scenarios = Scenarios.objects.all()
@@ -41,14 +40,12 @@ def display_scenario(request):
         'all_scenarios': all_scenarios,
         'all_facilities': all_facilities,
         'checkbox_status': checkbox_status,
-        'demand_year': demand_year,
         'scenario': scenario,
         'config_file': config_file,
     }
     return render(request, 'create_scenario.html', context)
 
 def update_scenario(request):
-    demand_year = request.session.get('demand_year')
     scenario = request.session.get('scenario')
     config_file = request.session.get('config_file')
     all_scenarios = Scenarios.objects.all()
@@ -99,7 +96,6 @@ def update_scenario(request):
         'all_scenarios': all_scenarios,
         'all_facilities': all_facilities,
         'checkbox_status': checkbox_status,
-        'demand_year': demand_year,
         'scenario': scenario,
         'config_file': config_file,
     }
@@ -128,7 +124,6 @@ def edit_scenario(request, scenario_id):
     context = {
         'form': form,
         'scenario': scenario,
-        'demand_year': request.session.get('demand_year'),
         'config_file': request.session.get('config_file'),
     }
     return render(request, 'edit_scenario.html', context)
@@ -159,7 +154,6 @@ def delete_scenario(request, scenario_id):
     context = {
         'scenario': scenario,
         'facility_count': facility_count,
-        'demand_year': request.session.get('demand_year'),
         'config_file': request.session.get('config_file'),
     }
     return render(request, 'delete_scenario_confirm.html', context)
@@ -200,7 +194,6 @@ def clone_scenario(request):
     """
     View to clone an existing scenario and its facility associations.
     """
-    demand_year = request.session.get('demand_year', '')
     scenario_session = request.session.get('scenario', '')
     config_file = request.session.get('config_file', '')
     
@@ -259,9 +252,8 @@ def clone_scenario(request):
     # Display the form for GET requests
     context = {
         'all_scenarios': all_scenarios,
-        'demand_year': demand_year,
         'scenario': scenario_session,
         'config_file': config_file,
     }
-    
+
     return render(request, 'clone_scenario.html', context)

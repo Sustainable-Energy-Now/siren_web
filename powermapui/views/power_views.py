@@ -1,14 +1,18 @@
 from django.contrib.auth.decorators import login_required
-from django.shortcuts import render
+from django.contrib import messages
+from django.shortcuts import render, redirect
 from django.conf import settings
 from common.decorators import settings_required
 import logging
 
 from siren_web.database_operations import (
-    fetch_full_facilities_data, 
-    fetch_module_settings_data, 
-    fetch_scenario_settings_data, 
-    fetch_all_config_data
+    fetch_full_facilities_data,
+    fetch_module_settings_data,
+    fetch_scenario_settings_data,
+    fetch_all_config_data,
+    resolve_baseline_year,
+    resolve_demand_override,
+    get_demand_scenario_context,
 )
 from siren_web.models import facilities, Scenarios
 from siren_web.services.supply_matrix import set_facility_trace, clear_facility_trace, facility_has_trace
@@ -19,16 +23,47 @@ from powermapui.views.sam_resource_processor import SAMResourceProcessor, SAMErr
 logger = logging.getLogger(__name__)
 
 @login_required
-@settings_required(redirect_view='powermapui:powermapui_home')
+@settings_required(redirect_view='powermapui:powermapui_home', require_demand_year=False, require_weather_year=False)
 def generate_power(request):
     """
     Generate power for all facilities using SAM for renewables
     """
-    weather_year = request.session.get('weather_year', '')
-    demand_year = request.session.get('demand_year', '')
     scenario = request.session.get('scenario', '')
     config_file = request.session.get('config_file')
-    
+    # The year TechnologyYears data is read for (via fetch_full_facilities_data)
+    # is whichever AEMO/ESOO demand forecast is selected on this page (see
+    # get_demand_scenario_context / resolve_demand_override), or, absent a
+    # selection, the scenario's own Load facility's resolved year (see
+    # resolve_baseline_year).
+    demand_override = resolve_demand_override(request.session.get('demand_scenario_facility_id'))
+    demand_year = demand_override.year if demand_override else resolve_baseline_year(scenario)
+    if demand_year is None:
+        messages.error(
+            request,
+            "Could not determine a year to run against — select a Demand Forecast, or check the "
+            "scenario's own Load data."
+        )
+        return redirect('powermapui:powermapui_home')
+
+    # The weather year SAM simulates against: the reference_year of the
+    # selected AEMO/ESOO demand forecast (the real FacilityScada year its
+    # own trace's shape was synthesised from -- see Scenarios.reference_year
+    # / esoo_scenario_views.build_scenario_from_esoo), so generation and
+    # demand are chronologically consistent. Falls back to session
+    # weather_year when no forecast is selected, or a legacy forecast built
+    # before reference_year existed has none recorded.
+    if demand_override is not None and demand_override.reference_year:
+        weather_year = str(demand_override.reference_year)
+    else:
+        weather_year = request.session.get('weather_year', '')
+    if not weather_year:
+        messages.error(
+            request,
+            "Could not determine a weather year — select a Demand Forecast (its reference year "
+            "will be used), or set a Weather Year first."
+        )
+        return redirect('powermapui:powermapui_home')
+
     # Check if this is just displaying the confirmation page
     if request.method == 'GET' and not request.GET.get('confirm'):
         # Get list of renewable facilities for the dropdown
@@ -56,6 +91,7 @@ def generate_power(request):
             'scenario': scenario,
             'config_file': config_file,
             'renewable_facilities': renewable_facilities,
+            **get_demand_scenario_context(request),
         }
         return render(request, 'generate_power.html', context)
     
@@ -184,6 +220,7 @@ def generate_power(request):
             'config_file': config_file,
             'renewable_facilities': renewable_facilities,
             'success_message': success_message,
+            **get_demand_scenario_context(request),
         }
         return render(request, 'generate_power.html', context)
 
@@ -219,6 +256,7 @@ def generate_power(request):
             'config_file': config_file,
             'renewable_facilities': renewable_facilities,
             'error_message': error_message,
+            **get_demand_scenario_context(request),
         }
         return render(request, 'generate_power.html', context)
 

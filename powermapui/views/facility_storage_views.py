@@ -8,7 +8,6 @@ from siren_web.models import Technologies, FacilityStorage, facilities
 
 def facility_storage_detail(request, pk):
     """Detail view for a specific facility storage installation"""
-    demand_year = request.session.get('demand_year', '')
     scenario = request.session.get('scenario', '')
     config_file = request.session.get('config_file')
     
@@ -29,7 +28,6 @@ def facility_storage_detail(request, pk):
     }
     
     context = {
-        'demand_year': demand_year,
         'scenario': scenario,
         'config_file': config_file,
         'installation': installation,

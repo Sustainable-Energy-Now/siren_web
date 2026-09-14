@@ -40,6 +40,24 @@
         </div>
         {% endif %}
 
+        <div class="config-info">
+            <h3>Demand Forecast</h3>
+            <p>
+                Generating against year <strong>{{ demand_year }}</strong>
+                (<strong>{{ selected_demand_scenario_title|default:"using the scenario's own Load" }}</strong>),
+                weather year <strong>{{ weather_year }}</strong>.
+            </p>
+            <form method="post" action="{% url 'powermatchui:set_demand_scenario' %}">
+                {% csrf_token %}
+                <input type="hidden" name="next" value="{% url 'powermapui:generate_power' %}">
+                <div class="facility-selector">
+                    {{ demand_scenario_form.demand_scenario_facility.label_tag }}
+                    {{ demand_scenario_form.demand_scenario_facility }}
+                </div>
+                <button type="submit" class="btn btn-secondary">Set Demand Forecast</button>
+            </form>
+        </div>
+
         <div class="option-card info">
             <h3>Single Facility Process</h3>
             <p><strong>What it does:</strong></p>

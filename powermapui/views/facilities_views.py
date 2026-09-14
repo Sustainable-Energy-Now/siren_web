@@ -108,10 +108,9 @@ def facilities_list(request):
     
     # Session variables for other pages
     weather_year = request.session.get('weather_year', '')
-    demand_year = request.session.get('demand_year', '')
     scenario = request.session.get('scenario', '')
     config_file = request.session.get('config_file', '')
-    
+
     context = {
         'page_obj': page_obj,
         'search_query': search_query,
@@ -125,7 +124,6 @@ def facilities_list(request):
         'installation_types': installation_types,
         'total_count': facs.count(),
         'weather_year': weather_year,
-        'demand_year': demand_year,
         'scenario': scenario,
         'config_file': config_file,
     }

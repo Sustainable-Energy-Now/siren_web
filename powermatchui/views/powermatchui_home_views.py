@@ -1,9 +1,9 @@
 from django.contrib.auth.decorators import login_required
 from common.mixins import DemandScenarioSettingsMixin
-from siren_web.forms import PowerMatchScenarioSettings
+from siren_web.forms import WeatherScenarioSettings
 
 class PowermatchUIHomeView(DemandScenarioSettingsMixin):
-    form_class = PowerMatchScenarioSettings
+    form_class = WeatherScenarioSettings
     template_name = 'powermatchui_home.html'
 
 @login_required

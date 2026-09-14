@@ -40,6 +40,18 @@ class Scenarios(models.Model):
             "behaviour via the default of 60."
         ),
     )
+    reference_year = models.PositiveIntegerField(
+        null=True, blank=True,
+        help_text=(
+            "For an AEMO/ESOO-built demand scenario (see "
+            "esoo_scenario_views.build_scenario_from_esoo): the real FacilityScada "
+            "year whose chronological shape was used as the synthesis prior for "
+            "this scenario's Load trace. Null for scenarios that aren't ESOO-built, "
+            "or built before this field existed. Lets a consumer (e.g. "
+            "powermapui's Run Power) use the same weather year the demand trace's "
+            "own shape came from, rather than requiring a separate manual pick."
+        ),
+    )
 
     class Meta:
         db_table = 'Scenarios'
