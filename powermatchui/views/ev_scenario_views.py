@@ -55,6 +55,7 @@ from siren_web.models import (
     facilities,
     supplyfactors,
 )
+from siren_web.services.supply_matrix import set_facility_trace
 from powermatchui.utils.ev_load_trace_store import load_trace, save_trace
 from powermatchui.utils.ev_reconciliation import aggregate_swis_annual_energy
 from powermatchui.utils.ev_sensitivity_comparison import (
@@ -280,6 +281,10 @@ def build_scenario_from_ev(base_scenario: Scenarios, csiro_scenario: str, foreca
         for h, v in enumerate(net_trace)
     ]
     supplyfactors.objects.bulk_create(records, batch_size=1000)
+
+    # Keep SupplyFactorMatrix in sync so plotting/export reads see this
+    # derived scenario's trace without a build_supply_factor_matrix backfill.
+    set_facility_trace(forecast_year, facility_obj.idfacilities, net_trace)
 
     notes = []
     if ev_trace_record.integral_check_pct and ev_trace_record.integral_check_pct > 0.01:

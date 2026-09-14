@@ -6,9 +6,11 @@ import logging
 from django.db.models import Avg, Q, F, Sum, Count, When, OuterRef, Subquery
 from django.db.models.functions import TruncDay
 import os
+import numpy as np
 from siren_web.models import Analysis, facilities, FacilityStorage, Generatorattributes, \
-    Scenarios, ScenariosTechnologies, ScenariosSettings, Settings, Storageattributes, supplyfactors, \
-    Technologies, TechnologyYears, variations
+    Scenarios, ScenariosTechnologies, ScenariosSettings, Settings, Storageattributes, \
+    SupplyFactorMatrix, Technologies, TechnologyYears, variations
+from siren_web.services.supply_matrix import facility_row_index, load_year_matrix
 from powermatchui.views.balance_grid_load import Technology
 
 def delete_analysis_scenario(idscenario):
@@ -138,32 +140,6 @@ def get_scenario_by_title(scenario):
     except Exception as e:
         print(f"Error fetching title for scenario '{scenario}': {e}")
  
-def get_supply_unique_technology(demand_year, scenario):
-    # Get the scenario object
-    scenario_obj = get_scenario_by_title(scenario)
-
-    # Filter the SupplyFactors objects for the given demand_year and scenario
-    unique_technologies = Technologies.objects.filter(
-        id__in=supplyfactors.objects.values('idtechnologies')
-                                    .annotate(count=Count('idtechnologies'))
-                                    .filter(count__gt=0, year=demand_year, idscenarios=scenario_obj)
-                                    .distinct()
-    )
-    return unique_technologies
-
-def get_supply_by_technology(demand_year, scenario):
-    # Get the scenario object
-    scenario_obj = get_scenario_by_title(scenario)
-
-    # Filter the SupplyFactors objects for the given demand_year and scenario
-    supplyfactors_queryset = supplyfactors.objects.filter(year=demand_year, idscenarios=scenario_obj)
-
-    # Calculate the total load by technology
-    total_supply_by_technology = \
-        supplyfactors_queryset.values('idtechnologies').annotate(total_supply=Sum('quantum'))
-
-    return total_supply_by_technology
-
 def _expected_intervals_per_year(interval_minutes):
     """Number of dispatch intervals in a (365-day) year at the given
     scenario resolution, e.g. 8760 for hourly, 17520 for half-hourly."""
@@ -218,54 +194,51 @@ def _upsample_column_if_needed(values, interval_minutes):
 
 
 def fetch_supplyfactors_data(demand_year, scenario):
-    try:
-        # Cache ScenariosTechnologies data for efficient lookup
-        # This table is small (~6 rows) so we can afford to load it all
+    """
+    Build load_and_supply: {merit_order: [value per hour/interval, ...]}
+    for every technology in this scenario's merit order, read from the
+    packed per-year SupplyFactorMatrix instead of the row-per-hour
+    supplyfactors table.
 
+    A merit-order slot can span more than one facility of the same
+    technology (e.g. several Gas OCGT plants) — those are summed per hour
+    via the matrix, which is what balance_grid_load.py's positional
+    load_and_supply[merit_order][h] indexing has always assumed. The
+    previous supplyfactors-based implementation instead appended every
+    facility's rows into one list ordered only by hour, so a multi-facility
+    merit-order group produced an oversized, misaligned column; this fixes
+    that as part of the cutover rather than reproducing it.
+    """
+    try:
+        # This table is small (~6 rows) so we can afford to load it all
         scenarios_tech_query, scenario_obj = fetch_scenario_technologies(scenario)
 
         interval_minutes = getattr(scenario_obj, 'interval_minutes', 60) or 60
 
-        # Create lookup dictionaries for merit order by technology ID
-        tech_merit_order_lookup = {}
-        tech_capacity_lookup = {}
+        try:
+            matrix_facility_ids, matrix = load_year_matrix(demand_year)
+        except SupplyFactorMatrix.DoesNotExist:
+            return {}
 
-        for st_row in scenarios_tech_query:
-            tech_id = st_row.idtechnologies.idtechnologies
-            tech_merit_order_lookup[tech_id] = st_row.merit_order
-            tech_capacity_lookup[tech_id] = st_row.capacity
+        idx = facility_row_index(matrix_facility_ids)
 
-        # Read supplyfactors table using Django ORM
-        # Filter by facilities that are associated with the scenario
-        supplyfactors_query = supplyfactors.objects.filter(
-            year=demand_year,
-            idfacilities__scenarios=scenario_obj  # Only facilities in this scenario
-        ).select_related(
-            'idfacilities__idtechnologies'  # Join with Technologies through facilities
-        ).order_by(
-            'hour'  # Order by hour
-        )
-
-        # Create a dictionary of supplyfactors from the model
         load_and_supply = {}
 
-        for supplyfactors_row in supplyfactors_query:
-            technology = supplyfactors_row.idfacilities.idtechnologies
-            name = technology.technology_name
-            tech_id = technology.idtechnologies
+        for st_row in scenarios_tech_query:
+            merit_order = st_row.merit_order
+            facility_ids = facilities.objects.filter(
+                idtechnologies=st_row.idtechnologies_id,
+                scenarios=scenario_obj
+            ).values_list('idfacilities', flat=True)
 
-            # Look up mult and merit order from our cached ScenariosTechnologies data
-            merit_order = tech_merit_order_lookup.get(tech_id)
-
-            # Skip if this technology doesn't have merit_order data in ScenariosTechnologies
-            if merit_order is None:
+            rows = [idx[fid] for fid in facility_ids if fid in idx]
+            if not rows:
+                # No supplyfactors/matrix data for this technology in this
+                # year — matches the original's "merit_order key never
+                # created" behaviour rather than inserting an empty column.
                 continue
 
-            load = supplyfactors_row.quantum
-
-            if merit_order not in load_and_supply:
-                load_and_supply[merit_order] = []
-            load_and_supply[merit_order].append(load)
+            load_and_supply[merit_order] = np.nansum(matrix[rows, :], axis=0).tolist()
 
         # Resolution shim: bring any hourly-stored columns up to this
         # scenario's interval_minutes resolution so they line up with a

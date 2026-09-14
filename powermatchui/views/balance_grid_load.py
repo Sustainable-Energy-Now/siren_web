@@ -338,7 +338,15 @@ class PowerMatchProcessor:
                 if details.dispatchable:
                     capacity = details.capacity * details.multiplier
                 else:
-                    capacity = load_and_supply[details.merit_order][h] * details.multiplier
+                    merit_values = load_and_supply.get(details.merit_order)
+                    if merit_values is not None and h < len(merit_values):
+                        capacity = merit_values[h] * details.multiplier
+                    else:
+                        # No supplyfactors/matrix data for this merit-order slot
+                        # (e.g. a technology configured in the scenario's merit
+                        # order with no facility actually generating for it) —
+                        # treat as zero generation rather than a KeyError.
+                        capacity = 0
                 
                 if capacity == 0:
                     technology_generation[tech_name].append(0)

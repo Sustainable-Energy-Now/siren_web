@@ -10,8 +10,11 @@ for comparison and analysis.
 
 from datetime import datetime
 from typing import Optional
+import numpy as np
 from django.db.models import QuerySet
 
+from siren_web.models import SupplyFactorMatrix
+from siren_web.services.supply_matrix import facility_row_index, facility_trace, load_year_matrix
 from .generation_utils import get_hour_of_year, get_hour_of_day, PEAK_HOUR_PRESETS
 
 
@@ -120,34 +123,45 @@ class TimeSeriesAligner:
             'hour_count': len(hours)
         }
 
-    def get_supply_data_as_dict(self, supply_queryset: QuerySet,
+    def get_supply_data_as_dict(self, year: int, facility_id: int,
                                  start_hour: Optional[int] = None,
                                  end_hour: Optional[int] = None) -> dict:
-        """Convert SupplyFactors queryset to standard dict format.
+        """Get one facility's supply trace for a year in standard dict format,
+        read from the packed per-year SupplyFactorMatrix.
 
         Args:
-            supply_queryset: supplyfactors queryset
+            year: Year to fetch
+            facility_id: facilities.idfacilities to fetch
             start_hour: Optional start hour filter
             end_hour: Optional end hour filter
 
         Returns:
             Dict with 'hours' and 'quantum' lists (quantum converted from kW to MW)
         """
+        try:
+            trace = facility_trace(year, facility_id)
+        except SupplyFactorMatrix.DoesNotExist:
+            trace = None
+
+        if trace is None:
+            return {'hours': [], 'quantum': [], 'hour_count': 0}
+
         hours = []
         quantum_values = []
 
-        for record in supply_queryset.order_by('hour'):
-            hour = record.hour
-
+        for hour, value in enumerate(trace):
             if start_hour is not None and hour < start_hour:
                 continue
             if end_hour is not None and hour > end_hour:
                 continue
+            if np.isnan(value):
+                # No supplyfactors row ever existed for this hour — matches
+                # the original queryset simply not returning that row.
+                continue
 
             hours.append(hour)
             # Convert quantum from kW to MW to match SCADA units
-            quantum_kw = record.quantum if record.quantum is not None else 0
-            quantum_values.append(quantum_kw / 1000)
+            quantum_values.append(float(value) / 1000)
 
         return {
             'hours': hours,
@@ -155,36 +169,51 @@ class TimeSeriesAligner:
             'hour_count': len(hours)
         }
 
-    def get_supply_data_aggregated(self, supply_queryset: QuerySet,
+    def get_supply_data_aggregated(self, year: int, facility_ids,
                                     start_hour: Optional[int] = None,
                                     end_hour: Optional[int] = None) -> dict:
-        """Get SupplyFactors data summed across multiple facilities.
+        """Get supply data summed across multiple facilities for a year,
+        read from the packed per-year SupplyFactorMatrix.
 
         Args:
-            supply_queryset: supplyfactors queryset (can span multiple facilities)
+            year: Year to fetch
+            facility_ids: Iterable of facilities.idfacilities to sum
             start_hour: Optional start hour filter
             end_hour: Optional end hour filter
 
         Returns:
             Dict with 'hours' and 'quantum' lists (summed across facilities, converted from kW to MW)
         """
-        hour_totals = {}
+        try:
+            matrix_facility_ids, matrix = load_year_matrix(year)
+        except SupplyFactorMatrix.DoesNotExist:
+            return {'hours': [], 'quantum': [], 'hour_count': 0}
 
-        for record in supply_queryset:
-            hour = record.hour
+        idx = facility_row_index(matrix_facility_ids)
+        rows = [idx[fid] for fid in facility_ids if fid in idx]
+        if not rows:
+            return {'hours': [], 'quantum': [], 'hour_count': 0}
 
+        selected = matrix[rows, :]
+        # An hour only counts if at least one selected facility actually has
+        # a value there — matches the original's "only hours with a real
+        # row" semantics rather than padding entirely-missing hours with 0.
+        has_data = ~np.all(np.isnan(selected), axis=0)
+        sums = np.nansum(selected, axis=0)
+
+        hours = []
+        quantum_values = []
+        for hour in range(matrix.shape[1]):
+            if not has_data[hour]:
+                continue
             if start_hour is not None and hour < start_hour:
                 continue
             if end_hour is not None and hour > end_hour:
                 continue
 
-            if hour not in hour_totals:
-                hour_totals[hour] = 0
-            hour_totals[hour] += record.quantum if record.quantum is not None else 0
-
-        hours = sorted(hour_totals.keys())
-        # Convert quantum from kW to MW to match SCADA units
-        quantum_values = [hour_totals[h] / 1000 for h in hours]
+            hours.append(hour)
+            # Convert quantum from kW to MW to match SCADA units
+            quantum_values.append(float(sums[hour]) / 1000)
 
         return {
             'hours': hours,
@@ -302,42 +331,39 @@ class TimeSeriesAligner:
             'filter_retention_pct': round(filter_pct, 1)
         }
 
-    def get_comparable_years(self, scada_model, supply_model) -> list[int]:
-        """Get years that have both SCADA and SupplyFactors data.
+    def get_comparable_years(self, scada_model) -> list[int]:
+        """Get years that have both SCADA and matrix (SupplyFactorMatrix) data.
 
         Args:
             scada_model: FacilityScada model class
-            supply_model: supplyfactors model class
 
         Returns:
-            Sorted list of years with data in both models
+            Sorted list of years with data in both
         """
         scada_years = set(
             scada_model.objects.dates('dispatch_interval', 'year', order='ASC')
             .values_list('dispatch_interval__year', flat=True)
         )
-        supply_years = set(
-            supply_model.objects.values_list('year', flat=True).distinct()
-        )
+        supply_years = set(SupplyFactorMatrix.objects.values_list('year', flat=True))
         return sorted(scada_years & supply_years)
 
-    def get_comparable_facilities(self, facilities_model, scada_model, supply_model,
+    def get_comparable_facilities(self, facilities_model, scada_model,
                                    year: Optional[int] = None) -> QuerySet:
-        """Get facilities that have both SCADA and SupplyFactors data.
+        """Get facilities that have both SCADA and matrix data.
 
-        SupplyFactors only has data for renewable, non-dispatchable facilities,
+        The matrix only holds renewable, non-dispatchable facility traces in
+        practice (it mirrors supplyfactors, which had the same constraint),
         so this also filters to those characteristics.
 
         Args:
             facilities_model: facilities model class
             scada_model: FacilityScada model class
-            supply_model: supplyfactors model class
             year: Optional year to check for data availability
 
         Returns:
             QuerySet of facilities with both data sources
         """
-        # Start with renewable, non-dispatchable (SupplyFactors constraint)
+        # Start with renewable, non-dispatchable (matrix constraint)
         base_qs = facilities_model.objects.filter(
             idtechnologies__renewable=1,
             idtechnologies__dispatchable=0
@@ -352,15 +378,15 @@ class TimeSeriesAligner:
             base_qs.filter(**scada_filter).values_list('idfacilities', flat=True).distinct()
         )
 
-        # Get facility IDs that have SupplyFactors data
-        supply_filter = {}
+        # Get facility IDs that appear in the matrix (a given year's row, or
+        # any year's if none specified)
+        matrix_rows = SupplyFactorMatrix.objects.only('facility_ids')
         if year:
-            supply_filter['year'] = year
+            matrix_rows = matrix_rows.filter(year=year)
 
-        facilities_with_supply = set(
-            supply_model.objects.filter(**supply_filter)
-            .values_list('idfacilities', flat=True).distinct()
-        )
+        facilities_with_supply = set()
+        for row in matrix_rows:
+            facilities_with_supply.update(row.facility_ids)
 
         # Intersection
         common_facilities = facilities_with_scada & facilities_with_supply
@@ -370,7 +396,7 @@ class TimeSeriesAligner:
         ).distinct().order_by('facility_name')
 
     def get_comparable_technologies(self, technologies_model, facilities_model,
-                                     scada_model, supply_model,
+                                     scada_model,
                                      year: Optional[int] = None) -> QuerySet:
         """Get technologies that have facilities with both data sources.
 
@@ -378,14 +404,13 @@ class TimeSeriesAligner:
             technologies_model: Technologies model class
             facilities_model: facilities model class
             scada_model: FacilityScada model class
-            supply_model: supplyfactors model class
             year: Optional year to check
 
         Returns:
             QuerySet of technologies with comparable facilities
         """
         comparable_facilities = self.get_comparable_facilities(
-            facilities_model, scada_model, supply_model, year
+            facilities_model, scada_model, year
         )
 
         tech_ids = comparable_facilities.values_list(

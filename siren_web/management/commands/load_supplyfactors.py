@@ -3,6 +3,7 @@ import os
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 from siren_web.models import supplyfactors, facilities
+from siren_web.services.supply_matrix import clear_facility_trace, set_facility_trace
 
 class Command(BaseCommand):
     help = 'Load supply factors data from CSV file into supplyfactors table'
@@ -60,6 +61,7 @@ class Command(BaseCommand):
             self.stdout.write(
                 self.style.WARNING(f'Deleted {deleted_count} existing records for facility {facility_id}, year {year}')
             )
+            clear_facility_trace(year, facility_id)
 
         # Read and process CSV file
         records_to_create = []
@@ -124,6 +126,15 @@ class Command(BaseCommand):
             
         except Exception as e:
             raise CommandError(f'Error saving records to database: {str(e)}')
+
+        # Keep SupplyFactorMatrix in sync so this load shows up without a
+        # separate build_supply_factor_matrix backfill. Rows for skipped
+        # (empty/invalid) source lines leave gaps in `hour`, so fill those
+        # with NaN rather than silently compacting the trace.
+        hour_values = {r.hour: r.quantum for r in records_to_create}
+        max_hour = max(hour_values)
+        trace = [hour_values.get(h, float('nan')) for h in range(max_hour + 1)]
+        set_facility_trace(year, facility_id, trace)
 
         # Summary statistics
         self.stdout.write('\n--- Summary ---')

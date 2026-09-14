@@ -11,6 +11,7 @@ from siren_web.database_operations import (
     fetch_all_config_data
 )
 from siren_web.models import facilities, supplyfactors, Scenarios
+from siren_web.services.supply_matrix import set_facility_trace, clear_facility_trace
 
 # Import the SAM processor
 from powermapui.views.sam_resource_processor import SAMResourceProcessor, SAMError, WeatherFileError, SimulationResults
@@ -638,12 +639,14 @@ def store_simulation_results(results, facility_obj, weather_year, start_date=Non
             hour__gte=start_hour,
             hour__lte=end_hour
         ).delete()
+        clear_facility_trace(int(weather_year), facility_obj.idfacilities, start_hour, end_hour)
     else:
         # Clear all data for this facility/year
         supplyfactors.objects.filter(
             idfacilities=facility_obj.idfacilities,
             year=weather_year
         ).delete()
+        clear_facility_trace(int(weather_year), facility_obj.idfacilities)
 
     # Calculate the starting hour offset based on date range
     if start_date:
@@ -669,3 +672,13 @@ def store_simulation_results(results, facility_obj, weather_year, start_date=Non
 
     # Use bulk_create for better performance
     supplyfactors.objects.bulk_create(bulk_records, batch_size=1000)
+
+    # Keep the packed per-year matrix (SupplyFactorMatrix) in sync so
+    # reads (powerplotui's supplyfactors_views.py) see this rebaseline
+    # immediately, without a separate build_supply_factor_matrix backfill.
+    set_facility_trace(
+        int(weather_year),
+        facility_obj.idfacilities,
+        list(results.hourly_generation),
+        start_hour=hour_offset,
+    )

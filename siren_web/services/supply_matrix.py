@@ -61,3 +61,83 @@ def facilities_trace_sum(year: int, facility_ids_wanted):
     if not rows:
         return np.zeros(matrix.shape[1], dtype=matrix.dtype)
     return np.nansum(matrix[rows, :], axis=0)
+
+
+def set_facility_trace(year: int, facility_id: int, values, start_hour: int = 0):
+    """
+    Write `values` (1-D array-like) into facility_id's row for `year`
+    starting at `start_hour`, replacing just that sub-range. Creates the
+    year's matrix and/or the facility's row (NaN-filled outside the given
+    range) if either doesn't exist yet, and grows the matrix's hour
+    dimension if `values` reaches past its current width.
+
+    This is the write-side counterpart to load_year_matrix/facility_trace —
+    call it wherever a facility's trace is (re)generated (SAM baseline,
+    EV/ESOO load-trace synthesis) so the matrix stays in sync without a
+    separate build_supply_factor_matrix backfill run.
+    """
+    values = np.asarray(values, dtype='float32')
+    end_hour = start_hour + values.shape[0]
+
+    try:
+        row = SupplyFactorMatrix.objects.get(year=year)
+        facility_ids, matrix = row.unpack()
+        facility_ids = list(facility_ids)
+        matrix = matrix.copy()  # unpack() is a read-only view over row.data
+    except SupplyFactorMatrix.DoesNotExist:
+        facility_ids = []
+        matrix = np.empty((0, end_hour), dtype='float32')
+
+    if end_hour > matrix.shape[1]:
+        pad = np.full((matrix.shape[0], end_hour - matrix.shape[1]), np.nan, dtype='float32')
+        matrix = np.hstack([matrix, pad]) if matrix.shape[0] else np.empty((0, end_hour), dtype='float32')
+
+    if facility_id in facility_ids:
+        i = facility_ids.index(facility_id)
+    else:
+        facility_ids.append(facility_id)
+        matrix = np.vstack([matrix, np.full((1, matrix.shape[1]), np.nan, dtype='float32')])
+        i = len(facility_ids) - 1
+
+    matrix[i, start_hour:end_hour] = values
+
+    SupplyFactorMatrix.objects.update_or_create(
+        year=year,
+        defaults=dict(
+            facility_ids=facility_ids,
+            n_hours=matrix.shape[1],
+            dtype='float32',
+            data=matrix.tobytes(),
+        ),
+    )
+    _cache.pop(year, None)
+
+
+def clear_facility_trace(year: int, facility_id: int, start_hour: int = None, end_hour: int = None):
+    """
+    NaN-out a facility's hours for `year` — the whole row by default, or
+    the inclusive [start_hour, end_hour] range if given. No-op if the year
+    or facility isn't present yet. Mirrors the "delete existing rows before
+    inserting the new trace" idempotent-regeneration pattern the legacy
+    supplyfactors writers used; set_facility_trace's own overwrite already
+    covers the common case, so this only matters when a regenerated trace
+    is shorter than what it's replacing.
+    """
+    try:
+        row = SupplyFactorMatrix.objects.get(year=year)
+    except SupplyFactorMatrix.DoesNotExist:
+        return
+
+    facility_ids, matrix = row.unpack()
+    if facility_id not in facility_ids:
+        return
+
+    matrix = matrix.copy()
+    i = facility_ids.index(facility_id)
+    s = start_hour if start_hour is not None else 0
+    e = (end_hour + 1) if end_hour is not None else matrix.shape[1]
+    matrix[i, s:e] = np.nan
+
+    row.data = matrix.tobytes()
+    row.save(update_fields=['data', 'updated_at'])
+    _cache.pop(year, None)

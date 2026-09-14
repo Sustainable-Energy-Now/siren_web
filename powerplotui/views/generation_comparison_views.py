@@ -7,7 +7,7 @@ with simulated SupplyFactors data for facilities, facility groups, and technolog
 
 from django.shortcuts import render
 from django.http import JsonResponse, HttpResponse
-from siren_web.models import facilities, FacilityScada, supplyfactors, Technologies
+from siren_web.models import facilities, FacilityScada, Technologies
 import openpyxl
 from openpyxl.utils import get_column_letter
 
@@ -32,16 +32,16 @@ def generation_comparison_view(request):
     Shows only facilities and technologies that have both SCADA and SupplyFactors data.
     """
     # Get years with data in both sources
-    common_years = aligner.get_comparable_years(FacilityScada, supplyfactors)
+    common_years = aligner.get_comparable_years(FacilityScada)
 
     # Get facilities that have both SCADA and SupplyFactors data
     comparable_facilities = aligner.get_comparable_facilities(
-        facilities, FacilityScada, supplyfactors
+        facilities, FacilityScada
     )
 
     # Get technologies that have comparable facilities
     comparable_technologies = aligner.get_comparable_technologies(
-        Technologies, facilities, FacilityScada, supplyfactors
+        Technologies, facilities, FacilityScada
     )
 
     context = {
@@ -99,19 +99,12 @@ def get_facility_scada_vs_supply(request):
     scada_hourly = aligner.convert_scada_to_hourly(scada_qs, year, start_hour_int, end_hour_int)
 
     # Get SupplyFactors data
-    supply_qs = supplyfactors.objects.filter(
-        idfacilities=facility,
-        year=year
-    )
-    if start_hour_int and end_hour_int:
-        supply_qs = supply_qs.filter(hour__gte=start_hour_int, hour__lte=end_hour_int)
+    supply_data = aligner.get_supply_data_as_dict(year, facility.idfacilities, start_hour_int, end_hour_int)
 
-    if not supply_qs.exists():
+    if not supply_data['hours']:
         return JsonResponse({
             'error': f'No SupplyFactors data found for {facility.facility_name} in {year}'
         }, status=404)
-
-    supply_data = aligner.get_supply_data_as_dict(supply_qs, start_hour_int, end_hour_int)
 
     # Align the datasets
     aligned = aligner.align_scada_and_supply(scada_hourly, supply_data)
@@ -230,19 +223,14 @@ def get_facility_group_scada_vs_supply(request):
     )
 
     # Get SupplyFactors data aggregated across facilities
-    supply_qs = supplyfactors.objects.filter(
-        idfacilities__in=selected_facilities,
-        year=year
+    supply_data = aligner.get_supply_data_aggregated(
+        year, selected_facilities.values_list('idfacilities', flat=True), start_hour_int, end_hour_int
     )
-    if start_hour_int and end_hour_int:
-        supply_qs = supply_qs.filter(hour__gte=start_hour_int, hour__lte=end_hour_int)
 
-    if not supply_qs.exists():
+    if not supply_data['hours']:
         return JsonResponse({
             'error': f'No SupplyFactors data found for selected facilities in {year}'
         }, status=404)
-
-    supply_data = aligner.get_supply_data_aggregated(supply_qs, start_hour_int, end_hour_int)
 
     # Align the datasets
     aligned = aligner.align_scada_and_supply(scada_hourly, supply_data)
@@ -372,20 +360,15 @@ def get_technology_scada_vs_supply(request):
     )
 
     # Get SupplyFactors data aggregated
-    supply_qs = supplyfactors.objects.filter(
-        idfacilities__idtechnologies__in=technologies,
-        year=year
+    supply_data = aligner.get_supply_data_aggregated(
+        year, tech_facilities.values_list('idfacilities', flat=True), start_hour_int, end_hour_int
     )
-    if start_hour_int and end_hour_int:
-        supply_qs = supply_qs.filter(hour__gte=start_hour_int, hour__lte=end_hour_int)
 
-    if not supply_qs.exists():
+    if not supply_data['hours']:
         tech_names = ', '.join(technologies.values_list('technology_name', flat=True))
         return JsonResponse({
             'error': f'No SupplyFactors data found for {tech_names} in {year}'
         }, status=404)
-
-    supply_data = aligner.get_supply_data_aggregated(supply_qs, start_hour_int, end_hour_int)
 
     # Align the datasets
     aligned = aligner.align_scada_and_supply(scada_hourly, supply_data)
@@ -518,17 +501,12 @@ def get_technology_group_scada_vs_supply(request):
         )
 
         # SupplyFactors
-        supply_qs = supplyfactors.objects.filter(
-            idfacilities__idtechnologies__in=technologies,
-            year=year
+        supply_data = aligner.get_supply_data_aggregated(
+            year, tech_facilities.values_list('idfacilities', flat=True), start_hour_int, end_hour_int
         )
-        if start_hour_int and end_hour_int:
-            supply_qs = supply_qs.filter(hour__gte=start_hour_int, hour__lte=end_hour_int)
 
-        if not supply_qs.exists():
+        if not supply_data['hours']:
             return None, None, "No SupplyFactors data"
-
-        supply_data = aligner.get_supply_data_aggregated(supply_qs, start_hour_int, end_hour_int)
 
         # Align
         aligned = aligner.align_scada_and_supply(scada_hourly, supply_data)
@@ -671,14 +649,7 @@ def export_generation_comparison_to_excel(request):
         scada_hourly = aligner.convert_scada_to_hourly(scada_qs, year, start_hour_int, end_hour_int)
 
         # Get SupplyFactors data
-        supply_qs = supplyfactors.objects.filter(
-            idfacilities=facility,
-            year=year
-        )
-        if start_hour_int and end_hour_int:
-            supply_qs = supply_qs.filter(hour__gte=start_hour_int, hour__lte=end_hour_int)
-
-        supply_data = aligner.get_supply_data_as_dict(supply_qs, start_hour_int, end_hour_int)
+        supply_data = aligner.get_supply_data_as_dict(year, facility.idfacilities, start_hour_int, end_hour_int)
 
         # Align datasets
         aligned = aligner.align_scada_and_supply(scada_hourly, supply_data)
@@ -760,14 +731,9 @@ def export_generation_comparison_to_excel(request):
         )
 
         # Get aggregated SupplyFactors data
-        supply_qs = supplyfactors.objects.filter(
-            idfacilities__in=selected_facilities,
-            year=year
+        supply_data = aligner.get_supply_data_aggregated(
+            year, selected_facilities.values_list('idfacilities', flat=True), start_hour_int, end_hour_int
         )
-        if start_hour_int and end_hour_int:
-            supply_qs = supply_qs.filter(hour__gte=start_hour_int, hour__lte=end_hour_int)
-
-        supply_data = aligner.get_supply_data_aggregated(supply_qs, start_hour_int, end_hour_int)
 
         # Align datasets
         aligned = aligner.align_scada_and_supply(scada_hourly, supply_data)
@@ -847,14 +813,9 @@ def export_generation_comparison_to_excel(request):
         )
 
         # Get aggregated SupplyFactors data
-        supply_qs = supplyfactors.objects.filter(
-            idfacilities__idtechnologies__in=technologies,
-            year=year
+        supply_data = aligner.get_supply_data_aggregated(
+            year, tech_facilities.values_list('idfacilities', flat=True), start_hour_int, end_hour_int
         )
-        if start_hour_int and end_hour_int:
-            supply_qs = supply_qs.filter(hour__gte=start_hour_int, hour__lte=end_hour_int)
-
-        supply_data = aligner.get_supply_data_aggregated(supply_qs, start_hour_int, end_hour_int)
 
         # Align datasets
         aligned = aligner.align_scada_and_supply(scada_hourly, supply_data)
@@ -937,14 +898,9 @@ def export_generation_comparison_to_excel(request):
                 scada_qs, year, start_hour_int, end_hour_int
             )
 
-            supply_qs = supplyfactors.objects.filter(
-                idfacilities__idtechnologies__in=technologies,
-                year=year
+            supply_data = aligner.get_supply_data_aggregated(
+                year, tech_facilities.values_list('idfacilities', flat=True), start_hour_int, end_hour_int
             )
-            if start_hour_int and end_hour_int:
-                supply_qs = supply_qs.filter(hour__gte=start_hour_int, hour__lte=end_hour_int)
-
-            supply_data = aligner.get_supply_data_aggregated(supply_qs, start_hour_int, end_hour_int)
 
             aligned = aligner.align_scada_and_supply(scada_hourly, supply_data)
             return aligned, tech_facilities.count()
