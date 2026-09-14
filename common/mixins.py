@@ -36,7 +36,11 @@ class DemandScenarioSettingsMixin:
         if form.is_valid():
             data = form.cleaned_data
             request.session['weather_year'] = data['weather_year']
-            request.session['demand_year'] = data['demand_year']
+            # Some forms (PowerMatchScenarioSettings) don't have a
+            # demand_year field at all -- their year is derived at run
+            # time instead (see resolve_baseline_year), not user-picked.
+            if 'demand_year' in data:
+                request.session['demand_year'] = data['demand_year']
             request.session['scenario'] = data['scenario']
             success_message = "Settings updated."
 

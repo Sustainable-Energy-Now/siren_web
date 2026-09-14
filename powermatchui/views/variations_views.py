@@ -1,5 +1,5 @@
 #  variations_views.py
-from siren_web.database_operations import fetch_technology_attributes, check_analysis_baseline, fetch_technology_by_id
+from siren_web.database_operations import fetch_technology_attributes, check_analysis_baseline, fetch_technology_by_id, resolve_baseline_year
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import render
 from django.http import HttpResponse, JsonResponse
@@ -18,13 +18,19 @@ def setup_variation(request):
         context = {'success_message': success_message}
         return render(request, 'powermatchui_home.html', context)
 
-    demand_year = request.session.get('demand_year')
     scenario = request.session.get('scenario')
     config_file = request.session.get('config_file')
     success_message = ""
-    
-    if not demand_year:
-        success_message = "Set a demand year, scenario and config first."
+
+    if not scenario:
+        success_message = "Set a scenario and config first."
+        context = {'success_message': success_message}
+        return render(request, 'variations.html', context)
+
+    # Derived rather than user-selected -- see resolve_baseline_year.
+    demand_year = resolve_baseline_year(scenario)
+    if demand_year is None:
+        success_message = "Could not determine a year to run against — the scenario has no usable Load data."
         context = {'success_message': success_message}
         return render(request, 'variations.html', context)
 

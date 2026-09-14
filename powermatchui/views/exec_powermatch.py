@@ -431,9 +431,10 @@ def fetch_analysis(scenario, variation: str, stage: int) -> Tuple[np.ndarray, Di
     return dispatch_summary, metadata
 
 @login_required
-@settings_required(redirect_view='powermatchui:powermatchui_home')
-def submit_powermatch_with_progress(request, demand_year, scenario, option, stages, 
-                                   variation_inst, save_data, progress_handler) -> Tuple[DispatchResults, Dict[str, Any]]:
+@settings_required(redirect_view='powermatchui:powermatchui_home', require_demand_year=False)
+def submit_powermatch_with_progress(request, demand_year, scenario, option, stages,
+                                   variation_inst, save_data, progress_handler,
+                                   demand_override=None) -> Tuple[DispatchResults, Dict[str, Any]]:
     """ Progress reporting if handler supplied"""
     if progress_handler:
         progress_handler.update(10, "Initializing PowerMatch submission...")
@@ -447,7 +448,7 @@ def submit_powermatch_with_progress(request, demand_year, scenario, option, stag
         if save_data or option == 'D':
             if progress_handler:
                 progress_handler.update(20, "Loading supply factors data...")
-            load_and_supply = fetch_supplyfactors_data(demand_year, scenario)
+            load_and_supply = fetch_supplyfactors_data(demand_year, scenario, demand_override=demand_override)
             if progress_handler:
                 progress_handler.update(30, "Loading technology attributes data...")
             technology_attributes = fetch_technology_attributes(demand_year, scenario)

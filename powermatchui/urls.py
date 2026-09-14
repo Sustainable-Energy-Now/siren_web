@@ -10,6 +10,7 @@ urlpatterns = [
     path('powermatchui/', powermatchui_home_views.powermatchui_home, name='powermatchui_home'),
     path('merit_order/', merit_order_views.set_merit_order, name='merit_order'),
     path('baseline_scenario/', baseline_scenario_views.baseline_scenario, name='baseline_scenario'),
+    path('set-demand-scenario/', baseline_scenario_views.set_demand_scenario, name='set_demand_scenario'),
     path('run_baseline/', baseline_scenario_views.run_baseline, name='run_baseline'),
     path('run-baseline-progress/', baseline_scenario_views.run_baseline_progress, name='run_baseline_progress'),
     path('progress-stream/<str:session_id>/', baseline_scenario_views.progress_stream, name='progress_stream'),

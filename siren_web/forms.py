@@ -68,6 +68,23 @@ class DemandScenarioSettings(forms.Form):
         self.fields['weather_year'].choices = get_weather_year_choices()
         self.fields['demand_year'].choices = year_choices
 
+
+class PowerMatchScenarioSettings(DemandScenarioSettings):
+    """
+    Same as DemandScenarioSettings (weather year + scenario) but without
+    the Demand Year field -- PowerMatch/baseline runs now derive their own
+    year at run time from whichever Load facility is actually supplying
+    demand (see siren_web.database_operations.resolve_baseline_year)
+    rather than the user picking one up front. Used only by
+    PowermatchUIHomeView; powermapui and powerplotui keep the full
+    DemandScenarioSettings form since they still use session['demand_year']
+    for unrelated lookups.
+    """
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        del self.fields['demand_year']
+
+
 class DemandYearForm(forms.Form):
     def __init__(self, *args, **kwargs):
         super(DemandYearForm, self).__init__(*args, **kwargs)

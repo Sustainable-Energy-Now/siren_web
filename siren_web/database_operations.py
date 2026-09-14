@@ -1,5 +1,6 @@
 # database operations
 from configparser import ConfigParser
+from dataclasses import dataclass
 from django.db import connection
 from django.db.models import Prefetch
 import logging
@@ -10,7 +11,7 @@ import numpy as np
 from siren_web.models import Analysis, facilities, FacilityStorage, Generatorattributes, \
     Scenarios, ScenariosTechnologies, ScenariosSettings, Settings, Storageattributes, \
     SupplyFactorMatrix, Technologies, TechnologyYears, variations
-from siren_web.services.supply_matrix import facility_row_index, load_year_matrix
+from siren_web.services.supply_matrix import facility_has_trace, facility_row_index, load_year_matrix
 from powermatchui.views.balance_grid_load import Technology
 
 def delete_analysis_scenario(idscenario):
@@ -193,7 +194,143 @@ def _upsample_column_if_needed(values, interval_minutes):
     return values
 
 
-def fetch_supplyfactors_data(demand_year, scenario):
+def _resample_column(values, source_interval_minutes, target_interval_minutes):
+    """
+    Resample an explicit demand-override column (see resolve_demand_override)
+    from its own known native resolution to the base scenario's
+    interval_minutes. Unlike _upsample_column_if_needed above, the source
+    resolution here is always known up front rather than inferred from row
+    count against an assumed-hourly source.
+
+    - Equal resolutions: no-op.
+    - target coarser than source (e.g. base=60min, override=30min):
+      downsample by averaging each run of `factor` consecutive source
+      values. ESOO/EV traces are average-MW per interval (not energy — see
+      esoo_scenario_views.build_reference_shape's docstring), so an hourly
+      average is exactly the mean of its two half-hourly averages.
+    - target finer than source: upsample by repeating each value, mirroring
+      _upsample_column_if_needed's own documented simplification.
+    - any other ratio, or a value count that doesn't divide evenly: left
+      unresampled — the mismatch surfaces as a short/long column rather
+      than being silently misaligned.
+    """
+    if not values or source_interval_minutes == target_interval_minutes:
+        return values
+
+    n = len(values)
+    if target_interval_minutes > source_interval_minutes:
+        factor = target_interval_minutes // source_interval_minutes
+        if target_interval_minutes % source_interval_minutes or n % factor:
+            return values
+        arr = np.asarray(values, dtype=float).reshape(-1, factor)
+        return np.nanmean(arr, axis=1).tolist()
+    else:
+        factor = source_interval_minutes // target_interval_minutes
+        if source_interval_minutes % target_interval_minutes:
+            return values
+        return [v for v in values for _ in range(factor)]
+
+
+@dataclass
+class DemandOverride:
+    """A per-run substitute for a scenario's own Load facility, resolved by
+    resolve_demand_override. Never causes any ScenariosFacilities/
+    ScenariosTechnologies/facilities row to be created or changed — it only
+    affects the load_and_supply[0] column fetch_supplyfactors_data builds
+    for one dispatch run."""
+    facility_id: int
+    year: int                 # the SupplyFactorMatrix year that actually holds this facility's trace
+    interval_minutes: int     # the demand scenario's own native resolution
+    facility_name: str
+
+
+def resolve_demand_override(facility_id):
+    """
+    Resolve a facilities PK (typically session['demand_scenario_facility_id'])
+    into a DemandOverride, or None if facility_id is falsy/stale/traceless.
+    Callers must treat None as "fall back to the base scenario's own Load"
+    — this never raises.
+
+    The override's year is discovered by probing every SupplyFactorMatrix
+    year for this facility's presence, NOT taken from the caller's
+    demand_year: AEMO ESOO/EV demand traces are written keyed by their own
+    forecast_year (see esoo_scenario_views.build_scenario_from_esoo /
+    ev_scenario_views.build_scenario_from_ev), which is independent of
+    whatever year is currently driving the base supply scenario's matrix
+    load — e.g. a "Current" supply scenario's own Load facility may only
+    have a trace for 2024 while an ESOO demand scenario's facility may only
+    have one for 2030.
+    """
+    if not facility_id:
+        return None
+    try:
+        facility_obj = facilities.objects.get(pk=facility_id)
+    except facilities.DoesNotExist:
+        logging.warning(f"Demand override facility id {facility_id} no longer exists; ignoring.")
+        return None
+
+    demand_scenario_obj = Scenarios.objects.filter(
+        scenariosfacilities__idfacilities=facility_obj
+    ).order_by('-idscenarios').first()
+    interval_minutes = getattr(demand_scenario_obj, 'interval_minutes', 30) or 30
+
+    for year in SupplyFactorMatrix.objects.order_by('-year').values_list('year', flat=True):
+        if facility_has_trace(year, facility_obj.idfacilities):
+            return DemandOverride(
+                facility_id=facility_obj.idfacilities,
+                year=year,
+                interval_minutes=interval_minutes,
+                facility_name=facility_obj.facility_name,
+            )
+
+    logging.warning(
+        f"Demand override facility '{facility_obj.facility_name}' has no trace in any "
+        "SupplyFactorMatrix year; ignoring override."
+    )
+    return None
+
+
+def resolve_baseline_year(scenario):
+    """
+    The year that drives technology-cost lookups (fetch_technology_attributes)
+    and, most importantly, the base scenario's OWN supply-side
+    SupplyFactorMatrix retrieval (fetch_supplyfactors_data's initial
+    load_year_matrix(demand_year) call, which finds this scenario's own
+    wind/solar/storage/Load facility rows) — derived from the scenario's
+    own Load facility, resolved the same way resolve_demand_override
+    resolves any other facility's year, never user-selected.
+
+    Deliberately ignores any active demand_override: a demand override
+    already gets its own independent load_year_matrix(demand_override.year)
+    lookup inside fetch_supplyfactors_data, scoped to just the Load column.
+    Using the override's year here instead of the base scenario's own would
+    make fetch_supplyfactors_data load the WRONG year's matrix for every
+    other technology — e.g. "Current"'s wind/solar/storage facilities only
+    have rows in SupplyFactorMatrix for 2024, while an ESOO override
+    facility's own trace lives at 2030; verified live that requesting year
+    2030 for "Current" returns only the Load column, silently dropping
+    every generator.
+
+    Returns None if it can't be determined (scenario not found, has no
+    Load facility, or that facility has no trace in any SupplyFactorMatrix
+    year) — callers must treat that as "can't run", not silently pick a
+    default.
+    """
+    scenario_obj = Scenarios.objects.filter(title=scenario).first()
+    if scenario_obj is None:
+        return None
+
+    load_facility = facilities.objects.filter(
+        idtechnologies__technology_name='Load', scenarios=scenario_obj
+    ).first()
+    if load_facility is None:
+        return None
+
+    own_override = resolve_demand_override(load_facility.idfacilities)
+    return own_override.year if own_override else None
+
+
+def fetch_supplyfactors_data(demand_year, scenario, demand_override=None):
     """
     Build load_and_supply: {merit_order: [value per hour/interval, ...]}
     for every technology in this scenario's merit order, read from the
@@ -239,6 +376,30 @@ def fetch_supplyfactors_data(demand_year, scenario):
                 continue
 
             load_and_supply[merit_order] = np.nansum(matrix[rows, :], axis=0).tolist()
+
+        # Demand override: substitute an AEMO/ESOO (or EV-layered) demand
+        # scenario's own Load facility trace for this run, independent of
+        # whatever Load facility (if any) is linked to this supply scenario.
+        # Load's merit_order is always 0 (see fetch_technology_attributes),
+        # so this is an unconditional assignment — it works whether the
+        # supply scenario already had its own merit_order-0 entry or not.
+        if demand_override is not None:
+            try:
+                override_ids, override_matrix = load_year_matrix(demand_override.year)
+                override_idx = facility_row_index(override_ids)
+                row_i = override_idx.get(demand_override.facility_id)
+            except SupplyFactorMatrix.DoesNotExist:
+                row_i = None
+            if row_i is not None:
+                override_values = override_matrix[row_i, :].tolist()
+                load_and_supply[0] = _resample_column(
+                    override_values, demand_override.interval_minutes, interval_minutes
+                )
+            else:
+                logging.warning(
+                    f"Demand override facility {demand_override.facility_id} not found in "
+                    f"{demand_override.year} SupplyFactorMatrix; keeping the supply scenario's own Load."
+                )
 
         # Resolution shim: bring any hourly-stored columns up to this
         # scenario's interval_minutes resolution so they line up with a

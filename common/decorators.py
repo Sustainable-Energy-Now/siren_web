@@ -5,11 +5,18 @@ from functools import wraps
 from django.shortcuts import redirect
 from django.contrib import messages
 
-def settings_required(redirect_view='home'):
+def settings_required(redirect_view='home', require_demand_year=True):
     """
-    Decorator to ensure weather_year, demand_year and scenario are set before accessing a view.
-    Prevents running processes without proper configuration.
-    
+    Decorator to ensure weather_year, scenario and (unless require_demand_year
+    is False) demand_year are set before accessing a view. Prevents running
+    processes without proper configuration.
+
+    require_demand_year=False is for views that derive their own year at
+    runtime instead of expecting the user to have picked one (see
+    siren_web.database_operations.resolve_baseline_year) — e.g. the
+    baseline/PowerMatch views, whose year now comes from whichever Load
+    facility is actually supplying demand.
+
     Usage example:
         @login_required
         @settings_required(redirect_view='powermatchui:powermatchui_home')
@@ -23,14 +30,14 @@ def settings_required(redirect_view='home'):
             weather_year = request.session.get('weather_year')
             demand_year = request.session.get('demand_year')
             scenario = request.session.get('scenario')
-            
-            if not weather_year or not demand_year or not scenario:
+
+            if not weather_year or not scenario or (require_demand_year and not demand_year):
                 messages.warning(
-                    request, 
+                    request,
                     "Please set the weather year, demand year and scenario before proceeding."
                 )
                 return redirect(redirect_view)
-            
+
             return view_func(request, *args, **kwargs)
         return wrapper
     return decorator

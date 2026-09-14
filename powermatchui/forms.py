@@ -1,10 +1,43 @@
 # forms.py
 from django import forms
-from siren_web.models import Scenarios, TechnologyYears, variations
+from siren_web.models import Scenarios, TechnologyYears, facilities, variations
 from crispy_forms.helper import FormHelper
 from crispy_forms.layout import Layout, Div, Field, Submit, HTML, Row, Column
 from crispy_bootstrap5.bootstrap5 import Accordion
 from crispy_forms.bootstrap import AccordionGroup, FormActions
+
+
+class DemandScenarioOverrideForm(forms.Form):
+    """
+    Lets the user pick which AEMO/ESOO (or EV-layered) demand-forecast
+    scenario's Load trace to dispatch against for a baseline run,
+    independently of session['scenario'] (the supply/facilities Scenario
+    edited by BaselineScenarioForm below). Selecting a facility here never
+    changes any ScenariosFacilities/ScenariosTechnologies row -- see
+    siren_web.database_operations.resolve_demand_override.
+    """
+    demand_scenario_facility = forms.ModelChoiceField(
+        queryset=facilities.objects.filter(
+            idtechnologies__technology_name='Load',
+            scenarios__interval_minutes=30,
+        ).distinct().order_by('facility_name'),
+        required=False,
+        empty_label="Use the supply scenario's own Load (default)",
+        label='AEMO/ESOO Demand Forecast',
+        widget=forms.Select(attrs={'class': 'form_input'})
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['demand_scenario_facility'].label_from_instance = lambda f: f.facility_name
+
+        self.helper = FormHelper()
+        self.helper.form_method = 'post'
+        self.helper.form_tag = False
+        self.helper.layout = Layout(
+            Field('demand_scenario_facility'),
+        )
+
 
 class BaselineScenarioForm(forms.Form):
     carbon_price = forms.DecimalField(label='Carbon Price', required=False)

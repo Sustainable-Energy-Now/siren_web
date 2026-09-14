@@ -10,6 +10,24 @@
 {% load crispy_forms_tags %}
 {% csrf_token %}
 
+<!-- Demand Forecast Override Section -->
+<div class="card mb-3">
+  <div class="card-header"><h5>Demand Forecast (optional)</h5></div>
+  <div class="card-body">
+    <p class="text-muted">
+      Supply scenario: <strong>{{ scenario }}</strong> &mdash;
+      Demand forecast:
+      <strong>{{ selected_demand_scenario_title|default:"using the supply scenario's own Load" }}</strong>
+    </p>
+    <form method="post" action="{% url 'powermatchui:set_demand_scenario' %}">
+      {% csrf_token %}
+      {{ demand_scenario_form.demand_scenario_facility.label_tag }}
+      {{ demand_scenario_form.demand_scenario_facility }}
+      <button type="submit" class="btn btn-secondary mt-2">Set Demand Forecast</button>
+    </form>
+  </div>
+</div>
+
 <!-- Carbon Price and Discount Rate Section -->
 <form method="post" id="configForm">
   {% csrf_token %}

@@ -7,7 +7,7 @@ from django.http import JsonResponse, HttpResponse
 from django.shortcuts import redirect, render
 from django.urls import reverse
 import json
-from siren_web.database_operations import fetch_technology_by_id, fetch_merit_order_technologies
+from siren_web.database_operations import fetch_technology_by_id, fetch_merit_order_technologies, resolve_baseline_year
 from siren_web.models import ScenariosTechnologies, Scenarios
 from urllib.parse import urlencode
 
@@ -18,17 +18,20 @@ def set_merit_order(request):
     else:
         messages.error(request, "Access not allowed.")
         return render(request, 'powermatchui_home.html')
-    
-    demand_year = request.session.get('demand_year')
+
     scenario = request.session.get('scenario')
     config_file = request.session.get('config_file')
-    
+    # Informational only -- merit order is a property of the scenario's own
+    # ScenariosTechnologies rows, not of any particular year. Derived rather
+    # than user-selected (see resolve_baseline_year).
+    demand_year = resolve_baseline_year(scenario) if scenario else None
+
     # Initialize with default values
     success_message = request.GET.get('success_message', '')
     merit_order = {}
     excluded_resources = {}
-    
-    if request.method == 'POST' and demand_year:
+
+    if request.method == 'POST' and scenario:
         scenario_obj = Scenarios.objects.get(title=scenario)
         
         # Process form data
@@ -70,15 +73,15 @@ def set_merit_order(request):
         return JsonResponse({'status': 'success', 'message': f'Merit Order Updated. {updated_count} technologies updated.'})
         
     # Always fetch the data for display
-    if demand_year:
+    if scenario:
         scenario_obj = Scenarios.objects.get(title=scenario)
         idscenarios = scenario_obj.pk
         merit_order, excluded_resources = fetch_merit_order_technologies(idscenarios)
-        
+
         if not len(merit_order) and not len(excluded_resources):
             success_message = "Reload the technologies."
     else:
-        success_message = "Set a demand year, scenario and config first."
+        success_message = "Set a scenario and config first."
     
     context = {
         'merit_order': merit_order, 
