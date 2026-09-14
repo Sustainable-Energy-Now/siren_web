@@ -5,7 +5,7 @@ from django.shortcuts import render, get_object_or_404
 from django.urls import reverse
 from django.http import JsonResponse
 from siren_web.models import Analysis, facilities, Generatorattributes, \
-    sirensystem, Scenarios, Settings, Storageattributes, supplyfactors, Technologies, Zones
+    sirensystem, Scenarios, Settings, Storageattributes, SupplyFactorMatrix, Technologies, Zones
 import markdown
 import os
 from django.conf import settings
@@ -95,7 +95,7 @@ def home_view(request):
             'Scenarios': Scenarios,
             'Settings': Settings,
             'Storageattributes': Storageattributes,
-            'SupplyFactors': supplyfactors,
+            'SupplyFactors': SupplyFactorMatrix,
             'Technologies': Technologies,
             'Zones': Zones,
         }

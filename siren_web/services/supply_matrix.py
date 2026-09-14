@@ -49,6 +49,15 @@ def facility_trace(year: int, facility_id: int):
     return matrix[i, :]
 
 
+def facility_has_trace(year: int, facility_id: int) -> bool:
+    """Whether facility_id has a row in year's matrix at all (no NaN check)."""
+    try:
+        facility_ids, _ = load_year_matrix(year)
+    except SupplyFactorMatrix.DoesNotExist:
+        return False
+    return facility_id in facility_ids
+
+
 def facilities_trace_sum(year: int, facility_ids_wanted):
     """
     Return the elementwise sum across the given facility ids' traces

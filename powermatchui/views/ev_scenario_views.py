@@ -50,12 +50,12 @@ from siren_web.models import (
     Scenarios,
     ScenariosFacilities,
     ScenariosTechnologies,
+    SupplyFactorMatrix,
     SwisBoundaryMembership,
     Technologies,
     facilities,
-    supplyfactors,
 )
-from siren_web.services.supply_matrix import set_facility_trace
+from siren_web.services.supply_matrix import clear_facility_trace, facility_trace, set_facility_trace
 from powermatchui.utils.ev_load_trace_store import load_trace, save_trace
 from powermatchui.utils.ev_reconciliation import aggregate_swis_annual_energy
 from powermatchui.utils.ev_sensitivity_comparison import (
@@ -185,18 +185,29 @@ def _base_trace(base_scenario: Scenarios, forecast_year: int) -> np.ndarray:
             f"Base scenario '{base_scenario.title}' has interval_minutes={base_scenario.interval_minutes}; "
             "D12 requires a half-hourly (30-minute) base scenario to add the EV layer to directly."
         )
-    rows = list(
-        supplyfactors.objects.filter(
-            idfacilities__scenarios=base_scenario,
-            idfacilities__idtechnologies__technology_name=LOAD_TECHNOLOGY_NAME,
-            year=forecast_year,
-        ).order_by('hour').values_list('quantum', flat=True)
-    )
-    if not rows:
+
+    load_facility = facilities.objects.filter(
+        scenarios=base_scenario,
+        idtechnologies__technology_name=LOAD_TECHNOLOGY_NAME,
+    ).first()
+
+    trace = None
+    if load_facility is not None:
+        try:
+            trace = facility_trace(forecast_year, load_facility.idfacilities)
+        except SupplyFactorMatrix.DoesNotExist:
+            trace = None
+
+    if trace is not None:
+        trace = trace[~np.isnan(trace)]
+        if trace.size == 0:
+            trace = None
+
+    if trace is None:
         raise BaseTraceNotFoundError(
             f"Base scenario '{base_scenario.title}' has no Load supplyfactors for {forecast_year}."
         )
-    return np.array(rows, dtype=float)
+    return np.asarray(trace, dtype=float)
 
 
 def _get_or_create_load_technology() -> Technologies:
@@ -275,15 +286,9 @@ def build_scenario_from_ev(base_scenario: Scenarios, csiro_scenario: str, foreca
         scenario_tech.merit_order = 0
         scenario_tech.save(update_fields=['merit_order'])
 
-    supplyfactors.objects.filter(idfacilities=facility_obj, year=forecast_year).delete()
-    records = [
-        supplyfactors(idfacilities=facility_obj, year=forecast_year, hour=h, supply=0, quantum=float(v))
-        for h, v in enumerate(net_trace)
-    ]
-    supplyfactors.objects.bulk_create(records, batch_size=1000)
-
-    # Keep SupplyFactorMatrix in sync so plotting/export reads see this
-    # derived scenario's trace without a build_supply_factor_matrix backfill.
+    # Idempotent regeneration: clear any previous trace for this
+    # facility/year before writing the new one.
+    clear_facility_trace(forecast_year, facility_obj.idfacilities)
     set_facility_trace(forecast_year, facility_obj.idfacilities, net_trace)
 
     notes = []

@@ -10,8 +10,8 @@ from siren_web.database_operations import (
     fetch_scenario_settings_data, 
     fetch_all_config_data
 )
-from siren_web.models import facilities, supplyfactors, Scenarios
-from siren_web.services.supply_matrix import set_facility_trace, clear_facility_trace
+from siren_web.models import facilities, Scenarios
+from siren_web.services.supply_matrix import set_facility_trace, clear_facility_trace, facility_has_trace
 
 # Import the SAM processor
 from powermapui.views.sam_resource_processor import SAMResourceProcessor, SAMError, WeatherFileError, SimulationResults
@@ -258,10 +258,7 @@ def process_facilities(config, facilities_list, weather_year, scenario, refresh_
                 continue
 
             # Check if supply factors already exist for this facility/year
-            existing_supply_factors = supplyfactors.objects.filter(
-                idfacilities=facility_obj.idfacilities,
-                year=weather_year
-            ).exists()
+            existing_supply_factors = facility_has_trace(int(weather_year), facility_obj.idfacilities)
 
             # Skip processing if supply factors exist and refresh is not requested
             if existing_supply_factors and not refresh_supply_factors:
@@ -603,7 +600,7 @@ def process_renewable_facility(sam_processor, facility_obj, fuel_type, weather_y
 
 def store_simulation_results(results, facility_obj, weather_year, start_date=None, end_date=None):
     """
-    Store SAM simulation results in the supplyfactors table
+    Store SAM simulation results in the SupplyFactorMatrix.
 
     Args:
         results: SimulationResults object
@@ -614,10 +611,12 @@ def store_simulation_results(results, facility_obj, weather_year, start_date=Non
     """
     from datetime import datetime, timedelta
 
-    # Clear existing data for this facility/year (or date range)
+    year = int(weather_year)
+
+    # Clear existing data for this facility/year (or date range) before
+    # writing the new trace, so a regenerated trace shorter than what it
+    # replaces doesn't leave stale tail values behind.
     if start_date or end_date:
-        # Calculate hour range for deletion
-        year = int(weather_year)
         base_date = datetime(year, 1, 1, 0, 0, 0)
 
         if start_date:
@@ -632,52 +631,14 @@ def store_simulation_results(results, facility_obj, weather_year, start_date=Non
         else:
             end_hour = 8759
 
-        # Delete only records in the specified date range
-        supplyfactors.objects.filter(
-            idfacilities=facility_obj.idfacilities,
-            year=weather_year,
-            hour__gte=start_hour,
-            hour__lte=end_hour
-        ).delete()
-        clear_facility_trace(int(weather_year), facility_obj.idfacilities, start_hour, end_hour)
+        clear_facility_trace(year, facility_obj.idfacilities, start_hour, end_hour)
+        hour_offset = start_hour
     else:
-        # Clear all data for this facility/year
-        supplyfactors.objects.filter(
-            idfacilities=facility_obj.idfacilities,
-            year=weather_year
-        ).delete()
-        clear_facility_trace(int(weather_year), facility_obj.idfacilities)
-
-    # Calculate the starting hour offset based on date range
-    if start_date:
-        year = int(weather_year)
-        base_date = datetime(year, 1, 1, 0, 0, 0)
-        start_dt = datetime.strptime(start_date, '%Y-%m-%d')
-        hour_offset = int((start_dt - base_date).total_seconds() / 3600)
-    else:
+        clear_facility_trace(year, facility_obj.idfacilities)
         hour_offset = 0
 
-    # Create new records for each hour
-    bulk_records = []
-    for idx, generation in enumerate(results.hourly_generation):
-        actual_hour = hour_offset + idx
-        record = supplyfactors(
-            idfacilities=facility_obj,
-            year=weather_year,
-            hour=actual_hour,
-            quantum=generation,
-            supply=1  # Assuming supply=1 for generation
-        )
-        bulk_records.append(record)
-
-    # Use bulk_create for better performance
-    supplyfactors.objects.bulk_create(bulk_records, batch_size=1000)
-
-    # Keep the packed per-year matrix (SupplyFactorMatrix) in sync so
-    # reads (powerplotui's supplyfactors_views.py) see this rebaseline
-    # immediately, without a separate build_supply_factor_matrix backfill.
     set_facility_trace(
-        int(weather_year),
+        year,
         facility_obj.idfacilities,
         list(results.hourly_generation),
         start_hour=hour_offset,

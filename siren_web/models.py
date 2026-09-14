@@ -3511,23 +3511,12 @@ class Storageattributes(models.Model):
         }
         return typical_values.get(storage_type, {})
 
-class supplyfactors(models.Model):
-    idsupplyfactors = models.AutoField(db_column='idsupplyfactors', primary_key=True)
-    idfacilities = models.ForeignKey('facilities', on_delete=models.CASCADE, db_column='idfacilities', blank=True, null=True)
-    year = models.PositiveIntegerField()
-    hour = models.IntegerField(blank=True, null=True)
-    supply = models.IntegerField(blank=True, null=True)
-    quantum = models.FloatField(null=True)
-
-    class Meta:
-        db_table = 'supplyfactors'
-
-
 class SupplyFactorMatrix(models.Model):
     """
-    Compact per-year replacement for `supplyfactors`: one row holds every
-    facility's hourly generation trace for that year as a packed array,
-    instead of one `supplyfactors` row per (facility, hour).
+    One row holds every facility's hourly generation trace for a year as a
+    packed array (facility x hour), replacing the old row-per-(facility,
+    hour) `supplyfactors` table (dropped once every reader/writer moved to
+    this model).
 
     `facility_ids[i]` gives the facilities.idfacilities for row i of the
     unpacked (n_facilities x n_hours) matrix stored in `data`.

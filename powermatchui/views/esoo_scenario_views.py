@@ -51,9 +51,8 @@ from siren_web.models import (
     ScenariosTechnologies,
     Technologies,
     facilities,
-    supplyfactors,
 )
-from siren_web.services.supply_matrix import set_facility_trace
+from siren_web.services.supply_matrix import clear_facility_trace, set_facility_trace
 from powermatchui.utils.esoo_forecast_adjustment import build_adjusted_anchors
 from powermatchui.utils.esoo_ldc import LDCConstructionError, fit_ldc_to_anchors
 from powermatchui.utils.esoo_reconciliation import (
@@ -410,15 +409,9 @@ def build_scenario_from_esoo(vintage: EsooVintage, esoo_scenario: str, poe: int,
 
     # Idempotent regeneration: clear any previous trace for this
     # facility/year before writing the new one.
-    supplyfactors.objects.filter(idfacilities=facility_obj, year=forecast_year).delete()
-    records = [
-        supplyfactors(idfacilities=facility_obj, year=forecast_year, hour=h, supply=0, quantum=float(v))
-        for h, v in enumerate(synthesis.trace)
-    ]
-    supplyfactors.objects.bulk_create(records, batch_size=1000)
-
-    # Keep SupplyFactorMatrix in sync so plotting/export reads see this
-    # regenerated trace without a build_supply_factor_matrix backfill.
+    # Idempotent regeneration: clear any previous trace for this
+    # facility/year before writing the new one.
+    clear_facility_trace(forecast_year, facility_obj.idfacilities)
     set_facility_trace(forecast_year, facility_obj.idfacilities, synthesis.trace)
 
     return EsooScenarioBuildResult(
