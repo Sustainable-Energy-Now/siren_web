@@ -9,7 +9,6 @@ from siren_web.database_operations import (
     fetch_full_facilities_data,
     fetch_module_settings_data,
     fetch_scenario_settings_data,
-    fetch_all_config_data,
     resolve_baseline_year,
     resolve_demand_override,
     get_demand_scenario_context,
@@ -134,11 +133,8 @@ def generate_power(request):
         else:
             facilities_list = fetch_full_facilities_data(demand_year, scenario)
 
-        config = fetch_all_config_data(request)
-
         # Process facilities - pass single facility parameters and date range
         sam_processed_count, skipped_count = process_facilities(
-            config,
             facilities_list,
             weather_year,
             scenario,
@@ -260,7 +256,7 @@ def generate_power(request):
         }
         return render(request, 'generate_power.html', context)
 
-def process_facilities(config, facilities_list, weather_year, scenario, refresh_supply_factors=False, single_facility_code=None, start_date=None, end_date=None):
+def process_facilities(facilities_list, weather_year, scenario, refresh_supply_factors=False, single_facility_code=None, start_date=None, end_date=None):
     """
     Process renewable facilities using SAM
 
@@ -279,7 +275,6 @@ def process_facilities(config, facilities_list, weather_year, scenario, refresh_
     weather_dir = getattr(settings, 'WEATHER_DATA_DIR', 'weather_data')
     power_curves_dir = getattr(settings, 'POWER_CURVES_DIR', 'power_curves')
     sam_processor = SAMResourceProcessor(
-        config_settings=config,
         weather_data_dir=weather_dir,
         power_curves_dir=power_curves_dir
     )

@@ -1,5 +1,4 @@
 # database operations
-from configparser import ConfigParser
 from dataclasses import dataclass
 from django.db import connection
 from django.db.models import Prefetch
@@ -782,30 +781,6 @@ def fetch_scenarios_data():
     except Exception as e:
         # Handle any errors that occur during the database query
         return None
-
-def fetch_config_path(request):
-    try:
-        config_file = request.session.get('config_file')
-        if not config_file:
-            config_file = 'siren.ini'
-        config_dir = './siren_web/siren_files/preferences/'
-        config_path = os.path.join(config_dir, config_file)
-        if not os.path.exists(config_path):
-            return None
-    except Exception as e:
-        # Handle any errors that occur during the database query
-        return None
-    return config_path
-
-def fetch_all_config_data(request):
-    try:
-        config_path = fetch_config_path (request)
-        config = ConfigParser()
-        config.read(config_path)
-    except Exception as e:
-        # Handle any errors that occur during the database query
-        return None
-    return config
 
 def fetch_all_settings_data():
     try:

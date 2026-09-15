@@ -240,17 +240,15 @@ class SAMResourceProcessor:
     Handles SAM SSC integration for wind and solar resource processing
     """
     
-    def __init__(self, config_settings: Dict = None, weather_data_dir: str = "weather_data", 
+    def __init__(self, weather_data_dir: str = "weather_data",
                  power_curves_dir: str = "power_curves"):
         """
         Initialize SAM Resource Processor
-        
+
         Args:
-            config_settings: Configuration dictionary
             weather_data_dir: Directory containing weather files
             power_curves_dir: Directory containing power curve files
         """
-        self.config = config_settings or {}
         self.weather_data_dir = Path(weather_data_dir)
         # Use Django settings if no explicit paths provided
         from django.conf import settings
