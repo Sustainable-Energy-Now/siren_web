@@ -20,7 +20,6 @@ def cel_map(request):
     or by CEL viability tier — toggled by the user on the map.
     CEL stage routes are always available as a separate overlay layer.
     """
-    weather_year = request.session.get('weather_year', '')
     scenario     = request.session.get('scenario', '')
     config_file  = request.session.get('config_file')
     success_message = ''
@@ -193,7 +192,6 @@ def cel_map(request):
 
     context = {
         'demand_weather_scenario': demand_weather_scenario,
-        'weather_year': weather_year,
         'scenario': scenario,
         'config_file': config_file,
         'success_message': success_message,

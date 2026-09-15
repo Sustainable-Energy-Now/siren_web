@@ -44,7 +44,6 @@ def baseline_scenario(request):
         return render(request, 'powermatchui_home.html', context)
 
 
-    weather_year = request.session.get('weather_year', '')
     scenario = request.session.get('scenario')
     config_file = request.session.get('config_file')
     # The year is no longer a separate user selection here — it's derived
@@ -142,7 +141,6 @@ def baseline_scenario(request):
                 'runpowermatch_form': RunPowermatchForm(),
                 'technologies': technologies,
                 'scenario_settings': scenario_settings,
-                'weather_year': weather_year,
                 'demand_year': demand_year,
                 'scenario': scenario,
                 'config_file': config_file,
@@ -165,8 +163,7 @@ def baseline_scenario(request):
             else:
                 # Render a template with the warning message
                 context = {
-                    'weather_year': weather_year,
-                    'demand_year': demand_year, 
+                    'demand_year': demand_year,
                     'scenario': scenario,
                     'config_file': config_file,
                     'success_message': success_message
@@ -189,7 +186,6 @@ def baseline_scenario(request):
         'runpowermatch_form': runpowermatch_form,
         'technologies': technologies,
         'scenario_settings': scenario_settings,
-        'weather_year': weather_year,
         'demand_year': demand_year,
         'scenario': scenario,
         'config_file': config_file,
@@ -501,7 +497,6 @@ def cancel_analysis(request, session_id):
         return JsonResponse({'error': 'Session not found'}, status=404)
 
 def run_baseline(request):
-    weather_year = request.session.get('weather_year', '')
     scenario = request.session.get('scenario')
     config_file = request.session.get('config_file')
     demand_override = resolve_demand_override(request.session.get('demand_scenario_facility_id'))
@@ -557,7 +552,6 @@ def run_baseline(request):
             'runpowermatch_form': runpowermatch_form,
             'technologies': technologies,
             'scenario_settings': scenario_settings,
-            'weather_year': weather_year,
             'demand_year': demand_year,
             'scenario': scenario,
             'config_file': config_file,

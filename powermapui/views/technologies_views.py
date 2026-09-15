@@ -15,7 +15,6 @@ from powermapui.forms import TechnologyForm, TechnologyYearsForm
 
 def technologies(request):
     """Original technologies view - displays read-only table"""
-    weather_year = request.session.get('weather_year', 2024)
     demand_year = request.session.get('demand_year', 2024)
     scenario = request.session.get('scenario')
     config_file = request.session.get('config_file')
@@ -70,7 +69,6 @@ def technologies(request):
         'demand_year_form': demand_year_form,
         'technology_queryset': technology_queryset,
         'attribute_explain': attribute_explain,
-        'weather_year': weather_year,
         'demand_year': demand_year,
         'scenario': scenario,
         'config_file': config_file,
@@ -87,7 +85,6 @@ def technologies(request):
 @login_required
 def technology_list(request):
     """List all technologies with search and filtering"""
-    weather_year = request.session.get('weather_year', '')
     demand_year = request.session.get('demand_year', '')
     scenario = request.session.get('scenario', '')
     config_file = request.session.get('config_file')
@@ -137,7 +134,6 @@ def technology_list(request):
         'fuel_type': fuel_type,
         'categories': categories,
         'fuel_types': fuel_types,
-        'weather_year': weather_year,
         'demand_year': demand_year,
         'scenario': scenario,
         'config_file': config_file,
@@ -148,7 +144,6 @@ def technology_list(request):
 @login_required
 def technology_detail(request, pk):
     """Show detailed view of a technology with its year data"""
-    weather_year = request.session.get('weather_year', '')
     demand_year = request.session.get('demand_year', '')
     scenario = request.session.get('scenario', '')
     config_file = request.session.get('config_file')
@@ -161,7 +156,6 @@ def technology_detail(request, pk):
     context = {
         'technology': technology,
         'technology_years': technology_years,
-        'weather_year': weather_year,
         'demand_year': demand_year,
         'scenario': scenario,
         'config_file': config_file,
@@ -172,7 +166,6 @@ def technology_detail(request, pk):
 @login_required
 def technology_create(request):
     """Create a new technology"""
-    weather_year = request.session.get('weather_year', '')
     demand_year = request.session.get('demand_year', '')
     scenario = request.session.get('scenario', '')
     config_file = request.session.get('config_file')
@@ -193,7 +186,6 @@ def technology_create(request):
     return render(request, 'technologies/form.html', {
         'form': form,
         'title': 'Add New Technology',
-        'weather_year': weather_year,
         'demand_year': demand_year,
         'scenario': scenario,
         'config_file': config_file,
@@ -203,7 +195,6 @@ def technology_create(request):
 @login_required
 def technology_edit(request, pk):
     """Update an existing technology"""
-    weather_year = request.session.get('weather_year', '')
     demand_year = request.session.get('demand_year', '')
     scenario = request.session.get('scenario', '')
     config_file = request.session.get('config_file')
@@ -223,7 +214,6 @@ def technology_edit(request, pk):
         'form': form,
         'technology': technology,
         'title': 'Edit Technology',
-        'weather_year': weather_year,
         'demand_year': demand_year,
         'scenario': scenario,
         'config_file': config_file,
@@ -282,7 +272,6 @@ def technology_search_api(request):
 @login_required
 def technology_years_create(request, technology_pk=None):
     """Create a new technology year record"""
-    weather_year = request.session.get('weather_year', '')
     demand_year = request.session.get('demand_year', '')
     scenario = request.session.get('scenario', '')
     config_file = request.session.get('config_file')
@@ -322,7 +311,6 @@ def technology_years_create(request, technology_pk=None):
         'form': form,
         'title': 'Add Technology Year Data',
         'technology': technology,
-        'weather_year': weather_year,
         'demand_year': demand_year,
         'scenario': scenario,
         'config_file': config_file,
@@ -334,7 +322,6 @@ def technology_years_create(request, technology_pk=None):
 @login_required
 def technology_years_edit(request, pk):
     """Update an existing technology year record"""
-    weather_year = request.session.get('weather_year', '')
     demand_year = request.session.get('demand_year', '')
     scenario = request.session.get('scenario', '')
     config_file = request.session.get('config_file')
@@ -357,7 +344,6 @@ def technology_years_edit(request, pk):
         'form': form,
         'tech_year': tech_year,
         'title': 'Edit Technology Year Data',
-        'weather_year': weather_year,
         'demand_year': demand_year,
         'scenario': scenario,
         'config_file': config_file,

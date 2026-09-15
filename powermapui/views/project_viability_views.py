@@ -8,11 +8,9 @@ from common.decorators import settings_required
 
 
 def _get_session_context(request):
-    weather_year = request.session.get('weather_year', '')
     scenario = request.session.get('scenario', '')
     config_file = request.session.get('config_file')
     return {
-        'weather_year': weather_year,
         'scenario': scenario,
         'config_file': config_file,
     }

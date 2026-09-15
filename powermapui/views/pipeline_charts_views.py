@@ -9,7 +9,6 @@ import json
 
 def _get_session_context(request):
     """Shared session/scenario handling for pipeline chart views."""
-    weather_year = request.session.get('weather_year', '')
     scenario = request.session.get('scenario', '')
     config_file = request.session.get('config_file')
     success_message = ''
@@ -27,7 +26,6 @@ def _get_session_context(request):
 
     return {
         'demand_weather_scenario': form,
-        'weather_year': weather_year,
         'scenario': scenario,
         'config_file': config_file,
         'success_message': success_message,

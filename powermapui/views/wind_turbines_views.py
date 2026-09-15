@@ -11,7 +11,6 @@ from io import StringIO
 
 def wind_turbines_list(request):
     """List all wind turbines with search and pagination"""
-    weather_year = request.session.get('weather_year', '') # Get weather_year and scenario from session or default to empty string
     scenario= request.session.get('scenario', '')
     config_file = request.session.get('config_file')
     search_query = request.GET.get('search', '')
@@ -61,7 +60,6 @@ def wind_turbines_list(request):
 
 def wind_turbine_detail(request, pk):
     """Detail view for a specific wind turbine"""
-    weather_year = request.session.get('weather_year', '') # Get scenario from session or default to empty string
     scenario= request.session.get('scenario', '')
     config_file = request.session.get('config_file')
     turbine = get_object_or_404(WindTurbines, pk=pk)
@@ -82,7 +80,6 @@ def wind_turbine_detail(request, pk):
     total_capacity = sum(inst.total_capacity or 0 for inst in facility_installations)
     
     context = {
-        'weather_year': weather_year,
         'scenario': scenario,
         'config_file': config_file,
         'turbine': turbine,

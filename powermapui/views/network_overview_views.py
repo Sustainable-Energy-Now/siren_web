@@ -11,7 +11,6 @@ import json
 @settings_required(redirect_view='powermapui:powermapui_home', require_demand_year=False)
 def infrastructure_network(request):
     """Full infrastructure dependency network showing all terminals, facilities, and grid lines."""
-    weather_year = request.session.get('weather_year', '')
     scenario = request.session.get('scenario', '')
     config_file = request.session.get('config_file')
     success_message = ''
@@ -146,7 +145,6 @@ def infrastructure_network(request):
 
     context = {
         'demand_weather_scenario': demand_weather_scenario,
-        'weather_year': weather_year,
         'scenario': scenario,
         'config_file': config_file,
         'success_message': success_message,
