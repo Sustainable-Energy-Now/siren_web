@@ -15,8 +15,8 @@ This approach:
 Usage:
     Replace imports from ssc.py with imports from ssc_pysam.py:
 
-    Old: from siren_web.siren.utilities.ssc import Data, Module, API
-    New: from siren_web.siren.utilities.ssc_pysam import Data, Module, API
+    Old: from siren_web.utilities.ssc import Data, Module, API
+    New: from siren_web.utilities.ssc_pysam import Data, Module, API
 """
 
 import logging

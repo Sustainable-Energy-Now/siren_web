@@ -14,10 +14,10 @@ logger = logging.getLogger(__name__)
 
 # Try to import PySAM-based wrapper first, fall back to original ctypes wrapper
 try:
-    from siren_web.siren.utilities.ssc_pysam import Entry, Data, Module, API
+    from siren_web.utilities.ssc_pysam import Entry, Data, Module, API
     logger.info("Using PySAM-based SAM integration")
 except ImportError:
-    from siren_web.siren.utilities.ssc import Entry, Data, Module, API
+    from siren_web.utilities.ssc import Entry, Data, Module, API
     logger.info("Using ctypes-based SAM integration (legacy)")
 
 @dataclass
@@ -274,7 +274,7 @@ class SAMResourceProcessor:
         Debug method to list all available SAM modules
         Call this to see what modules are actually available in your SAM installation
         """
-        from siren_web.siren.utilities.ssc import Entry
+        from siren_web.utilities.ssc import Entry
         
         logger.info("=== Available SAM Modules ===")
         entry = Entry()
