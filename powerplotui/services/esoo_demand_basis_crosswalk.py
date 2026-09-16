@@ -26,10 +26,11 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Optional
 
+import numpy as np
 import pytz
-from django.db.models import Sum
 
-from siren_web.models import DPVGeneration, EsooFigure
+from siren_web.models import EsooFigure
+from siren_web.services.dpv_matrix import values_for_datetime_range
 
 AWST = pytz.timezone('Australia/Perth')
 
@@ -72,9 +73,9 @@ def compute_dpv_annual_energy(forecast_year: int, min_coverage_pct: float = DEFA
     start, end = _capacity_year_window(forecast_year)
     label = f"{forecast_year}-{str(forecast_year + 1)[-2:]}"
 
-    qs = DPVGeneration.objects.filter(trading_interval__gte=start, trading_interval__lt=end)
-    interval_count = qs.values('trading_interval').distinct().count()
-    expected_intervals = round((end - start).total_seconds() / 1800)
+    values = values_for_datetime_range(start, end)
+    expected_intervals = values.shape[0]
+    interval_count = int(np.count_nonzero(~np.isnan(values)))
     coverage_pct = (interval_count / expected_intervals * 100) if expected_intervals else 0.0
 
     if coverage_pct < min_coverage_pct:
@@ -87,7 +88,7 @@ def compute_dpv_annual_energy(forecast_year: int, min_coverage_pct: float = DEFA
     # estimated_generation is genuine MW (verified against a real solar
     # curve, unlike FacilityScada's half-hourly-energy convention) -- so
     # energy per interval = MW * 0.5h.
-    total_mw = qs.aggregate(total=Sum('estimated_generation'))['total'] or 0
+    total_mw = np.nansum(values) if values.size else 0.0
     annual_dpv_mwh = float(total_mw) * 0.5
     annual_dpv_gwh = annual_dpv_mwh / 1000.0
 

@@ -14,8 +14,10 @@ import logging
 from siren_web.models import (
     MonthlyREPerformance, DailyPeakRE,
     NewCapacityCommissioned, FacilityScada, facilities,
-    DPVGeneration, WholesalePrice
+    WholesalePrice
 )
+from siren_web.services.dpv_matrix import values_for_datetime_range
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -432,28 +434,26 @@ class Command(BaseCommand):
         return generation
 
     def get_rooftop_solar(self, year, month, start_datetime, end_datetime):
-        """Get rooftop solar generation from DPVGeneration model"""
-        
-        # Query DPV generation for the month
-        dpv_data = DPVGeneration.objects.filter(
-            trading_interval__gte=start_datetime,
-            trading_interval__lte=end_datetime
-        )
-        
-        if not dpv_data.exists():
+        """Get rooftop solar generation from DPVGenerationMatrix"""
+
+        # end_datetime is the month's last second (23:59:59); compute the
+        # true exclusive end (start of next month) for the matrix lookup.
+        _, last_day = monthrange(year, month)
+        end_exclusive = start_datetime + timedelta(days=last_day)
+
+        values = values_for_datetime_range(start_datetime, end_exclusive)
+
+        if values.size == 0 or np.all(np.isnan(values)):
             self.stdout.write(
                 self.style.WARNING(
                     f"  No DPV data found for {month}/{year}"
                 )
             )
             return 0
-        
+
         # Sum all estimated generation (in MW) for 30-minute intervals
-        # DPV data is in 30-minute intervals, so we need to convert to GWh
-        total_mw = dpv_data.aggregate(
-            total=Sum('estimated_generation')
-        )['total']
-        
+        total_mw = np.nansum(values)
+
         if total_mw:
             # Convert from MW to GWh
             # Each reading is MW average over 30 minutes (0.5 hours)
@@ -461,7 +461,7 @@ class Command(BaseCommand):
             # Sum of all intervals gives total GWh
             total_gwh = float(total_mw) * 0.5 / 1000.0
             return total_gwh
-        
+
         return 0
 
     def calculate_emissions(self, scada_data):

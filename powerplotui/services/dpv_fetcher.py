@@ -5,10 +5,9 @@ import io
 from collections import defaultdict
 from datetime import datetime, timedelta
 from decimal import Decimal
-from django.db import transaction, connection
 from django.utils import timezone
 import pytz
-from siren_web.models import DPVGeneration
+from siren_web.services.dpv_matrix import has_data_on, set_interval_values
 import logging
 
 logger = logging.getLogger(__name__)
@@ -297,65 +296,25 @@ class DPVDataFetcher:
 
         raise ValueError(f"Could not parse datetime: {datetime_str}")
     
-    @transaction.atomic
     def _save_data(self, records):
         """
-        Bulk upsert for MariaDB using raw SQL
-        Uses INSERT ... ON DUPLICATE KEY UPDATE for maximum performance
+        Patch the fetched intervals into DPVGenerationMatrix (one packed
+        array per year), replacing just-in-time correction/backfill from
+        AEMO -- values for intervals not in `records` are left untouched.
         """
         if not records:
             logger.warning("No records to save")
             return 0
 
         # AEMO now supplies 5-minute data; collapse it to the half-hourly
-        # resolution the dpv_generation table and its consumers expect.
+        # resolution the matrix and its consumers expect.
         records = self._aggregate_to_half_hourly(records)
         if not records:
             return 0
 
-        # Use raw SQL for MariaDB's efficient bulk upsert
-        sql = """
-            INSERT INTO dpv_generation 
-                (trading_date, interval_number, trading_interval, estimated_generation, extracted_at, created_at)
-            VALUES 
-                (%s, %s, %s, %s, %s, NOW())
-            ON DUPLICATE KEY UPDATE
-                estimated_generation = VALUES(estimated_generation),
-                extracted_at = VALUES(extracted_at)
-        """
-        
-        values = [
-            (
-                r['trading_date'],
-                r['interval_number'],
-                r['trading_interval'],
-                r['estimated_generation'],
-                r['extracted_at']
-            )
-            for r in records
-        ]
-        
-        batch_size = 1000
-        total_saved = 0
-        
-        with connection.cursor() as cursor:
-            for i in range(0, len(values), batch_size):
-                batch = values[i:i + batch_size]
-                
-                try:
-                    cursor.executemany(sql, batch)
-                    total_saved += len(batch)
-                    
-                    if i % 5000 == 0 and i > 0:
-                        logger.info(f"Progress: {i}/{len(values)} records saved")
-                    
-                except Exception as e:
-                    logger.error(f"Error executing batch at position {i}: {e}")
-                    # Continue with next batch instead of failing completely
-                    continue
-        
-        logger.info(f"MariaDB bulk upsert completed: {total_saved} records processed")
-        return total_saved
+        set_interval_values(records)
+        logger.info(f"Packed {len(records)} DPV intervals into DPVGenerationMatrix")
+        return len(records)
     
     def fetch_date_range(self, start_date, end_date):
         """Fetch DPV data for a range of months"""
@@ -414,5 +373,5 @@ class DPVDataFetcher:
     
     def verify_data_exists(self, trading_date):
         """Check if DPV data exists for a given trading date"""
-        count = DPVGeneration.objects.filter(trading_date=trading_date).count()
-        return count > 0, count
+        exists = has_data_on(trading_date)
+        return exists, (1 if exists else 0)

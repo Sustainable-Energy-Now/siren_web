@@ -2117,6 +2117,32 @@ class DPVGeneration(models.Model):
     def __str__(self):
         return f"DPV {self.trading_date} #{self.interval_number}: {self.estimated_generation}MW"
 
+class DPVGenerationMatrix(models.Model):
+    """
+    One row holds a full year's half-hourly DPV (rooftop solar) generation
+    estimates as a packed float array, replacing the row-per-interval
+    `dpv_generation` table -- same storage mechanics as SupplyFactorMatrix,
+    but 1-D since DPV has no facility dimension (it's a single WA-wide
+    series).
+
+    Index i (0-based) of the unpacked array is trading_date = 1 Jan `year`
+    + (i // 48) days, interval_number = (i % 48) + 1 (half-hourly,
+    midnight-based). Missing intervals are NaN.
+    """
+    year = models.PositiveIntegerField(unique=True)
+    n_intervals = models.PositiveIntegerField(help_text="Half-hourly intervals in the year, e.g. 17520 (17568 in a leap year)")
+    dtype = models.CharField(max_length=10, default='float32')
+    data = models.BinaryField(help_text="n_intervals array of estimated DPV generation (MW), packed as `dtype`")
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'dpv_generation_matrix'
+
+    def unpack(self):
+        """Return the 1-D half-hourly array (length n_intervals)."""
+        import numpy as np
+        return np.frombuffer(self.data, dtype=self.dtype)
+
 class FacilityScada(models.Model):
     """Store AEMO facility SCADA data with normalized facility reference"""
     dispatch_interval = models.DateTimeField(db_index=True)

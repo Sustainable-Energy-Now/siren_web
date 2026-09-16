@@ -13,7 +13,8 @@ import json
 from typing import Dict
 from datetime import datetime
 from calendar import monthrange
-from siren_web.models import MonthlyREPerformance, FacilityScada, facilities, DPVGeneration
+from siren_web.models import MonthlyREPerformance, FacilityScada, facilities
+from siren_web.services.dpv_matrix import values_for_date_range, year_array_or_none
 
 from siren_web.models import Scenarios, DemandFactor, TargetScenario
 from powermatchui.utils.factor_based_projector import FactorBasedProjector
@@ -133,35 +134,17 @@ def get_base_year_demand(year: int, config_section: Dict = None) -> Dict[str, np
         # UNDERLYING DEMAND - Use DPV from DPVGeneration
         # ---------------------------------------------------------------
 
-        # Query DPVGeneration for rooftop solar (30-minute intervals)
-        dpv_data = DPVGeneration.objects.filter(
-            trading_date__year=year,
-            trading_date__month=month
-        ).order_by('trading_date', 'interval_number').values(
-            'trading_date', 'interval_number', 'estimated_generation'
-        )
+        # Get rooftop solar (30-minute intervals) from the packed matrix and
+        # collapse pairs of half-hours to hourly (interval 1-2 = hour 0, etc).
+        month_start = datetime(year, month, 1).date()
+        month_end = (datetime(year + 1, 1, 1) if month == 12 else datetime(year, month + 1, 1)).date()
+        dpv_halfhourly = values_for_date_range(month_start, month_end)
 
-        # Build hourly DPV shape
-        hourly_dpv_dict = {}
-        for item in dpv_data:
-            trading_date = item['trading_date']
-            interval_num = item['interval_number']
-            generation = float(item['estimated_generation'])
-
-            # AEMO intervals are 30 minutes, numbered 1-48
-            # Intervals 1-2 = hour 0, 3-4 = hour 1, etc.
-            hour_of_day = (interval_num - 1) // 2
-            hour_in_month = (trading_date.day - 1) * 24 + hour_of_day
-
-            if 0 <= hour_in_month < hours_in_month:
-                if hour_in_month not in hourly_dpv_dict:
-                    hourly_dpv_dict[hour_in_month] = []
-                hourly_dpv_dict[hour_in_month].append(generation)
-
-        # Average intervals to hourly
-        hourly_dpv_shape = np.zeros(hours_in_month)
-        for hour_idx, values in hourly_dpv_dict.items():
-            hourly_dpv_shape[hour_idx] = np.mean(values)
+        with np.errstate(invalid='ignore'):
+            hourly_dpv_shape = np.nanmean(
+                dpv_halfhourly.reshape(hours_in_month, 2), axis=1
+            )
+        hourly_dpv_shape = np.nan_to_num(hourly_dpv_shape, nan=0.0)
 
         # Calculate underlying demand for this month
         # Underlying = Operational + DPV
@@ -248,10 +231,8 @@ def validate_data_availability(year: int) -> Dict[str, bool]:
     result['scada_records'] = scada_count
 
     # Check DPV data availability
-    dpv_count = DPVGeneration.objects.filter(
-        trading_date__year=year
-    ).count()
-    result['dpv_records'] = dpv_count
+    dpv_array = year_array_or_none(year)
+    result['dpv_records'] = int(np.count_nonzero(~np.isnan(dpv_array))) if dpv_array is not None else 0
 
     return result
 

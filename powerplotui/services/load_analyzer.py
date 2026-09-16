@@ -1,7 +1,9 @@
 # powerplot/services/load_analyzer.py
 from django.db.models import Avg, F, Q
 from datetime import datetime
-from siren_web.models import FacilityScada, DPVGeneration
+import numpy as np
+from siren_web.models import FacilityScada
+from siren_web.services.dpv_matrix import values_for_date_range
 from django.db.models.functions import ExtractHour, ExtractMinute
 import logging
 
@@ -63,22 +65,19 @@ class LoadAnalyzer:
             time_of_day = item['hour'] + item['minute'] / 60.0
             operational_profile[time_of_day] = float(item['avg_quantity'] or 0)
 
-        # Aggregate DPV data by time of day
-        dpv_aggregated = DPVGeneration.objects.filter(
-            trading_date__gte=start_date.date(),
-            trading_date__lt=end_date.date()
-        ).annotate(
-            hour=ExtractHour('trading_interval'),
-            minute=ExtractMinute('trading_interval')
-        ).values('hour', 'minute').annotate(
-            avg_generation=Avg('estimated_generation')
-        ).order_by('hour', 'minute')
-        
-        # Convert to dict keyed by time_of_day
+        # Aggregate DPV data by time of day: pull the range's half-hourly
+        # values out of DPVGenerationMatrix, reshape to (days, 48), and
+        # average down the days axis (NaN gaps are ignored, like Avg() only
+        # averaging existing rows).
+        dpv_values = values_for_date_range(start_date.date(), end_date.date())
         dpv_profile = {}
-        for item in dpv_aggregated:
-            time_of_day = item['hour'] + item['minute'] / 60.0
-            dpv_profile[time_of_day] = float(item['avg_generation'] or 0)
+        if dpv_values.size:
+            n_days = dpv_values.shape[0] // 48
+            with np.errstate(invalid='ignore'):
+                interval_avg = np.nanmean(dpv_values[:n_days * 48].reshape(n_days, 48), axis=0)
+            interval_avg = np.nan_to_num(interval_avg, nan=0.0)
+            for i, avg_generation in enumerate(interval_avg):
+                dpv_profile[i * 0.5] = float(avg_generation)
         
         # Combine profiles
         all_times = sorted(set(operational_profile.keys()) | set(dpv_profile.keys()))

@@ -37,12 +37,13 @@ def _format_perth_time(dt):
 from django.http import JsonResponse
 
 from siren_web.models import (
-    DPVGeneration, 
-    MonthlyREPerformance, 
+    MonthlyREPerformance,
     ReportComment,
     NewCapacityCommissioned,
     TargetScenario
 )
+from siren_web.services.dpv_matrix import values_for_date_range
+import numpy as np
 import logging
 
 logger = logging.getLogger(__name__)
@@ -192,15 +193,11 @@ def get_dpv_generation(year, month):
     Get DPV (Distributed PV / Rooftop Solar) generation for a month.
     Returns generation in GWh.
     """
-    _, last_day = monthrange(year, month)
-    
-    # Try to get from DPVGeneration model
-    qs = DPVGeneration.objects.filter(
-        trading_date__year=year,
-        trading_date__month=month
-    )
+    start_date = datetime(year, month, 1).date()
+    end_date = (datetime(year + 1, 1, 1) if month == 12 else datetime(year, month + 1, 1)).date()
 
-    total_mw = qs.aggregate(total=Sum('estimated_generation'))['total']
+    values = values_for_date_range(start_date, end_date)
+    total_mw = np.nansum(values) if values.size else 0.0
 
     if not total_mw:
         return 0.0

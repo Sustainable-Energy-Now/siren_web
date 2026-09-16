@@ -12,10 +12,11 @@ import datetime as _dt
 from django.db.models import Count, Max, Q
 from django.utils import timezone
 
+from siren_web.services.dpv_matrix import latest_trading_date
+
 from siren_web.models import (
     AnnualDemandActual,
     CommandRun,
-    DPVGeneration,
     EsooFigure,
     EsooVintage,
     EvActualsDocument,
@@ -80,7 +81,7 @@ def scada_card():
 
 
 def dpv_card():
-    latest = DPVGeneration.objects.aggregate(m=Max('trading_date'))['m']
+    latest = latest_trading_date()
     age = _age_days(latest)
     return {
         'key': 'dpv',
