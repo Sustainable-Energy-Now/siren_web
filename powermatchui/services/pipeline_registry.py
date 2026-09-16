@@ -104,7 +104,7 @@ GROUP_LABELS = {
     'esoo_actuals': 'ESOO actuals (SCADA-derived)',
     'ev': 'EV uptake & charging pipeline',
     'ev_actuals': 'EV actuals (WA DoT)',
-    'gencost': 'CSIRO GenCost cost pipeline',
+    'gencost': 'CSIRO GenCost pipeline',
 }
 
 
@@ -244,7 +244,7 @@ PIPELINE_COMMANDS: dict[str, PipelineCommand] = {c.key: c for c in [
     ),
     PipelineCommand(
         key='apply_gencost_cost_case',
-        label='Apply GenCost cost case to Technology Years',
+        label='Apply GenCost case to Technology Years',
         group='gencost',
         management_command='apply_gencost_cost_case',
         params=(

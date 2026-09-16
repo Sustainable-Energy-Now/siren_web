@@ -29,7 +29,7 @@ VALID_CASES = [key for key, _ in GENCOST_COST_CASE_CHOICES]
 
 
 class Command(BaseCommand):
-    help = "Apply one GenCost cost case's parsed capex figures onto TechnologyYears"
+    help = "Apply one GenCost case's parsed capex figures onto TechnologyYears"
 
     def add_arguments(self, parser):
         parser.add_argument('--vintage', type=str, required=True, help="GenCost edition, e.g. '2025-26'")

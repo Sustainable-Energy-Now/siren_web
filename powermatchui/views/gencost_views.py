@@ -1,6 +1,6 @@
 # powermatchui/views/gencost_views.py
 """
-CSIRO GenCost cost-data pipeline: upload/inspect vintages, trigger parsing,
+CSIRO GenCost data pipeline: upload/inspect vintages, trigger parsing,
 review technology-name mappings, and apply a chosen cost case onto the
 live TechnologyYears table. The primary ingest path is auto-fetch
 (fetch_gencost_vintages, surfaced on the Data Pipelines dashboard); the

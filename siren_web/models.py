@@ -5523,8 +5523,8 @@ class GencostCostFigure(models.Model):
     class Meta:
         db_table = 'gencost_cost_figure'
         unique_together = [['vintage', 'raw_technology_label', 'cost_case', 'cost_component', 'financial_year']]
-        verbose_name = 'GenCost Cost Figure'
-        verbose_name_plural = 'GenCost Cost Figures'
+        verbose_name = 'GenCost Figure'
+        verbose_name_plural = 'GenCost Figures'
 
     def __str__(self):
         return f"{self.vintage.edition} {self.raw_technology_label} {self.cost_case}/{self.cost_component} {self.financial_year}"

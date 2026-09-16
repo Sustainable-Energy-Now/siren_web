@@ -76,7 +76,7 @@ urlpatterns = [
     path('data-pipelines/run/<int:pk>/', data_pipeline_views.pipeline_run_detail, name='pipeline_run_detail'),
     path('data-pipelines/run/<int:pk>/status/', data_pipeline_views.pipeline_run_status, name='pipeline_run_status'),
 
-    # CSIRO GenCost cost-data pipeline (primary ingest is auto-fetch, see Data Pipelines; this is the manual upload fallback)
+    # CSIRO GenCost data pipeline (primary ingest is auto-fetch, see Data Pipelines; this is the manual upload fallback)
     path('gencost/upload/', gencost_views.gencost_upload, name='gencost_upload'),
     path('gencost/mapping/', gencost_views.gencost_mapping_review, name='gencost_mapping_review'),
     path('gencost/<int:vintage_id>/', gencost_views.gencost_vintage_detail, name='gencost_vintage_detail'),
