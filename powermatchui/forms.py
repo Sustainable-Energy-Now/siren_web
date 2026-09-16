@@ -416,5 +416,34 @@ class CombinedVariationForm(forms.Form):
             'dimension': dimension_value,
             'idtechnologies': selected_tech_key
         }
+
+
+class GencostUploadForm(forms.Form):
+    """
+    Manual fallback for registering a CSIRO GenCost Appendix Tables
+    workbook -- the primary path is the auto-fetch management command
+    (fetch_gencost_vintages), which pulls every edition straight from
+    CSIRO's Data Access Portal. This form exists for a corrected file
+    emailed outside that portal, or a network-restricted environment.
+    """
+    edition = forms.CharField(
+        label='GenCost edition', max_length=20,
+        help_text="e.g. '2025-26'",
+    )
+    doc_type = forms.ChoiceField(
+        label='Document type',
+        choices=[
+            ('gencost_workbook_final', 'Final Appendix Tables workbook'),
+            ('gencost_workbook_consult', 'Consultation draft Appendix Tables workbook'),
+        ],
+    )
+    publication_date = forms.DateField(required=False, widget=forms.DateInput(attrs={'type': 'date'}))
+    file = forms.FileField(label='Appendix Tables workbook (.xlsx)')
+
+    def clean_file(self):
+        f = self.cleaned_data['file']
+        if not f.name.lower().endswith('.xlsx'):
+            raise forms.ValidationError('Only .xlsx workbooks are accepted.')
+        return f
         
         return updated_data

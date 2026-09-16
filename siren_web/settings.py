@@ -255,6 +255,7 @@ POWER_CURVES_DIR = BASE_DIR / 'siren_web' / 'siren_files' / 'siren_data' / 'plan
 ESOO_ARCHIVE_DIR = BASE_DIR / 'siren_web' / 'siren_files' / 'esoo_archive'
 EV_ARCHIVE_DIR = BASE_DIR / 'siren_web' / 'siren_files' / 'ev_archive'
 EV_TRACE_DIR = BASE_DIR / 'siren_web' / 'siren_files' / 'ev_traces'
+GENCOST_ARCHIVE_DIR = BASE_DIR / 'siren_web' / 'siren_files' / 'gencost_archive'
 # ABS Postal Area (POA 2021) boundary shapefile for SWIS-boundary postcode
 # apportionment. Drop the ASGS Ed.3 file set (.shp/.shx/.dbf/.prj) here; see
 # siren_web/siren_files/gis/README.md.

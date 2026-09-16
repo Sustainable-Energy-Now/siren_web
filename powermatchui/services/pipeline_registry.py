@@ -51,6 +51,16 @@ def esoo_vintage_years() -> list[str]:
     return [str(y) for y in EsooVintage.objects.order_by('-year').values_list('year', flat=True)]
 
 
+def gencost_vintage_editions() -> list[str]:
+    from siren_web.models import GencostVintage
+    return list(GencostVintage.objects.order_by('-edition').values_list('edition', flat=True))
+
+
+def gencost_cost_cases() -> list[str]:
+    from siren_web.models import GENCOST_COST_CASE_CHOICES
+    return [key for key, _ in GENCOST_COST_CASE_CHOICES]
+
+
 # --- param spec -----------------------------------------------------------
 
 _MIN_YEAR, _MAX_YEAR = 2000, _dt.date.today().year + 2
@@ -59,7 +69,7 @@ _MIN_YEAR, _MAX_YEAR = 2000, _dt.date.today().year + 2
 @dataclass(frozen=True)
 class Param:
     name: str                       # form field name
-    kind: str                       # 'flag' | 'year' | 'year_range' | 'choice' | 'int'
+    kind: str                       # 'flag' | 'year' | 'year_range' | 'choice' | 'int' | 'float'
     flag: str = ''                  # CLI flag, e.g. '--year'; '' for a positional
     label: str = ''
     default: Any = None             # value, or a zero-arg callable
@@ -94,6 +104,7 @@ GROUP_LABELS = {
     'esoo_actuals': 'ESOO actuals (SCADA-derived)',
     'ev': 'EV uptake & charging pipeline',
     'ev_actuals': 'EV actuals (WA DoT)',
+    'gencost': 'CSIRO GenCost cost pipeline',
 }
 
 
@@ -208,6 +219,48 @@ PIPELINE_COMMANDS: dict[str, PipelineCommand] = {c.key: c for c in [
         note="Downloads AEMO's per-year ESOO report or Data Register workbook. The Demand Traces "
              "(.xlsb) is often Cloudflare-blocked — download it by hand and use register_local_esoo_files.",
     ),
+    PipelineCommand(
+        key='fetch_gencost_vintages',
+        label='Fetch GenCost vintages (CSIRO Data Access Portal)',
+        group='gencost',
+        management_command='fetch_gencost_vintages',
+        runtime_hint='seconds–minutes',
+        note="Downloads every file in CSIRO's evergreen GenCost DAP collection not already retrieved "
+             "(matched by DAP file id). Idempotent; safe to run on a schedule.",
+    ),
+    PipelineCommand(
+        key='extract_gencost_figures',
+        label='Extract GenCost figures (one vintage)',
+        group='gencost',
+        management_command='extract_gencost_figures',
+        params=(
+            Param('vintage', 'choice', '--vintage', label='GenCost edition', required=True,
+                  choices=gencost_vintage_editions),
+        ),
+        cron_safe=False,
+        runtime_hint='seconds',
+        note="Parses the capital-cost-by-scenario tables from a GenCost Appendix Tables workbook into "
+             "GencostCostFigure, stubbing out any new technology labels for mapping review.",
+    ),
+    PipelineCommand(
+        key='apply_gencost_cost_case',
+        label='Apply GenCost cost case to Technology Years',
+        group='gencost',
+        management_command='apply_gencost_cost_case',
+        params=(
+            Param('vintage', 'choice', '--vintage', label='GenCost edition', required=True,
+                  choices=gencost_vintage_editions),
+            Param('case', 'choice', '--case', label='Cost case', required=True,
+                  choices=gencost_cost_cases),
+            Param('premium_pct', 'float', '--premium-pct', label='Capex premium (%)', default=0,
+                  help_text="e.g. 15 for +15% -- GenCost's figures are national averages; WA costs "
+                            "typically run higher due to freight/labour, so scale capex up on the way in."),
+        ),
+        cron_safe=False,
+        runtime_hint='seconds',
+        note="Writes one cost case's parsed capex figures onto TechnologyYears, for technology labels "
+             "that have a GencostTechnologyMapping. Only touches capex — existing fom/vom/fuel untouched.",
+    ),
 ]}
 
 
@@ -275,6 +328,11 @@ def resolve_args(cmd: PipelineCommand, raw_params: dict | None) -> list[str]:
         elif p.kind == 'int':
             try:
                 value = str(int(str(raw).strip()))
+            except (TypeError, ValueError):
+                raise PipelineParamError(f"{p.label or p.name}: '{raw}' is not a number.")
+        elif p.kind == 'float':
+            try:
+                value = str(float(str(raw).strip()))
             except (TypeError, ValueError):
                 raise PipelineParamError(f"{p.label or p.name}: '{raw}' is not a number.")
         elif p.kind == 'choice':

@@ -75,7 +75,7 @@ class TechnologyYearsForm(forms.ModelForm):
 
     class Meta:
         model = TechnologyYears
-        fields = ['idtechnologies', 'year', 'capex', 'fom', 'vom', 'fuel']
+        fields = ['idtechnologies', 'year', 'capex', 'fom', 'vom', 'fuel', 'capex_premium_pct']
         labels = {
             'idtechnologies': 'Technology',
             'year': 'Year',
@@ -83,12 +83,14 @@ class TechnologyYearsForm(forms.ModelForm):
             'fom': 'Fixed O&M ($/kW/year)',
             'vom': 'Variable O&M ($/MWh)',
             'fuel': 'Fuel Cost ($/MWh)',
+            'capex_premium_pct': 'CAPEX Premium (%)',
         }
         help_texts = {
             'capex': 'Capital expenditure in $/kW',
             'fom': 'Fixed operations & maintenance cost',
             'vom': 'Variable operations & maintenance cost',
             'fuel': 'Fuel cost per MWh generated',
+            'capex_premium_pct': 'Percent already baked into the CAPEX value above, e.g. a WA cost premium over a national-average source figure. Leave blank if not applicable.',
         }
 
     def __init__(self, *args, **kwargs):

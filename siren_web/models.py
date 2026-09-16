@@ -3603,12 +3603,22 @@ class TechnologyYears(models.Model):
     idtechnologies = models.ForeignKey('Technologies', on_delete=models.RESTRICT)
     year = models.IntegerField(default=0, null=True)
     capex = models.FloatField(null=True)
-    fom = models.FloatField(db_column='FOM', null=True)  
-    vom = models.FloatField(db_column='VOM', null=True)  
+    fom = models.FloatField(db_column='FOM', null=True)
+    vom = models.FloatField(db_column='VOM', null=True)
     fuel = models.FloatField(null=True)
+    capex_premium_pct = models.FloatField(
+        null=True, blank=True,
+        help_text="Percent this row's capex was scaled by over its source figure, e.g. a WA cost premium "
+                   "applied on top of a GenCost national-average value (see apply_gencost_cost_case). "
+                   "Null means this row's provenance doesn't track a premium (manually entered, or predates this field)."
+    )
 
     class Meta:
         db_table = 'TechnologyYears'
+        # Every writer (update_technologies.py, apply_gencost_cost_case.py)
+        # already treats (idtechnologies, year) as the natural key via
+        # update_or_create; enforce it at the DB level too.
+        unique_together = [['idtechnologies', 'year']]
 
 class Terminals(models.Model):
     """Model to store terminal/substation data for grid infrastructure"""
@@ -4992,6 +5002,9 @@ SOURCE_DOC_TYPE_CHOICES = [
     ('csiro_summary', 'EV — CSIRO state-level summary CSV (WA_SUMMARY_*.csv, no postcode breakdown)'),
     ('csiro_report', 'EV — CSIRO EV Projections report/methodology document'),
     ('aemo_isp_step_change', 'EV — AEMO ISP Step Change charging-profile document'),
+    # CSIRO GenCost
+    ('gencost_workbook_consult', 'GenCost — Consultation draft Appendix Tables workbook (XLSX)'),
+    ('gencost_workbook_final', 'GenCost — Final Appendix Tables workbook (XLSX)'),
     ('other', 'Other'),
 ]
 # data_register_tables added after finding AEMO split the Data Register into
@@ -5325,26 +5338,64 @@ class EvVintage(models.Model):
         return f"CSIRO EV Projections {self.version}"
 
 
+class GencostVintage(models.Model):
+    """
+    One row per CSIRO GenCost report edition (e.g. '2025-26'). Root of the
+    GenCost acquisition manifest, mirroring EsooVintage/EvVintage's role
+    for the other forecast pipelines.
+
+    Unlike ESOO/EV, GenCost's entire publication history lives in one
+    evergreen CSIRO Data Access Portal collection (csiro:44228) that CSIRO
+    updates in place every year, so source_url is the same collection
+    landing page for every edition rather than a per-year URL.
+    """
+    idgencostvintage = models.AutoField(db_column='idgencostvintage', primary_key=True)
+    edition = models.CharField(
+        max_length=20, unique=True,
+        help_text="GenCost report edition, e.g. '2025-26'"
+    )
+    publication_date = models.DateField(null=True, blank=True)
+    source_url = models.URLField(max_length=500, blank=True)
+    notes = models.TextField(blank=True)
+    uploaded_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='gencost_vintages',
+        db_constraint=False,  # Avoids FK constraint issues with unmanaged MyISAM auth_user table
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'gencost_vintage'
+        ordering = ['-edition']
+        verbose_name = 'GenCost Vintage'
+        verbose_name_plural = 'GenCost Vintages'
+
+    def __str__(self):
+        return f"CSIRO GenCost {self.edition}"
+
+
 class SourceDocument(models.Model):
     """
     A retrieved source document (report PDF, data workbook, CSV export)
-    backing exactly one forecast vintage — either a WEM ESOO vintage
-    (`esoo_vintage`) or a CSIRO EV Projections vintage (`ev_vintage`),
-    never both and never neither (enforced by a DB CheckConstraint).
+    backing exactly one forecast vintage — a WEM ESOO vintage
+    (`esoo_vintage`), a CSIRO EV Projections vintage (`ev_vintage`), or a
+    CSIRO GenCost vintage (`gencost_vintage`) — never more than one and
+    never none (enforced by a DB CheckConstraint).
 
     Replaces the former EsooSourceDocument and EvSourceDocument, which
     were field-for-field identical apart from which vintage model their
     FK targeted. `doc_type`'s vocabulary (SOURCE_DOC_TYPE_CHOICES) spans
-    both pipelines.
+    all three pipelines.
 
     `local_file_path` is part of the EV uniqueness key because the real
     CSIRO EV Uptake Projections release is genuinely multi-file: five
     csiro_postcode_fleet_csv rows share one vintage (one per TECH_TYPE —
     BEV/PHEV/HV/HYB/ICE — see powerplotui.services.ev_uptake_parser's
-    module docstring). The ESOO side keeps its stricter one-row-per
-    (vintage, doc_type) rule. On MySQL each UniqueConstraint only bites
-    rows whose FK is non-NULL (NULLs compare as distinct), so the two
-    constraints don't interfere.
+    module docstring). The ESOO and GenCost sides keep the stricter
+    one-row-per-(vintage, doc_type) rule. On MySQL each UniqueConstraint
+    only bites rows whose FK is non-NULL (NULLs compare as distinct), so
+    the constraints don't interfere with each other.
     """
     idsourcedocument = models.AutoField(db_column='idsourcedocument', primary_key=True)
     esoo_vintage = models.ForeignKey(
@@ -5355,12 +5406,20 @@ class SourceDocument(models.Model):
         EvVintage, on_delete=models.CASCADE, related_name='source_documents',
         null=True, blank=True,
     )
+    gencost_vintage = models.ForeignKey(
+        GencostVintage, on_delete=models.CASCADE, related_name='source_documents',
+        null=True, blank=True,
+    )
     doc_type = models.CharField(max_length=30, choices=SOURCE_DOC_TYPE_CHOICES)
     source_url = models.URLField(max_length=500, blank=True)
     checksum = models.CharField(max_length=64, blank=True)
     local_file_path = models.CharField(
         max_length=500, blank=True,
-        help_text="Path (relative to ESOO_ARCHIVE_DIR / EV_ARCHIVE_DIR) of the retrieved document"
+        help_text="Path (relative to ESOO_ARCHIVE_DIR / EV_ARCHIVE_DIR / GENCOST_ARCHIVE_DIR) of the retrieved document"
+    )
+    dap_file_id = models.PositiveIntegerField(
+        null=True, blank=True,
+        help_text="CSIRO Data Access Portal's stable per-file id, used to dedupe auto-fetched GenCost files"
     )
     retrieved_at = models.DateTimeField(null=True, blank=True)
 
@@ -5375,10 +5434,15 @@ class SourceDocument(models.Model):
                 fields=['ev_vintage', 'doc_type', 'local_file_path'],
                 name='uniq_ev_source_document',
             ),
+            models.UniqueConstraint(
+                fields=['gencost_vintage', 'doc_type'],
+                name='uniq_gencost_source_document',
+            ),
             models.CheckConstraint(
                 check=(
-                    models.Q(esoo_vintage__isnull=False, ev_vintage__isnull=True)
-                    | models.Q(esoo_vintage__isnull=True, ev_vintage__isnull=False)
+                    models.Q(esoo_vintage__isnull=False, ev_vintage__isnull=True, gencost_vintage__isnull=True)
+                    | models.Q(esoo_vintage__isnull=True, ev_vintage__isnull=False, gencost_vintage__isnull=True)
+                    | models.Q(esoo_vintage__isnull=True, ev_vintage__isnull=True, gencost_vintage__isnull=False)
                 ),
                 name='source_document_exactly_one_vintage',
             ),
@@ -5389,23 +5453,141 @@ class SourceDocument(models.Model):
     @property
     def vintage(self):
         """The owning vintage, whichever pipeline it belongs to."""
-        return self.esoo_vintage or self.ev_vintage
+        return self.esoo_vintage or self.ev_vintage or self.gencost_vintage
 
     @property
     def domain(self):
-        return 'esoo' if self.esoo_vintage_id else 'ev'
+        if self.esoo_vintage_id:
+            return 'esoo'
+        if self.ev_vintage_id:
+            return 'ev'
+        return 'gencost'
 
     def clean(self):
         from django.core.exceptions import ValidationError
-        if bool(self.esoo_vintage_id) == bool(self.ev_vintage_id):
+        set_count = sum(bool(x) for x in (self.esoo_vintage_id, self.ev_vintage_id, self.gencost_vintage_id))
+        if set_count != 1:
             raise ValidationError(
-                "Set exactly one of esoo_vintage / ev_vintage on a SourceDocument."
+                "Set exactly one of esoo_vintage / ev_vintage / gencost_vintage on a SourceDocument."
             )
 
     def __str__(self):
         if self.esoo_vintage_id:
             return f"{self.esoo_vintage.year} {self.get_doc_type_display()}"
-        return f"{self.ev_vintage.version} {self.get_doc_type_display()}"
+        if self.ev_vintage_id:
+            return f"{self.ev_vintage.version} {self.get_doc_type_display()}"
+        return f"{self.gencost_vintage.edition} {self.get_doc_type_display()}"
+
+
+GENCOST_COST_CASE_CHOICES = [
+    ('current_policies', 'Current policies'),
+    ('global_nze_2050', 'Global NZE by 2050'),
+    ('global_nze_post_2050', 'Global NZE post 2050'),
+    ('other', 'Other'),
+]
+
+GENCOST_COST_COMPONENT_CHOICES = [
+    ('capex', 'Capital cost ($/kW)'),
+    ('fom', 'Fixed O&M'),
+    ('vom', 'Variable O&M'),
+    ('fuel', 'Fuel cost'),
+    ('lcoe', 'LCOE'),
+    ('other', 'Other'),
+]
+
+
+class GencostCostFigure(models.Model):
+    """
+    One parsed (technology, cost case, cost component, year) data point
+    from a GenCost Appendix Tables workbook. Deliberately generic and NOT
+    shaped like TechnologyYears — GenCost publishes several cost cases per
+    technology per year, whereas TechnologyYears holds only the single
+    "active" set a scenario run reads. apply_gencost_cost_case.py bridges
+    the two: it picks one cost_case and writes it into TechnologyYears.
+
+    `raw_technology_label` is the label exactly as it appears in the
+    workbook (e.g. "Gas open cycle (small)") — see GencostTechnologyMapping
+    for how it's resolved to a `Technologies` row.
+    """
+    idgencostcostfigure = models.AutoField(db_column='idgencostcostfigure', primary_key=True)
+    vintage = models.ForeignKey(GencostVintage, on_delete=models.CASCADE, related_name='figures')
+    raw_technology_label = models.CharField(max_length=200)
+    cost_case = models.CharField(max_length=30, choices=GENCOST_COST_CASE_CHOICES)
+    cost_component = models.CharField(max_length=20, choices=GENCOST_COST_COMPONENT_CHOICES)
+    financial_year = models.PositiveIntegerField(help_text="Forecast year this figure applies to")
+    value = models.FloatField(null=True, blank=True)
+    unit = models.CharField(max_length=20, blank=True)
+    sheet_ref = models.CharField(max_length=100, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'gencost_cost_figure'
+        unique_together = [['vintage', 'raw_technology_label', 'cost_case', 'cost_component', 'financial_year']]
+        verbose_name = 'GenCost Cost Figure'
+        verbose_name_plural = 'GenCost Cost Figures'
+
+    def __str__(self):
+        return f"{self.vintage.edition} {self.raw_technology_label} {self.cost_case}/{self.cost_component} {self.financial_year}"
+
+
+class GencostTechnologyMapping(models.Model):
+    """
+    Maps a GenCost workbook's raw technology label onto this project's
+    Technologies row. extract_gencost_figures.py auto-creates a stub row
+    (technology=None, ignored=False -- "pending") for any label it hasn't
+    seen before, so unreviewed labels surface on the mapping page rather
+    than silently failing to apply.
+
+    `ignored` is a distinct third state from "pending": a label the user
+    has consciously decided isn't applicable to this project (e.g. Wave,
+    Tidal/ocean current -- GenCost technologies with no SIREN equivalent)
+    rather than one nobody has looked at yet. Both leave `technology`
+    null, but only a still-pending label counts against a cost case's
+    "all mapped" gate on the vintage detail page -- otherwise a case that
+    includes a handful of not-applicable technologies could never be
+    applied at all.
+    """
+    idgencosttechnologymapping = models.AutoField(db_column='idgencosttechnologymapping', primary_key=True)
+    raw_technology_label = models.CharField(max_length=200, unique=True)
+    technology = models.ForeignKey(
+        'Technologies', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='gencost_mappings',
+        help_text="Leave blank (and unignored) if still pending review"
+    )
+    ignored = models.BooleanField(
+        default=False,
+        help_text="Explicitly not applicable to this project -- won't block a cost case's Apply button, and won't be nagged about"
+    )
+    notes = models.TextField(blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'gencost_technology_mapping'
+        ordering = ['raw_technology_label']
+        verbose_name = 'GenCost Technology Mapping'
+        verbose_name_plural = 'GenCost Technology Mappings'
+
+    @property
+    def is_resolved(self):
+        """Mapped or explicitly ignored -- either way, reviewed."""
+        return self.technology_id is not None or self.ignored
+
+    def save(self, *args, **kwargs):
+        # The mapping-review form only ever sets one of these, but guard
+        # against a mapped row being left/marked ignored via the admin or
+        # a script -- a real technology mapping always takes priority.
+        if self.technology_id is not None:
+            self.ignored = False
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        if self.technology_id:
+            target = self.technology.technology_name
+        elif self.ignored:
+            target = '(ignored)'
+        else:
+            target = '(pending)'
+        return f"{self.raw_technology_label} → {target}"
 
 
 class EvUptakePostcodeFigure(models.Model):

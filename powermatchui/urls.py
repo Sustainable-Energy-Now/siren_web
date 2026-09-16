@@ -3,7 +3,7 @@ from django.urls import path, include
 from .views import variations_views, baseline_scenario_views, demand_projection_views, \
     merit_order_views, \
     powermatchui_home_views, under_construction_views, demand_factor_views, esoo_scenario_views, \
-    ev_scenario_views, data_pipeline_views, esoo_export_views, esoo_adjustment_views
+    ev_scenario_views, data_pipeline_views, esoo_export_views, esoo_adjustment_views, gencost_views
 app_name = 'powermatchui'
 
 urlpatterns = [
@@ -75,4 +75,11 @@ urlpatterns = [
     path('data-pipelines/run/', data_pipeline_views.submit_pipeline_command, name='submit_pipeline_command'),
     path('data-pipelines/run/<int:pk>/', data_pipeline_views.pipeline_run_detail, name='pipeline_run_detail'),
     path('data-pipelines/run/<int:pk>/status/', data_pipeline_views.pipeline_run_status, name='pipeline_run_status'),
+
+    # CSIRO GenCost cost-data pipeline (primary ingest is auto-fetch, see Data Pipelines; this is the manual upload fallback)
+    path('gencost/upload/', gencost_views.gencost_upload, name='gencost_upload'),
+    path('gencost/mapping/', gencost_views.gencost_mapping_review, name='gencost_mapping_review'),
+    path('gencost/<int:vintage_id>/', gencost_views.gencost_vintage_detail, name='gencost_vintage_detail'),
+    path('gencost/<int:vintage_id>/extract/', gencost_views.gencost_extract, name='gencost_extract'),
+    path('gencost/<int:vintage_id>/apply/', gencost_views.gencost_apply, name='gencost_apply'),
 ]

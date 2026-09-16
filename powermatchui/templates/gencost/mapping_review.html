@@ -1,0 +1,80 @@
+{% extends 'powermatchui_base.html' %}
+{% load static %}
+
+{% block powermatchui_content %}
+<div class="container-fluid mt-4">
+    <div class="row">
+        <div class="col-md-12">
+            <h3>GenCost Technology Mapping</h3>
+            <p class="text-muted">
+                Maps a GenCost workbook's raw technology label onto this project's <code>Technologies</code>
+                table. A cost case's "Apply to Technology Years" button (on its vintage page) stays disabled
+                until every label it uses is either mapped or explicitly marked "not applicable" below —
+                pending labels are highlighted amber.
+            </p>
+        </div>
+    </div>
+
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} py-2">{{ message }}</div>
+        {% endfor %}
+    {% endif %}
+
+    <div class="row">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-body">
+                    <table class="table table-striped table-hover">
+                        <thead>
+                            <tr>
+                                <th>GenCost label</th>
+                                <th>Status</th>
+                                <th>Technology</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for mapping in mappings %}
+                            <tr class="{% if not mapping.is_resolved %}table-warning{% elif mapping.ignored %}table-secondary{% endif %}">
+                                <td>{{ mapping.raw_technology_label }}</td>
+                                <td>
+                                    {% if mapping.technology %}
+                                        <span class="badge bg-success">mapped</span>
+                                    {% elif mapping.ignored %}
+                                        <span class="badge bg-secondary">ignored</span>
+                                    {% else %}
+                                        <span class="badge bg-warning text-dark">pending</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <form method="post" class="d-flex gap-2">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="mapping_id" value="{{ mapping.pk }}">
+                                        <select name="technology" class="form-select form-select-sm">
+                                            <option value="" {% if not mapping.technology and not mapping.ignored %}selected{% endif %}>
+                                                -- pending, not yet reviewed --
+                                            </option>
+                                            <option value="{{ ignore_sentinel }}" {% if mapping.ignored %}selected{% endif %}>
+                                                -- ignore (not applicable to this project) --
+                                            </option>
+                                            {% for tech in technologies %}
+                                            <option value="{{ tech.pk }}" {% if mapping.technology_id == tech.pk %}selected{% endif %}>
+                                                {{ tech.technology_name }}
+                                            </option>
+                                            {% endfor %}
+                                        </select>
+                                        <button type="submit" class="btn btn-sm btn-outline-primary">Save</button>
+                                    </form>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr><td colspan="3" class="text-muted">No GenCost technology labels seen yet — parse a workbook first.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

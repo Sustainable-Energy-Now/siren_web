@@ -1,0 +1,177 @@
+{% extends 'powermatchui_base.html' %}
+{% load static %}
+
+{% block powermatchui_content %}
+<div class="container-fluid mt-4">
+    <div class="row">
+        <div class="col-md-12">
+            <h3>CSIRO GenCost {{ vintage.edition }}</h3>
+            <p class="text-muted">
+                <a href="{% url 'powermatchui:gencost_upload' %}">&laquo; All vintages</a> &middot;
+                <a href="{% url 'powermatchui:gencost_mapping_review' %}">Technology mapping review</a>
+            </p>
+        </div>
+    </div>
+
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} py-2">{{ message }}</div>
+        {% endfor %}
+    {% endif %}
+
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">Source documents</div>
+                <div class="card-body">
+                    {% if documents %}
+                    <table class="table table-sm">
+                        <thead><tr><th>Type</th><th>File</th><th>Checksum</th><th>Retrieved</th></tr></thead>
+                        <tbody>
+                            {% for doc in documents %}
+                            <tr>
+                                <td>{{ doc.get_doc_type_display }}</td>
+                                <td><code>{{ doc.local_file_path }}</code></td>
+                                <td><code>{{ doc.checksum|slice:":12" }}...</code></td>
+                                <td>{{ doc.retrieved_at }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                    {% else %}
+                    <p class="text-muted mb-0">No source documents registered for this vintage.</p>
+                    {% endif %}
+
+                    <form method="post" action="{% url 'powermatchui:gencost_extract' vintage.pk %}" class="mt-2">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-outline-primary" {% if not documents %}disabled{% endif %}>
+                            Parse workbook ({{ figure_count }} figure{{ figure_count|pluralize }} currently loaded)
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-12">
+            <h5>Cost cases</h5>
+            <div class="card">
+                <div class="card-body">
+                    {% if cases %}
+                    <p class="text-muted small">
+                        GenCost's capex figures are national averages. WA costs typically run higher (freight,
+                        remoteness, a thinner local EPC/labour market) — set a capex premium below before applying
+                        if you want that reflected in Technology Years. Leave at 0 to apply the figures unchanged.
+                    </p>
+                    <table class="table table-striped">
+                        <thead><tr><th>Cost case</th><th>Figures</th><th>Unmapped technologies</th><th>WA capex premium</th><th>Action</th></tr></thead>
+                        <tbody>
+                            {% for case in cases %}
+                            <tr>
+                                <td>{{ case.label }}</td>
+                                <td>{{ case.figure_count }}</td>
+                                <td>
+                                    {% if case.unmapped_count %}
+                                        <span class="badge bg-warning text-dark">{{ case.unmapped_count }} unmapped</span>
+                                    {% else %}
+                                        <span class="badge bg-success">all mapped</span>
+                                    {% endif %}
+                                </td>
+                                <td colspan="2">
+                                    <form method="post" action="{% url 'powermatchui:gencost_apply' vintage.pk %}" class="d-flex align-items-center gap-2">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="case" value="{{ case.key }}">
+                                        <div class="input-group input-group-sm" style="width: 8rem;">
+                                            <input type="number" step="0.1" name="premium_pct" value="0" class="form-control" aria-label="Capex premium percent">
+                                            <span class="input-group-text">%</span>
+                                        </div>
+                                        <button type="submit" class="btn btn-sm btn-primary" {% if case.unmapped_count %}disabled title="Map every technology label first"{% endif %}>
+                                            Apply to Technology Years
+                                        </button>
+                                    </form>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                    {% else %}
+                    <p class="text-muted mb-0">No figures parsed yet — click "Parse workbook" above.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mt-4">
+        <div class="col-md-12">
+            <h5>Recent runs</h5>
+            <div class="card">
+                <div class="card-body">
+                    <p class="text-muted small">
+                        "Parse workbook" and "Apply to Technology Years" both run in the background — this
+                        table is how you know when one has finished. It updates itself every few seconds
+                        while a run is active; refresh or click "log" for full output at any time.
+                    </p>
+                    {% if runs %}
+                    <table class="table table-sm">
+                        <thead><tr><th>#</th><th>Command</th><th>Status</th><th>Started</th><th>Duration</th><th></th></tr></thead>
+                        <tbody>
+                            {% for run in runs %}
+                            <tr data-run-id="{{ run.pk }}" data-active="{{ run.is_active|yesno:'1,0' }}">
+                                <td>{{ run.pk }}</td>
+                                <td>{{ run.label }}</td>
+                                <td>
+                                    <span class="badge js-run-status
+                                        {% if run.status == 'success' %}bg-success{% elif run.status == 'failed' %}bg-danger{% else %}bg-warning text-dark{% endif %}">
+                                        {{ run.get_status_display }}
+                                    </span>
+                                    {% if run.error_summary %}<div class="text-danger small">{{ run.error_summary }}</div>{% endif %}
+                                </td>
+                                <td>{{ run.started_at|default:run.created_at }}</td>
+                                <td class="js-run-duration">{% if run.duration_seconds %}{{ run.duration_seconds|floatformat:0 }}s{% else %}—{% endif %}</td>
+                                <td><a href="{% url 'powermatchui:pipeline_run_detail' run.pk %}" class="btn btn-outline-secondary btn-sm">log</a></td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                    {% else %}
+                    <p class="text-muted mb-0">No runs yet for this vintage.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+(function () {
+  const rows = Array.from(document.querySelectorAll('tr[data-run-id][data-active="1"]'));
+  if (!rows.length) return;
+  const base = "{% url 'powermatchui:pipeline_run_status' 0 %}".replace(/0\/status\/$/, '');
+  let ticks = 0;
+  const poll = () => {
+    ticks++;
+    let stillActive = false;
+    Promise.all(rows.map(row => {
+      const id = row.dataset.runId;
+      return fetch(base + id + '/status/').then(r => r.json()).then(d => {
+        const badge = row.querySelector('.js-run-status');
+        const dur = row.querySelector('.js-run-duration');
+        if (badge) {
+          badge.textContent = d.status_display;
+          badge.className = 'badge js-run-status ' +
+            (d.status === 'success' ? 'bg-success' : d.status === 'failed' ? 'bg-danger' : 'bg-warning text-dark');
+        }
+        if (dur && d.duration_seconds) dur.textContent = Math.round(d.duration_seconds) + 's';
+        if (d.is_active) stillActive = true;
+      }).catch(() => { stillActive = true; });
+    })).then(() => {
+      if (stillActive && ticks < 200) setTimeout(poll, 3000);
+      else if (!stillActive) window.location.reload();
+    });
+  };
+  setTimeout(poll, 3000);
+})();
+</script>
+{% endblock %}

@@ -9,6 +9,7 @@ from .models import (
     EvChargingProfile, SwisBoundaryMembership, EvActualsRecord, EvLoadTrace,
     V2gInterfaceStub, SwisBoundary, PostcodeBoundary,
     EvActualsDocument, EvActualsQuarter, CommandRun, EsooForecastAdjustment,
+    GencostVintage, GencostCostFigure, GencostTechnologyMapping,
 )
 
 
@@ -36,7 +37,27 @@ class EvVintageAdmin(admin.ModelAdmin):
 class SourceDocumentAdmin(admin.ModelAdmin):
     list_display = ['__str__', 'domain', 'doc_type', 'retrieved_at']
     list_filter = ['doc_type']
-    raw_id_fields = ['esoo_vintage', 'ev_vintage']
+    raw_id_fields = ['esoo_vintage', 'ev_vintage', 'gencost_vintage']
+
+
+@admin.register(GencostVintage)
+class GencostVintageAdmin(admin.ModelAdmin):
+    list_display = ['edition', 'publication_date', 'uploaded_by', 'updated_at']
+    search_fields = ['edition']
+
+
+@admin.register(GencostCostFigure)
+class GencostCostFigureAdmin(admin.ModelAdmin):
+    list_display = ['vintage', 'raw_technology_label', 'cost_case', 'cost_component', 'financial_year', 'value']
+    list_filter = ['cost_case', 'cost_component', 'vintage']
+    search_fields = ['raw_technology_label']
+
+
+@admin.register(GencostTechnologyMapping)
+class GencostTechnologyMappingAdmin(admin.ModelAdmin):
+    list_display = ['raw_technology_label', 'technology', 'updated_at']
+    list_filter = ['technology']
+    search_fields = ['raw_technology_label']
 
 
 @admin.register(EsooForecastAdjustment)

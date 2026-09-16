@@ -144,6 +144,11 @@
                             <td>
                                 {% if ty.capex %}
                                     {{ ty.capex|floatformat:2 }}
+                                    {% if ty.capex_premium_pct %}
+                                        <span class="badge bg-info text-dark" title="Includes a {{ ty.capex_premium_pct|floatformat:1 }}% premium over the source figure">
+                                            {{ ty.capex_premium_pct|floatformat:1 }}%
+                                        </span>
+                                    {% endif %}
                                 {% else %}
                                     -
                                 {% endif %}
