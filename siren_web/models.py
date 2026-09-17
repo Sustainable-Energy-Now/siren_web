@@ -2149,38 +2149,6 @@ class FacilityScadaMatrix(models.Model):
         matrix = np.frombuffer(self.data, dtype=self.dtype).reshape(len(self.facility_ids), self.n_intervals)
         return self.facility_ids, matrix
 
-class FacilityScada(models.Model):
-    """Store AEMO facility SCADA data with normalized facility reference"""
-    dispatch_interval = models.DateTimeField(db_index=True)
-    facility = models.ForeignKey(
-        'facilities',
-        on_delete=models.CASCADE,        db_column='idfacilities',
-        related_name='scada_records'
-    )
-    quantity = models.DecimalField(
-        max_digits=12,
-        decimal_places=6,
-        help_text=(
-            "Half-hourly energy in MWh, despite the field name. "
-            "To get average MW over the interval, multiply by 2. "
-            "See compute_annual_demand_actuals.py module docstring."
-        ),
-    )
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        db_table = 'facility_scada'
-        unique_together = ['dispatch_interval', 'facility']
-        indexes = [
-            models.Index(fields=['dispatch_interval', 'facility']),
-            models.Index(fields=['dispatch_interval']),
-            models.Index(fields=['facility', 'dispatch_interval']),
-        ]
-        ordering = ['-dispatch_interval', 'facility']
-
-    def __str__(self):
-        return f"{self.facility.facility_code} @ {self.dispatch_interval}: {self.quantity}MWh"
-
 class DailyPeakRE(models.Model):
     """Store daily peak instantaneous (5-minute) operational RE% calculated during SCADA fetch"""
     trading_date = models.DateField(unique=True, db_index=True)
