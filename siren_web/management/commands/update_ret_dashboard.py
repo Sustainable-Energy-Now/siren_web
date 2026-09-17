@@ -6,17 +6,18 @@ Can be run via cron job: python manage.py update_ret_dashboard
 
 from django.core.management.base import BaseCommand
 from django.utils import timezone
-from django.db.models import Sum, F, Avg, Max, Min, StdDev, Count, Q, Case, When, Value, DecimalField
+from django.db.models import Avg, Max, Min, StdDev, Count, Q
 from datetime import datetime, timedelta
 from calendar import monthrange
 import logging
 
 from siren_web.models import (
     MonthlyREPerformance, DailyPeakRE,
-    NewCapacityCommissioned, FacilityScada, facilities,
+    NewCapacityCommissioned, facilities,
     WholesalePrice
 )
 from siren_web.services.dpv_matrix import values_for_datetime_range
+from siren_web.services.facility_scada_matrix import facility_matrix_for_datetime_range
 import numpy as np
 
 logger = logging.getLogger(__name__)
@@ -109,42 +110,42 @@ class Command(BaseCommand):
         _, last_day = monthrange(year, month)
         start_datetime = timezone.make_aware(datetime(year, month, 1, 0, 0, 0))
         end_datetime = timezone.make_aware(datetime(year, month, last_day, 23, 59, 59))
-        
-        # Query SCADA data for the month
-        scada_data = FacilityScada.objects.filter(
-            dispatch_interval__gte=start_datetime,
-            dispatch_interval__lte=end_datetime
-        ).select_related('facility', 'facility__idtechnologies')
-        
-        if not scada_data.exists():
+        end_exclusive = start_datetime + timedelta(days=last_day)
+
+        # Load the month's slice of the packed SCADA matrix
+        facility_ids, matrix = facility_matrix_for_datetime_range(start_datetime, end_exclusive)
+
+        if matrix.size == 0 or np.all(np.isnan(matrix)):
             self.stdout.write(
                 self.style.ERROR(
                     f"  No SCADA data found for {month}/{year}"
                 )
             )
             return
-        
-        self.stdout.write(f"  Found {scada_data.count()} SCADA records")
-        
+
+        self.stdout.write(f"  Found {int(np.count_nonzero(~np.isnan(matrix))):,} SCADA records")
+
+        facility_meta = self._facility_meta(facility_ids)
+
         # Calculate generation by fuel type
-        generation_data = self.calculate_generation(scada_data)
-        
+        generation_data = self.calculate_generation(facility_ids, matrix, facility_meta)
+
         # Get rooftop solar from DPVGeneration
         rooftop_solar = self.get_rooftop_solar(year, month, start_datetime, end_datetime)
         generation_data['solar_rooftop'] = rooftop_solar
         self.stdout.write(f"  Rooftop solar: {rooftop_solar:.1f} GWh")
-        
+
         # Calculate total operational demand from SCADA
         operational_demand = generation_data['operational_demand']
-        
+
         # Calculate emissions using facility emission intensities
-        emissions_data = self.calculate_emissions(scada_data)
-        
+        emissions_data = self.calculate_emissions(facility_ids, matrix, facility_meta)
+
         # Get peak/minimum demand
-        peak_min_data = self.get_peak_minimum(scada_data)
-        
+        peak_min_data = self.get_peak_minimum(matrix, start_datetime)
+
         # Get best RE hour (based on operational demand, excludes rooftop solar)
-        best_re_hour = self.calculate_best_re_hour(scada_data)
+        best_re_hour = self.calculate_best_re_hour(matrix, facility_ids, facility_meta, start_datetime)
 
         # Get 5-minute peak instantaneous RE% from DailyPeakRE (calculated during SCADA fetch)
         five_min_peak = self.get_5min_peak_re(year, month)
@@ -163,7 +164,7 @@ class Command(BaseCommand):
                     f"  WARNING: peak_instantaneous ({peak_inst_pct:.1f}%) < "
                     f"best_re_hour ({best_re_hour_pct:.1f}%). Using single-interval fallback."
                 ))
-            half_hourly_peak = self.calculate_best_single_interval_re(scada_data)
+            half_hourly_peak = self.calculate_best_single_interval_re(matrix, facility_ids, facility_meta, start_datetime)
             peak_inst_pct = half_hourly_peak.get('percentage')
             peak_inst_dt = half_hourly_peak.get('datetime')
 
@@ -231,6 +232,26 @@ class Command(BaseCommand):
         
         # Update new capacity commissioned
         self.update_new_capacity(year, month)
+
+    def _facility_meta(self, facility_ids):
+        """
+        Return {facility_id: {fuel_type, technology_name, category,
+        emission_intensity, tech_emissions}} for the given facility ids,
+        fuel_type/category upper-cased -- the metadata needed to replicate
+        the old `.values('facility__idtechnologies__...')` grouping against
+        a facility-id-keyed matrix instead of a queryset.
+        """
+        meta = {}
+        for f in facilities.objects.filter(idfacilities__in=facility_ids).select_related('idtechnologies'):
+            tech = f.idtechnologies
+            meta[f.idfacilities] = {
+                'fuel_type': (tech.fuel_type or '').upper() if tech else '',
+                'technology_name': tech.technology_name or '' if tech else '',
+                'category': (tech.category or '').upper() if tech else '',
+                'emission_intensity': f.emission_intensity,
+                'tech_emissions': tech.emissions if tech else None,
+            }
+        return meta
 
     def calculate_wholesale_prices(self, year, month, start_datetime, end_datetime):
         """
@@ -323,15 +344,16 @@ class Command(BaseCommand):
         
         return result
 
-    def calculate_generation(self, scada_data):
-        """Calculate generation totals by technology fuel type from SCADA data.
+    def calculate_generation(self, facility_ids, matrix, facility_meta):
+        """Calculate generation totals by technology fuel type from the SCADA matrix.
 
-        FacilityScada.quantity is ENERGY (MWh) already, summed by
-        _aggregate_to_half_hourly() from AEMO's genuine 5-minute mWh
-        readings -- not an instantaneous MW power reading. Confirmed
-        2026-08-19 against live AEMO data (see compute_annual_demand_
-        actuals.py's module docstring for the verification). So a SUM of
-        quantity across intervals is already MWh -- no further * 0.5.
+        FacilityScada.quantity (packed into the matrix as-is) is ENERGY
+        (MWh) already, summed by _aggregate_to_half_hourly() from AEMO's
+        genuine 5-minute mWh readings -- not an instantaneous MW power
+        reading. Confirmed 2026-08-19 against live AEMO data (see
+        compute_annual_demand_actuals.py's module docstring for the
+        verification). So a per-facility SUM across intervals is already
+        MWh -- no further * 0.5.
         """
 
         generation: dict[str, float] = {
@@ -348,47 +370,25 @@ class Command(BaseCommand):
             'hydro_charge': 0,
         }
 
-        group_fields = [
-            'facility__idtechnologies__fuel_type',
-            'facility__idtechnologies__technology_name',
-            'facility__idtechnologies__category',
-        ]
-
-        # Aggregate POSITIVE quantities (generation / discharge) by fuel type
-        facility_discharge = scada_data.values(*group_fields).annotate(
-            total_mw=Sum(
-                Case(
-                    When(quantity__gt=0, then=F('quantity')),
-                    default=Value(0),
-                    output_field=DecimalField()
-                )
-            )
-        )
-
-        # Aggregate NEGATIVE quantities (charging / pumping) by fuel type
-        facility_charge = scada_data.values(*group_fields).annotate(
-            total_mw=Sum(
-                Case(
-                    When(quantity__lt=0, then=F('quantity')),
-                    default=Value(0),
-                    output_field=DecimalField()
-                )
-            )
-        )
-
         def _is_storage(fuel_type, category, tech_name):
             return category == 'STORAGE' or 'BATTERY' in tech_name.upper()
 
-        # Process positive values (generation / discharge)
-        for item in facility_discharge:
-            fuel_type = (item.get('facility__idtechnologies__fuel_type') or '').upper()
-            tech_name = item.get('facility__idtechnologies__technology_name') or ''
-            category = (item.get('facility__idtechnologies__category') or '').upper()
-            total_mw = float(item['total_mw'] or 0)
+        with np.errstate(invalid='ignore'):
+            discharge = np.where(matrix > 0, matrix, 0.0)
+            charge = np.where(matrix < 0, matrix, 0.0)
+        # Per-facility row totals (MWh) -- NaN cells already zeroed above.
+        facility_discharge_totals = np.sum(discharge, axis=1)
+        facility_charge_totals = np.sum(charge, axis=1)
+
+        for i, fid in enumerate(facility_ids):
+            meta = facility_meta.get(fid, {})
+            fuel_type = meta.get('fuel_type', '')
+            tech_name = meta.get('technology_name', '')
+            category = meta.get('category', '')
 
             # total_mw is already a sum of half-hourly MWh values -- just
             # convert to GWh, no further * 0.5.
-            gen_gwh = total_mw / 1000.0
+            gen_gwh = float(facility_discharge_totals[i]) / 1000.0
 
             if fuel_type == 'WIND':
                 generation['wind'] += gen_gwh
@@ -405,15 +405,7 @@ class Command(BaseCommand):
             elif _is_storage(fuel_type, category, tech_name):
                 generation['storage_discharge'] += gen_gwh
 
-        # Process negative values (charging / pumping)
-        for item in facility_charge:
-            fuel_type = (item.get('facility__idtechnologies__fuel_type') or '').upper()
-            tech_name = item.get('facility__idtechnologies__technology_name') or ''
-            category = (item.get('facility__idtechnologies__category') or '').upper()
-            total_mw = float(item['total_mw'] or 0)
-
-            # total_mw is already a sum of half-hourly MWh values.
-            charge_gwh = abs(total_mw) / 1000.0
+            charge_gwh = abs(float(facility_charge_totals[i])) / 1000.0
 
             if fuel_type == 'HYDRO':
                 generation['hydro_charge'] += charge_gwh
@@ -464,7 +456,7 @@ class Command(BaseCommand):
 
         return 0
 
-    def calculate_emissions(self, scada_data):
+    def calculate_emissions(self, facility_ids, matrix, facility_meta):
         """Calculate total emissions using facility emission intensities.
 
         Falls back to the related technology's emissions value when a facility
@@ -479,32 +471,28 @@ class Command(BaseCommand):
         calculate_generation()'s docstring. sum(quantity) is already MWh,
         no further * 0.5.
 
-        Note: emissions_intensity (a ratio of two quantities each summed
-        the same way) is unaffected either way; only the absolute
-        total_emissions_tonnes figure depended on getting this right.
+        Per-facility totals here give the same result as the old grouped-
+        by-intensity query: since the grouping key there WAS the intensity
+        value itself, summing per facility and applying its own intensity
+        is the same linear combination, just computed per row instead of
+        per group.
         """
 
         total_emissions_kg = 0
         total_generation_kwh = 0
 
-        # Aggregate by facility, fetching both facility and technology intensities
-        facility_totals = scada_data.values(
-            'facility__emission_intensity',
-            'facility__idtechnologies__emissions'
-        ).annotate(
-            total_mw=Sum('quantity'),
-            facility_id=F('facility')
-        )
+        facility_totals = np.nansum(matrix, axis=1)
 
-        for item in facility_totals:
-            total_mw = float(item['total_mw'] or 0)
+        for i, fid in enumerate(facility_ids):
+            total_mw = float(facility_totals[i])
 
             # total_mw is already MWh; convert to kWh.
             generation_kwh = total_mw * 1000
 
             if generation_kwh > 0:
-                facility_intensity = item.get('facility__emission_intensity')
-                tech_emissions = item.get('facility__idtechnologies__emissions')
+                meta = facility_meta.get(fid, {})
+                facility_intensity = meta.get('emission_intensity')
+                tech_emissions = meta.get('tech_emissions')
 
                 if facility_intensity is not None:
                     # t CO2-e/MWh == kg CO2-e/kWh; use value directly
@@ -531,47 +519,41 @@ class Command(BaseCommand):
             'emissions_intensity': emissions_intensity  # kg CO2-e/kWh
         }
 
-    def get_peak_minimum(self, scada_data):
+    def get_peak_minimum(self, matrix, start_utc):
         """Get peak and minimum operational demand (positive generation only, excludes charging)"""
-        from django.db.models import Case, When, Value, DecimalField
-
-        # Aggregate by dispatch_interval to get total demand per half-hour interval
-        # Only count positive values (generation) to exclude storage charging
-        hourly_demand = scada_data.values('dispatch_interval').annotate(
-            total_demand=Sum(
-                Case(
-                    When(
-                        quantity__gt=0,
-                        then=F('quantity')
-                    ),
-                    default=Value(0),
-                    output_field=DecimalField()
-                )
-            )
-        ).order_by('dispatch_interval')
-        
-        if not hourly_demand:
+        if matrix.shape[1] == 0:
             return {
                 'peak_mw': None,
                 'peak_datetime': None,
                 'min_mw': None,
                 'min_datetime': None,
             }
-        
-        # Find max and min
-        peak = max(hourly_demand, key=lambda x: x['total_demand'])
-        minimum = min(hourly_demand, key=lambda x: x['total_demand'])
 
-        # total_demand is sum of facility half-hourly ENERGY (MWh) for the
+        with np.errstate(invalid='ignore'):
+            positive = np.where(matrix > 0, matrix, 0.0)
+        totals = np.sum(positive, axis=0)  # per-interval total demand (MWh)
+
+        peak_idx = int(np.argmax(totals))
+        min_idx = int(np.argmin(totals))
+
+        # totals is sum of facility half-hourly ENERGY (MWh) for the
         # interval, not power. Average MW for the half hour = MWh / 0.5h.
         return {
-            'peak_mw': float(peak['total_demand']) * 2,
-            'peak_datetime': peak['dispatch_interval'],
-            'min_mw': float(minimum['total_demand']) * 2,
-            'min_datetime': minimum['dispatch_interval'],
+            'peak_mw': float(totals[peak_idx]) * 2,
+            'peak_datetime': start_utc + timedelta(minutes=30 * peak_idx),
+            'min_mw': float(totals[min_idx]) * 2,
+            'min_datetime': start_utc + timedelta(minutes=30 * min_idx),
         }
 
-    def calculate_best_re_hour(self, scada_data):
+    def _re_row_mask(self, facility_ids, facility_meta):
+        """Boolean mask over facility_ids: fuel_type in WIND/SOLAR/BIOMASS/HYDRO, or category=Storage (BESS)."""
+        return np.array([
+            facility_meta.get(fid, {}).get('fuel_type') in ('WIND', 'SOLAR', 'BIOMASS', 'HYDRO')
+            or facility_meta.get(fid, {}).get('category') == 'STORAGE'
+            for fid in facility_ids
+        ])
+
+    def calculate_best_re_hour(self, matrix, facility_ids, facility_meta, start_utc):
         """
         Calculate the interval with highest RE percentage based on operational demand.
 
@@ -579,132 +561,61 @@ class Command(BaseCommand):
                           / operational demand
         Excludes rooftop solar (DPV) as that's not part of operational/grid demand.
         """
-        from django.db.models import Case, When, Value, DecimalField
-
         best_re = {
             'percentage': None,
             'datetime': None
         }
 
-        # RE sources: fuel_type in WIND/SOLAR/BIOMASS/HYDRO, or category=Storage (BESS)
-        re_condition = (
-            Q(facility__idtechnologies__fuel_type__in=['WIND', 'SOLAR', 'BIOMASS', 'HYDRO']) |
-            Q(facility__idtechnologies__category__iexact='storage')
-        )
+        if matrix.shape[1] < 2:
+            return best_re
 
-        # Use conditional aggregation to calculate RE vs total for each interval
-        hourly_stats = scada_data.values('dispatch_interval').annotate(
-            # Sum of renewable generation (positive only)
-            re_generation=Sum(
-                Case(
-                    When(
-                        re_condition,
-                        quantity__gt=0,
-                        then=F('quantity')
-                    ),
-                    default=Value(0),
-                    output_field=DecimalField()
-                )
-            ),
-            # Sum of all generation (operational demand) - positive values only to exclude charging
-            total_generation=Sum(
-                Case(
-                    When(
-                        quantity__gt=0,
-                        then=F('quantity')
-                    ),
-                    default=Value(0),
-                    output_field=DecimalField()
-                )
-            )
-        ).order_by('dispatch_interval')
-
-        # Collect per-interval RE data
-        interval_data = []
-        for interval in hourly_stats:
-            re_gen = float(interval['re_generation'] or 0)
-            total_gen = float(interval['total_generation'] or 0)
-            if total_gen > 0:
-                interval_data.append({
-                    'datetime': interval['dispatch_interval'],
-                    're_gen': re_gen,
-                    'total_gen': total_gen,
-                    're_percentage': (re_gen / total_gen) * 100,
-                })
+        re_mask = self._re_row_mask(facility_ids, facility_meta)
+        with np.errstate(invalid='ignore'):
+            positive = np.where(matrix > 0, matrix, 0.0)
+        total_gen = np.sum(positive, axis=0)
+        re_gen = np.sum(positive[re_mask, :], axis=0) if re_mask.any() else np.zeros_like(total_gen)
 
         # Best Renewable Hour - average RE% over pairs of consecutive
-        # half-hourly intervals (i.e. full clock hours)
-        max_hourly = 0
-        best_hour_datetime = None
-        for i in range(len(interval_data) - 1):
-            curr = interval_data[i]
-            nxt = interval_data[i + 1]
-            # Check they are consecutive (30 min apart)
-            if hasattr(curr['datetime'], 'timestamp'):
-                delta = (nxt['datetime'] - curr['datetime']).total_seconds()
-                if delta != 1800:
-                    continue
-            hourly_re = curr['re_gen'] + nxt['re_gen']
-            hourly_total = curr['total_gen'] + nxt['total_gen']
-            if hourly_total > 0:
-                hourly_pct = (hourly_re / hourly_total) * 100
-                if hourly_pct > max_hourly:
-                    max_hourly = hourly_pct
-                    best_hour_datetime = curr['datetime']
+        # half-hourly intervals (i.e. full clock hours). Matrix columns are
+        # always exactly 30 minutes apart by construction, so every
+        # adjacent pair is a real consecutive pair (no gap check needed).
+        hourly_re = re_gen[:-1] + re_gen[1:]
+        hourly_total = total_gen[:-1] + total_gen[1:]
+        with np.errstate(invalid='ignore', divide='ignore'):
+            hourly_pct = np.where(hourly_total > 0, (hourly_re / hourly_total) * 100, -np.inf)
 
-        if best_hour_datetime:
-            best_re['percentage'] = max_hourly
-            best_re['datetime'] = best_hour_datetime
+        if np.any(hourly_total > 0):
+            best_idx = int(np.argmax(hourly_pct))
+            best_re['percentage'] = float(hourly_pct[best_idx])
+            best_re['datetime'] = start_utc + timedelta(minutes=30 * best_idx)
 
         return best_re
 
-    def calculate_best_single_interval_re(self, scada_data):
+    def calculate_best_single_interval_re(self, matrix, facility_ids, facility_meta, start_utc):
         """
         Calculate the single half-hourly interval with highest operational RE%.
 
         Used as fallback when DailyPeakRE (5-minute) data is unavailable.
         Always >= best_re_hour (which averages over paired half-hours).
         """
-        re_condition = (
-            Q(facility__idtechnologies__fuel_type__in=['WIND', 'SOLAR', 'BIOMASS', 'HYDRO']) |
-            Q(facility__idtechnologies__category__iexact='storage')
-        )
-
-        interval_stats = scada_data.values('dispatch_interval').annotate(
-            re_generation=Sum(
-                Case(
-                    When(
-                        re_condition,
-                        quantity__gt=0,
-                        then=F('quantity'),
-                    ),
-                    default=Value(0),
-                    output_field=DecimalField(),
-                )
-            ),
-            total_generation=Sum(
-                Case(
-                    When(
-                        quantity__gt=0,
-                        then=F('quantity'),
-                    ),
-                    default=Value(0),
-                    output_field=DecimalField(),
-                )
-            ),
-        )
-
         best = {'percentage': None, 'datetime': None}
-        for interval in interval_stats:
-            re_gen = float(interval['re_generation'] or 0)
-            total_gen = float(interval['total_generation'] or 0)
-            if total_gen > 0:
-                pct = (re_gen / total_gen) * 100
-                if best['percentage'] is None or pct > best['percentage']:
-                    best['percentage'] = pct
-                    best['datetime'] = interval['dispatch_interval']
 
-        if best['percentage'] is not None:
+        if matrix.shape[1] == 0:
+            return best
+
+        re_mask = self._re_row_mask(facility_ids, facility_meta)
+        with np.errstate(invalid='ignore'):
+            positive = np.where(matrix > 0, matrix, 0.0)
+        total_gen = np.sum(positive, axis=0)
+        re_gen = np.sum(positive[re_mask, :], axis=0) if re_mask.any() else np.zeros_like(total_gen)
+
+        if np.any(total_gen > 0):
+            with np.errstate(invalid='ignore', divide='ignore'):
+                pct = np.where(total_gen > 0, (re_gen / total_gen) * 100, -np.inf)
+            best_idx = int(np.argmax(pct))
+            best['percentage'] = float(pct[best_idx])
+            best['datetime'] = start_utc + timedelta(minutes=30 * best_idx)
+
             self.stdout.write(
                 f"  Best single-interval RE%: {best['percentage']:.1f}% "
                 f"at {best['datetime']}"

@@ -11,10 +11,11 @@ from django.utils import timezone
 import numpy as np
 import json
 from typing import Dict
-from datetime import datetime
+from datetime import datetime, timedelta
 from calendar import monthrange
-from siren_web.models import MonthlyREPerformance, FacilityScada, facilities
+from siren_web.models import MonthlyREPerformance, facilities, FacilityScadaMatrix
 from siren_web.services.dpv_matrix import values_for_date_range, year_array_or_none
+from siren_web.services.facility_scada_matrix import total_for_datetime_range, load_year_matrix
 
 from siren_web.models import Scenarios, DemandFactor, TargetScenario
 from powermatchui.utils.factor_based_projector import FactorBasedProjector
@@ -95,26 +96,18 @@ def get_base_year_demand(year: int, config_section: Dict = None) -> Dict[str, np
         # OPERATIONAL DEMAND - Get hourly shape from FacilityScada
         # ---------------------------------------------------------------
 
-        # Query FacilityScada for all generation facilities (grid-sent)
-        # Sum all facilities - we'll use MonthlyREPerformance total to scale
-        scada_operational = FacilityScada.objects.filter(
-            dispatch_interval__gte=start_datetime,
-            dispatch_interval__lte=end_datetime
-        ).exclude(
-            facility__idtechnologies__technology_signature='rooftop_pv'
-        ).values('dispatch_interval').annotate(
-            total_mw=Sum('quantity')
-        ).order_by('dispatch_interval')
+        # Sum all generation facilities except rooftop PV - we'll use
+        # MonthlyREPerformance total to scale
+        non_rooftop_ids = list(
+            facilities.objects.exclude(idtechnologies__technology_signature='rooftop_pv')
+            .values_list('idfacilities', flat=True)
+        )
+        end_exclusive = start_datetime + timedelta(days=last_day)
+        halfhourly = total_for_datetime_range(start_datetime, end_exclusive, facility_ids_wanted=non_rooftop_ids)
 
         # Build hourly shape array
-        # SCADA data is half-hourly; accumulate (+=) to sum both intervals per hour
-        hourly_operational_shape = np.zeros(hours_in_month)
-        for record in scada_operational:
-            dt = record['dispatch_interval']
-            # Calculate hour index within the month (0-indexed)
-            hour_in_month = (dt.day - 1) * 24 + dt.hour
-            if 0 <= hour_in_month < hours_in_month:
-                hourly_operational_shape[hour_in_month] += float(record['total_mw'])
+        # SCADA data is half-hourly; sum both intervals per hour
+        hourly_operational_shape = halfhourly.reshape(hours_in_month, 2).sum(axis=1)
 
         # Normalize shape and scale to monthly total
         if hourly_operational_shape.sum() > 0:
@@ -225,9 +218,11 @@ def validate_data_availability(year: int) -> Dict[str, bool]:
         result['underlying_total_gwh'] = float(underlying_total or 0)
 
     # Check FacilityScada data availability for hourly shape
-    scada_count = FacilityScada.objects.filter(
-        dispatch_interval__year=year
-    ).count()
+    try:
+        _, scada_matrix = load_year_matrix(year)
+        scada_count = int(np.count_nonzero(~np.isnan(scada_matrix)))
+    except FacilityScadaMatrix.DoesNotExist:
+        scada_count = 0
     result['scada_records'] = scada_count
 
     # Check DPV data availability

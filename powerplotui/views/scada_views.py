@@ -1,10 +1,10 @@
 # powerplot/views.py
 from django.db.models import Case, Count, FloatField, Sum, Q, When
-from django.db.models.functions import Coalesce
 from django.shortcuts import render
 from django.http import HttpResponse
 from siren_web.models import MonthlyREPerformance, facilities, Technologies
 from powerplotui.services.load_analyzer import LoadAnalyzer
+from siren_web.services.facility_scada_matrix import facility_monthly_totals
 from datetime import datetime, date
 import calendar
 import plotly.graph_objects as go
@@ -829,47 +829,30 @@ class FacilityManager:
         days_in_month = calendar.monthrange(year, month)[1]
         hours_in_month = days_in_month * 24
         
-        # Get all facilities with their monthly generation in ONE query
+        # Get all facilities, with their monthly SCADA totals from the
+        # packed matrix (no FK/reverse-relation exists on it, unlike the
+        # old scada_records__ annotation this replaces).
         facilities_qs = facilities.objects.filter(
             active=True
         ).select_related(
             'idtechnologies', 'idzones'
-        ).annotate(
-            # Aggregate SCADA data directly in the query
-            total_quantity=Coalesce(
-                Sum(
-                    'scada_records__quantity',
-                    filter=Q(
-                        scada_records__dispatch_interval__year=year,
-                        scada_records__dispatch_interval__month=month
-                    )
-                ),
-                0.0,
-                output_field=FloatField()
-            ),
-            record_count=Count(
-                'scada_records',
-                filter=Q(
-                    scada_records__dispatch_interval__year=year,
-                    scada_records__dispatch_interval__month=month
-                )
-            )
         )
-        
+        monthly_totals = facility_monthly_totals(year, month)  # {facility_id: (total_mwh, record_count)}
+
         # Build a mapping of technology IDs to fuel types from Technologies model
         tech_fuel_map = {
             tech.idtechnologies: tech.fuel_type.lower() if tech.fuel_type else 'unknown'
             for tech in Technologies.objects.all()
         }
-        
+
         result = []
-        
+
         for facility in facilities_qs:
             # FacilityScada.quantity is already half-hourly ENERGY (MWh),
             # not a 5-minute power reading -- confirmed 2026-08-19 against
             # live AEMO data (see compute_annual_demand_actuals.py's module
             # docstring). Summing it directly gives total MWh, no scaling.
-            total_mwh = facility.total_quantity if facility.total_quantity else 0
+            total_mwh, _ = monthly_totals.get(facility.idfacilities, (0.0, 0))
 
             # Convert MWh to GWh
             monthly_generation_gwh = total_mwh / 1000
@@ -963,45 +946,28 @@ class FacilityManager:
         days_in_month = calendar.monthrange(year, month)[1]
         hours_in_month = days_in_month * 24
         
-        # Get renewable facilities with their monthly generation in ONE query
+        # Get renewable facilities, with their monthly SCADA totals from
+        # the packed matrix.
         facilities_qs = facilities.objects.filter(
             active=True,
             idtechnologies__renewable=1
         ).select_related(
             'idtechnologies', 'idzones'
-        ).annotate(
-            total_quantity=Coalesce(
-                Sum(
-                    'scada_records__quantity',
-                    filter=Q(
-                        scada_records__dispatch_interval__year=year,
-                        scada_records__dispatch_interval__month=month
-                    )
-                ),
-                0.0,
-                output_field=FloatField()
-            ),
-            record_count=Count(
-                'scada_records',
-                filter=Q(
-                    scada_records__dispatch_interval__year=year,
-                    scada_records__dispatch_interval__month=month
-                )
-            )
         )
-        
+        monthly_totals = facility_monthly_totals(year, month)  # {facility_id: (total_mwh, record_count)}
+
         # Build a mapping of technology IDs to fuel types
         tech_fuel_map = {
             tech.idtechnologies: tech.fuel_type.lower() if tech.fuel_type else 'unknown'
             for tech in Technologies.objects.all()
         }
-        
+
         result = []
-        
+
         for facility in facilities_qs:
             # FacilityScada.quantity is already half-hourly MWh -- no
             # scaling needed (this one was already correct).
-            total_mwh = facility.total_quantity if facility.total_quantity else 0
+            total_mwh, _ = monthly_totals.get(facility.idfacilities, (0.0, 0))
 
             # Convert MWh to GWh
             monthly_generation_gwh = total_mwh / 1000

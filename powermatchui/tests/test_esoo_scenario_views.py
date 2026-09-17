@@ -31,10 +31,10 @@ from siren_web.models import (
     EsooFigure,
     EsooForecastAdjustment,
     EsooVintage,
-    FacilityScada,
     Technologies,
     facilities,
 )
+from siren_web.services.facility_scada_matrix import set_scada_values
 
 # errors = forecast(4000) - actual; mean 400, non-zero variance (see
 # powerplotui/tests/test_esoo_bias_analysis.py's ComputeMeanErrorByGroupTests
@@ -93,9 +93,10 @@ class ApplyBiasCorrectionTests(TestCase):
             poe_level=10, demand_basis='operational', value=TARGET_ENERGY_GWH, unit='GWh',
         )
 
-        # One full reference year of FacilityScada -- smooth daily cycle,
-        # magnitude is irrelevant to fit_ldc_to_anchors (only the relative
-        # shape matters; the exact anchors above set the absolute scale).
+        # One full reference year of FacilityScadaMatrix -- smooth daily
+        # cycle, magnitude is irrelevant to fit_ldc_to_anchors (only the
+        # relative shape matters; the exact anchors above set the absolute
+        # scale).
         tech = Technologies.objects.create(
             technology_name='Test Wind', technology_signature='TESTWIND', category='Wind',
         )
@@ -107,16 +108,14 @@ class ApplyBiasCorrectionTests(TestCase):
         t = np.arange(n_intervals)
         shape_mwh = 100.0 + 40.0 * np.sin(2 * np.pi * t / 48) + 15.0 * np.sin(2 * np.pi * t / (48 * 365))
         start = timezone.make_aware(datetime(REFERENCE_YEAR, 1, 1, 0, 0))
-        FacilityScada.objects.bulk_create(
-            [
-                FacilityScada(
-                    facility=facility, dispatch_interval=start + timedelta(minutes=30 * i),
-                    quantity=float(shape_mwh[i]),
-                )
-                for i in range(n_intervals)
-            ],
-            batch_size=2000,
-        )
+        set_scada_values([
+            {
+                'facility_id': facility.idfacilities,
+                'dispatch_interval': start + timedelta(minutes=30 * i),
+                'quantity': float(shape_mwh[i]),
+            }
+            for i in range(n_intervals)
+        ])
 
     def test_bias_correction_reduces_the_peak_anchor(self):
         result = build_scenario_from_esoo(

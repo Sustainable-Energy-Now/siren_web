@@ -13,6 +13,7 @@ from django.db.models import Count, Max, Q
 from django.utils import timezone
 
 from siren_web.services.dpv_matrix import latest_trading_date
+from siren_web.services.facility_scada_matrix import cell_counts_for_datetime_range, latest_dispatch_interval
 
 from siren_web.models import (
     AnnualDemandActual,
@@ -24,7 +25,6 @@ from siren_web.models import (
     EvChargingProfile,
     EvUptakePostcodeFigure,
     EvVintage,
-    FacilityScada,
     SourceDocument,
 )
 
@@ -50,18 +50,21 @@ def _age_days(value):
 # --- SCADA / DPV ---------------------------------------------------------
 
 def scada_card():
-    latest = FacilityScada.objects.aggregate(m=Max('dispatch_interval'))['m']
+    latest = latest_dispatch_interval()
     latest_date = timezone.localtime(latest).date() if latest else None
     age = _age_days(latest_date)
 
     missing_recent = None
     if latest_date:
         window_start = _dt.date.today() - _dt.timedelta(days=30)
-        present = set(
-            FacilityScada.objects
-            .filter(dispatch_interval__date__gte=window_start)
-            .dates('dispatch_interval', 'day')
-        )
+        n_days = (_dt.date.today() - window_start).days
+        start_dt = _dt.datetime.combine(window_start, _dt.time.min, tzinfo=_dt.timezone.utc)
+        end_dt = start_dt + _dt.timedelta(days=n_days)
+        counts = cell_counts_for_datetime_range(start_dt, end_dt)
+        daily_has_data = counts.reshape(n_days, 48).sum(axis=1) > 0
+        present = {
+            window_start + _dt.timedelta(days=i) for i in range(n_days) if daily_has_data[i]
+        }
         expected = {
             window_start + _dt.timedelta(days=i)
             for i in range((_dt.date.today() - window_start).days)

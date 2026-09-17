@@ -103,7 +103,7 @@ class Command(BaseCommand):
     def _handle_backfill(self, fetcher, options):
         """Backfill DailyPeakRE from existing half-hourly SCADA data"""
         from calendar import monthrange
-        from siren_web.models import FacilityScada
+        from siren_web.services.facility_scada_matrix import earliest_dispatch_interval
 
         if options['start_date'] and options['end_date']:
             start = datetime.strptime(options['start_date'], '%Y-%m-%d').date()
@@ -114,11 +114,11 @@ class Command(BaseCommand):
             _, last = monthrange(year, month)
             end = date(year, month, last)
         else:
-            earliest = FacilityScada.objects.order_by('dispatch_interval').first()
+            earliest = earliest_dispatch_interval()
             if not earliest:
                 self.stdout.write(self.style.ERROR('No SCADA data found'))
                 return
-            start = earliest.dispatch_interval.date()
+            start = earliest.date()
             end = date.today() - timedelta(days=1)
 
         self.stdout.write(f'Backfilling DailyPeakRE from {start} to {end}...')

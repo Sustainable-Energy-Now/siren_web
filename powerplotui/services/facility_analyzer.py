@@ -1,8 +1,9 @@
 # powerplot/services/facility_analyzer.py
-from django.db.models import Sum, Avg, Count, Q
-from siren_web.models import FacilityScada, Technologies, facilities
-from datetime import datetime, timedelta
-import pandas as pd
+from django.db.models import Q
+from siren_web.models import Technologies, facilities
+from siren_web.services.facility_scada_matrix import facility_trace_for_datetime_range
+from datetime import timezone as dt_timezone
+import numpy as np
 import logging
 
 logger = logging.getLogger(__name__)
@@ -23,51 +24,49 @@ class FacilityAnalyzer:
         - positive_intervals: Count of intervals generating
         - negative_intervals: Count of intervals consuming
         """
-        data = FacilityScada.objects.filter(
-            facility__facility_code=facility_code,
-            dispatch_interval__gte=start_date,
-            dispatch_interval__lt=end_date
-        ).order_by('dispatch_interval')
-        
-        if not data.exists():
+        try:
+            facility_id = facilities.objects.get(facility_code=facility_code).idfacilities
+        except facilities.DoesNotExist:
             return None
-        
-        df = pd.DataFrame(data.values('dispatch_interval', 'quantity'))
+
+        start_utc = start_date if start_date.tzinfo else start_date.replace(tzinfo=dt_timezone.utc)
+        end_utc = end_date if end_date.tzinfo else end_date.replace(tzinfo=dt_timezone.utc)
+        trace = facility_trace_for_datetime_range(start_utc, end_utc, facility_id)
+
+        present = trace[~np.isnan(trace)]
+        if present.size == 0:
+            return None
 
         # quantity is half-hourly ENERGY (MWh), confirmed 2026-08-19 against
         # live AEMO data (see compute_annual_demand_actuals.py's module
         # docstring). Average/max MW for a half-hourly interval = MWh / 0.5h.
-        df['energy_mwh'] = df['quantity']
-        df['power_mw'] = df['quantity'] * 2
-
-        # Separate positive and negative
-        positive_df = df[df['quantity'] > 0]
-        negative_df = df[df['quantity'] < 0]
-        zero_df = df[df['quantity'] == 0]
+        positive = present[present > 0]
+        negative = present[present < 0]
+        zero = present[present == 0]
 
         analysis = {
             'facility_code': facility_code,
             'start_date': start_date,
             'end_date': end_date,
-            'total_intervals': len(df),
+            'total_intervals': present.size,
 
             # Generation (positive)
-            'generation_intervals': len(positive_df),
-            'total_generation_mwh': float(positive_df['energy_mwh'].sum()) if len(positive_df) > 0 else 0,
-            'avg_generation_mw': float(positive_df['power_mw'].mean()) if len(positive_df) > 0 else 0,
-            'max_generation_mw': float(positive_df['power_mw'].max()) if len(positive_df) > 0 else 0,
+            'generation_intervals': positive.size,
+            'total_generation_mwh': float(positive.sum()) if positive.size else 0,
+            'avg_generation_mw': float((positive * 2).mean()) if positive.size else 0,
+            'max_generation_mw': float((positive * 2).max()) if positive.size else 0,
 
             # Consumption (negative)
-            'consumption_intervals': len(negative_df),
-            'total_consumption_mwh': abs(float(negative_df['energy_mwh'].sum())) if len(negative_df) > 0 else 0,
-            'avg_consumption_mw': abs(float(negative_df['power_mw'].mean())) if len(negative_df) > 0 else 0,
-            'max_consumption_mw': abs(float(negative_df['power_mw'].min())) if len(negative_df) > 0 else 0,
-            
+            'consumption_intervals': negative.size,
+            'total_consumption_mwh': abs(float(negative.sum())) if negative.size else 0,
+            'avg_consumption_mw': abs(float((negative * 2).mean())) if negative.size else 0,
+            'max_consumption_mw': abs(float((negative * 2).min())) if negative.size else 0,
+
             # Offline/Zero
-            'zero_intervals': len(zero_df),
-            
+            'zero_intervals': zero.size,
+
             # Net contribution
-            'net_energy_mwh': float(df['energy_mwh'].sum()),
+            'net_energy_mwh': float(present.sum()),
         }
         
         # Calculate percentages

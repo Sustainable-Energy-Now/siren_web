@@ -19,14 +19,17 @@ compute_annual_demand_actuals.py's module docstring -- so average MW for
 that half hour is quantity * 2). peak_re_percentage and peak_re_datetime
 are left untouched.
 """
-from django.core.management.base import BaseCommand
-from django.db.models import Case, DecimalField, F, Q, Sum, Value, When
+from datetime import timedelta
 
-from siren_web.models import DailyPeakRE, FacilityScada
+from django.core.management.base import BaseCommand
+from django.db.models import Q
+
+from siren_web.models import DailyPeakRE, facilities
+from siren_web.services.facility_scada_matrix import cell_counts_for_datetime_range, total_for_datetime_range
 
 RE_CONDITION = (
-    Q(facility__idtechnologies__fuel_type__in=['WIND', 'SOLAR', 'BIOMASS', 'HYDRO']) |
-    Q(facility__idtechnologies__category__iexact='storage')
+    Q(idtechnologies__fuel_type__in=['WIND', 'SOLAR', 'BIOMASS', 'HYDRO']) |
+    Q(idtechnologies__category__iexact='storage')
 )
 
 
@@ -47,6 +50,8 @@ class Command(BaseCommand):
         dry_run = options['dry_run']
         rows = DailyPeakRE.objects.all().order_by('trading_date')
 
+        re_facility_ids = list(facilities.objects.filter(RE_CONDITION).values_list('idfacilities', flat=True))
+
         updated = 0
         missing_interval = 0
         unchanged = 0
@@ -56,23 +61,10 @@ class Command(BaseCommand):
             half_hour_start = dt.replace(
                 minute=(dt.minute // 30) * 30, second=0, microsecond=0
             )
+            half_hour_end = half_hour_start + timedelta(minutes=30)
 
-            totals = FacilityScada.objects.filter(
-                dispatch_interval=half_hour_start,
-                quantity__gt=0,
-            ).aggregate(
-                re_mwh=Sum(
-                    Case(
-                        When(RE_CONDITION, then=F('quantity')),
-                        default=Value(0),
-                        output_field=DecimalField(),
-                    )
-                ),
-                total_mwh=Sum('quantity'),
-            )
-
-            total_mwh = totals['total_mwh']
-            if total_mwh is None:
+            present = cell_counts_for_datetime_range(half_hour_start, half_hour_end)
+            if present.size == 0 or present[0] == 0:
                 missing_interval += 1
                 self.stdout.write(
                     f"  No FacilityScada data at {half_hour_start} for "
@@ -80,9 +72,12 @@ class Command(BaseCommand):
                 )
                 continue
 
-            re_mwh = totals['re_mwh'] or 0
-            new_re_mw = float(re_mwh) * 2
-            new_total_mw = float(total_mwh) * 2
+            total_mwh = float(total_for_datetime_range(half_hour_start, half_hour_end, positive_only=True)[0])
+            re_mwh = float(total_for_datetime_range(
+                half_hour_start, half_hour_end, facility_ids_wanted=re_facility_ids, positive_only=True,
+            )[0])
+            new_re_mw = re_mwh * 2
+            new_total_mw = total_mwh * 2
 
             if (
                 abs(new_re_mw - row.re_generation_mw) < 1e-6

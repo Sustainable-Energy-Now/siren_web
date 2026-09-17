@@ -6,10 +6,15 @@ import io
 from datetime import datetime, timedelta, date
 from decimal import Decimal
 from collections import defaultdict
-from django.db import transaction, connection
+from django.db import transaction
 from django.utils import timezone
 import pytz
-from siren_web.models import FacilityScada, DailyPeakRE, facilities, Technologies
+from siren_web.models import DailyPeakRE, facilities, Technologies
+from siren_web.services.facility_scada_matrix import (
+    cell_counts_for_datetime_range,
+    set_scada_values,
+    total_for_datetime_range,
+)
 import logging
 import time
 
@@ -543,55 +548,38 @@ class AEMOScadaFetcher:
         Returns:
             dict with percentage, datetime, re_mw, total_mw or None
         """
-        from django.db.models import Sum, Case, When, Value, DecimalField, F, Q
+        import numpy as np
+        from django.db.models import Q
 
         start_dt = self.AWST.localize(datetime.combine(trading_date, datetime.min.time()))
         end_dt = start_dt + timedelta(days=1)
 
-        scada_qs = FacilityScada.objects.filter(
-            dispatch_interval__gte=start_dt,
-            dispatch_interval__lt=end_dt,
-            quantity__gt=0,
+        re_facility_ids = list(
+            facilities.objects.filter(
+                Q(idtechnologies__fuel_type__in=['WIND', 'SOLAR', 'BIOMASS', 'HYDRO']) |
+                Q(idtechnologies__category__iexact='storage')
+            ).values_list('idfacilities', flat=True)
         )
 
-        if not scada_qs.exists():
+        # total_gen/re_gen are half-hourly ENERGY (MWh) sums, not power --
+        # see compute_annual_demand_actuals.py's module docstring.
+        total_gen = total_for_datetime_range(start_dt, end_dt, positive_only=True)
+        re_gen = total_for_datetime_range(start_dt, end_dt, facility_ids_wanted=re_facility_ids, positive_only=True)
+
+        if total_gen.size == 0 or not np.any(total_gen > 0):
             return None
 
-        re_condition = (
-            Q(facility__idtechnologies__fuel_type__in=['WIND', 'SOLAR', 'BIOMASS', 'HYDRO']) |
-            Q(facility__idtechnologies__category__iexact='storage')
-        )
+        with np.errstate(invalid='ignore', divide='ignore'):
+            pct = np.where(total_gen > 0, (re_gen / total_gen) * 100, -np.inf)
+        best_idx = int(np.argmax(pct))
 
-        interval_stats = scada_qs.values('dispatch_interval').annotate(
-            re_gen=Sum(
-                Case(
-                    When(re_condition, then=F('quantity')),
-                    default=Value(0),
-                    output_field=DecimalField(),
-                )
-            ),
-            total_gen=Sum('quantity'),
-        )
-
-        best = None
-        for interval in interval_stats:
-            # total_gen/re_gen are half-hourly ENERGY (MWh) sums, not power --
-            # see compute_annual_demand_actuals.py's module docstring.
-            total_mwh = float(interval['total_gen'] or 0)
-            re_mwh = float(interval['re_gen'] or 0)
-            if total_mwh > 0:
-                # RE% is a ratio so it's unaffected by the MWh-vs-MW distinction.
-                pct = (re_mwh / total_mwh) * 100
-                if best is None or pct > best['percentage']:
-                    best = {
-                        'percentage': pct,
-                        'datetime': interval['dispatch_interval'],
-                        # Half-hourly MWh -> average MW for the half hour: * 2.
-                        're_mw': re_mwh * 2,
-                        'total_mw': total_mwh * 2,
-                    }
-
-        return best
+        return {
+            'percentage': float(pct[best_idx]),
+            'datetime': start_dt + timedelta(minutes=30 * best_idx),
+            # Half-hourly MWh -> average MW for the half hour: * 2.
+            're_mw': float(re_gen[best_idx]) * 2,
+            'total_mw': float(total_gen[best_idx]) * 2,
+        }
 
     def backfill_daily_peak_re(self, start_date, end_date):
         """
@@ -660,42 +648,15 @@ class AEMOScadaFetcher:
 
         if not hourly_records:
             return 0
-        
-        sql = """
-            INSERT INTO facility_scada 
-                (dispatch_interval, idfacilities, quantity, created_at)
-            VALUES 
-                (%s, %s, %s, NOW())
-            ON DUPLICATE KEY UPDATE
-                quantity = VALUES(quantity)
-        """
-        
-        # mysqlclient's parameter binding formats datetimes via strftime()
-        # on their wall-clock fields and ignores tzinfo entirely -- unlike
-        # the Django ORM (which converts aware datetimes to UTC before
-        # handing them to the driver when USE_TZ=True). Going through a
-        # raw cursor here bypasses that conversion, so an aware AWST
-        # dispatch_interval (e.g. 08:00+08:00) would otherwise be written
-        # as literal "08:00:00", which Django's ORM then reads back and
-        # relabels as UTC -- an 8-hour mislabelling. Convert to UTC
-        # explicitly so the stored wall-clock value matches what the ORM
-        # would have written.
-        values = [
-            (r['dispatch_interval'].astimezone(pytz.utc), r['facility_id'], r['quantity'])
-            for r in hourly_records
-        ]
-        
-        batch_size = 1000
-        total_saved = 0
-        
-        with connection.cursor() as cursor:
-            for i in range(0, len(values), batch_size):
-                batch = values[i:i + batch_size]
-                cursor.executemany(sql, batch)
-                total_saved += len(batch)
-        
-        logger.debug(f"Saved {total_saved} half-hourly records")
-        return total_saved
+
+        # set_scada_values converts dispatch_interval to true UTC itself,
+        # so any aware tzinfo on these records (AWST from the raw AEMO
+        # parse) is handled correctly without the raw-cursor workaround the
+        # old INSERT ... ON DUPLICATE KEY UPDATE needed.
+        set_scada_values(hourly_records)
+
+        logger.debug(f"Saved {len(hourly_records)} half-hourly records")
+        return len(hourly_records)
     
     def verify_data_exists(self, trading_date):
         """
@@ -711,28 +672,23 @@ class AEMOScadaFetcher:
         Returns:
             Tuple of (exists: bool, count: int)
         """
+        import numpy as np
+
         start_datetime = datetime.combine(trading_date, datetime.min.time())
         # Make timezone aware
         start_datetime = self.AWST.localize(start_datetime)
         end_datetime = start_datetime + timedelta(days=1)
 
-        # Get total count of records
-        count = FacilityScada.objects.filter(
-            dispatch_interval__gte=start_datetime,
-            dispatch_interval__lt=end_datetime
-        ).count()
+        cell_counts = cell_counts_for_datetime_range(start_datetime, end_datetime)
 
-        # Count unique half-hourly intervals
-        from django.db.models import Count
-        unique_intervals = FacilityScada.objects.filter(
-            dispatch_interval__gte=start_datetime,
-            dispatch_interval__lt=end_datetime
-        ).values('dispatch_interval').annotate(
-            interval_count=Count('dispatch_interval')
-        ).count()
+        # Total (facility, interval) cells with data -- equivalent to the
+        # old row count.
+        count = int(np.sum(cell_counts))
 
-        # Data exists if we have at least 40 unique half-hourly intervals
-        # (allowing for some missing data at day boundaries)
+        # Count of unique half-hourly intervals with at least one facility's
+        # data -- data exists if at least 40 of the day's half-hours are
+        # covered (allowing for some missing data at day boundaries).
+        unique_intervals = int(np.count_nonzero(cell_counts > 0))
         exists = unique_intervals >= 40
 
         return exists, count

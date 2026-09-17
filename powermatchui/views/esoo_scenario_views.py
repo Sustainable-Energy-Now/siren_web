@@ -35,9 +35,9 @@ import numpy as np
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.db.models import Count, Sum
-from django.db.models.functions import ExtractYear
 from django.shortcuts import redirect, render
+
+from siren_web.services.facility_scada_matrix import year_present_mask, year_totals
 
 from siren_web.models import (
     EsooFigure,
@@ -45,7 +45,7 @@ from siren_web.models import (
     EsooVintage,
     ESOO_POE_LEVEL_CHOICES,
     ESOO_SCENARIO_CHOICES,
-    FacilityScada,
+    FacilityScadaMatrix,
     Scenarios,
     ScenariosFacilities,
     ScenariosTechnologies,
@@ -238,21 +238,15 @@ def build_reference_shape():
     (FR-G1-04's optional per-forecast-year cycling) is not wired up here;
     every call uses the single most recent complete year.
     """
-    # Count DISTINCT dispatch_interval values per year, not raw
-    # FacilityScada rows -- a plain Count('scada_year') counts one row per
-    # facility per interval (~76 facilities), so even a partial year
+    # Count intervals with data (any facility) per year, not raw
+    # FacilityScada rows -- a plain per-facility row count counts one row
+    # per facility per interval (~76 facilities), so even a partial year
     # trivially clears MIN_INTERVALS_FOR_REFERENCE_YEAR on row volume
     # alone, letting an in-progress current year masquerade as complete.
-    year_counts = (
-        FacilityScada.objects
-        .annotate(scada_year=ExtractYear('dispatch_interval'))
-        .values('scada_year')
-        .annotate(n=Count('dispatch_interval', distinct=True))
-        .order_by('scada_year')
-    )
+    years = list(FacilityScadaMatrix.objects.values_list('year', flat=True).order_by('year'))
     complete_years = [
-        str(row['scada_year']) for row in year_counts
-        if row['n'] and row['n'] >= MIN_INTERVALS_FOR_REFERENCE_YEAR
+        str(year) for year in years
+        if int(np.count_nonzero(year_present_mask(year))) >= MIN_INTERVALS_FOR_REFERENCE_YEAR
     ]
     if not complete_years:
         raise ReferenceShapeError(
@@ -262,14 +256,12 @@ def build_reference_shape():
 
     reference_year = select_reference_year(complete_years, horizon_aware=False)
 
-    rows = (
-        FacilityScada.objects
-        .filter(dispatch_interval__year=int(reference_year))
-        .values('dispatch_interval')
-        .annotate(total_mwh=Sum('quantity'))
-        .order_by('dispatch_interval')
-    )
-    reference_shape = np.array([float(r['total_mwh']) * 2 for r in rows], dtype=float)
+    year_int = int(reference_year)
+    present = year_present_mask(year_int)
+    totals_mwh = year_totals(year_int, positive_only=False)  # nansum across facilities per interval
+    # Compact out intervals no facility has any data for, matching the old
+    # queryset's behaviour of only iterating dispatch_intervals that exist.
+    reference_shape = totals_mwh[present].astype(float) * 2
     if reference_shape.size == 0:
         raise ReferenceShapeError(f"No aggregated FacilityScada data found for reference year {reference_year}.")
 

@@ -1,10 +1,8 @@
 # powerplot/services/load_analyzer.py
-from django.db.models import Avg, F, Q
-from datetime import datetime
+from datetime import datetime, timezone as dt_timezone
 import numpy as np
-from siren_web.models import FacilityScada
 from siren_web.services.dpv_matrix import values_for_date_range
-from django.db.models.functions import ExtractHour, ExtractMinute
+from siren_web.services.facility_scada_matrix import facility_matrix_for_datetime_range
 import logging
 
 logger = logging.getLogger(__name__)
@@ -43,27 +41,30 @@ class LoadAnalyzer:
         Helper method to calculate diurnal profile for any date range
         Uses database-level aggregation to avoid memory issues
         """
-        # Use database aggregation instead of loading all data into pandas
-        # This groups by hour and minute, then averages across all days
-        from django.db.models import F, FloatField
-        from django.db.models.functions import Cast
-        
-        # Aggregate SCADA data by time of day
-        scada_aggregated = FacilityScada.objects.filter(
-            dispatch_interval__gte=start_date,
-            dispatch_interval__lt=end_date
-        ).annotate(
-            hour=ExtractHour('dispatch_interval'),
-            minute=ExtractMinute('dispatch_interval')
-        ).values('hour', 'minute').annotate(
-            avg_quantity=Avg('quantity')
-        ).order_by('hour', 'minute')
-        
-        # Convert to dict keyed by time_of_day
+        # Aggregate SCADA data by time of day: average every (facility, day)
+        # cell sharing the same half-hourly interval-of-day, matching the
+        # old Avg('quantity') grouped by hour/minute (NaN/missing cells are
+        # excluded from the average, like a missing row would be).
+        # start_date/end_date are naive -- Django's ORM (and this project's
+        # settings.TIME_ZONE='UTC') treats a naive datetime filtered against
+        # dispatch_interval as already being in UTC, so attach UTC tzinfo
+        # explicitly here rather than relying on Python's own (locale-
+        # dependent) naive-datetime handling.
+        start_utc = start_date.replace(tzinfo=dt_timezone.utc)
+        end_utc = end_date.replace(tzinfo=dt_timezone.utc)
+        _, scada_matrix = facility_matrix_for_datetime_range(start_utc, end_utc)
+
         operational_profile = {}
-        for item in scada_aggregated:
-            time_of_day = item['hour'] + item['minute'] / 60.0
-            operational_profile[time_of_day] = float(item['avg_quantity'] or 0)
+        if scada_matrix.size:
+            n_days = scada_matrix.shape[1] // 48
+            with np.errstate(invalid='ignore'):
+                interval_avg = np.nanmean(
+                    scada_matrix[:, :n_days * 48].reshape(scada_matrix.shape[0], n_days, 48),
+                    axis=(0, 1),
+                )
+            for i, avg_quantity in enumerate(interval_avg):
+                time_of_day = i * 0.5
+                operational_profile[time_of_day] = float(avg_quantity) if not np.isnan(avg_quantity) else 0.0
 
         # Aggregate DPV data by time of day: pull the range's half-hourly
         # values out of DPVGenerationMatrix, reshape to (days, 48), and

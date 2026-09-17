@@ -2092,31 +2092,6 @@ class FacilityWindTurbines(models.Model):
             return self.wind_turbine.hub_height
         return None
 
-class DPVGeneration(models.Model):
-    """Store AEMO DPV generation estimates"""
-    trading_date = models.DateField(db_index=True)
-    interval_number = models.IntegerField()
-    trading_interval = models.DateTimeField(db_index=True)
-    estimated_generation = models.DecimalField(
-        max_digits=10, 
-        decimal_places=4,
-        help_text="Estimated DPV Generation in MW"
-    )
-    extracted_at = models.DateTimeField()
-    created_at = models.DateTimeField(auto_now_add=True)
-    
-    class Meta:
-        db_table = 'dpv_generation'
-        unique_together = ['trading_date', 'interval_number']
-        indexes = [
-            models.Index(fields=['trading_date', 'interval_number']),
-            models.Index(fields=['trading_interval']),
-        ]
-        ordering = ['-trading_date', 'interval_number']
-    
-    def __str__(self):
-        return f"DPV {self.trading_date} #{self.interval_number}: {self.estimated_generation}MW"
-
 class DPVGenerationMatrix(models.Model):
     """
     One row holds a full year's half-hourly DPV (rooftop solar) generation
@@ -2142,6 +2117,37 @@ class DPVGenerationMatrix(models.Model):
         """Return the 1-D half-hourly array (length n_intervals)."""
         import numpy as np
         return np.frombuffer(self.data, dtype=self.dtype)
+
+class FacilityScadaMatrix(models.Model):
+    """
+    One row holds every facility's half-hourly SCADA energy trace for a
+    year as a packed array (facility x interval), replacing the old
+    row-per-(facility, interval) `facility_scada` table.
+
+    `facility_ids[i]` gives the facilities.idfacilities for row i of the
+    unpacked (n_facilities x n_intervals) matrix stored in `data`. Values
+    are half-hourly energy in MWh (same convention as the old
+    `facility_scada.quantity` field -- multiply by 2 for average MW).
+    Index j (0-based) of a row is UTC calendar day-of-year * 48 +
+    (interval_number - 1), half-hourly, midnight-based, matching how
+    `dispatch_interval` (stored as true UTC) is grouped by every existing
+    reader. Missing values are NaN.
+    """
+    year = models.PositiveIntegerField(unique=True)
+    facility_ids = models.JSONField(help_text="Ordered facility ids; row i of the matrix belongs to facility_ids[i]")
+    n_intervals = models.PositiveIntegerField(help_text="Half-hourly intervals in the year, e.g. 17520 (17568 in a leap year)")
+    dtype = models.CharField(max_length=10, default='float32')
+    data = models.BinaryField(help_text="facility_ids x n_intervals array (half-hourly MWh), row-major, packed as `dtype`")
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'facility_scada_matrix'
+
+    def unpack(self):
+        """Return (facility_ids, matrix) with matrix shape (len(facility_ids), n_intervals)."""
+        import numpy as np
+        matrix = np.frombuffer(self.data, dtype=self.dtype).reshape(len(self.facility_ids), self.n_intervals)
+        return self.facility_ids, matrix
 
 class FacilityScada(models.Model):
     """Store AEMO facility SCADA data with normalized facility reference"""

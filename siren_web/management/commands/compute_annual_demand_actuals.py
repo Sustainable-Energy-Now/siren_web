@@ -66,13 +66,14 @@ decision on how to proceed, since fixing them has much wider blast radius
 (historical MonthlyREPerformance figures, potential backfill) than this
 command's own, not-yet-depended-upon output.
 """
-from datetime import datetime
+from datetime import datetime, timedelta
 
+import numpy as np
 import pytz
 from django.core.management.base import BaseCommand
-from django.db.models import Case, DecimalField, F, Sum, Value, When
 
-from siren_web.models import AnnualDemandActual, FacilityScada
+from siren_web.models import AnnualDemandActual
+from siren_web.services.facility_scada_matrix import cell_counts_for_datetime_range, total_for_datetime_range
 
 AWST = pytz.timezone('Australia/Perth')
 
@@ -154,52 +155,36 @@ class Command(BaseCommand):
             f"({start_dt} -> {end_dt}, exclusive)..."
         )
 
-        scada_qs = FacilityScada.objects.filter(
-            dispatch_interval__gte=start_dt,
-            dispatch_interval__lt=end_dt,
-        )
-
-        if not scada_qs.exists():
-            self.stdout.write(self.style.ERROR(f"  No SCADA data found for Capacity Year {year}-{str(year + 1)[-2:]}"))
-            return
-
-        # Total positive (generation) MW per half-hourly interval -- matches
+        # Total positive (generation) MWh per half-hourly interval -- matches
         # update_ret_dashboard.py's operational-demand definition (excludes
         # storage/hydro charging, i.e. negative quantities), which in turn
         # matches the 2026 WEM ESOO's own glossary definition of
         # "Operational demand": electricity supplied from market-registered
         # energy producing systems to meet demand in the SWIS.
-        interval_totals = scada_qs.values('dispatch_interval').annotate(
-            total_demand=Sum(
-                Case(
-                    When(quantity__gt=0, then=F('quantity')),
-                    default=Value(0),
-                    output_field=DecimalField(),
-                )
-            )
-        ).order_by('dispatch_interval')
+        energy_mwh_per_interval = total_for_datetime_range(start_dt, end_dt, positive_only=True)
+        cell_counts = cell_counts_for_datetime_range(start_dt, end_dt)
+        present = cell_counts > 0
 
-        n_intervals = 0
-        energy_mw_sum = 0.0
-        peak_mw = None
-        peak_dt = None
-        min_mw = None
-        min_dt = None
+        expected_intervals = energy_mwh_per_interval.shape[0]
+        n_intervals = int(np.count_nonzero(present))
 
-        for row in interval_totals:
-            # row['total_demand'] is half-hourly ENERGY (MWh) -- see module
-            # docstring. Average power for the interval is MWh / 0.5h.
-            energy_mwh = float(row['total_demand'] or 0)
-            demand_mw = energy_mwh * 2
-            dt = row['dispatch_interval']
-            n_intervals += 1
-            energy_mw_sum += energy_mwh
-            if peak_mw is None or demand_mw > peak_mw:
-                peak_mw, peak_dt = demand_mw, dt
-            if min_mw is None or demand_mw < min_mw:
-                min_mw, min_dt = demand_mw, dt
+        if n_intervals == 0:
+            self.stdout.write(self.style.ERROR(f"  No SCADA data found for Capacity Year {year}-{str(year + 1)[-2:]}"))
+            return
 
-        expected_intervals = round((end_dt - start_dt).total_seconds() / 1800)
+        # Average power for each interval is MWh / 0.5h. Only intervals that
+        # actually have at least one facility's data count for peak/min --
+        # a genuinely missing interval must not look like a 0 MW minimum.
+        demand_mw = np.where(present, energy_mwh_per_interval * 2, np.nan)
+        peak_idx = int(np.nanargmax(demand_mw))
+        min_idx = int(np.nanargmin(demand_mw))
+        peak_mw = float(demand_mw[peak_idx])
+        min_mw = float(demand_mw[min_idx])
+        start_utc = start_dt.astimezone(pytz.utc)
+        peak_dt = start_utc + timedelta(minutes=30 * peak_idx)
+        min_dt = start_utc + timedelta(minutes=30 * min_idx)
+        energy_mw_sum = float(np.sum(energy_mwh_per_interval[present]))
+
         coverage_pct = (n_intervals / expected_intervals * 100) if expected_intervals else 0
 
         if coverage_pct < min_coverage:

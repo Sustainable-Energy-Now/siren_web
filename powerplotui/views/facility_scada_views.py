@@ -1,35 +1,20 @@
 from django.shortcuts import render
 from django.http import JsonResponse, HttpResponse
-from siren_web.models import facilities, FacilityScada, Technologies
-from django.db.models import Min, Max
+from siren_web.models import facilities, FacilityScadaMatrix, Technologies
 from datetime import datetime, timedelta
 import openpyxl
 from openpyxl.utils import get_column_letter
 
 from ..services.generation_utils import (
-    get_hour_of_year,
     get_hour_range_from_months,
     get_week_from_hour,
     get_month_from_hour,
     calculate_correlation_metrics,
     get_x_label
 )
+from ..services.time_series_aligner import TimeSeriesAligner
 
-
-def _consolidate_to_hourly(hour_data):
-    """Sum half-hourly entries into hourly totals.
-
-    SCADA data is stored at half-hourly intervals. Multiple entries may map
-    to the same hour-of-year. This function sums them so that each hour has
-    one entry with the total MWh (= average MW for the hour).
-    """
-    hourly = {}
-    for entry in hour_data:
-        h = entry['hour']
-        if h not in hourly:
-            hourly[h] = 0
-        hourly[h] += entry['quantity']
-    return [{'hour': h, 'quantity': hourly[h]} for h in sorted(hourly.keys())]
+aligner = TimeSeriesAligner()
 
 
 def scada_plot_view(request):
@@ -40,9 +25,8 @@ def scada_plot_view(request):
     # Get all technologies
     all_technologies = Technologies.objects.all().order_by('technology_name')
     
-    # Get available years from FacilityScada dispatch_interval
-    years_queryset = FacilityScada.objects.dates('dispatch_interval', 'year', order='ASC')
-    years = [dt.year for dt in years_queryset]
+    # Get available years from FacilityScadaMatrix
+    years = list(FacilityScadaMatrix.objects.order_by('year').values_list('year', flat=True))
     
     context = {
         'facilities': all_facilities,
@@ -92,31 +76,12 @@ def get_scada_data(request):
     # Get data for each facility
     facility_data = []
     for facility in selected_facilities:
-        scada_queryset = FacilityScada.objects.filter(
-            facility=facility,
-            dispatch_interval__year=year
-        ).order_by('dispatch_interval')
-        
-        if not scada_queryset.exists():
-            continue
-        
-        # Convert to hour-based data
-        hour_data = []
-        for record in scada_queryset:
-            hour = get_hour_of_year(record.dispatch_interval)
-            if start_hour and end_hour:
-                if hour < start_hour or hour > end_hour:
-                    continue
-            hour_data.append({
-                'hour': hour,
-                'quantity': float(record.quantity) if record.quantity else 0
-            })
-        
-        if not hour_data:
+        result = aligner.convert_scada_to_hourly(year, facility.idfacilities, start_hour, end_hour)
+        if not result['hours']:
             continue
 
-        # Consolidate half-hourly entries to hourly totals
-        hour_data = _consolidate_to_hourly(hour_data)
+        # Already hourly-consolidated by convert_scada_to_hourly
+        hour_data = [{'hour': h, 'quantity': q} for h, q in zip(result['hours'], result['quantity'])]
 
         # Aggregate data based on selected time period
         if aggregation == 'hour':
@@ -206,34 +171,15 @@ def get_scada_comparison_data(request):
     
     # Get aggregated data for both facility groups
     def get_facility_group_scada_data(facility_list, year, start_hour, end_hour):
-        scada_queryset = FacilityScada.objects.filter(
-            facility__in=facility_list,
-            dispatch_interval__year=year
-        ).order_by('dispatch_interval')
-        
-        if not scada_queryset.exists():
+        facility_ids = list(facility_list.values_list('idfacilities', flat=True))
+        result = aligner.convert_scada_to_hourly_aggregated(year, facility_ids, start_hour, end_hour)
+
+        if not result['hours']:
             return None
-        
-        # Aggregate by hour first
-        hour_aggregated = {}
-        for record in scada_queryset:
-            hour = get_hour_of_year(record.dispatch_interval)
-            if start_hour and end_hour:
-                if hour < start_hour or hour > end_hour:
-                    continue
-            if hour not in hour_aggregated:
-                hour_aggregated[hour] = 0
-            hour_aggregated[hour] += float(record.quantity) if record.quantity else 0
-        
-        if not hour_aggregated:
-            return None
-        
-        hours = sorted(hour_aggregated.keys())
-        quantity_by_hour = [hour_aggregated[h] for h in hours]
-        
+
         return {
-            'hours': hours,
-            'quantity_by_hour': quantity_by_hour,
+            'hours': result['hours'],
+            'quantity_by_hour': result['quantity'],
             'facility_count': facility_list.count(),
             'facilities': facility_list
         }
@@ -363,37 +309,19 @@ def get_scada_technology_data(request):
     if facility_count == 0:
         return JsonResponse({'error': 'No facilities found for selected technologies'}, status=404)
     
-    # Get SCADA data for all these facilities
-    scada_queryset = FacilityScada.objects.filter(
-        facility__in=tech_facilities,
-        dispatch_interval__year=year
-    ).order_by('dispatch_interval')
-    
-    if not scada_queryset.exists():
+    # Get SCADA data for all these facilities, aggregated across facilities
+    tech_facility_ids = list(tech_facilities.values_list('idfacilities', flat=True))
+    result = aligner.convert_scada_to_hourly_aggregated(year, tech_facility_ids, start_hour, end_hour)
+
+    if not result['hours']:
         tech_names = ', '.join(technologies.values_list('technology_name', flat=True))
         return JsonResponse({
             'error': f'No SCADA data found for {tech_names} in {year}'
         }, status=404)
-    
-    # Convert to hour-based data and aggregate across facilities
-    hour_aggregated = {}
-    for record in scada_queryset:
-        hour = get_hour_of_year(record.dispatch_interval)
-        if start_hour and end_hour:
-            if hour < start_hour or hour > end_hour:
-                continue
-        if hour not in hour_aggregated:
-            hour_aggregated[hour] = 0
-        hour_aggregated[hour] += float(record.quantity) if record.quantity else 0
-    
-    if not hour_aggregated:
-        return JsonResponse({
-            'error': 'No SCADA data found in specified hour range'
-        }, status=404)
-    
-    hours = sorted(hour_aggregated.keys())
-    quantity_by_hour = [hour_aggregated[h] for h in hours]
-    
+
+    hours = result['hours']
+    quantity_by_hour = result['quantity']
+
     hour_data = [{'hour': h, 'quantity': q} for h, q in zip(hours, quantity_by_hour)]
     
     # Aggregate based on time period
@@ -482,38 +410,19 @@ def get_scada_technology_comparison_data(request):
     # Get aggregated data for both technology groups
     def get_tech_group_scada_data(technologies, year, start_hour, end_hour):
         tech_facilities = facilities.objects.filter(idtechnologies__in=technologies)
-        
+
         if not tech_facilities.exists():
             return None
-        
-        scada_queryset = FacilityScada.objects.filter(
-            facility__in=tech_facilities,
-            dispatch_interval__year=year
-        ).order_by('dispatch_interval')
-        
-        if not scada_queryset.exists():
+
+        tech_facility_ids = list(tech_facilities.values_list('idfacilities', flat=True))
+        result = aligner.convert_scada_to_hourly_aggregated(year, tech_facility_ids, start_hour, end_hour)
+
+        if not result['hours']:
             return None
-        
-        # Aggregate by hour first
-        hour_aggregated = {}
-        for record in scada_queryset:
-            hour = get_hour_of_year(record.dispatch_interval)
-            if start_hour and end_hour:
-                if hour < start_hour or hour > end_hour:
-                    continue
-            if hour not in hour_aggregated:
-                hour_aggregated[hour] = 0
-            hour_aggregated[hour] += float(record.quantity) if record.quantity else 0
-        
-        if not hour_aggregated:
-            return None
-        
-        hours = sorted(hour_aggregated.keys())
-        quantity_by_hour = [hour_aggregated[h] for h in hours]
-        
+
         return {
-            'hours': hours,
-            'quantity_by_hour': quantity_by_hour,
+            'hours': result['hours'],
+            'quantity_by_hour': result['quantity'],
             'facility_count': tech_facilities.count(),
             'facilities': tech_facilities
         }
@@ -708,30 +617,12 @@ def export_scada_to_excel(request):
         # Build data for each facility
         all_facility_data = []
         for facility in selected_facilities:
-            scada_queryset = FacilityScada.objects.filter(
-                facility=facility,
-                dispatch_interval__year=year
-            ).order_by('dispatch_interval')
-
-            if not scada_queryset.exists():
+            result = aligner.convert_scada_to_hourly(year, facility.idfacilities, start_hour_int, end_hour_int)
+            if not result['hours']:
                 continue
 
-            hour_data = []
-            for record in scada_queryset:
-                hour = get_hour_of_year(record.dispatch_interval)
-                if start_hour_int and end_hour_int:
-                    if hour < start_hour_int or hour > end_hour_int:
-                        continue
-                hour_data.append({
-                    'hour': hour,
-                    'quantity': float(record.quantity) if record.quantity else 0
-                })
-
-            if not hour_data:
-                continue
-
-            # Consolidate half-hourly entries to hourly totals
-            hour_data = _consolidate_to_hourly(hour_data)
+            # Already hourly-consolidated by convert_scada_to_hourly
+            hour_data = [{'hour': h, 'quantity': q} for h, q in zip(result['hours'], result['quantity'])]
 
             if aggregation == 'hour':
                 data = aggregate_scada_by_hour(hour_data)
@@ -785,23 +676,11 @@ def export_scada_to_excel(request):
         facilities2 = facilities.objects.filter(idfacilities__in=facility2_ids).select_related('idtechnologies')
 
         def get_group_data(facility_list):
-            scada_queryset = FacilityScada.objects.filter(
-                facility__in=facility_list,
-                dispatch_interval__year=year
-            ).order_by('dispatch_interval')
+            facility_ids = list(facility_list.values_list('idfacilities', flat=True))
+            result = aligner.convert_scada_to_hourly_aggregated(year, facility_ids, start_hour_int, end_hour_int)
 
-            hour_aggregated = {}
-            for record in scada_queryset:
-                hour = get_hour_of_year(record.dispatch_interval)
-                if start_hour_int and end_hour_int:
-                    if hour < start_hour_int or hour > end_hour_int:
-                        continue
-                if hour not in hour_aggregated:
-                    hour_aggregated[hour] = 0
-                hour_aggregated[hour] += float(record.quantity) if record.quantity else 0
-
-            hours = sorted(hour_aggregated.keys())
-            quantity = [hour_aggregated[h] for h in hours]
+            hours = result['hours']
+            quantity = result['quantity']
             hour_data = [{'hour': h, 'quantity': q} for h, q in zip(hours, quantity)]
 
             if aggregation == 'week':
@@ -838,23 +717,11 @@ def export_scada_to_excel(request):
         technologies = Technologies.objects.filter(idtechnologies__in=technology_ids)
         tech_facilities = facilities.objects.filter(idtechnologies__in=technologies)
 
-        scada_queryset = FacilityScada.objects.filter(
-            facility__in=tech_facilities,
-            dispatch_interval__year=year
-        ).order_by('dispatch_interval')
+        tech_facility_ids = list(tech_facilities.values_list('idfacilities', flat=True))
+        result = aligner.convert_scada_to_hourly_aggregated(year, tech_facility_ids, start_hour_int, end_hour_int)
 
-        hour_aggregated = {}
-        for record in scada_queryset:
-            hour = get_hour_of_year(record.dispatch_interval)
-            if start_hour_int and end_hour_int:
-                if hour < start_hour_int or hour > end_hour_int:
-                    continue
-            if hour not in hour_aggregated:
-                hour_aggregated[hour] = 0
-            hour_aggregated[hour] += float(record.quantity) if record.quantity else 0
-
-        hours = sorted(hour_aggregated.keys())
-        quantity = [hour_aggregated[h] for h in hours]
+        hours = result['hours']
+        quantity = result['quantity']
         hour_data = [{'hour': h, 'quantity': q} for h, q in zip(hours, quantity)]
 
         if aggregation == 'week':
@@ -892,23 +759,11 @@ def export_scada_to_excel(request):
 
         def get_tech_data(technologies):
             tech_facilities = facilities.objects.filter(idtechnologies__in=technologies)
-            scada_queryset = FacilityScada.objects.filter(
-                facility__in=tech_facilities,
-                dispatch_interval__year=year
-            ).order_by('dispatch_interval')
+            tech_facility_ids = list(tech_facilities.values_list('idfacilities', flat=True))
+            result = aligner.convert_scada_to_hourly_aggregated(year, tech_facility_ids, start_hour_int, end_hour_int)
 
-            hour_aggregated = {}
-            for record in scada_queryset:
-                hour = get_hour_of_year(record.dispatch_interval)
-                if start_hour_int and end_hour_int:
-                    if hour < start_hour_int or hour > end_hour_int:
-                        continue
-                if hour not in hour_aggregated:
-                    hour_aggregated[hour] = 0
-                hour_aggregated[hour] += float(record.quantity) if record.quantity else 0
-
-            hours = sorted(hour_aggregated.keys())
-            quantity = [hour_aggregated[h] for h in hours]
+            hours = result['hours']
+            quantity = result['quantity']
             hour_data = [{'hour': h, 'quantity': q} for h, q in zip(hours, quantity)]
 
             if aggregation == 'week':

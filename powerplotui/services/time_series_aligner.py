@@ -8,114 +8,125 @@ This service provides utilities to align these different time formats
 for comparison and analysis.
 """
 
-from datetime import datetime
 from typing import Optional
 import numpy as np
 from django.db.models import QuerySet
 
-from siren_web.models import SupplyFactorMatrix
-from siren_web.services.supply_matrix import facility_row_index, facility_trace, load_year_matrix
-from .generation_utils import get_hour_of_year, get_hour_of_day, PEAK_HOUR_PRESETS
+from siren_web.models import FacilityScadaMatrix, SupplyFactorMatrix
+from siren_web.services import supply_matrix
+from siren_web.services import facility_scada_matrix
+from .generation_utils import get_hour_of_day, PEAK_HOUR_PRESETS
 
 
 class TimeSeriesAligner:
     """Aligns SCADA (5-min datetime) with SupplyFactors (year+hour) data."""
 
-    def convert_scada_to_hourly(self, scada_queryset: QuerySet, year: int,
+    def convert_scada_to_hourly(self, year: int, facility_id: int,
                                  start_hour: Optional[int] = None,
                                  end_hour: Optional[int] = None) -> dict:
-        """Convert SCADA half-hourly data to hourly totals.
+        """Convert one facility's SCADA half-hourly trace to hourly totals,
+        read from the packed per-year FacilityScadaMatrix.
 
-        SCADA has 2 records per hour (half-hourly intervals).
-        This method sums quantity values for each hour of year
-        to match SupplyFactors format. The sum of two half-hourly MWh
-        values gives hourly MWh (numerically equal to average MW).
+        SCADA has 2 records per hour (half-hourly intervals). This sums
+        each pair to hourly MWh (numerically equal to average MW) to match
+        SupplyFactors format. Hour numbering matches get_hour_of_year
+        (1-based) -- the matrix is indexed by true UTC, the same basis
+        get_hour_of_year uses for a UTC-aware `dispatch_interval` (matrix
+        half-hour index i -> hour_of_year = i // 2 + 1).
 
         Args:
-            scada_queryset: FacilityScada queryset filtered by facility and year
-            year: Year being processed (for context)
+            year: Year to fetch
+            facility_id: facilities.idfacilities to fetch
             start_hour: Optional start hour filter (1-based)
             end_hour: Optional end hour filter (1-based)
 
         Returns:
             Dict with 'hours' and 'quantity' lists
         """
-        hour_totals = {}
+        try:
+            trace = facility_scada_matrix.facility_trace(year, facility_id)
+        except FacilityScadaMatrix.DoesNotExist:
+            trace = None
 
-        for record in scada_queryset:
-            hour = get_hour_of_year(record.dispatch_interval)
+        if trace is None:
+            return {'hours': [], 'quantity': [], 'record_count': 0, 'hour_count': 0}
 
-            # Apply hour range filter if specified
-            if start_hour is not None and hour < start_hour:
+        n_hours = trace.shape[0] // 2
+        paired = trace[:n_hours * 2].reshape(n_hours, 2)
+        with np.errstate(invalid='ignore'):
+            has_data = ~np.all(np.isnan(paired), axis=1)
+            hourly = np.nansum(paired, axis=1)
+
+        hours = []
+        quantities = []
+        for h in range(n_hours):
+            if not has_data[h]:
                 continue
-            if end_hour is not None and hour > end_hour:
+            hour_of_year = h + 1
+            if start_hour is not None and hour_of_year < start_hour:
                 continue
-
-            if hour not in hour_totals:
-                hour_totals[hour] = 0
-
-            quantity = float(record.quantity) if record.quantity else 0
-            hour_totals[hour] += quantity
-
-        # Sum of half-hourly MWh = hourly MWh = average MW for the hour
-        hours = sorted(hour_totals.keys())
-        quantities = [hour_totals[h] for h in hours]
+            if end_hour is not None and hour_of_year > end_hour:
+                continue
+            hours.append(hour_of_year)
+            quantities.append(float(hourly[h]))
 
         return {
             'hours': hours,
             'quantity': quantities,
-            'record_count': sum(1 for _ in hours),
+            'record_count': len(hours),
             'hour_count': len(hours)
         }
 
-    def convert_scada_to_hourly_aggregated(self, scada_queryset: QuerySet, year: int,
+    def convert_scada_to_hourly_aggregated(self, year: int, facility_ids,
                                             start_hour: Optional[int] = None,
                                             end_hour: Optional[int] = None) -> dict:
-        """Convert SCADA half-hourly data to hourly, summing across multiple facilities.
+        """Convert SCADA half-hourly data to hourly, summing across multiple
+        facilities, read from the packed per-year FacilityScadaMatrix.
 
-        Similar to convert_scada_to_hourly but sums values across facilities.
-        For each facility, the two half-hourly MWh values per hour are summed to
-        get hourly MWh, then summed across facilities.
+        For each facility, the two half-hourly MWh values per hour are
+        summed to get hourly MWh, then summed across facilities. An hour
+        only counts if at least one selected facility has at least one of
+        its two half-hours present -- matches the original's "only hours
+        with a real row" semantics.
 
         Args:
-            scada_queryset: FacilityScada queryset (can span multiple facilities)
             year: Year being processed
+            facility_ids: Iterable of facilities.idfacilities to sum
             start_hour: Optional start hour filter
             end_hour: Optional end hour filter
 
         Returns:
             Dict with 'hours' and 'quantity' lists (summed across facilities)
         """
-        # Group by (facility, hour) and sum the half-hourly intervals
-        facility_hour_data = {}
+        try:
+            matrix_facility_ids, matrix = facility_scada_matrix.load_year_matrix(year)
+        except FacilityScadaMatrix.DoesNotExist:
+            return {'hours': [], 'quantity': [], 'hour_count': 0}
 
-        for record in scada_queryset:
-            hour = get_hour_of_year(record.dispatch_interval)
+        idx = facility_scada_matrix.facility_row_index(matrix_facility_ids)
+        rows = [idx[fid] for fid in facility_ids if fid in idx]
+        if not rows:
+            return {'hours': [], 'quantity': [], 'hour_count': 0}
 
-            if start_hour is not None and hour < start_hour:
+        selected = matrix[rows, :]
+        n_hours = selected.shape[1] // 2
+        paired = selected[:, :n_hours * 2].reshape(len(rows), n_hours, 2)
+        with np.errstate(invalid='ignore'):
+            has_data = ~np.all(np.isnan(paired), axis=(0, 2))
+            hourly = np.nansum(paired, axis=(0, 2))
+
+        hours = []
+        quantities = []
+        for h in range(n_hours):
+            if not has_data[h]:
                 continue
-            if end_hour is not None and hour > end_hour:
+            hour_of_year = h + 1
+            if start_hour is not None and hour_of_year < start_hour:
                 continue
-
-            facility_id = record.facility_id
-            key = (facility_id, hour)
-
-            if key not in facility_hour_data:
-                facility_hour_data[key] = {'total': 0}
-
-            quantity = float(record.quantity) if record.quantity else 0
-            facility_hour_data[key]['total'] += quantity
-
-        # Sum each facility's hourly total across facilities by hour
-        hour_totals = {}
-        for (facility_id, hour), data in facility_hour_data.items():
-            hourly_quantity = data['total']  # Sum of half-hourly MWh = hourly MWh
-            if hour not in hour_totals:
-                hour_totals[hour] = 0
-            hour_totals[hour] += hourly_quantity
-
-        hours = sorted(hour_totals.keys())
-        quantities = [hour_totals[h] for h in hours]
+            if end_hour is not None and hour_of_year > end_hour:
+                continue
+            hours.append(hour_of_year)
+            quantities.append(float(hourly[h]))
 
         return {
             'hours': hours,
@@ -139,7 +150,7 @@ class TimeSeriesAligner:
             Dict with 'hours' and 'quantum' lists (quantum converted from kW to MW)
         """
         try:
-            trace = facility_trace(year, facility_id)
+            trace = supply_matrix.facility_trace(year, facility_id)
         except SupplyFactorMatrix.DoesNotExist:
             trace = None
 
@@ -185,11 +196,11 @@ class TimeSeriesAligner:
             Dict with 'hours' and 'quantum' lists (summed across facilities, converted from kW to MW)
         """
         try:
-            matrix_facility_ids, matrix = load_year_matrix(year)
+            matrix_facility_ids, matrix = supply_matrix.load_year_matrix(year)
         except SupplyFactorMatrix.DoesNotExist:
             return {'hours': [], 'quantum': [], 'hour_count': 0}
 
-        idx = facility_row_index(matrix_facility_ids)
+        idx = supply_matrix.facility_row_index(matrix_facility_ids)
         rows = [idx[fid] for fid in facility_ids if fid in idx]
         if not rows:
             return {'hours': [], 'quantum': [], 'hour_count': 0}
@@ -331,23 +342,17 @@ class TimeSeriesAligner:
             'filter_retention_pct': round(filter_pct, 1)
         }
 
-    def get_comparable_years(self, scada_model) -> list[int]:
+    def get_comparable_years(self) -> list[int]:
         """Get years that have both SCADA and matrix (SupplyFactorMatrix) data.
-
-        Args:
-            scada_model: FacilityScada model class
 
         Returns:
             Sorted list of years with data in both
         """
-        scada_years = set(
-            scada_model.objects.dates('dispatch_interval', 'year', order='ASC')
-            .values_list('dispatch_interval__year', flat=True)
-        )
+        scada_years = set(FacilityScadaMatrix.objects.values_list('year', flat=True))
         supply_years = set(SupplyFactorMatrix.objects.values_list('year', flat=True))
         return sorted(scada_years & supply_years)
 
-    def get_comparable_facilities(self, facilities_model, scada_model,
+    def get_comparable_facilities(self, facilities_model,
                                    year: Optional[int] = None) -> QuerySet:
         """Get facilities that have both SCADA and matrix data.
 
@@ -357,7 +362,6 @@ class TimeSeriesAligner:
 
         Args:
             facilities_model: facilities model class
-            scada_model: FacilityScada model class
             year: Optional year to check for data availability
 
         Returns:
@@ -369,14 +373,19 @@ class TimeSeriesAligner:
             idtechnologies__dispatchable=0
         ).select_related('idtechnologies')
 
-        # Get facility IDs that have SCADA data
-        scada_filter = {'scada_records__isnull': False}
+        # Get facility IDs that appear in the SCADA matrix (a given year's
+        # row, or any year's if none specified) -- FacilityScadaMatrix has
+        # no FK/reverse relation to facilities, unlike the old
+        # `scada_records__isnull=False` reverse-FK filter this replaces, so
+        # membership is checked against facility_ids directly, the same way
+        # the SupplyFactorMatrix side already works below.
+        scada_rows = FacilityScadaMatrix.objects.only('facility_ids')
         if year:
-            scada_filter['scada_records__dispatch_interval__year'] = year
+            scada_rows = scada_rows.filter(year=year)
 
-        facilities_with_scada = set(
-            base_qs.filter(**scada_filter).values_list('idfacilities', flat=True).distinct()
-        )
+        facilities_with_scada = set()
+        for row in scada_rows:
+            facilities_with_scada.update(row.facility_ids)
 
         # Get facility IDs that appear in the matrix (a given year's row, or
         # any year's if none specified)
@@ -396,21 +405,19 @@ class TimeSeriesAligner:
         ).distinct().order_by('facility_name')
 
     def get_comparable_technologies(self, technologies_model, facilities_model,
-                                     scada_model,
                                      year: Optional[int] = None) -> QuerySet:
         """Get technologies that have facilities with both data sources.
 
         Args:
             technologies_model: Technologies model class
             facilities_model: facilities model class
-            scada_model: FacilityScada model class
             year: Optional year to check
 
         Returns:
             QuerySet of technologies with comparable facilities
         """
         comparable_facilities = self.get_comparable_facilities(
-            facilities_model, scada_model, year
+            facilities_model, year
         )
 
         tech_ids = comparable_facilities.values_list(

@@ -7,7 +7,7 @@ with simulated SupplyFactors data for facilities, facility groups, and technolog
 
 from django.shortcuts import render
 from django.http import JsonResponse, HttpResponse
-from siren_web.models import facilities, FacilityScada, Technologies
+from siren_web.models import facilities, Technologies
 import openpyxl
 from openpyxl.utils import get_column_letter
 
@@ -32,16 +32,16 @@ def generation_comparison_view(request):
     Shows only facilities and technologies that have both SCADA and SupplyFactors data.
     """
     # Get years with data in both sources
-    common_years = aligner.get_comparable_years(FacilityScada)
+    common_years = aligner.get_comparable_years()
 
     # Get facilities that have both SCADA and SupplyFactors data
     comparable_facilities = aligner.get_comparable_facilities(
-        facilities, FacilityScada
+        facilities
     )
 
     # Get technologies that have comparable facilities
     comparable_technologies = aligner.get_comparable_technologies(
-        Technologies, facilities, FacilityScada
+        Technologies, facilities
     )
 
     context = {
@@ -86,17 +86,12 @@ def get_facility_scada_vs_supply(request):
             return JsonResponse({'error': 'Invalid hour range'}, status=400)
 
     # Get SCADA data and convert to hourly
-    scada_qs = FacilityScada.objects.filter(
-        facility=facility,
-        dispatch_interval__year=year
-    ).order_by('dispatch_interval')
+    scada_hourly = aligner.convert_scada_to_hourly(year, facility.idfacilities, start_hour_int, end_hour_int)
 
-    if not scada_qs.exists():
+    if not scada_hourly['hours']:
         return JsonResponse({
             'error': f'No SCADA data found for {facility.facility_name} in {year}'
         }, status=404)
-
-    scada_hourly = aligner.convert_scada_to_hourly(scada_qs, year, start_hour_int, end_hour_int)
 
     # Get SupplyFactors data
     supply_data = aligner.get_supply_data_as_dict(year, facility.idfacilities, start_hour_int, end_hour_int)
@@ -208,19 +203,15 @@ def get_facility_group_scada_vs_supply(request):
             return JsonResponse({'error': 'Invalid hour range'}, status=400)
 
     # Get SCADA data aggregated across facilities
-    scada_qs = FacilityScada.objects.filter(
-        facility__in=selected_facilities,
-        dispatch_interval__year=year
-    ).order_by('dispatch_interval')
+    selected_facility_ids = list(selected_facilities.values_list('idfacilities', flat=True))
+    scada_hourly = aligner.convert_scada_to_hourly_aggregated(
+        year, selected_facility_ids, start_hour_int, end_hour_int
+    )
 
-    if not scada_qs.exists():
+    if not scada_hourly['hours']:
         return JsonResponse({
             'error': f'No SCADA data found for selected facilities in {year}'
         }, status=404)
-
-    scada_hourly = aligner.convert_scada_to_hourly_aggregated(
-        scada_qs, year, start_hour_int, end_hour_int
-    )
 
     # Get SupplyFactors data aggregated across facilities
     supply_data = aligner.get_supply_data_aggregated(
@@ -344,24 +335,20 @@ def get_technology_scada_vs_supply(request):
         }, status=404)
 
     # Get SCADA data aggregated across facilities
-    scada_qs = FacilityScada.objects.filter(
-        facility__in=tech_facilities,
-        dispatch_interval__year=year
-    ).order_by('dispatch_interval')
+    tech_facility_ids = list(tech_facilities.values_list('idfacilities', flat=True))
+    scada_hourly = aligner.convert_scada_to_hourly_aggregated(
+        year, tech_facility_ids, start_hour_int, end_hour_int
+    )
 
-    if not scada_qs.exists():
+    if not scada_hourly['hours']:
         tech_names = ', '.join(technologies.values_list('technology_name', flat=True))
         return JsonResponse({
             'error': f'No SCADA data found for {tech_names} in {year}'
         }, status=404)
 
-    scada_hourly = aligner.convert_scada_to_hourly_aggregated(
-        scada_qs, year, start_hour_int, end_hour_int
-    )
-
     # Get SupplyFactors data aggregated
     supply_data = aligner.get_supply_data_aggregated(
-        year, tech_facilities.values_list('idfacilities', flat=True), start_hour_int, end_hour_int
+        year, tech_facility_ids, start_hour_int, end_hour_int
     )
 
     if not supply_data['hours']:
@@ -488,21 +475,17 @@ def get_technology_group_scada_vs_supply(request):
             return None, None, "No facilities found"
 
         # SCADA
-        scada_qs = FacilityScada.objects.filter(
-            facility__in=tech_facilities,
-            dispatch_interval__year=year
-        ).order_by('dispatch_interval')
-
-        if not scada_qs.exists():
-            return None, None, "No SCADA data"
-
+        tech_facility_ids = list(tech_facilities.values_list('idfacilities', flat=True))
         scada_hourly = aligner.convert_scada_to_hourly_aggregated(
-            scada_qs, year, start_hour_int, end_hour_int
+            year, tech_facility_ids, start_hour_int, end_hour_int
         )
+
+        if not scada_hourly['hours']:
+            return None, None, "No SCADA data"
 
         # SupplyFactors
         supply_data = aligner.get_supply_data_aggregated(
-            year, tech_facilities.values_list('idfacilities', flat=True), start_hour_int, end_hour_int
+            year, tech_facility_ids, start_hour_int, end_hour_int
         )
 
         if not supply_data['hours']:
@@ -641,12 +624,7 @@ def export_generation_comparison_to_excel(request):
             return JsonResponse({'error': 'Facility not found'}, status=404)
 
         # Get SCADA data
-        scada_qs = FacilityScada.objects.filter(
-            facility=facility,
-            dispatch_interval__year=year
-        ).order_by('dispatch_interval')
-
-        scada_hourly = aligner.convert_scada_to_hourly(scada_qs, year, start_hour_int, end_hour_int)
+        scada_hourly = aligner.convert_scada_to_hourly(year, facility.idfacilities, start_hour_int, end_hour_int)
 
         # Get SupplyFactors data
         supply_data = aligner.get_supply_data_as_dict(year, facility.idfacilities, start_hour_int, end_hour_int)
@@ -721,18 +699,14 @@ def export_generation_comparison_to_excel(request):
             return JsonResponse({'error': 'No valid facilities found'}, status=404)
 
         # Get aggregated SCADA data
-        scada_qs = FacilityScada.objects.filter(
-            facility__in=selected_facilities,
-            dispatch_interval__year=year
-        ).order_by('dispatch_interval')
-
+        selected_facility_ids = list(selected_facilities.values_list('idfacilities', flat=True))
         scada_hourly = aligner.convert_scada_to_hourly_aggregated(
-            scada_qs, year, start_hour_int, end_hour_int
+            year, selected_facility_ids, start_hour_int, end_hour_int
         )
 
         # Get aggregated SupplyFactors data
         supply_data = aligner.get_supply_data_aggregated(
-            year, selected_facilities.values_list('idfacilities', flat=True), start_hour_int, end_hour_int
+            year, selected_facility_ids, start_hour_int, end_hour_int
         )
 
         # Align datasets
@@ -803,18 +777,14 @@ def export_generation_comparison_to_excel(request):
             return JsonResponse({'error': 'No facilities found for selected technologies'}, status=404)
 
         # Get aggregated SCADA data
-        scada_qs = FacilityScada.objects.filter(
-            facility__in=tech_facilities,
-            dispatch_interval__year=year
-        ).order_by('dispatch_interval')
-
+        tech_facility_ids = list(tech_facilities.values_list('idfacilities', flat=True))
         scada_hourly = aligner.convert_scada_to_hourly_aggregated(
-            scada_qs, year, start_hour_int, end_hour_int
+            year, tech_facility_ids, start_hour_int, end_hour_int
         )
 
         # Get aggregated SupplyFactors data
         supply_data = aligner.get_supply_data_aggregated(
-            year, tech_facilities.values_list('idfacilities', flat=True), start_hour_int, end_hour_int
+            year, tech_facility_ids, start_hour_int, end_hour_int
         )
 
         # Align datasets
@@ -889,17 +859,13 @@ def export_generation_comparison_to_excel(request):
             if not tech_facilities.exists():
                 return None
 
-            scada_qs = FacilityScada.objects.filter(
-                facility__in=tech_facilities,
-                dispatch_interval__year=year
-            ).order_by('dispatch_interval')
-
+            tech_facility_ids = list(tech_facilities.values_list('idfacilities', flat=True))
             scada_hourly = aligner.convert_scada_to_hourly_aggregated(
-                scada_qs, year, start_hour_int, end_hour_int
+                year, tech_facility_ids, start_hour_int, end_hour_int
             )
 
             supply_data = aligner.get_supply_data_aggregated(
-                year, tech_facilities.values_list('idfacilities', flat=True), start_hour_int, end_hour_int
+                year, tech_facility_ids, start_hour_int, end_hour_int
             )
 
             aligned = aligner.align_scada_and_supply(scada_hourly, supply_data)
