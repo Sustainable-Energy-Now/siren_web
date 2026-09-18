@@ -3817,27 +3817,6 @@ class WholesalePriceMatrix(models.Model):
         import numpy as np
         return np.frombuffer(self.data, dtype=self.dtype)
 
-class WholesalePrice(models.Model):
-    """Store AEMO Interval wholesale prices """
-    trading_date = models.DateField(db_index=True)
-    interval_number = models.IntegerField()
-    trading_interval = models.DateTimeField(db_index=True)
-    wholesale_price = models.FloatField()
-    extracted_at = models.DateTimeField()
-    created_at = models.DateTimeField(auto_now_add=True)
-    
-    class Meta:
-        db_table = 'WholesalePrice'
-        unique_together = ['trading_date', 'interval_number']
-        indexes = [
-            models.Index(fields=['trading_date', 'interval_number']),
-            models.Index(fields=['trading_interval']),
-        ]
-        ordering = ['-trading_date', 'interval_number']
-    
-    def __str__(self):
-        return f"Wolesale Price {self.trading_date} #{self.interval_number}: {self.wholesale_price}$/MW"
-
 class variations(models.Model):
     idvariations = models.AutoField(db_column='idvariations', primary_key=True)  
     idscenarios = models.ForeignKey('Scenarios', models.CASCADE, db_column='idScenarios', null=True)
