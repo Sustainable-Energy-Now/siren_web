@@ -3787,6 +3787,36 @@ class Terminals(models.Model):
             if self.decommissioning_date <= self.commissioning_date:
                 raise ValidationError("Decommissioning date must be after commissioning date")
 
+class WholesalePriceMatrix(models.Model):
+    """
+    One row holds a full year's half-hourly wholesale price series as a
+    packed float array, replacing the row-per-interval `WholesalePrice`
+    table -- same storage mechanics as DPVGenerationMatrix (no facility
+    dimension, single WA-wide series), but `trading_interval` here is
+    confirmed genuine UTC (like FacilityScada.dispatch_interval, unlike
+    the legacy DPV `trading_interval` field) -- price peaks at UTC hour
+    9-10, i.e. true AWST 17:00-18:00, the real WEM evening peak. So range
+    queries against this data should do real timezone conversion, not the
+    wall-clock-only convention `dpv_matrix.py` needs.
+
+    Index i (0-based) of the unpacked array is trading_date = 1 Jan `year`
+    (UTC) + (i // 48) days, interval_number = (i % 48) + 1 (half-hourly,
+    midnight-based, UTC). Missing intervals are NaN.
+    """
+    year = models.PositiveIntegerField(unique=True)
+    n_intervals = models.PositiveIntegerField(help_text="Half-hourly intervals in the year, e.g. 17520 (17568 in a leap year)")
+    dtype = models.CharField(max_length=10, default='float32')
+    data = models.BinaryField(help_text="n_intervals array of wholesale price ($/MWh), packed as `dtype`")
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'wholesale_price_matrix'
+
+    def unpack(self):
+        """Return the 1-D half-hourly array (length n_intervals)."""
+        import numpy as np
+        return np.frombuffer(self.data, dtype=self.dtype)
+
 class WholesalePrice(models.Model):
     """Store AEMO Interval wholesale prices """
     trading_date = models.DateField(db_index=True)

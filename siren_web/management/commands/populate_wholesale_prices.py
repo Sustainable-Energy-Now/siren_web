@@ -20,12 +20,14 @@ Usage:
 import json
 import zipfile
 import requests
+import pytz
 from io import BytesIO
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta
 from django.core.management.base import BaseCommand, CommandError
-from django.db import transaction
 from django.utils.dateparse import parse_datetime
-from siren_web.models import WholesalePrice  # Replace 'your_app' with actual app name
+from siren_web.services.wholesale_price_matrix import clear_range, set_price_values
+
+AWST = pytz.timezone('Australia/Perth')
 
 
 class Command(BaseCommand):
@@ -252,107 +254,57 @@ class Command(BaseCommand):
         
         # Parse trading day
         trading_date = datetime.strptime(trading_day, '%Y-%m-%d').date()
-        extracted_at = datetime.now(timezone.utc)
-        
-        # Prepare records for bulk insertion
+
+        # Prepare records for the matrix writer
         wholesale_prices = []
         skipped_unpublished = 0
-        
+
         for price_data in prices:
             if not price_data.get('isPublished', False):
                 skipped_unpublished += 1
                 continue  # Skip unpublished prices
-            
+
             trading_interval_str = price_data.get('tradingInterval')
             wholesale_price = price_data.get('referenceTradingPrice')
-            
+
             if not trading_interval_str or wholesale_price is None:
                 continue
-            
+
             # Parse trading interval datetime
             trading_interval = parse_datetime(trading_interval_str)
-            
+
             if not trading_interval:
                 self.stdout.write(self.style.WARNING(
                     f'Failed to parse interval: {trading_interval_str}'
                 ))
                 continue
-            
-            # Calculate interval number (assuming 30-minute intervals starting from 00:00)
-            interval_number = (trading_interval.hour * 2) + (1 if trading_interval.minute >= 30 else 0) + 1
-            
-            wholesale_prices.append(
-                WholesalePrice(
-                    trading_date=trading_date,
-                    interval_number=interval_number,
-                    trading_interval=trading_interval,
-                    wholesale_price=wholesale_price,
-                    extracted_at=extracted_at,
-                )
-            )
-        
+
+            wholesale_prices.append({
+                'trading_interval': trading_interval,
+                'wholesale_price': wholesale_price,
+            })
+
         if skipped_unpublished > 0:
             self.stdout.write(f'Skipped {skipped_unpublished} unpublished records')
-        
+
         if not wholesale_prices:
             self.stdout.write(self.style.WARNING('No valid price records to save'))
             return 0
-        
+
         # Show price statistics
-        prices_values = [p.wholesale_price for p in wholesale_prices]
+        prices_values = [p['wholesale_price'] for p in wholesale_prices]
         self.stdout.write(f'Price range: ${min(prices_values):.2f} - ${max(prices_values):.2f}/MWh')
         self.stdout.write(f'Average: ${sum(prices_values)/len(prices_values):.2f}/MWh')
-        
-        # Bulk create/update records (MariaDB/MySQL compatible)
-        with transaction.atomic():
-            if force_update:
-                # Delete existing records for this trading day
-                deleted_count = WholesalePrice.objects.filter(
-                    trading_date=trading_date
-                ).delete()[0]
-                if deleted_count > 0:
-                    self.stdout.write(f'Deleted {deleted_count} existing records')
-                
-                # Bulk create new records
-                WholesalePrice.objects.bulk_create(wholesale_prices)
-                saved_count = len(wholesale_prices)
-            else:
-                # MariaDB/MySQL compatible upsert approach
-                # Get existing records for this date
-                existing_records = {
-                    (obj.trading_date, obj.interval_number): obj
-                    for obj in WholesalePrice.objects.filter(trading_date=trading_date)
-                }
-                
-                records_to_create = []
-                records_to_update = []
-                
-                for price_obj in wholesale_prices:
-                    key = (price_obj.trading_date, price_obj.interval_number)
-                    
-                    if key in existing_records:
-                        # Update existing record
-                        existing = existing_records[key]
-                        existing.trading_interval = price_obj.trading_interval
-                        existing.wholesale_price = price_obj.wholesale_price
-                        existing.extracted_at = price_obj.extracted_at
-                        records_to_update.append(existing)
-                    else:
-                        # New record
-                        records_to_create.append(price_obj)
-                
-                # Perform bulk operations
-                if records_to_create:
-                    WholesalePrice.objects.bulk_create(records_to_create)
-                    self.stdout.write(f'Created {len(records_to_create)} new records')
-                
-                if records_to_update:
-                    WholesalePrice.objects.bulk_update(
-                        records_to_update,
-                        ['trading_interval', 'wholesale_price', 'extracted_at']
-                    )
-                    self.stdout.write(f'Updated {len(records_to_update)} existing records')
-                
-                saved_count = len(records_to_create) + len(records_to_update)
-        
+
+        if force_update:
+            # Clear the whole AWST trading day first, matching the old
+            # delete-then-recreate semantics -- handles AEMO retracting a
+            # previously-published interval on a re-fetch, which a plain
+            # patch-in-place write (below) would otherwise leave stale.
+            day_start_awst = AWST.localize(datetime.combine(trading_date, datetime.min.time()))
+            clear_range(day_start_awst, day_start_awst + timedelta(days=1))
+
+        set_price_values(wholesale_prices)
+        saved_count = len(wholesale_prices)
+
         return saved_count

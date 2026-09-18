@@ -6,7 +6,6 @@ Can be run via cron job: python manage.py update_ret_dashboard
 
 from django.core.management.base import BaseCommand
 from django.utils import timezone
-from django.db.models import Avg, Max, Min, StdDev, Count, Q
 from datetime import datetime, timedelta
 from calendar import monthrange
 import logging
@@ -14,10 +13,10 @@ import logging
 from siren_web.models import (
     MonthlyREPerformance, DailyPeakRE,
     NewCapacityCommissioned, facilities,
-    WholesalePrice
 )
 from siren_web.services.dpv_matrix import values_for_datetime_range
 from siren_web.services.facility_scada_matrix import facility_matrix_for_datetime_range
+from siren_web.services.wholesale_price_matrix import values_for_datetime_range as price_values_for_datetime_range
 import numpy as np
 
 logger = logging.getLogger(__name__)
@@ -278,55 +277,38 @@ class Command(BaseCommand):
             'spike_count': None,
         }
         
-        # Query wholesale prices for the month
-        price_data = WholesalePrice.objects.filter(
-            trading_interval__gte=start_datetime,
-            trading_interval__lte=end_datetime
-        )
-        
-        if not price_data.exists():
+        # Pull the month's half-hourly prices from the packed matrix
+        # (end_datetime is the month's last second, 23:59:59 -- compute the
+        # true exclusive end for the matrix lookup).
+        _, last_day = monthrange(year, month)
+        end_exclusive = start_datetime + timedelta(days=last_day)
+        values = price_values_for_datetime_range(start_datetime, end_exclusive)
+        present = values[~np.isnan(values)]
+
+        if present.size == 0:
             self.stdout.write(
                 self.style.WARNING(
                     f"  No wholesale price data found for {month}/{year}"
                 )
             )
             return result
-        
-        record_count = price_data.count()
+
+        record_count = present.size
         self.stdout.write(f"  Found {record_count} wholesale price records")
-        
-        # Calculate aggregate statistics using Django ORM
-        aggregates = price_data.aggregate(
-            avg_price=Avg('wholesale_price'),
-            max_price=Max('wholesale_price'),
-            min_price=Min('wholesale_price'),
-            std_dev=StdDev('wholesale_price'),
-            negative_count=Count('id', filter=Q(wholesale_price__lt=0)),
-            spike_count=Count('id', filter=Q(wholesale_price__gt=PRICE_SPIKE_THRESHOLD))
-        )
-        
-        result['avg_price'] = aggregates['avg_price']
-        result['max_price'] = aggregates['max_price']
-        result['min_price'] = aggregates['min_price']
-        result['std_dev'] = aggregates['std_dev']
-        result['negative_count'] = aggregates['negative_count']
-        result['spike_count'] = aggregates['spike_count']
-        
-        # Find the datetime for max price
-        if result['max_price'] is not None:
-            max_record = price_data.filter(
-                wholesale_price=result['max_price']
-            ).order_by('trading_interval').first()
-            if max_record:
-                result['max_datetime'] = max_record.trading_interval
-        
-        # Find the datetime for min price
-        if result['min_price'] is not None:
-            min_record = price_data.filter(
-                wholesale_price=result['min_price']
-            ).order_by('trading_interval').first()
-            if min_record:
-                result['min_datetime'] = min_record.trading_interval
+
+        # Django's StdDev() is the population standard deviation (ddof=0),
+        # matching numpy's default.
+        result['avg_price'] = float(np.mean(present))
+        result['max_price'] = float(np.max(present))
+        result['min_price'] = float(np.min(present))
+        result['std_dev'] = float(np.std(present))
+        result['negative_count'] = int(np.sum(present < 0))
+        result['spike_count'] = int(np.sum(present > PRICE_SPIKE_THRESHOLD))
+
+        # np.nanargmax/argmin return the first occurrence on ties, matching
+        # the old .order_by('trading_interval').first() tie-break.
+        result['max_datetime'] = start_datetime + timedelta(minutes=30 * int(np.nanargmax(values)))
+        result['min_datetime'] = start_datetime + timedelta(minutes=30 * int(np.nanargmin(values)))
         
         # Log summary
         self.stdout.write(
