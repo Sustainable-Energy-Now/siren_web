@@ -118,7 +118,7 @@ def technology_list(request):
     categories = [c for c in categories if c]
 
     fuel_types = [
-        ('WIND', 'Wind'), ('SOLAR', 'Solar'), ('GAS', 'Gas'),
+        ('WIND', 'Wind'), ('SOLAR', 'Solar'), ('GAS', 'Gas'), ('DISTILLATE', 'Distillate'),
         ('COAL', 'Coal'), ('HYDRO', 'Hydro'), ('BIOMASS', 'Biomass'), ('OTHER', 'Other')
     ]
 

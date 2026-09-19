@@ -13,11 +13,15 @@ from siren_web.database_operations import (
     resolve_demand_override,
     get_demand_scenario_context,
 )
-from siren_web.models import facilities, Scenarios
+from siren_web.models import facilities, Scenarios, Technologies
 from siren_web.services.supply_matrix import set_facility_trace, clear_facility_trace, facility_has_trace
 
 # Import the SAM processor
 from powermapui.views.sam_resource_processor import SAMResourceProcessor, SAMError, WeatherFileError, SimulationResults
+from powermapui.utils.representative_turbine import (
+    NoRepresentativeTurbine, resolve_wind_facility, resolve_wind_installation,
+)
+from powermapui.utils.turbine_library import TurbineLibraryError
 
 logger = logging.getLogger(__name__)
 
@@ -347,6 +351,7 @@ def process_hybrid_facility(sam_processor, facility_obj, weather_year, start_dat
     total_annual_energy = 0
     total_capacity = 0
     technologies_processed = []
+    assumed_turbines = []
 
     # Process wind installations
     wind_installations = FacilityWindTurbines.objects.filter(
@@ -356,26 +361,28 @@ def process_hybrid_facility(sam_processor, facility_obj, weather_year, start_dat
 
     for wind_install in wind_installations:
         try:
-            technology = wind_install.idtechnologies
+            technology = wind_technology_for(wind_install, facility_obj)
             if technology and technology.renewable and not technology.dispatchable:
-                fuel_type = technology.fuel_type.lower()
+                fuel_type = (technology.fuel_type or 'WIND').lower()
 
-                # Get power curve for this specific turbine
-                power_curve = {}
-                if wind_install.wind_turbine:
-                    turbine = wind_install.wind_turbine
-                    power_curve_path = sam_processor.get_power_curve_file_path(turbine.turbine_model)
-                    power_curve = sam_processor.load_power_curve(power_curve_path)
+                # The installation's own turbine curve, or -- when no turbine
+                # model is specified -- a representative turbine sized to it
+                turbine = resolve_wind_installation(wind_install)
 
                 # Process this wind installation
                 results = process_wind_installation(
-                    sam_processor, facility_obj, wind_install, power_curve, weather_year, fuel_type
+                    sam_processor, facility_obj, turbine, weather_year, fuel_type
                 )
 
                 if results:
-                    technologies_processed.append(f"Wind-{wind_install.wind_turbine.turbine_model if wind_install.wind_turbine else 'Unknown'}")
+                    technologies_processed.append(f"Wind-{turbine.name}")
                     total_annual_energy += results.annual_energy
-                    total_capacity += wind_install.total_capacity or 0
+                    if turbine.kind == 'assumed':
+                        # The farm is n copies of the scaled curve, so this is exactly the nameplate
+                        total_capacity += turbine.installation_capacity_mw
+                        assumed_turbines.append(turbine.basis)
+                    else:
+                        total_capacity += wind_install.total_capacity or turbine.installation_capacity_mw
 
                     # Combine hourly generation
                     if combined_hourly_generation is None:
@@ -423,9 +430,9 @@ def process_hybrid_facility(sam_processor, facility_obj, weather_year, start_dat
     # Fallback to legacy single-technology processing if no installations found
     if not technologies_processed and facility_obj.idtechnologies:
         technology = facility_obj.idtechnologies
-        fuel_type = technology.fuel_type.lower()
 
         if technology.renewable and not technology.dispatchable:
+            fuel_type = (technology.fuel_type or '').lower()
             results = process_renewable_facility(sam_processor, facility_obj, fuel_type, weather_year)
             if results:
                 combined_hourly_generation = list(results.hourly_generation)
@@ -434,7 +441,17 @@ def process_hybrid_facility(sam_processor, facility_obj, weather_year, start_dat
                 technologies_processed.append(technology.technology_name)
 
     if not technologies_processed:
-        logger.warning(f"No renewable technologies found for {facility_obj.facility_name}")
+        # Non-renewable and dispatchable technologies aren't simulated by SAM --
+        # Powermatch uses their nameplate capacity (x capacity factor) instead --
+        # so having nothing to process is expected, not a warning.
+        technology = facility_obj.idtechnologies
+        if technology and (not technology.renewable or technology.dispatchable):
+            logger.debug(
+                f"Skipping SAM for {facility_obj.facility_name}: "
+                f"'{technology.technology_name}' is non-renewable or dispatchable"
+            )
+        else:
+            logger.warning(f"No renewable technologies found for {facility_obj.facility_name}")
         return None
 
     # Apply date filtering if requested
@@ -459,13 +476,35 @@ def process_hybrid_facility(sam_processor, facility_obj, weather_year, start_dat
         capacity_factor=capacity_factor,
         additional_metrics={
             'technologies': technologies_processed,
-            'total_capacity_mw': total_capacity
+            'total_capacity_mw': total_capacity,
+            'assumed_turbines': assumed_turbines,
         }
     )
 
-def process_wind_installation(sam_processor, facility_obj, wind_install, power_curve, weather_year, fuel_type):
+def wind_technology_for(wind_install, facility_obj):
+    """
+    Technology of a wind installation. Installations created as "Unspecified"
+    have none, so fall back to the facility's wind technology, then to plain
+    Onshore Wind.
+    """
+    technology = wind_install.idtechnologies
+    if technology is None:
+        facility_technology = facility_obj.idtechnologies
+        if facility_technology is not None and facility_technology.category == 'Wind':
+            technology = facility_technology
+    if technology is None:
+        technology = Technologies.objects.filter(
+            category='Wind', technology_name__iexact='Onshore Wind'
+        ).first()
+    return technology
+
+def process_wind_installation(sam_processor, facility_obj, turbine, weather_year, fuel_type):
     """
     Process a specific wind installation within a facility.
+
+    Args:
+        turbine: ResolvedTurbine for the installation
+            (see powermapui.utils.representative_turbine.resolve_wind_installation)
     """
     try:
         weather_file_path = sam_processor.get_weather_file_path(
@@ -482,9 +521,9 @@ def process_wind_installation(sam_processor, facility_obj, wind_install, power_c
         # Load weather data
         weather_data = sam_processor.load_weather_data(weather_file_path)
 
-        # Process using the wind installation's specific parameters
+        # Process using the resolved turbine's curve, dimensions and count
         results = sam_processor.process_wind_facility(
-            facility_obj, weather_year, weather_data, power_curve, wind_install
+            facility_obj, weather_year, weather_data, turbine
         )
 
         return results
@@ -598,23 +637,16 @@ def process_renewable_facility(sam_processor, facility_obj, fuel_type, weather_y
         results = None
 
         if fuel_type == 'wind':
-            # Process wind facility
-            power_curve = {}
-            
-            # Get wind turbine info from related FacilityWindTurbines model
+            # Use the facility's active wind installation; with none, size a
+            # representative farm from the facility's capacity
             wind_installation = facility_obj.facilitywindturbines_set.filter(is_active=True).first()
-            
-            if wind_installation:
-                turbine = wind_installation.wind_turbine
-                power_curve_path = sam_processor.get_power_curve_file_path(
-                    turbine.turbine_model
-                )
-                power_curve = sam_processor.load_power_curve(power_curve_path)
-            
+            turbine = (resolve_wind_installation(wind_installation) if wind_installation
+                       else resolve_wind_facility(facility_obj))
+
             results = sam_processor.process_wind_facility(
-                facility_obj, weather_year, weather_data, power_curve, wind_installation
+                facility_obj, weather_year, weather_data, turbine
             )
-            
+
         elif fuel_type == 'solar':
             # Process solar facility
             results = sam_processor.process_solar_facility(
@@ -629,6 +661,10 @@ def process_renewable_facility(sam_processor, facility_obj, fuel_type, weather_y
         
     except SAMError as e:
         logger.error(f"SAM simulation failed for {facility_obj.facility_name}: {e}")
+        return None
+
+    except (NoRepresentativeTurbine, TurbineLibraryError) as e:
+        logger.error(f"No usable wind turbine for {facility_obj.facility_name}: {e}")
         return None
 
 def store_simulation_results(results, facility_obj, weather_year, start_date=None, end_date=None):

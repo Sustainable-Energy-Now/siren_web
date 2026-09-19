@@ -457,6 +457,11 @@
                           {{ inst.idwindturbines.manufacturer|default:"" }} {{ inst.idwindturbines.turbine_model }}
                         {% else %}
                           <span class="text-muted fst-italic">Unspecified</span>
+                          {% if inst.assumed_turbine %}
+                            <div class="small text-muted" title="Representative turbine chosen from the turbine library when SAM generates power for this installation">
+                              Assumed: {{ inst.assumed_turbine.basis }}
+                            </div>
+                          {% endif %}
                         {% endif %}
                       </td>
                       <td>{{ inst.no_turbines }}</td>

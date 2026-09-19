@@ -1897,9 +1897,31 @@ class WindTurbines(models.Model):
         help_text="Cut-in wind speed in m/s"
     )
     cut_out_speed = models.FloatField(
-        blank=True, 
+        blank=True,
         null=True,
         help_text="Cut-out wind speed in m/s"
+    )
+    power_curve_csv = models.CharField(
+        max_length=100,
+        blank=True,
+        null=True,
+        help_text="Slug of this turbine's curve in the CSV turbine library "
+                  "(TURBINE_LIBRARY_DIR/curves/<slug>.csv)"
+    )
+    vintage_year = models.PositiveSmallIntegerField(
+        blank=True,
+        null=True,
+        help_text="Approximate year this turbine design became available"
+    )
+    is_reference = models.BooleanField(
+        default=False,
+        help_text="Reference/representative design rather than a specific commercial model"
+    )
+    source = models.CharField(
+        max_length=100,
+        blank=True,
+        null=True,
+        help_text="Where the specification and power curve came from"
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -2033,9 +2055,17 @@ class FacilityWindTurbines(models.Model):
         default=True,
         help_text="Whether these turbines are currently active"
     )
-    
+    assumed_turbine = models.JSONField(
+        blank=True,
+        null=True,
+        editable=False,
+        help_text="Representative turbine chosen for SAM when no turbine model is "
+                  "specified (reference turbine, scaling and the inputs it was "
+                  "chosen from). Written by the simulation, never by hand."
+    )
+
     notes = models.TextField(
-        blank=True, 
+        blank=True,
         null=True,
         help_text="Additional notes about this turbine installation"
     )
@@ -3573,6 +3603,7 @@ class Technologies(models.Model):
         ('WIND', 'Wind'),
         ('SOLAR', 'Solar'),
         ('GAS', 'Gas'),
+        ('DISTILLATE', 'Distillate'),
         ('COAL', 'Coal'),
         ('HYDRO', 'Hydro'),
         ('BIOMASS', 'Biomass'),

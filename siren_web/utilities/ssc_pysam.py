@@ -3,20 +3,13 @@
 """
 PySAM-based wrapper for SAM SSC functionality
 
-This module provides a drop-in replacement for the original ctypes-based ssc.py,
-using the official NREL PySAM package instead of direct DLL calls.
-
-This approach:
-- Eliminates DLL dependency issues
-- Uses the officially supported NREL PySAM package
-- Maintains backwards compatibility with existing code
-- Provides access to the latest SAM modules and features
+Exposes the SSC-style Data / Module / API interface (flat string-keyed
+variables, `Module(b'windpower').exec_(data)`) on top of the official NREL
+PySAM package. It replaced an earlier ctypes wrapper around the SAM SDK DLLs,
+which has since been removed.
 
 Usage:
-    Replace imports from ssc.py with imports from ssc_pysam.py:
-
-    Old: from siren_web.utilities.ssc import Data, Module, API
-    New: from siren_web.utilities.ssc_pysam import Data, Module, API
+    from siren_web.utilities.ssc_pysam import Data, Module, API
 """
 
 import logging
@@ -38,7 +31,7 @@ except ImportError as e:
 
 
 class API:
-    """High-level API information class - compatible with original ssc.py"""
+    """High-level API information class"""
 
     # Constants for variable types (same as original)
     INPUT = 1
@@ -90,8 +83,8 @@ class Data:
     """
     Data container class for SAM simulations
 
-    This provides a compatible interface with the original ssc.py Data class,
-    storing values in a dictionary that can be used with PySAM modules.
+    Stores values in a dictionary keyed by SSC variable name, for use with
+    PySAM modules.
     """
 
     def __init__(self, data: Dict = None):
@@ -204,8 +197,8 @@ class Module:
     """
     SAM simulation module wrapper
 
-    Provides compatible interface with original ssc.py Module class,
-    using PySAM modules for actual simulation execution.
+    Runs the named SSC module (e.g. b'windpower') through the matching
+    PySAM module.
     """
 
     # Map of module names to PySAM classes

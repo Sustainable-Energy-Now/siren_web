@@ -11,6 +11,7 @@ class TechnologyForm(forms.ModelForm):
         ('WIND', 'Wind'),
         ('SOLAR', 'Solar'),
         ('GAS', 'Gas'),
+        ('DISTILLATE', 'Distillate'),
         ('COAL', 'Coal'),
         ('HYDRO', 'Hydro'),
         ('BIOMASS', 'Biomass'),

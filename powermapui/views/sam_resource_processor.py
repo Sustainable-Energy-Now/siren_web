@@ -10,15 +10,11 @@ import math
 from pathlib import Path
 import re
 
+from powermapui.utils.representative_turbine import ResolvedTurbine
+
 logger = logging.getLogger(__name__)
 
-# Try to import PySAM-based wrapper first, fall back to original ctypes wrapper
-try:
-    from siren_web.utilities.ssc_pysam import Entry, Data, Module, API
-    logger.info("Using PySAM-based SAM integration")
-except ImportError:
-    from siren_web.utilities.ssc import Entry, Data, Module, API
-    logger.info("Using ctypes-based SAM integration (legacy)")
+from siren_web.utilities.ssc_pysam import Data, Module, API
 
 @dataclass
 class WeatherData:
@@ -265,26 +261,6 @@ class SAMResourceProcessor:
         
         logger.info(f"SAM API Version: {self.api.version()}")
         logger.info(f"SAM Build Info: {self.api.build_info()}")
-        # self.debug_available_modules()
-        
-    def debug_available_modules(self):
-        """
-        Debug method to list all available SAM modules
-        Call this to see what modules are actually available in your SAM installation
-        """
-        from siren_web.utilities.ssc import Entry
-        
-        logger.info("=== Available SAM Modules ===")
-        entry = Entry()
-        while entry.get():
-            name = entry.name()
-            description = entry.description()
-            version = entry.version()
-            if name:
-                logger.info(f"Module: {name.decode('utf-8') if isinstance(name, bytes) else name}")
-                logger.info(f"  Description: {description.decode('utf-8') if isinstance(description, bytes) else description}")
-                logger.info(f"  Version: {version}")
-                logger.info("")
 
     def debug_solar_weather_loading(self, facility_obj, tech_name, weather_year):
         """
@@ -364,11 +340,6 @@ class SAMResourceProcessor:
             latitude, longitude, technology, weather_year
         )
         
-    def get_power_curve_file_path(self, turbine_model: str) -> Path:
-        """Generate power curve file path based on turbine model"""
-        filename = f"{turbine_model}.pow"
-        return self.power_curves_dir / filename
-    
     def load_weather_data(self, weather_file_path: Path) -> WeatherData:
         """
         Load weather data from various file formats:
@@ -394,59 +365,9 @@ class SAMResourceProcessor:
         except Exception as e:
             raise WeatherFileError(f"Error parsing weather file {weather_file_path}: {e}")    
 
-    def load_power_curve(self, pow_file_path: Path) -> Dict[float, float]:
-        """
-        Load turbine power curve from .pow files
-        
-        Args:
-            pow_file_path: Path to power curve file
-            
-        Returns:
-            Dictionary mapping wind speeds to power outputs
-        """
-        power_curve = {}
-        
-        if not pow_file_path.exists():
-            logger.warning(f"Power curve file not found: {pow_file_path}")
-            return power_curve
-            
-        try:
-            with open(pow_file_path, 'r') as f:
-                lines = f.readlines()
-                
-            # Skip header lines and parse power values
-            power_values = []
-            for line_num, line in enumerate(lines, 1):
-                line = line.strip()
-                if not line or line.startswith('#'):
-                    continue
-                    
-                # Remove quotes if present
-                line = line.strip('"')
-                
-                try:
-                    # Try to parse as a number
-                    power_value = float(line)
-                    power_values.append(power_value)
-                except ValueError:
-                    # Skip non-numeric lines (like turbine name, etc.)
-                    continue
-            
-            # Create wind speed to power mapping
-            # Assuming standard wind speeds from 0 to (number of power values - 1) m/s
-            if power_values:
-                for wind_speed, power in enumerate(power_values):
-                    power_curve[float(wind_speed)] = power                
-        except Exception as e:
-            logger.error(f"Error loading power curve {pow_file_path}: {e}")
-            return {}
-            
-        return power_curve
-    
     def process_wind_facility(self, facility, weather_year: str,
                             weather_data: WeatherData,
-                            power_curve: Dict[float, float] = None,
-                            wind_installation=None) -> SimulationResults:
+                            turbine: ResolvedTurbine) -> SimulationResults:
         """
         Process wind facility using SAM wind power module with file-based approach
 
@@ -454,8 +375,9 @@ class SAMResourceProcessor:
             facility: Facility model instance
             weather_year: Year string for weather data
             weather_data: WeatherData object containing wind resource data
-            power_curve: Optional power curve dictionary
-            wind_installation: FacilityWindTurbines instance (optional, for turbine specs)
+            turbine: ResolvedTurbine from powermapui.utils.representative_turbine
+                (power curve, rotor diameter, hub height and turbine count). The
+                farm is `turbine.no_turbines` copies of that curve.
         """
         temp_weather_file = None
         try:
@@ -478,57 +400,26 @@ class SAMResourceProcessor:
             data.set_number(b'wind_resource_turbulence_coeff', 0.1)
             data.set_number(b'wind_resource_model_choice', 0)  # Use hourly data
             
+            # REQUIRED: Turbine parameters, all from the resolved turbine
+            no_turbines = max(1, int(turbine.no_turbines))
+            rotor_diameter = float(turbine.rotor_diameter)
+            hub_height = float(turbine.hub_height)
+            logger.info(f"{facility.facility_name}: {no_turbines} x {turbine.name} "
+                        f"({turbine.rated_kw:.0f} kW, {rotor_diameter:.0f} m rotor, "
+                        f"{hub_height:.0f} m hub; {turbine.basis})")
+
             # REQUIRED: System capacity in kW
-            data.set_number(b'system_capacity', float(facility.capacity * 1000))
-            
-            # REQUIRED: Turbine parameters - use wind_installation if available
-            if wind_installation and wind_installation.wind_turbine:
-                turbine = wind_installation.wind_turbine
-                rotor_diameter = float(turbine.rotor_diameter) if turbine.rotor_diameter else 77.0
-                hub_height = float(turbine.hub_height) if turbine.hub_height else 85.0
-            else:
-                # Fallback to facility attributes (legacy) or defaults
-                rotor_diameter = 77.0
-                hub_height = float(facility.hub_height) if facility.hub_height else 85.0
-            
+            data.set_number(b'system_capacity', no_turbines * float(turbine.rated_kw))
+
             data.set_number(b'wind_turbine_rotor_diameter', rotor_diameter)
             data.set_number(b'wind_turbine_hub_ht', hub_height)
-            
+
             # REQUIRED: Power curve
-            if power_curve and len(power_curve) > 0:
-                wind_speeds = sorted(power_curve.keys())
-                power_outputs = [power_curve[ws] for ws in wind_speeds]
-                data.set_array(b'wind_turbine_powercurve_windspeeds', wind_speeds)
-                data.set_array(b'wind_turbine_powercurve_powerout', power_outputs)
-                
-                # Get cut-in speed from turbine model if available, otherwise extract from power curve
-                cutin_speed = 3.0  # default
-                if wind_installation and wind_installation.wind_turbine and wind_installation.wind_turbine.cut_in_speed:
-                    cutin_speed = float(wind_installation.wind_turbine.cut_in_speed)
-                else:
-                    # Extract from power curve (first non-zero power)
-                    for ws, power in power_curve.items():
-                        if power > 0:
-                            cutin_speed = ws
-                            break
-                data.set_number(b'wind_turbine_cutin', cutin_speed)
-            else:
-                # Use default power curve based on typical 1.87MW turbine
-                default_speeds = list(range(26))  # 0-25 m/s
-                default_powers = [0, 0, 50, 150, 300, 500, 750, 900, 1100, 1300, 1500, 1650, 1750, 1800, 1850, 1870, 1870, 1870, 1870, 1870, 1870, 1870, 1870, 1870, 1870, 0]
-                data.set_array(b'wind_turbine_powercurve_windspeeds', default_speeds)
-                data.set_array(b'wind_turbine_powercurve_powerout', default_powers)
-                data.set_number(b'wind_turbine_cutin', 3.0)
-            
-            # REQUIRED: Wind farm layout - get turbine count from wind_installation or facility
-            if wind_installation and wind_installation.no_turbines:
-                no_turbines = int(wind_installation.no_turbines)
-            elif facility.no_turbines and facility.no_turbines > 0:
-                # Fallback to facility attribute (legacy)
-                no_turbines = int(facility.no_turbines)
-            else:
-                no_turbines = 1
-            
+            data.set_array(b'wind_turbine_powercurve_windspeeds', list(turbine.wind_speeds))
+            data.set_array(b'wind_turbine_powercurve_powerout', list(turbine.power_kw))
+            cutin_speed = next((ws for ws, p in zip(turbine.wind_speeds, turbine.power_kw) if p > 0), 3.0)
+            data.set_number(b'wind_turbine_cutin', cutin_speed)
+
             # Calculate turbine coordinates in a grid (SIREN approach)
             import math
             t_rows = int(math.ceil(math.sqrt(no_turbines)))
@@ -560,7 +451,7 @@ class SAMResourceProcessor:
             
             # REQUIRED: Wind farm parameters
             data.set_number(b'wind_farm_losses_percent', 2.0)  # Default 2% losses
-            data.set_number(b'wind_farm_wake_model', 0)  # No wake model
+            data.set_number(b'wind_farm_wake_model', 0)  # 0 = SAM's "Simple" wake model (Simple, Park, EV, Constant)
             
             # REQUIRED: Adjustment factors
             data.set_number(b'adjust:constant', 0.0)  # No constant adjustment
@@ -642,74 +533,6 @@ class SAMResourceProcessor:
             
         except Exception as e:
             raise WeatherFileError(f"Error creating temporary weather file: {e}")
-
-    def _create_wind_resource_table(self, weather_data: WeatherData, facility, weather_year: str):
-        """
-        Create wind resource table in the format SAM expects
-        
-        SAM wants a table with:
-        - Numbers: lat, lon, elev, year
-        - Arrays: heights, fields (temp=1,pres=2,speed=3,dir=4)
-        - Matrix: data (nstep x Nheights)
-        """
-        # Create a new data table for wind resource
-        wind_resource_table = Data()
-        
-        # Set location and year info - ALL WITH BYTE STRINGS
-        wind_resource_table.set_number(b'lat', float(facility.latitude))
-        wind_resource_table.set_number(b'lon', float(facility.longitude))
-        wind_resource_table.set_number(b'elev', 0.0)  # Elevation - use 0 if unknown
-        wind_resource_table.set_number(b'year', int(weather_year))
-        
-        # Set measurement heights - we have data at 10m and 100m based on your file format
-        heights = [10.0, 100.0]  # Measurement heights in meters
-        wind_resource_table.set_array(b'heights', heights)
-        
-        # Set field codes: temp=1, pres=2, speed=3, dir=4
-        fields = [1, 2, 3, 4]  # Temperature, Pressure, Speed, Direction
-        wind_resource_table.set_array(b'fields', fields)
-        
-        # Create data matrix: nstep x Nheights
-        # We need to organize data as [temp_10m, pres_10m, speed_10m, dir_10m, temp_100m, pres_100m, speed_100m, dir_100m]
-        nstep = len(weather_data.wind_speed)
-        nheights = len(heights)
-        nfields = len(fields)
-        
-        # Matrix dimensions: nstep rows x (nheights * nfields) columns
-        # Each row represents one time step
-        # Columns are organized as: [field1_height1, field2_height1, field3_height1, field4_height1, field1_height2, ...]
-        
-        data_matrix = []
-        
-        for step in range(nstep):
-            row = []
-            
-            # For each height
-            for height_idx in range(nheights):
-                # For each field (temp=1, pres=2, speed=3, dir=4)
-                for field in fields:
-                    if field == 1:  # Temperature
-                        value = weather_data.temperature[step] if step < len(weather_data.temperature) else 20.0
-                    elif field == 2:  # Pressure  
-                        value = weather_data.pressure[step] if step < len(weather_data.pressure) else 1.0
-                    elif field == 3:  # Wind Speed
-                        if height_idx == 0:  # 10m height
-                            # For 10m, we might need to extrapolate from 100m or use available data
-                            value = weather_data.wind_speed[step] * 0.8  # Rough scaling from 100m to 10m
-                        else:  # 100m height
-                            value = weather_data.wind_speed[step]
-                    elif field == 4:  # Wind Direction
-                        value = weather_data.wind_direction[step] if step < len(weather_data.wind_direction) else 0.0
-                    else:
-                        value = 0.0
-                    
-                    row.append(float(value))
-            
-            data_matrix.append(row)
-        
-        # Set the data matrix - WITH BYTE STRING
-        wind_resource_table.set_matrix(b'data', data_matrix)
-        return wind_resource_table.get_data_handle()
 
     def _set_solar_weather_data(self, data: Data, weather_data: WeatherData, facility):
         """
@@ -1197,23 +1020,6 @@ class SAMResourceProcessor:
 
         return weather_data
 
-    def _set_wind_turbine_parameters(self, data: Data, facility, power_curve: Dict[float, float]):
-        """Set wind turbine parameters in SAM Data object"""
-        data.set_number(b'wind_resource_model_choice', 0)  # Use wind resource data
-        data.set_number(b'wind_turbine_hub_ht', facility.hub_height or 80)
-        data.set_number(b'system_capacity', facility.capacity or 1000)  # kW
-        
-        # Set power curve if available
-        if power_curve:
-            wind_speeds = sorted(power_curve.keys())
-            power_outputs = [power_curve[ws] for ws in wind_speeds]
-            data.set_array(b'wind_turbine_powercurve_windspeeds', wind_speeds)
-            data.set_array(b'wind_turbine_powercurve_powerout', power_outputs)
-        
-        # Set number of turbines
-        if facility.no_turbines:
-            data.set_number(b'wind_farm_wake_model', 0)  # No wake model for simplicity
-    
     def _set_solar_system_parameters(self, data: Data, facility):
         """
         Set solar system parameters for PVWatts v5 with correct parameter names
