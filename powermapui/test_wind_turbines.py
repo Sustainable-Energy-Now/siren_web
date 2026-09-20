@@ -9,17 +9,22 @@ data; integrity tests run against the real library in TURBINE_LIBRARY_DIR.
 import csv
 import math
 import tempfile
+import zipfile
 from dataclasses import replace
 from datetime import date
 from pathlib import Path
 from types import SimpleNamespace
 
+import numpy as np
 from django.conf import settings
-from django.test import SimpleTestCase, TestCase
+from django.test import SimpleTestCase, TestCase, override_settings
 
 from powermapui.utils import representative_turbine as rt
 from powermapui.utils import turbine_library as lib
-from powermapui.views.sam_resource_processor import SAMResourceProcessor, WeatherData
+from powermapui.utils import wind_profile as wp
+from powermapui.views.sam_resource_processor import (
+    SAMResourceProcessor, WeatherData, WeatherFileError, WeatherFileFinder,
+)
 
 POW_DIR = Path(settings.POWER_CURVES_DIR)
 
@@ -426,16 +431,90 @@ class SamWindWiringTests(SimpleTestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self._tmp.cleanup)
-        self.processor = SAMResourceProcessor(self._tmp.name, self._tmp.name)
+        self.processor = SAMResourceProcessor(self._tmp.name)
         self.facility = SimpleNamespace(facility_name='Synthetic', facility_code='SYNTH_TEST',
                                         latitude=-33.0, longitude=116.0)
 
-    def simulate(self, wind_speed, turbines, rated_kw=6000):
+    def simulate(self, wind_speed, turbines, rated_kw=6000, hub=None, speed_10m=None):
         n = 8760
         weather = WeatherData(wind_speed=[wind_speed] * n, wind_direction=[180.0] * n,
-                              temperature=[15.0] * n, pressure=[1.0] * n)
+                              temperature=[15.0] * n, pressure=[1.0] * n,
+                              wind_speed_10m=[speed_10m] * n if speed_10m is not None else None)
         turbine = replace(rt.select_representative_turbine(rated_kw, 2027), no_turbines=turbines)
+        if hub is not None:
+            turbine = replace(turbine, hub_height=hub)
         return self.processor.process_wind_facility(self.facility, '2025', weather, turbine)
+
+    def test_split_into_blocks(self):
+        from powermapui.views.sam_resource_processor import MAX_TURBINES_PER_SAM_RUN, split_into_blocks
+        self.assertEqual(split_into_blocks(1), [1])
+        self.assertEqual(split_into_blocks(300), [300])
+        self.assertEqual(split_into_blocks(301), [151, 150])
+        self.assertEqual(split_into_blocks(400), [200, 200])
+        self.assertEqual(split_into_blocks(900), [300, 300, 300])
+        for n in (2, 299, 302, 599, 601, 1000, 1234):
+            blocks = split_into_blocks(n)
+            self.assertEqual(sum(blocks), n)
+            self.assertLessEqual(max(blocks), MAX_TURBINES_PER_SAM_RUN)
+            self.assertLessEqual(max(blocks) - min(blocks), 1)          # as equal as possible
+
+    def test_farm_over_sams_real_300_turbine_limit_runs(self):
+        # Regression: SAM raises "the wind model is only configured to handle up to 300 turbines"
+        # (Bellwether is recorded as 400 x 7.5 MW). 301 is the smallest farm that trips it.
+        res = self.simulate(20.0, 301, rated_kw=7500)
+        self.assertEqual(len(res.hourly_generation), 8760)
+        self.assertAlmostEqual(res.hourly_generation[100] / (301 * 7500), 0.98, delta=0.01)
+        self.assertAlmostEqual(res.capacity_factor, 98.0, delta=1.0)
+        self.assertAlmostEqual(res.annual_energy, sum(res.hourly_generation), delta=res.annual_energy * 1e-6)
+
+    def test_blocks_are_independent_equal_farms(self):
+        # With the limit lowered to 15, 45 turbines run as three blocks of 15, so the farm is
+        # exactly three times a 15-turbine farm (no wake interaction between blocks).
+        from unittest import mock
+        from powermapui.views import sam_resource_processor as sam
+        single = self.simulate(8.0, 15)
+        with mock.patch.object(sam, 'MAX_TURBINES_PER_SAM_RUN', 15):
+            farm = self.simulate(8.0, 45)
+        self.assertAlmostEqual(sum(farm.hourly_generation) / sum(single.hourly_generation), 3.0, places=9)
+        self.assertAlmostEqual(farm.annual_energy / single.annual_energy, 3.0, places=9)
+        self.assertAlmostEqual(farm.capacity_factor, single.capacity_factor, places=9)
+
+    def test_10m_series_drives_the_hub_height_correction(self):
+        v100, v10 = 7.0, 7.0 / 1.5            # a 100 m / 10 m ratio of 1.5
+        with_profile = sum(self.simulate(v100, 1, hub=42, speed_10m=v10).hourly_generation)
+        fixed_shear = sum(self.simulate(v100, 1, hub=42).hourly_generation)
+        # the profile gives (u + ln 4.2) / (u + ln 10) = 0.874 of the 100 m speed at 42 m,
+        # a little less than the fixed exponent's 0.42 ** 0.14 = 0.886
+        factor = wp.hub_height_speeds([v100], [v10], 42)[0][0] / v100
+        self.assertAlmostEqual(factor, 0.8742, places=3)
+        self.assertLess(with_profile, fixed_shear)
+        # ... and equals a 100 m hub in that reduced wind exactly
+        reduced = sum(self.simulate(v100 * factor, 1, hub=100).hourly_generation)
+        self.assertAlmostEqual(with_profile / reduced, 1.0, delta=1e-9)
+
+    def test_a_100m_hub_ignores_the_10m_series(self):
+        with_profile = sum(self.simulate(7.0, 1, hub=100, speed_10m=4.0).hourly_generation)
+        without = sum(self.simulate(7.0, 1, hub=100).hourly_generation)
+        self.assertAlmostEqual(with_profile / without, 1.0, delta=1e-12)
+
+    def test_hub_heights_outside_sams_35m_window_still_run(self):
+        # Regression: SAM refuses a hub more than 35 m from the 100 m resource ("closest wind
+        # speed measurement height (100 m) found is more than 35 m from the hub height"), so
+        # 42 m Enercon E40s and 140 m assumed turbines failed outright.
+        for hub in (30, 42, 55, 64, 66, 134, 136, 140, 175):
+            with self.subTest(hub=hub):
+                res = self.simulate(8.0, 2, hub=hub)
+                self.assertGreater(sum(res.hourly_generation), 0)
+
+    def test_hub_height_correction_is_the_power_law_and_monotonic(self):
+        energy = {h: sum(self.simulate(7.0, 1, hub=h).hourly_generation) for h in (42, 80, 100, 140)}
+        self.assertLess(energy[42], energy[80])
+        self.assertLess(energy[80], energy[100])
+        self.assertLess(energy[100], energy[140])
+        # a 42 m hub sees the 100 m wind reduced by (42/100)^0.14, so it must match
+        # a 100 m hub in that reduced wind exactly
+        reduced = sum(self.simulate(7.0 * (42 / 100) ** 0.14, 1, hub=100).hourly_generation)
+        self.assertAlmostEqual(energy[42] / reduced, 1.0, delta=1e-6)
 
     def test_farm_at_rated_wind_produces_the_nameplate(self):
         for n in (1, 25):
@@ -460,3 +539,160 @@ class SamWindWiringTests(SimpleTestCase):
         small = sum(self.simulate(8.0, 10, rated_kw=5000).hourly_generation)
         large = sum(self.simulate(8.0, 10, rated_kw=7500).hourly_generation)
         self.assertGreater(large / small, 1.3)
+
+
+class WindProfileTests(SimpleTestCase):
+    """The per-hour profile through the 10 m and 100 m speeds."""
+
+    def test_passes_through_both_measured_heights(self):
+        v10 = [3.0, 4.0, 5.0]
+        v100 = [4.5, 6.4, 8.0]                                    # ratios 1.5, 1.6, 1.6: unclipped
+        self.assertTrue(np.allclose(wp.hub_height_speeds(v100, v10, 100)[0], v100))
+        self.assertTrue(np.allclose(wp.hub_height_speeds(v100, v10, 10)[0], v10))
+
+    def test_known_value(self):
+        # r = 1.5: u = ln(10) / 0.5, factor(42 m) = (u + ln 4.2) / (u + ln 10)
+        u = math.log(10) / 0.5
+        expected = (u + math.log(4.2)) / (u + math.log(10))
+        speeds, method = wp.hub_height_speeds([6.0], [4.0], 42)
+        self.assertEqual(method, 'profile')
+        self.assertAlmostEqual(speeds[0], 6.0 * expected, places=12)
+
+    def test_speed_rises_with_height_and_extrapolates_above_100_m(self):
+        heights = (20, 42, 80, 100, 120, 140, 175)
+        speeds = [wp.hub_height_speeds([7.0], [4.5], h)[0][0] for h in heights]
+        self.assertEqual(speeds, sorted(speeds))
+        self.assertGreater(speeds[-1], 7.0)
+        self.assertLess(speeds[0], 7.0)
+
+    def test_shear_varies_hour_by_hour(self):
+        # same 100 m speed; the more strongly sheared hour (lower 10 m speed) is slower at 60 m
+        speeds, _ = wp.hub_height_speeds([8.0, 8.0], [6.0, 3.0], 60)
+        self.assertGreater(speeds[0], speeds[1])
+
+    def test_falls_back_to_the_fixed_exponent_without_a_10m_series(self):
+        for low in (None, [1.0, 2.0]):                            # missing / wrong length
+            speeds, method = wp.hub_height_speeds([6.0, 8.0, 7.0], low, 42)
+            self.assertEqual(method, 'fixed shear')
+            self.assertTrue(np.allclose(speeds, np.array([6.0, 8.0, 7.0]) * 0.42 ** 0.14))
+
+    def test_odd_hours_stay_finite_and_bounded(self):
+        # 10 m faster than 100 m (no shear), calm at 10 m, and calm at 100 m
+        speeds, _ = wp.hub_height_speeds([5.0, 5.0, 0.0, 0.0], [8.0, 0.0, 3.0, 0.0], 42)
+        self.assertTrue(np.all(np.isfinite(speeds)))
+        self.assertAlmostEqual(speeds[0], 5.0, delta=0.05)        # ratio clipped to ~1: almost no shear
+        self.assertLess(speeds[1], 5.0)                           # ratio clipped at the maximum
+        self.assertEqual(list(speeds[2:]), [0.0, 0.0])
+
+    def test_hub_below_10_m_is_clamped(self):
+        speeds, _ = wp.hub_height_speeds([6.0], [4.0], 3)
+        self.assertAlmostEqual(speeds[0], 4.0)
+
+
+class WeatherFileParsingTests(SimpleTestCase):
+    """The two current wind formats, and a layout the parser must refuse."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.dir = Path(self._tmp.name)
+        self.processor = SAMResourceProcessor(str(self.dir))
+
+    def write_srz(self, name, header_lines, rows):
+        path = self.dir / name
+        with zipfile.ZipFile(path, 'w') as z:
+            z.writestr(name.replace('.srz', '.srw'), "\n".join(header_lines + rows) + "\n")
+        return path
+
+    def test_era5_csv_keeps_the_10m_series(self):
+        path = self.dir / 'wind_-30.0000_115.0000_2025.csv'
+        path.write_text(
+            "SiteID,Grid_-30.00_115.00,Site Timezone,8,Data Timezone,8,Longitude,115.0000,Latitude,-30.0000,Elevation,0\n"
+            "Temperature,Pressure,Speed,Direction,Speed,Direction\n"
+            + "".join(f"20.0,0.99,{v10},180,{v100},181\n"
+                      for v10, v100 in ((4.0, 6.0), (5.0, 7.5), (3.0, 4.5), (2.0, 3.0))))
+        w = self.processor.load_weather_data(path)
+        self.assertEqual(w.wind_speed, [6.0, 7.5, 4.5, 3.0])
+        self.assertEqual(w.wind_speed_10m, [4.0, 5.0, 3.0, 2.0])
+
+    def test_era5_srz_uses_columns_named_in_its_header(self):
+        path = self.write_srz('wind_weather_-27.7500_114.0000_2024.srz', [
+            'id,<city>,<state>,<country>,2024,-27.75,114.0,0,1,8760',
+            'Wind data derived from ERA5 reanalysis-era5-single-levels',
+            'Temperature,Pressure,Direction,Speed,Direction,Speed',
+            'C,atm,degrees,m/s,degrees,m/s',
+            '2,0,10,10,100,100',
+        ], ['22.5,0.999737,175,10.1303,174,11.4909', '22.6,0.999268,173,10.1031,172,11.5114'])
+        w = self.processor.load_weather_data(path)
+        self.assertEqual(w.wind_speed, [11.4909, 11.5114])        # the 100 m speed, not the 10 m
+        self.assertEqual(w.wind_speed_10m, [10.1303, 10.1031])
+        self.assertEqual(w.wind_direction, [174.0, 172.0])
+        self.assertEqual(w.temperature, [22.5, 22.6])
+
+    def test_a_file_with_no_100m_level_is_refused_not_misread(self):
+        # The old MERRA-2 layout (2/10/50 m, nine columns). Read by position, a wind
+        # *direction* was taken for the 100 m speed and generation was silently wrong.
+        path = self.write_srz('wind_weather_-33.5000_116.8750_2023.srz', [
+            'id,<city>,<state>,<country>,2023,-33.5,116.875,0,1,8760',
+            'Wind data derived from MERRA-2 tavg1_2d_slv_Nx',
+            'Temperature,Pressure,Direction,Speed,Temperature,Direction,Speed,Direction,Speed',
+            'C,atm,degrees,m/s,C,degrees,m/s,degrees,m/s',
+            '2,0,2,2,10,10,10,50,50',
+        ], ['23.0,0.995619,180,7.0571,22.8,180,8.2196,180,9.1058'])
+        with self.assertRaisesRegex(WeatherFileError, 'no 100 m wind columns'):
+            self.processor.load_weather_data(path)
+
+
+class WeatherYearChoicesTests(SimpleTestCase):
+    """The weather-year dropdown lists only years that have wind data."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.root = Path(self._tmp.name)
+
+    def build(self, tree):
+        for relative, names in tree.items():
+            folder = self.root / relative
+            folder.mkdir(parents=True, exist_ok=True)
+            for name in names:
+                (folder / name).write_text('x')
+
+    def choices(self):
+        from siren_web.forms import get_weather_year_choices
+        with override_settings(WEATHER_DATA_DIR=self.root):
+            return get_weather_year_choices()
+
+    def test_lists_only_years_with_usable_wind_files_newest_first(self):
+        self.build({
+            'wind_weather/2025': ['wind_-30.0000_115.0000_2025.csv'],
+            'wind_weather/2024': ['wind_weather_-30.0000_115.0000_2024.srz'],
+            'wind_weather/2023': [],                                          # empty folder
+            'wind_weather/2022': ['notes.txt', 'wind_index.xls'],             # nothing usable
+            'wind_weather/2021': ['wind_weather_-30.0000_115.0000_2020.srw'], # file is for another year
+            'wind_weather/misc': ['wind_-30.0000_115.0000_2025.csv'],         # not a year folder
+        })
+        self.assertEqual(self.choices(), [('2025', '2025'), ('2024', '2024')])
+
+    def test_a_year_with_only_solar_data_is_not_listed(self):
+        self.build({
+            'wind_weather/2025': ['wind_-30.0000_115.0000_2025.csv'],
+            'solar_weather/2025': ['solar_-30.0000_115.0000_2025.csv'],
+            'solar_weather/2022': ['solar_weather_-30.0000_115.0000_2022.smz'],
+        })
+        self.assertEqual(self.choices(), [('2025', '2025')])
+
+    def test_no_wind_folder_means_no_choices(self):
+        self.assertEqual(self.choices(), [])
+
+    def test_agrees_with_what_the_finder_can_load(self):
+        self.build({
+            'wind_weather/2025': ['wind_-30.0000_115.0000_2025.csv'],
+            'wind_weather/2022': ['notes.txt'],
+        })
+        finder = WeatherFileFinder(self.root)
+        self.assertIsNotNone(finder.get_weather_file_path(-30.0, 115.0, 'wind', '2025'))
+        self.assertIsNone(finder.get_weather_file_path(-30.0, 115.0, 'wind', '2022'))
+        self.assertEqual(WeatherFileFinder.available_years(self.root, 'wind'), ['2025'])
+        self.assertEqual(WeatherFileFinder.available_years(self.root, 'solar'), [])
+        self.assertEqual(WeatherFileFinder.available_years(self.root, 'hydro'), [])

@@ -7,8 +7,8 @@ Build the CSV wind-turbine library used by the SAM wind path.
     python manage.py import_turbine_library --link-db --apply
 
 Reads vendored snapshots from <library>/_sources/ (NREL turbine-models, SAM
-'Wind Turbines.csv', windpowerlib/OEDB, Zenodo cross-check) plus the legacy
-SIREN `.pow` files in plant_data/, normalises every curve onto a 0.5 m/s grid,
+'Wind Turbines.csv', windpowerlib/OEDB, Zenodo cross-check) and the legacy
+SIREN `.pow` files (<library>/_sources/pow/), normalises every curve onto a 0.5 m/s grid,
 validates it, removes duplicates (source priority: .pow, NREL, SAM,
 windpowerlib) and writes index.csv, curves/<slug>.csv and SOURCES.md.
 """
@@ -49,8 +49,8 @@ MANUFACTURERS = [
 
 # (source key, display, licence, url) in priority order
 SOURCES = OrderedDict([
-    ('pow', ('SIREN plant_data .pow files', 'Local (SIREN plant_data)',
-             'siren_web/siren_files/siren_data/plant_data/*.pow')),
+    ('pow', ('SIREN .pow files', 'Local (SIREN plant data)',
+             'siren_web/siren_files/siren_data/turbine_library/_sources/pow/*.pow')),
     ('nrel', ('NREL/NLR turbine-models', 'BSD-3-Clause',
               'https://github.com/NatLabRockies/turbine-models')),
     ('sam', ('NREL SAM Wind Turbines.csv', 'BSD-3-Clause',

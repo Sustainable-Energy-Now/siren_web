@@ -28,9 +28,10 @@ MIN_CANDIDATE_KW = 1500.0        # utility scale only
 SCALE_MIN, SCALE_MAX = 0.6, 1.6  # preferred range for implied / reference rating
 SP_WINDOW = (220.0, 320.0)       # W/m2, typical modern onshore designs
 DEFAULT_HUB_HEIGHT_M = 100.0     # the only resource height we hold is 100 m
-MAX_ASSUMED_HUB_HEIGHT_M = 140.0 # SAM extrapolates the 100 m resource to hub height with
-                                 # a fixed shear, so don't let a tall reference (the ATB
-                                 # 7 MW is 175 m) inflate an assumed turbine's yield
+MAX_ASSUMED_HUB_HEIGHT_M = 140.0 # the 100 m resource is extrapolated to hub height with a
+                                 # fixed shear (see sam_resource_processor), so don't let a
+                                 # tall reference (the ATB 7 MW is 175 m) inflate an assumed
+                                 # turbine's yield
 DEFAULT_YEARS_AHEAD = 3          # commissioning year when no date is recorded
 VINTAGE_WEIGHT = 0.02            # score per year of vintage mismatch
 VINTAGE_CAP_YEARS = 10

@@ -277,11 +277,7 @@ def process_facilities(facilities_list, weather_year, scenario, refresh_supply_f
     
     # Initialize SAM processor
     weather_dir = getattr(settings, 'WEATHER_DATA_DIR', 'weather_data')
-    power_curves_dir = getattr(settings, 'POWER_CURVES_DIR', 'power_curves')
-    sam_processor = SAMResourceProcessor(
-        weather_data_dir=weather_dir,
-        power_curves_dir=power_curves_dir
-    )
+    sam_processor = SAMResourceProcessor(weather_data_dir=weather_dir)
     sam_processed_count, skipped_count = 0, 0
     
     for facility_data in facilities_list:
@@ -446,10 +442,7 @@ def process_hybrid_facility(sam_processor, facility_obj, weather_year, start_dat
         # so having nothing to process is expected, not a warning.
         technology = facility_obj.idtechnologies
         if technology and (not technology.renewable or technology.dispatchable):
-            logger.debug(
-                f"Skipping SAM for {facility_obj.facility_name}: "
-                f"'{technology.technology_name}' is non-renewable or dispatchable"
-            )
+            pass  # No SAM processing needed for non-renewable or dispatchable technologies
         else:
             logger.warning(f"No renewable technologies found for {facility_obj.facility_name}")
         return None

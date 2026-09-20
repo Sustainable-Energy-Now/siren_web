@@ -1,5 +1,4 @@
 # forms.py
-import os
 from django import forms
 from django.conf import settings
 from django.forms.widgets import DateTimeInput
@@ -11,19 +10,13 @@ from .models import Reference, ReferenceAttribute
 
 
 def get_weather_year_choices():
-    """Get weather year choices from folder names in the solar_weather directory."""
-    weather_path = os.path.join(
-        settings.BASE_DIR, 'siren_web', 'siren_files', 'SWIS',
-        'siren_data', 'weather_files', 'solar_weather'
-    )
-    years = []
-    if os.path.exists(weather_path):
-        for item in os.listdir(weather_path):
-            item_path = os.path.join(weather_path, item)
-            if os.path.isdir(item_path) and item.isdigit():
-                years.append(item)
-    years.sort(reverse=True)  # Most recent first
-    return [(year, year) for year in years]
+    """
+    Weather years that have wind data, newest first: the wind_weather/<year>/ folders that hold
+    at least one file SAM can read (the same rules the weather-file finder applies).
+    """
+    # Imported here: the processor pulls in PySAM, which forms.py shouldn't load at import time.
+    from powermapui.views.sam_resource_processor import WeatherFileFinder
+    return [(year, year) for year in WeatherFileFinder.available_years(settings.WEATHER_DATA_DIR, 'wind')]
 
 class ScenarioForm(forms.ModelForm):
     class Meta:

@@ -5,14 +5,31 @@ Handles System Advisor Model (SAM) integration for wind and solar resource proce
 
 import logging
 from typing import Dict, List, Optional, Tuple, Any
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import math
 from pathlib import Path
 import re
 
 from powermapui.utils.representative_turbine import ResolvedTurbine
+from powermapui.utils.wind_profile import hub_height_speeds
 
 logger = logging.getLogger(__name__)
+
+# The wind speeds we give SAM are ERA5's 100 m series. Turbines are simulated at that
+# height with the speeds pre-scaled to hub height (see powermapui.utils.wind_profile);
+# the exponent is the fixed-shear fallback for files with no 10 m series.
+WIND_RESOURCE_HEIGHT_M = 100.0
+WIND_SHEAR_EXPONENT = 0.14
+
+# SAM's windpower module refuses farms of more than this many turbines.
+MAX_TURBINES_PER_SAM_RUN = 300
+
+
+def split_into_blocks(no_turbines: int, limit: int = MAX_TURBINES_PER_SAM_RUN) -> List[int]:
+    """Split a farm into the fewest equal-as-possible blocks of at most `limit` turbines."""
+    blocks = -(-no_turbines // limit)
+    base, extra = divmod(no_turbines, blocks)
+    return [base + 1] * extra + [base] * (blocks - extra)
 
 from siren_web.utilities.ssc_pysam import Data, Module, API
 
@@ -27,6 +44,7 @@ class WeatherData:
     dni: List[float] = None  # Direct Normal Irradiance
     dhi: List[float] = None  # Diffuse Horizontal Irradiance
     humidity: List[float] = None
+    wind_speed_10m: List[float] = None  # Speed at 10 m, when the file has it (wind_speed is at 100 m)
 
 class WeatherFileFinder:
     """Helper class for finding nearest weather files"""
@@ -48,6 +66,38 @@ class WeatherFileFinder:
     def __init__(self, weather_data_dir: Path):
         self.weather_data_dir = Path(weather_data_dir)
         self._file_cache = {}  # Cache for parsed file coordinates
+
+    @staticmethod
+    def _match_weather_file(name: str, file_prefix: str, file_extension: str, weather_year: str):
+        """Match `prefix_lat_lon_year.ext`; returns the regex match (lat, lon groups) or None."""
+        if not name.endswith(file_extension):
+            return None
+        pattern = rf"{re.escape(file_prefix)}_(-?\d+\.?\d*)_(-?\d+\.?\d*)_{re.escape(weather_year)}{re.escape(file_extension)}"
+        return re.match(pattern, name)
+
+    @classmethod
+    def available_years(cls, weather_data_dir, technology: str) -> List[str]:
+        """
+        Years (newest first) that have at least one weather file this finder can use for
+        `technology` ('wind' or 'solar'), by the same rules get_weather_file_path applies.
+        A year folder holding only unsupported or misnamed files is not listed.
+        """
+        subdir, file_formats = {
+            'wind': ('wind_weather', cls.WIND_FORMATS),
+            'solar': ('solar_weather', cls.SOLAR_FORMATS),
+        }.get(technology.lower(), (None, []))
+        base = Path(weather_data_dir) / subdir if subdir else None
+        if base is None or not base.is_dir():
+            return []
+        years = []
+        for year_dir in base.iterdir():
+            if not (year_dir.is_dir() and year_dir.name.isdigit()):
+                continue
+            if any(cls._match_weather_file(f.name, prefix, ext, year_dir.name)
+                   for f in year_dir.iterdir() if f.is_file()
+                   for prefix, ext in file_formats):
+                years.append(year_dir.name)
+        return sorted(years, reverse=True)
 
     def get_weather_file_path(self, latitude: float, longitude: float,
                             technology: str, weather_year: str) -> Optional[Path]:
@@ -154,14 +204,9 @@ class WeatherFileFinder:
                 if not file_path.is_file():
                     continue
 
-                # Try each supported format
+                # Try each supported format (pattern: prefix_lat_lon_year.ext)
                 for file_prefix, file_extension in file_formats:
-                    if not file_path.name.endswith(file_extension):
-                        continue
-
-                    # Pattern to match: prefix_lat_lon_year.ext
-                    pattern = rf"{re.escape(file_prefix)}_(-?\d+\.?\d*)_(-?\d+\.?\d*)_{re.escape(weather_year)}{re.escape(file_extension)}"
-                    match = re.match(pattern, file_path.name)
+                    match = self._match_weather_file(file_path.name, file_prefix, file_extension, weather_year)
 
                     if match:
                         try:
@@ -236,21 +281,18 @@ class SAMResourceProcessor:
     Handles SAM SSC integration for wind and solar resource processing
     """
     
-    def __init__(self, weather_data_dir: str = "weather_data",
-                 power_curves_dir: str = "power_curves"):
+    def __init__(self, weather_data_dir: str = "weather_data"):
         """
         Initialize SAM Resource Processor
 
         Args:
             weather_data_dir: Directory containing weather files
-            power_curves_dir: Directory containing power curve files
         """
         self.weather_data_dir = Path(weather_data_dir)
-        # Use Django settings if no explicit paths provided
+        # Use Django settings if no explicit path provided
         from django.conf import settings
         self.weather_data_dir = Path(weather_data_dir or settings.WEATHER_DATA_DIR)
-        self.power_curves_dir = Path(power_curves_dir or getattr(settings, 'POWER_CURVES_DIR', 'power_curves'))
-        
+
         # Initialize weather file finder
         self.weather_finder = WeatherFileFinder(self.weather_data_dir)
         
@@ -385,98 +427,53 @@ class SAMResourceProcessor:
 
             if not weather_data.wind_speed or len(weather_data.wind_speed) == 0:
                 raise SAMError(f"No wind data found for {facility.facility_name}")
-            
-            # Create temporary SAM-compatible weather file
-            temp_weather_file = self._create_sam_weather_file(weather_data, facility, weather_year)
-            
-            # Create SAM data container
-            data = Data()
-            
-            # Use the temporary weather file (like SIREN does)
-            data.set_string(b'wind_resource_filename', str(temp_weather_file).encode('utf-8'))
-            
-            # REQUIRED: Wind resource parameters
-            data.set_number(b'wind_resource_shear', 0.14)
-            data.set_number(b'wind_resource_turbulence_coeff', 0.1)
-            data.set_number(b'wind_resource_model_choice', 0)  # Use hourly data
-            
-            # REQUIRED: Turbine parameters, all from the resolved turbine
+
+            # Turbine parameters, all from the resolved turbine
             no_turbines = max(1, int(turbine.no_turbines))
             rotor_diameter = float(turbine.rotor_diameter)
             hub_height = float(turbine.hub_height)
+            if hub_height <= 0:
+                raise SAMError(f"Invalid hub height {hub_height} m for {facility.facility_name}")
             logger.info(f"{facility.facility_name}: {no_turbines} x {turbine.name} "
                         f"({turbine.rated_kw:.0f} kW, {rotor_diameter:.0f} m rotor, "
                         f"{hub_height:.0f} m hub; {turbine.basis})")
 
-            # REQUIRED: System capacity in kW
-            data.set_number(b'system_capacity', no_turbines * float(turbine.rated_kw))
+            # SAM refuses to extrapolate a resource to a hub more than 35 m from the height it
+            # was measured at, and ours is a single 100 m series: hubs below 65 m or above 135 m
+            # fail outright. Apply the height correction here instead and tell SAM the hub is
+            # at the resource height. With a 10 m series each hour's speed at hub height comes
+            # from a profile through that hour's 10 m and 100 m speeds; without one, the fixed
+            # power law SAM itself uses (verified identical to its own extrapolation).
+            hub_speeds, shear_method = hub_height_speeds(
+                weather_data.wind_speed, weather_data.wind_speed_10m, hub_height,
+                high_height=WIND_RESOURCE_HEIGHT_M, fixed_shear=WIND_SHEAR_EXPONENT)
+            weather_data = replace(weather_data, wind_speed=hub_speeds)
+            logger.info(f"{facility.facility_name}: wind speeds taken to {hub_height:.0f} m hub "
+                        f"by {shear_method}")
 
-            data.set_number(b'wind_turbine_rotor_diameter', rotor_diameter)
-            data.set_number(b'wind_turbine_hub_ht', hub_height)
+            # Create temporary SAM-compatible weather file
+            temp_weather_file = self._create_sam_weather_file(weather_data, facility, weather_year)
 
-            # REQUIRED: Power curve
-            data.set_array(b'wind_turbine_powercurve_windspeeds', list(turbine.wind_speeds))
-            data.set_array(b'wind_turbine_powercurve_powerout', list(turbine.power_kw))
-            cutin_speed = next((ws for ws, p in zip(turbine.wind_speeds, turbine.power_kw) if p > 0), 3.0)
-            data.set_number(b'wind_turbine_cutin', cutin_speed)
-
-            # Calculate turbine coordinates in a grid (SIREN approach)
-            import math
-            t_rows = int(math.ceil(math.sqrt(no_turbines)))
-            
-            # Spacing in rotor diameters (like SIREN)
-            turbine_spacing = 8  # rotor diameters
-            row_spacing = 8      # rotor diameters
-            offset_spacing = 4   # rotor diameters
-            
-            wt_x = []
-            wt_y = []
-            ctr = no_turbines
-            
-            for r in range(t_rows):
-                for c in range(t_rows):
-                    x_coord = r * row_spacing * rotor_diameter
-                    y_coord = (c * turbine_spacing * rotor_diameter + 
-                            (r % 2) * offset_spacing * rotor_diameter)
-                    wt_x.append(x_coord)
-                    wt_y.append(y_coord)
-                    ctr -= 1
-                    if ctr < 1:
-                        break
-                if ctr < 1:
-                    break
-            
-            data.set_array(b'wind_farm_xCoordinates', wt_x)
-            data.set_array(b'wind_farm_yCoordinates', wt_y)
-            
-            # REQUIRED: Wind farm parameters
-            data.set_number(b'wind_farm_losses_percent', 2.0)  # Default 2% losses
-            data.set_number(b'wind_farm_wake_model', 0)  # 0 = SAM's "Simple" wake model (Simple, Park, EV, Constant)
-            
-            # REQUIRED: Adjustment factors
-            data.set_number(b'adjust:constant', 0.0)  # No constant adjustment
-            
-            # Create and execute wind power module
-            wind_module = Module(b'windpower')
-            
-            if not wind_module.is_ok():
-                raise SAMError("Failed to create wind power module")
-            success = wind_module.exec_(data)
-            
-            if not success:
-                error_msg = self._get_module_errors(wind_module)
-                raise SAMError(f"Wind simulation failed: {error_msg}")
-            
-            # Extract results
-            annual_energy = data.get_number(b'annual_energy')
-            hourly_generation = data.get_array(b'gen')
-            capacity_factor = data.get_number(b'capacity_factor')
-            
-            results = SimulationResults(
-                annual_energy=annual_energy,
-                hourly_generation=hourly_generation,
-                capacity_factor=capacity_factor
-            )
+            # SAM's windpower module handles at most MAX_TURBINES_PER_SAM_RUN turbines, so a
+            # bigger farm is simulated as equal blocks whose output is summed (no wake
+            # interaction between blocks).
+            blocks = split_into_blocks(no_turbines, MAX_TURBINES_PER_SAM_RUN)
+            if len(blocks) > 1:
+                logger.info(f"{facility.facility_name}: {no_turbines} turbines exceeds SAM's "
+                            f"{MAX_TURBINES_PER_SAM_RUN}-turbine limit; simulating {len(blocks)} "
+                            f"blocks of {blocks}")
+            block_results = [self._run_windpower(temp_weather_file, turbine, n, rotor_diameter)
+                             for n in blocks]
+            if len(block_results) == 1:
+                results = block_results[0]
+            else:
+                results = SimulationResults(
+                    annual_energy=sum(r.annual_energy for r in block_results),
+                    hourly_generation=[sum(hour) for hour in
+                                       zip(*(r.hourly_generation for r in block_results))],
+                    capacity_factor=sum(r.capacity_factor * n for r, n in
+                                        zip(block_results, blocks)) / no_turbines,
+                )
             
             logger.info(f"Wind simulation completed for {facility.facility_name}: "
                     f"{results.capacity_factor:.1f}% CF, {results.annual_energy:.0f} kWh/year")
@@ -499,6 +496,95 @@ class SAMResourceProcessor:
                     os.remove(temp_weather_file)
                 except:
                     pass
+
+    def _run_windpower(self, temp_weather_file, turbine: ResolvedTurbine,
+                       no_turbines: int, rotor_diameter: float) -> SimulationResults:
+        """
+        One SAM windpower run: `no_turbines` copies of the turbine in a grid, driven by the
+        (already hub-height-corrected) wind resource file. `no_turbines` must not exceed
+        MAX_TURBINES_PER_SAM_RUN.
+        """
+        # Create SAM data container
+        data = Data()
+
+        # Use the temporary weather file (like SIREN does)
+        data.set_string(b'wind_resource_filename', str(temp_weather_file).encode('utf-8'))
+
+        # REQUIRED: Wind resource parameters
+        data.set_number(b'wind_resource_shear', WIND_SHEAR_EXPONENT)
+        data.set_number(b'wind_resource_turbulence_coeff', 0.1)
+        data.set_number(b'wind_resource_model_choice', 0)  # Use hourly data
+
+        # REQUIRED: System capacity in kW
+        data.set_number(b'system_capacity', no_turbines * float(turbine.rated_kw))
+
+        data.set_number(b'wind_turbine_rotor_diameter', rotor_diameter)
+        data.set_number(b'wind_turbine_hub_ht', WIND_RESOURCE_HEIGHT_M)
+
+        # REQUIRED: Power curve
+        data.set_array(b'wind_turbine_powercurve_windspeeds', list(turbine.wind_speeds))
+        data.set_array(b'wind_turbine_powercurve_powerout', list(turbine.power_kw))
+        cutin_speed = next((ws for ws, p in zip(turbine.wind_speeds, turbine.power_kw) if p > 0), 3.0)
+        data.set_number(b'wind_turbine_cutin', cutin_speed)
+
+        # Calculate turbine coordinates in a grid (SIREN approach)
+        import math
+        t_rows = int(math.ceil(math.sqrt(no_turbines)))
+        
+        # Spacing in rotor diameters (like SIREN)
+        turbine_spacing = 8  # rotor diameters
+        row_spacing = 8      # rotor diameters
+        offset_spacing = 4   # rotor diameters
+        
+        wt_x = []
+        wt_y = []
+        ctr = no_turbines
+        
+        for r in range(t_rows):
+            for c in range(t_rows):
+                x_coord = r * row_spacing * rotor_diameter
+                y_coord = (c * turbine_spacing * rotor_diameter + 
+                        (r % 2) * offset_spacing * rotor_diameter)
+                wt_x.append(x_coord)
+                wt_y.append(y_coord)
+                ctr -= 1
+                if ctr < 1:
+                    break
+            if ctr < 1:
+                break
+        
+        data.set_array(b'wind_farm_xCoordinates', wt_x)
+        data.set_array(b'wind_farm_yCoordinates', wt_y)
+        
+        # REQUIRED: Wind farm parameters
+        data.set_number(b'wind_farm_losses_percent', 2.0)  # Default 2% losses
+        data.set_number(b'wind_farm_wake_model', 0)  # 0 = SAM's "Simple" wake model (Simple, Park, EV, Constant)
+        
+        # REQUIRED: Adjustment factors
+        data.set_number(b'adjust:constant', 0.0)  # No constant adjustment
+        
+        # Create and execute wind power module
+        wind_module = Module(b'windpower')
+        
+        if not wind_module.is_ok():
+            raise SAMError("Failed to create wind power module")
+        success = wind_module.exec_(data)
+        
+        if not success:
+            error_msg = self._get_module_errors(wind_module)
+            raise SAMError(f"Wind simulation failed: {error_msg}")
+        
+        # Extract results
+        annual_energy = data.get_number(b'annual_energy')
+        hourly_generation = data.get_array(b'gen')
+        capacity_factor = data.get_number(b'capacity_factor')
+        
+        results = SimulationResults(
+            annual_energy=annual_energy,
+            hourly_generation=hourly_generation,
+            capacity_factor=capacity_factor
+        )
+        return results
 
     def _create_sam_weather_file(self, weather_data: WeatherData, facility, weather_year: str):
         """
@@ -754,42 +840,62 @@ class SAMResourceProcessor:
             
             file_ext = file_path.suffix.lower()
             
-            if file_ext == '.srz':  # Wind file
+            if file_ext == '.srz':  # Wind file (ERA5 10 m / 100 m)
                 weather_data.wind_speed = []
+                weather_data.wind_speed_10m = []
                 weather_data.wind_direction = []
                 weather_data.temperature = []
                 weather_data.pressure = []
-                
-                # Parse wind data (keep existing logic for .srz files)
-                for line in lines[5:]:  # Skip headers
+
+                # Locate columns from the file's own header (names on line 3, heights on
+                # line 5) instead of by position. Files with another layout -- the old
+                # MERRA-2 files had nine columns at 2/10/50 m and no 100 m level -- were
+                # silently misread (a wind direction taken for a speed).
+                names = [c.strip() for c in lines[2].split(',')]
+                heights = [c.strip() for c in lines[4].split(',')]
+
+                def column(name, height=None):
+                    for i, (n, h) in enumerate(zip(names, heights)):
+                        if n == name and (height is None or h == height):
+                            return i
+                    return None
+
+                i_temp, i_pres = column('Temperature'), column('Pressure')
+                i_speed_100, i_dir_100 = column('Speed', '100'), column('Direction', '100')
+                i_speed_10 = column('Speed', '10')
+                if None in (i_temp, i_pres, i_speed_100, i_dir_100):
+                    raise WeatherFileError(
+                        f"{file_path.name} has no 100 m wind columns "
+                        f"(found: {', '.join(f'{n}@{h}m' for n, h in zip(names, heights))})")
+
+                for line in lines[5:]:
                     line = line.strip()
                     if not line:
                         continue
-                        
+
                     try:
                         parts = [part.strip() for part in line.split(',')]
-                        if len(parts) >= 6:
-                            temperature = float(parts[0])
-                            pressure = float(parts[1])
-                            wind_direction_10m = float(parts[2])
-                            wind_speed_10m = float(parts[3])
-                            wind_direction_100m = float(parts[4])
-                            wind_speed_100m = float(parts[5])
-                            
-                            # Use 100m wind data if available
-                            wind_speed = wind_speed_100m if wind_speed_100m > 0 else wind_speed_10m
-                            wind_direction = wind_direction_100m if wind_speed_100m > 0 else wind_direction_10m
-                            
-                            weather_data.temperature.append(temperature)
-                            weather_data.pressure.append(pressure)
-                            weather_data.wind_speed.append(wind_speed)
-                            weather_data.wind_direction.append(wind_direction)
-                            
+                        if len(parts) < len(names):
+                            continue
+                        wind_speed_100m = float(parts[i_speed_100])
+                        wind_speed_10m = float(parts[i_speed_10]) if i_speed_10 is not None else None
+                        # Use 100m wind data if available
+                        use_100m = wind_speed_100m > 0 or wind_speed_10m is None
+
+                        weather_data.temperature.append(float(parts[i_temp]))
+                        weather_data.pressure.append(float(parts[i_pres]))
+                        weather_data.wind_speed.append(wind_speed_100m if use_100m else wind_speed_10m)
+                        weather_data.wind_direction.append(float(parts[i_dir_100]))
+                        if wind_speed_10m is not None:
+                            weather_data.wind_speed_10m.append(wind_speed_10m)
+
                     except (ValueError, IndexError) as e:
                         continue
-                
+
+                if len(weather_data.wind_speed_10m) != len(weather_data.wind_speed):
+                    weather_data.wind_speed_10m = None      # no usable 10 m series; fixed shear is used
                 logger.info(f"Parsed wind weather: {len(weather_data.wind_speed)} records from {file_path}")
-                    
+
             elif file_ext == '.smz':  # Solar file - CORRECT PARSING FOR YOUR FORMAT
                 weather_data.ghi = []
                 weather_data.dni = []
@@ -965,6 +1071,7 @@ class SAMResourceProcessor:
             elif is_wind:
                 # Parse wind CSV format
                 weather_data.wind_speed = []
+                weather_data.wind_speed_10m = []
                 weather_data.wind_direction = []
                 weather_data.temperature = []
                 weather_data.pressure = []
@@ -989,15 +1096,16 @@ class SAMResourceProcessor:
 
                         temperature = float(parts[0])
                         pressure = float(parts[1])
-                        # wind_speed_10m = float(parts[2])
+                        wind_speed_10m = float(parts[2])
                         # wind_direction_10m = float(parts[3])
                         wind_speed_100m = float(parts[4])
                         wind_direction_100m = float(parts[5])
 
-                        # Use 100m wind data (closer to turbine hub height)
+                        # 100 m is the series SAM is fed; 10 m gives the shear up to hub height
                         weather_data.temperature.append(temperature)
                         weather_data.pressure.append(pressure)
                         weather_data.wind_speed.append(wind_speed_100m)
+                        weather_data.wind_speed_10m.append(wind_speed_10m)
                         weather_data.wind_direction.append(wind_direction_100m)
 
                     except (ValueError, IndexError) as e:

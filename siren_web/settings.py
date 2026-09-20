@@ -251,10 +251,12 @@ CRISPY_TEMPLATE_PACK = "bootstrap5"
 CRISPY_RENDERER_CLASS = "crispy_bootstrap5.renderers.AccordionJsRenderer"
 # Powermap settings
 WEATHER_DATA_DIR = BASE_DIR / 'siren_web' / 'siren_files' / 'SWIS' / 'siren_data' / 'weather_files'
-POWER_CURVES_DIR = BASE_DIR / 'siren_web' / 'siren_files' / 'siren_data' / 'plant_data'
 # CSV wind-turbine library (index.csv + curves/<slug>.csv), the run-time source
 # of turbine power curves for SAM. Built by `manage.py import_turbine_library`.
 TURBINE_LIBRARY_DIR = BASE_DIR / 'siren_web' / 'siren_files' / 'siren_data' / 'turbine_library'
+# Legacy SIREN .pow turbine files: an import source for the library above and the
+# run-time fallback for a named turbine that has no library curve.
+POWER_CURVES_DIR = TURBINE_LIBRARY_DIR / '_sources' / 'pow'
 ESOO_ARCHIVE_DIR = BASE_DIR / 'siren_web' / 'siren_files' / 'esoo_archive'
 EV_ARCHIVE_DIR = BASE_DIR / 'siren_web' / 'siren_files' / 'ev_archive'
 EV_TRACE_DIR = BASE_DIR / 'siren_web' / 'siren_files' / 'ev_traces'
