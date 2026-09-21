@@ -7,7 +7,8 @@
     <div class="col-md-11 offset-md-1">
       <h3>EV Uptake Sensitivity — Low / Medium / High (FR-12)</h3>
       <p class="text-muted">
-        How much the SWIS demand picture moves depending on which CSIRO EV-uptake trajectory eventuates.
+        How much the SWIS demand picture moves depending on which EV-uptake trajectory eventuates (AEMO's 2025 IASR
+        WEM trajectories: Low / Medium / High = Slower Growth / Step Change / Accelerated Transition).
         For a chosen half-hourly base scenario, forecast year and charging mode, this adds each of the
         Low / Medium / High EV charging loads to the base demand and compares them side by side.
         Nothing is saved — this is analysis, not a scenario build. Use
@@ -41,9 +42,17 @@
             <div class="col-md-2">
               <label for="forecast_year" class="form-label">Forecast year <span class="text-danger">*</span></label>
               <input type="number" class="form-control" id="forecast_year" name="forecast_year"
-                     value="{{ selected_forecast_year }}" min="2021" max="2050" required>
+                     value="{{ selected_forecast_year }}" min="2025" max="2054" required>
             </div>
             <div class="col-md-3">
+              <div class="form-check form-switch mb-2">
+                <input class="form-check-input" type="checkbox" id="net_of_esoo_ev" name="net_of_esoo_ev"
+                       {% if net_of_esoo_ev %}checked{% endif %}>
+                <label class="form-check-label" for="net_of_esoo_ev">Net of ESOO's own EV load</label>
+              </div>
+              <input type="number" step="any" min="0" class="form-control form-control-sm mb-2" name="esoo_ev_gwh"
+                     value="{{ selected_esoo_ev_gwh }}" placeholder="EV GWh already in base (auto)"
+                     title="Optional override of the EV energy already in the base scenario">
               <button type="submit" class="btn btn-primary">Compare</button>
             </div>
           </form>
@@ -60,6 +69,16 @@
       </div>
       {% endfor %}
 
+      {% if embedded %}
+      <div class="alert alert-info mt-4 mb-0">
+        <strong>Net of ESOO's own EV load.</strong> {{ embedded_gwh|floatformat:0 }} GWh of EV charging already in the base
+        ({{ embedded.source }}) is removed and each scenario's EV load is added in its place, so deltas are the change from
+        ESOO's own assumption and "EV energy" below is the net change.
+        {% if embedded.is_assumption %}The ESOO-to-IASR mapping (Low / Expected / High = Slower Growth / Step Change /
+        Accelerated Transition) is a working assumption; enter the EV energy above to override it.{% endif %}
+      </div>
+      {% endif %}
+
       {% if report %}
       <h4 class="mt-4">Comparison — {{ report.forecast_year }}, {{ report.charging_mode }} charging</h4>
 
@@ -67,7 +86,7 @@
         <table class="table table-sm table-bordered align-middle">
           <thead class="table-light">
             <tr>
-              <th>CSIRO scenario</th>
+              <th>EV scenario</th>
               <th class="text-end">EV energy (GWh)</th>
               <th class="text-end">EV % of base</th>
               <th class="text-end">Base peak (MW)</th>
@@ -90,8 +109,8 @@
               <td class="text-end">{{ r.ev_energy_pct_of_base|floatformat:1 }}%</td>
               <td class="text-end">{{ r.base_peak_mw|floatformat:0 }}</td>
               <td class="text-end">{{ r.net_peak_mw|floatformat:0 }}</td>
-              <td class="text-end">+{{ r.peak_delta_mw|floatformat:0 }}</td>
-              <td class="text-end">+{{ r.peak_delta_pct|floatformat:1 }}%</td>
+              <td class="text-end">{% if r.peak_delta_mw >= 0 %}+{% endif %}{{ r.peak_delta_mw|floatformat:0 }}</td>
+              <td class="text-end">{% if r.peak_delta_pct >= 0 %}+{% endif %}{{ r.peak_delta_pct|floatformat:1 }}%</td>
               <td>{{ r.net_peak_time }} <span class="text-muted">({{ r.net_peak_date }})</span></td>
               <td>
                 {% if r.peak_shifts %}

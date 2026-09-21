@@ -7,9 +7,11 @@
         <div class="col-md-10 offset-md-1">
             <h3>EV Charging Load Scenario (Outcome A: Sensitivity)</h3>
             <p class="text-muted">
-                Pick a half-hourly base scenario and a CSIRO EV uptake scenario (Low/Medium/High), and
+                Pick a half-hourly base scenario and an EV uptake scenario (Low/Medium/High), and
                 build a derived Powermatch scenario whose demand is the base trace plus the selected
-                EV charging load, added as a toggleable layer (FR-11). The base scenario itself is
+                EV charging load, added as a toggleable layer (FR-11). EV energy is AEMO's 2025 IASR
+                WEM trajectory (CSIRO 2025 projections developed for AEMO): Low / Medium / High are
+                Slower Growth / Step Change / Accelerated Transition. The base scenario itself is
                 never modified — removing the EV layer just means using the base scenario directly.
                 To see Low/Medium/High side by side without building anything, use the
                 <a href="{% url 'powermatchui:ev_scenario_compare' %}">sensitivity comparison</a> (FR-12).
@@ -39,7 +41,7 @@
 
                             <div class="col-md-3">
                                 <label for="csiro_scenario" class="form-label">
-                                    CSIRO Uptake Scenario <span class="text-danger">*</span>
+                                    EV Uptake Scenario <span class="text-danger">*</span>
                                 </label>
                                 <select class="form-select" id="csiro_scenario" name="csiro_scenario" required>
                                     <option value="">Select a scenario...</option>
@@ -68,7 +70,34 @@
                                     Forecast Year <span class="text-danger">*</span>
                                 </label>
                                 <input type="number" class="form-control" id="forecast_year" name="forecast_year"
-                                       value="{{ selected_forecast_year }}" min="2021" max="2050" required>
+                                       value="{{ selected_forecast_year }}" min="2025" max="2054" required>
+                                <div class="form-text">2035 means the 2035-36 financial year (IASR covers 2025-26 to 2054-55).</div>
+                            </div>
+                        </div>
+
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="net_of_esoo_ev" name="net_of_esoo_ev"
+                                           {% if net_of_esoo_ev %}checked{% endif %}>
+                                    <label class="form-check-label" for="net_of_esoo_ev">Net of ESOO's own EV load</label>
+                                </div>
+                                <div class="form-text">
+                                    An ESOO forecast already includes EV charging, so adding a scenario's EV load on top counts
+                                    EV growth twice. When ticked, the EV load already in the base is removed first
+                                    (base &minus; ESOO's EV + scenario EV), so the result is the change from ESOO's own assumption.
+                                    Only ESOO-built base scenarios can look this up automatically.
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <label for="esoo_ev_gwh" class="form-label">EV energy already in the base (GWh)</label>
+                                <input type="number" step="any" min="0" class="form-control" id="esoo_ev_gwh" name="esoo_ev_gwh"
+                                       value="{{ selected_esoo_ev_gwh }}" placeholder="auto">
+                                <div class="form-text">
+                                    Optional override. Left blank, it is taken from the AEMO IASR EV workbook's WEM trajectory
+                                    that ESOO's scenario tracks (Low / Expected / High = Slower Growth / Step Change / Accelerated Transition,
+                                    a working assumption).
+                                </div>
                             </div>
                         </div>
 
@@ -85,10 +114,14 @@
                         <tbody>
                             <tr><th scope="row">Scenario</th><td>{{ result.title }} (id {{ result.scenario.idscenarios }})</td></tr>
                             <tr><th scope="row">Forecast year</th><td>{{ result.forecast_year }}</td></tr>
-                            <tr><th scope="row">CSIRO scenario</th><td>{{ result.csiro_scenario }}</td></tr>
+                            <tr><th scope="row">EV scenario</th><td>{{ result.csiro_scenario }}</td></tr>
                             <tr><th scope="row">Charging mode</th><td>{{ result.charging_mode }}</td></tr>
                             <tr><th scope="row">Supply factor rows written</th><td>{{ result.n_rows }}</td></tr>
                             <tr><th scope="row">EV annual energy</th><td>{{ result.ev_annual_energy_mwh|floatformat:1 }} MWh</td></tr>
+                            {% if result.net_of_esoo_ev %}
+                            <tr><th scope="row">EV energy removed (already in the ESOO base)</th>
+                                <td>{{ result.esoo_ev_energy_mwh|floatformat:1 }} MWh <span class="text-muted">&mdash; {{ result.esoo_ev_source }}</span></td></tr>
+                            {% endif %}
                             <tr><th scope="row">Integral check (FR-09, target &le; 0.01%)</th><td>{{ result.integral_check_pct|floatformat:6 }}%</td></tr>
                         </tbody>
                     </table>

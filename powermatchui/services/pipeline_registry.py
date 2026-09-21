@@ -173,8 +173,9 @@ PIPELINE_COMMANDS: dict[str, PipelineCommand] = {c.key: c for c in [
             Param('year', 'year', '--year', label='Vintage year (optional)', required=False),
         ),
         runtime_hint='seconds–minutes',
-        note="FR-F07/D13: derives operational-basis energy figures from published underlying ones "
-             "wherever real DPV coverage allows. Only does work when figures or DPV data changed.",
+        note="FR-F07/D13: derives operational-basis energy figures from published underlying ones as "
+             "(underlying - DPV behind-the-meter) x operational/delivered factor, using AEMO's own "
+             "published consumption components. Only does work when ESOO figures changed.",
     ),
     PipelineCommand(
         key='validate_ev_data',

@@ -70,24 +70,12 @@ _ROW_LABEL_RE = re.compile(r'^(\d{4})\s+(.+)$')
 _POE_LABEL_RE = re.compile(r'(\d+)%\s*POE', re.IGNORECASE)
 
 
-def _extract_scenario_series(
-    workbook, sheet_name, vintage_year, metric, *,
-    domain='demand', demand_basis='operational', unit='MW', value_scale=1.0,
-    label_kind='scenario', fixed_poe_level=None, fixed_scenario=None,
-) -> List[dict]:
+def _locate_year_header(rows):
     """
-    Pull one vintage's rows out of a Data-Register-style sheet (see module
-    docstring for the layout). label_kind='scenario' reads rows labelled
-    '{year} Low/Expected/High' (poe_level comes from fixed_poe_level);
-    label_kind='poe' reads rows labelled '{year} N% POE' (scenario comes
-    from fixed_scenario).
+    Find a Data-Register sheet's header row. Returns (header_idx, label_col,
+    year_cols) -- year_cols being [(col_idx, '20XX-YY'), ...] -- or None if
+    no usable header is found.
     """
-    if sheet_name not in workbook.sheetnames:
-        logger.warning(f"esoo_workbook_parser: sheet '{sheet_name}' not found")
-        return []
-
-    rows = list(workbook[sheet_name].iter_rows(values_only=True))
-
     # Locate the header row by finding a run of 4+ consecutive year-pattern
     # cells ('20XX-YY'), rather than anchoring on header text — confirmed
     # across vintages that the exact column layout shifts (a 'Unit' column
@@ -130,8 +118,33 @@ def _extract_scenario_series(
             break
 
     if header_idx is None or not year_cols or label_col is None or label_col < 0:
+        return None
+    return header_idx, label_col, year_cols
+
+
+def _extract_scenario_series(
+    workbook, sheet_name, vintage_year, metric, *,
+    domain='demand', demand_basis='operational', unit='MW', value_scale=1.0,
+    label_kind='scenario', fixed_poe_level=None, fixed_scenario=None,
+) -> List[dict]:
+    """
+    Pull one vintage's rows out of a Data-Register-style sheet (see module
+    docstring for the layout). label_kind='scenario' reads rows labelled
+    '{year} Low/Expected/High' (poe_level comes from fixed_poe_level);
+    label_kind='poe' reads rows labelled '{year} N% POE' (scenario comes
+    from fixed_scenario).
+    """
+    if sheet_name not in workbook.sheetnames:
+        logger.warning(f"esoo_workbook_parser: sheet '{sheet_name}' not found")
+        return []
+
+    rows = list(workbook[sheet_name].iter_rows(values_only=True))
+
+    header = _locate_year_header(rows)
+    if header is None:
         logger.warning(f"esoo_workbook_parser: no usable header row found in '{sheet_name}'")
         return []
+    header_idx, label_col, year_cols = header
 
     figures = []
     for row in rows[header_idx + 1:]:
@@ -200,6 +213,88 @@ def _run_sheet_plan(vintage, workbook, plan: List[dict]) -> List[dict]:
         sheet_name = entry.pop('sheet_name')
         metric = entry.pop('metric')
         figures += _extract_scenario_series(workbook, sheet_name, vintage.year, metric, **entry)
+    return figures
+
+
+# Expected-scenario *delivered* consumption (customer-meter, net of DPV, excl.
+# T&D losses), summed from the "consumption by component" sheets. Only needed
+# for vintages that publish underlying energy but not operational energy for
+# every scenario -- it is what lets esoo_demand_basis_crosswalk split AEMO's
+# underlying figure into DPV + delivered (see that module for the identity).
+# row_labels=None sums every labelled numeric row on the sheet (2026's sheet
+# is components only); otherwise only the listed rows (2025's sheet also
+# carries operational/offset/actual rows that must not be summed).
+DELIVERED_SHEET_PLANS: Dict[int, dict] = {
+    2025: dict(sheet_name='Ch 2_F.9', row_labels=[
+        'Business consumption (delivered)',
+        'Residential consumption (delivered)',
+        'EV: Business and residential',
+    ]),
+    2026: dict(sheet_name='Ch 2_F.9', row_labels=None),
+}
+
+
+def _extract_delivered_energy(vintage, workbook, sheet_name, row_labels=None) -> List[dict]:
+    if sheet_name not in workbook.sheetnames:
+        logger.warning(f"esoo_workbook_parser: sheet '{sheet_name}' not found")
+        return []
+
+    rows = list(workbook[sheet_name].iter_rows(values_only=True))
+    header = _locate_year_header(rows)
+    if header is None:
+        logger.warning(f"esoo_workbook_parser: no usable header row found in '{sheet_name}'")
+        return []
+    header_idx, label_col, year_cols = header
+
+    wanted = {label.strip() for label in row_labels} if row_labels is not None else None
+    found_labels = set()
+    totals: Dict[int, float] = {}
+    for row in rows[header_idx + 1:]:
+        if len(row) <= label_col or not row[label_col]:
+            continue
+        label = str(row[label_col]).strip()
+        if wanted is not None and label not in wanted:
+            continue
+        for col_idx, year_label in year_cols:
+            if col_idx >= len(row) or row[col_idx] is None:
+                continue
+            try:
+                num = float(row[col_idx])
+            except (TypeError, ValueError):
+                continue
+            forecast_year = int(year_label[:4])
+            # Earlier columns are actuals (and, in 2025, a duplicated
+            # base-year value) -- not part of this vintage's forecast.
+            if forecast_year < vintage.year - 1:
+                continue
+            totals[forecast_year] = totals.get(forecast_year, 0.0) + num
+        found_labels.add(label)
+
+    if wanted is not None and found_labels != wanted:
+        # Surface, don't fabricate: a partial sum would silently understate delivered energy.
+        logger.warning(
+            f"esoo_workbook_parser: '{sheet_name}' is missing row(s) {sorted(wanted - found_labels)}; "
+            f"delivered energy not extracted for vintage {vintage.year}"
+        )
+        return []
+
+    return [
+        {
+            'domain': 'demand', 'metric': 'energy', 'forecast_year': forecast_year,
+            'demand_growth_scenario': 'expected', 'poe_level': None,
+            'demand_basis': 'delivered', 'value': total, 'unit': 'GWh',
+            'table_ref': sheet_name, 'page_ref': '',
+            'cell_ref': f"sum of {len(found_labels)} component row(s) / {forecast_year}-{str(forecast_year + 1)[-2:]}",
+        }
+        for forecast_year, total in sorted(totals.items())
+    ]
+
+
+def _run_vintage_extractor(vintage, workbook, plan: List[dict]) -> List[dict]:
+    figures = _run_sheet_plan(vintage, workbook, plan)
+    delivered_plan = DELIVERED_SHEET_PLANS.get(vintage.year)
+    if delivered_plan:
+        figures += _extract_delivered_energy(vintage, workbook, **delivered_plan)
     return figures
 
 
@@ -429,7 +524,7 @@ SHEET_PLANS: Dict[int, List[dict]] = {
 # extractor function only if some future vintage's workbook breaks the
 # scenario/POE row-label template this engine assumes.
 FIGURE_EXTRACTORS: Dict[int, Callable] = {
-    year: (lambda vintage, workbook, _plan=plan: _run_sheet_plan(vintage, workbook, _plan))
+    year: (lambda vintage, workbook, _plan=plan: _run_vintage_extractor(vintage, workbook, _plan))
     for year, plan in SHEET_PLANS.items()
 }
 

@@ -291,7 +291,8 @@ def _build_extended_bias_report():
             'demand_growth_scenario': f.demand_growth_scenario, 'poe_level': f.poe_level,
             'demand_basis': f.demand_basis, 'value': f.value, 'unit': f.unit,
         }
-        for f in EsooFigure.objects.filter(domain='demand').select_related('vintage')
+        # 'delivered' rows are crosswalk inputs, not forecasts comparable with any actual
+        for f in EsooFigure.objects.filter(domain='demand').exclude(demand_basis='delivered').select_related('vintage')
     ]
     actuals = []
     for a in AnnualDemandActual.objects.all():

@@ -35,6 +35,7 @@ import numpy as np
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.db.models import Max, Min
 from django.shortcuts import redirect, render
 
 from siren_web.services.facility_scada_matrix import year_present_mask, year_totals
@@ -64,6 +65,7 @@ from powermatchui.utils.esoo_trace_synthesis import (
     select_reference_year,
     synthesize_chronological_trace,
 )
+from powermatchui.utils.time_alignment import ESOO_TRACE_CLOCK_MARKER, align_reference_to_target
 
 INTERVAL_HOURS = 0.5  # FR-G1-01 always builds a half-hourly demand trace
 LOAD_TECHNOLOGY_NAME = 'Load'
@@ -142,6 +144,40 @@ def _power_mw(figure: EsooFigure, label: str) -> float:
     return figure.value
 
 
+def _capacity_year_label(forecast_year: int) -> str:
+    """forecast_year is the capacity-year start: 2034 -> '2034-35'."""
+    return f"{forecast_year}-{str(forecast_year + 1)[-2:]}"
+
+
+def _outside_horizon_message(vintage: EsooVintage, forecast_year: int) -> Optional[str]:
+    """
+    If forecast_year lies outside the years this vintage published anything
+    for, say so (naming the vintages that do cover it) -- otherwise every
+    anchor just reads as 'missing', which looks like a data problem rather
+    than a horizon one. Returns None when the year is inside the horizon.
+    """
+    span = EsooFigure.objects.filter(vintage=vintage, domain='demand').aggregate(
+        first=Min('forecast_year'), last=Max('forecast_year'))
+    first, last = span['first'], span['last']
+    if first is None or first <= forecast_year <= last:
+        return None
+
+    covering = sorted(
+        EsooFigure.objects.filter(domain='demand', forecast_year=forecast_year)
+        .values_list('vintage__year', flat=True).distinct(),
+        reverse=True,
+    )
+    hint = (
+        f" WEM ESOO vintage(s) covering it: {', '.join(str(y) for y in covering)}."
+        if covering else " No ingested vintage covers it."
+    )
+    return (
+        f"WEM ESOO {vintage.year} forecasts forecast years {first}-{last} (capacity years "
+        f"{_capacity_year_label(first)} to {_capacity_year_label(last)}); {forecast_year} "
+        f"({_capacity_year_label(forecast_year)}) is outside that horizon.{hint}"
+    )
+
+
 def resolve_esoo_anchors(vintage: EsooVintage, esoo_scenario: str, poe: int, forecast_year: int,
                           demand_basis: str = 'operational'):
     """
@@ -194,11 +230,24 @@ def resolve_esoo_anchors(vintage: EsooVintage, esoo_scenario: str, poe: int, for
         missing.append("minimum demand (any POE)")
 
     if missing:
+        horizon_message = _outside_horizon_message(vintage, forecast_year)
+        if horizon_message:
+            raise AnchorNotFoundError(horizon_message)
+
+        energy_hint = ""
+        if energy_fig is None and EsooFigure.objects.filter(
+            vintage=vintage, domain='demand', metric='energy', demand_basis='underlying',
+            demand_growth_scenario=esoo_scenario, forecast_year=forecast_year,
+        ).exists():
+            energy_hint = (
+                " Underlying energy is published for this combination but its operational equivalent "
+                "hasn't been derived yet (run apply_esoo_demand_basis_crosswalk)."
+            )
         raise AnchorNotFoundError(
             f"WEM ESOO {vintage.year} / {esoo_scenario} / POE{poe} / {forecast_year} "
             f"({demand_basis}) is missing required anchor(s): {', '.join(missing)}. "
             "ESOO coverage is uneven across vintages and forecast years — this exact "
-            "combination wasn't published; try a different vintage, scenario, POE or year."
+            f"combination wasn't published; try a different vintage, scenario, POE or year.{energy_hint}"
         )
 
     peak_mw = _power_mw(peak_fig, 'peak_summer')
@@ -237,6 +286,14 @@ def build_reference_shape():
     (most-recent-available). horizon_aware reference-year selection
     (FR-G1-04's optional per-forecast-year cycling) is not wired up here;
     every call uses the single most recent complete year.
+
+    The returned array is calendar-exact and UTC-indexed: one value per
+    half-hour of the reference year, index 0 = 00:00 UTC (08:00 AWST), in the
+    reference year's weekday order. Intervals no facility recorded are
+    linearly interpolated rather than dropped, because dropping them would
+    slide every later interval earlier in the day. Callers that store the
+    result as a scenario trace must move it onto the AWST clock and the
+    target year's weekdays first (see utils/time_alignment.py).
     """
     # Count intervals with data (any facility) per year, not raw
     # FacilityScada rows -- a plain per-facility row count counts one row
@@ -259,11 +316,12 @@ def build_reference_shape():
     year_int = int(reference_year)
     present = year_present_mask(year_int)
     totals_mwh = year_totals(year_int, positive_only=False)  # nansum across facilities per interval
-    # Compact out intervals no facility has any data for, matching the old
-    # queryset's behaviour of only iterating dispatch_intervals that exist.
-    reference_shape = totals_mwh[present].astype(float) * 2
-    if reference_shape.size == 0:
+    if not present.any():
         raise ReferenceShapeError(f"No aggregated FacilityScada data found for reference year {reference_year}.")
+    reference_shape = totals_mwh.astype(float) * 2
+    if not present.all():
+        positions = np.arange(reference_shape.size)
+        reference_shape = np.interp(positions, positions[present], reference_shape[present])
 
     return reference_shape, reference_year
 
@@ -282,6 +340,13 @@ def _get_or_create_load_technology() -> Technologies:
         },
     )
     return tech
+
+
+def _scenario_description(vintage: EsooVintage, esoo_scenario: str, poe: int, forecast_year: int) -> str:
+    return (
+        f"Auto-built from WEM ESOO {vintage.year} ({esoo_scenario}, POE{poe}) "
+        f"demand forecast for {forecast_year} (FR-G1-01; {ESOO_TRACE_CLOCK_MARKER})."
+    )
 
 
 def _scenario_title(vintage: EsooVintage, esoo_scenario: str, poe: int, forecast_year: int) -> str:
@@ -341,6 +406,14 @@ def build_scenario_from_esoo(vintage: EsooVintage, esoo_scenario: str, poe: int,
     synthesis = synthesize_chronological_trace(
         ldc_fit.absolute, reference_shape, reference_year=reference_year
     )
+    # The synthesised trace inherits the reference shape's UTC clock and
+    # reference-year weekdays; the stored Load trace must be AWST and in the
+    # target year's calendar (peak/minimum/energy are unaffected by the shift,
+    # so reconciliation below is unchanged).
+    stored_trace, alignment_notes = align_reference_to_target(
+        synthesis.trace, int(reference_year), forecast_year
+    )
+    synthesis.notes.extend(alignment_notes)
 
     report = require_reconciled(reconcile_trace(
         synthesis.trace,
@@ -358,14 +431,15 @@ def build_scenario_from_esoo(vintage: EsooVintage, esoo_scenario: str, poe: int,
         defaults={
             'interval_minutes': 30,
             'reference_year': int(reference_year),
-            'description': (
-                f"Auto-built from WEM ESOO {vintage.year} ({esoo_scenario}, POE{poe}) "
-                f"demand forecast for {forecast_year} (FR-G1-01)."
-            ),
+            'description': _scenario_description(vintage, esoo_scenario, poe, forecast_year),
         },
     )
     if not created:
         update_fields = []
+        if scenario_obj.description != _scenario_description(vintage, esoo_scenario, poe, forecast_year):
+            # Rebuilding an older scenario re-stamps it (see ESOO_TRACE_CLOCK_MARKER).
+            scenario_obj.description = _scenario_description(vintage, esoo_scenario, poe, forecast_year)
+            update_fields.append('description')
         if scenario_obj.interval_minutes != 30:
             scenario_obj.interval_minutes = 30
             update_fields.append('interval_minutes')
@@ -412,7 +486,7 @@ def build_scenario_from_esoo(vintage: EsooVintage, esoo_scenario: str, poe: int,
     # Idempotent regeneration: clear any previous trace for this
     # facility/year before writing the new one.
     clear_facility_trace(forecast_year, facility_obj.idfacilities)
-    set_facility_trace(forecast_year, facility_obj.idfacilities, synthesis.trace)
+    set_facility_trace(forecast_year, facility_obj.idfacilities, stored_trace)
 
     return EsooScenarioBuildResult(
         scenario=scenario_obj,

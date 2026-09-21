@@ -4937,6 +4937,10 @@ ESOO_POE_LEVEL_CHOICES = [
 ESOO_DEMAND_BASIS_CHOICES = [
     ('operational', 'Operational'),
     ('underlying', 'Underlying'),
+    # Customer-meter consumption, net of DPV and excluding T&D losses. Not a
+    # demand forecast in its own right -- only stored as the input to the
+    # underlying -> operational crosswalk (esoo_demand_basis_crosswalk.py).
+    ('delivered', 'Delivered'),
     ('other', 'Other'),
 ]
 

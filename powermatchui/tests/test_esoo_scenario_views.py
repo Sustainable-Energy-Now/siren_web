@@ -25,16 +25,23 @@ from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 
-from powermatchui.views.esoo_scenario_views import build_scenario_from_esoo
+from powermatchui.views.esoo_scenario_views import (
+    AnchorNotFoundError,
+    build_scenario_from_esoo,
+    resolve_esoo_anchors,
+)
 from siren_web.models import (
     AnnualDemandActual,
     EsooFigure,
     EsooForecastAdjustment,
     EsooVintage,
+    Scenarios,
     Technologies,
     facilities,
 )
+from powermatchui.utils.time_alignment import ESOO_TRACE_CLOCK_MARKER
 from siren_web.services.facility_scada_matrix import set_scada_values
+from siren_web.services.supply_matrix import facility_trace
 
 # errors = forecast(4000) - actual; mean 400, non-zero variance (see
 # powerplotui/tests/test_esoo_bias_analysis.py's ComputeMeanErrorByGroupTests
@@ -156,6 +163,25 @@ class ApplyBiasCorrectionTests(TestCase):
             EsooForecastAdjustment.objects.filter(source_figure=self.peak_figure).exists()
         )
 
+    def test_stored_load_trace_is_on_the_awst_clock(self):
+        # The SCADA reference shape is UTC-indexed (its daily sine peaks at
+        # 06:00 UTC = index 12). The stored Load trace must be AWST, i.e. the
+        # same peak at 14:00 local = index 28, so it lines up with the
+        # local-clock EV and supply traces it is combined with.
+        result = build_scenario_from_esoo(self.target_vintage, 'expected', 10, self.target_forecast_year)
+        trace = facility_trace(self.target_forecast_year, result.facility.idfacilities)
+        self.assertEqual(trace.size, 365 * 48)
+        daily_mean = trace.reshape(365, 48).mean(axis=0)
+        self.assertEqual(int(daily_mean.argmax()), 28)
+        self.assertIn(ESOO_TRACE_CLOCK_MARKER, result.scenario.description)
+
+    def test_rebuilding_an_old_scenario_restamps_its_description(self):
+        first = build_scenario_from_esoo(self.target_vintage, 'expected', 10, self.target_forecast_year)
+        Scenarios.objects.filter(pk=first.scenario.pk).update(description='Auto-built ... (FR-G1-01).')
+        again = build_scenario_from_esoo(self.target_vintage, 'expected', 10, self.target_forecast_year)
+        again.scenario.refresh_from_db()
+        self.assertIn(ESOO_TRACE_CLOCK_MARKER, again.scenario.description)
+
     def test_selector_page_renders_with_bias_correction_checkbox_and_result(self):
         user = User.objects.create_user('analyst2', password='pw')
         self.client.force_login(user)
@@ -170,3 +196,47 @@ class ApplyBiasCorrectionTests(TestCase):
         self.assertContains(r, 'apply_bias_correction')
         self.assertContains(r, 'ESOO Bias Corrections Applied')
         self.assertContains(r, 'Forecasts run high')
+
+
+class AnchorNotFoundMessageTests(TestCase):
+    """resolve_esoo_anchors' error should tell a horizon problem from a
+    genuinely unpublished figure, and point at the crosswalk for the
+    underlying-only-energy case."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.v2025 = EsooVintage.objects.create(year=2025, tier='modern_comparable')
+        cls.v2026 = EsooVintage.objects.create(year=2026, tier='modern_comparable')
+        # 2025 vintage: forecasts 2033-2034, underlying energy only.
+        for year in (2033, 2034):
+            EsooFigure.objects.create(
+                vintage=cls.v2025, domain='demand', metric='peak_summer', forecast_year=year,
+                demand_growth_scenario='expected', poe_level=10, demand_basis='operational',
+                value=4500.0, unit='MW')
+            EsooFigure.objects.create(
+                vintage=cls.v2025, domain='demand', metric='energy', forecast_year=year,
+                demand_growth_scenario='low', poe_level=None, demand_basis='underlying',
+                value=25000.0, unit='GWh')
+        # 2026 vintage reaches 2035.
+        EsooFigure.objects.create(
+            vintage=cls.v2026, domain='demand', metric='peak_summer', forecast_year=2035,
+            demand_growth_scenario='expected', poe_level=10, demand_basis='operational',
+            value=4700.0, unit='MW')
+
+    def test_year_beyond_vintage_horizon_names_horizon_and_covering_vintage(self):
+        with self.assertRaises(AnchorNotFoundError) as ctx:
+            resolve_esoo_anchors(self.v2025, 'expected', 10, 2035)
+        message = str(ctx.exception)
+        self.assertIn('outside that horizon', message)
+        self.assertIn('2033-2034', message)
+        self.assertIn('2034-35', message)   # last capacity year
+        self.assertIn('2035-36', message)   # the year that was asked for
+        self.assertIn('2026', message)      # the vintage that does cover it
+
+    def test_in_horizon_underlying_only_energy_points_at_the_crosswalk(self):
+        with self.assertRaises(AnchorNotFoundError) as ctx:
+            resolve_esoo_anchors(self.v2025, 'low', 10, 2034)
+        message = str(ctx.exception)
+        self.assertNotIn('outside that horizon', message)
+        self.assertIn('missing required anchor', message)
+        self.assertIn('apply_esoo_demand_basis_crosswalk', message)

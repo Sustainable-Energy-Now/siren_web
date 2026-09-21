@@ -2,113 +2,143 @@
 """
 FR-F07 (D13) -- Demand-definition crosswalk: derive an approximate
 operational-basis annual energy figure from a published underlying-basis
-one, by subtracting the real DPV (rooftop solar) contribution for the
-matching WEM Capacity Year.
+one, using AEMO's own published decomposition of the two definitions.
 
-Scope, per D13: energy only. AEMO has never published peak or minimum
-demand on the underlying basis anywhere in the ingested archive (confirmed
-empirically -- zero such rows across every vintage), so no equivalent gap
-exists for those metrics; this module does not touch them.
+Why "underlying - DPV" is not enough. From the 2025 WEM ESOO Data Register
+(sheet 'Ch 2_F.9', Expected scenario, 2024-25, GWh):
 
-This is a narrow, explicitly-labelled exception to D3's default ("never
-reconstruct operational from underlying") -- every row this module writes
-is tagged extraction_method='dpv_subtraction' and carries a
-human-readable reconciliation_adjustment record (FR-F04), so it is never
-mistaken for a figure AEMO published directly.
+    delivered consumption   16,326.6   (customer meters, net of DPV, excl. T&D losses)
+  + DPV offset               3,826.2
+  = underlying              20,152.8   <- published, exact (also exact for 2034-35)
 
-Only produces a derived figure where real DPVGeneration data gives
-adequate coverage of the target Capacity Year -- it does not fabricate a
-growth-projected estimate for future years beyond DPV's real coverage
-(D13 anticipates that as a possible follow-up; this module deliberately
-stops short of it rather than inventing an unreviewed growth assumption).
+    delivered consumption   16,326.6
+  x k                        1.0665    (T&D losses + small items)
+  = operational (sent-out)  17,412.2   <- published
+
+So AEMO's underlying minus operational (2,740.6) is DPV minus network
+losses, not DPV alone; and k = operational/delivered is stable (~1.0653-1.0666
+in every year, 2025 vintage). The crosswalk therefore works per (vintage,
+forecast_year) as:
+
+    DPV_btm = U_expected - D_expected          (both published for that vintage)
+    O_s     = (U_s - DPV_btm) * k              (s = Low / Expected / High)
+    k       = O_expected / D_expected          (own vintage if it publishes operational
+                                                Expected, else the latest vintage that
+                                                does, for the same forecast year; a year
+                                                beyond that vintage's horizon holds the
+                                                last available k)
+
+For a vintage that publishes operational Expected this reproduces it exactly
+and applies AEMO's own DPV/loss adjustment to the other scenarios. Low/High
+assume the Expected scenario's DPV (AEMO publishes DPV by scenario only in
+rounded TWh; the spread is at most ~0.5 TWh by 2034).
+
+Scope, per D13: energy only. AEMO has never published peak or minimum demand
+on the underlying basis, so no equivalent gap exists for those metrics. This
+is a narrow, explicitly-labelled exception to D3's default ("never
+reconstruct operational from underlying") -- every row this module produces
+is tagged extraction_method='dpv_subtraction' and carries a human-readable
+reconciliation_adjustment record (FR-F04), so it is never mistaken for a
+figure AEMO published directly. It never extrapolates past a vintage's
+published horizon.
 """
 from dataclasses import dataclass
-from datetime import datetime
-from typing import Optional
-
-import numpy as np
-import pytz
+from typing import Dict, Optional, Tuple
 
 from siren_web.models import EsooFigure
-from siren_web.services.dpv_matrix import values_for_datetime_range
-
-AWST = pytz.timezone('Australia/Perth')
-
-DEFAULT_MIN_COVERAGE_PCT = 95.0
 
 
 class CrosswalkSkipped(Exception):
     """Raised (and caught by the caller) when a figure can't be crosswalked
-    -- e.g. insufficient real DPV coverage for its Capacity Year. Not an
-    error: this is FR-F07's "without fabricating precision" in action."""
+    -- e.g. no delivered-consumption series for its vintage. Not an error:
+    this is FR-F07's "without fabricating precision" in action."""
 
 
 @dataclass
-class DpvCoverage:
-    capacity_year_label: str
-    annual_dpv_gwh: float
-    interval_count: int
-    expected_intervals: int
-    coverage_pct: float
+class LossFactor:
+    value: float               # operational / delivered
+    source_vintage_year: int
+    source_forecast_year: int
+    held: bool                 # True if source_forecast_year != the year asked for
 
 
-def _capacity_year_window(forecast_year: int):
-    """WEM Capacity Year for an EsooFigure.forecast_year label: 1 Oct
-    forecast_year 08:00 AWST -> 1 Oct forecast_year+1 08:00 AWST, matching
-    compute_annual_demand_actuals.py's convention exactly."""
-    start = AWST.localize(datetime(forecast_year, 10, 1, 8, 0, 0))
-    end = AWST.localize(datetime(forecast_year + 1, 10, 1, 8, 0, 0))
-    return start, end
+def _forecast_key(figure: EsooFigure) -> Tuple[int, int]:
+    return figure.vintage.year, figure.forecast_year
 
 
-def compute_dpv_annual_energy(forecast_year: int, min_coverage_pct: float = DEFAULT_MIN_COVERAGE_PCT) -> DpvCoverage:
-    """
-    Aggregate real DPVGeneration data into an annual energy total (GWh)
-    for the Capacity Year forecast_year-(forecast_year+1).
+class DemandBasisCrosswalk:
+    """Loads the Expected-scenario delivered/underlying/operational energy
+    series once, so a whole-archive run doesn't re-query per figure."""
 
-    Raises CrosswalkSkipped if coverage is below min_coverage_pct -- e.g.
-    a forecast year beyond DPVGeneration's real data range (currently
-    2024-01-01 onward), or a year DPV ingestion hasn't fully backfilled.
-    """
-    start, end = _capacity_year_window(forecast_year)
-    label = f"{forecast_year}-{str(forecast_year + 1)[-2:]}"
+    def __init__(self):
+        expected = (
+            EsooFigure.objects
+            .filter(domain='demand', metric='energy', demand_growth_scenario='expected', poe_level__isnull=True)
+            .select_related('vintage')
+        )
+        self.delivered: Dict[Tuple[int, int], EsooFigure] = {}
+        self.underlying: Dict[Tuple[int, int], EsooFigure] = {}
+        self.published_operational: Dict[Tuple[int, int], EsooFigure] = {}
+        for fig in expected:
+            if fig.demand_basis == 'delivered':
+                self.delivered[_forecast_key(fig)] = fig
+            elif fig.demand_basis == 'underlying':
+                self.underlying[_forecast_key(fig)] = fig
+            elif fig.demand_basis == 'operational' and fig.extraction_method != 'dpv_subtraction':
+                # Derived rows are excluded on purpose: k must come from figures AEMO published.
+                self.published_operational[_forecast_key(fig)] = fig
 
-    values = values_for_datetime_range(start, end)
-    expected_intervals = values.shape[0]
-    interval_count = int(np.count_nonzero(~np.isnan(values)))
-    coverage_pct = (interval_count / expected_intervals * 100) if expected_intervals else 0.0
+        # (vintage_year, forecast_year) -> operational / delivered, wherever both are published
+        self._k: Dict[Tuple[int, int], float] = {
+            key: op.value / self.delivered[key].value
+            for key, op in self.published_operational.items()
+            if key in self.delivered and self.delivered[key].value
+        }
 
-    if coverage_pct < min_coverage_pct:
+    def loss_factor(self, vintage_year: int, forecast_year: int) -> LossFactor:
+        # Same vintage first, then the most recent other vintage, for this exact forecast year.
+        candidates = sorted({v for (v, fy) in self._k if fy == forecast_year}, key=lambda v: (v != vintage_year, -v))
+        if candidates:
+            v = candidates[0]
+            return LossFactor(self._k[(v, forecast_year)], v, forecast_year, held=False)
+
+        # No vintage publishes this year (beyond every horizon): hold the latest available year.
+        earlier = [(v, fy) for (v, fy) in self._k if fy < forecast_year]
+        if earlier:
+            v, fy = max(earlier, key=lambda key: (key[1], key[0] == vintage_year, key[0]))
+            return LossFactor(self._k[(v, fy)], v, fy, held=True)
+
         raise CrosswalkSkipped(
-            f"Capacity Year {label}: only {interval_count}/{expected_intervals} DPV intervals "
-            f"({coverage_pct:.1f}%) -- below --min-coverage {min_coverage_pct}%. No growth-projected "
-            f"estimate is used as a substitute (D13 scope); skipping."
+            f"No vintage publishes both operational and delivered Expected energy at or before {forecast_year}, "
+            f"so the operational/delivered factor k can't be established."
         )
 
-    # estimated_generation is genuine MW (verified against a real solar
-    # curve, unlike FacilityScada's half-hourly-energy convention) -- so
-    # energy per interval = MW * 0.5h.
-    total_mw = np.nansum(values) if values.size else 0.0
-    annual_dpv_mwh = float(total_mw) * 0.5
-    annual_dpv_gwh = annual_dpv_mwh / 1000.0
+    def dpv_behind_the_meter(self, vintage_year: int, forecast_year: int) -> Tuple[float, EsooFigure, EsooFigure]:
+        key = (vintage_year, forecast_year)
+        delivered = self.delivered.get(key)
+        underlying = self.underlying.get(key)
+        if delivered is None or underlying is None:
+            raise CrosswalkSkipped(
+                f"ESOO {vintage_year} has no Expected delivered-consumption series for {forecast_year} "
+                f"(run `extract_esoo_figures --year {vintage_year}`) -- DPV can't be separated from underlying."
+            )
+        dpv = underlying.value - delivered.value
+        if not 0 < dpv < underlying.value:
+            raise CrosswalkSkipped(
+                f"ESOO {vintage_year} {forecast_year}: implied DPV ({dpv:,.1f} GWh) from Expected underlying "
+                f"({underlying.value:,.1f}) minus delivered ({delivered.value:,.1f}) is not plausible; skipping."
+            )
+        return dpv, underlying, delivered
 
-    return DpvCoverage(
-        capacity_year_label=label,
-        annual_dpv_gwh=annual_dpv_gwh,
-        interval_count=interval_count,
-        expected_intervals=expected_intervals,
-        coverage_pct=coverage_pct,
-    )
 
-
-def derive_operational_energy_figure(underlying_figure: EsooFigure, min_coverage_pct: float = DEFAULT_MIN_COVERAGE_PCT) -> dict:
+def derive_operational_energy_figure(underlying_figure: EsooFigure, crosswalk: Optional[DemandBasisCrosswalk] = None) -> dict:
     """
     Build the field values for a derived operational-basis EsooFigure row
     from one published underlying-basis energy figure.
 
-    Raises CrosswalkSkipped (propagated from compute_dpv_annual_energy)
-    where DPV coverage is inadequate -- callers should catch this and
-    move on rather than treating it as fatal.
+    Raises CrosswalkSkipped where the vintage has no delivered series or no
+    operational/delivered factor is available -- callers should catch this
+    and move on rather than treating it as fatal.
     """
     if underlying_figure.metric != 'energy':
         raise ValueError(f"Crosswalk is energy-only (D13); got metric={underlying_figure.metric!r}")
@@ -120,22 +150,35 @@ def derive_operational_energy_figure(underlying_figure: EsooFigure, min_coverage
             f"'{underlying_figure.unit}'; expected GWh -- refusing to guess a conversion."
         )
 
-    coverage = compute_dpv_annual_energy(underlying_figure.forecast_year, min_coverage_pct)
-    derived_value = underlying_figure.value - coverage.annual_dpv_gwh
+    crosswalk = crosswalk or DemandBasisCrosswalk()
+    vintage_year, forecast_year = underlying_figure.vintage.year, underlying_figure.forecast_year
 
+    dpv, expected_underlying, delivered = crosswalk.dpv_behind_the_meter(vintage_year, forecast_year)
+    loss = crosswalk.loss_factor(vintage_year, forecast_year)
+    derived_value = (underlying_figure.value - dpv) * loss.value
+
+    scenario_note = (
+        "" if underlying_figure.demand_growth_scenario == 'expected'
+        else f" {underlying_figure.demand_growth_scenario.title()} scenario assumes the Expected scenario's DPV."
+    )
+    held_note = (
+        f" (held from forecast year {loss.source_forecast_year}: no vintage publishes k for {forecast_year})"
+        if loss.held else ""
+    )
     adjustment_note = (
-        f"D13 crosswalk: operational energy derived as underlying ({underlying_figure.value:,.2f} GWh) "
-        f"minus real DPV generation for Capacity Year {coverage.capacity_year_label} "
-        f"({coverage.annual_dpv_gwh:,.2f} GWh, {coverage.coverage_pct:.1f}% interval coverage from "
-        f"DPVGeneration) = {derived_value:,.2f} GWh. Not a figure AEMO published directly -- see "
-        f"extraction_method."
+        f"D13 crosswalk: operational energy derived as (underlying {underlying_figure.value:,.2f} GWh - DPV "
+        f"behind-the-meter {dpv:,.2f} GWh) x k {loss.value:.4f} = {derived_value:,.2f} GWh. "
+        f"DPV = ESOO {vintage_year} Expected underlying {expected_underlying.value:,.2f} - Expected delivered "
+        f"{delivered.value:,.2f} ({delivered.table_ref}). k = operational-as-sent-out / delivered from the "
+        f"published ESOO {loss.source_vintage_year} Expected figures, forecast year {loss.source_forecast_year}"
+        f"{held_note}.{scenario_note} Not a figure AEMO published directly -- see extraction_method."
     )
 
     return {
         'vintage': underlying_figure.vintage,
         'domain': underlying_figure.domain,
         'metric': underlying_figure.metric,
-        'forecast_year': underlying_figure.forecast_year,
+        'forecast_year': forecast_year,
         'demand_growth_scenario': underlying_figure.demand_growth_scenario,
         'poe_level': underlying_figure.poe_level,
         'demand_basis': 'operational',
