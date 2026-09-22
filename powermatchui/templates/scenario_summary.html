@@ -1,0 +1,152 @@
+{% extends 'powermatchui_base.html' %}
+{% load static %}
+
+{% block powermatchui_content %}
+<div class="container-fluid mt-4">
+  <div class="row">
+    <div class="col-md-11 offset-md-1">
+      <h3>Scenario Summary</h3>
+      <p class="text-muted">
+        Key statistics for a scenario's Load (demand) trace: energy, peak and minimum, load factor, monthly energy,
+        daily profile and load-duration curve, and how the scenario was built. Read-only. Optionally compare with a second
+        scenario for the same year.
+      </p>
+
+      <div class="card">
+        <div class="card-body">
+          <form method="get" class="row g-3 align-items-end">
+            <div class="col-md-4">
+              <label for="scenario" class="form-label">Scenario <span class="text-danger">*</span></label>
+              <select class="form-select" id="scenario" name="scenario" required>
+                <option value="">Select a scenario...</option>
+                {% for s in scenarios %}
+                <option value="{{ s.idscenarios }}" {% if selected_id == s.idscenarios %}selected{% endif %}>{{ s.title }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-2">
+              <label for="year" class="form-label">Year</label>
+              <select class="form-select" id="year" name="year">
+                {% if years %}
+                  {% for y in years %}<option value="{{ y }}" {% if selected_year == y %}selected{% endif %}>{{ y }}</option>{% endfor %}
+                {% else %}
+                  <option value="">latest</option>
+                {% endif %}
+              </select>
+              <div class="form-text">Years are listed once a scenario is chosen.</div>
+            </div>
+            <div class="col-md-4">
+              <label for="compare" class="form-label">Compare with (optional)</label>
+              <select class="form-select" id="compare" name="compare">
+                <option value="">None</option>
+                {% for s in scenarios %}
+                <option value="{{ s.idscenarios }}" {% if compare_id == s.idscenarios %}selected{% endif %}>{{ s.title }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-2">
+              <button type="submit" class="btn btn-primary">Summarise</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      {% if error %}
+      <div class="alert alert-warning mt-4">{{ error }}</div>
+      {% endif %}
+
+      {% if stats %}
+      <h4 class="mt-4">{{ scenario.title }} &mdash; {{ stats.year }} <small class="text-muted">({{ resolution }})</small></h4>
+
+      <div class="row g-3 mt-1">
+        <div class="col-md-8">
+          <div class="table-responsive">
+            <table class="table table-sm table-bordered align-middle mb-0">
+              <tbody>
+                <tr><th scope="row">Annual energy</th><td class="text-end">{{ stats.annual_energy_gwh|floatformat:"1g" }} GWh</td>
+                    <th scope="row">Average load</th><td class="text-end">{{ stats.average_mw|floatformat:"0g" }} MW</td></tr>
+                <tr><th scope="row">Peak</th><td class="text-end">{{ stats.peak_mw|floatformat:"0g" }} MW</td>
+                    <th scope="row">Peak time</th><td class="text-end">{{ stats.peak_time|date:"D j M, H:i" }}</td></tr>
+                <tr><th scope="row">Minimum</th><td class="text-end">{{ stats.minimum_mw|floatformat:"0g" }} MW</td>
+                    <th scope="row">Minimum time</th><td class="text-end">{{ stats.minimum_time|date:"D j M, H:i" }}</td></tr>
+                <tr><th scope="row">Load factor</th><td class="text-end">{{ stats.load_factor|floatformat:3 }}</td>
+                    <th scope="row">Hours within 10% of peak</th><td class="text-end">{{ stats.hours_within_10pct_of_peak|floatformat:0 }} h</td></tr>
+                <tr><th scope="row">Intervals</th><td class="text-end">{{ stats.n_intervals }}</td>
+                    <th scope="row">Missing intervals</th><td class="text-end">{{ stats.n_missing }}</td></tr>
+              </tbody>
+            </table>
+          </div>
+          {% if stats.n_missing %}
+          <div class="alert alert-warning py-2 mt-2 mb-0">{{ stats.n_missing }} intervals have no value; statistics use the intervals that do.</div>
+          {% endif %}
+        </div>
+        <div class="col-md-4">
+          <div class="card h-100">
+            <div class="card-header">How it was built</div>
+            <ul class="list-group list-group-flush">
+              {% for label, value in provenance %}
+              <li class="list-group-item py-1"><span class="text-muted">{{ label }}:</span> {{ value }}</li>
+              {% empty %}
+              <li class="list-group-item py-1 text-muted">No build information recorded.</li>
+              {% endfor %}
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      {% if facility_rows|length > 1 %}
+      <h6 class="mt-4">Load facilities in this scenario (the totals above are their sum)</h6>
+      <table class="table table-sm table-bordered w-auto">
+        <thead class="table-light"><tr><th>Facility</th><th class="text-end">Energy (GWh)</th><th class="text-end">Peak (MW)</th><th class="text-end">Minimum (MW)</th></tr></thead>
+        <tbody>
+          {% for r in facility_rows %}
+          <tr>
+            <td>{{ r.name }}</td>
+            {% if r.error %}<td colspan="3" class="text-muted">{{ r.error }}</td>
+            {% else %}<td class="text-end">{{ r.energy_gwh|floatformat:"1g" }}</td><td class="text-end">{{ r.peak_mw|floatformat:"0g" }}</td><td class="text-end">{{ r.minimum_mw|floatformat:"0g" }}</td>{% endif %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% endif %}
+
+      {% if comparison %}
+      <h5 class="mt-4">Comparison with {{ other.title }}</h5>
+      <div class="table-responsive">
+        <table class="table table-sm table-bordered align-middle w-auto">
+          <thead class="table-light">
+            <tr><th></th><th class="text-end">{{ scenario.title }}</th><th class="text-end">{{ other.title }}</th><th class="text-end">Difference</th><th class="text-end">%</th></tr>
+          </thead>
+          <tbody>
+            {% for r in comparison %}
+            <tr>
+              <th scope="row">{{ r.label }}</th>
+              <td class="text-end">{{ r.a }}</td>
+              <td class="text-end">{{ r.b }}</td>
+              <td class="text-end">{{ r.delta }}</td>
+              <td class="text-end">{% if r.delta_pct is not None %}{{ r.delta_pct|floatformat:1 }}%{% endif %}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% endif %}
+
+      <div class="row g-3 mt-2">
+        <div class="col-lg-6"><div class="card"><div class="card-body p-2">{{ charts.profile|safe }}</div></div></div>
+        <div class="col-lg-6"><div class="card"><div class="card-body p-2">{{ charts.peak_day|safe }}</div></div></div>
+        <div class="col-lg-6"><div class="card"><div class="card-body p-2">{{ charts.monthly|safe }}</div></div></div>
+        <div class="col-lg-6"><div class="card"><div class="card-body p-2">{{ charts.duration|safe }}</div></div></div>
+      </div>
+      <p class="text-muted small mt-3">
+        Times are on the clock the trace was stored on (AWST for scenarios built by the ESOO and EV builders). The
+        load-duration curve is the year's intervals sorted from highest to lowest and sampled at every 1%.
+        This is the demand trace only: it has not been run through Powermatch dispatch.
+      </p>
+      {% elif not error %}
+      <p class="text-muted mt-4">Choose a scenario, then Summarise.</p>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}
