@@ -28,7 +28,7 @@
         <select name="source_scenario" id="source_scenario" class="form-control" required>
           <option value="">-- Select Source Scenario --</option>
           {% for scenario in all_scenarios %}
-            <option value="{{ scenario.idscenarios }}">{{ scenario.title }}</option>
+            <option value="{{ scenario.idscenarios }}">{{ scenario.title }}{% if scenario.forecast_year %} ({{ scenario.forecast_year }}{% if scenario.probability_band %}, {{ scenario.get_probability_band_display }}{% endif %}){% endif %}</option>
           {% endfor %}
         </select>
       </div>

@@ -231,10 +231,10 @@ def run_baseline_progress(request):
             'error': "Select a Demand forecast on the Baseline Scenario page before running -- "
                      "a scenario no longer carries an implicit demand trace of its own."
         }, status=400)
-    demand_year = resolve_baseline_year(scenario)
+    demand_year = resolve_baseline_year(scenario, request.session.get('weather_year'))
     if demand_year is None:
         return JsonResponse({
-            'error': "Could not determine a year to run against — set this scenario's "
+            'error': "Could not determine a year to run against — set a "
                      "Weather Year before running."
         }, status=400)
 
@@ -495,7 +495,7 @@ def run_baseline(request):
     scenario = request.session.get('scenario')
     config_file = request.session.get('config_file')
     demand_override = resolve_demand_override(request.session.get('demand_scenario_demand_id'))
-    demand_year = resolve_baseline_year(scenario)
+    demand_year = resolve_baseline_year(scenario, request.session.get('weather_year'))
     success_message = ""
 
     if demand_override is None:

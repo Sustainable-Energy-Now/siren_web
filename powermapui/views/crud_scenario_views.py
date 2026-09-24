@@ -219,11 +219,20 @@ def clone_scenario(request):
         try:
             # Get the source scenario
             source_scenario = Scenarios.objects.get(pk=source_scenario_id)
-            
-            # Create new scenario
+
+            # Create new scenario -- also carries over forecast_year/
+            # scenario_type/probability_band (a pre-existing gap: this view
+            # didn't even copy weather_year before the scenario-taxonomy
+            # work). is_auto_generated is deliberately NOT copied: a manual
+            # clone should never be silently overwritten by a later
+            # generate_facilities_takeup_scenarios rerun.
             new_scenario = Scenarios.objects.create(
                 title=new_title,
-                description=new_description
+                description=new_description,
+                forecast_year=source_scenario.forecast_year,
+                scenario_type=source_scenario.scenario_type,
+                probability_band=source_scenario.probability_band,
+                is_auto_generated=False,
             )
             
             # Clone all facility associations (one by one to trigger signals)

@@ -14,10 +14,10 @@ def settings_required(redirect_view='home', require_demand_year=True, require_we
     require_demand_year=False is for views that derive their own year at
     runtime instead of expecting the user to have picked one (see
     siren_web.database_operations.resolve_baseline_year) — e.g. Powermatch's
-    baseline/dispatch views, whose year comes from the scenario's own
-    Scenarios.weather_year and whichever Demand is selected for the run,
-    never from session['demand_year']. Powermatch views pass this False and
-    no longer show or set a Demand Year anywhere.
+    baseline/dispatch views, whose year comes from the session weather_year
+    and whichever Demand is selected for the run, never from
+    session['demand_year']. Powermatch views pass this False and no longer
+    show or set a Demand Year anywhere.
 
     require_weather_year=False is for views that derive their own weather
     year instead — e.g. powermapui's Run Power view, which uses the

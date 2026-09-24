@@ -44,9 +44,11 @@ from django.shortcuts import render
 from siren_web.models import (
     Demand,
     DemandMatrix,
+    DemandScenarios,
     EV_CHARGING_MODE_CHOICES,
     EvChargingProfile,
     EvLoadTrace,
+    ScenarioType,
 )
 from siren_web.services.demand_matrix import clear_demand_trace, demand_trace, set_demand_trace
 from powermatchui.utils.ev_load_trace_store import load_trace, save_trace
@@ -330,6 +332,24 @@ def build_scenario_from_ev(base_demand: Demand, csiro_scenario: str, forecast_ye
     # demand/year before writing the new one.
     clear_demand_trace(forecast_year, demand_obj.iddemand)
     set_demand_trace(forecast_year, demand_obj.iddemand, net_trace)
+
+    load_factor_ev_type, _ = ScenarioType.objects.get_or_create(
+        name='Load Factor - EV Charging',
+        defaults={
+            'description': "EV charging load layered onto a base Demand Forecast, AEMO IASR/CSIRO-derived.",
+            'is_system_default': True,
+        },
+    )
+    _csiro_band = {'low': 'low', 'medium': 'expected', 'high': 'high'}
+    DemandScenarios.objects.update_or_create(
+        demand=demand_obj,
+        defaults={
+            'name': title,
+            'scenario_type': load_factor_ev_type,
+            'forecast_year': forecast_year,
+            'probability_band': _csiro_band.get(csiro_scenario, ''),
+        },
+    )
 
     notes = []
     if ev_trace_record.integral_check_pct and ev_trace_record.integral_check_pct > 0.01:

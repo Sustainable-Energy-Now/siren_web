@@ -3,7 +3,7 @@
 # ============================================================================
 # common/mixins.py
 from django.shortcuts import render
-from siren_web.models import ReportComment
+from siren_web.models import Demand, ReportComment, Scenarios
 
 class DemandScenarioSettingsMixin:
     """
@@ -52,6 +52,23 @@ class DemandScenarioSettingsMixin:
     def get_context_data(self, request, form=None, success_message=""):
         """Assemble template context"""
         session_data = self.get_session_data(request)
+
+        # Facilities Take-up (Scenarios.forecast_year) vs. Demand Forecast/
+        # Load Factor (DemandScenarios.forecast_year) -- informational only,
+        # since "any combination" is allowed; see settings_form_partial.html.
+        scenario_forecast_year = None
+        if session_data['scenario']:
+            scenario_obj = Scenarios.objects.filter(title=session_data['scenario']).first()
+            if scenario_obj is not None:
+                scenario_forecast_year = scenario_obj.forecast_year
+
+        demand_forecast_year = None
+        demand_id = request.session.get('demand_scenario_demand_id')
+        if demand_id:
+            demand_obj = Demand.objects.filter(pk=demand_id).select_related('demand_scenario').first()
+            if demand_obj is not None and hasattr(demand_obj, 'demand_scenario'):
+                demand_forecast_year = demand_obj.demand_scenario.forecast_year
+
         context = {
             self.context_form_name: form or self.get_form(request),
             'weather_year': session_data['weather_year'],
@@ -59,6 +76,8 @@ class DemandScenarioSettingsMixin:
             'scenario': session_data['scenario'],
             'config_file': session_data['config_file'],
             'success_message': success_message,
+            'scenario_forecast_year': scenario_forecast_year,
+            'demand_forecast_year': demand_forecast_year,
         }
         return context
 

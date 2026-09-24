@@ -1,6 +1,7 @@
 # forms.py
 from django import forms
 from django.conf import settings
+from django.core.exceptions import ObjectDoesNotExist
 from django.forms.widgets import DateTimeInput
 from siren_web.models import Demand, Scenarios, TechnologyYears
 from crispy_forms.helper import FormHelper
@@ -21,16 +22,16 @@ def get_weather_year_choices():
 class ScenarioForm(forms.ModelForm):
     class Meta:
         model = Scenarios
-        fields = ['title', 'description', 'weather_year']
+        fields = ['title', 'description', 'forecast_year']
         labels = {
             'title': 'Scenario Title',
             'description': 'Scenario Description',
-            'weather_year': 'Weather Year',
+            'forecast_year': 'Forecast Year',
         }
         widgets = {
             'title': forms.TextInput(attrs={'class': 'form-control'}),
             'description': forms.Textarea(attrs={'class': 'form-control'}),
-            'weather_year': forms.NumberInput(attrs={'class': 'form-control'}),
+            'forecast_year': forms.NumberInput(attrs={'class': 'form-control'}),
         }
 
 class DemandScenarioSettings(forms.Form):
@@ -98,7 +99,7 @@ class DemandScenarioOverrideForm(forms.Form):
         queryset=Demand.objects.filter(
             interval_minutes=30,
             is_active=True,
-        ).order_by('name'),
+        ).select_related('demand_scenario', 'demand_scenario__scenario_type').order_by('name'),
         required=False,
         empty_label="Select a Demand forecast",
         label='Demand Forecast',
@@ -107,7 +108,27 @@ class DemandScenarioOverrideForm(forms.Form):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields['demand_scenario_demand'].label_from_instance = lambda d: d.name
+
+        def _label(d):
+            # Prefix with the ScenarioType/probability_band/forecast_year
+            # taxonomy tag (DemandScenarios) when one exists, so Demand
+            # Forecast and Load Factor/EV rows are visually distinguishable
+            # in one dropdown; falls back to the plain name for a Demand
+            # that predates the taxonomy or was built outside the ESOO/EV
+            # builders.
+            try:
+                ds = d.demand_scenario
+            except ObjectDoesNotExist:
+                return d.name
+            tag_parts = [ds.scenario_type.name]
+            band = ds.get_probability_band_display()
+            if band:
+                tag_parts.append(band)
+            if ds.forecast_year:
+                tag_parts.append(str(ds.forecast_year))
+            return f"[{' — '.join(tag_parts)}] {d.name}"
+
+        self.fields['demand_scenario_demand'].label_from_instance = _label
 
         self.helper = FormHelper()
         self.helper.form_method = 'post'

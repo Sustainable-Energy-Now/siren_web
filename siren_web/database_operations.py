@@ -284,21 +284,28 @@ def resolve_demand_override(demand_id):
     return None
 
 
-def resolve_baseline_year(scenario):
+def resolve_baseline_year(scenario, weather_year=None):
     """
     The year that drives technology-cost lookups (fetch_technology_attributes)
     and the base scenario's OWN supply-side SupplyFactorMatrix retrieval
     (fetch_supplyfactors_data's initial load_year_matrix(demand_year) call,
-    which finds this scenario's own wind/solar/storage facility rows) —
-    read directly from Scenarios.weather_year, set explicitly by the user
-    rather than inferred.
+    which finds this scenario's own wind/solar/storage facility rows).
+
+    Takes the session-selected weather_year (request.session['weather_year'],
+    set via DemandScenarioSettings/WeatherScenarioSettings) as an explicit
+    argument, rather than reading Scenarios.weather_year as before:
+    Scenarios.forecast_year now means the scenario's build-out/target year
+    (e.g. 2035 for an auto-generated Facilities Take-up scenario, which has
+    no SupplyFactorMatrix data for 2035), not a real weather-trace year, so
+    it can no longer supply this value. Callers pass
+    request.session.get('weather_year').
 
     Deliberately unrelated to any active demand_override: a demand override
     gets its own independent load_year_matrix(demand_override.year) lookup
     inside fetch_supplyfactors_data, scoped to just the Load column. Using
-    the override's year here instead of the scenario's own weather_year
-    would make fetch_supplyfactors_data load the WRONG year's matrix for
-    every other technology.
+    the override's year here instead of the session weather_year would make
+    fetch_supplyfactors_data load the WRONG year's matrix for every other
+    technology.
 
     Returns None if it can't be determined (scenario not found, or
     weather_year not set) — callers must treat that as "can't run", not
@@ -307,7 +314,7 @@ def resolve_baseline_year(scenario):
     scenario_obj = Scenarios.objects.filter(title=scenario).first()
     if scenario_obj is None:
         return None
-    return scenario_obj.weather_year
+    return int(weather_year) if weather_year else None
 
 
 def get_demand_scenario_context(request):

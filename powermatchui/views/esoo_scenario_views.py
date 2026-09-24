@@ -41,12 +41,14 @@ from siren_web.services.facility_scada_matrix import year_present_mask, year_tot
 
 from siren_web.models import (
     Demand,
+    DemandScenarios,
     EsooFigure,
     EsooForecastAdjustment,
     EsooVintage,
     ESOO_POE_LEVEL_CHOICES,
     ESOO_SCENARIO_CHOICES,
     FacilityScadaMatrix,
+    ScenarioType,
 )
 from siren_web.services.demand_matrix import clear_demand_trace, set_demand_trace
 from powermatchui.utils.esoo_forecast_adjustment import build_adjusted_anchors
@@ -412,6 +414,23 @@ def build_scenario_from_esoo(vintage: EsooVintage, esoo_scenario: str, poe: int,
             'poe_level': poe,
             'demand_basis': demand_basis,
             'apply_bias_correction': apply_bias_correction,
+        },
+    )
+
+    demand_forecast_type, _ = ScenarioType.objects.get_or_create(
+        name='Demand Forecast',
+        defaults={
+            'description': "Overall grid demand, AEMO ESOO-derived (a Demand row with no parent_demand).",
+            'is_system_default': True,
+        },
+    )
+    DemandScenarios.objects.update_or_create(
+        demand=demand_obj,
+        defaults={
+            'name': title,
+            'scenario_type': demand_forecast_type,
+            'forecast_year': forecast_year,
+            'probability_band': esoo_scenario if esoo_scenario in ('low', 'expected', 'high') else '',
         },
     )
 

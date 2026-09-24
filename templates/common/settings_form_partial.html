@@ -18,3 +18,8 @@
     <p>Scenario must be specified.</p>
     {% endif %}
 {% endif %}
+{% if scenario_forecast_year and demand_forecast_year and scenario_forecast_year != demand_forecast_year %}
+    <p><small>Note: this Facilities Take-up scenario's forecast year ({{ scenario_forecast_year }}) differs
+    from the selected Demand Forecast's ({{ demand_forecast_year }}). This is allowed -- Facilities Take-up
+    and Demand Forecast/Load Factor scenarios are selected independently -- but check it's intentional.</small></p>
+{% endif %}

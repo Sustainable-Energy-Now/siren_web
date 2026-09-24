@@ -38,7 +38,9 @@ def generate_power(request):
     # get_demand_scenario_context / resolve_demand_override), or, absent a
     # selection, the scenario's own weather_year (see resolve_baseline_year).
     demand_override = resolve_demand_override(request.session.get('demand_scenario_demand_id'))
-    demand_year = demand_override.year if demand_override else resolve_baseline_year(scenario)
+    demand_year = demand_override.year if demand_override else resolve_baseline_year(
+        scenario, request.session.get('weather_year')
+    )
     if demand_year is None:
         messages.error(
             request,

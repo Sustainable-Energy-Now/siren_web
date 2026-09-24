@@ -43,6 +43,14 @@
                                 <input type="checkbox" class="toggle-column" data-scenario-id="{{ scenario.idscenarios }}">
                                 {{ scenario.title }}
                             {% endif %}
+                            {% if scenario.scenario_type or scenario.probability_band or scenario.forecast_year %}
+                                <br><small class="text-muted">
+                                    {% if scenario.scenario_type %}{{ scenario.scenario_type.name }}{% endif %}
+                                    {% if scenario.probability_band %} &middot; {{ scenario.get_probability_band_display }}{% endif %}
+                                    {% if scenario.forecast_year %} &middot; {{ scenario.forecast_year }}{% endif %}
+                                    {% if scenario.is_auto_generated %} &middot; auto-generated{% endif %}
+                                </small>
+                            {% endif %}
                             
                             <!-- Action buttons for non-protected scenarios -->
                             {% if scenario.title != 'Current' %}

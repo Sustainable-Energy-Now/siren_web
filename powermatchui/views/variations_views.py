@@ -28,9 +28,9 @@ def setup_variation(request):
         return render(request, 'variations.html', context)
 
     # Derived rather than user-selected -- see resolve_baseline_year.
-    demand_year = resolve_baseline_year(scenario)
+    demand_year = resolve_baseline_year(scenario, request.session.get('weather_year'))
     if demand_year is None:
-        success_message = "Could not determine a year to run against — set this scenario's Weather Year."
+        success_message = "Could not determine a year to run against — set a Weather Year."
         context = {'success_message': success_message}
         return render(request, 'variations.html', context)
 
