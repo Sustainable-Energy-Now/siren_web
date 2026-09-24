@@ -21,13 +21,6 @@ def get_description(name, sirensystem_model):
     return description
 
 def home_view(request):
-    scenario = request.session.get('scenario')
-    try:
-        scenario_obj: Scenarios = Scenarios.objects.get(title=scenario)
-    except Scenarios.DoesNotExist: # Handle the case where the scenario title no longer exists
-        scenario = None
-        request.session['scenario'] = scenario
-    config_file = request.session.get('config_file')
     success_message = ""
     member_name = request.GET.get('member_name', '')
     email_address = request.GET.get('email_address', '')
@@ -75,8 +68,6 @@ def home_view(request):
     table = request.GET.get('table')  # Get the title parameter from the request
 
     # Perform actions based on the table
-    context['scenario'] = scenario
-    context['config_file'] = config_file
     context['success_message'] = success_message
     if table:
         # Dictionary mapping table names to their respective model classes

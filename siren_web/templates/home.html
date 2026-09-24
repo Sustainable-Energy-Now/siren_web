@@ -9,10 +9,6 @@
 {% load static %}
 
 {% csrf_token %}
-<div class="settings-box">
-    <strong>Scenario:   </strong> {{ scenario }}<br>
-    <strong>Config:   </strong> {{ config_file }}
-</div>
 <div style="max-width: 100vw; overflow: auto;">
     <img id="siren-image" src="{% static 'img/siren_system.jpg' %}" usemap="#image-map" style="max-width: 100%;">
 
