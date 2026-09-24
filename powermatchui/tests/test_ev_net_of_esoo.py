@@ -14,13 +14,12 @@ from powermatchui.utils import iasr_ev_energy
 from powermatchui.utils.esoo_embedded_ev import (
     EmbeddedEv,
     EmbeddedEvNotAvailableError,
-    parse_esoo_base,
     resolve_embedded_ev,
 )
 from powermatchui.utils.ev_trace_synthesis import ChargingTypeProfile
 from powermatchui.utils.time_alignment import ESOO_TRACE_CLOCK_MARKER
 from powermatchui.views import ev_scenario_views
-from siren_web.models import Scenarios
+from siren_web.models import Demand
 
 ESOO_DESCRIPTION = (
     f"Auto-built from WEM ESOO 2026 (expected, POE10) demand forecast for 2035 (FR-G1-01; {ESOO_TRACE_CLOCK_MARKER})."
@@ -28,31 +27,22 @@ ESOO_DESCRIPTION = (
 N = 17520
 
 
-class ParseEsooBaseTests(SimpleTestCase):
-    def test_reads_vintage_scenario_and_year_from_the_builders_description(self):
-        self.assertEqual(parse_esoo_base(ESOO_DESCRIPTION), dict(vintage=2026, scenario='expected', forecast_year=2035))
-
-    def test_non_esoo_description_is_none(self):
-        self.assertIsNone(parse_esoo_base('Hand-made baseline'))
-        self.assertIsNone(parse_esoo_base(''))
-
-
 class ResolveEmbeddedEvTests(SimpleTestCase):
     def test_override_wins_and_is_not_flagged_as_an_assumption(self):
-        emb = resolve_embedded_ev('anything', 2035, override_gwh=1500.0)
+        emb = resolve_embedded_ev(None, 2035, override_gwh=1500.0)
         self.assertEqual(emb.energy_mwh, 1_500_000.0)
         self.assertFalse(emb.is_assumption)
 
     def test_negative_override_is_rejected(self):
         with self.assertRaises(EmbeddedEvNotAvailableError):
-            resolve_embedded_ev(ESOO_DESCRIPTION, 2035, override_gwh=-1.0)
+            resolve_embedded_ev('expected', 2035, override_gwh=-1.0)
 
     def test_non_esoo_base_without_override_asks_for_a_figure(self):
         with self.assertRaises(EmbeddedEvNotAvailableError) as ctx:
-            resolve_embedded_ev('Hand-made baseline', 2035)
+            resolve_embedded_ev(None, 2035)
         self.assertIn('Enter that figure', str(ctx.exception))
 
-    def _resolve_with_workbook(self, description, year=2035, totals=None):
+    def _resolve_with_workbook(self, esoo_scenario, year=2035, totals=None):
         doc = SimpleNamespace(local_file_path='2025/wb.xlsx', ev_vintage=SimpleNamespace(version='2025'))
         totals = totals if totals is not None else {2035: 1993.8, 2034: 1588.0}
         seen = []
@@ -66,10 +56,10 @@ class ResolveEmbeddedEvTests(SimpleTestCase):
         fake_path.__str__ = lambda self: 'wb.xlsx'
         with mock.patch.object(iasr_ev_energy, '_iasr_workbooks', return_value=[(doc, fake_path)]), \
                 mock.patch.object(iasr_ev_energy, '_iasr_wem_gwh', side_effect=fake_totals):
-            return resolve_embedded_ev(description, year), seen
+            return resolve_embedded_ev(esoo_scenario, year), seen
 
     def test_expected_maps_to_step_change_and_is_flagged_as_an_assumption(self):
-        emb, seen = self._resolve_with_workbook(ESOO_DESCRIPTION)
+        emb, seen = self._resolve_with_workbook('expected')
         self.assertEqual(seen, ['Step Change'])
         self.assertAlmostEqual(emb.energy_mwh, 1_993_800.0)
         self.assertTrue(emb.is_assumption)
@@ -77,17 +67,17 @@ class ResolveEmbeddedEvTests(SimpleTestCase):
 
     def test_low_and_high_map_to_the_other_trajectories(self):
         for scenario, trajectory in (('low', 'Slower Growth'), ('high', 'Accelerated Transition')):
-            _, seen = self._resolve_with_workbook(ESOO_DESCRIPTION.replace('expected', scenario))
+            _, seen = self._resolve_with_workbook(scenario)
             self.assertEqual(seen, [trajectory])
 
     def test_year_missing_from_the_workbook_asks_for_a_figure(self):
         with self.assertRaises(EmbeddedEvNotAvailableError):
-            self._resolve_with_workbook(ESOO_DESCRIPTION, year=2060)
+            self._resolve_with_workbook('expected', year=2060)
 
     def test_no_registered_workbook_asks_for_a_figure(self):
         with mock.patch.object(iasr_ev_energy, '_iasr_workbooks', return_value=[]):
             with self.assertRaises(EmbeddedEvNotAvailableError):
-                resolve_embedded_ev(ESOO_DESCRIPTION, 2035)
+                resolve_embedded_ev('expected', 2035)
 
 
 def _flat_profile(mode, share, hour_peak):
@@ -113,8 +103,10 @@ class EmbeddedEvTraceTests(SimpleTestCase):
 
 class NetOfEsooBuildTests(TestCase):
     def _run_build(self, ev_mwh_per_interval, embedded_mwh, base_description, **kwargs):
-        base = Scenarios.objects.create(title='ESOO 2026 expected POE10 2035', interval_minutes=30,
-                                        description=base_description)
+        base = Demand.objects.create(
+            name='ESOO 2026 expected POE10 2035', interval_minutes=30, forecast_year=2035,
+            description=base_description, esoo_scenario='expected',
+        )
         ev_record = SimpleNamespace(annual_energy_mwh=ev_mwh_per_interval * N * 0.5, integral_check_pct=0.0)
         embedded = EmbeddedEv(energy_mwh=embedded_mwh, source='IASR test source', is_assumption=True)
         with mock.patch.object(ev_scenario_views, '_get_or_build_ev_load_trace', return_value=ev_record), \
@@ -122,8 +114,8 @@ class NetOfEsooBuildTests(TestCase):
                 mock.patch.object(ev_scenario_views, '_base_trace', return_value=np.full(N, 3000.0)), \
                 mock.patch.object(ev_scenario_views, 'resolve_embedded_ev', return_value=embedded), \
                 mock.patch.object(ev_scenario_views, '_embedded_ev_trace', return_value=np.full(N, embedded_mwh / (N * 0.5))), \
-                mock.patch.object(ev_scenario_views, 'clear_facility_trace'), \
-                mock.patch.object(ev_scenario_views, 'set_facility_trace') as set_trace:
+                mock.patch.object(ev_scenario_views, 'clear_demand_trace'), \
+                mock.patch.object(ev_scenario_views, 'set_demand_trace') as set_trace:
             result = ev_scenario_views.build_scenario_from_ev(base, 'medium', 2035, 'unmanaged', **kwargs)
         return result, set_trace
 
@@ -136,7 +128,7 @@ class NetOfEsooBuildTests(TestCase):
         self.assertAlmostEqual(result.esoo_ev_energy_mwh, embedded_mwh)
         self.assertEqual(result.esoo_ev_source, 'IASR test source')
         self.assertIn(' + EV net medium 2035', result.title)
-        self.assertIn('net of ESOO', result.scenario.description)
+        self.assertIn('net of ESOO', result.demand.description)
         self.assertTrue(any('working hypothesis' in n for n in result.notes))
 
     def test_without_the_option_the_ev_load_is_simply_added(self):
@@ -152,14 +144,15 @@ class NetOfEsooBuildTests(TestCase):
 
     def test_net_and_gross_builds_get_distinct_scenario_titles(self):
         net, _ = self._run_build(400.0, 100.0 * N * 0.5, ESOO_DESCRIPTION, net_of_esoo_ev=True)
-        Scenarios.objects.filter(title='ESOO 2026 expected POE10 2035').delete()
+        Demand.objects.filter(name='ESOO 2026 expected POE10 2035').delete()
         gross, _ = self._run_build(400.0, 100.0 * N * 0.5, ESOO_DESCRIPTION)
         self.assertNotEqual(net.title, gross.title)
 
 
 class NetOfEsooCompareTests(TestCase):
     def test_comparison_is_against_the_published_base_with_net_ev_energy(self):
-        base = Scenarios.objects.create(title='ESOO base', interval_minutes=30, description=ESOO_DESCRIPTION)
+        base = Demand.objects.create(name='ESOO base', interval_minutes=30, forecast_year=2035,
+                                     description=ESOO_DESCRIPTION, esoo_scenario='expected')
         embedded = EmbeddedEv(energy_mwh=100.0 * N * 0.5, source='IASR test source', is_assumption=True)
         ev_by_scenario = {'low': 50.0, 'medium': 100.0, 'high': 300.0}  # MW flat; embedded is 100 MW flat
         records = {s: SimpleNamespace(annual_energy_mwh=mw * N * 0.5, integral_check_pct=0.0) for s, mw in ev_by_scenario.items()}
@@ -187,7 +180,8 @@ class NetOfEsooCompareTests(TestCase):
         self.assertAlmostEqual(by_scenario['high'].ev_annual_energy_mwh, 200.0 * N * 0.5)  # net EV energy
 
     def test_without_the_option_nothing_is_removed(self):
-        base = Scenarios.objects.create(title='ESOO base', interval_minutes=30, description=ESOO_DESCRIPTION)
+        base = Demand.objects.create(name='ESOO base', interval_minutes=30, forecast_year=2035,
+                                     description=ESOO_DESCRIPTION, esoo_scenario='expected')
         rec = SimpleNamespace(annual_energy_mwh=100.0 * N * 0.5, integral_check_pct=0.0)
         with mock.patch.object(ev_scenario_views, '_base_trace', return_value=np.full(N, 3000.0)), \
                 mock.patch.object(ev_scenario_views, '_get_or_build_ev_load_trace', return_value=rec), \
@@ -201,7 +195,8 @@ class NetOfEsooPagesTests(TestCase):
     def setUp(self):
         from django.contrib.auth import get_user_model
         self.client.force_login(get_user_model().objects.create_user('ev_analyst', password='pw'))
-        self.base = Scenarios.objects.create(title='ESOO base', interval_minutes=30, description=ESOO_DESCRIPTION)
+        self.base = Demand.objects.create(name='ESOO base', interval_minutes=30, forecast_year=2035,
+                                          description=ESOO_DESCRIPTION, esoo_scenario='expected')
 
     def test_selector_shows_the_option_and_keeps_it_ticked_after_a_failed_post(self):
         from django.urls import reverse
@@ -217,7 +212,7 @@ class NetOfEsooPagesTests(TestCase):
 
     def test_selector_reports_a_non_esoo_base_that_needs_a_manual_figure(self):
         from django.urls import reverse
-        plain = Scenarios.objects.create(title='Hand-made', interval_minutes=30, description='')
+        plain = Demand.objects.create(name='Hand-made', interval_minutes=30, forecast_year=2035, description='')
         ev_record = SimpleNamespace(annual_energy_mwh=1.0, integral_check_pct=0.0)
         with mock.patch.object(ev_scenario_views, '_get_or_build_ev_load_trace', return_value=ev_record), \
                 mock.patch.object(ev_scenario_views, 'load_trace', return_value=np.zeros(48)), \

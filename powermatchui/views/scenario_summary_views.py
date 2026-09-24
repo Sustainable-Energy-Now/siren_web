@@ -1,19 +1,18 @@
 # powermatchui/views/scenario_summary_views.py
 """
-Read-only summary of a scenario's Load (demand) trace: annual energy, peak and
-minimum with their times, load factor, monthly energy, mean daily profile,
-peak-day profile and load-duration curve, plus how the scenario was built and an
-optional side-by-side comparison with a second scenario.
+Read-only summary of a Demand's trace: annual energy, peak and minimum with
+their times, load factor, monthly energy, mean daily profile, peak-day
+profile and load-duration curve, plus how the Demand was built and an
+optional side-by-side comparison with a second Demand.
 
 Nothing here writes to the database. The statistics live in
-powermatchui/utils/scenario_summary.py; this module only finds the scenario's
-Load facilities and traces (SupplyFactorMatrix), calls that, and draws charts.
+powermatchui/utils/scenario_summary.py; this module only finds Demand
+records and their traces (DemandMatrix), calls that, and draws charts.
 """
 from typing import List, Optional
 
 import numpy as np
 from django.contrib.auth.decorators import login_required
-from django.db.models import Q
 from django.shortcuts import render
 
 from powermatchui.utils.scenario_summary import (
@@ -21,71 +20,40 @@ from powermatchui.utils.scenario_summary import (
     LoadTraceError,
     compare_stats,
     describe_provenance,
-    sum_traces,
     summarise_load_trace,
 )
-from siren_web.models import Scenarios, SupplyFactorMatrix, facilities
-from siren_web.services.supply_matrix import facility_trace
+from siren_web.models import Demand, DemandMatrix
+from siren_web.services.demand_matrix import demand_trace
 
 MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
 
 class NoLoadTraceError(ValueError):
-    """The scenario has no Load facility with a trace for the requested year."""
+    """The Demand has no trace for the requested year."""
 
 
-def _load_facility_q() -> Q:
-    return Q(idtechnologies__category='Load') | Q(idtechnologies__technology_name='Load')
+def demands_with_trace() -> List[Demand]:
+    return list(Demand.objects.filter(is_active=True).order_by('name'))
 
 
-def load_facilities(scenario: Scenarios) -> List[facilities]:
-    return list(
-        facilities.objects.filter(scenarios=scenario).filter(_load_facility_q()).distinct().order_by('facility_name')
-    )
-
-
-def years_with_trace(facility_ids) -> List[int]:
-    """Years in SupplyFactorMatrix that have a row for any of these facilities."""
-    wanted = set(facility_ids)
+def years_with_trace(demand_id) -> List[int]:
+    """Years in DemandMatrix that have a row for this demand."""
     return [
-        row.year for row in SupplyFactorMatrix.objects.defer('data').order_by('year')
-        if wanted & set(row.facility_ids)
+        row.year for row in DemandMatrix.objects.defer('data').order_by('year')
+        if demand_id in row.demand_ids
     ]
 
 
-def scenarios_with_load() -> List[Scenarios]:
-    load_ids = facilities.objects.filter(_load_facility_q()).values_list('idfacilities', flat=True)
-    return list(
-        Scenarios.objects.filter(scenariosfacilities__idfacilities__in=list(load_ids)).distinct().order_by('title')
-    )
-
-
-def scenario_load(scenario: Scenarios, year: int):
-    """(total Load trace in MW, per-facility rows) for a scenario and year.
+def scenario_load(demand: Demand, year: int):
+    """The Demand's trace in MW for a given year.
     Raises NoLoadTraceError / LoadTraceError with a message fit to show the user."""
-    facs = load_facilities(scenario)
-    if not facs:
-        raise NoLoadTraceError(f"Scenario '{scenario.title}' has no Load facility.")
-    traces, rows = [], []
-    for fac in facs:
-        try:
-            trace = facility_trace(year, fac.idfacilities)
-        except SupplyFactorMatrix.DoesNotExist:
-            trace = None
-        if trace is None or np.all(np.isnan(np.asarray(trace, dtype=float))):
-            continue
-        traces.append(np.asarray(trace, dtype=float))
-        try:
-            s = summarise_load_trace(trace, year)
-            rows.append({'name': fac.facility_name, 'energy_gwh': s.annual_energy_gwh, 'peak_mw': s.peak_mw,
-                         'minimum_mw': s.minimum_mw})
-        except LoadTraceError as e:
-            rows.append({'name': fac.facility_name, 'error': str(e)})
-    if not traces:
-        raise NoLoadTraceError(f"Scenario '{scenario.title}' has no Load trace for {year}.")
-    if len({t.size for t in traces}) > 1:
-        raise LoadTraceError("This scenario's Load facilities have traces of different lengths for this year.")
-    return (traces[0] if len(traces) == 1 else sum_traces(traces)), rows
+    try:
+        trace = demand_trace(year, demand.iddemand)
+    except DemandMatrix.DoesNotExist:
+        trace = None
+    if trace is None or np.all(np.isnan(np.asarray(trace, dtype=float))):
+        raise NoLoadTraceError(f"Demand '{demand.name}' has no trace for {year}.")
+    return np.asarray(trace, dtype=float)
 
 
 def _hours_axis(stats: LoadStats) -> List[float]:
@@ -155,8 +123,8 @@ def _int_or_none(value):
 
 @login_required
 def scenario_summary(request):
-    """GET-only: ?scenario=<id>&year=<yyyy>&compare=<id> (all optional)."""
-    all_scenarios = scenarios_with_load()
+    """GET-only: ?scenario=<id>&year=<yyyy>&compare=<id> (all optional; ids are Demand ids)."""
+    all_scenarios = demands_with_trace()
     selected_id = _int_or_none(request.GET.get('scenario'))
     compare_id = _int_or_none(request.GET.get('compare'))
     selected_year = _int_or_none(request.GET.get('year'))
@@ -168,22 +136,21 @@ def scenario_summary(request):
     if selected_id is None:
         return render(request, 'scenario_summary.html', context)
 
-    scenario = next((s for s in all_scenarios if s.idscenarios == selected_id), None)
+    scenario = next((s for s in all_scenarios if s.iddemand == selected_id), None)
     if scenario is None:
-        context['error'] = "That scenario doesn't exist or has no Load facility."
+        context['error'] = "That Demand doesn't exist."
         return render(request, 'scenario_summary.html', context)
 
-    fac_ids = [f.idfacilities for f in load_facilities(scenario)]
-    years = years_with_trace(fac_ids)
+    years = years_with_trace(scenario.iddemand)
     context['years'] = years
     if not years:
-        context['error'] = f"'{scenario.title}' has no stored Load trace in any year."
+        context['error'] = f"'{scenario.name}' has no stored trace in any year."
         return render(request, 'scenario_summary.html', context)
     year = selected_year if selected_year in years else years[-1]
     context['selected_year'] = year
 
     try:
-        trace, facility_rows = scenario_load(scenario, year)
+        trace = scenario_load(scenario, year)
         stats = summarise_load_trace(trace, year)
     except (NoLoadTraceError, LoadTraceError) as e:
         context['error'] = str(e)
@@ -191,12 +158,12 @@ def scenario_summary(request):
 
     other, other_stats, comparison = None, None, None
     if compare_id is not None and compare_id != selected_id:
-        other = next((s for s in all_scenarios if s.idscenarios == compare_id), None)
+        other = next((s for s in all_scenarios if s.iddemand == compare_id), None)
         if other is None:
-            context['error'] = "The comparison scenario doesn't exist or has no Load facility."
+            context['error'] = "The comparison Demand doesn't exist."
         else:
             try:
-                other_trace, _ = scenario_load(other, year)
+                other_trace = scenario_load(other, year)
                 other_stats = summarise_load_trace(other_trace, year)
                 comparison = compare_stats(stats, other_stats)
             except (NoLoadTraceError, LoadTraceError) as e:
@@ -204,11 +171,11 @@ def scenario_summary(request):
                 other = None
 
     context.update({
-        'scenario': scenario, 'stats': stats, 'facility_rows': facility_rows,
-        'provenance': describe_provenance(scenario.description, scenario.interval_minutes, scenario.reference_year),
+        'scenario': scenario, 'stats': stats,
+        'provenance': describe_provenance(scenario),
         'other': other, 'other_stats': other_stats, 'comparison': comparison,
-        'charts': build_charts(stats, scenario.title or f"Scenario {scenario.idscenarios}",
-                               other_stats, (other.title if other else '') or ''),
+        'charts': build_charts(stats, scenario.name or f"Demand {scenario.iddemand}",
+                               other_stats, (other.name if other else '') or ''),
         'resolution': 'half-hourly' if stats.intervals_per_day == 48 else 'hourly',
     })
     return render(request, 'scenario_summary.html', context)

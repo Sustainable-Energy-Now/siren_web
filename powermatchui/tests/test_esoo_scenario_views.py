@@ -32,16 +32,16 @@ from powermatchui.views.esoo_scenario_views import (
 )
 from siren_web.models import (
     AnnualDemandActual,
+    Demand,
     EsooFigure,
     EsooForecastAdjustment,
     EsooVintage,
-    Scenarios,
     Technologies,
     facilities,
 )
 from powermatchui.utils.time_alignment import ESOO_TRACE_CLOCK_MARKER
 from siren_web.services.facility_scada_matrix import set_scada_values
-from siren_web.services.supply_matrix import facility_trace
+from siren_web.services.demand_matrix import demand_trace
 
 # errors = forecast(4000) - actual; mean 400, non-zero variance (see
 # powerplotui/tests/test_esoo_bias_analysis.py's ComputeMeanErrorByGroupTests
@@ -150,7 +150,7 @@ class ApplyBiasCorrectionTests(TestCase):
         )
         adj = EsooForecastAdjustment.objects.get(source_figure=self.peak_figure, category='growth_assumption')
         self.assertEqual(adj.source, 'computed')
-        self.assertEqual(adj.applied_to_scenario_id, result.scenario.idscenarios)
+        self.assertEqual(adj.applied_to_demand_id, result.demand.iddemand)
 
     def test_without_the_flag_raw_anchor_is_used_unchanged(self):
         result = build_scenario_from_esoo(
@@ -169,18 +169,18 @@ class ApplyBiasCorrectionTests(TestCase):
         # same peak at 14:00 local = index 28, so it lines up with the
         # local-clock EV and supply traces it is combined with.
         result = build_scenario_from_esoo(self.target_vintage, 'expected', 10, self.target_forecast_year)
-        trace = facility_trace(self.target_forecast_year, result.facility.idfacilities)
+        trace = demand_trace(self.target_forecast_year, result.demand.iddemand)
         self.assertEqual(trace.size, 365 * 48)
         daily_mean = trace.reshape(365, 48).mean(axis=0)
         self.assertEqual(int(daily_mean.argmax()), 28)
-        self.assertIn(ESOO_TRACE_CLOCK_MARKER, result.scenario.description)
+        self.assertIn(ESOO_TRACE_CLOCK_MARKER, result.demand.description)
 
     def test_rebuilding_an_old_scenario_restamps_its_description(self):
         first = build_scenario_from_esoo(self.target_vintage, 'expected', 10, self.target_forecast_year)
-        Scenarios.objects.filter(pk=first.scenario.pk).update(description='Auto-built ... (FR-G1-01).')
+        Demand.objects.filter(pk=first.demand.pk).update(description='Auto-built ... (FR-G1-01).')
         again = build_scenario_from_esoo(self.target_vintage, 'expected', 10, self.target_forecast_year)
-        again.scenario.refresh_from_db()
-        self.assertIn(ESOO_TRACE_CLOCK_MARKER, again.scenario.description)
+        again.demand.refresh_from_db()
+        self.assertIn(ESOO_TRACE_CLOCK_MARKER, again.demand.description)
 
     def test_selector_page_renders_with_bias_correction_checkbox_and_result(self):
         user = User.objects.create_user('analyst2', password='pw')

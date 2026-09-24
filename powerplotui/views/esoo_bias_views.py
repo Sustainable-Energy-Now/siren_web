@@ -441,8 +441,8 @@ def bias_tracking_dashboard(request):
     }
 
     applied_adjustments = EsooForecastAdjustment.objects.filter(
-        applied_to_scenario__isnull=False
-    ).select_related('source_figure', 'source_figure__vintage', 'applied_to_scenario').order_by('-computed_at')
+        applied_to_demand__isnull=False
+    ).select_related('source_figure', 'source_figure__vintage', 'applied_to_demand').order_by('-computed_at')
 
     return render(request, 'esoo_bias/bias_tracking.html', {
         'table11': table11,

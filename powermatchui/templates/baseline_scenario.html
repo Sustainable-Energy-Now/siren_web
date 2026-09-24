@@ -21,8 +21,8 @@
     </p>
     <form method="post" action="{% url 'powermatchui:set_demand_scenario' %}">
       {% csrf_token %}
-      {{ demand_scenario_form.demand_scenario_facility.label_tag }}
-      {{ demand_scenario_form.demand_scenario_facility }}
+      {{ demand_scenario_form.demand_scenario_demand.label_tag }}
+      {{ demand_scenario_form.demand_scenario_demand }}
       <button type="submit" class="btn btn-secondary mt-2">Set Demand Forecast</button>
     </form>
   </div>

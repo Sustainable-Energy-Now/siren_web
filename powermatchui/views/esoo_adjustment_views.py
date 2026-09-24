@@ -39,7 +39,7 @@ def adjustment_list(request):
     applied_only = request.GET.get('applied_only', 'false') == 'true'
 
     adjustments = EsooForecastAdjustment.objects.select_related(
-        'source_figure', 'source_figure__vintage', 'applied_to_scenario'
+        'source_figure', 'source_figure__vintage', 'applied_to_demand'
     ).all()
 
     if vintage_filter:
@@ -53,7 +53,7 @@ def adjustment_list(request):
     if source_filter:
         adjustments = adjustments.filter(source=source_filter)
     if applied_only:
-        adjustments = adjustments.filter(applied_to_scenario__isnull=False)
+        adjustments = adjustments.filter(applied_to_demand__isnull=False)
 
     paginator = Paginator(adjustments, 25)
     page_obj = paginator.get_page(request.GET.get('page'))

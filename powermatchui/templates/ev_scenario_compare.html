@@ -24,9 +24,9 @@
               <select class="form-select" id="base_scenario" name="base_scenario" required>
                 <option value="">Select a base scenario...</option>
                 {% for s in base_scenarios %}
-                <option value="{{ s.idscenarios }}"
-                        {% if selected_base_id|stringformat:"s" == s.idscenarios|stringformat:"s" %}selected{% endif %}>
-                  {{ s.title }}
+                <option value="{{ s.iddemand }}"
+                        {% if selected_base_id|stringformat:"s" == s.iddemand|stringformat:"s" %}selected{% endif %}>
+                  {{ s.name }}
                 </option>
                 {% endfor %}
               </select>

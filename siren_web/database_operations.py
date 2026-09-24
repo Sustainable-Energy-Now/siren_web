@@ -7,10 +7,11 @@ from django.db.models import Avg, Q, F, Sum, Count, When, OuterRef, Subquery
 from django.db.models.functions import TruncDay
 import os
 import numpy as np
-from siren_web.models import Analysis, facilities, FacilityStorage, Generatorattributes, \
+from siren_web.models import Analysis, Demand, DemandMatrix, facilities, FacilityStorage, Generatorattributes, \
     Scenarios, ScenariosTechnologies, ScenariosSettings, Settings, Storageattributes, \
     SupplyFactorMatrix, Technologies, TechnologyYears, variations
-from siren_web.services.supply_matrix import facility_has_trace, facility_row_index, load_year_matrix
+from siren_web.services.supply_matrix import facility_row_index, load_year_matrix
+from siren_web.services import demand_matrix
 from powermatchui.views.balance_grid_load import Technology
 
 def delete_analysis_scenario(idscenario):
@@ -232,62 +233,53 @@ def _resample_column(values, source_interval_minutes, target_interval_minutes):
 
 @dataclass
 class DemandOverride:
-    """A per-run substitute for a scenario's own Load facility, resolved by
-    resolve_demand_override. Never causes any ScenariosFacilities/
-    ScenariosTechnologies/facilities row to be created or changed — it only
-    affects the load_and_supply[0] column fetch_supplyfactors_data builds
-    for one dispatch run."""
-    facility_id: int
-    year: int                 # the SupplyFactorMatrix year that actually holds this facility's trace
-    interval_minutes: int     # the demand scenario's own native resolution
-    facility_name: str
-    reference_year: int = None  # ESOO-built scenarios only -- see Scenarios.reference_year
+    """The Demand selected to dispatch a run against, resolved by
+    resolve_demand_override. A Demand has no schema-level link to any
+    Scenarios row -- this is always a per-run choice, and this dataclass
+    only affects the load_and_supply[0] column fetch_supplyfactors_data
+    builds for one dispatch run."""
+    demand_id: int
+    year: int                 # the DemandMatrix year that actually holds this Demand's trace
+    interval_minutes: int     # the Demand's own native resolution
+    demand_name: str
+    reference_year: int = None  # ESOO-built Demands only -- see Demand.reference_year
 
 
-def resolve_demand_override(facility_id):
+def resolve_demand_override(demand_id):
     """
-    Resolve a facilities PK (typically session['demand_scenario_facility_id'])
-    into a DemandOverride, or None if facility_id is falsy/stale/traceless.
-    Callers must treat None as "fall back to the base scenario's own Load"
-    — this never raises.
+    Resolve a Demand PK (typically session['demand_scenario_demand_id'])
+    into a DemandOverride, or None if demand_id is falsy/stale/traceless.
+    Callers must treat None as "no demand selected -- this run cannot
+    proceed" (see fetch_supplyfactors_data) — this never raises.
 
-    The override's year is discovered by probing every SupplyFactorMatrix
-    year for this facility's presence, NOT taken from the caller's
-    demand_year: AEMO ESOO/EV demand traces are written keyed by their own
+    The override's year is discovered by probing every DemandMatrix year
+    for this Demand's presence, NOT taken from the caller's demand_year:
+    AEMO ESOO/EV demand traces are written keyed by their own
     forecast_year (see esoo_scenario_views.build_scenario_from_esoo /
     ev_scenario_views.build_scenario_from_ev), which is independent of
     whatever year is currently driving the base supply scenario's matrix
-    load — e.g. a "Current" supply scenario's own Load facility may only
-    have a trace for 2024 while an ESOO demand scenario's facility may only
-    have one for 2030.
+    load.
     """
-    if not facility_id:
+    if not demand_id:
         return None
     try:
-        facility_obj = facilities.objects.get(pk=facility_id)
-    except facilities.DoesNotExist:
-        logging.warning(f"Demand override facility id {facility_id} no longer exists; ignoring.")
+        demand_obj = Demand.objects.get(pk=demand_id)
+    except Demand.DoesNotExist:
+        logging.warning(f"Demand override id {demand_id} no longer exists; ignoring.")
         return None
 
-    demand_scenario_obj = Scenarios.objects.filter(
-        scenariosfacilities__idfacilities=facility_obj
-    ).order_by('-idscenarios').first()
-    interval_minutes = getattr(demand_scenario_obj, 'interval_minutes', 30) or 30
-    reference_year = getattr(demand_scenario_obj, 'reference_year', None)
-
-    for year in SupplyFactorMatrix.objects.order_by('-year').values_list('year', flat=True):
-        if facility_has_trace(year, facility_obj.idfacilities):
+    for year in DemandMatrix.objects.order_by('-year').values_list('year', flat=True):
+        if demand_matrix.demand_has_trace(year, demand_obj.iddemand):
             return DemandOverride(
-                facility_id=facility_obj.idfacilities,
+                demand_id=demand_obj.iddemand,
                 year=year,
-                interval_minutes=interval_minutes,
-                facility_name=facility_obj.facility_name,
-                reference_year=reference_year,
+                interval_minutes=demand_obj.interval_minutes or 30,
+                demand_name=demand_obj.name,
+                reference_year=demand_obj.reference_year,
             )
 
     logging.warning(
-        f"Demand override facility '{facility_obj.facility_name}' has no trace in any "
-        "SupplyFactorMatrix year; ignoring override."
+        f"Demand '{demand_obj.name}' has no trace in any DemandMatrix year; ignoring."
     )
     return None
 
@@ -295,64 +287,50 @@ def resolve_demand_override(facility_id):
 def resolve_baseline_year(scenario):
     """
     The year that drives technology-cost lookups (fetch_technology_attributes)
-    and, most importantly, the base scenario's OWN supply-side
-    SupplyFactorMatrix retrieval (fetch_supplyfactors_data's initial
-    load_year_matrix(demand_year) call, which finds this scenario's own
-    wind/solar/storage/Load facility rows) — derived from the scenario's
-    own Load facility, resolved the same way resolve_demand_override
-    resolves any other facility's year, never user-selected.
+    and the base scenario's OWN supply-side SupplyFactorMatrix retrieval
+    (fetch_supplyfactors_data's initial load_year_matrix(demand_year) call,
+    which finds this scenario's own wind/solar/storage facility rows) —
+    read directly from Scenarios.weather_year, set explicitly by the user
+    rather than inferred.
 
-    Deliberately ignores any active demand_override: a demand override
-    already gets its own independent load_year_matrix(demand_override.year)
-    lookup inside fetch_supplyfactors_data, scoped to just the Load column.
-    Using the override's year here instead of the base scenario's own would
-    make fetch_supplyfactors_data load the WRONG year's matrix for every
-    other technology — e.g. "Current"'s wind/solar/storage facilities only
-    have rows in SupplyFactorMatrix for 2024, while an ESOO override
-    facility's own trace lives at 2030; verified live that requesting year
-    2030 for "Current" returns only the Load column, silently dropping
-    every generator.
+    Deliberately unrelated to any active demand_override: a demand override
+    gets its own independent load_year_matrix(demand_override.year) lookup
+    inside fetch_supplyfactors_data, scoped to just the Load column. Using
+    the override's year here instead of the scenario's own weather_year
+    would make fetch_supplyfactors_data load the WRONG year's matrix for
+    every other technology.
 
-    Returns None if it can't be determined (scenario not found, has no
-    Load facility, or that facility has no trace in any SupplyFactorMatrix
-    year) — callers must treat that as "can't run", not silently pick a
-    default.
+    Returns None if it can't be determined (scenario not found, or
+    weather_year not set) — callers must treat that as "can't run", not
+    silently pick a default.
     """
     scenario_obj = Scenarios.objects.filter(title=scenario).first()
     if scenario_obj is None:
         return None
-
-    load_facility = facilities.objects.filter(
-        idtechnologies__technology_name='Load', scenarios=scenario_obj
-    ).first()
-    if load_facility is None:
-        return None
-
-    own_override = resolve_demand_override(load_facility.idfacilities)
-    return own_override.year if own_override else None
+    return scenario_obj.weather_year
 
 
 def get_demand_scenario_context(request):
     """
-    AEMO/ESOO demand-forecast override context (a DemandScenarioOverrideForm
-    plus the currently-selected facility's display title) shared by every
-    page that lets the user set/see session['demand_scenario_facility_id']
-    -- currently powermatchui's Baseline Scenario page and powermapui's
-    Run Power page. See resolve_demand_override / resolve_baseline_year for
-    how the selection is actually applied.
+    Demand-selection context (a DemandScenarioOverrideForm plus the
+    currently-selected Demand's display name) shared by every page that
+    lets the user set/see session['demand_scenario_demand_id'] -- currently
+    powermatchui's Baseline Scenario page and powermapui's Run Power page.
+    See resolve_demand_override / resolve_baseline_year for how the
+    selection is actually applied.
     """
     from siren_web.forms import DemandScenarioOverrideForm
 
-    demand_facility_id = request.session.get('demand_scenario_facility_id')
-    selected_demand_facility = (
-        facilities.objects.filter(pk=demand_facility_id).first() if demand_facility_id else None
+    demand_id = request.session.get('demand_scenario_demand_id')
+    selected_demand = (
+        Demand.objects.filter(pk=demand_id).first() if demand_id else None
     )
     return {
         'demand_scenario_form': DemandScenarioOverrideForm(initial={
-            'demand_scenario_facility': demand_facility_id
+            'demand_scenario_demand': demand_id
         }),
         'selected_demand_scenario_title': (
-            selected_demand_facility.facility_name if selected_demand_facility else None
+            selected_demand.name if selected_demand else None
         ),
     }
 
@@ -404,29 +382,32 @@ def fetch_supplyfactors_data(demand_year, scenario, demand_override=None):
 
             load_and_supply[merit_order] = np.nansum(matrix[rows, :], axis=0).tolist()
 
-        # Demand override: substitute an AEMO/ESOO (or EV-layered) demand
-        # scenario's own Load facility trace for this run, independent of
-        # whatever Load facility (if any) is linked to this supply scenario.
-        # Load's merit_order is always 0 (see fetch_technology_attributes),
-        # so this is an unconditional assignment — it works whether the
-        # supply scenario already had its own merit_order-0 entry or not.
-        if demand_override is not None:
-            try:
-                override_ids, override_matrix = load_year_matrix(demand_override.year)
-                override_idx = facility_row_index(override_ids)
-                row_i = override_idx.get(demand_override.facility_id)
-            except SupplyFactorMatrix.DoesNotExist:
-                row_i = None
-            if row_i is not None:
-                override_values = override_matrix[row_i, :].tolist()
-                load_and_supply[0] = _resample_column(
-                    override_values, demand_override.interval_minutes, interval_minutes
-                )
-            else:
-                logging.warning(
-                    f"Demand override facility {demand_override.facility_id} not found in "
-                    f"{demand_override.year} SupplyFactorMatrix; keeping the supply scenario's own Load."
-                )
+        # Demand: the selected Demand's trace becomes the load_and_supply[0]
+        # column (Load's merit_order is always 0, see
+        # fetch_technology_attributes). Scenarios carry no Load facility of
+        # their own any more, so this is the ONLY source of a demand
+        # column -- a run with no demand_override has none at all.
+        if demand_override is None:
+            raise ValueError(
+                "A Demand must be selected to run this scenario -- Scenarios "
+                "no longer carry an implicit Load."
+            )
+        try:
+            override_ids, override_matrix = demand_matrix.load_year_matrix(demand_override.year)
+            override_idx = demand_matrix.demand_row_index(override_ids)
+            row_i = override_idx.get(demand_override.demand_id)
+        except DemandMatrix.DoesNotExist:
+            row_i = None
+        if row_i is not None:
+            override_values = override_matrix[row_i, :].tolist()
+            load_and_supply[0] = _resample_column(
+                override_values, demand_override.interval_minutes, interval_minutes
+            )
+        else:
+            logging.warning(
+                f"Demand {demand_override.demand_id} not found in "
+                f"{demand_override.year} DemandMatrix; no demand column for this run."
+            )
 
         # Resolution shim: bring any hourly-stored columns up to this
         # scenario's interval_minutes resolution so they line up with a

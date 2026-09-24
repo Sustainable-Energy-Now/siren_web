@@ -1,16 +1,16 @@
 # powermatchui/utils/scenario_summary.py
 """
-Key statistics for a scenario's Load (demand) trace -- pure numpy/stdlib, no
-database access, so the page and any script or test share one implementation.
+Key statistics for a Demand's trace -- pure numpy/stdlib, no database access
+(except describe_provenance, which reads a Demand instance's own already-
+loaded fields), so the page and any script or test share one implementation.
 
 A trace is one calendar year at hourly or half-hourly resolution, stored in
-SupplyFactorMatrix (MW per interval). The year matrix is padded with NaN out
-to its widest trace, so resolution is inferred from the last valid value, not
+DemandMatrix (MW per interval). The year matrix is padded with NaN out to
+its widest trace, so resolution is inferred from the last valid value, not
 from the array's length. Timestamps are the clock the trace was stored on
-(AWST for scenarios built by the ESOO / EV builders).
+(AWST for Demands built by the ESOO / EV builders).
 """
 import calendar
-import re
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 from typing import Dict, List, Optional, Tuple
@@ -155,38 +155,27 @@ def compare_stats(a: LoadStats, b: LoadStats) -> List[dict]:
 
 # ------------------------------------------------------------------ provenance
 
-_ESOO_RE = re.compile(
-    r'WEM ESOO (?P<vintage>\d{4}) \((?P<scenario>\w+), POE(?P<poe>\d+)\) demand forecast for (?P<year>\d{4})')
-_EV_RE = re.compile(r'CSIRO (?P<scenario>\w+) EV load \((?P<mode>\w+)\) for (?P<year>\d{4})')
-_EV_NET_RE = re.compile(r'less the (?P<gwh>[\d,]+) GWh of EV load already in it')
-_EV_BASE_RE = re.compile(r'Auto-built: (?P<base>.+?) base demand')
-
-
-def describe_provenance(description: Optional[str], interval_minutes: Optional[int],
-                        reference_year: Optional[int]) -> List[Tuple[str, str]]:
-    """(label, value) pairs describing how a scenario was built, parsed from its description.
-    Hand-made scenarios (no recognisable description) just get their resolution."""
-    description = description or ''
+def describe_provenance(demand) -> List[Tuple[str, str]]:
+    """(label, value) pairs describing how a Demand was built, read directly
+    from its own structured fields (esoo_vintage/esoo_scenario/poe_level for
+    an ESOO-built Demand, parent_demand/csiro_scenario/charging_mode/
+    net_of_esoo_ev for an EV-derived one) rather than parsed from text."""
     out: List[Tuple[str, str]] = []
-    esoo = _ESOO_RE.search(description)
-    ev = _EV_RE.search(description)
-    if ev:
+    if demand.parent_demand_id:
         out.append(('Built by', 'EV Load Scenario (FR-11)'))
-        base = _EV_BASE_RE.search(description)
-        if base:
-            out.append(('Base demand scenario', base.group('base')))
-        out.append(('EV scenario', f"{ev.group('scenario')} ({ev.group('mode')} charging), {ev.group('year')}"))
-        net = _EV_NET_RE.search(description)
-        out.append(('EV treatment', f"net of the {net.group('gwh')} GWh of EV load already in the ESOO base" if net
+        out.append(('Base demand', demand.parent_demand.name))
+        out.append(('EV scenario', f"{demand.csiro_scenario} ({demand.charging_mode} charging), {demand.forecast_year}"))
+        out.append(('EV treatment', "net of ESOO's own EV load already in the base" if demand.net_of_esoo_ev
                     else "EV load added on top of the base"))
-    elif esoo:
+    elif demand.esoo_vintage_id or demand.esoo_scenario:
         out.append(('Built by', 'ESOO Demand Scenario (FR-G1-01)'))
-        out.append(('ESOO forecast', f"WEM ESOO {esoo.group('vintage')}, {esoo.group('scenario')} scenario, "
-                                     f"POE{esoo.group('poe')}, {esoo.group('year')}"))
-    if reference_year:
-        out.append(('Shape prior (SCADA year)', str(reference_year)))
-    if interval_minutes:
-        out.append(('Dispatch interval', f"{interval_minutes} minutes"))
-    if description and not (esoo or ev):
-        out.append(('Description', description))
+        vintage_year = demand.esoo_vintage.year if demand.esoo_vintage_id else '?'
+        out.append(('ESOO forecast', f"WEM ESOO {vintage_year}, {demand.esoo_scenario} scenario, "
+                                     f"POE{demand.poe_level}, {demand.forecast_year}"))
+    if demand.reference_year:
+        out.append(('Shape prior (SCADA year)', str(demand.reference_year)))
+    if demand.interval_minutes:
+        out.append(('Dispatch interval', f"{demand.interval_minutes} minutes"))
+    if demand.description and not (demand.parent_demand_id or demand.esoo_vintage_id or demand.esoo_scenario):
+        out.append(('Description', demand.description))
     return out

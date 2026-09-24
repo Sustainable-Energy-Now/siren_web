@@ -1,73 +1,66 @@
 import csv
 import os
 from django.core.management.base import BaseCommand, CommandError
-from siren_web.models import facilities
-from siren_web.services.supply_matrix import clear_facility_trace, set_facility_trace
+from siren_web.models import Demand
+from siren_web.services.demand_matrix import clear_demand_trace, set_demand_trace
 
 class Command(BaseCommand):
-    help = 'Load supply factors data from a CSV file into the SupplyFactorMatrix'
+    help = 'Load a hand-built demand trace from a CSV file into DemandMatrix, against an existing Demand row'
 
     def add_arguments(self, parser):
         parser.add_argument(
             '--file',
             type=str,
             required=True,
-            help='CSV file path'
+            help='CSV file path (one quantum value per row, no header data beyond the header row)'
         )
         parser.add_argument(
-            '--facility-id',
+            '--demand-id',
             type=int,
             required=True,
-            help='Facility ID to use for all records (a generation/storage facility -- for a Demand '
-                 'trace use load_demand_trace instead)'
+            help='Demand ID to use for all records'
         )
         parser.add_argument(
             '--year',
             type=int,
-            default=2024,
-            help='Year to use for all records (default: 2024)'
+            required=True,
+            help='Year to use for all records'
         )
         parser.add_argument(
             '--clear-existing',
             action='store_true',
-            help='Clear this facility/year in the matrix before loading new data'
+            help='Clear this demand/year in the matrix before loading new data'
         )
 
     def handle(self, *args, **options):
         file_path = options['file']
-        facility_id = options['facility_id']
+        demand_id = options['demand_id']
         year = options['year']
         clear_existing = options['clear_existing']
 
-        # Check if file exists
         if not os.path.exists(file_path):
             raise CommandError(f'File "{file_path}" does not exist.')
 
-        # Verify facility exists
         try:
-            facility = facilities.objects.get(idfacilities=facility_id)
+            demand = Demand.objects.get(pk=demand_id)
             self.stdout.write(
-                self.style.SUCCESS(f'Found facility: {facility.facility_name} (ID: {facility_id})')
+                self.style.SUCCESS(f'Found demand: {demand.name} (ID: {demand_id})')
             )
-        except facilities.DoesNotExist:
-            raise CommandError(f'Facility with ID {facility_id} does not exist.')
+        except Demand.DoesNotExist:
+            raise CommandError(f'Demand with ID {demand_id} does not exist.')
 
-        # Clear existing matrix data if requested
         if clear_existing:
-            clear_facility_trace(year, facility_id)
+            clear_demand_trace(year, demand_id)
             self.stdout.write(
-                self.style.WARNING(f'Cleared existing matrix trace for facility {facility_id}, year {year}')
+                self.style.WARNING(f'Cleared existing matrix trace for demand {demand_id}, year {year}')
             )
 
-        # Read and process CSV file
         hour_values = {}
 
         try:
             with open(file_path, 'r', newline='', encoding='utf-8') as csvfile:
-                # Since there's no header, we'll read line by line
                 reader = csv.reader(csvfile)
-                # Skip the header row
-                next(reader, None)
+                next(reader, None)  # header row
 
                 for hour, row in enumerate(reader):
                     if not row or not row[0].strip():
@@ -86,7 +79,6 @@ class Command(BaseCommand):
 
                     hour_values[hour] = quantum_value
 
-                    # Show progress every 1000 records
                     if (hour + 1) % 1000 == 0:
                         self.stdout.write(f'Processed {hour + 1} records...')
 
@@ -102,22 +94,21 @@ class Command(BaseCommand):
         trace = [hour_values.get(h, float('nan')) for h in range(max_hour + 1)]
 
         try:
-            set_facility_trace(year, facility_id, trace)
+            set_demand_trace(year, demand_id, trace)
         except Exception as e:
             raise CommandError(f'Error saving matrix trace: {str(e)}')
 
         self.stdout.write(
             self.style.SUCCESS(
-                f'Successfully loaded {len(hour_values)} supply factor records.'
+                f'Successfully loaded {len(hour_values)} demand trace records.'
             )
         )
         self.stdout.write(
             self.style.SUCCESS(
-                f'Data loaded for facility {facility_id} ({facility.facility_name}), year {year}'
+                f'Data loaded for demand {demand_id} ({demand.name}), year {year}'
             )
         )
 
-        # Summary statistics
         self.stdout.write('\n--- Summary ---')
         self.stdout.write(f'Records created: {len(hour_values)}')
         self.stdout.write(f'Hour range: 0 to {max_hour}')

@@ -21,18 +21,12 @@ def get_description(name, sirensystem_model):
     return description
 
 def home_view(request):
-    weather_year = request.session.get('weather_year')
-    demand_year = request.session.get('demand_year')
     scenario = request.session.get('scenario')
     try:
         scenario_obj: Scenarios = Scenarios.objects.get(title=scenario)
     except Scenarios.DoesNotExist: # Handle the case where the scenario title no longer exists
         scenario = None
         request.session['scenario'] = scenario
-        weather_year =None
-        demand_year =None
-        request.session['weather_year'] = weather_year
-        request.session['demand_year'] = demand_year
     config_file = request.session.get('config_file')
     success_message = ""
     member_name = request.GET.get('member_name', '')
@@ -81,8 +75,6 @@ def home_view(request):
     table = request.GET.get('table')  # Get the title parameter from the request
 
     # Perform actions based on the table
-    context['weather_year'] = weather_year
-    context['demand_year'] = demand_year
     context['scenario'] = scenario
     context['config_file'] = config_file
     context['success_message'] = success_message

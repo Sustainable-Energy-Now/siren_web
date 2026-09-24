@@ -9,7 +9,7 @@ archive and with an EsooForecastAdjustment applied to a scenario.
 from django.test import TestCase
 from django.urls import reverse
 
-from siren_web.models import EsooFigure, EsooForecastAdjustment, EsooVintage, Scenarios
+from siren_web.models import Demand, EsooFigure, EsooForecastAdjustment, EsooVintage
 
 
 class BiasTrackingDashboardRenderTests(TestCase):
@@ -25,12 +25,12 @@ class BiasTrackingDashboardRenderTests(TestCase):
             forecast_year=2018, demand_growth_scenario='expected',
             poe_level=10, demand_basis='operational', value=4500.0, unit='MW',
         )
-        scenario = Scenarios.objects.create(title='ESOO 2016 expected POE10 2018')
+        demand = Demand.objects.create(name='ESOO 2016 expected POE10 2018', forecast_year=2018)
         EsooForecastAdjustment.objects.create(
             source_figure=figure, category='growth_assumption', horizon=2,
             original_value=4500.0, adjustment_value=-400.0, adjusted_value=4100.0, unit='MW',
             verdict='forecasts_run_high', p_value=0.01, n=6, source='computed',
-            applied_to_scenario=scenario,
+            applied_to_demand=demand,
         )
         r = self.client.get(reverse('esoo_bias_tracking'))
         self.assertEqual(r.status_code, 200)

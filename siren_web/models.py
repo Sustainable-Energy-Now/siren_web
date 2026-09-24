@@ -40,16 +40,14 @@ class Scenarios(models.Model):
             "behaviour via the default of 60."
         ),
     )
-    reference_year = models.PositiveIntegerField(
+    weather_year = models.PositiveIntegerField(
         null=True, blank=True,
         help_text=(
-            "For an AEMO/ESOO-built demand scenario (see "
-            "esoo_scenario_views.build_scenario_from_esoo): the real FacilityScada "
-            "year whose chronological shape was used as the synthesis prior for "
-            "this scenario's Load trace. Null for scenarios that aren't ESOO-built, "
-            "or built before this field existed. Lets a consumer (e.g. "
-            "powermapui's Run Power) use the same weather year the demand trace's "
-            "own shape came from, rather than requiring a separate manual pick."
+            "Calendar year whose generation/storage facility traces this "
+            "scenario dispatches against. Set explicitly when building/editing "
+            "a scenario -- no longer inferred from an implicit Load facility "
+            "(see the Demand model for grid demand, which is selected "
+            "separately at dispatch run time)."
         ),
     )
 
@@ -5244,10 +5242,10 @@ class EsooForecastAdjustment(models.Model):
     methodology_notes = models.TextField(blank=True)
 
     source = models.CharField(max_length=10, choices=ESOO_ADJUSTMENT_SOURCE_CHOICES, default='computed')
-    applied_to_scenario = models.ForeignKey(
-        'Scenarios', on_delete=models.SET_NULL, null=True, blank=True,
+    applied_to_demand = models.ForeignKey(
+        'Demand', on_delete=models.SET_NULL, null=True, blank=True,
         related_name='esoo_forecast_adjustments',
-        help_text="Set once this adjustment was actually used to build a Powermatch scenario",
+        help_text="Set once this adjustment was actually used to build a Demand forecast",
     )
 
     computed_at = models.DateTimeField(auto_now_add=True)
@@ -6001,6 +5999,109 @@ class EvLoadTrace(models.Model):
 
     def __str__(self):
         return f"EV load {self.csiro_scenario}/{self.year} ({self.charging_mode}): {self.n_intervals} intervals"
+
+
+class Demand(models.Model):
+    """
+    A single grid demand trace -- the overall demand a Powermatch dispatch
+    run is balanced against, decoupled from `facilities` entirely (a
+    facility represents something that can participate in demand
+    management/response; a Demand represents the grid's own load).
+
+    Every Demand row is produced by one of the two forecasting pipelines:
+    the ESOO scenario builder (powermatchui.views.esoo_scenario_views,
+    esoo_vintage/esoo_scenario/poe_level/demand_basis set, parent_demand
+    null), or the EV scenario builder (powermatchui.views.ev_scenario_views,
+    parent_demand pointing at the base ESOO Demand it was layered onto,
+    csiro_scenario/charging_mode/net_of_esoo_ev set). There is no
+    schema-level link from a `Scenarios` row to a Demand -- which Demand
+    trace to dispatch a given Scenario against is always a per-run choice
+    (see siren_web.database_operations.resolve_demand_override), matching
+    the fact that the same demand forecast can reasonably be run against
+    many different generation portfolios.
+    """
+    iddemand = models.AutoField(primary_key=True)
+    name = models.CharField(max_length=45, unique=True)
+    description = models.CharField(max_length=500, blank=True)
+
+    interval_minutes = models.PositiveIntegerField(
+        default=30,
+        help_text="Trace time-step length in minutes (ESOO/EV builders always write 30).",
+    )
+    forecast_year = models.PositiveIntegerField(help_text="Calendar year this Demand's trace is stored against in DemandMatrix")
+    reference_year = models.PositiveIntegerField(
+        null=True, blank=True,
+        help_text=(
+            "The real FacilityScada year whose chronological shape was used "
+            "as the synthesis prior for this Demand's trace (see "
+            "esoo_scenario_views.build_scenario_from_esoo). Null if not "
+            "ESOO-built."
+        ),
+    )
+
+    # ESOO provenance -- blank/null for a pure EV-derived row.
+    esoo_vintage = models.ForeignKey(
+        'EsooVintage', null=True, blank=True, on_delete=models.SET_NULL, related_name='demands',
+    )
+    esoo_scenario = models.CharField(max_length=20, choices=ESOO_SCENARIO_CHOICES, blank=True)
+    poe_level = models.PositiveIntegerField(choices=ESOO_POE_LEVEL_CHOICES, null=True, blank=True)
+    demand_basis = models.CharField(max_length=20, choices=ESOO_DEMAND_BASIS_CHOICES, blank=True)
+    apply_bias_correction = models.BooleanField(default=False)
+
+    # EV provenance -- blank/null for a pure ESOO row.
+    parent_demand = models.ForeignKey(
+        'self', null=True, blank=True, on_delete=models.SET_NULL, related_name='ev_derived',
+        help_text="The base ESOO Demand this EV-layered Demand was built from, if any.",
+    )
+    csiro_scenario = models.CharField(max_length=10, choices=EV_CSIRO_SCENARIO_CHOICES, blank=True)
+    charging_mode = models.CharField(max_length=10, choices=EV_CHARGING_MODE_CHOICES, blank=True)
+    net_of_esoo_ev = models.BooleanField(
+        default=False,
+        help_text="True if the base ESOO trace's own embedded EV estimate was subtracted before adding this EV trace.",
+    )
+
+    is_active = models.BooleanField(default=True, help_text="Set false to hide a superseded/bad build without deleting its trace history.")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'demand'
+        indexes = [
+            models.Index(fields=['forecast_year']),
+            models.Index(fields=['is_active']),
+        ]
+        verbose_name = 'Demand'
+        verbose_name_plural = 'Demands'
+
+    def __str__(self):
+        return self.name
+
+
+class DemandMatrix(models.Model):
+    """
+    One row holds every Demand's half-hourly trace for a year as a packed
+    array (demand x interval) -- the Demand-side counterpart of
+    SupplyFactorMatrix, keyed by Demand.iddemand instead of
+    facilities.idfacilities.
+
+    `demand_ids[i]` gives the Demand.iddemand for row i of the unpacked
+    (n_demands x n_hours) matrix stored in `data`.
+    """
+    year = models.PositiveIntegerField(unique=True)
+    demand_ids = models.JSONField(help_text="Ordered demand ids; row i of the matrix belongs to demand_ids[i]")
+    n_hours = models.PositiveIntegerField(help_text="Columns in the matrix, e.g. 17520 for a half-hourly year")
+    dtype = models.CharField(max_length=10, default='float32')
+    data = models.BinaryField(help_text="demand_ids x n_hours array, row-major, packed as `dtype`")
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'demand_matrix'
+
+    def unpack(self):
+        """Return (demand_ids, matrix) with matrix shape (len(demand_ids), n_hours)."""
+        import numpy as np
+        matrix = np.frombuffer(self.data, dtype=self.dtype).reshape(len(self.demand_ids), self.n_hours)
+        return self.demand_ids, matrix
 
 
 class V2gInterfaceStub(models.Model):

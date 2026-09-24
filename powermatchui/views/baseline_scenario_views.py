@@ -18,7 +18,7 @@ from siren_web.database_operations import (
     fetch_scenario_settings_data, update_scenario_settings_data,
     resolve_demand_override, resolve_baseline_year, get_demand_scenario_context,
 )
-from siren_web.models import Scenarios, ScenariosTechnologies, facilities
+from siren_web.models import Scenarios, ScenariosTechnologies
 from ..forms import BaselineScenarioForm, RunPowermatchForm, DemandScenarioOverrideForm
 from powermatchui.views.exec_powermatch import submit_powermatch_with_progress
 from .progress_handler import (
@@ -46,11 +46,6 @@ def baseline_scenario(request):
 
     scenario = request.session.get('scenario')
     config_file = request.session.get('config_file')
-    # The year is no longer a separate user selection here — it's derived
-    # from the supply scenario's own Load facility (see resolve_baseline_year;
-    # an active demand override still applies at dispatch time, but doesn't
-    # change which year this scenario's own generators are read from).
-    demand_year = resolve_baseline_year(scenario)
     success_message = ""
     technologies = {}
     scenario_settings = {}
@@ -141,7 +136,6 @@ def baseline_scenario(request):
                 'runpowermatch_form': RunPowermatchForm(),
                 'technologies': technologies,
                 'scenario_settings': scenario_settings,
-                'demand_year': demand_year,
                 'scenario': scenario,
                 'config_file': config_file,
                 'success_message': 'Correct errors and resubmit.',
@@ -163,7 +157,6 @@ def baseline_scenario(request):
             else:
                 # Render a template with the warning message
                 context = {
-                    'demand_year': demand_year,
                     'scenario': scenario,
                     'config_file': config_file,
                     'success_message': success_message
@@ -186,7 +179,6 @@ def baseline_scenario(request):
         'runpowermatch_form': runpowermatch_form,
         'technologies': technologies,
         'scenario_settings': scenario_settings,
-        'demand_year': demand_year,
         'scenario': scenario,
         'config_file': config_file,
         'success_message': success_message,
@@ -199,12 +191,11 @@ def baseline_scenario(request):
 @settings_required(redirect_view='powermatchui:powermatchui_home', require_demand_year=False)
 def set_demand_scenario(request):
     """
-    Sets or clears session['demand_scenario_facility_id'] -- the app-wide
-    AEMO/ESOO demand-forecast override consumed via resolve_demand_override
-    / resolve_baseline_year (currently by powermatchui's baseline/variation
-    runs and powermapui's Run Power view). This never creates or changes
-    any Scenarios/ScenariosFacilities/ScenariosTechnologies row; it only
-    decides which facility's trace/year those consumers use next.
+    Sets or clears session['demand_scenario_demand_id'] -- the app-wide
+    Demand selection consumed via resolve_demand_override (currently by
+    powermatchui's baseline/variation runs and powermapui's Run Power
+    view). This never creates or changes any Demand/DemandMatrix row; it
+    only decides which Demand's trace/year those consumers use next.
 
     Shared across apps: any page can post here with a `next` field (a
     relative path) to be sent back to itself instead of the default
@@ -217,13 +208,13 @@ def set_demand_scenario(request):
     if request.method == 'POST':
         form = DemandScenarioOverrideForm(request.POST)
         if form.is_valid():
-            facility = form.cleaned_data['demand_scenario_facility']
-            if facility:
-                request.session['demand_scenario_facility_id'] = facility.idfacilities
-                messages.success(request, f"Demand forecast set to '{facility.facility_name}'.")
+            demand = form.cleaned_data['demand_scenario_demand']
+            if demand:
+                request.session['demand_scenario_demand_id'] = demand.iddemand
+                messages.success(request, f"Demand forecast set to '{demand.name}'.")
             else:
-                request.session.pop('demand_scenario_facility_id', None)
-                messages.success(request, "Demand forecast reset to the supply scenario's own Load.")
+                request.session.pop('demand_scenario_demand_id', None)
+                messages.success(request, "Demand forecast selection cleared.")
         else:
             messages.error(request, "Invalid demand scenario selection.")
     return redirect(next_url or 'powermatchui:baseline_scenario')
@@ -234,13 +225,17 @@ def set_demand_scenario(request):
 def run_baseline_progress(request):
     """Start analysis with SSE progress tracking"""
     scenario = request.session.get('scenario')
-    demand_override = resolve_demand_override(request.session.get('demand_scenario_facility_id'))
+    demand_override = resolve_demand_override(request.session.get('demand_scenario_demand_id'))
+    if demand_override is None:
+        return JsonResponse({
+            'error': "Select a Demand forecast on the Baseline Scenario page before running -- "
+                     "a scenario no longer carries an implicit demand trace of its own."
+        }, status=400)
     demand_year = resolve_baseline_year(scenario)
     if demand_year is None:
         return JsonResponse({
-            'error': "Could not determine a year to run against — the scenario has no usable "
-                     "Load data. Set a Demand Forecast on the Baseline Scenario page, or check "
-                     "the scenario's own Load facility."
+            'error': "Could not determine a year to run against — set this scenario's "
+                     "Weather Year before running."
         }, status=400)
 
     if request.method == 'POST':
@@ -309,8 +304,8 @@ def run_baseline_progress(request):
                     else:
                         # Process data for display
                         processed_data = process_results_for_template(
-                            dispatch_results, scenario, save_baseline, 
-                            demand_year, request.session.get('config_file')
+                            dispatch_results, scenario, save_baseline,
+                            request.session.get('config_file')
                         )
  
                         # Send completion with redirect URL
@@ -499,16 +494,23 @@ def cancel_analysis(request, session_id):
 def run_baseline(request):
     scenario = request.session.get('scenario')
     config_file = request.session.get('config_file')
-    demand_override = resolve_demand_override(request.session.get('demand_scenario_facility_id'))
+    demand_override = resolve_demand_override(request.session.get('demand_scenario_demand_id'))
     demand_year = resolve_baseline_year(scenario)
     success_message = ""
+
+    if demand_override is None:
+        messages.error(
+            request,
+            "Select a Demand forecast on the Baseline Scenario page before running -- a "
+            "scenario no longer carries an implicit demand trace of its own."
+        )
+        return redirect('powermatchui:baseline_scenario')
 
     if demand_year is None:
         messages.error(
             request,
-            "Could not determine a year to run against — the scenario has no usable Load data. "
-            "Set a Demand Forecast on the Baseline Scenario page, or check the scenario's own "
-            "Load facility."
+            "Could not determine a year to run against — set this scenario's Weather Year "
+            "before running."
         )
         return redirect('powermatchui:baseline_scenario')
 
@@ -534,8 +536,8 @@ def run_baseline(request):
             else:
                 # Process data for display
                 context = process_results_for_template(
-                    dispatch_results, scenario, save_baseline, 
-                    demand_year, request.session.get('config_file')
+                    dispatch_results, scenario, save_baseline,
+                    request.session.get('config_file')
                 )
                 # Add summary report to context
                 success_message = "Baseline re-established" if save_baseline else "Baseline run complete"
@@ -552,7 +554,6 @@ def run_baseline(request):
             'runpowermatch_form': runpowermatch_form,
             'technologies': technologies,
             'scenario_settings': scenario_settings,
-            'demand_year': demand_year,
             'scenario': scenario,
             'config_file': config_file,
             'success_message': success_message,
@@ -560,7 +561,7 @@ def run_baseline(request):
         }
         return render(request, 'baseline_scenario.html', context)
 
-def process_results_for_template(dispatch_results, scenario, save_baseline, demand_year, config_file):
+def process_results_for_template(dispatch_results, scenario, save_baseline, config_file):
     """Helper function to process results for template"""
     sp_output = dispatch_results.summary_data
     metadata = dispatch_results.metadata
@@ -606,7 +607,6 @@ def process_results_for_template(dispatch_results, scenario, save_baseline, dema
     return {
         'sp_data': sp_data_list,
         'headers': readable_headers,
-        'demand_year': demand_year,
         'scenario': scenario,
         'config_file': config_file,
     }

@@ -20,7 +20,7 @@
               <select class="form-select" id="scenario" name="scenario" required>
                 <option value="">Select a scenario...</option>
                 {% for s in scenarios %}
-                <option value="{{ s.idscenarios }}" {% if selected_id == s.idscenarios %}selected{% endif %}>{{ s.title }}</option>
+                <option value="{{ s.iddemand }}" {% if selected_id == s.iddemand %}selected{% endif %}>{{ s.name }}</option>
                 {% endfor %}
               </select>
             </div>
@@ -40,7 +40,7 @@
               <select class="form-select" id="compare" name="compare">
                 <option value="">None</option>
                 {% for s in scenarios %}
-                <option value="{{ s.idscenarios }}" {% if compare_id == s.idscenarios %}selected{% endif %}>{{ s.title }}</option>
+                <option value="{{ s.iddemand }}" {% if compare_id == s.iddemand %}selected{% endif %}>{{ s.name }}</option>
                 {% endfor %}
               </select>
             </div>
@@ -56,7 +56,7 @@
       {% endif %}
 
       {% if stats %}
-      <h4 class="mt-4">{{ scenario.title }} &mdash; {{ stats.year }} <small class="text-muted">({{ resolution }})</small></h4>
+      <h4 class="mt-4">{{ scenario.name }} &mdash; {{ stats.year }} <small class="text-muted">({{ resolution }})</small></h4>
 
       <div class="row g-3 mt-1">
         <div class="col-md-8">
@@ -94,28 +94,12 @@
         </div>
       </div>
 
-      {% if facility_rows|length > 1 %}
-      <h6 class="mt-4">Load facilities in this scenario (the totals above are their sum)</h6>
-      <table class="table table-sm table-bordered w-auto">
-        <thead class="table-light"><tr><th>Facility</th><th class="text-end">Energy (GWh)</th><th class="text-end">Peak (MW)</th><th class="text-end">Minimum (MW)</th></tr></thead>
-        <tbody>
-          {% for r in facility_rows %}
-          <tr>
-            <td>{{ r.name }}</td>
-            {% if r.error %}<td colspan="3" class="text-muted">{{ r.error }}</td>
-            {% else %}<td class="text-end">{{ r.energy_gwh|floatformat:"1g" }}</td><td class="text-end">{{ r.peak_mw|floatformat:"0g" }}</td><td class="text-end">{{ r.minimum_mw|floatformat:"0g" }}</td>{% endif %}
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-      {% endif %}
-
       {% if comparison %}
-      <h5 class="mt-4">Comparison with {{ other.title }}</h5>
+      <h5 class="mt-4">Comparison with {{ other.name }}</h5>
       <div class="table-responsive">
         <table class="table table-sm table-bordered align-middle w-auto">
           <thead class="table-light">
-            <tr><th></th><th class="text-end">{{ scenario.title }}</th><th class="text-end">{{ other.title }}</th><th class="text-end">Difference</th><th class="text-end">%</th></tr>
+            <tr><th></th><th class="text-end">{{ scenario.name }}</th><th class="text-end">{{ other.name }}</th><th class="text-end">Difference</th><th class="text-end">%</th></tr>
           </thead>
           <tbody>
             {% for r in comparison %}

@@ -3,11 +3,10 @@
 FR-G1-01 — WEM ESOO demand-forecast scenario selector.
 
 Lets a user pick a WEM ESOO demand-forecast vintage/scenario/POE/year and
-turns it into a Powermatch-ready scenario: a half-hourly demand trace,
-written into `supplyfactors` for a `Technologies(category='Load')`
-facility attached to a `Scenarios(interval_minutes=30)` row, using the
-*existing* Powermatch demand-input mechanism (Load facility +
-supplyfactors) rather than a parallel path.
+turns it into a Demand record: a half-hourly demand trace, written into
+DemandMatrix and described by a Demand row carrying structured provenance
+(esoo_vintage/esoo_scenario/poe_level/demand_basis/forecast_year) — fully
+decoupled from `facilities`/`Scenarios` (see the Demand model's docstring).
 
 Construction chain (Phase 2 modules, already unit-tested against real
 data — this view is the first thing that chains them together against a
@@ -18,13 +17,13 @@ until it's actually run once against the live database):
         -> powermatchui.utils.esoo_ldc.fit_ldc_to_anchors
         -> powermatchui.utils.esoo_trace_synthesis.synthesize_chronological_trace
         -> powermatchui.utils.esoo_reconciliation.reconcile_trace / require_reconciled
-        -> supplyfactors rows
+        -> DemandMatrix rows
 
 D5 (domain separation): this view also surfaces the vintage's
 domain='supply_adequacy' EsooFigure rows (RCT, capacity outlook) as
 read-only reference data (FR-G1-06). Those rows are fetched in a
 completely separate query from the demand anchors and are never passed
-into fit_ldc_to_anchors/synthesize_chronological_trace/supplyfactors — the
+into fit_ldc_to_anchors/synthesize_chronological_trace/DemandMatrix — the
 template renders them as a plain list alongside the scenario result,
 nothing more.
 """
@@ -41,19 +40,15 @@ from django.shortcuts import redirect, render
 from siren_web.services.facility_scada_matrix import year_present_mask, year_totals
 
 from siren_web.models import (
+    Demand,
     EsooFigure,
     EsooForecastAdjustment,
     EsooVintage,
     ESOO_POE_LEVEL_CHOICES,
     ESOO_SCENARIO_CHOICES,
     FacilityScadaMatrix,
-    Scenarios,
-    ScenariosFacilities,
-    ScenariosTechnologies,
-    Technologies,
-    facilities,
 )
-from siren_web.services.supply_matrix import clear_facility_trace, set_facility_trace
+from siren_web.services.demand_matrix import clear_demand_trace, set_demand_trace
 from powermatchui.utils.esoo_forecast_adjustment import build_adjusted_anchors
 from powermatchui.utils.esoo_ldc import LDCConstructionError, fit_ldc_to_anchors
 from powermatchui.utils.esoo_reconciliation import (
@@ -68,8 +63,6 @@ from powermatchui.utils.esoo_trace_synthesis import (
 from powermatchui.utils.time_alignment import ESOO_TRACE_CLOCK_MARKER, align_reference_to_target
 
 INTERVAL_HOURS = 0.5  # FR-G1-01 always builds a half-hourly demand trace
-LOAD_TECHNOLOGY_NAME = 'Load'
-LOAD_TECHNOLOGY_SIGNATURE = 'LOAD'
 
 
 def _expected_half_hourly_intervals(year: int) -> int:
@@ -100,8 +93,7 @@ class ReferenceShapeError(ValueError):
 @dataclass
 class EsooScenarioBuildResult:
     """Everything the template needs to report what was built."""
-    scenario: Scenarios
-    facility: facilities
+    demand: Demand
     title: str
     forecast_year: int
     reference_year: str
@@ -326,32 +318,15 @@ def build_reference_shape():
     return reference_shape, reference_year
 
 
-def _get_or_create_load_technology() -> Technologies:
-    """Reuse the same 'Load' Technologies row every scenario's
-    fetch_technology_attributes/fetch_supplyfactors_data already expects
-    (see siren_web/database_operations.py) — not a new parallel path."""
-    tech, _ = Technologies.objects.get_or_create(
-        technology_name=LOAD_TECHNOLOGY_NAME,
-        defaults={
-            'technology_signature': LOAD_TECHNOLOGY_SIGNATURE,
-            'category': 'Load',
-            'renewable': 0,
-            'dispatchable': 0,
-        },
-    )
-    return tech
-
-
-def _scenario_description(vintage: EsooVintage, esoo_scenario: str, poe: int, forecast_year: int) -> str:
+def _demand_description(vintage: EsooVintage, esoo_scenario: str, poe: int, forecast_year: int) -> str:
     return (
         f"Auto-built from WEM ESOO {vintage.year} ({esoo_scenario}, POE{poe}) "
         f"demand forecast for {forecast_year} (FR-G1-01; {ESOO_TRACE_CLOCK_MARKER})."
     )
 
 
-def _scenario_title(vintage: EsooVintage, esoo_scenario: str, poe: int, forecast_year: int) -> str:
-    # Scenarios.title / facilities.facility_name / facility_code are all
-    # limited to 45/45/30 chars respectively; this format comfortably fits.
+def _demand_name(vintage: EsooVintage, esoo_scenario: str, poe: int, forecast_year: int) -> str:
+    # Demand.name is limited to 45 chars; this format comfortably fits.
     return f"ESOO {vintage.year} {esoo_scenario} POE{poe} {forecast_year}"[:45]
 
 
@@ -423,74 +398,37 @@ def build_scenario_from_esoo(vintage: EsooVintage, esoo_scenario: str, poe: int,
         interval_hours=INTERVAL_HOURS,
     ))
 
-    title = _scenario_title(vintage, esoo_scenario, poe, forecast_year)
-    load_tech = _get_or_create_load_technology()
+    title = _demand_name(vintage, esoo_scenario, poe, forecast_year)
 
-    scenario_obj, created = Scenarios.objects.get_or_create(
-        title=title,
+    demand_obj, created = Demand.objects.update_or_create(
+        name=title,
         defaults={
+            'description': _demand_description(vintage, esoo_scenario, poe, forecast_year),
             'interval_minutes': 30,
+            'forecast_year': forecast_year,
             'reference_year': int(reference_year),
-            'description': _scenario_description(vintage, esoo_scenario, poe, forecast_year),
+            'esoo_vintage': vintage,
+            'esoo_scenario': esoo_scenario,
+            'poe_level': poe,
+            'demand_basis': demand_basis,
+            'apply_bias_correction': apply_bias_correction,
         },
     )
-    if not created:
-        update_fields = []
-        if scenario_obj.description != _scenario_description(vintage, esoo_scenario, poe, forecast_year):
-            # Rebuilding an older scenario re-stamps it (see ESOO_TRACE_CLOCK_MARKER).
-            scenario_obj.description = _scenario_description(vintage, esoo_scenario, poe, forecast_year)
-            update_fields.append('description')
-        if scenario_obj.interval_minutes != 30:
-            scenario_obj.interval_minutes = 30
-            update_fields.append('interval_minutes')
-        if scenario_obj.reference_year != int(reference_year):
-            scenario_obj.reference_year = int(reference_year)
-            update_fields.append('reference_year')
-        if update_fields:
-            scenario_obj.save(update_fields=update_fields)
 
     if adjustments:
         figure_by_metric = {peak_fig.metric: peak_fig, min_fig.metric: min_fig, energy_fig.metric: energy_fig}
         for metric, adj in adjustments.items():
             EsooForecastAdjustment.objects.filter(
                 source_figure=figure_by_metric[metric], category=adj.category,
-            ).update(applied_to_scenario=scenario_obj)
-
-    facility_obj, _ = facilities.objects.get_or_create(
-        facility_name=title,
-        defaults={
-            'facility_code': title[:30],
-            'idtechnologies': load_tech,
-            'active': True,
-            'existing': True,
-            'capacity': 0,
-        },
-    )
-    if facility_obj.idtechnologies_id != load_tech.idtechnologies:
-        facility_obj.idtechnologies = load_tech
-        facility_obj.save(update_fields=['idtechnologies'])
-
-    ScenariosFacilities.objects.get_or_create(idscenarios=scenario_obj, idfacilities=facility_obj)
-
-    scenario_tech, st_created = ScenariosTechnologies.objects.get_or_create(
-        idscenarios=scenario_obj,
-        idtechnologies=load_tech,
-        defaults={'merit_order': 0, 'capacity': 0, 'mult': 1, 'col': None},
-    )
-    if not st_created and scenario_tech.merit_order != 0:
-        scenario_tech.merit_order = 0
-        scenario_tech.save(update_fields=['merit_order'])
+            ).update(applied_to_demand=demand_obj)
 
     # Idempotent regeneration: clear any previous trace for this
-    # facility/year before writing the new one.
-    # Idempotent regeneration: clear any previous trace for this
-    # facility/year before writing the new one.
-    clear_facility_trace(forecast_year, facility_obj.idfacilities)
-    set_facility_trace(forecast_year, facility_obj.idfacilities, stored_trace)
+    # demand/year before writing the new one.
+    clear_demand_trace(forecast_year, demand_obj.iddemand)
+    set_demand_trace(forecast_year, demand_obj.iddemand, stored_trace)
 
     return EsooScenarioBuildResult(
-        scenario=scenario_obj,
-        facility=facility_obj,
+        demand=demand_obj,
         title=title,
         forecast_year=forecast_year,
         reference_year=reference_year,

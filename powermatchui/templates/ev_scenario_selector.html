@@ -30,9 +30,9 @@
                                 <select class="form-select" id="base_scenario" name="base_scenario" required>
                                     <option value="">Select a base scenario...</option>
                                     {% for s in base_scenarios %}
-                                    <option value="{{ s.idscenarios }}"
-                                            {% if selected_base_id|stringformat:"s" == s.idscenarios|stringformat:"s" %}selected{% endif %}>
-                                        {{ s.title }}
+                                    <option value="{{ s.iddemand }}"
+                                            {% if selected_base_id|stringformat:"s" == s.iddemand|stringformat:"s" %}selected{% endif %}>
+                                        {{ s.name }}
                                     </option>
                                     {% endfor %}
                                 </select>
@@ -112,7 +112,7 @@
                 <div class="card-body">
                     <table class="table table-sm">
                         <tbody>
-                            <tr><th scope="row">Scenario</th><td>{{ result.title }} (id {{ result.scenario.idscenarios }})</td></tr>
+                            <tr><th scope="row">Demand</th><td>{{ result.title }} (id {{ result.demand.iddemand }})</td></tr>
                             <tr><th scope="row">Forecast year</th><td>{{ result.forecast_year }}</td></tr>
                             <tr><th scope="row">EV scenario</th><td>{{ result.csiro_scenario }}</td></tr>
                             <tr><th scope="row">Charging mode</th><td>{{ result.charging_mode }}</td></tr>

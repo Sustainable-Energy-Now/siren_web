@@ -2,6 +2,7 @@
 """Scenario summary: the statistics module, and the read-only page."""
 import calendar
 from datetime import date, datetime
+from types import SimpleNamespace
 
 import numpy as np
 from django.contrib.auth import get_user_model
@@ -16,8 +17,8 @@ from powermatchui.utils.scenario_summary import (
     sum_traces,
     summarise_load_trace,
 )
-from siren_web.models import Scenarios, ScenariosFacilities, Technologies, facilities
-from siren_web.services.supply_matrix import set_facility_trace
+from siren_web.models import Demand, EsooVintage
+from siren_web.services.demand_matrix import set_demand_trace
 
 
 def _year_trace(year, per_day, fn):
@@ -124,31 +125,59 @@ class SumAndCompareTests(SimpleTestCase):
 
 
 class ProvenanceTests(SimpleTestCase):
+    """describe_provenance reads a Demand's own structured fields directly
+    (no DB access needed -- a plain SimpleNamespace duck-types the handful
+    of attributes it reads)."""
+
+    def _demand(self, **overrides):
+        defaults = dict(
+            parent_demand_id=None, parent_demand=None,
+            esoo_vintage_id=None, esoo_vintage=None, esoo_scenario='', poe_level=None,
+            csiro_scenario='', charging_mode='', net_of_esoo_ev=False,
+            forecast_year=2035, reference_year=None, interval_minutes=30, description='',
+        )
+        defaults.update(overrides)
+        return SimpleNamespace(**defaults)
+
     def test_esoo_built(self):
-        p = dict(describe_provenance(
-            'Auto-built from WEM ESOO 2026 (expected, POE10) demand forecast for 2035 (FR-G1-01; AWST clock, target-year weekdays).',
-            30, 2025))
+        demand = self._demand(
+            esoo_vintage_id=1, esoo_vintage=SimpleNamespace(year=2026),
+            esoo_scenario='expected', poe_level=10, forecast_year=2035, reference_year=2025,
+        )
+        p = dict(describe_provenance(demand))
         self.assertEqual(p['Built by'], 'ESOO Demand Scenario (FR-G1-01)')
         self.assertEqual(p['ESOO forecast'], 'WEM ESOO 2026, expected scenario, POE10, 2035')
         self.assertEqual(p['Shape prior (SCADA year)'], '2025')
         self.assertEqual(p['Dispatch interval'], '30 minutes')
 
     def test_ev_built_net(self):
-        p = dict(describe_provenance(
-            "Auto-built: ESOO 2026 expected POE10 2035 base demand, less the 1,994 GWh of EV load already in it, "
-            "plus CSIRO medium EV load (unmanaged) for 2035 (FR-11, net of ESOO's EV; source).", 30, None))
+        base = self._demand()
+        base.name = 'ESOO 2026 expected POE10 2035'
+        demand = self._demand(
+            parent_demand_id=1, parent_demand=base,
+            csiro_scenario='medium', charging_mode='unmanaged', forecast_year=2035,
+            net_of_esoo_ev=True,
+        )
+        p = dict(describe_provenance(demand))
         self.assertEqual(p['Built by'], 'EV Load Scenario (FR-11)')
-        self.assertEqual(p['Base demand scenario'], 'ESOO 2026 expected POE10 2035')
+        self.assertEqual(p['Base demand'], 'ESOO 2026 expected POE10 2035')
         self.assertEqual(p['EV scenario'], 'medium (unmanaged charging), 2035')
-        self.assertIn('net of the 1,994 GWh', p['EV treatment'])
+        self.assertIn("net of ESOO's own EV", p['EV treatment'])
 
     def test_ev_built_gross(self):
-        p = dict(describe_provenance(
-            'Auto-built: Base demand base demand + CSIRO high EV load (managed) for 2030 (FR-11).', 30, None))
+        base = self._demand()
+        base.name = 'Base demand'
+        demand = self._demand(
+            parent_demand_id=1, parent_demand=base,
+            csiro_scenario='high', charging_mode='managed', forecast_year=2030,
+            net_of_esoo_ev=False,
+        )
+        p = dict(describe_provenance(demand))
         self.assertEqual(p['EV treatment'], 'EV load added on top of the base')
 
     def test_hand_made_scenario_shows_its_description(self):
-        p = dict(describe_provenance('My baseline', 60, None))
+        demand = self._demand(description='My baseline', interval_minutes=60)
+        p = dict(describe_provenance(demand))
         self.assertEqual(p['Description'], 'My baseline')
         self.assertEqual(p['Dispatch interval'], '60 minutes')
 
@@ -156,35 +185,29 @@ class ProvenanceTests(SimpleTestCase):
 class ScenarioSummaryPageTests(TestCase):
     def setUp(self):
         self.client.force_login(get_user_model().objects.create_user('summary_user', password='pw'))
-        self.load_tech = Technologies.objects.create(
-            technology_name='Load', technology_signature='LOAD', category='Load', renewable=0, dispatchable=0)
-        self.wind_tech = Technologies.objects.create(
-            technology_name='Wind', technology_signature='WIND', category='Wind', renewable=1, dispatchable=0)
 
-    def _scenario(self, title, mw, year=2035, description=''):
-        scenario = Scenarios.objects.create(title=title, interval_minutes=30, description=description)
-        fac = facilities.objects.create(
-            facility_name=f'{title} load', facility_code=title[:20], idtechnologies=self.load_tech,
-            active=True, existing=True, capacity=0)
-        ScenariosFacilities.objects.create(idscenarios=scenario, idfacilities=fac)
-        set_facility_trace(year, fac.idfacilities, _year_trace(year, 48, lambda d, i: mw + (500 if i == 37 else 0)))
-        return scenario
+    def _demand(self, name, mw, year=2035, description='', **extra):
+        demand = Demand.objects.create(
+            name=name, interval_minutes=30, forecast_year=year, description=description, **extra
+        )
+        set_demand_trace(year, demand.iddemand, _year_trace(year, 48, lambda d, i: mw + (500 if i == 37 else 0)))
+        return demand
 
-    def test_lists_only_scenarios_with_a_load_facility(self):
-        a = self._scenario('With load', 2000.0)
-        gen = Scenarios.objects.create(title='Generation only', interval_minutes=30)
-        wind = facilities.objects.create(
-            facility_name='Some wind', facility_code='WIND1', idtechnologies=self.wind_tech, active=True, existing=True, capacity=10)
-        ScenariosFacilities.objects.create(idscenarios=gen, idfacilities=wind)
+    def test_lists_only_active_demands(self):
+        self._demand('Active demand', 2000.0)
+        self._demand('Inactive demand', 2000.0, is_active=False)
         r = self.client.get(reverse('powermatchui:scenario_summary'))
         self.assertEqual(r.status_code, 200)
-        self.assertContains(r, 'With load')
-        self.assertNotContains(r, 'Generation only')
+        self.assertContains(r, 'Active demand')
+        self.assertNotContains(r, 'Inactive demand')
 
     def test_summary_shows_key_statistics_and_provenance(self):
-        s = self._scenario(
+        vintage = EsooVintage.objects.create(year=2026, tier='modern_comparable')
+        s = self._demand(
             'ESOO test', 2000.0,
-            description='Auto-built from WEM ESOO 2026 (expected, POE10) demand forecast for 2035 (FR-G1-01).')
+            description='Auto-built from WEM ESOO 2026 (expected, POE10) demand forecast for 2035 (FR-G1-01).',
+            esoo_vintage=vintage, esoo_scenario='expected', poe_level=10,
+        )
         r = self.client.get(reverse('powermatchui:scenario_summary'), {'scenario': s.pk, 'year': 2035})
         self.assertEqual(r.status_code, 200)
         self.assertContains(r, 'Annual energy')
@@ -195,16 +218,15 @@ class ScenarioSummaryPageTests(TestCase):
         self.assertContains(r, 'has not been run through Powermatch dispatch')
 
     def test_year_defaults_to_the_latest_available(self):
-        s = self._scenario('Two years', 2000.0, year=2030)
-        fac = facilities.objects.get(facility_name='Two years load')
-        set_facility_trace(2035, fac.idfacilities, np.full(17520, 3000.0))
+        s = self._demand('Two years', 2000.0, year=2030)
+        set_demand_trace(2035, s.iddemand, np.full(17520, 3000.0))
         r = self.client.get(reverse('powermatchui:scenario_summary'), {'scenario': s.pk, 'year': '1999'})
         self.assertEqual(r.context['selected_year'], 2035)
         self.assertEqual(r.context['years'], [2030, 2035])
 
     def test_comparison_table_and_overlay(self):
-        a = self._scenario('Base', 2000.0)
-        b = self._scenario('Higher', 2200.0)
+        a = self._demand('Base', 2000.0)
+        b = self._demand('Higher', 2200.0)
         r = self.client.get(reverse('powermatchui:scenario_summary'), {'scenario': a.pk, 'compare': b.pk, 'year': 2035})
         self.assertEqual(r.status_code, 200)
         self.assertContains(r, 'Comparison with Higher')
@@ -212,35 +234,22 @@ class ScenarioSummaryPageTests(TestCase):
         self.assertEqual(rows['Peak (MW)']['delta'], '+200')
 
     def test_comparison_missing_the_year_is_reported_not_fatal(self):
-        a = self._scenario('Base', 2000.0, year=2035)
-        b = self._scenario('Other year', 2200.0, year=2030)
+        a = self._demand('Base', 2000.0, year=2035)
+        b = self._demand('Other year', 2200.0, year=2030)
         r = self.client.get(reverse('powermatchui:scenario_summary'), {'scenario': a.pk, 'compare': b.pk, 'year': 2035})
         self.assertEqual(r.status_code, 200)
-        self.assertContains(r, 'has no Load trace for 2035')
+        self.assertContains(r, 'has no trace for 2035')
         self.assertContains(r, 'Annual energy')      # the main summary still shows
 
     def test_scenario_without_a_trace_gets_a_message(self):
-        scenario = Scenarios.objects.create(title='Empty', interval_minutes=30)
-        fac = facilities.objects.create(
-            facility_name='Empty load', facility_code='EMPTY', idtechnologies=self.load_tech, active=True, existing=True, capacity=0)
-        ScenariosFacilities.objects.create(idscenarios=scenario, idfacilities=fac)
-        r = self.client.get(reverse('powermatchui:scenario_summary'), {'scenario': scenario.pk})
-        self.assertContains(r, 'no stored Load trace')
+        demand = Demand.objects.create(name='Empty', interval_minutes=30, forecast_year=2035)
+        r = self.client.get(reverse('powermatchui:scenario_summary'), {'scenario': demand.pk})
+        self.assertContains(r, 'has no stored trace')
 
     def test_unknown_scenario_and_garbage_params(self):
         r = self.client.get(reverse('powermatchui:scenario_summary'), {'scenario': '9999', 'year': 'abc', 'compare': 'x'})
         self.assertEqual(r.status_code, 200)
-        self.assertContains(r, "exist or has no Load facility")
-
-    def test_multiple_load_facilities_are_summed(self):
-        s = self._scenario('Two loads', 1000.0)
-        extra = facilities.objects.create(
-            facility_name='Second load', facility_code='LOAD2', idtechnologies=self.load_tech, active=True, existing=True, capacity=0)
-        ScenariosFacilities.objects.create(idscenarios=s, idfacilities=extra)
-        set_facility_trace(2035, extra.idfacilities, np.full(17520, 250.0))
-        r = self.client.get(reverse('powermatchui:scenario_summary'), {'scenario': s.pk, 'year': 2035})
-        self.assertEqual(len(r.context['facility_rows']), 2)
-        self.assertAlmostEqual(r.context['stats'].peak_mw, 1500.0 + 250.0)   # 1000 + 500 spike + 250
+        self.assertContains(r, "That Demand doesn")  # avoid the apostrophe, which is HTML-escaped in the response
 
     def test_requires_login(self):
         self.client.logout()

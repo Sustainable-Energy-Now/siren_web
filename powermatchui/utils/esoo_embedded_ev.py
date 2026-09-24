@@ -24,7 +24,6 @@ Expected -> Step Change is supported by the 2026 ESOO fleet (~717,000 in
 AEMO, so callers surface it as an assumption and the user can override the
 energy with a figure of their own.
 """
-import re
 from dataclasses import dataclass
 from typing import Optional
 
@@ -36,14 +35,9 @@ ESOO_EV_TRAJECTORY = {
     'high': 'Accelerated Transition',
 }
 
-# Matches the description written by esoo_scenario_views._scenario_description
-_ESOO_DESCRIPTION_RE = re.compile(
-    r'WEM ESOO (?P<vintage>\d{4}) \((?P<scenario>\w+), POE(?P<poe>\d+)\) demand forecast for (?P<year>\d{4})'
-)
-
 
 class EmbeddedEvNotAvailableError(ValueError):
-    """The EV energy inside the base scenario can't be determined -- enter it by hand."""
+    """The EV energy inside the base Demand can't be determined -- enter it by hand."""
 
 
 @dataclass
@@ -53,38 +47,30 @@ class EmbeddedEv:
     is_assumption: bool
 
 
-def parse_esoo_base(description: str) -> Optional[dict]:
-    """(vintage, esoo_scenario, forecast_year) of an ESOO-built base scenario, else None."""
-    m = _ESOO_DESCRIPTION_RE.search(description or '')
-    if not m:
-        return None
-    return dict(vintage=int(m.group('vintage')), scenario=m.group('scenario'), forecast_year=int(m.group('year')))
-
-
-def resolve_embedded_ev(base_description: str, forecast_year: int, override_gwh: Optional[float] = None) -> EmbeddedEv:
+def resolve_embedded_ev(base_esoo_scenario: Optional[str], forecast_year: int,
+                         override_gwh: Optional[float] = None) -> EmbeddedEv:
     """
-    EV energy already inside the base scenario, in MWh, for `forecast_year`.
+    EV energy already inside the base Demand, in MWh, for `forecast_year`.
 
     `override_gwh` (a user-entered figure) always wins. Otherwise the base
-    must be an ESOO-built scenario (its description names the vintage and
-    scenario) and the energy comes from the IASR workbook's WEM trajectory
-    mapped by ESOO_EV_TRAJECTORY.
+    must be an ESOO-built Demand (its own esoo_scenario field is set) and
+    the energy comes from the IASR workbook's WEM trajectory mapped by
+    ESOO_EV_TRAJECTORY.
     """
     if override_gwh is not None:
         if override_gwh < 0:
-            raise EmbeddedEvNotAvailableError("The EV energy already in the base scenario can't be negative.")
+            raise EmbeddedEvNotAvailableError("The EV energy already in the base Demand can't be negative.")
         return EmbeddedEv(override_gwh * 1000.0, f"entered by hand ({override_gwh:,.1f} GWh)", is_assumption=False)
 
-    esoo = parse_esoo_base(base_description)
-    if esoo is None:
+    if not base_esoo_scenario:
         raise EmbeddedEvNotAvailableError(
-            "This base scenario wasn't built from an ESOO forecast, so the EV load already in it is unknown. "
+            "This base Demand wasn't built from an ESOO forecast, so the EV load already in it is unknown. "
             "Enter that figure (GWh) yourself, or untick 'net of ESOO's EV'."
         )
-    trajectory = ESOO_EV_TRAJECTORY.get(esoo['scenario'])
+    trajectory = ESOO_EV_TRAJECTORY.get(base_esoo_scenario)
     if trajectory is None:
         raise EmbeddedEvNotAvailableError(
-            f"No EV trajectory is mapped to the ESOO '{esoo['scenario']}' scenario; enter the EV energy (GWh) by hand."
+            f"No EV trajectory is mapped to the ESOO '{base_esoo_scenario}' scenario; enter the EV energy (GWh) by hand."
         )
 
     try:
@@ -95,6 +81,6 @@ def resolve_embedded_ev(base_description: str, forecast_year: int, override_gwh:
         )
     return EmbeddedEv(
         mwh,
-        f"{source}, taken as the trajectory behind ESOO {esoo['scenario']}",
+        f"{source}, taken as the trajectory behind ESOO {base_esoo_scenario}",
         is_assumption=True,
     )

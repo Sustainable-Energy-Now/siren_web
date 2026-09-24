@@ -5,12 +5,21 @@ from django.utils.html import format_html
 from .models import Reference
 from django.contrib import admin
 from .models import (
-    EvVintage, SourceDocument, EvUptakePostcodeFigure, EvSuppressionFlag,
+    Demand, EvVintage, SourceDocument, EvUptakePostcodeFigure, EvSuppressionFlag,
     EvChargingProfile, SwisBoundaryMembership, EvActualsRecord, EvLoadTrace,
     V2gInterfaceStub, SwisBoundary, PostcodeBoundary,
     EvActualsDocument, EvActualsQuarter, CommandRun, EsooForecastAdjustment,
     GencostVintage, GencostCostFigure, GencostTechnologyMapping,
 )
+
+
+@admin.register(Demand)
+class DemandAdmin(admin.ModelAdmin):
+    list_display = ['name', 'forecast_year', 'interval_minutes', 'esoo_scenario', 'csiro_scenario',
+                    'parent_demand', 'is_active', 'updated_at']
+    list_filter = ['is_active', 'esoo_scenario', 'csiro_scenario', 'forecast_year']
+    search_fields = ['name', 'description']
+    raw_id_fields = ['esoo_vintage', 'parent_demand']
 
 
 @admin.register(CommandRun)
@@ -62,9 +71,9 @@ class GencostTechnologyMappingAdmin(admin.ModelAdmin):
 
 @admin.register(EsooForecastAdjustment)
 class EsooForecastAdjustmentAdmin(admin.ModelAdmin):
-    list_display = ['__str__', 'category', 'verdict', 'source', 'applied_to_scenario', 'computed_at']
+    list_display = ['__str__', 'category', 'verdict', 'source', 'applied_to_demand', 'computed_at']
     list_filter = ['category', 'verdict', 'source']
-    raw_id_fields = ['source_figure', 'applied_to_scenario']
+    raw_id_fields = ['source_figure', 'applied_to_demand']
 
 
 @admin.register(EvUptakePostcodeFigure)

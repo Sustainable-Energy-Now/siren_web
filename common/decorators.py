@@ -13,15 +13,17 @@ def settings_required(redirect_view='home', require_demand_year=True, require_we
 
     require_demand_year=False is for views that derive their own year at
     runtime instead of expecting the user to have picked one (see
-    siren_web.database_operations.resolve_baseline_year) — e.g. the
-    baseline/PowerMatch views, whose year now comes from whichever Load
-    facility is actually supplying demand.
+    siren_web.database_operations.resolve_baseline_year) — e.g. Powermatch's
+    baseline/dispatch views, whose year comes from the scenario's own
+    Scenarios.weather_year and whichever Demand is selected for the run,
+    never from session['demand_year']. Powermatch views pass this False and
+    no longer show or set a Demand Year anywhere.
 
     require_weather_year=False is for views that derive their own weather
     year instead — e.g. powermapui's Run Power view, which uses the
-    reference_year of the selected AEMO/ESOO demand forecast (see
-    Scenarios.reference_year) when one is set, falling back to session
-    weather_year only when no forecast is selected.
+    reference_year of the selected Demand forecast (see Demand.reference_year)
+    when one is set, falling back to session weather_year only when no
+    forecast is selected.
 
     Usage example:
         @login_required
@@ -37,13 +39,17 @@ def settings_required(redirect_view='home', require_demand_year=True, require_we
             demand_year = request.session.get('demand_year')
             scenario = request.session.get('scenario')
 
-            if (not scenario
-                    or (require_weather_year and not weather_year)
-                    or (require_demand_year and not demand_year)):
-                messages.warning(
-                    request,
-                    "Please set the weather year, demand year and scenario before proceeding."
-                )
+            missing = []
+            if require_weather_year and not weather_year:
+                missing.append('weather year')
+            if require_demand_year and not demand_year:
+                missing.append('demand year')
+            if not scenario:
+                missing.append('scenario')
+
+            if missing:
+                joined = missing[0] if len(missing) == 1 else ', '.join(missing[:-1]) + ' and ' + missing[-1]
+                messages.warning(request, f"Please set the {joined} before proceeding.")
                 return redirect(redirect_view)
 
             return view_func(request, *args, **kwargs)

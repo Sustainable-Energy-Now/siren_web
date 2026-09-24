@@ -51,8 +51,8 @@
                 {% csrf_token %}
                 <input type="hidden" name="next" value="{% url 'powermapui:generate_power' %}">
                 <div class="facility-selector">
-                    {{ demand_scenario_form.demand_scenario_facility.label_tag }}
-                    {{ demand_scenario_form.demand_scenario_facility }}
+                    {{ demand_scenario_form.demand_scenario_demand.label_tag }}
+                    {{ demand_scenario_form.demand_scenario_demand }}
                 </div>
                 <button type="submit" class="btn btn-secondary">Set Demand Forecast</button>
             </form>

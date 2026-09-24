@@ -30,7 +30,7 @@ def setup_variation(request):
     # Derived rather than user-selected -- see resolve_baseline_year.
     demand_year = resolve_baseline_year(scenario)
     if demand_year is None:
-        success_message = "Could not determine a year to run against — the scenario has no usable Load data."
+        success_message = "Could not determine a year to run against — set this scenario's Weather Year."
         context = {'success_message': success_message}
         return render(request, 'variations.html', context)
 
@@ -102,7 +102,6 @@ def setup_variation(request):
         'technologies': technologies,
         'technologies_json': json.dumps(technologies_json),
         'variation_data': json.dumps({}),  # For JavaScript compatibility
-        'demand_year': demand_year,
         'scenario': scenario,
         'config_file': config_file,
         'success_message': success_message
@@ -129,7 +128,7 @@ def handle_variation_submission(request, cleaned_data, technologies, demand_year
     
     if not tech_name:
         success_message = 'Technology not found.'
-        return render_form_with_error(request, technologies, demand_year, scenario, config_file, success_message)
+        return render_form_with_error(request, technologies, scenario, config_file, success_message)
     
     # Generate variation details
     variation_gen_name = f"{technology.tech_signature}.{dimension[:3]}{str(step)}.{str(stages)}"
@@ -165,7 +164,7 @@ def handle_variation_submission(request, cleaned_data, technologies, demand_year
             )
         except Exception as e:
             success_message = 'Variation creation failed.'
-            return render_form_with_error(request, technologies, demand_year, scenario, config_file, success_message)
+            return render_form_with_error(request, technologies, scenario, config_file, success_message)
         variation_name = variation_gen_name
     else:
         # Update existing variation
@@ -185,7 +184,7 @@ def handle_variation_submission(request, cleaned_data, technologies, demand_year
             variation_name = variation_gen_name
         except variations.DoesNotExist:
             success_message = 'Variation not found for update.'
-            return render_form_with_error(request, technologies, demand_year, scenario, config_file, success_message)
+            return render_form_with_error(request, technologies, scenario, config_file, success_message)
 
     # Clear existing analysis data and run PowerMatch
     clearScenario(scenario_obj, variation_name)
@@ -204,15 +203,15 @@ def handle_variation_submission(request, cleaned_data, technologies, demand_year
     
     # Process data for display
     context = process_results_for_template(
-        dispatch_results, scenario, True, 
-        demand_year, config_file
+        dispatch_results, scenario, True,
+        config_file
     )
     success_message = 'Create variants run has completed.'
     return render(request, 'display_table.html', 
         {**context, 'summary_report': summary_report, 
          'success_message': success_message})
 
-def render_form_with_error(request, technologies, demand_year, scenario, config_file, success_message):
+def render_form_with_error(request, technologies, scenario, config_file, success_message):
     """Helper function to render the form with error messages"""
     scenario_obj = Scenarios.objects.get(title=scenario)
     combined_form = CombinedVariationForm(scenario=scenario_obj, technologies=technologies)
@@ -237,7 +236,6 @@ def render_form_with_error(request, technologies, demand_year, scenario, config_
         'technologies': technologies,
         'technologies_json': json.dumps(technologies_json),
         'variation_data': json.dumps({}),
-        'demand_year': demand_year,
         'scenario': scenario,
         'config_file': config_file,
         'success_message': success_message

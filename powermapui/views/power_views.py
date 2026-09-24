@@ -34,24 +34,23 @@ def generate_power(request):
     scenario = request.session.get('scenario', '')
     config_file = request.session.get('config_file')
     # The year TechnologyYears data is read for (via fetch_full_facilities_data)
-    # is whichever AEMO/ESOO demand forecast is selected on this page (see
+    # is whichever Demand forecast is selected on this page (see
     # get_demand_scenario_context / resolve_demand_override), or, absent a
-    # selection, the scenario's own Load facility's resolved year (see
-    # resolve_baseline_year).
-    demand_override = resolve_demand_override(request.session.get('demand_scenario_facility_id'))
+    # selection, the scenario's own weather_year (see resolve_baseline_year).
+    demand_override = resolve_demand_override(request.session.get('demand_scenario_demand_id'))
     demand_year = demand_override.year if demand_override else resolve_baseline_year(scenario)
     if demand_year is None:
         messages.error(
             request,
-            "Could not determine a year to run against — select a Demand Forecast, or check the "
-            "scenario's own Load data."
+            "Could not determine a year to run against — select a Demand Forecast, or set the "
+            "scenario's Weather Year."
         )
         return redirect('powermapui:powermapui_home')
 
     # The weather year SAM simulates against: the reference_year of the
-    # selected AEMO/ESOO demand forecast (the real FacilityScada year its
-    # own trace's shape was synthesised from -- see Scenarios.reference_year
-    # / esoo_scenario_views.build_scenario_from_esoo), so generation and
+    # selected Demand forecast (the real FacilityScada year its own trace's
+    # shape was synthesised from -- see Demand.reference_year /
+    # esoo_scenario_views.build_scenario_from_esoo), so generation and
     # demand are chronologically consistent. Falls back to session
     # weather_year when no forecast is selected, or a legacy forecast built
     # before reference_year existed has none recorded.

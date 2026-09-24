@@ -7,7 +7,7 @@ from django.http import JsonResponse, HttpResponse
 from django.shortcuts import redirect, render
 from django.urls import reverse
 import json
-from siren_web.database_operations import fetch_technology_by_id, fetch_merit_order_technologies, resolve_baseline_year
+from siren_web.database_operations import fetch_technology_by_id, fetch_merit_order_technologies
 from siren_web.models import ScenariosTechnologies, Scenarios
 from urllib.parse import urlencode
 
@@ -21,10 +21,6 @@ def set_merit_order(request):
 
     scenario = request.session.get('scenario')
     config_file = request.session.get('config_file')
-    # Informational only -- merit order is a property of the scenario's own
-    # ScenariosTechnologies rows, not of any particular year. Derived rather
-    # than user-selected (see resolve_baseline_year).
-    demand_year = resolve_baseline_year(scenario) if scenario else None
 
     # Initialize with default values
     success_message = request.GET.get('success_message', '')
@@ -86,8 +82,7 @@ def set_merit_order(request):
     context = {
         'merit_order': merit_order, 
         'excluded_resources': excluded_resources, 
-        'success_message': success_message, 
-        'demand_year': demand_year,
+        'success_message': success_message,
         'scenario': scenario,
         'config_file': config_file,
     }

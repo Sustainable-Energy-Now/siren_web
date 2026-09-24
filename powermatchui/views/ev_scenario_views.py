@@ -16,14 +16,14 @@ powermatchui.utils.ev_trace_synthesis's module docstring):
         -> powermatchui.utils.ev_load_trace_store.save_trace (EvLoadTrace, D12 file-based storage)
 
 FR-11/GR-03 integration (D2: EV layer is fully additional and separable):
-this NEVER mutates an existing base Scenario's supplyfactors. Instead it
-creates/updates a *derived* Scenario ("<base title> + EV <scenario> <year>")
-whose Load facility carries base + EV trace, elementwise. The base
-Scenario is always left untouched, so GR-03's "no EV layer" acceptance
-test is satisfied by construction: simply not building/selecting a
-derived scenario reproduces the base trace exactly, and switching which
-CSIRO scenario is selected only changes which derived Scenario exists —
-the base Load facility's own supplyfactors are never touched.
+this NEVER mutates an existing base Demand's trace. Instead it
+creates/updates a *derived* Demand ("<base name> + EV <scenario> <year>",
+parent_demand pointing back at the base) carrying base + EV trace,
+elementwise. The base Demand is always left untouched, so GR-03's "no EV
+layer" acceptance test is satisfied by construction: simply not
+building/selecting a derived Demand reproduces the base trace exactly, and
+switching which CSIRO scenario is selected only changes which derived
+Demand exists — the base Demand's own trace is never touched.
 
 Data source: the annual energy is AEMO's 2025 IASR WEM trajectory (Low / Medium /
 High = Slower Growth / Step Change / Accelerated Transition, a working mapping), which
@@ -42,17 +42,13 @@ from django.contrib.auth.decorators import login_required
 from django.shortcuts import render
 
 from siren_web.models import (
+    Demand,
+    DemandMatrix,
     EV_CHARGING_MODE_CHOICES,
     EvChargingProfile,
     EvLoadTrace,
-    Scenarios,
-    ScenariosFacilities,
-    ScenariosTechnologies,
-    SupplyFactorMatrix,
-    Technologies,
-    facilities,
 )
-from siren_web.services.supply_matrix import clear_facility_trace, facility_trace, set_facility_trace
+from siren_web.services.demand_matrix import clear_demand_trace, demand_trace, set_demand_trace
 from powermatchui.utils.ev_load_trace_store import load_trace, save_trace
 from powermatchui.utils.esoo_embedded_ev import EmbeddedEv, EmbeddedEvNotAvailableError, resolve_embedded_ev
 from powermatchui.utils.iasr_ev_energy import SCENARIO_LABELS, IasrDataNotAvailableError, scenario_energy_mwh
@@ -71,22 +67,18 @@ from powermatchui.utils.ev_trace_synthesis import (
     shape_annual_energy_to_halfhourly,
 )
 
-LOAD_TECHNOLOGY_NAME = 'Load'
-LOAD_TECHNOLOGY_SIGNATURE = 'LOAD'
-
 
 class EvLoadNotAvailableError(ValueError):
     """Raised when there isn't enough validated data to build/find an EV load trace."""
 
 
 class BaseTraceNotFoundError(ValueError):
-    """Raised when the selected base Scenario has no usable half-hourly Load trace."""
+    """Raised when the selected base Demand has no usable half-hourly trace."""
 
 
 @dataclass
 class EvScenarioBuildResult:
-    scenario: Scenarios
-    facility: facilities
+    demand: Demand
     title: str
     forecast_year: int
     csiro_scenario: str
@@ -170,9 +162,9 @@ def _embedded_ev_trace(energy_mwh: float, forecast_year: int) -> np.ndarray:
     return w_unmanaged * unmanaged + (1.0 - w_unmanaged) * managed
 
 
-def _net_ev_adjustment(base_scenario: Scenarios, forecast_year: int, override_gwh: Optional[float]):
+def _net_ev_adjustment(base_demand: Demand, forecast_year: int, override_gwh: Optional[float]):
     """(embedded EV trace MW, EmbeddedEv) for the 'net of ESOO's EV' option."""
-    embedded = resolve_embedded_ev(base_scenario.description, forecast_year, override_gwh)
+    embedded = resolve_embedded_ev(base_demand.esoo_scenario or None, forecast_year, override_gwh)
     return _embedded_ev_trace(embedded.energy_mwh, forecast_year), embedded
 
 
@@ -211,31 +203,25 @@ def _get_or_build_ev_load_trace(csiro_scenario: str, forecast_year: int, chargin
     )
 
 
-def _base_trace(base_scenario: Scenarios, forecast_year: int) -> np.ndarray:
-    if base_scenario.interval_minutes != 30:
+def _base_trace(base_demand: Demand, forecast_year: int) -> np.ndarray:
+    if base_demand.interval_minutes != 30:
         raise BaseTraceNotFoundError(
-            f"Base scenario '{base_scenario.title}' has interval_minutes={base_scenario.interval_minutes}; "
-            "D12 requires a half-hourly (30-minute) base scenario to add the EV layer to directly."
+            f"Base Demand '{base_demand.name}' has interval_minutes={base_demand.interval_minutes}; "
+            "D12 requires a half-hourly (30-minute) base Demand to add the EV layer to directly."
         )
 
-    if 'FR-G1-01' in (base_scenario.description or '') and ESOO_TRACE_CLOCK_MARKER not in base_scenario.description:
+    if 'FR-G1-01' in (base_demand.description or '') and ESOO_TRACE_CLOCK_MARKER not in base_demand.description:
         raise BaseTraceNotFoundError(
-            f"Base scenario '{base_scenario.title}' was built before the ESOO Load trace was put on the AWST "
+            f"Base Demand '{base_demand.name}' was built before the ESOO trace was put on the AWST "
             "clock, so it is 8 hours out from the EV charging shapes. Rebuild it from the ESOO scenario page "
             "(/esoo-scenario/) and try again."
         )
 
-    load_facility = facilities.objects.filter(
-        scenarios=base_scenario,
-        idtechnologies__technology_name=LOAD_TECHNOLOGY_NAME,
-    ).first()
-
     trace = None
-    if load_facility is not None:
-        try:
-            trace = facility_trace(forecast_year, load_facility.idfacilities)
-        except SupplyFactorMatrix.DoesNotExist:
-            trace = None
+    try:
+        trace = demand_trace(forecast_year, base_demand.iddemand)
+    except DemandMatrix.DoesNotExist:
+        trace = None
 
     if trace is not None:
         trace = trace[~np.isnan(trace)]
@@ -244,27 +230,19 @@ def _base_trace(base_scenario: Scenarios, forecast_year: int) -> np.ndarray:
 
     if trace is None:
         raise BaseTraceNotFoundError(
-            f"Base scenario '{base_scenario.title}' has no Load supplyfactors for {forecast_year}."
+            f"Base Demand '{base_demand.name}' has no trace for {forecast_year}."
         )
     return np.asarray(trace, dtype=float)
 
 
-def _get_or_create_load_technology() -> Technologies:
-    tech, _ = Technologies.objects.get_or_create(
-        technology_name=LOAD_TECHNOLOGY_NAME,
-        defaults={'technology_signature': LOAD_TECHNOLOGY_SIGNATURE, 'category': 'Load', 'renewable': 0, 'dispatchable': 0},
-    )
-    return tech
-
-
-def _ev_scenario_description(base_scenario, csiro_scenario, charging_mode, forecast_year, embedded) -> str:
+def _ev_scenario_description(base_demand, csiro_scenario, charging_mode, forecast_year, embedded) -> str:
     if embedded is None:
         return (
-            f"Auto-built: {base_scenario.title} base demand + CSIRO {csiro_scenario} EV load "
+            f"Auto-built: {base_demand.name} base demand + CSIRO {csiro_scenario} EV load "
             f"({charging_mode}) for {forecast_year} (FR-11)."
         )
     return (
-        f"Auto-built: {base_scenario.title} base demand, less the {embedded.energy_mwh / 1000:,.0f} GWh of EV load "
+        f"Auto-built: {base_demand.name} base demand, less the {embedded.energy_mwh / 1000:,.0f} GWh of EV load "
         f"already in it, plus CSIRO {csiro_scenario} EV load ({charging_mode}) for {forecast_year} "
         f"(FR-11, net of ESOO's EV; {embedded.source})."
     )
@@ -289,13 +267,13 @@ def _net_ev_notes(embedded: EmbeddedEv, scenario_energy_mwh: float) -> list:
     return notes
 
 
-def build_scenario_from_ev(base_scenario: Scenarios, csiro_scenario: str, forecast_year: int,
+def build_scenario_from_ev(base_demand: Demand, csiro_scenario: str, forecast_year: int,
                             charging_mode: str = 'unmanaged', net_of_esoo_ev: bool = False,
                             esoo_ev_gwh: Optional[float] = None) -> EvScenarioBuildResult:
     """
     FR-11 orchestration: resolve/build the EV load trace, add it to the
-    base scenario's own Load trace, and persist the sum into a derived
-    Scenario (D2/GR-03 — the base Scenario itself is never modified).
+    base Demand's own trace, and persist the sum into a derived Demand
+    (D2/GR-03 — the base Demand itself is never modified).
 
     `net_of_esoo_ev`: an ESOO demand forecast already includes EV charging, so
     adding a scenario's EV load on top counts EV growth twice. When set, the EV
@@ -304,77 +282,54 @@ def build_scenario_from_ev(base_scenario: Scenarios, csiro_scenario: str, foreca
     """
     ev_trace_record = _get_or_build_ev_load_trace(csiro_scenario, forecast_year, charging_mode)
     ev_trace = load_trace(ev_trace_record)
-    base_trace = _base_trace(base_scenario, forecast_year)
+    base_trace = _base_trace(base_demand, forecast_year)
 
     if ev_trace.size != base_trace.size:
         raise BaseTraceNotFoundError(
-            f"EV trace has {ev_trace.size} intervals but base scenario has {base_trace.size} for {forecast_year} "
+            f"EV trace has {ev_trace.size} intervals but base Demand has {base_trace.size} for {forecast_year} "
             "— both should be a full half-hourly year; investigate before combining."
         )
     embedded, embedded_trace = None, None
     if net_of_esoo_ev:
-        embedded_trace, embedded = _net_ev_adjustment(base_scenario, forecast_year, esoo_ev_gwh)
+        embedded_trace, embedded = _net_ev_adjustment(base_demand, forecast_year, esoo_ev_gwh)
         if embedded_trace.size != base_trace.size:
             raise BaseTraceNotFoundError(
-                f"Embedded-EV trace has {embedded_trace.size} intervals but the base scenario has {base_trace.size}."
+                f"Embedded-EV trace has {embedded_trace.size} intervals but the base Demand has {base_trace.size}."
             )
         net_trace = base_trace - embedded_trace + ev_trace
     else:
         net_trace = base_trace + ev_trace
 
-    # Scenarios.title is capped at 45 chars (see esoo_scenario_views.py's
-    # comment on the same limit). Truncate the base scenario's own title
+    # Demand.name is capped at 45 chars (see esoo_scenario_views.py's
+    # comment on the same limit). Truncate the base Demand's own name
     # rather than the combined string, so the EV-identifying suffix always
     # survives intact instead of being cut off mid-word/mid-year (a real
     # cosmetic bug hit when this first ran against a real 30-char ESOO
     # base title: "... + EV medium 203" instead of "...2030").
     suffix = f" + EV {'net ' if net_of_esoo_ev else ''}{csiro_scenario} {forecast_year}"
     max_base_len = 45 - len(suffix)
-    base_title = base_scenario.title if len(base_scenario.title) <= max_base_len else base_scenario.title[:max_base_len].rstrip()
-    title = f"{base_title}{suffix}"
-    load_tech = _get_or_create_load_technology()
+    base_name = base_demand.name if len(base_demand.name) <= max_base_len else base_demand.name[:max_base_len].rstrip()
+    title = f"{base_name}{suffix}"
 
-    scenario_obj, created = Scenarios.objects.get_or_create(
-        title=title,
+    demand_obj, created = Demand.objects.update_or_create(
+        name=title,
         defaults={
-            'interval_minutes': 30,
             'description': _ev_scenario_description(
-                base_scenario, csiro_scenario, charging_mode, forecast_year, embedded,
+                base_demand, csiro_scenario, charging_mode, forecast_year, embedded,
             ),
+            'interval_minutes': 30,
+            'forecast_year': forecast_year,
+            'parent_demand': base_demand,
+            'csiro_scenario': csiro_scenario,
+            'charging_mode': charging_mode,
+            'net_of_esoo_ev': net_of_esoo_ev,
         },
     )
-    if not created and scenario_obj.interval_minutes != 30:
-        scenario_obj.interval_minutes = 30
-        scenario_obj.save(update_fields=['interval_minutes'])
-
-    # facility_code (max 30 chars, uniquely constrained) is derived from the
-    # scenario id rather than truncating `title` -- base ESOO scenario titles
-    # are themselves exactly 30 characters, so title[:30] silently dropped
-    # the "+ EV ..." suffix entirely and collided with the base scenario's
-    # own Load facility (a real bug hit when this was first run against a
-    # real ESOO base scenario, 2026-08-26).
-    facility_code = f"EV-{csiro_scenario}-{forecast_year}-{scenario_obj.idscenarios}"[:30]
-    facility_obj, _ = facilities.objects.get_or_create(
-        facility_name=title,
-        defaults={'facility_code': facility_code, 'idtechnologies': load_tech, 'active': True, 'existing': True, 'capacity': 0},
-    )
-    if facility_obj.idtechnologies_id != load_tech.idtechnologies:
-        facility_obj.idtechnologies = load_tech
-        facility_obj.save(update_fields=['idtechnologies'])
-
-    ScenariosFacilities.objects.get_or_create(idscenarios=scenario_obj, idfacilities=facility_obj)
-    scenario_tech, st_created = ScenariosTechnologies.objects.get_or_create(
-        idscenarios=scenario_obj, idtechnologies=load_tech,
-        defaults={'merit_order': 0, 'capacity': 0, 'mult': 1, 'col': None},
-    )
-    if not st_created and scenario_tech.merit_order != 0:
-        scenario_tech.merit_order = 0
-        scenario_tech.save(update_fields=['merit_order'])
 
     # Idempotent regeneration: clear any previous trace for this
-    # facility/year before writing the new one.
-    clear_facility_trace(forecast_year, facility_obj.idfacilities)
-    set_facility_trace(forecast_year, facility_obj.idfacilities, net_trace)
+    # demand/year before writing the new one.
+    clear_demand_trace(forecast_year, demand_obj.iddemand)
+    set_demand_trace(forecast_year, demand_obj.iddemand, net_trace)
 
     notes = []
     if ev_trace_record.integral_check_pct and ev_trace_record.integral_check_pct > 0.01:
@@ -385,7 +340,7 @@ def build_scenario_from_ev(base_scenario: Scenarios, csiro_scenario: str, foreca
         notes.extend(_net_ev_notes(embedded, ev_trace_record.annual_energy_mwh))
 
     return EvScenarioBuildResult(
-        scenario=scenario_obj, facility=facility_obj, title=title, forecast_year=forecast_year,
+        demand=demand_obj, title=title, forecast_year=forecast_year,
         csiro_scenario=csiro_scenario, charging_mode=charging_mode, n_rows=len(net_trace),
         ev_annual_energy_mwh=ev_trace_record.annual_energy_mwh,
         integral_check_pct=ev_trace_record.integral_check_pct or 0.0, notes=notes,
@@ -395,14 +350,14 @@ def build_scenario_from_ev(base_scenario: Scenarios, csiro_scenario: str, foreca
     )
 
 
-def compare_ev_sensitivity(base_scenario: Scenarios, forecast_year: int, charging_mode: str,
+def compare_ev_sensitivity(base_demand: Demand, forecast_year: int, charging_mode: str,
                            net_of_esoo_ev: bool = False, esoo_ev_gwh: Optional[float] = None):
     """
     FR-12 orchestration. Resolve/build the EV load trace for every CSIRO
-    uptake scenario (Low/Medium/High), add each to the base scenario's own
-    half-hourly Load trace, and hand the arrays to the pure comparison.
+    uptake scenario (Low/Medium/High), add each to the base Demand's own
+    half-hourly trace, and hand the arrays to the pure comparison.
 
-    Never creates derived Scenarios rows — the comparison is analysis, not
+    Never creates derived Demand rows — the comparison is analysis, not
     a build (use build_scenario_from_ev for that). Returns
     (SensitivityReport | None, per_scenario_meta: dict, unavailable: list[(scenario, reason)],
     embedded: EmbeddedEv | None).
@@ -412,10 +367,10 @@ def compare_ev_sensitivity(base_scenario: Scenarios, forecast_year: int, chargin
     published* and its "EV energy" / deltas are the net change (see
     build_scenario_from_ev).
     """
-    base_trace = _base_trace(base_scenario, forecast_year)
+    base_trace = _base_trace(base_demand, forecast_year)
     embedded, embedded_trace = None, None
     if net_of_esoo_ev:
-        embedded_trace, embedded = _net_ev_adjustment(base_scenario, forecast_year, esoo_ev_gwh)
+        embedded_trace, embedded = _net_ev_adjustment(base_demand, forecast_year, esoo_ev_gwh)
 
     ev_traces, per_scenario_meta, unavailable = {}, {}, []
     for scenario in SCENARIO_ORDER:
@@ -428,7 +383,7 @@ def compare_ev_sensitivity(base_scenario: Scenarios, forecast_year: int, chargin
         if arr.size != base_trace.size:
             unavailable.append((
                 scenario,
-                f"EV trace has {arr.size} intervals but the base scenario has {base_trace.size} for {forecast_year}.",
+                f"EV trace has {arr.size} intervals but the base Demand has {base_trace.size} for {forecast_year}.",
             ))
             continue
         if embedded_trace is not None:
@@ -456,12 +411,11 @@ def compare_ev_sensitivity(base_scenario: Scenarios, forecast_year: int, chargin
 
 @login_required
 def ev_scenario_compare(request):
-    """FR-12 sensitivity comparison. Reads a base scenario / year / charging
+    """FR-12 sensitivity comparison. Reads a base Demand / year / charging
     mode from the query string and shows Low/Medium/High side by side."""
     base_scenarios = (
-        Scenarios.objects.filter(interval_minutes=30)
-        .exclude(title__contains=' + EV ')
-        .order_by('title')
+        Demand.objects.filter(interval_minutes=30, parent_demand__isnull=True)
+        .order_by('name')
     )
     charging_mode_choices = EV_CHARGING_MODE_CHOICES
 
@@ -479,15 +433,15 @@ def ev_scenario_compare(request):
 
     if selected_base_id and selected_forecast_year:
         try:
-            base_scenario = Scenarios.objects.get(pk=selected_base_id)
+            base_demand = Demand.objects.get(pk=selected_base_id)
             forecast_year = int(selected_forecast_year)
             esoo_ev_gwh = _parse_gwh(selected_esoo_ev_gwh)
-        except (Scenarios.DoesNotExist, TypeError, ValueError):
+        except (Demand.DoesNotExist, TypeError, ValueError):
             error = "Select a valid base scenario and forecast year (and a number for the EV energy, if entered)."
         else:
             try:
                 report, per_scenario_meta, unavailable, embedded = compare_ev_sensitivity(
-                    base_scenario, forecast_year, selected_charging_mode,
+                    base_demand, forecast_year, selected_charging_mode,
                     net_of_esoo_ev=net_of_esoo_ev, esoo_ev_gwh=esoo_ev_gwh,
                 )
             except (BaseTraceNotFoundError, SensitivityComparisonError,
@@ -547,8 +501,8 @@ def _build_comparison_chart(report, net_of_esoo_ev: bool = False):
 
 @login_required
 def ev_scenario_selector(request):
-    """FR-11 selector view. GET renders the picker; POST builds the derived scenario."""
-    base_scenarios = Scenarios.objects.filter(interval_minutes=30).order_by('title')
+    """FR-11 selector view. GET renders the picker; POST builds the derived Demand."""
+    base_scenarios = Demand.objects.filter(interval_minutes=30, parent_demand__isnull=True).order_by('name')
     scenario_choices = SCENARIO_LABELS
     charging_mode_choices = EV_CHARGING_MODE_CHOICES
 
@@ -561,28 +515,28 @@ def ev_scenario_selector(request):
     selected_esoo_ev_gwh = request.POST.get('esoo_ev_gwh', '').strip()
 
     if request.method == 'POST':
-        base_scenario = None
+        base_demand = None
         try:
-            base_scenario = Scenarios.objects.get(pk=selected_base_id)
+            base_demand = Demand.objects.get(pk=selected_base_id)
             forecast_year = int(selected_forecast_year)
             esoo_ev_gwh = _parse_gwh(selected_esoo_ev_gwh)
-        except (Scenarios.DoesNotExist, TypeError, ValueError):
+        except (Demand.DoesNotExist, TypeError, ValueError):
             messages.error(
                 request,
                 "Please select a valid base scenario, CSIRO uptake scenario and forecast year "
                 "(and a number for the EV energy, if entered).",
             )
-            base_scenario = None
+            base_demand = None
 
-        if base_scenario is not None and selected_scenario:
+        if base_demand is not None and selected_scenario:
             try:
                 result = build_scenario_from_ev(
-                    base_scenario, selected_scenario, forecast_year, selected_charging_mode,
+                    base_demand, selected_scenario, forecast_year, selected_charging_mode,
                     net_of_esoo_ev=net_of_esoo_ev, esoo_ev_gwh=esoo_ev_gwh,
                 )
                 messages.success(
                     request,
-                    f"Built Powermatch scenario '{result.title}' — {result.n_rows} half-hourly rows "
+                    f"Built Demand '{result.title}' — {result.n_rows} half-hourly rows "
                     f"(EV annual energy: {result.ev_annual_energy_mwh:,.1f} MWh, "
                     f"integral check {result.integral_check_pct:.4f}%)."
                 )
@@ -590,7 +544,7 @@ def ev_scenario_selector(request):
                     messages.warning(request, note)
             except (EvLoadNotAvailableError, BaseTraceNotFoundError, EmbeddedEvNotAvailableError) as e:
                 messages.error(request, str(e))
-        elif base_scenario is not None and not selected_scenario:
+        elif base_demand is not None and not selected_scenario:
             messages.error(request, "Please select an EV scenario (Low/Medium/High).")
 
     context = {

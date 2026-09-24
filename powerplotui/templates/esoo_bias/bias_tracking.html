@@ -335,7 +335,7 @@
             <td>{{ adj.get_category_display }}</td>
             <td class="value">{{ adj.original_value|floatformat:1 }} → {{ adj.adjusted_value|floatformat:1 }} {{ adj.unit }}</td>
             <td><span class="verdict-badge {{ adj.verdict }}">{{ adj.get_verdict_display }}</span></td>
-            <td>{{ adj.applied_to_scenario.title }}</td>
+            <td>{{ adj.applied_to_demand.name }}</td>
         </tr>
         {% endfor %}
     </tbody>
