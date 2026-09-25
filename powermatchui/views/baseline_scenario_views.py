@@ -139,30 +139,10 @@ def baseline_scenario(request):
                 'scenario': scenario,
                 'config_file': config_file,
                 'success_message': 'Correct errors and resubmit.',
+                'has_existing_analysis': fetch_analysis_scenario(scenario).exists(),
                 **get_demand_scenario_context(request),
             }
             return render(request, 'baseline_scenario.html', context)
-    else:
-        scenario_obj = Scenarios.objects.get(title=scenario)
-        analysis_list = fetch_analysis_scenario(scenario)
-        if analysis_list:
-            if 'proceed' in request.GET:
-                if request.GET['proceed'] == 'Yes':
-                    # Proceed with the rest of the GET function
-                    pass
-                else:
-                    # User chose not to proceed
-                    messages.warning(request, "Operation canceled.")
-                    return redirect('powermatchui_home')
-            else:
-                # Render a template with the warning message
-                context = {
-                    'scenario': scenario,
-                    'config_file': config_file,
-                    'success_message': success_message
-                }
-                return render(request, 'confirm_overwrite.html', context)
-            
     # Prepare form data for display
     technologies = fetch_technologies_with_multipliers(scenario)
     carbon_price = scenario_settings.get('carbon_price', None)
@@ -182,6 +162,7 @@ def baseline_scenario(request):
         'scenario': scenario,
         'config_file': config_file,
         'success_message': success_message,
+        'has_existing_analysis': fetch_analysis_scenario(scenario).exists(),
         **get_demand_scenario_context(request),
     }
     return render(request, 'baseline_scenario.html', context)
@@ -557,6 +538,7 @@ def run_baseline(request):
             'scenario': scenario,
             'config_file': config_file,
             'success_message': success_message,
+            'has_existing_analysis': fetch_analysis_scenario(scenario).exists(),
             **get_demand_scenario_context(request),
         }
         return render(request, 'baseline_scenario.html', context)

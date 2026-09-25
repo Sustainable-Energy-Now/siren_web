@@ -139,10 +139,10 @@
         
         <!-- Enhanced submit buttons -->
         <div class="mt-3">
-          <button type="button" id="runStandardBtn" class="btn btn-success" onclick="runStandardAnalysis()">
+          <button type="button" id="runStandardBtn" class="btn btn-success" onclick="confirmThenRun(runStandardAnalysis)">
             <i class="fas fa-play"></i> Run Standard Analysis
           </button>
-          <button type="button" id="runProgressBtn" class="btn btn-primary" onclick="runProgressAnalysis()">
+          <button type="button" id="runProgressBtn" class="btn btn-primary" onclick="confirmThenRun(runProgressAnalysis)">
             <i class="fas fa-chart-line"></i> Run with Progress Tracking
           </button>
           <button type="button" id="cancelBtn" class="btn btn-danger" onclick="cancelAnalysis()" style="display: none;">
@@ -199,6 +199,8 @@
     </div>
   </div>
 </div>
+
+{% include 'confirm_overwrite.html' %}
 
 <!-- Toast Container for Messages -->
 <div aria-live="polite" aria-atomic="true" style="position: relative; min-height: 200px;">
@@ -361,6 +363,41 @@ document.addEventListener('DOMContentLoaded', function() {
   
   // Initialize connection status
   updateConnectionStatus('disconnected', 'Real-time updates ready');
+});
+
+// Ask before overwriting an existing baseline: only when 'Save Baseline' is
+// checked and the scenario already has analysis results.
+const HAS_EXISTING_ANALYSIS = {{ has_existing_analysis|yesno:"true,false" }};
+let pendingRun = null;
+
+function confirmThenRun(runFn) {
+  if (analysisRunning) {
+    showToast('Analysis is already running', 'warning');
+    return;
+  }
+  const saveBaseline = document.querySelector('[name="save_baseline"]').checked;
+  if (!(saveBaseline && HAS_EXISTING_ANALYSIS)) {
+    runFn();
+    return;
+  }
+  pendingRun = runFn;
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('confirmOverwriteModal')).show();
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  const modalEl = document.getElementById('confirmOverwriteModal');
+  document.getElementById('confirmOverwriteYes').addEventListener('click', function() {
+    const runFn = pendingRun;
+    pendingRun = null;
+    bootstrap.Modal.getInstance(modalEl).hide();
+    if (runFn) runFn();
+  });
+  modalEl.addEventListener('hidden.bs.modal', function() {
+    if (pendingRun) {
+      pendingRun = null;
+      showToast('Operation cancelled.', 'warning');
+    }
+  });
 });
 
 // Run standard analysis (existing functionality)

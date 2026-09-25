@@ -1,14 +1,20 @@
 <!-- confirm_overwrite.html -->
-{% extends 'powermatchui_base.html' %}
-
-{% block powermatchui_content %}
-  <h2>Confirm Overwrite</h2>
-  <p>Existing baseline and variants will be overwritten. Proceed?</p>
-
-  <form method="get" action="{% url 'powermatchui:baseline_scenario' %}">
-    <input type="hidden" name="proceed" value="">
-    <button type="submit" name="proceed" value="Yes" class="btn btn-primary">Yes</button>
-    <button type="submit" name="proceed" value="No" class="btn btn-primary">No</button>
-  </form>
-
-{% endblock %}
+<!-- Included by baseline_scenario.html; shown only when a run is started with
+     'Save Baseline' checked and the scenario already has analysis results. -->
+<div class="modal fade" id="confirmOverwriteModal" tabindex="-1" aria-labelledby="confirmOverwriteLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="confirmOverwriteLabel">Confirm Overwrite</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p>Existing baseline and variants for <strong>{{ scenario }}</strong> will be overwritten. Proceed?</p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" id="confirmOverwriteYes" class="btn btn-primary">Yes</button>
+        <button type="button" class="btn btn-primary" data-bs-dismiss="modal">No</button>
+      </div>
+    </div>
+  </div>
+</div>
