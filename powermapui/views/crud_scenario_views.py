@@ -225,7 +225,7 @@ def clone_scenario(request):
             # didn't even copy weather_year before the scenario-taxonomy
             # work). is_auto_generated is deliberately NOT copied: a manual
             # clone should never be silently overwritten by a later
-            # generate_facilities_takeup_scenarios rerun.
+            # Facilities Scenarios page regeneration.
             new_scenario = Scenarios.objects.create(
                 title=new_title,
                 description=new_description,

@@ -4,7 +4,7 @@ from powermapui.views import crud_scenario_views, facilities_views, facility_sol
     map_views, network_overview_views, pipeline_charts_views, cel_map_views, \
     power_views, storage_views, table_update_views, technologies_views, \
     terminals_connections_views, terminals_dashboard, terminals_views, wind_turbines_views, \
-    cel_views, zone_views, project_viability_views, ev_boundary_views
+    cel_views, zone_views, project_viability_views, ev_boundary_views, facilities_takeup_views
 app_name = 'powermapui'
 
 urlpatterns = [
@@ -98,6 +98,7 @@ urlpatterns = [
     
     # Scenarios
     path('scenarios/', crud_scenario_views.display_scenario, name='display_scenarios'),
+    path('scenarios/facilities/', facilities_takeup_views.facilities_scenarios, name='facilities_scenarios'),
     path('scenarios/update/', crud_scenario_views.update_scenario, name='update_scenario'),
     path('scenarios/clone/', crud_scenario_views.clone_scenario, name='clone_scenario'),
     path('scenarios/edit/<int:scenario_id>/', crud_scenario_views.edit_scenario, name='edit_scenario'),

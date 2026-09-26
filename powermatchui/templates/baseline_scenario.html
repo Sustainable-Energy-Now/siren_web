@@ -10,12 +10,29 @@
 {% load crispy_forms_tags %}
 {% csrf_token %}
 
+<!-- Facilities Scenario Selection -->
+<div class="card mb-3">
+  <div class="card-header"><h5>Facilities Scenario</h5></div>
+  <div class="card-body">
+    <form method="get" action="{% url 'powermatchui:baseline_scenario' %}">
+      <label for="scenarioSelect">Facilities scenario to run</label>
+      <select name="scenario" id="scenarioSelect" class="form_input" onchange="this.form.submit()">
+        <option value="" {% if not scenario %}selected{% endif %}>Select a Facilities scenario</option>
+        {% for title in scenario_titles %}
+          <option value="{{ title }}" {% if title == scenario %}selected{% endif %}>{{ title }}</option>
+        {% endfor %}
+      </select>
+      <noscript><button type="submit" class="btn btn-secondary mt-2">Select</button></noscript>
+    </form>
+  </div>
+</div>
+
 <!-- Demand Forecast Override Section -->
 <div class="card mb-3">
   <div class="card-header"><h5>Demand Forecast (optional)</h5></div>
   <div class="card-body">
     <p class="text-muted">
-      Supply scenario: <strong>{{ scenario }}</strong> &mdash;
+      Facilities scenario: <strong>{{ scenario|default:"not selected" }}</strong> &mdash;
       Demand forecast:
       <strong>{{ selected_demand_scenario_title|default:"using the supply scenario's own Load" }}</strong>
     </p>
@@ -28,9 +45,11 @@
   </div>
 </div>
 
+{% if scenario %}
 <!-- Carbon Price and Discount Rate Section -->
 <form method="post" id="configForm">
   {% csrf_token %}
+  <input type="hidden" name="scenario" value="{{ scenario }}">
   
   <div class="row form-row">
     <div class="col-md-6">
@@ -837,5 +856,7 @@ document.addEventListener('visibilitychange', function() {
   }
 });
 </script>
+
+{% endif %}
 
 {% endblock %}

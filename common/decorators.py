@@ -5,7 +5,7 @@ from functools import wraps
 from django.shortcuts import redirect
 from django.contrib import messages
 
-def settings_required(redirect_view='home', require_demand_year=True, require_weather_year=True):
+def settings_required(redirect_view='home', require_demand_year=True, require_weather_year=True, require_scenario=True):
     """
     Decorator to ensure scenario and (unless disabled) weather_year/
     demand_year are set before accessing a view. Prevents running
@@ -24,6 +24,10 @@ def settings_required(redirect_view='home', require_demand_year=True, require_we
     reference_year of the selected Demand forecast (see Demand.reference_year)
     when one is set, falling back to session weather_year only when no
     forecast is selected.
+
+    require_scenario=False is for views that take the Facilities scenario as
+    an input of their own (e.g. Baseline Scenario's scenario selector)
+    instead of reading session['scenario'].
 
     Usage example:
         @login_required
@@ -44,7 +48,7 @@ def settings_required(redirect_view='home', require_demand_year=True, require_we
                 missing.append('weather year')
             if require_demand_year and not demand_year:
                 missing.append('demand year')
-            if not scenario:
+            if require_scenario and not scenario:
                 missing.append('scenario')
 
             if missing:

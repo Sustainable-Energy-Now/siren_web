@@ -31,8 +31,20 @@ progress_storage = {}
 logger = logging.getLogger(__name__)
 
 
+def _selected_scenario(request):
+    """
+    The Facilities scenario (Scenarios.title) chosen for this baseline: the
+    `scenario` field submitted with the request, falling back to the last
+    one chosen this session. Returns None if unset or no longer valid.
+    """
+    title = request.POST.get('scenario') or request.GET.get('scenario')         or request.session.get('scenario')
+    if title and Scenarios.objects.filter(title=title).exists():
+        return title
+    return None
+
+
 @login_required
-@settings_required(redirect_view='powermatchui:powermatchui_home', require_demand_year=False)
+@settings_required(redirect_view='powermatchui:powermatchui_home', require_demand_year=False, require_scenario=False)
 def baseline_scenario(request):
     if request.user.groups.filter(name='modellers').exists():
         pass
@@ -44,20 +56,33 @@ def baseline_scenario(request):
         return render(request, 'powermatchui_home.html', context)
 
 
-    scenario = request.session.get('scenario')
+    scenario = _selected_scenario(request)
     config_file = request.session.get('config_file')
     success_message = ""
     technologies = {}
     scenario_settings = {}
+
+    if scenario is None:
+        # No Facilities scenario chosen yet: show just the selector.
+        return render(request, 'baseline_scenario.html', {
+            'scenario': None,
+            'scenario_titles': Scenarios.objects.order_by('title').values_list('title', flat=True),
+            'runpowermatch_form': RunPowermatchForm(),
+            'has_existing_analysis': False,
+            'success_message': success_message,
+            **get_demand_scenario_context(request),
+        })
+
+    request.session['scenario'] = scenario
     technologies = fetch_technologies_with_multipliers(scenario)
     scenario_settings = fetch_module_settings_data('Powermatch')
     if not scenario_settings:
         scenario_settings = fetch_scenario_settings_data(scenario)
-    
+
     baseline_form = BaselineScenarioForm(technologies=technologies)
     runpowermatch_form = RunPowermatchForm()
 
-    if request.method == 'POST':
+    if request.method == 'POST' and 'save' in request.POST:
         baseline_form = BaselineScenarioForm(request.POST, technologies=technologies)
         if baseline_form.is_valid():
             cleaned_data = baseline_form.cleaned_data
@@ -137,6 +162,7 @@ def baseline_scenario(request):
                 'technologies': technologies,
                 'scenario_settings': scenario_settings,
                 'scenario': scenario,
+                'scenario_titles': Scenarios.objects.order_by('title').values_list('title', flat=True),
                 'config_file': config_file,
                 'success_message': 'Correct errors and resubmit.',
                 'has_existing_analysis': fetch_analysis_scenario(scenario).exists(),
@@ -160,6 +186,7 @@ def baseline_scenario(request):
         'technologies': technologies,
         'scenario_settings': scenario_settings,
         'scenario': scenario,
+        'scenario_titles': Scenarios.objects.order_by('title').values_list('title', flat=True),
         'config_file': config_file,
         'success_message': success_message,
         'has_existing_analysis': fetch_analysis_scenario(scenario).exists(),
@@ -169,7 +196,7 @@ def baseline_scenario(request):
 
 
 @login_required
-@settings_required(redirect_view='powermatchui:powermatchui_home', require_demand_year=False)
+@settings_required(redirect_view='powermatchui:powermatchui_home', require_demand_year=False, require_scenario=False)
 def set_demand_scenario(request):
     """
     Sets or clears session['demand_scenario_demand_id'] -- the app-wide
@@ -202,10 +229,12 @@ def set_demand_scenario(request):
 
 
 @login_required
-@settings_required(redirect_view='powermatchui:powermatchui_home', require_demand_year=False)
+@settings_required(redirect_view='powermatchui:powermatchui_home', require_demand_year=False, require_scenario=False)
 def run_baseline_progress(request):
     """Start analysis with SSE progress tracking"""
-    scenario = request.session.get('scenario')
+    scenario = _selected_scenario(request)
+    if scenario is None:
+        return JsonResponse({'error': "Select a Facilities scenario before running."}, status=400)
     demand_override = resolve_demand_override(request.session.get('demand_scenario_demand_id'))
     if demand_override is None:
         return JsonResponse({
@@ -474,7 +503,10 @@ def cancel_analysis(request, session_id):
         return JsonResponse({'error': 'Session not found'}, status=404)
 
 def run_baseline(request):
-    scenario = request.session.get('scenario')
+    scenario = _selected_scenario(request)
+    if scenario is None:
+        messages.error(request, "Select a Facilities scenario before running.")
+        return redirect('powermatchui:baseline_scenario')
     config_file = request.session.get('config_file')
     demand_override = resolve_demand_override(request.session.get('demand_scenario_demand_id'))
     demand_year = resolve_baseline_year(scenario, request.session.get('weather_year'))
@@ -537,6 +569,7 @@ def run_baseline(request):
             'technologies': technologies,
             'scenario_settings': scenario_settings,
             'scenario': scenario,
+            'scenario_titles': Scenarios.objects.order_by('title').values_list('title', flat=True),
             'config_file': config_file,
             'success_message': success_message,
             'has_existing_analysis': fetch_analysis_scenario(scenario).exists(),

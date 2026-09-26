@@ -1,0 +1,100 @@
+<!-- facilities_scenarios.html -->
+{% extends 'powermapui_base.html' %}
+{% block powermapui_content %}
+<h3>Facilities Scenarios</h3>
+<p>
+  Create or update Facilities Take-up scenarios for future years. Each Low / Expected / High scenario is a
+  facility portfolio built from every facility's status, commissioning date, retirement date and commissioning
+  probability. Re-running for the same year and band refreshes the existing scenario.
+</p>
+<ul>
+  <li><strong>Low</strong> &ndash; commissioned and under-construction facilities only.</li>
+  <li><strong>Expected</strong> &ndash; plus proposed/planned facilities whose effective commissioning probability
+      meets the threshold below.</li>
+  <li><strong>High</strong> &ndash; plus all proposed/planned facilities due by the year.</li>
+</ul>
+<p class="text-muted">Facilities retired by the year are excluded from every band; proposed/planned facilities with no
+  commissioning date are skipped.</p>
+
+{% if messages %}
+<div class="messages mb-3">
+  {% for message in messages %}
+    <div class="alert alert-{% if message.tags %}{{ message.tags }}{% else %}info{% endif %}">{{ message }}</div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<form method="post" class="mb-4">
+  {% csrf_token %}
+  <div class="row g-3 align-items-end">
+    <div class="col-md-3">
+      <label for="years" class="form-label">Target years</label>
+      <input type="text" class="form-control" id="years" name="years" value="{{ years_text }}"
+             placeholder="e.g. 2030 2035 2040" required>
+    </div>
+    <div class="col-md-3">
+      <label class="form-label d-block">Bands</label>
+      {% for value, label in band_choices %}
+        <div class="form-check form-check-inline">
+          <input class="form-check-input" type="checkbox" name="bands" id="band_{{ value }}" value="{{ value }}"
+                 {% if value in selected_bands %}checked{% endif %}>
+          <label class="form-check-label" for="band_{{ value }}">{{ label }}</label>
+        </div>
+      {% endfor %}
+    </div>
+    <div class="col-md-3">
+      <label for="threshold" class="form-label">Expected-band probability threshold</label>
+      <input type="number" step="0.05" min="0" max="1" class="form-control" id="threshold" name="threshold"
+             value="{{ threshold }}">
+    </div>
+    <div class="col-md-3">
+      <button type="submit" class="btn btn-primary">Create / Update Scenarios</button>
+    </div>
+  </div>
+</form>
+
+{% if results %}
+<h5>Results</h5>
+<table class="table table-sm">
+  <thead><tr><th>Scenario</th><th>Outcome</th><th class="text-end">Facilities</th><th class="text-end">Added</th><th class="text-end">Removed</th></tr></thead>
+  <tbody>
+  {% for r in results %}
+    <tr>
+      <td>{{ r.title }}</td>
+      {% if r.ok %}
+        <td>{% if r.created %}Created{% else %}Updated{% endif %}
+          {% if r.skipped_unknown_timing %}
+            <small class="text-muted">({{ r.skipped_unknown_timing|length }} proposed/planned facilities skipped: no commissioning date)</small>
+          {% endif %}
+        </td>
+        <td class="text-end">{{ r.n_facilities }}</td>
+        <td class="text-end">{{ r.n_added }}</td>
+        <td class="text-end">{{ r.n_removed }}</td>
+      {% else %}
+        <td colspan="4" class="text-danger">{{ r.error }}</td>
+      {% endif %}
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+
+<h5>Existing auto-generated Facilities scenarios</h5>
+{% if existing %}
+<table class="table table-sm">
+  <thead><tr><th>Scenario</th><th>Year</th><th>Band</th><th class="text-end">Expected-band probability threshold</th></tr></thead>
+  <tbody>
+  {% for s in existing %}
+    <tr>
+      <td>{{ s.title }}</td>
+      <td>{{ s.forecast_year }}</td>
+      <td>{{ s.get_probability_band_display }}</td>
+      <td class="text-end">{% if s.probability_threshold is not None %}{{ s.probability_threshold }}{% else %}&ndash;{% endif %}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="text-muted">None yet.</p>
+{% endif %}
+{% endblock %}
