@@ -13,14 +13,29 @@
             <h4>Analysis Details</h4>
             <div class="metric-grid">
                 <div class="metric-item">
-                    <div class="metric-label">Simulation Year</div>
-                    <div class="metric-value">{{ summary_report.processing_metadata.simulation_year }}</div>
+                    <div class="metric-label">Demand Scenario</div>
+                    <div class="metric-value">{{ summary_report.processing_metadata.demand_scenario_name|default:"—" }}</div>
                 </div>
                 <div class="metric-item">
-                    <div class="metric-label">Scenario</div>
+                    <div class="metric-label">Forecast Year</div>
+                    <div class="metric-value">{{ summary_report.processing_metadata.forecast_year|default:"—" }}</div>
+                </div>
+                <div class="metric-item">
+                    <div class="metric-label">Facilities Scenario</div>
                     <div class="metric-value">{{ summary_report.processing_metadata.scenario_name }}</div>
                 </div>
+                <div class="metric-item">
+                    <div class="metric-label">Weather Year</div>
+                    <div class="metric-value">{{ summary_report.processing_metadata.weather_year|default:"—" }}</div>
+                </div>
             </div>
+            {% if summary_report.processing_metadata.from_saved_analysis %}
+                <div class="alert alert-info">
+                    These results were reloaded from the saved baseline, which does not record the
+                    demand forecast it was run against. The details above reflect your current
+                    selection; re-run with "save baseline" to be sure they match.
+                </div>
+            {% endif %}
         </div>
         <!-- System Overview Section -->
         <div class="summary-section">

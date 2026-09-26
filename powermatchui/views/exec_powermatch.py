@@ -3,8 +3,8 @@ from django.contrib.auth.decorators import login_required
 import numpy as np
 import re
 from siren_web.database_operations import get_scenario_by_title, delete_analysis_scenario, fetch_module_settings_data, \
-    fetch_scenario_settings_data, fetch_technology_attributes, fetch_supplyfactors_data
-from siren_web.models import Analysis, ScenariosSettings
+    fetch_scenario_settings_data, fetch_technology_attributes, fetch_supplyfactors_data, resolve_cost_year
+from siren_web.models import Analysis, DemandScenarios, ScenariosSettings
 from typing import Dict, Any, Tuple
 from .balance_grid_load import PowerMatchProcessor, DispatchResults
 from common.decorators import settings_required
@@ -451,7 +451,9 @@ def submit_powermatch_with_progress(request, demand_year, scenario, option, stag
             load_and_supply = fetch_supplyfactors_data(demand_year, scenario, demand_override=demand_override)
             if progress_handler:
                 progress_handler.update(30, "Loading technology attributes data...")
-            technology_attributes = fetch_technology_attributes(demand_year, scenario)
+            technology_attributes = fetch_technology_attributes(
+                resolve_cost_year(demand_year, demand_override), scenario
+            )
         if progress_handler:
             progress_handler.update(35, "Processing analysis stages...")
 
@@ -534,7 +536,10 @@ def submit_powermatch_with_progress(request, demand_year, scenario, option, stag
         
         if progress_handler:
             progress_handler.update(100, "Analysis complete!")
-        summary_totals = create_summary_totals(scenario, dispatch_results)
+        summary_totals = create_summary_totals(
+            scenario, dispatch_results, demand_year=demand_year,
+            demand_override=demand_override, from_saved_analysis=not save_data,
+        )
         return dispatch_results, summary_totals
     
     except Exception as e:
@@ -546,8 +551,20 @@ def submit_powermatch_with_progress(request, demand_year, scenario, option, stag
             )
         raise e
 
-def create_summary_totals(scenario, dispatch_results: DispatchResults) -> Dict[str, Any]:
-    """Create a comprehensive summary report from dispatch results"""
+def create_summary_totals(scenario, dispatch_results: DispatchResults, demand_year=None,
+                          demand_override=None, from_saved_analysis=False) -> Dict[str, Any]:
+    """
+    Create a comprehensive summary report from dispatch results.
+
+    processing_metadata describes what the run was dispatched against:
+    the Demand scenario (and its forecast year) from demand_override, the
+    Facilities scenario (`scenario`), and the weather year (`demand_year`,
+    the session weather year that drives supply traces -- see
+    resolve_baseline_year; technology costs follow the forecast year via
+    resolve_cost_year). metadata['year'] is NOT used for
+    this: it is just the weather year for a fresh run, and a hardcoded
+    '2024' default when the results were reloaded via fetch_analysis.
+    """
     summary = dispatch_results.summary_data
     metadata = dispatch_results.metadata
     
@@ -594,13 +611,26 @@ def create_summary_totals(scenario, dispatch_results: DispatchResults) -> Dict[s
         'total_land_use_km2': metadata['system_totals']['total_area_km2']
     }
     
+    demand_scenario_name = None
+    forecast_year = None
+    if demand_override is not None:
+        demand_scenario_name = (
+            DemandScenarios.objects.filter(demand_id=demand_override.demand_id)
+            .values_list('name', flat=True).first()
+            or demand_override.demand_name
+        )
+        forecast_year = demand_override.year
+
     return {
         'system_overview': system_overview,
         'technology_breakdown': technology_breakdown,
         'economic_summary': economic_summary,
         'environmental_summary': environmental_summary,
         'processing_metadata': {
-            'simulation_year': metadata['year'],
-            'scenario_name': scenario  # scenario is the string name passed to this function
+            'demand_scenario_name': demand_scenario_name,
+            'forecast_year': forecast_year,
+            'weather_year': demand_year,
+            'scenario_name': scenario,  # the Facilities Take-up scenario title
+            'from_saved_analysis': from_saved_analysis,
         }
     }

@@ -288,7 +288,8 @@ def run_baseline_progress(request):
                             dispatch_results, scenario, save_baseline,
                             request.session.get('config_file')
                         )
- 
+                        processed_data['summary_report'] = summary_report
+
                         # Send completion with redirect URL
                         channel.send_update({
                             'type': 'completed',

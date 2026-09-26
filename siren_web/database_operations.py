@@ -286,10 +286,11 @@ def resolve_demand_override(demand_id):
 
 def resolve_baseline_year(scenario, weather_year=None):
     """
-    The year that drives technology-cost lookups (fetch_technology_attributes)
-    and the base scenario's OWN supply-side SupplyFactorMatrix retrieval
-    (fetch_supplyfactors_data's initial load_year_matrix(demand_year) call,
-    which finds this scenario's own wind/solar/storage facility rows).
+    The year that drives the base scenario's OWN supply-side
+    SupplyFactorMatrix retrieval (fetch_supplyfactors_data's initial
+    load_year_matrix(demand_year) call, which finds this scenario's own
+    wind/solar/storage facility rows). Technology costs are taken from
+    resolve_cost_year instead, which prefers the Demand's forecast year.
 
     Takes the session-selected weather_year (request.session['weather_year'],
     set via DemandScenarioSettings/WeatherScenarioSettings) as an explicit
@@ -315,6 +316,19 @@ def resolve_baseline_year(scenario, weather_year=None):
     if scenario_obj is None:
         return None
     return int(weather_year) if weather_year else None
+
+
+def resolve_cost_year(demand_year, demand_override=None):
+    """
+    The year technology costs (TechnologyYears, via
+    fetch_technology_attributes) are taken from: the selected Demand's
+    forecast year when there is one, since a 2030 demand forecast should
+    be costed at 2030 capex/opex; otherwise demand_year (the weather year).
+    Supply traces still come from demand_year -- see resolve_baseline_year.
+    """
+    if demand_override is not None and demand_override.year:
+        return demand_override.year
+    return demand_year
 
 
 def get_demand_scenario_context(request):
@@ -462,15 +476,25 @@ def fetch_full_generator_storage_data(demand_year):
     except Exception as e:
         print("Error executing query:", e)
 
-def fetch_technology_attributes(demand_year, scenario):
+def fetch_technology_attributes(cost_year, scenario):
     """
     Get Technology rows joined with its corresponding TechnologyYears data
     for a specific year.
-    
+
+    Each cost field (capex/fom/vom/fuel) comes from the technology's
+    TechnologyYears row for cost_year, or, if that row is missing or the
+    field is empty, from its latest earlier row that has it (some
+    technologies' cost series end earlier than others, and GenCost-applied
+    years carry capex only). A warning is logged whenever this happens. A
+    technology with no row at or before cost_year gets no year-specific
+    data, as before.
+
     Args:
-        demand_year (int): The year to filter TechnologyYears data
+        cost_year (int): The year to take TechnologyYears costs from --
+            the Demand forecast year for a forecast run (see
+            resolve_cost_year), not necessarily the weather year.
         scenario (str): The scenario to filter ScenarioTechnologies data
-        
+
     Returns:
         dict: A merged dictionary containing Technology data with year-specific data
     """
@@ -485,10 +509,11 @@ def fetch_technology_attributes(demand_year, scenario):
         ).select_related(
             'idtechnologies'
         ).prefetch_related(
-            # Get TechnologyYears data for the specific demand_year only
+            # TechnologyYears at or before cost_year, newest first, so
+            # tech_years[0] is cost_year itself when present
             Prefetch(
                 'idtechnologies__technologyyears_set',
-                queryset=TechnologyYears.objects.filter(year=demand_year),
+                queryset=TechnologyYears.objects.filter(year__lte=cost_year).order_by('-year'),
                 to_attr='tech_years'
             ),
             # Get generator attributes
@@ -543,9 +568,20 @@ def fetch_technology_attributes(demand_year, scenario):
         if name not in technology_attributes:
             technology_attributes[name] = {}
         
-        # Get year-specific data from TechnologyYears
-        tech_year_data = technology_row.tech_years[0] if technology_row.tech_years else None
-        fuel = tech_year_data.fuel if tech_year_data else None
+        # Year-specific costs: each field from the newest row (at or before
+        # cost_year) that has it, so a year with capex but no O&M still
+        # gets the latest O&M rather than being costed at zero.
+        year_costs = {}
+        for field in ('capex', 'fom', 'vom', 'fuel'):
+            source = next(
+                (ty for ty in technology_row.tech_years if getattr(ty, field) is not None), None
+            )
+            year_costs[field] = getattr(source, field) if source else None
+            if source and source.year != int(cost_year):
+                logging.warning(
+                    f"No {cost_year} TechnologyYears {field} for '{name}'; using {source.year}."
+                )
+        fuel = year_costs['fuel']
         
         # Initialize attributes with defaults
         area = technology_row.area
@@ -616,9 +652,9 @@ def fetch_technology_attributes(demand_year, scenario):
             emissions=technology_row.emissions, 
             initial=0,
             merit_order=merit_order, 
-            capex=tech_year_data.capex if tech_year_data else None,
-            fixed_om=tech_year_data.fom if tech_year_data else None,
-            variable_om=tech_year_data.vom if tech_year_data else None,
+            capex=year_costs['capex'],
+            fixed_om=year_costs['fom'],
+            variable_om=year_costs['vom'],
             fuel=fuel,
             lifetime=technology_row.lifetime, 
             area=area

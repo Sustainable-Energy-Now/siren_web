@@ -6,7 +6,12 @@ live TechnologyYears table the LCOE engine actually reads
 database_operations.fetch_technology_attributes). Only the `capex` field
 is written; any existing fom/vom/fuel on a TechnologyYears row is left
 untouched, since GenCost's Appendix Tables don't publish those as a time
-series (see the plan doc's Phase-2 notes).
+series (see the plan doc's Phase-2 notes). A row this creates for a year
+that had none takes fom/vom/fuel from the technology's latest earlier
+row, so it isn't costed with zero O&M.
+
+GenCost publishes capex in $/kW; TechnologyYears holds $/MW (the engine
+computes capacity_MW * capex), so figures are converted on write.
 
 --premium-pct optionally scales capex up (or down, if negative) before
 writing -- GenCost's figures are national averages, and WA capital costs
@@ -26,6 +31,10 @@ from django.core.management.base import BaseCommand
 from siren_web.models import GENCOST_COST_CASE_CHOICES, GencostCostFigure, GencostTechnologyMapping, GencostVintage, TechnologyYears
 
 VALID_CASES = [key for key, _ in GENCOST_COST_CASE_CHOICES]
+
+# Multiplier from a GencostCostFigure.unit to TechnologyYears' $/MW.
+UNIT_TO_PER_MW = {'$/kW': 1000, '$/MW': 1}
+CARRIED_FIELDS = ('fom', 'vom', 'fuel')
 
 
 class Command(BaseCommand):
@@ -63,6 +72,31 @@ class Command(BaseCommand):
             for m in GencostTechnologyMapping.objects.select_related('technology')
         }
 
+        unknown_units = set(figures.values_list('unit', flat=True)) - set(UNIT_TO_PER_MW)
+        if unknown_units:
+            self.stdout.write(self.style.ERROR(
+                f"Unrecognised capex unit(s) {sorted(unknown_units)} for GenCost {edition}/{case}; "
+                f"expected one of {sorted(UNIT_TO_PER_MW)}. Nothing written."
+            ))
+            return
+
+        # Existing rows per technology, for carrying fom/vom/fuel into
+        # years this creates (update_conflicts leaves existing rows' own
+        # fom/vom/fuel alone, so this only affects new rows).
+        existing = {}
+        for row in TechnologyYears.objects.order_by('year'):
+            existing.setdefault(row.idtechnologies_id, []).append(row)
+
+        def carried_values(technology_id, year):
+            values = {}
+            for row in existing.get(technology_id, []):
+                if row.year >= year:
+                    break
+                for field in CARRIED_FIELDS:
+                    if getattr(row, field) is not None:
+                        values[field] = getattr(row, field)
+            return values
+
         to_write, skipped_pending, skipped_ignored = [], [], []
         for figure in figures:
             m = mapping.get(figure.raw_technology_label)
@@ -73,24 +107,20 @@ class Command(BaseCommand):
                 skipped_ignored.append(figure.raw_technology_label)
                 continue
 
-            adjusted_capex = figure.value * premium_factor
+            adjusted_capex = figure.value * UNIT_TO_PER_MW[figure.unit] * premium_factor
 
             if dry_run:
-                if premium_pct:
-                    self.stdout.write(
-                        f"  {figure.raw_technology_label} -> {m.technology.technology_name} "
-                        f"{figure.financial_year}: capex = {figure.value} x {premium_factor:.3f} = {adjusted_capex:.1f}"
-                    )
-                else:
-                    self.stdout.write(
-                        f"  {figure.raw_technology_label} -> {m.technology.technology_name} "
-                        f"{figure.financial_year}: capex = {figure.value}"
-                    )
+                self.stdout.write(
+                    f"  {figure.raw_technology_label} -> {m.technology.technology_name} "
+                    f"{figure.financial_year}: capex = {figure.value} {figure.unit}"
+                    f"{f' x {premium_factor:.3f}' if premium_pct else ''} = {adjusted_capex:,.0f} $/MW"
+                )
                 continue
 
             to_write.append(TechnologyYears(
                 idtechnologies=m.technology, year=figure.financial_year,
                 capex=adjusted_capex, capex_premium_pct=premium_pct,
+                **carried_values(m.technology.pk, figure.financial_year),
             ))
 
         if skipped_pending:

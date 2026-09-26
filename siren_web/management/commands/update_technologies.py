@@ -205,7 +205,7 @@ class Command(BaseCommand):
                 else:
                     technologies_updated += 1
                     self.stdout.write(f"Updated technology: {tech_name}")
-            return technologies_created, technologies_updated
+        return technologies_created, technologies_updated
     
     def _process_generator_attributes_sheet(self, df, Technologies, Generatorattributes, dry_run):
         """Process the GeneratorAttributes sheet"""
@@ -269,7 +269,7 @@ class Command(BaseCommand):
                     self.stdout.write(self.style.WARNING(
                         f"Technology '{tech_name}' not found, skipping generator attributes"
                     ))
-            return generator_attrs_created, generator_attrs_updated
+        return generator_attrs_created, generator_attrs_updated
     
     def _process_storage_attributes_sheet(self, df, Technologies, Storageattributes, dry_run):
         """Process the StorageAttributes sheet"""
@@ -333,7 +333,7 @@ class Command(BaseCommand):
                     self.stdout.write(self.style.WARNING(
                         f"Technology '{tech_name}' not found, skipping storage attributes"
                     ))
-            return storage_attrs_created, storage_attrs_updated
+        return storage_attrs_created, storage_attrs_updated
     
     def _process_generators_year_sheet(self, df, Technologies, TechnologyYears, year, dry_run):
         """
@@ -399,4 +399,4 @@ class Command(BaseCommand):
                     self.stdout.write(self.style.WARNING(
                         f"Technology '{tech_name}' not found, skipping year data for {year}"
                     ))
-            return tech_years_created, tech_years_updated
+        return tech_years_created, tech_years_updated

@@ -1,5 +1,6 @@
 #  variations_views.py
-from siren_web.database_operations import fetch_technology_attributes, check_analysis_baseline, fetch_technology_by_id, resolve_baseline_year
+from siren_web.database_operations import fetch_technology_attributes, check_analysis_baseline, fetch_technology_by_id, \
+    resolve_baseline_year, resolve_demand_override, resolve_cost_year
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import render
 from django.http import HttpResponse, JsonResponse
@@ -34,8 +35,18 @@ def setup_variation(request):
         context = {'success_message': success_message}
         return render(request, 'variations.html', context)
 
+    # Variations are dispatched against the same Demand forecast as the
+    # baseline, selected on the Baseline Scenario page.
+    demand_override = resolve_demand_override(request.session.get('demand_scenario_demand_id'))
+    if demand_override is None:
+        success_message = "Select a Demand forecast on the Baseline Scenario page first."
+        context = {'success_message': success_message}
+        return render(request, 'variations.html', context)
+
     baseline = check_analysis_baseline(scenario)
-    technologies = fetch_technology_attributes(demand_year, scenario)
+    # Same cost year as the run itself, so each variation's start value
+    # matches the costs PowerMatch will actually use.
+    technologies = fetch_technology_attributes(resolve_cost_year(demand_year, demand_override), scenario)
     
     if not baseline:
         success_message = "Baseline the scenario first."
@@ -69,8 +80,8 @@ def setup_variation(request):
         
         if combined_form.is_valid():
             return handle_variation_submission(
-                request, combined_form.cleaned_data, technologies, 
-                demand_year, scenario, config_file
+                request, combined_form.cleaned_data, technologies,
+                demand_year, scenario, config_file, demand_override
             )
         else:
             success_message = 'Please check the form for errors.'
@@ -108,7 +119,8 @@ def setup_variation(request):
     }
     return render(request, 'variations.html', context)
 
-def handle_variation_submission(request, cleaned_data, technologies, demand_year, scenario, config_file):
+def handle_variation_submission(request, cleaned_data, technologies, demand_year, scenario, config_file,
+                                demand_override):
     """Handle the form submission for creating/updating variations"""
     stages = cleaned_data['stages']
     variation_name = cleaned_data['variation_name']
@@ -197,8 +209,9 @@ def handle_variation_submission(request, cleaned_data, technologies, demand_year
     
     # Run the PowerMatch analysis
     dispatch_results, summary_report = submit_powermatch_with_progress(
-        demand_year, scenario, option, stages,
-        variation_inst, True, progress_handler=None
+        request, demand_year, scenario, option, stages,
+        variation_inst, True, None,
+        demand_override=demand_override
     )
     
     # Process data for display
