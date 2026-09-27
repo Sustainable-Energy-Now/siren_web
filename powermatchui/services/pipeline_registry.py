@@ -105,6 +105,7 @@ GROUP_LABELS = {
     'ev': 'EV uptake & charging pipeline',
     'ev_actuals': 'EV actuals (WA DoT)',
     'gencost': 'CSIRO GenCost pipeline',
+    'facility': 'Facility attribute analysis',
 }
 
 
@@ -261,6 +262,23 @@ PIPELINE_COMMANDS: dict[str, PipelineCommand] = {c.key: c for c in [
         runtime_hint='seconds',
         note="Writes one cost case's parsed capex figures onto TechnologyYears, for technology labels "
              "that have a GencostTechnologyMapping. Only touches capex — existing fom/vom/fuel untouched.",
+    ),
+    PipelineCommand(
+        key='derive_facility_capacity_attributes',
+        label='Derive facility capacity attributes from SCADA',
+        group='facility',
+        management_command='derive_facility_capacity_attributes',
+        params=(
+            Param('year', 'year', '--year', label='Year (optional)', required=False,
+                  help_text='Leave blank to use the latest full calendar year of SCADA.'),
+            Param('min_coverage', 'float', '--min-coverage', label='Min interval coverage (0-1)', default=0.9),
+            Param('dry_run', 'flag', '--dry-run', label='Dry run (no writes)', default=False),
+        ),
+        runtime_hint='seconds–minutes',
+        note="Analyses one full year of FacilityScadaMatrix per facility and writes observed "
+             "capacity_max/min (FacilityGenerators), round-trip efficiency (Storageattributes, "
+             "only when the technology isn't shared by another active installation), and "
+             "capacity factor (facilities.capacityfactor).",
     ),
 ]}
 
