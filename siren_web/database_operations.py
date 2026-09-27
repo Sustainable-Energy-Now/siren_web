@@ -10,7 +10,7 @@ import numpy as np
 from siren_web.models import Analysis, Demand, DemandMatrix, facilities, FacilityStorage, Generatorattributes, \
     Scenarios, ScenariosTechnologies, ScenariosSettings, Settings, Storageattributes, \
     SupplyFactorMatrix, Technologies, TechnologyYears, variations
-from siren_web.services.supply_matrix import facility_row_index, load_year_matrix
+from siren_web.services.supply_matrix import TRACE_KW_PER_MW, facility_row_index, load_year_matrix
 from siren_web.services import demand_matrix
 from powermatchui.views.balance_grid_load import Technology
 
@@ -401,7 +401,12 @@ def fetch_supplyfactors_data(demand_year, scenario, demand_override=None):
                 # created" behaviour rather than inserting an empty column.
                 continue
 
-            load_and_supply[merit_order] = np.nansum(matrix[rows, :], axis=0).tolist()
+            # SupplyFactorMatrix holds SAM's `gen` output in kW (see
+            # supply_matrix.TRACE_KW_PER_MW); the dispatch runs in MW to match
+            # the Demand column below.
+            load_and_supply[merit_order] = (
+                np.nansum(matrix[rows, :], axis=0) / TRACE_KW_PER_MW
+            ).tolist()
 
         # Demand: the selected Demand's trace becomes the load_and_supply[0]
         # column (Load's merit_order is always 0, see

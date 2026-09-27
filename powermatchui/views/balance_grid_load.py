@@ -1,7 +1,7 @@
 import numpy as np
 import time
 from typing import Dict, List, Tuple, Optional, Any
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from powermatchui.views.progress_handler import ProgressHandler
 
 @dataclass
@@ -35,12 +35,20 @@ class EnergyBalance:
     """Container for energy balance calculations"""
     hourly_load: List[float]
     hourly_shortfall: List[float]
+    # Per interval: surplus = all generation beyond load (before storage);
+    # storage_charge = the part of it charged into storage;
+    # curtailment = surplus - storage_charge (spilled).
     hourly_surplus: List[float]
     hourly_curtailment: List[float]
     technology_generation: Dict[str, List[float]]
     technology_totals: Dict[str, float]
     technology_to_meet_load: Dict[str, float]  # Added for LCOE calculations
     correlation_data: Optional[List]
+    hourly_storage_charge: List[float] = field(default_factory=list)
+    # Annual surplus split by source: renewable output beyond load vs
+    # dispatchable output forced on by minimum-generation limits
+    surplus_renewable_total: float = 0.0
+    surplus_min_generation_total: float = 0.0
 
 @dataclass
 class StorageState:
@@ -128,7 +136,6 @@ class PowerMatchProcessor:
         self.optimise_to_batch = True
         self.remove_cost = True
         self.results_prefix = ''
-        self.surplus_sign = 1
         self.underlying = ['Rooftop PV']
         self.operational = []
         self.show_correlation = False
@@ -179,8 +186,6 @@ class PowerMatchProcessor:
             'year': year,
             'option': option,
             'the_days': [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31],
-            'sf_test': ['<', '>'] if self.surplus_sign >= 0 else ['>', '<'],
-            'sf_sign': ['-', '+'] if self.surplus_sign >= 0 else ['+', '-'],
             'max_lifetime': self._calculate_max_lifetime(technology_attributes),
             'underlying_facs': self._identify_underlying_technologies(technology_attributes),
             'storage_names': [],
@@ -196,7 +201,10 @@ class PowerMatchProcessor:
                 config['storage_names'].append(tech_name)
             elif details.tech_type == 'G':  # Generator
                 config['generator_names'].append(tech_name)
-            if details.renewable:
+            # Storage is flagged renewable on Technologies but is not a
+            # renewable source; keeping it out of renewable_names stops it being
+            # allocated a share of its own contribution in the LCOE calculation.
+            if details.renewable and details.tech_type != 'S':
                 if tech_name not in config['renewable_names']:
                     config['renewable_names'].append(tech_name)
         
@@ -252,7 +260,10 @@ class PowerMatchProcessor:
         hourly_load = []
         hourly_shortfall = []
         hourly_surplus = []
+        hourly_storage_charge = []
         hourly_curtailment = []
+        surplus_renewable_total = 0.0
+        surplus_min_generation_total = 0.0
         technology_generation = {}
         technology_totals = {}
         technology_to_meet_load = {}
@@ -305,9 +316,13 @@ class PowerMatchProcessor:
                     storage_state.current_level = max(0, storage_state.current_level - parasitic_loss)
                     storage_state.total_losses += parasitic_loss
 
-            # First pass: Handle minimum capacity requirements for dispatchable generators
+            # First pass: Handle minimum capacity requirements for dispatchable generators.
+            # Excess over load is tracked as surplus by source: renewable output
+            # beyond load (never generated unless stored) vs dispatchable output
+            # forced on by minimum-generation limits (generated, and emitting).
             remaining_demand = load_h
-            hour_curtailment = 0.0
+            hour_surplus_re = 0.0
+            hour_surplus_min_gen = 0.0
 
             for tech_name, min_generation in minimum_generators.items():
                 # min_generation is a MW capacity; convert to this interval's
@@ -324,10 +339,10 @@ class PowerMatchProcessor:
                 technology_to_meet_load[tech_name] += contribution_to_load
                 remaining_demand = max(0, remaining_demand - contribution_to_load)
                 
-                # Any excess from minimum generation becomes curtailment
+                # Any excess from minimum generation is surplus
                 excess = hour_generation - contribution_to_load
                 if excess > 0:
-                    hour_curtailment += excess
+                    hour_surplus_min_gen += excess
             
             # Second pass: Process remaining technologies in merit order
             for tech_name, details in technology_attributes.items():
@@ -387,7 +402,12 @@ class PowerMatchProcessor:
                             hour_generation = self._dispatch_generator_hour(
                                 tech_name, details, remaining_demand, h, interval_hours
                             )
-                            hour_to_meet_load[tech_name] = hour_generation
+                            # A generator held at its minimum can produce more
+                            # than the remaining demand; only the part that
+                            # meets load counts as such, the rest is surplus.
+                            contribution_to_load = min(hour_generation, remaining_demand)
+                            hour_to_meet_load[tech_name] = contribution_to_load
+                            hour_surplus_min_gen += hour_generation - contribution_to_load
                             remaining_demand = max(0, remaining_demand - hour_generation)
 
                     else:  # Non-dispatchable renewable
@@ -401,12 +421,11 @@ class PowerMatchProcessor:
                             hour_to_meet_load[tech_name] = hour_generation
                             remaining_demand -= hour_generation
                             
-                            # Curtail excess renewable
-                            curtailed = available_generation - hour_generation
-                            hour_curtailment += curtailed
+                            # Excess renewable is surplus
+                            hour_surplus_re += available_generation - hour_generation
                         else:
-                            # All renewable is curtailed if no demand
-                            hour_curtailment += available_generation
+                            # All renewable is surplus if no demand
+                            hour_surplus_re += available_generation
                             hour_generation = 0
                             hour_to_meet_load[tech_name] = 0
                     
@@ -418,15 +437,19 @@ class PowerMatchProcessor:
                     technology_to_meet_load[tech_name] += hour_to_meet_load[tech_name]
                 # Minimum generators already handled their tracking above
             
-            # Handle any excess capacity for storage charging
-            if hour_curtailment > 0:
-                charged_energy = self._charge_storage_systems(self.storage_states, hour_curtailment, interval_hours)
-                hour_curtailment -= charged_energy
-            
+            # Surplus charges storage; whatever storage can't absorb is curtailed
+            hour_surplus = hour_surplus_re + hour_surplus_min_gen
+            charged_energy = 0.0
+            if hour_surplus > 0:
+                charged_energy = self._charge_storage_systems(self.storage_states, hour_surplus, interval_hours)
+
             # Record hourly results
             hourly_shortfall.append(remaining_demand)
-            hourly_surplus.append(0 if remaining_demand > 0 else abs(remaining_demand))
-            hourly_curtailment.append(hour_curtailment)
+            hourly_surplus.append(hour_surplus)
+            hourly_storage_charge.append(charged_energy)
+            hourly_curtailment.append(hour_surplus - charged_energy)
+            surplus_renewable_total += hour_surplus_re
+            surplus_min_generation_total += hour_surplus_min_gen
         
         # Update storage statistics
         for storage_state in self.storage_states:
@@ -452,7 +475,10 @@ class PowerMatchProcessor:
             technology_generation=technology_generation,
             technology_totals=technology_totals,
             technology_to_meet_load=technology_to_meet_load,
-            correlation_data=correlation_data
+            correlation_data=correlation_data,
+            hourly_storage_charge=hourly_storage_charge,
+            surplus_renewable_total=surplus_renewable_total,
+            surplus_min_generation_total=surplus_min_generation_total,
         )
 
     def _dispatch_generator_hour_above_minimum(self, tech_name, details, available_capacity, remaining_demand, hour, interval_hours=1.0) -> float:
@@ -509,7 +535,10 @@ class PowerMatchProcessor:
     def _get_renewable_generation(self, tech_name, details, load_and_supply, hour, interval_hours=1.0) -> float:
         """Get available renewable generation for this interval"""
         merit_order = details.merit_order
-        if merit_order > 0 and merit_order < len(load_and_supply) and hour < len(load_and_supply[merit_order]):
+        # load_and_supply is a dict keyed by merit order, and the keys are
+        # sparse (technologies with no trace are omitted), so test membership
+        # rather than comparing against len().
+        if merit_order > 0 and merit_order in load_and_supply and hour < len(load_and_supply[merit_order]):
             # load_and_supply already holds one value per interval at the
             # scenario's native resolution, so no interval_hours scaling here.
             return load_and_supply[merit_order][hour] * details.multiplier
@@ -739,9 +768,12 @@ class PowerMatchProcessor:
                    economics.generation_mwh * details.variable_om + 
                    economics.generation_mwh * details.fuel)
             
-            economics.lcog = self._calc_lcoe(economics.generation_mwh, economics.capital_cost, 
-                                           opex, self.discount_rate, details.lifetime)
-            economics.annual_cost = economics.generation_mwh * economics.lcog
+            # Capital and fixed O&M are incurred whether or not the plant runs,
+            # so a technology with no output still carries its annual cost.
+            economics.annual_cost = self._annual_cost(economics.capital_cost, opex,
+                                                      self.discount_rate, details.lifetime)
+            economics.lcog = (economics.annual_cost / economics.generation_mwh
+                              if economics.generation_mwh > 0 else 0)
             
         elif details.lcoe > 0:
             # Reference LCOE calculation
@@ -800,20 +832,15 @@ class PowerMatchProcessor:
             economics.area_km2 = capacity * details.area
         
         return economics
-    def _calc_lcoe(self, annual_output, capital_cost, annual_operating_cost, discount_rate, lifetime):
-        """Calculate levelized cost of electricity"""
+    def _annual_cost(self, capital_cost, annual_operating_cost, discount_rate, lifetime):
+        """Annualised capital cost (capital recovery factor) plus annual operating cost"""
         if discount_rate > 0:
             annual_cost_capital = capital_cost * discount_rate * pow(1 + discount_rate, lifetime) / \
                                   (pow(1 + discount_rate, lifetime) - 1)
         else:
             annual_cost_capital = capital_cost / lifetime
-        
-        total_annual_cost = annual_cost_capital + annual_operating_cost
-        
-        try:
-            return total_annual_cost / annual_output if annual_output > 0 else total_annual_cost
-        except ZeroDivisionError:
-            return total_annual_cost
+
+        return annual_cost_capital + annual_operating_cost
     
     def _generate_summary_statistics(self, energy_balance, economic_results, technology_attributes, config) -> Dict:
         """Generate comprehensive summary statistics"""
@@ -821,7 +848,9 @@ class PowerMatchProcessor:
         total_load = sum(energy_balance.hourly_load)
         total_shortfall = sum(energy_balance.hourly_shortfall)
         total_curtailment = sum(energy_balance.hourly_curtailment)
-        
+        total_surplus = sum(energy_balance.hourly_surplus)
+        total_storage_charged = sum(energy_balance.hourly_storage_charge)
+
         total_generation = sum(energy_balance.technology_totals.values())
         total_cost = sum(econ.annual_cost for econ in economic_results.values())
         total_emissions = sum(econ.emissions_tco2e for econ in economic_results.values())
@@ -831,7 +860,13 @@ class PowerMatchProcessor:
         
         # Calculate percentages
         load_met_pct = (total_load - total_shortfall) / total_load if total_load > 0 else 0
-        curtailment_pct = total_curtailment / total_generation if total_generation > 0 else 0
+        # Measure curtailment against all energy produced or available.
+        # technology_totals already includes minimum-generation output beyond
+        # load, but not renewable output beyond load (it is only "generated"
+        # if stored), so add the renewable surplus to keep this within 0-100%.
+        total_available = total_generation + energy_balance.surplus_renewable_total
+        curtailment_pct = total_curtailment / total_available if total_available > 0 else 0
+        surplus_absorbed_pct = total_storage_charged / total_surplus if total_surplus > 0 else 0
         
         # Calculate renewable percentage
         renewable_generation = 0
@@ -841,16 +876,24 @@ class PowerMatchProcessor:
         
         for tech_name, generation in energy_balance.technology_totals.items():
             details = technology_attributes.get(tech_name, None)
-            if details.renewable:
-                renewable_generation += generation
-                renewable_to_meet_load += energy_balance.technology_to_meet_load.get(tech_name, 0)
             if details.tech_type == 'S':  # Storage
                 storage_generation += energy_balance.technology_to_meet_load.get(tech_name, 0)
-            elif details.tech_type == 'G' and not details.renewable and details.fuel > 0:  # Generator
+            elif details.renewable:
+                renewable_generation += generation
+                renewable_to_meet_load += energy_balance.technology_to_meet_load.get(tech_name, 0)
+            elif details.tech_type == 'G' and details.fuel > 0:  # Fossil generator
                 fossil_generation += generation
-        
-        re_pct = renewable_generation / total_generation if total_generation > 0 else 0
-        re_load_pct = (renewable_to_meet_load + storage_generation) / total_load if total_load > 0 else 0
+
+        # Storage is flagged renewable on Technologies, but it only re-times
+        # surplus it was charged from. Credit its output as renewable in
+        # proportion to the renewable share of that surplus (the rest came from
+        # dispatchable minimum generation), rather than counting it twice.
+        storage_re_share = (energy_balance.surplus_renewable_total / total_surplus
+                            if total_surplus > 0 else 0)
+        storage_renewable = storage_generation * storage_re_share
+
+        re_pct = (renewable_generation + storage_renewable) / total_generation if total_generation > 0 else 0
+        re_load_pct = (renewable_to_meet_load + storage_renewable) / total_load if total_load > 0 else 0
         storage_pct = storage_generation / total_load if total_load > 0 else 0
         
         return {
@@ -858,6 +901,11 @@ class PowerMatchProcessor:
             'total_generation': total_generation,
             'total_shortfall': total_shortfall,
             'total_curtailment': total_curtailment,
+            'total_surplus': total_surplus,
+            'surplus_renewable': energy_balance.surplus_renewable_total,
+            'surplus_min_generation': energy_balance.surplus_min_generation_total,
+            'total_storage_charged': total_storage_charged,
+            'surplus_absorbed_pct': surplus_absorbed_pct,
             'total_cost': total_cost,
             'total_emissions': total_emissions,
             'total_emissions_cost': total_emissions_cost,
@@ -949,13 +997,12 @@ class PowerMatchProcessor:
         """
         num_hours = len(energy_balance.hourly_load)
         technologies = list(energy_balance.technology_generation.keys())
-        num_cols = len(technologies) + 4  # technologies + load + shortfall + surplus + curtailment
-        
         hourly_dtype = [
             ('hour', 'i4'),
             ('load_mw', 'f8'),
             ('shortfall_mw', 'f8'),
             ('surplus_mw', 'f8'),
+            ('storage_charge_mw', 'f8'),
             ('curtailment_mw', 'f8')
         ]
         
@@ -971,6 +1018,7 @@ class PowerMatchProcessor:
             hourly_array[h]['load_mw'] = energy_balance.hourly_load[h]
             hourly_array[h]['shortfall_mw'] = energy_balance.hourly_shortfall[h]
             hourly_array[h]['surplus_mw'] = energy_balance.hourly_surplus[h]
+            hourly_array[h]['storage_charge_mw'] = energy_balance.hourly_storage_charge[h]
             hourly_array[h]['curtailment_mw'] = energy_balance.hourly_curtailment[h]
             
             for tech in technologies:
@@ -1021,6 +1069,11 @@ class PowerMatchProcessor:
             'max_shortfall_hour': max_shortfall_hour + 1,  # 1-indexed for display
             'total_curtailment_mwh': summary_stats['total_curtailment'],
             'curtailment_pct': summary_stats['curtailment_pct'],
+            'total_surplus_mwh': summary_stats['total_surplus'],
+            'surplus_renewable_mwh': summary_stats['surplus_renewable'],
+            'surplus_min_generation_mwh': summary_stats['surplus_min_generation'],
+            'storage_charged_mwh': summary_stats['total_storage_charged'],
+            'surplus_absorbed_pct': summary_stats['surplus_absorbed_pct'],
             
             # Renewable energy metrics
             'renewable_pct': summary_stats['renewable_pct'],
@@ -1043,7 +1096,6 @@ class PowerMatchProcessor:
             # Configuration
             'adjusted_lcoe': self.adjusted_lcoe,
             'remove_cost': self.remove_cost,
-            'surplus_sign': self.surplus_sign
         }
     
     def _update_progress(self, value, message=None):

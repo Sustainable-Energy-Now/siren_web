@@ -1,7 +1,7 @@
 from django.shortcuts import render
 from django.http import JsonResponse, HttpResponse
 from siren_web.models import facilities, Technologies, SupplyFactorMatrix
-from siren_web.services.supply_matrix import facility_trace, load_year_matrix, facility_row_index
+from siren_web.services.supply_matrix import TRACE_KW_PER_MW, facility_trace, load_year_matrix, facility_row_index
 import math
 import numpy as np
 import openpyxl
@@ -58,14 +58,20 @@ def _x_label(aggregation):
     return {'hour': 'Hour of Year', 'week': 'Week of Year', 'month': 'Month of Year'}[aggregation]
 
 
+def _trace_mw(trace):
+    """A raw matrix trace (kW, possibly NaN-containing) as MW with NaN -> 0."""
+    return np.nan_to_num(trace, nan=0.0) / TRACE_KW_PER_MW
+
+
 def _slice_trace(trace, start_hour, end_hour):
     """
     Slice a raw (possibly NaN-containing) hourly trace to an optional
     [start_hour, end_hour] range. Returns (hours, quantum, error_response);
-    error_response is None on success and should be returned as-is otherwise.
+    quantum is in MW. error_response is None on success and should be
+    returned as-is otherwise.
     """
     hours = np.arange(trace.shape[0])
-    quantum = np.nan_to_num(trace, nan=0.0)
+    quantum = _trace_mw(trace)
 
     if start_hour and end_hour:
         try:
@@ -89,7 +95,7 @@ def _slice_trace_lenient(trace, start_hour, end_hour):
     hours, quantum, err = _slice_trace(trace, start_hour, end_hour)
     if err:
         hours = np.arange(trace.shape[0])
-        quantum = np.nan_to_num(trace, nan=0.0)
+        quantum = _trace_mw(trace)
     return hours, quantum
 
 
@@ -529,7 +535,7 @@ def get_technology_comparison_data(request):
         trace_sum = np.nansum(matrix[matched_rows, :], axis=0)
 
         hours = np.arange(trace_sum.shape[0])
-        quantum = np.nan_to_num(trace_sum, nan=0.0)
+        quantum = _trace_mw(trace_sum)
         if start_hour and end_hour:
             try:
                 start_hour_int = int(start_hour)

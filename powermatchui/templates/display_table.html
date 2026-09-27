@@ -25,8 +25,8 @@
                     <div class="metric-value">{{ summary_report.processing_metadata.scenario_name }}</div>
                 </div>
                 <div class="metric-item">
-                    <div class="metric-label">Weather Year</div>
-                    <div class="metric-value">{{ summary_report.processing_metadata.weather_year|default:"—" }}</div>
+                    <div class="metric-label">Reference Year</div>
+                    <div class="metric-value">{{ summary_report.processing_metadata.reference_year|default:"—" }}</div>
                 </div>
             </div>
             {% if summary_report.processing_metadata.from_saved_analysis %}
@@ -75,8 +75,52 @@
             
             {% if summary_report.system_overview.curtailment_percentage > 10 %}
                 <div class="alert alert-info">
-                    <strong>Info:</strong> High curtailment detected. Consider adding storage.
+                    <strong>Info:</strong> High curtailment detected.
+                    {% if summary_report.system_overview.surplus_absorbed_percentage is not None %}
+                        Storage absorbed {{ summary_report.system_overview.storage_charged_gwh|floatformat:1 }}
+                        of {{ summary_report.system_overview.surplus_gwh|floatformat:1 }} GWh of surplus
+                        ({{ summary_report.system_overview.surplus_absorbed_percentage|floatformat:1 }}%).
+                        {% if summary_report.system_overview.surplus_min_generation_gwh > summary_report.system_overview.surplus_renewable_gwh %}
+                            Most of the surplus comes from dispatchable generators held at their minimum
+                            output &mdash; review their minimum-generation settings before adding storage.
+                        {% else %}
+                            Consider adding storage.
+                        {% endif %}
+                    {% else %}
+                        Consider adding storage.
+                    {% endif %}
                 </div>
+            {% endif %}
+        </div>
+
+        <!-- Surplus Section: excess over load, what storage absorbed, what was curtailed -->
+        <div class="summary-section">
+            <h4>Surplus &amp; Storage</h4>
+            {% if summary_report.system_overview.surplus_gwh is not None %}
+            <div class="metric-grid">
+                <div class="metric-item">
+                    <div class="metric-label">Surplus</div>
+                    <div class="metric-value">{{ summary_report.system_overview.surplus_gwh|floatformat:1 }} GWh</div>
+                </div>
+                <div class="metric-item">
+                    <div class="metric-label">From Renewables</div>
+                    <div class="metric-value">{{ summary_report.system_overview.surplus_renewable_gwh|floatformat:1 }} GWh</div>
+                </div>
+                <div class="metric-item">
+                    <div class="metric-label">From Minimum Generation</div>
+                    <div class="metric-value">{{ summary_report.system_overview.surplus_min_generation_gwh|floatformat:1 }} GWh</div>
+                </div>
+                <div class="metric-item">
+                    <div class="metric-label">Charged to Storage</div>
+                    <div class="metric-value">{{ summary_report.system_overview.storage_charged_gwh|floatformat:1 }} GWh ({{ summary_report.system_overview.surplus_absorbed_percentage|floatformat:1 }}%)</div>
+                </div>
+                <div class="metric-item">
+                    <div class="metric-label">Curtailed</div>
+                    <div class="metric-value">{{ summary_report.system_overview.curtailment_gwh|floatformat:1 }} GWh</div>
+                </div>
+            </div>
+            {% else %}
+            <p>Not recorded in this saved baseline &mdash; re-run with "save baseline" to see surplus figures.</p>
             {% endif %}
         </div>
 

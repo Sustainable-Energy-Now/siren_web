@@ -173,6 +173,11 @@ def save_analysis(i, dispatch_summary, metadata, scenario, variation, stage):
         ('max_shortfall_mw', 'Max Shortfall', 'Load Analysis', 'MW'),
         ('total_curtailment_mwh', 'Curtailment', 'Load Analysis', 'MWh'),
         ('curtailment_pct', '% Curtailment', 'Load Analysis', '%'),
+        ('total_surplus_mwh', 'Surplus', 'Load Analysis', 'MWh'),
+        ('surplus_renewable_mwh', 'Surplus Renewable', 'Load Analysis', 'MWh'),
+        ('surplus_min_generation_mwh', 'Surplus Min Generation', 'Load Analysis', 'MWh'),
+        ('storage_charged_mwh', 'Storage Charged', 'Load Analysis', 'MWh'),
+        ('surplus_absorbed_pct', '% Surplus Absorbed', 'Load Analysis', '%'),
         ('renewable_pct', '% Renewable', 'Load Analysis', '%'),
         ('renewable_load_pct', '% Renewable of Load', 'Load Analysis', '%'),
         ('storage_pct', '% Storage', 'Load Analysis', '%'),
@@ -184,8 +189,10 @@ def save_analysis(i, dispatch_summary, metadata, scenario, variation, stage):
         if field_name in metadata:
             quantity = float(metadata[field_name])
             
-            # Convert percentage values (stored as decimals in metadata)
-            if units == '%' and quantity <= 1.0:
+            # Percentages are always decimals in metadata (fetch_analysis
+            # divides every '%' heading by 100 on the way back), so convert
+            # unconditionally -- a ratio above 1.0 must not be stored as-is.
+            if units == '%':
                 quantity = quantity * 100
             
             analysis_records.append(Analysis(
@@ -387,6 +394,11 @@ def fetch_analysis(scenario, variation: str, stage: int) -> Tuple[np.ndarray, Di
         'Max Shortfall': 'max_shortfall_mw',
         'Curtailment': 'total_curtailment_mwh',
         '% Curtailment': 'curtailment_pct',
+        'Surplus': 'total_surplus_mwh',
+        'Surplus Renewable': 'surplus_renewable_mwh',
+        'Surplus Min Generation': 'surplus_min_generation_mwh',
+        'Storage Charged': 'storage_charged_mwh',
+        '% Surplus Absorbed': 'surplus_absorbed_pct',
         '% Renewable': 'renewable_pct',
         '% Renewable of Load': 'renewable_load_pct',
         '% Storage': 'storage_pct',
@@ -419,12 +431,11 @@ def fetch_analysis(scenario, variation: str, stage: int) -> Tuple[np.ndarray, Di
     metadata.setdefault('max_shortfall_hour', 1)
     metadata.setdefault('adjusted_lcoe', True)
     metadata.setdefault('remove_cost', True)
-    metadata.setdefault('surplus_sign', 1)
     
     # Technology classifications (these would need to be determined based on your system)
     # You might want to store these in the database or determine them dynamically
     metadata.setdefault('storage_technologies', ['Battery (8hr)', 'PHES (24hr)'])
-    metadata.setdefault('renewable_technologies', ['Onshore Wind', 'Fixed PV', 'Single Axis PV', 'Battery (8hr)', 'PHES (24hr)', 'Biomass'])
+    metadata.setdefault('renewable_technologies', ['Onshore Wind', 'Fixed PV', 'Single Axis PV', 'Biomass'])
     metadata.setdefault('generator_technologies', [tech for tech in technology_names])
     metadata.setdefault('underlying_technologies', [])
     
@@ -445,7 +456,17 @@ def submit_powermatch_with_progress(request, demand_year, scenario, option, stag
         if not scenario_settings:
             scenario_settings = fetch_module_settings_data('Powermatch')
         
-        if save_data or option == 'D':
+        # Without save_data the results are normally reloaded from the saved
+        # Baseline analysis; if none has been saved yet (or it lacks the load
+        # stats) there is nothing to reload, so dispatch fresh instead.
+        run_fresh = save_data or option == 'D'
+        if not run_fresh and not Analysis.objects.filter(
+            idscenarios=get_scenario_by_title(scenario), variation='Baseline',
+            stage=0, heading='Total Load', component='Load Analysis',
+        ).exists():
+            run_fresh = True
+
+        if run_fresh:
             if progress_handler:
                 progress_handler.update(20, "Loading supply factors data...")
             load_and_supply = fetch_supplyfactors_data(demand_year, scenario, demand_override=demand_override)
@@ -464,7 +485,7 @@ def submit_powermatch_with_progress(request, demand_year, scenario, option, stag
             action = 'Summary'
         
         # Run PowerMatch with enhanced progress tracking
-        if save_data or option == 'D':
+        if run_fresh:
             if progress_handler:
                 progress_handler.update(message="Running PowerMatch analysis...")
                 pm = PowerMatchProcessor(
@@ -501,7 +522,7 @@ def submit_powermatch_with_progress(request, demand_year, scenario, option, stag
                 elif dimension == 'lifetime':
                     technology_attributes[technology_name].lifetime += step
             
-            if save_data:
+            if run_fresh:
                 dispatch_results = pm.matchSupplytoLoad(
                     demand_year, option, action, technology_attributes, load_and_supply
                 )
@@ -538,7 +559,7 @@ def submit_powermatch_with_progress(request, demand_year, scenario, option, stag
             progress_handler.update(100, "Analysis complete!")
         summary_totals = create_summary_totals(
             scenario, dispatch_results, demand_year=demand_year,
-            demand_override=demand_override, from_saved_analysis=not save_data,
+            demand_override=demand_override, from_saved_analysis=not run_fresh,
         )
         return dispatch_results, summary_totals
     
@@ -550,6 +571,10 @@ def submit_powermatch_with_progress(request, demand_year, scenario, option, stag
                 increment=False
             )
         raise e
+
+def _gwh(mwh):
+    return None if mwh is None else mwh / 1000
+
 
 def create_summary_totals(scenario, dispatch_results: DispatchResults, demand_year=None,
                           demand_override=None, from_saved_analysis=False) -> Dict[str, Any]:
@@ -576,6 +601,16 @@ def create_summary_totals(scenario, dispatch_results: DispatchResults, demand_ye
         'renewable_load_percentage': metadata['renewable_load_pct'] * 100,
         'storage_contribution_percentage': metadata['storage_pct'] * 100,
         'curtailment_percentage': metadata['curtailment_pct'] * 100,
+        # Absent from baselines saved before surplus was recorded -> None,
+        # which the template shows as a dash rather than a misleading 0.
+        'surplus_gwh': _gwh(metadata.get('total_surplus_mwh')),
+        'surplus_renewable_gwh': _gwh(metadata.get('surplus_renewable_mwh')),
+        'surplus_min_generation_gwh': _gwh(metadata.get('surplus_min_generation_mwh')),
+        'storage_charged_gwh': _gwh(metadata.get('storage_charged_mwh')),
+        'curtailment_gwh': _gwh(metadata.get('total_curtailment_mwh')),
+        'surplus_absorbed_percentage': (
+            metadata['surplus_absorbed_pct'] * 100 if 'surplus_absorbed_pct' in metadata else None
+        ),
         'system_lcoe_per_mwh': metadata['system_lcoe'],
         'system_lcoe_with_co2_per_mwh': metadata['system_lcoe_with_co2']
     }
@@ -613,7 +648,9 @@ def create_summary_totals(scenario, dispatch_results: DispatchResults, demand_ye
     
     demand_scenario_name = None
     forecast_year = None
+    reference_year = None
     if demand_override is not None:
+        reference_year = demand_override.reference_year
         demand_scenario_name = (
             DemandScenarios.objects.filter(demand_id=demand_override.demand_id)
             .values_list('name', flat=True).first()
@@ -630,6 +667,9 @@ def create_summary_totals(scenario, dispatch_results: DispatchResults, demand_ye
             'demand_scenario_name': demand_scenario_name,
             'forecast_year': forecast_year,
             'weather_year': demand_year,
+            # The year whose shape the Demand was built on; None for Demands
+            # that don't record one (the template then shows the run's year).
+            'reference_year': reference_year,
             'scenario_name': scenario,  # the Facilities Take-up scenario title
             'from_saved_analysis': from_saved_analysis,
         }

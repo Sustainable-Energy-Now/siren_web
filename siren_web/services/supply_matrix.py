@@ -6,10 +6,16 @@ One SupplyFactorMatrix row holds every facility's hourly generation trace
 for a year as a packed float array. Loading it is one query + one reshape,
 and scenario recombination becomes a single vectorised operation over the
 in-memory matrix instead of per-facility ORM filtering.
+
+Units: values are kW (average power per hour), exactly as SAM's `gen`
+array is written by powermapui's store_simulation_results. Readers that
+work in MW must divide by TRACE_KW_PER_MW.
 """
 import numpy as np
 
 from siren_web.models import SupplyFactorMatrix
+
+TRACE_KW_PER_MW = 1000.0
 
 # Process-local cache keyed by year: (facility_ids, matrix, updated_at).
 # Invalidated automatically by comparing updated_at, so a rebuild via

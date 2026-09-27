@@ -78,6 +78,31 @@ def _qualifying_facility_ids(year, band, threshold):
     return qualifying, skipped
 
 
+UNORDERED_MERIT_ORDER = 999  # what powermapui.signals gives a technology new to a scenario
+
+
+def _merit_order_template():
+    """Technology -> (merit_order, mult) from the manually curated scenario with the
+    most merit-ordered technologies (lowest pk on a tie), or {} if there is none."""
+    best, best_rows = None, []
+    for scenario in Scenarios.objects.filter(is_auto_generated=False):
+        rows = list(ScenariosTechnologies.objects.filter(idscenarios=scenario, merit_order__gt=0, merit_order__lt=100))
+        if len(rows) > len(best_rows):
+            best, best_rows = scenario, rows
+    return {row.idtechnologies_id: (row.merit_order, row.mult) for row in best_rows}
+
+
+def _seed_merit_order(scenario, template):
+    """Give still-unordered technologies the template's merit order and multiplier.
+    Without this, dispatch (merit_order < 100 only) sees no supply at all."""
+    for scenario_tech in ScenariosTechnologies.objects.filter(
+        idscenarios=scenario, merit_order=UNORDERED_MERIT_ORDER
+    ):
+        if scenario_tech.idtechnologies_id in template:
+            scenario_tech.merit_order, scenario_tech.mult = template[scenario_tech.idtechnologies_id]
+            scenario_tech.save(update_fields=['merit_order', 'mult'])
+
+
 @transaction.atomic
 def generate_takeup_scenario(year, band, threshold=0.5):
     title = f"Facilities Take-up - {band.title()} - {year}"
@@ -129,6 +154,8 @@ def generate_takeup_scenario(year, band, threshold=0.5):
         # signals only react to additions, so resync capacity after removals
         for scenario_tech in ScenariosTechnologies.objects.filter(idscenarios=scenario):
             scenario_tech.update_capacity()
+
+    _seed_merit_order(scenario, _merit_order_template())
 
     result.n_facilities, result.n_added, result.n_removed = len(target_ids), len(to_add), len(to_remove)
     return result
