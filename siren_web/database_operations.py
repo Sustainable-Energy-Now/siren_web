@@ -7,8 +7,8 @@ from django.db.models import Avg, Q, F, Sum, Count, When, OuterRef, Subquery
 from django.db.models.functions import TruncDay
 import os
 import numpy as np
-from siren_web.models import Analysis, Demand, DemandMatrix, facilities, FacilityStorage, Generatorattributes, \
-    Scenarios, ScenariosTechnologies, ScenariosSettings, Settings, Storageattributes, \
+from siren_web.models import Analysis, Demand, DemandMatrix, facilities, FacilityGenerators, FacilityStorage, \
+    Generatorattributes, Scenarios, ScenariosTechnologies, ScenariosSettings, Settings, Storageattributes, \
     SupplyFactorMatrix, Technologies, TechnologyYears, variations
 from siren_web.services.supply_matrix import TRACE_KW_PER_MW, facility_row_index, load_year_matrix
 from siren_web.services import demand_matrix
@@ -521,11 +521,20 @@ def fetch_technology_attributes(cost_year, scenario):
                 queryset=TechnologyYears.objects.filter(year__lte=cost_year).order_by('-year'),
                 to_attr='tech_years'
             ),
-            # Get generator attributes
+            # Get generator attributes (technology-wide defaults)
             Prefetch(
                 'idtechnologies__generatorattributes_set',
                 queryset=Generatorattributes.objects.all(),
                 to_attr='generator_attrs'
+            ),
+            # Get FacilityGenerators overrides for this scenario's facilities
+            Prefetch(
+                'idtechnologies__generator_facility_installations',
+                queryset=FacilityGenerators.objects.filter(
+                    idfacilities__scenarios=scenario_obj,
+                    is_active=True
+                ),
+                to_attr='facility_generator_list'
             ),
             # Get storage attributes
             Prefetch(
@@ -595,11 +604,47 @@ def fetch_technology_attributes(cost_year, scenario):
         
         # Get category-specific attributes
         if technology_row.category == 'Generator':
-            if technology_row.generator_attrs:
-                generator = technology_row.generator_attrs[0]
-                capacity_max = generator.capacity_max
-                capacity_min = generator.capacity_min
-                
+            # capacity_min/capacity_max must reflect each facility's own
+            # minimum/maximum stable generation, not one flat technology-wide
+            # fraction -- different facilities sharing this Technology (e.g.
+            # two Black Coal stations) can have different values. Weight each
+            # facility's fraction by its own capacity, falling back to the
+            # Technology-wide GeneratorAttributes default when a facility has
+            # no FacilityGenerators override, then re-derive an aggregate
+            # fraction so the rest of the dispatch code (which multiplies
+            # this fraction by the aggregate ScenariosTechnologies.capacity)
+            # needs no changes.
+            tech_default = technology_row.generator_attrs[0] if technology_row.generator_attrs else None
+            default_min = tech_default.capacity_min if tech_default and tech_default.capacity_min is not None else 0
+            default_max = tech_default.capacity_max if tech_default and tech_default.capacity_max is not None else 1.0
+
+            overrides = {fg.idfacilities_id: fg for fg in technology_row.facility_generator_list}
+            generator_facilities = facilities.objects.filter(
+                idtechnologies=technology_row,
+                scenariosfacilities__idscenarios=scenario_obj
+            )
+            weighted_min_mw = 0.0
+            weighted_max_mw = 0.0
+            total_facility_capacity = 0.0
+            for facility_row in generator_facilities:
+                facility_capacity = facility_row.capacity or 0
+                override = overrides.get(facility_row.idfacilities)
+                facility_min = override.capacity_min if override and override.capacity_min is not None else default_min
+                facility_max = override.capacity_max if override and override.capacity_max is not None else default_max
+                weighted_min_mw += facility_capacity * facility_min
+                weighted_max_mw += facility_capacity * facility_max
+                total_facility_capacity += facility_capacity
+
+            if total_facility_capacity > 0:
+                capacity_min = weighted_min_mw / total_facility_capacity
+                capacity_max = weighted_max_mw / total_facility_capacity
+            elif tech_default:
+                # No facilities found for this technology in the scenario
+                # (shouldn't normally happen since it's already in
+                # technologies_result) -- fall back to the technology default.
+                capacity_min = tech_default.capacity_min
+                capacity_max = tech_default.capacity_max
+
         elif technology_row.category == 'Storage':
             # Get technology-level storage attributes (efficiency, losses, constraints)
             if technology_row.storage_attrs_list:

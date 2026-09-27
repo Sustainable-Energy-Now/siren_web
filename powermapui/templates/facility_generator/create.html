@@ -1,0 +1,132 @@
+<!-- facility_generator/create.html -->
+{% extends 'powermapui_base.html' %}
+
+{% block powermapui_content %}
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h3>Add Generator Override</h3>
+    <a href="{% url 'powermapui:facility_detail' facility.pk %}" class="btn btn-outline-secondary">Back to Facility</a>
+  </div>
+
+  <p>Override this facility's minimum/maximum stable generation and ramp rates for a
+  generator technology. Any field left blank falls back to the Technology-wide default.</p>
+
+  <div class="row">
+    <div class="col-lg-8">
+      <div class="card">
+        <div class="card-body">
+          <form method="post" novalidate id="generatorForm">
+            {% csrf_token %}
+
+            <!-- Facility Information -->
+            <div class="alert alert-info mb-3">
+              <strong>Facility:</strong> {{ facility.facility_name }}
+              {% if facility.idzones %}
+                <span class="ms-2 text-muted">| Zone: {{ facility.idzones.name }}</span>
+              {% endif %}
+            </div>
+
+            <!-- Technology Selection -->
+            <div class="mb-3">
+              <label for="technology" class="form-label">Generator Technology <span class="text-danger">*</span></label>
+              <select class="form-select" id="technology" name="technology" required>
+                <option value="">Select technology</option>
+                {% for tech in technologies %}
+                  <option value="{{ tech.pk }}"
+                          {% if form_data.technology == tech.pk|stringformat:"s" %}selected{% endif %}>
+                    {{ tech.technology_name }}
+                  </option>
+                {% endfor %}
+              </select>
+              <div class="form-text">Type of generator (e.g. Black Coal, Gas)</div>
+            </div>
+
+            <hr class="my-4">
+
+            <!-- Capacity Overrides -->
+            <h5 class="mb-3">Capacity Overrides</h5>
+            <p class="text-muted small">Fractions between 0 and 1, applied against this facility's own capacity. Leave blank to use the Technology default.</p>
+
+            <div class="row mb-3">
+              <div class="col-md-6">
+                <label for="capacity_min" class="form-label">Minimum Capacity (fraction)</label>
+                <input type="number"
+                       class="form-control"
+                       id="capacity_min"
+                       name="capacity_min"
+                       step="0.01"
+                       min="0"
+                       max="1"
+                       value="{{ form_data.capacity_min|default:'' }}"
+                       placeholder="e.g. 0.4">
+                <div class="form-text">Minimum stable generation as a fraction of this facility's capacity</div>
+              </div>
+              <div class="col-md-6">
+                <label for="capacity_max" class="form-label">Maximum Capacity (fraction)</label>
+                <input type="number"
+                       class="form-control"
+                       id="capacity_max"
+                       name="capacity_max"
+                       step="0.01"
+                       min="0"
+                       max="1"
+                       value="{{ form_data.capacity_max|default:'' }}"
+                       placeholder="e.g. 1.0">
+                <div class="form-text">Maximum output as a fraction of this facility's capacity</div>
+              </div>
+            </div>
+
+            <hr class="my-4">
+
+            <!-- Ramp Rates -->
+            <h5 class="mb-3">Ramp Rates</h5>
+
+            <div class="row mb-4">
+              <div class="col-md-6">
+                <label for="rampup_max" class="form-label">Ramp-Up Max</label>
+                <input type="number"
+                       class="form-control"
+                       id="rampup_max"
+                       name="rampup_max"
+                       step="1"
+                       min="0"
+                       value="{{ form_data.rampup_max|default:'' }}">
+              </div>
+              <div class="col-md-6">
+                <label for="rampdown_max" class="form-label">Ramp-Down Max</label>
+                <input type="number"
+                       class="form-control"
+                       id="rampdown_max"
+                       name="rampdown_max"
+                       step="1"
+                       min="0"
+                       value="{{ form_data.rampdown_max|default:'' }}">
+              </div>
+            </div>
+
+            <div class="d-flex gap-2">
+              <button type="submit" class="btn btn-primary">Create Override</button>
+              <a href="{% url 'powermapui:facility_detail' facility.pk %}" class="btn btn-outline-secondary">Cancel</a>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-4">
+      <div class="card">
+        <div class="card-header">
+          <h6 class="mb-0">Why per-facility?</h6>
+        </div>
+        <div class="card-body">
+          <div class="small">
+            <p>Two facilities can share the same Technology (e.g. two Black Coal
+            stations) but have different minimum stable generation levels.</p>
+            <p class="mb-0">This override applies only to this facility; other
+            facilities on the same Technology keep using the Technology-wide
+            default (or their own override, if they have one).</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}

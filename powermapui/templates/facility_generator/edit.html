@@ -1,0 +1,172 @@
+<!-- facility_generator/edit.html -->
+{% extends 'powermapui_base.html' %}
+
+{% block powermapui_content %}
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h3>Edit Generator Override</h3>
+      <small class="text-muted">
+        {{ installation.facility.facility_name }} - {{ installation.technology.technology_name }}
+      </small>
+    </div>
+    <div>
+      <a href="{% url 'powermapui:facility_detail' installation.facility.idfacilities %}" class="btn btn-outline-secondary">Back to Facility</a>
+    </div>
+  </div>
+
+  <p>Update the minimum/maximum stable generation and ramp rates for this facility's
+  generator override. Any field left blank falls back to the Technology-wide default.</p>
+
+  <div class="row">
+    <div class="col-lg-8">
+      <div class="card">
+        <div class="card-body">
+          <form method="post" novalidate id="generatorForm">
+            {% csrf_token %}
+
+            <!-- Facility and Technology (Read-only) -->
+            <div class="row mb-3">
+              <div class="col-md-6">
+                <label class="form-label">Facility</label>
+                <input type="text" class="form-control" value="{{ installation.facility.facility_name }}" readonly>
+                <div class="form-text">Cannot be changed after creation</div>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Generator Technology</label>
+                <input type="text" class="form-control" value="{{ installation.technology.technology_name }}" readonly>
+                <div class="form-text">Cannot be changed after creation</div>
+              </div>
+            </div>
+
+            <hr class="my-4">
+
+            <!-- Capacity Overrides -->
+            <h5 class="mb-3">Capacity Overrides</h5>
+            <p class="text-muted small">Fractions between 0 and 1, applied against this facility's own capacity. Leave blank to use the Technology default.</p>
+
+            <div class="row mb-3">
+              <div class="col-md-6">
+                <label for="capacity_min" class="form-label">Minimum Capacity (fraction)</label>
+                <input type="number"
+                       class="form-control"
+                       id="capacity_min"
+                       name="capacity_min"
+                       step="0.01"
+                       min="0"
+                       max="1"
+                       value="{{ form_data.capacity_min|default:installation.capacity_min|default:'' }}"
+                       placeholder="e.g. 0.4">
+                <div class="form-text">Minimum stable generation as a fraction of this facility's capacity</div>
+              </div>
+              <div class="col-md-6">
+                <label for="capacity_max" class="form-label">Maximum Capacity (fraction)</label>
+                <input type="number"
+                       class="form-control"
+                       id="capacity_max"
+                       name="capacity_max"
+                       step="0.01"
+                       min="0"
+                       max="1"
+                       value="{{ form_data.capacity_max|default:installation.capacity_max|default:'' }}"
+                       placeholder="e.g. 1.0">
+                <div class="form-text">Maximum output as a fraction of this facility's capacity</div>
+              </div>
+            </div>
+
+            <hr class="my-4">
+
+            <!-- Ramp Rates -->
+            <h5 class="mb-3">Ramp Rates</h5>
+
+            <div class="row mb-3">
+              <div class="col-md-6">
+                <label for="rampup_max" class="form-label">Ramp-Up Max</label>
+                <input type="number"
+                       class="form-control"
+                       id="rampup_max"
+                       name="rampup_max"
+                       step="1"
+                       min="0"
+                       value="{{ form_data.rampup_max|default:installation.rampup_max|default:'' }}">
+              </div>
+              <div class="col-md-6">
+                <label for="rampdown_max" class="form-label">Ramp-Down Max</label>
+                <input type="number"
+                       class="form-control"
+                       id="rampdown_max"
+                       name="rampdown_max"
+                       step="1"
+                       min="0"
+                       value="{{ form_data.rampdown_max|default:installation.rampdown_max|default:'' }}">
+              </div>
+            </div>
+
+            <div class="mb-4">
+              <div class="form-check">
+                <input class="form-check-input"
+                       type="checkbox"
+                       id="is_active"
+                       name="is_active"
+                       {% if form_data.is_active|default:installation.is_active %}checked{% endif %}>
+                <label class="form-check-label" for="is_active">
+                  <strong>Override is Active</strong>
+                </label>
+                <div class="form-text">Uncheck to fall back to the Technology default without deleting this override</div>
+              </div>
+            </div>
+
+            <div class="d-flex gap-2">
+              <button type="submit" class="btn btn-primary">Update Override</button>
+              <a href="{% url 'powermapui:facility_detail' installation.facility.idfacilities %}" class="btn btn-outline-secondary">Cancel</a>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-4">
+      <!-- Technology Default Reference -->
+      <div class="card mb-3">
+        <div class="card-header">
+          <h6 class="mb-0">Technology Default</h6>
+        </div>
+        <div class="card-body">
+          {% if generator_attrs %}
+            <table class="table table-sm mb-0">
+              <tr>
+                <td><strong>Min Capacity:</strong></td>
+                <td>{{ generator_attrs.capacity_min|default:"-" }}</td>
+              </tr>
+              <tr>
+                <td><strong>Max Capacity:</strong></td>
+                <td>{{ generator_attrs.capacity_max|default:"-" }}</td>
+              </tr>
+              <tr>
+                <td><strong>Ramp-Up Max:</strong></td>
+                <td>{{ generator_attrs.rampup_max|default:"-" }}</td>
+              </tr>
+              <tr>
+                <td><strong>Ramp-Down Max:</strong></td>
+                <td>{{ generator_attrs.rampdown_max|default:"-" }}</td>
+              </tr>
+            </table>
+          {% else %}
+            <p class="text-muted mb-0">No Technology-wide default is defined for {{ installation.technology.technology_name }}.</p>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <h6 class="mb-0">Editing Guidelines</h6>
+        </div>
+        <div class="card-body">
+          <div class="small">
+            <p><strong>Blank fields:</strong> Fall back to the Technology default shown above.</p>
+            <p class="mb-0"><strong>Deactivating:</strong> Uncheck "Active" to stop this facility using its own override, without losing the saved values.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}

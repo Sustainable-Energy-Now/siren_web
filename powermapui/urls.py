@@ -1,7 +1,7 @@
 from django.urls import path
-from powermapui.views import crud_scenario_views, facilities_views, facility_solar_views, \
-    facility_storage_views, crud_terminals_views, gridlines_views, powermapui_home_views, \
-    map_views, network_overview_views, pipeline_charts_views, cel_map_views, \
+from powermapui.views import crud_scenario_views, facilities_views, facility_generator_views, \
+    facility_solar_views, facility_storage_views, crud_terminals_views, gridlines_views, \
+    powermapui_home_views, map_views, network_overview_views, pipeline_charts_views, cel_map_views, \
     power_views, storage_views, table_update_views, technologies_views, \
     terminals_connections_views, terminals_dashboard, terminals_views, wind_turbines_views, \
     cel_views, zone_views, project_viability_views, ev_boundary_views, facilities_takeup_views
@@ -58,6 +58,7 @@ urlpatterns = [
     # Facility-specific installation creation URLs
     path('facilities/<int:facility_id>/solar/create/', facility_solar_views.facility_solar_create, name='facility_solar_create_for_facility'),
     path('facilities/<int:facility_id>/storage/create/', facility_storage_views.facility_storage_create, name='facility_storage_create_for_facility'),
+    path('facilities/<int:facility_id>/generator/create/', facility_generator_views.facility_generator_create, name='facility_generator_create_for_facility'),
     path('facilities/<int:facility_id>/wind/create/', wind_turbines_views.facility_wind_turbine_create, name='facility_wind_turbine_create'),
 
     # Basic Terminal CRUD
@@ -199,5 +200,11 @@ urlpatterns = [
     path('facility-storage/<int:pk>/edit/', facility_storage_views.facility_storage_edit, name='facility_storage_edit'),
     path('facility-storage/<int:pk>/delete/', facility_storage_views.facility_storage_delete, name='facility_storage_delete'),
     path('api/facility-storage/', facility_storage_views.get_facility_storage_json, name='get_facility_storage_json'),
+
+    # Facility Generator Overrides (per-facility minimum/maximum stable generation)
+    path('facility-generator/<int:pk>/', facility_generator_views.facility_generator_detail, name='facility_generator_detail'),
+    path('facility-generator/<int:pk>/edit/', facility_generator_views.facility_generator_edit, name='facility_generator_edit'),
+    path('facility-generator/<int:pk>/delete/', facility_generator_views.facility_generator_delete, name='facility_generator_delete'),
+    path('api/facility-generator/', facility_generator_views.get_facility_generator_json, name='get_facility_generator_json'),
 
 ]

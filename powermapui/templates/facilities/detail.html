@@ -562,6 +562,47 @@
         </div>
       {% endif %}
 
+      <!-- Generator Overrides -->
+      {% if generator_installations %}
+        <div class="card mb-4">
+          <div class="card-header">
+            <h5 class="mb-0">Generator Overrides</h5>
+          </div>
+          <div class="card-body">
+            <p class="text-muted small mb-2">Per-facility minimum/maximum stable generation, overriding the Technology-wide default.</p>
+            <div class="table-responsive">
+              <table class="table table-sm">
+                <thead>
+                  <tr>
+                    <th>Technology</th>
+                    <th>Min Capacity</th>
+                    <th>Max Capacity</th>
+                    <th>Ramp Up</th>
+                    <th>Ramp Down</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for inst in generator_installations %}
+                    <tr>
+                      <td><span class="badge bg-dark">{{ inst.idtechnologies.technology_name }}</span></td>
+                      <td>{{ inst.effective_capacity_min|default:"-" }}</td>
+                      <td>{{ inst.effective_capacity_max|default:"-" }}</td>
+                      <td>{{ inst.rampup_max|default:"-" }}</td>
+                      <td>{{ inst.rampdown_max|default:"-" }}</td>
+                      <td>
+                        <a href="{% url 'powermapui:facility_generator_edit' inst.pk %}" class="btn btn-sm btn-outline-warning">Edit</a>
+                        <button class="btn btn-sm btn-outline-danger delete-installation-btn" data-type="generator" data-id="{{ inst.pk }}" data-name="{{ inst.idtechnologies.technology_name }}">Delete</button>
+                      </td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      {% endif %}
+
     </div>
 
     <!-- Quick Actions Sidebar -->
@@ -583,6 +624,9 @@
             </a>
             <a href="{% url 'powermapui:facility_storage_create_for_facility' facility.pk %}" class="btn btn-outline-primary btn-sm">
               Add Storage Installation
+            </a>
+            <a href="{% url 'powermapui:facility_generator_create_for_facility' facility.pk %}" class="btn btn-outline-primary btn-sm">
+              Add Generator Override
             </a>
             <button class="btn btn-danger btn-sm" onclick="confirmDelete()">
               Delete Facility
@@ -645,6 +689,13 @@
             <div class="text-center">
               <h5 class="text-success">{{ storage_installations.count }}</h5>
               <small class="text-muted">Storage Installation{{ storage_installations.count|pluralize }}</small>
+            </div>
+          {% endif %}
+          {% if generator_installations %}
+            <hr>
+            <div class="text-center">
+              <h5 class="text-dark">{{ generator_installations.count }}</h5>
+              <small class="text-muted">Generator Override{{ generator_installations.count|pluralize }}</small>
             </div>
           {% endif %}
         </div>
@@ -739,6 +790,9 @@
               break;
             case 'storage':
               deleteUrl = "{% url 'powermapui:facility_storage_delete' 0 %}".replace('0', id);
+              break;
+            case 'generator':
+              deleteUrl = "{% url 'powermapui:facility_generator_delete' 0 %}".replace('0', id);
               break;
           }
 

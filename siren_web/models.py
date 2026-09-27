@@ -786,7 +786,11 @@ class facilities(models.Model):
         )
 
 class Generatorattributes(models.Model):
-    """Technology-level attributes for conventional generators"""
+    """Technology-level default attributes for conventional generators.
+
+    These are the fallback values used when a facility has no matching
+    FacilityGenerators override row -- see FacilityGenerators below.
+    """
     idgeneratorattributes = models.AutoField(db_column='idGeneratorAttributes', primary_key=True)
     idtechnologies = models.ForeignKey('Technologies', models.CASCADE, db_column='idTechnologies')
     capacity_max = models.FloatField(null=True)
@@ -796,6 +800,81 @@ class Generatorattributes(models.Model):
 
     class Meta:
         db_table = 'GeneratorAttributes'
+
+class FacilityGenerators(models.Model):
+    """
+    Installation-specific attributes for conventional (dispatchable) generators.
+
+    Overrides the Technology-level defaults in Generatorattributes for a specific
+    facility, since two facilities sharing a Technology (e.g. two Black Coal
+    stations) can have different minimum stable generation levels. A facility
+    with no row here falls back to its Technology's Generatorattributes values.
+    """
+    idfacilitygenerators = models.AutoField(db_column='idfacilitygenerators', primary_key=True)
+    idfacilities = models.ForeignKey(
+        'facilities',
+        on_delete=models.CASCADE,
+        db_column='idfacilities',
+        related_name='generator_installations'
+    )
+    idtechnologies = models.ForeignKey(
+        'Technologies',
+        on_delete=models.CASCADE,
+        db_column='idtechnologies',
+        related_name='generator_facility_installations',
+        limit_choices_to={'category': 'Generator'}
+    )
+    capacity_max = models.FloatField(
+        null=True, blank=True,
+        help_text="Fraction (0-1) of this facility's own capacity usable as max output. Falls back to the Technology default when null."
+    )
+    capacity_min = models.FloatField(
+        null=True, blank=True,
+        help_text="Fraction (0-1) of this facility's own capacity that must run (minimum stable generation). Falls back to the Technology default when null."
+    )
+    rampdown_max = models.IntegerField(blank=True, null=True)
+    rampup_max = models.IntegerField(blank=True, null=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'FacilityGenerators'
+        unique_together = ('idfacilities', 'idtechnologies')
+
+    def __str__(self):
+        return f"{self.facility.facility_name} - {self.technology.technology_name}"
+
+    @property
+    def facility(self):
+        """Get the facility for this installation"""
+        return self.idfacilities
+
+    @property
+    def technology(self):
+        """Get the generator technology for this installation"""
+        return self.idtechnologies
+
+    @property
+    def generator_attrs(self):
+        """Get the Technology-level default generator attributes"""
+        return Generatorattributes.objects.filter(idtechnologies=self.idtechnologies).first()
+
+    @property
+    def effective_capacity_min(self):
+        """This installation's capacity_min, falling back to the Technology default"""
+        if self.capacity_min is not None:
+            return self.capacity_min
+        defaults = self.generator_attrs
+        return defaults.capacity_min if defaults else None
+
+    @property
+    def effective_capacity_max(self):
+        """This installation's capacity_max, falling back to the Technology default"""
+        if self.capacity_max is not None:
+            return self.capacity_max
+        defaults = self.generator_attrs
+        return defaults.capacity_max if defaults else None
 
 class GridLines(models.Model):
     """Model to store grid line data for calculating losses and capacity"""
