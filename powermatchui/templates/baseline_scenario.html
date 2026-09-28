@@ -27,30 +27,24 @@
   </div>
 </div>
 
-<!-- Demand Forecast Override Section -->
-<div class="card mb-3">
-  <div class="card-header"><h5>Demand Forecast (optional)</h5></div>
-  <div class="card-body">
-    <p class="text-muted">
-      Facilities scenario: <strong>{{ scenario|default:"not selected" }}</strong> &mdash;
-      Demand forecast:
-      <strong>{{ selected_demand_scenario_title|default:"using the supply scenario's own Load" }}</strong>
-    </p>
-    <form method="post" action="{% url 'powermatchui:set_demand_scenario' %}">
-      {% csrf_token %}
-      {{ demand_scenario_form.demand_scenario_demand.label_tag }}
-      {{ demand_scenario_form.demand_scenario_demand }}
-      <button type="submit" class="btn btn-secondary mt-2">Set Demand Forecast</button>
-    </form>
-  </div>
-</div>
-
 {% if scenario %}
 <!-- Carbon Price and Discount Rate Section -->
 <form method="post" id="configForm">
   {% csrf_token %}
   <input type="hidden" name="scenario" value="{{ scenario }}">
-  
+
+  <!-- Demand Forecast Selection -->
+  <div class="card mb-3">
+    <div class="card-header"><h5>Demand Forecast</h5></div>
+    <div class="card-body">
+      <p class="text-muted">
+        Currently selected: <strong>{{ selected_demand_scenario_title|default:"none -- select one before running" }}</strong>
+      </p>
+      {{ demand_scenario_form.demand_scenario_demand.label_tag }}
+      {{ demand_scenario_form.demand_scenario_demand }}
+    </div>
+  </div>
+
   <div class="row form-row">
     <div class="col-md-6">
       <div class="form-group">

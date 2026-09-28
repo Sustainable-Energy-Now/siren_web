@@ -36,18 +36,13 @@ def generate_power(request):
     config_file = request.session.get('config_file')
     # Both the year TechnologyYears data is read for (via
     # fetch_full_facilities_data) and the weather year SAM simulates against
-    # come from whichever Demand forecast is selected on this page (see
-    # get_demand_scenario_context / resolve_demand_override) -- there is no
-    # other source any more.
-    demand_override = resolve_demand_override(request.session.get('demand_scenario_demand_id'))
-    if demand_override is None:
-        messages.error(
-            request,
-            "Select a Demand Forecast before running -- it supplies both the year to run "
-            "against and the weather year SAM simulates against."
-        )
-        return redirect('powermapui:powermapui_home')
-    demand_year = demand_override.year
+    # come from whichever Demand forecast is selected on this page's own
+    # Demand Forecast selector (see get_demand_scenario_context /
+    # resolve_demand_override) -- carried on every request as the
+    # demand_scenario_demand query param, never from the session.
+    demand_id = request.GET.get('demand_scenario_demand')
+    demand_override = resolve_demand_override(demand_id)
+    demand_year = demand_override.year if demand_override else None
 
     # The weather year SAM simulates against: the reference_year of the
     # selected Demand forecast (the real FacilityScada year its own trace's
@@ -55,35 +50,38 @@ def generate_power(request):
     # esoo_scenario_views.build_scenario_from_esoo), so generation and
     # demand are chronologically consistent. A legacy forecast built before
     # reference_year existed has none recorded.
-    if not demand_override.reference_year:
-        messages.error(
-            request,
-            f"The selected Demand forecast '{demand_override.demand_name}' has no reference "
-            "year recorded, so a weather year for SAM can't be determined."
-        )
-        return redirect('powermapui:powermapui_home')
-    weather_year = str(demand_override.reference_year)
+    weather_year = str(demand_override.reference_year) if demand_override and demand_override.reference_year else None
 
     # Check if this is just displaying the confirmation page
     if request.method == 'GET' and not request.GET.get('confirm'):
-        # Get list of renewable facilities for the dropdown
+        # Get list of renewable facilities for the dropdown -- only once a
+        # Demand Forecast is selected, since it supplies the year
+        # fetch_full_facilities_data reads TechnologyYears for.
         renewable_facilities = []
-        facilities_list = fetch_full_facilities_data(demand_year, scenario)
-        for facility_data in facilities_list:
-            try:
-                facility_obj = facilities.objects.get(
-                    facility_code=facility_data.get('facility_code')
-                )
-                technology = facility_obj.idtechnologies
-                if technology.renewable and not technology.dispatchable:
-                    renewable_facilities.append({
-                        'facility_code': facility_obj.facility_code,
-                        'facility_name': facility_obj.facility_name,
-                        'technology': technology.technology_name
-                    })
-            except facilities.DoesNotExist:
-                continue
-        
+        if demand_year is not None:
+            facilities_list = fetch_full_facilities_data(demand_year, scenario)
+            for facility_data in facilities_list:
+                try:
+                    facility_obj = facilities.objects.get(
+                        facility_code=facility_data.get('facility_code')
+                    )
+                    technology = facility_obj.idtechnologies
+                    if technology.renewable and not technology.dispatchable:
+                        renewable_facilities.append({
+                            'facility_code': facility_obj.facility_code,
+                            'facility_name': facility_obj.facility_name,
+                            'technology': technology.technology_name
+                        })
+                except facilities.DoesNotExist:
+                    continue
+
+        if demand_override is not None and not demand_override.reference_year:
+            messages.error(
+                request,
+                f"The selected Demand forecast '{demand_override.demand_name}' has no reference "
+                "year recorded, so a weather year for SAM can't be determined."
+            )
+
         # Show the confirmation template first
         context = {
             'weather_year': weather_year,
@@ -92,10 +90,28 @@ def generate_power(request):
             'config_file': config_file,
             'renewable_facilities': renewable_facilities,
             'biomass_min_coverage_default': BIOMASS_MIN_COVERAGE_DEFAULT,
-            **get_demand_scenario_context(request),
+            **get_demand_scenario_context(demand_id),
         }
         return render(request, 'generate_power.html', context)
-    
+
+    # Every run action (confirm=true) needs a fully-resolved Demand Forecast
+    # -- send the user back to the selector above rather than the map home,
+    # since that's where the fix is.
+    if demand_override is None:
+        messages.error(
+            request,
+            "Select a Demand Forecast before running -- it supplies both the year to run "
+            "against and the weather year SAM simulates against."
+        )
+        return redirect('powermapui:generate_power')
+    if not demand_override.reference_year:
+        messages.error(
+            request,
+            f"The selected Demand forecast '{demand_override.demand_name}' has no reference "
+            "year recorded, so a weather year for SAM can't be determined."
+        )
+        return redirect('powermapui:generate_power')
+
     # Check if this is a single facility run
     single_facility_mode = request.GET.get('single_facility') == 'true'
     facility_code = request.GET.get('facility_code')
@@ -241,7 +257,7 @@ def generate_power(request):
             'renewable_facilities': renewable_facilities,
             'success_message': success_message,
             'biomass_min_coverage_default': biomass_min_coverage,
-            **get_demand_scenario_context(request),
+            **get_demand_scenario_context(demand_id),
         }
         return render(request, 'generate_power.html', context)
 
@@ -278,7 +294,7 @@ def generate_power(request):
             'renewable_facilities': renewable_facilities,
             'error_message': error_message,
             'biomass_min_coverage_default': biomass_min_coverage,
-            **get_demand_scenario_context(request),
+            **get_demand_scenario_context(demand_id),
         }
         return render(request, 'generate_power.html', context)
 

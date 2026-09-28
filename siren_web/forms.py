@@ -72,11 +72,14 @@ class DemandScenarioOverrideForm(forms.Form):
     Lets the user pick which Demand's trace to dispatch against,
     independently of session['scenario'] (the supply/facilities Scenario)
     -- there is no schema-level link between the two. Used by
-    powermatchui's Baseline Scenario page (a per-run dispatch selection --
-    see siren_web.database_operations.resolve_demand_override) and by
-    powermapui's Run Power page (which year's TechnologyYears data to
-    generate against -- see resolve_baseline_year). Selecting a Demand
-    here never changes any Demand/DemandMatrix row.
+    powermatchui's Baseline Scenario and Variations pages (a per-run
+    dispatch selection -- see siren_web.database_operations.
+    resolve_demand_override) and by powermapui's Run Power page (which
+    year's TechnologyYears data to generate against -- see
+    resolve_baseline_year). Selecting a Demand here never changes any
+    Demand/DemandMatrix row, and the selection itself is never persisted
+    server-side -- each page carries it per-request (a GET query param
+    and/or a hidden field on that page's own action forms).
     """
     demand_scenario_demand = forms.ModelChoiceField(
         queryset=Demand.objects.filter(

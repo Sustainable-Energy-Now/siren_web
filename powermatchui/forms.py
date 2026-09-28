@@ -1,7 +1,6 @@
 # forms.py
 from django import forms
 from siren_web.models import Scenarios, TechnologyYears, facilities, variations
-from siren_web.forms import DemandScenarioOverrideForm  # noqa: F401 -- re-exported; used by baseline_scenario_views.py and, now, powermapui's power_views.py
 from crispy_forms.helper import FormHelper
 from crispy_forms.layout import Layout, Div, Field, Submit, HTML, Row, Column
 from crispy_bootstrap5.bootstrap5 import Accordion
@@ -208,9 +207,23 @@ class CombinedVariationForm(forms.Form):
         technologies = kwargs.pop('technologies', {})
         selected_variation = kwargs.pop('selected_variation', None)
         variation_data = kwargs.pop('variation_data', None)
-        
+        demand_id = kwargs.pop('demand_id', None)
+
         super(CombinedVariationForm, self).__init__(*args, **kwargs)
-        
+
+        # Carries the page's Demand Forecast selection (see
+        # get_demand_scenario_context / the variations.html selector)
+        # through to the actual variation submission -- there's no
+        # session-based Demand selection any more.
+        self.fields['demand_scenario_demand'] = forms.CharField(
+            required=False,
+            # Distinct id -- the page's own visible Demand Forecast selector
+            # (see variations.html) already uses the Django-default
+            # id_demand_scenario_demand for its own <select>.
+            widget=forms.HiddenInput(attrs={'id': 'id_combined_demand_scenario_demand'}),
+            initial=demand_id,
+        )
+
         # Variation selection section
         if scenario:
             variations_queryset = variations.objects.filter(idscenarios=scenario)
@@ -351,28 +364,35 @@ class CombinedVariationForm(forms.Form):
         # Form layout
         self.helper = FormHelper()
         self.helper.form_action = '/variation/'
-        self.helper.layout = Layout(
+        layout_fields = [
+            Field('demand_scenario_demand'),
             # Variation selection section
             Div(
                 Field('variation_name', css_class='col-md-6'),
-                css_class='row', 
+                css_class='row',
                 id='variation_name_field'
             ),
             Div(
                 Field('variation_description', css_class='col-md-8'),
-                css_class='row', 
+                css_class='row',
                 id='variation_description_field'
             ),
             HTML("<hr>"),
             # Configuration section
             Field('stages', css_class='col-md-4'),
             Field('original_variation_name'),
-            # Technology accordions
-            Accordion(*accordion_groups),
-            FormActions(
-                Submit('submit', 'Submit'),
-            )
-        )
+        ]
+        # Technology accordions -- crispy's Accordion errors on zero groups
+        # (see open_target_group_for_form), which happens whenever no
+        # Demand Forecast is selected yet (technologies is then empty).
+        if accordion_groups:
+            layout_fields.append(Accordion(*accordion_groups))
+        else:
+            layout_fields.append(HTML(
+                "<p class='text-muted'>Select a Demand Forecast above to see technologies here.</p>"
+            ))
+        layout_fields.append(FormActions(Submit('submit', 'Submit')))
+        self.helper.layout = Layout(*layout_fields)
         
     def clean(self):
         cleaned_data = super().clean()

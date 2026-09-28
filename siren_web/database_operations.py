@@ -247,8 +247,10 @@ class DemandOverride:
 
 def resolve_demand_override(demand_id):
     """
-    Resolve a Demand PK (typically session['demand_scenario_demand_id'])
-    into a DemandOverride, or None if demand_id is falsy/stale/traceless.
+    Resolve a Demand PK (the demand_scenario_demand field submitted by
+    whichever page's Demand Forecast selector -- see
+    get_demand_scenario_context) into a DemandOverride, or None if demand_id
+    is falsy/stale/traceless.
     Callers must treat None as "no demand selected -- this run cannot
     proceed" (see fetch_supplyfactors_data) — this never raises.
 
@@ -345,18 +347,22 @@ def resolve_cost_year(demand_year, demand_override=None):
     return demand_year
 
 
-def get_demand_scenario_context(request):
+def get_demand_scenario_context(demand_id=None):
     """
     Demand-selection context (a DemandScenarioOverrideForm plus the
     currently-selected Demand's display name) shared by every page that
-    lets the user set/see session['demand_scenario_demand_id'] -- currently
-    powermatchui's Baseline Scenario page and powermapui's Run Power page.
-    See resolve_demand_override / resolve_baseline_year for how the
-    selection is actually applied.
+    lets the user pick a Demand forecast -- currently powermatchui's
+    Baseline Scenario and Variations pages and powermapui's Run Power page.
+    There is no session-based persistence: each page submits its own
+    demand_scenario_demand selection with every request (typically as a
+    hidden/GET field carried alongside the page's own action), and callers
+    pass whatever was submitted (or None on a fresh page load) as `demand_id`
+    so the selector redisplays with the same choice. See
+    resolve_demand_override / resolve_baseline_year for how the selection is
+    actually applied.
     """
     from siren_web.forms import DemandScenarioOverrideForm
 
-    demand_id = request.session.get('demand_scenario_demand_id')
     selected_demand = (
         Demand.objects.filter(pk=demand_id).first() if demand_id else None
     )

@@ -42,22 +42,30 @@
 
         <div class="config-info">
             <h3>Demand Forecast</h3>
+            {% if weather_year %}
             <p>
                 Generating against year <strong>{{ demand_year }}</strong>
-                (<strong>{{ selected_demand_scenario_title|default:"using the scenario's own Load" }}</strong>),
+                (<strong>{{ selected_demand_scenario_title }}</strong>),
                 weather year <strong>{{ weather_year }}</strong>.
             </p>
-            <form method="post" action="{% url 'powermatchui:set_demand_scenario' %}">
-                {% csrf_token %}
-                <input type="hidden" name="next" value="{% url 'powermapui:generate_power' %}">
+            {% elif demand_year %}
+            <p>
+                '<strong>{{ selected_demand_scenario_title }}</strong>' has no reference year recorded,
+                so a weather year for SAM can't be determined -- choose a different Demand Forecast.
+            </p>
+            {% else %}
+            <p>Select a Demand Forecast below -- it supplies both the year to run against and the weather year SAM simulates against.</p>
+            {% endif %}
+            <form method="get" action="{% url 'powermapui:generate_power' %}">
                 <div class="facility-selector">
                     {{ demand_scenario_form.demand_scenario_demand.label_tag }}
                     {{ demand_scenario_form.demand_scenario_demand }}
                 </div>
-                <button type="submit" class="btn btn-secondary">Set Demand Forecast</button>
+                <noscript><button type="submit" class="btn btn-secondary">Select</button></noscript>
             </form>
         </div>
 
+        {% if weather_year %}
         <div class="option-card info">
             <h3>Single Facility Process</h3>
             <p><strong>What it does:</strong></p>
@@ -72,6 +80,7 @@
             <form method="get" action="{% url 'powermapui:generate_power' %}">
                 <input type="hidden" name="confirm" value="true">
                 <input type="hidden" name="single_facility" value="true">
+                <input type="hidden" name="demand_scenario_demand" value="{{ demand_scenario_form.demand_scenario_demand.value|default:'' }}">
 
                 <div class="facility-selector">
                     <label for="facility_code">Select Facility:</label>
@@ -128,6 +137,7 @@
             <form method="get" action="{% url 'powermapui:generate_power' %}">
                 <input type="hidden" name="confirm" value="true">
                 <input type="hidden" name="refresh_supply_factors" value="false">
+                <input type="hidden" name="demand_scenario_demand" value="{{ demand_scenario_form.demand_scenario_demand.value|default:'' }}">
 
                 <div class="facility-selector">
                     <label for="smart_biomass_min_coverage">Biomass SCADA coverage threshold:</label>
@@ -157,6 +167,7 @@
                   onsubmit="return confirm('⚠️ This will delete and recreate ALL supply factors data for ALL facilities. This may take a long time. Are you sure?')">
                 <input type="hidden" name="confirm" value="true">
                 <input type="hidden" name="refresh_supply_factors" value="true">
+                <input type="hidden" name="demand_scenario_demand" value="{{ demand_scenario_form.demand_scenario_demand.value|default:'' }}">
 
                 <div class="facility-selector">
                     <label for="refresh_biomass_min_coverage">Biomass SCADA coverage threshold:</label>
@@ -170,6 +181,7 @@
                 </button>
             </form>
         </div>
+        {% endif %}
 
         <div style="margin-top: 30px; text-align: center;">
             <a href="{% url 'powermapui:powermapui_home' %}" class="btn btn-secondary">
@@ -177,6 +189,16 @@
             </a>
         </div>
     </div>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            var demandSelect = document.getElementById('id_demand_scenario_demand');
+            if (demandSelect) {
+                demandSelect.addEventListener('change', function() {
+                    this.form.submit();
+                });
+            }
+        });
+    </script>
 </body>
 </html>
 {% endblock %}

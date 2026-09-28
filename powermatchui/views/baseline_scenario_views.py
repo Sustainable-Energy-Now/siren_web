@@ -4,7 +4,6 @@ from decimal import Decimal
 from django.http import JsonResponse, StreamingHttpResponse, HttpResponse
 from django.shortcuts import render, redirect
 from django.contrib import messages
-from django.utils.http import url_has_allowed_host_and_scheme
 from common.decorators import settings_required
 import logging
 import numpy as np
@@ -19,7 +18,7 @@ from siren_web.database_operations import (
     resolve_demand_override, resolve_baseline_year, get_demand_scenario_context,
 )
 from siren_web.models import Scenarios, ScenariosTechnologies
-from ..forms import BaselineScenarioForm, RunPowermatchForm, DemandScenarioOverrideForm
+from ..forms import BaselineScenarioForm, RunPowermatchForm
 from powermatchui.views.exec_powermatch import submit_powermatch_with_progress
 from .progress_handler import (
     ProgressHandler, ProgressChannel, ProgressUpdate
@@ -61,6 +60,10 @@ def baseline_scenario(request):
     success_message = ""
     technologies = {}
     scenario_settings = {}
+    # The Demand Forecast selection travels with each request (a field
+    # inside configForm, POSTed with every Save/Run) rather than living in
+    # the session -- see get_demand_scenario_context.
+    demand_id = request.POST.get('demand_scenario_demand') or request.GET.get('demand_scenario_demand')
 
     if scenario is None:
         # No Facilities scenario chosen yet: show just the selector.
@@ -70,7 +73,7 @@ def baseline_scenario(request):
             'runpowermatch_form': RunPowermatchForm(),
             'has_existing_analysis': False,
             'success_message': success_message,
-            **get_demand_scenario_context(request),
+            **get_demand_scenario_context(demand_id),
         })
 
     request.session['scenario'] = scenario
@@ -166,7 +169,7 @@ def baseline_scenario(request):
                 'config_file': config_file,
                 'success_message': 'Correct errors and resubmit.',
                 'has_existing_analysis': fetch_analysis_scenario(scenario).exists(),
-                **get_demand_scenario_context(request),
+                **get_demand_scenario_context(demand_id),
             }
             return render(request, 'baseline_scenario.html', context)
     # Prepare form data for display
@@ -190,42 +193,9 @@ def baseline_scenario(request):
         'config_file': config_file,
         'success_message': success_message,
         'has_existing_analysis': fetch_analysis_scenario(scenario).exists(),
-        **get_demand_scenario_context(request),
+        **get_demand_scenario_context(demand_id),
     }
     return render(request, 'baseline_scenario.html', context)
-
-
-@login_required
-@settings_required(redirect_view='powermatchui:powermatchui_home', require_demand_year=False, require_scenario=False)
-def set_demand_scenario(request):
-    """
-    Sets or clears session['demand_scenario_demand_id'] -- the app-wide
-    Demand selection consumed via resolve_demand_override (currently by
-    powermatchui's baseline/variation runs and powermapui's Run Power
-    view). This never creates or changes any Demand/DemandMatrix row; it
-    only decides which Demand's trace/year those consumers use next.
-
-    Shared across apps: any page can post here with a `next` field (a
-    relative path) to be sent back to itself instead of the default
-    Baseline Scenario page -- see power_views.generate_power's own form.
-    """
-    next_url = request.POST.get('next') or request.GET.get('next')
-    if not next_url or not url_has_allowed_host_and_scheme(next_url, allowed_hosts={request.get_host()}):
-        next_url = None
-
-    if request.method == 'POST':
-        form = DemandScenarioOverrideForm(request.POST)
-        if form.is_valid():
-            demand = form.cleaned_data['demand_scenario_demand']
-            if demand:
-                request.session['demand_scenario_demand_id'] = demand.iddemand
-                messages.success(request, f"Demand forecast set to '{demand.name}'.")
-            else:
-                request.session.pop('demand_scenario_demand_id', None)
-                messages.success(request, "Demand forecast selection cleared.")
-        else:
-            messages.error(request, "Invalid demand scenario selection.")
-    return redirect(next_url or 'powermatchui:baseline_scenario')
 
 
 @login_required
@@ -235,11 +205,11 @@ def run_baseline_progress(request):
     scenario = _selected_scenario(request)
     if scenario is None:
         return JsonResponse({'error': "Select a Facilities scenario before running."}, status=400)
-    demand_override = resolve_demand_override(request.session.get('demand_scenario_demand_id'))
+    demand_override = resolve_demand_override(request.POST.get('demand_scenario_demand'))
     if demand_override is None:
         return JsonResponse({
-            'error': "Select a Demand forecast on the Baseline Scenario page before running -- "
-                     "a scenario no longer carries an implicit demand trace of its own."
+            'error': "Select a Demand Forecast before running -- a scenario no longer carries "
+                     "an implicit demand trace of its own."
         }, status=400)
     try:
         demand_year = resolve_baseline_year(scenario, demand_override.reference_year)
@@ -508,14 +478,14 @@ def run_baseline(request):
         messages.error(request, "Select a Facilities scenario before running.")
         return redirect('powermatchui:baseline_scenario')
     config_file = request.session.get('config_file')
-    demand_override = resolve_demand_override(request.session.get('demand_scenario_demand_id'))
+    demand_override = resolve_demand_override(request.POST.get('demand_scenario_demand'))
     success_message = ""
 
     if demand_override is None:
         messages.error(
             request,
-            "Select a Demand forecast on the Baseline Scenario page before running -- a "
-            "scenario no longer carries an implicit demand trace of its own."
+            "Select a Demand Forecast before running -- a scenario no longer carries an "
+            "implicit demand trace of its own."
         )
         return redirect('powermatchui:baseline_scenario')
 
@@ -573,7 +543,7 @@ def run_baseline(request):
             'config_file': config_file,
             'success_message': success_message,
             'has_existing_analysis': fetch_analysis_scenario(scenario).exists(),
-            **get_demand_scenario_context(request),
+            **get_demand_scenario_context(request.POST.get('demand_scenario_demand')),
         }
         return render(request, 'baseline_scenario.html', context)
 

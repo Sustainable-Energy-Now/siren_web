@@ -1,6 +1,6 @@
 #  variations_views.py
 from siren_web.database_operations import fetch_technology_attributes, check_analysis_baseline, fetch_technology_by_id, \
-    resolve_baseline_year, resolve_demand_override, resolve_cost_year
+    resolve_baseline_year, resolve_demand_override, resolve_cost_year, get_demand_scenario_context
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import render
 from django.http import HttpResponse, JsonResponse
@@ -28,37 +28,42 @@ def setup_variation(request):
         context = {'success_message': success_message}
         return render(request, 'variations.html', context)
 
-    # Variations are dispatched against the same Demand forecast as the
-    # baseline, selected on the Baseline Scenario page.
-    demand_override = resolve_demand_override(request.session.get('demand_scenario_demand_id'))
-    if demand_override is None:
-        success_message = "Select a Demand forecast on the Baseline Scenario page first."
-        context = {'success_message': success_message}
-        return render(request, 'variations.html', context)
-
-    # Derived rather than user-selected -- see resolve_baseline_year. Uses
-    # the selected Demand forecast's reference_year (the real FacilityScada
-    # year its trace's shape was synthesised from) so supply and demand line
-    # up chronologically.
-    try:
-        demand_year = resolve_baseline_year(scenario, demand_override.reference_year)
-    except ValueError as exc:
-        context = {'success_message': str(exc)}
-        return render(request, 'variations.html', context)
-    if demand_year is None:
-        success_message = f"Scenario '{scenario}' no longer exists."
-        context = {'success_message': success_message}
-        return render(request, 'variations.html', context)
+    # Variations are dispatched against whichever Demand forecast is
+    # selected on this page -- carried per-request (GET query param from
+    # the selector, or POSTed with the variation form), not stored in the
+    # session. See get_demand_scenario_context.
+    demand_id = request.POST.get('demand_scenario_demand') or request.GET.get('demand_scenario_demand')
+    demand_override = resolve_demand_override(demand_id)
 
     baseline = check_analysis_baseline(scenario)
-    # Same cost year as the run itself, so each variation's start value
-    # matches the costs PowerMatch will actually use.
-    technologies = fetch_technology_attributes(resolve_cost_year(demand_year, demand_override), scenario)
-    
     if not baseline:
         success_message = "Baseline the scenario first."
-        context = {'success_message': success_message}
+        context = {'success_message': success_message, **get_demand_scenario_context(demand_id)}
         return render(request, 'variations.html', context)
+
+    demand_year = None
+    technologies = {}
+    if demand_override is None:
+        if not success_message:
+            success_message = "Select a Demand Forecast to see technology costs and create/edit a variation."
+    else:
+        # Derived rather than user-selected -- see resolve_baseline_year.
+        # Uses the selected Demand forecast's reference_year (the real
+        # FacilityScada year its trace's shape was synthesised from) so
+        # supply and demand line up chronologically.
+        try:
+            demand_year = resolve_baseline_year(scenario, demand_override.reference_year)
+        except ValueError as exc:
+            success_message = str(exc)
+            demand_override = None
+        else:
+            if demand_year is None:
+                success_message = f"Scenario '{scenario}' no longer exists."
+                context = {'success_message': success_message, **get_demand_scenario_context(demand_id)}
+                return render(request, 'variations.html', context)
+            # Same cost year as the run itself, so each variation's start
+            # value matches the costs PowerMatch will actually use.
+            technologies = fetch_technology_attributes(resolve_cost_year(demand_year, demand_override), scenario)
 
     # Prepare technologies data for JavaScript
     technologies_json = {}
@@ -78,20 +83,29 @@ def setup_variation(request):
     scenario_obj = Scenarios.objects.get(title=scenario)
     
     if request.method == 'POST':
-        # Handle form submission
-        combined_form = CombinedVariationForm(
-            request.POST, 
-            scenario=scenario_obj, 
-            technologies=technologies
-        )
-        
-        if combined_form.is_valid():
-            return handle_variation_submission(
-                request, combined_form.cleaned_data, technologies,
-                demand_year, scenario, config_file, demand_override
+        if demand_override is None:
+            success_message = success_message or "Select a Demand Forecast before submitting a variation."
+            combined_form = CombinedVariationForm(
+                scenario=scenario_obj,
+                technologies=technologies,
+                demand_id=demand_id,
             )
         else:
-            success_message = 'Please check the form for errors.'
+            # Handle form submission
+            combined_form = CombinedVariationForm(
+                request.POST,
+                scenario=scenario_obj,
+                technologies=technologies,
+                demand_id=demand_id,
+            )
+
+            if combined_form.is_valid():
+                return handle_variation_submission(
+                    request, combined_form.cleaned_data, technologies,
+                    demand_year, scenario, config_file, demand_override
+                )
+            else:
+                success_message = 'Please check the form for errors.'
     else:
         # Initial page load
         # Get the first variation if any exist for auto-selection
@@ -108,13 +122,14 @@ def setup_variation(request):
                     'idtechnologies': first_variation.idtechnologies.pk if first_variation.idtechnologies else None
                 }
             }
-        
+
         combined_form = CombinedVariationForm(
-            scenario=scenario_obj, 
+            scenario=scenario_obj,
             technologies=technologies,
-            variation_data=initial_variation_data
+            variation_data=initial_variation_data,
+            demand_id=demand_id,
         )
-    
+
     context = {
         'combined_form': combined_form,
         'technologies': technologies,
@@ -122,7 +137,8 @@ def setup_variation(request):
         'variation_data': json.dumps({}),  # For JavaScript compatibility
         'scenario': scenario,
         'config_file': config_file,
-        'success_message': success_message
+        'success_message': success_message,
+        **get_demand_scenario_context(demand_id),
     }
     return render(request, 'variations.html', context)
 
