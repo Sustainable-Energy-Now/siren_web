@@ -666,9 +666,11 @@ def create_summary_totals(scenario, dispatch_results: DispatchResults, demand_ye
         'processing_metadata': {
             'demand_scenario_name': demand_scenario_name,
             'forecast_year': forecast_year,
-            'weather_year': demand_year,
             # The year whose shape the Demand was built on; None for Demands
             # that don't record one (the template then shows the run's year).
+            # Equal to demand_year (the SupplyFactorMatrix year this run used)
+            # whenever a Demand forecast is selected, since that's now the
+            # only source demand_year comes from -- see resolve_baseline_year.
             'reference_year': reference_year,
             'scenario_name': scenario,  # the Facilities Take-up scenario title
             'from_saved_analysis': from_saved_analysis,

@@ -77,7 +77,7 @@
                     <label for="facility_code">Select Facility:</label>
                     <select name="facility_code" id="facility_code" required>
                         <option value="">-- Choose a facility --</option>
-                        {% for facility in renewable_facilities %}
+                        {% for facility in renewable_facilities|dictsort:"facility_name" %}
                         <option value="{{ facility.facility_code }}">
                             {{ facility.facility_name }} ({{ facility.technology }})
                         </option>
@@ -95,8 +95,17 @@
                     <input type="date" name="end_date" id="end_date" style="width: 100%; padding: 10px; font-size: 1em; border-radius: 5px; border: 1px solid #ddd;">
                 </div>
 
+                <div class="facility-selector">
+                    <label for="biomass_min_coverage">Biomass SCADA coverage threshold:</label>
+                    <input type="number" name="biomass_min_coverage" id="biomass_min_coverage"
+                           value="{{ biomass_min_coverage_default }}" min="0.01" max="1" step="0.01"
+                           style="width: 100%; padding: 10px; font-size: 1em; border-radius: 5px; border: 1px solid #ddd;">
+                </div>
+
                 <p style="font-size: 0.9em; color: #666; margin-top: 10px;">
                     <strong>Note:</strong> Leave dates empty to process the entire year. Date range restricts the hourly generation data stored.
+                    Biomass facilities have no SAM weather data -- their trace is built from real SCADA history instead, and is only
+                    built for a facility/year with at least this fraction of non-missing half-hourly intervals (e.g. 0.9 = 90%).
                 </p>
 
                 <button type="submit" class="btn btn-info">
@@ -115,11 +124,22 @@
                 <li>Fast execution - perfect for regular runs</li>
             </ul>
             <p><strong>Use this when:</strong> Adding new facilities, regular updates, daily operations</p>
-            
-            <a href="{% url 'powermapui:generate_power' %}?confirm=true&refresh_supply_factors=false" 
-               class="btn btn-success">
-                Start Smart Process
-            </a>
+
+            <form method="get" action="{% url 'powermapui:generate_power' %}">
+                <input type="hidden" name="confirm" value="true">
+                <input type="hidden" name="refresh_supply_factors" value="false">
+
+                <div class="facility-selector">
+                    <label for="smart_biomass_min_coverage">Biomass SCADA coverage threshold:</label>
+                    <input type="number" name="biomass_min_coverage" id="smart_biomass_min_coverage"
+                           value="{{ biomass_min_coverage_default }}" min="0.01" max="1" step="0.01"
+                           style="width: 100%; padding: 10px; font-size: 1em; border-radius: 5px; border: 1px solid #ddd;">
+                </div>
+
+                <button type="submit" class="btn btn-success">
+                    Start Smart Process
+                </button>
+            </form>
         </div>
 
         <div class="option-card warning">
@@ -132,12 +152,23 @@
                 <li>Overwrites all existing hourly generation data</li>
             </ul>
             <p><strong>Use this when:</strong> Configuration changes, parameter updates, troubleshooting data issues</p>
-            
-            <a href="{% url 'powermapui:generate_power' %}?confirm=true&refresh_supply_factors=true" 
-               class="btn btn-warning"
-               onclick="return confirm('⚠️ This will delete and recreate ALL supply factors data for ALL facilities. This may take a long time. Are you sure?')">
-                Force Refresh All
-            </a>
+
+            <form method="get" action="{% url 'powermapui:generate_power' %}"
+                  onsubmit="return confirm('⚠️ This will delete and recreate ALL supply factors data for ALL facilities. This may take a long time. Are you sure?')">
+                <input type="hidden" name="confirm" value="true">
+                <input type="hidden" name="refresh_supply_factors" value="true">
+
+                <div class="facility-selector">
+                    <label for="refresh_biomass_min_coverage">Biomass SCADA coverage threshold:</label>
+                    <input type="number" name="biomass_min_coverage" id="refresh_biomass_min_coverage"
+                           value="{{ biomass_min_coverage_default }}" min="0.01" max="1" step="0.01"
+                           style="width: 100%; padding: 10px; font-size: 1em; border-radius: 5px; border: 1px solid #ddd;">
+                </div>
+
+                <button type="submit" class="btn btn-warning">
+                    Force Refresh All
+                </button>
+            </form>
         </div>
 
         <div style="margin-top: 30px; text-align: center;">

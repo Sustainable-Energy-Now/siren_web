@@ -17,7 +17,7 @@ from types import SimpleNamespace
 
 import numpy as np
 from django.conf import settings
-from django.test import SimpleTestCase, TestCase, override_settings
+from django.test import SimpleTestCase, TestCase
 
 from powermapui.utils import representative_turbine as rt
 from powermapui.utils import turbine_library as lib
@@ -643,8 +643,8 @@ class WeatherFileParsingTests(SimpleTestCase):
             self.processor.load_weather_data(path)
 
 
-class WeatherYearChoicesTests(SimpleTestCase):
-    """The weather-year dropdown lists only years that have wind data."""
+class WeatherFileFinderAvailableYearsTests(SimpleTestCase):
+    """WeatherFileFinder.available_years lists only years that have usable data."""
 
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
@@ -657,33 +657,6 @@ class WeatherYearChoicesTests(SimpleTestCase):
             folder.mkdir(parents=True, exist_ok=True)
             for name in names:
                 (folder / name).write_text('x')
-
-    def choices(self):
-        from siren_web.forms import get_weather_year_choices
-        with override_settings(WEATHER_DATA_DIR=self.root):
-            return get_weather_year_choices()
-
-    def test_lists_only_years_with_usable_wind_files_newest_first(self):
-        self.build({
-            'wind_weather/2025': ['wind_-30.0000_115.0000_2025.csv'],
-            'wind_weather/2024': ['wind_weather_-30.0000_115.0000_2024.srz'],
-            'wind_weather/2023': [],                                          # empty folder
-            'wind_weather/2022': ['notes.txt', 'wind_index.xls'],             # nothing usable
-            'wind_weather/2021': ['wind_weather_-30.0000_115.0000_2020.srw'], # file is for another year
-            'wind_weather/misc': ['wind_-30.0000_115.0000_2025.csv'],         # not a year folder
-        })
-        self.assertEqual(self.choices(), [('2025', '2025'), ('2024', '2024')])
-
-    def test_a_year_with_only_solar_data_is_not_listed(self):
-        self.build({
-            'wind_weather/2025': ['wind_-30.0000_115.0000_2025.csv'],
-            'solar_weather/2025': ['solar_-30.0000_115.0000_2025.csv'],
-            'solar_weather/2022': ['solar_weather_-30.0000_115.0000_2022.smz'],
-        })
-        self.assertEqual(self.choices(), [('2025', '2025')])
-
-    def test_no_wind_folder_means_no_choices(self):
-        self.assertEqual(self.choices(), [])
 
     def test_agrees_with_what_the_finder_can_load(self):
         self.build({

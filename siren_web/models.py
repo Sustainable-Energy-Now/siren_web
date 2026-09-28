@@ -96,10 +96,11 @@ class Scenarios(models.Model):
             "manually curated scenarios (e.g. 'Current') this is typically "
             "left as whatever real year was set when the field was still "
             "called weather_year; for auto-generated Facilities Take-up "
-            "scenarios this is the future build-out year (e.g. 2035). No "
-            "longer used to pick SupplyFactorMatrix data -- dispatch's "
-            "weather-trace year always comes from the session (see "
-            "siren_web.database_operations.resolve_baseline_year)."
+            "scenarios this is the future build-out year (e.g. 2035). Not "
+            "used to pick SupplyFactorMatrix data -- dispatch's supply-trace "
+            "year always comes from the selected Demand forecast's "
+            "reference_year (see siren_web.database_operations.resolve_baseline_year "
+            "/ Demand.reference_year)."
         ),
     )
     scenario_type = models.ForeignKey(

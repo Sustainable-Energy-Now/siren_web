@@ -1075,15 +1075,13 @@ def calculate_facility_performance(request, facility_id):
         facility = facilities.objects.get(pk=facility_id)
         
         # Get parameters from request
-        weather_year = request.GET.get('weather_year', '2024')
         scenario = request.GET.get('scenario', request.session.get('scenario', ''))
-        
+
         performance_data = {
             'facility_id': facility.idfacilities,
             'facility_name': facility.facility_name,
             'technology': facility.idtechnologies.technology_name,
             'capacity_mw': float(facility.capacity) if facility.capacity else 0,
-            'weather_year': weather_year,
             'scenario': scenario
         }
         

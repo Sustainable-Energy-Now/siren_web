@@ -4,17 +4,18 @@ from django.shortcuts import render, redirect
 from django.conf import settings
 from common.decorators import settings_required
 import logging
+import numpy as np
 
 from siren_web.database_operations import (
     fetch_full_facilities_data,
     fetch_module_settings_data,
     fetch_scenario_settings_data,
-    resolve_baseline_year,
     resolve_demand_override,
     get_demand_scenario_context,
 )
 from siren_web.models import facilities, Scenarios, Technologies
 from siren_web.services.supply_matrix import set_facility_trace, clear_facility_trace, facility_has_trace
+from siren_web.services.biomass_trace_from_scada import MIN_COVERAGE_DEFAULT as BIOMASS_MIN_COVERAGE_DEFAULT
 
 # Import the SAM processor
 from powermapui.views.sam_resource_processor import SAMResourceProcessor, SAMError, WeatherFileError, SimulationResults
@@ -26,47 +27,42 @@ from powermapui.utils.turbine_library import TurbineLibraryError
 logger = logging.getLogger(__name__)
 
 @login_required
-@settings_required(redirect_view='powermapui:powermapui_home', require_demand_year=False, require_weather_year=False)
+@settings_required(redirect_view='powermapui:powermapui_home', require_demand_year=False)
 def generate_power(request):
     """
     Generate power for all facilities using SAM for renewables
     """
     scenario = request.session.get('scenario', '')
     config_file = request.session.get('config_file')
-    # The year TechnologyYears data is read for (via fetch_full_facilities_data)
-    # is whichever Demand forecast is selected on this page (see
-    # get_demand_scenario_context / resolve_demand_override), or, absent a
-    # selection, the scenario's own weather_year (see resolve_baseline_year).
+    # Both the year TechnologyYears data is read for (via
+    # fetch_full_facilities_data) and the weather year SAM simulates against
+    # come from whichever Demand forecast is selected on this page (see
+    # get_demand_scenario_context / resolve_demand_override) -- there is no
+    # other source any more.
     demand_override = resolve_demand_override(request.session.get('demand_scenario_demand_id'))
-    demand_year = demand_override.year if demand_override else resolve_baseline_year(
-        scenario, request.session.get('weather_year')
-    )
-    if demand_year is None:
+    if demand_override is None:
         messages.error(
             request,
-            "Could not determine a year to run against — select a Demand Forecast, or set the "
-            "scenario's Weather Year."
+            "Select a Demand Forecast before running -- it supplies both the year to run "
+            "against and the weather year SAM simulates against."
         )
         return redirect('powermapui:powermapui_home')
+    demand_year = demand_override.year
 
     # The weather year SAM simulates against: the reference_year of the
     # selected Demand forecast (the real FacilityScada year its own trace's
     # shape was synthesised from -- see Demand.reference_year /
     # esoo_scenario_views.build_scenario_from_esoo), so generation and
-    # demand are chronologically consistent. Falls back to session
-    # weather_year when no forecast is selected, or a legacy forecast built
-    # before reference_year existed has none recorded.
-    if demand_override is not None and demand_override.reference_year:
-        weather_year = str(demand_override.reference_year)
-    else:
-        weather_year = request.session.get('weather_year', '')
-    if not weather_year:
+    # demand are chronologically consistent. A legacy forecast built before
+    # reference_year existed has none recorded.
+    if not demand_override.reference_year:
         messages.error(
             request,
-            "Could not determine a weather year — select a Demand Forecast (its reference year "
-            "will be used), or set a Weather Year first."
+            f"The selected Demand forecast '{demand_override.demand_name}' has no reference "
+            "year recorded, so a weather year for SAM can't be determined."
         )
         return redirect('powermapui:powermapui_home')
+    weather_year = str(demand_override.reference_year)
 
     # Check if this is just displaying the confirmation page
     if request.method == 'GET' and not request.GET.get('confirm'):
@@ -95,6 +91,7 @@ def generate_power(request):
             'scenario': scenario,
             'config_file': config_file,
             'renewable_facilities': renewable_facilities,
+            'biomass_min_coverage_default': BIOMASS_MIN_COVERAGE_DEFAULT,
             **get_demand_scenario_context(request),
         }
         return render(request, 'generate_power.html', context)
@@ -116,7 +113,20 @@ def generate_power(request):
     # For single facility mode, always refresh
     if single_facility_mode:
         refresh_supply_factors = True
-    
+
+    # Biomass has no SAM weather-file input -- its trace is built from real
+    # FacilityScadaMatrix history instead (see process_biomass_facility),
+    # gated on this minimum fraction of non-missing half-hourly intervals
+    # per year. Same default and validation range as the
+    # build_biomass_supply_traces/split_biomass_dispatch management commands.
+    raw_min_coverage = request.POST.get('biomass_min_coverage') or request.GET.get('biomass_min_coverage')
+    try:
+        biomass_min_coverage = float(raw_min_coverage) if raw_min_coverage else BIOMASS_MIN_COVERAGE_DEFAULT
+        if not (0 < biomass_min_coverage <= 1):
+            raise ValueError
+    except (TypeError, ValueError):
+        biomass_min_coverage = BIOMASS_MIN_COVERAGE_DEFAULT
+
     success_message = ""
     
     try:
@@ -139,14 +149,15 @@ def generate_power(request):
             facilities_list = fetch_full_facilities_data(demand_year, scenario)
 
         # Process facilities - pass single facility parameters and date range
-        sam_processed_count, skipped_count = process_facilities(
+        sam_processed_count, skipped_count, skip_reason = process_facilities(
             facilities_list,
             weather_year,
             scenario,
             refresh_supply_factors,
             single_facility_code=facility_code if single_facility_mode else None,
             start_date=start_date,
-            end_date=end_date
+            end_date=end_date,
+            biomass_min_coverage=biomass_min_coverage,
         )
         
         # Update success message to show processing details
@@ -181,8 +192,16 @@ def generate_power(request):
                         success_message += f" From: {start_date}."
                     elif end_date:
                         success_message += f" Until: {end_date}."
+            elif skip_reason:
+                # facility_obj was found (facilities.DoesNotExist would have
+                # raised above) -- it just couldn't be processed, e.g.
+                # insufficient SCADA coverage for a Biomass facility/year.
+                success_message = f"'{facility_code}' was not processed: {skip_reason}"
             else:
-                success_message = f"No renewable facility found with code '{facility_code}'."
+                success_message = (
+                    f"'{facility_code}' was not processed -- it isn't a renewable, "
+                    "non-dispatchable technology (nothing for Run Power to build a trace for)."
+                )
         else:
             refresh_status = " (with refresh)" if refresh_supply_factors else " (new facilities only)"
             success_message = (
@@ -193,7 +212,7 @@ def generate_power(request):
             if skipped_count > 0:
                 success_message += f", skipped {skipped_count} facilities with existing data"
 
-            success_message += "."
+            success_message += f". Biomass coverage threshold: {biomass_min_coverage:.0%}."
 
         # Render the same page with success message instead of redirecting
         # Get list of renewable facilities for the dropdown (if needed again)
@@ -221,6 +240,7 @@ def generate_power(request):
             'config_file': config_file,
             'renewable_facilities': renewable_facilities,
             'success_message': success_message,
+            'biomass_min_coverage_default': biomass_min_coverage,
             **get_demand_scenario_context(request),
         }
         return render(request, 'generate_power.html', context)
@@ -257,11 +277,12 @@ def generate_power(request):
             'config_file': config_file,
             'renewable_facilities': renewable_facilities,
             'error_message': error_message,
+            'biomass_min_coverage_default': biomass_min_coverage,
             **get_demand_scenario_context(request),
         }
         return render(request, 'generate_power.html', context)
 
-def process_facilities(facilities_list, weather_year, scenario, refresh_supply_factors=False, single_facility_code=None, start_date=None, end_date=None):
+def process_facilities(facilities_list, weather_year, scenario, refresh_supply_factors=False, single_facility_code=None, start_date=None, end_date=None, biomass_min_coverage=BIOMASS_MIN_COVERAGE_DEFAULT):
     """
     Process renewable facilities using SAM
 
@@ -271,16 +292,23 @@ def process_facilities(facilities_list, weather_year, scenario, refresh_supply_f
         single_facility_code: If provided, only process this specific facility (always refreshes)
         start_date: Optional start date (YYYY-MM-DD) to filter generation data
         end_date: Optional end date (YYYY-MM-DD) to filter generation data
+        biomass_min_coverage: Minimum fraction (0-1) of non-missing half-hourly
+                              SCADA intervals required to build a Biomass trace
+                              for a facility/year -- see process_biomass_facility.
 
     Returns:
-        tuple: (sam_processed_count, skipped_count)
+        tuple: (sam_processed_count, skipped_count, skip_reason). skip_reason
+        is only ever populated when single_facility_code was given and that
+        one facility produced no results (see process_biomass_facility) --
+        None in every other case, including the batch/all-facilities mode.
     """
-    
+
     # Initialize SAM processor
     weather_dir = getattr(settings, 'WEATHER_DATA_DIR', 'weather_data')
     sam_processor = SAMResourceProcessor(weather_data_dir=weather_dir)
     sam_processed_count, skipped_count = 0, 0
-    
+    skip_reason = None
+
     for facility_data in facilities_list:
         try:
             facility_obj = facilities.objects.get(
@@ -300,8 +328,9 @@ def process_facilities(facilities_list, weather_year, scenario, refresh_supply_f
                 continue
 
             # Process hybrid facilities: handle multiple renewable technologies
-            all_results = process_hybrid_facility(
-                sam_processor, facility_obj, weather_year, start_date, end_date
+            all_results, facility_skip_reason = process_hybrid_facility(
+                sam_processor, facility_obj, weather_year, start_date, end_date,
+                biomass_min_coverage=biomass_min_coverage,
             )
 
             if all_results:
@@ -313,6 +342,8 @@ def process_facilities(facilities_list, weather_year, scenario, refresh_supply_f
                 # Always update facility summary values (capacity factor, generation)
                 facility_obj.capacityfactor = all_results.capacity_factor
                 facility_obj.save()
+            elif single_facility_code and facility_obj.facility_code == single_facility_code:
+                skip_reason = facility_skip_reason
 
             # If in single facility mode, stop after processing the target facility
             if single_facility_code and facility_obj.facility_code == single_facility_code:
@@ -324,10 +355,10 @@ def process_facilities(facilities_list, weather_year, scenario, refresh_supply_f
         except Exception as e:
             logger.error(f"Unexpected error processing facility {facility_data.get('facility_code')}: {e}")
             continue
-    
-    return sam_processed_count, skipped_count
 
-def process_hybrid_facility(sam_processor, facility_obj, weather_year, start_date=None, end_date=None):
+    return sam_processed_count, skipped_count, skip_reason
+
+def process_hybrid_facility(sam_processor, facility_obj, weather_year, start_date=None, end_date=None, biomass_min_coverage=BIOMASS_MIN_COVERAGE_DEFAULT):
     """
     Process a facility that may have multiple renewable technologies (hybrid).
     Handles wind, solar, and combinations of both.
@@ -338,9 +369,13 @@ def process_hybrid_facility(sam_processor, facility_obj, weather_year, start_dat
         weather_year: Year string for weather data
         start_date: Optional start date to filter results
         end_date: Optional end date to filter results
+        biomass_min_coverage: see process_facilities
 
     Returns:
-        SimulationResults: Combined results for all technologies at this facility
+        (SimulationResults, None) -- combined results for all technologies
+        at this facility -- or (None, reason) if nothing could be built;
+        reason is only ever populated by the Biomass path today (see
+        process_biomass_facility), None for every other skip/failure.
     """
     from siren_web.models import FacilitySolar, FacilityWindTurbines
 
@@ -348,6 +383,7 @@ def process_hybrid_facility(sam_processor, facility_obj, weather_year, start_dat
     total_annual_energy = 0
     total_capacity = 0
     technologies_processed = []
+    skip_reason = None
     assumed_turbines = []
 
     # Process wind installations
@@ -430,7 +466,15 @@ def process_hybrid_facility(sam_processor, facility_obj, weather_year, start_dat
 
         if technology.renewable and not technology.dispatchable:
             fuel_type = (technology.fuel_type or '').lower()
-            results = process_renewable_facility(sam_processor, facility_obj, fuel_type, weather_year)
+            # Biomass has no SAM weather-file input (see
+            # SAMResourceProcessor.get_weather_file_path) -- build its trace
+            # from real FacilityScadaMatrix history instead.
+            if fuel_type == 'biomass':
+                results, skip_reason = process_biomass_facility(
+                    facility_obj, weather_year, min_coverage=biomass_min_coverage
+                )
+            else:
+                results = process_renewable_facility(sam_processor, facility_obj, fuel_type, weather_year)
             if results:
                 combined_hourly_generation = list(results.hourly_generation)
                 total_annual_energy = results.annual_energy
@@ -440,13 +484,19 @@ def process_hybrid_facility(sam_processor, facility_obj, weather_year, start_dat
     if not technologies_processed:
         # Non-renewable and dispatchable technologies aren't simulated by SAM --
         # Powermatch uses their nameplate capacity (x capacity factor) instead --
-        # so having nothing to process is expected, not a warning.
+        # so having nothing to process is expected, not a warning. Biomass
+        # logs its own specific coverage warning in process_biomass_facility,
+        # so it's excluded here too rather than adding a second, generic one.
         technology = facility_obj.idtechnologies
-        if technology and (not technology.renewable or technology.dispatchable):
-            pass  # No SAM processing needed for non-renewable or dispatchable technologies
+        if technology and (
+            not technology.renewable
+            or technology.dispatchable
+            or (technology.fuel_type or '').lower() == 'biomass'
+        ):
+            pass  # No SAM processing needed/possible for this technology
         else:
             logger.warning(f"No renewable technologies found for {facility_obj.facility_name}")
-        return None
+        return None, skip_reason
 
     # Apply date filtering if requested
     if start_date or end_date:
@@ -456,10 +506,14 @@ def process_hybrid_facility(sam_processor, facility_obj, weather_year, start_dat
 
     # Calculate combined capacity factor
     if total_capacity > 0:
-        # Capacity factor = actual energy / (capacity * hours)
+        # Capacity factor = actual energy / (capacity * hours). NaN-aware --
+        # a Biomass trace can carry NaN for genuinely missing intervals (see
+        # process_biomass_facility); plain sum() would turn one NaN into a
+        # NaN capacity_factor for the whole facility.
         hours_in_data = len(combined_hourly_generation)
         max_possible_energy = total_capacity * 1000 * hours_in_data  # Convert MW to kW
-        capacity_factor = (sum(combined_hourly_generation) / max_possible_energy * 100) if max_possible_energy > 0 else 0
+        actual_energy = float(np.nansum(combined_hourly_generation))
+        capacity_factor = (actual_energy / max_possible_energy * 100) if max_possible_energy > 0 else 0
     else:
         capacity_factor = 0
 
@@ -473,7 +527,7 @@ def process_hybrid_facility(sam_processor, facility_obj, weather_year, start_dat
             'total_capacity_mw': total_capacity,
             'assumed_turbines': assumed_turbines,
         }
-    )
+    ), None
 
 def wind_technology_for(wind_install, facility_obj):
     """
@@ -660,6 +714,66 @@ def process_renewable_facility(sam_processor, facility_obj, fuel_type, weather_y
     except (NoRepresentativeTurbine, TurbineLibraryError) as e:
         logger.error(f"No usable wind turbine for {facility_obj.facility_name}: {e}")
         return None
+
+def process_biomass_facility(facility_obj, weather_year, min_coverage=BIOMASS_MIN_COVERAGE_DEFAULT):
+    """
+    Build a Biomass facility's trace from its own FacilityScadaMatrix history
+    instead of SAM -- biomass has no weather-file input for SAM to simulate
+    against (see SAMResourceProcessor.get_weather_file_path), so plugging it
+    into process_renewable_facility would only ever fail. Uses the same
+    coverage-gated logic (siren_web.services.biomass_trace_from_scada) as the
+    build_biomass_supply_traces/split_biomass_dispatch management commands,
+    so Run Power and the dedicated pipeline commands agree on what counts as
+    "enough real data" for a given facility/year, and produce the same trace
+    when min_coverage matches (it defaults to the same value, but can be
+    overridden here independently of those commands -- see generate_power's
+    biomass_min_coverage form field).
+
+    Returns:
+        (SimulationResults, None) on the same hourly-kW/Perth-local-year
+        convention SAM's own results use (so store_simulation_results and
+        the surrounding hybrid-facility combining logic need no
+        special-casing), or (None, reason) if this facility/year doesn't
+        clear min_coverage -- reason is a user-safe message explaining why,
+        for surfacing in the UI rather than only the log.
+    """
+    from siren_web.services.biomass_trace_from_scada import build_hourly_kw_trace, coverage_for_year
+
+    year = int(weather_year)
+    coverage = coverage_for_year(facility_obj.idfacilities, year)
+    if coverage < min_coverage:
+        reason = (
+            f"Insufficient SCADA coverage for {year} ({coverage:.1%} < "
+            f"{min_coverage:.1%} required) -- can't build a real Biomass trace."
+        )
+        logger.warning(f"{facility_obj.facility_name}: {reason}")
+        return None, reason
+
+    trace, dropped_leap_day = build_hourly_kw_trace(facility_obj.idfacilities, year)
+    if dropped_leap_day:
+        logger.info(f"{facility_obj.facility_name} {year}: dropped 29 Feb to keep the trace at 8760 hours.")
+
+    # Keep NaN for genuinely missing intervals rather than 0-filling --
+    # matches exactly what build_biomass_supply_traces stores, and NaN is
+    # what set_facility_trace/the dispatch engine's np.nansum already expect
+    # for "no data" (as opposed to a confirmed zero). process_hybrid_facility's
+    # own capacity-factor recompute uses a NaN-aware sum for this reason.
+    valid = ~np.isnan(trace)
+    hourly_generation = trace.tolist()
+    annual_energy = float(np.nansum(trace))  # each hourly kW value is also that hour's kWh
+    nameplate_kw = (facility_obj.capacity or 0) * 1000
+    valid_hours = int(valid.sum())
+    capacity_factor = (
+        annual_energy / (nameplate_kw * valid_hours) * 100
+        if nameplate_kw and valid_hours else 0
+    )
+
+    return SimulationResults(
+        annual_energy=annual_energy,
+        hourly_generation=hourly_generation,
+        capacity_factor=capacity_factor,
+        additional_metrics={'technologies': ['Biomass (from SCADA)'], 'coverage': coverage},
+    ), None
 
 def store_simulation_results(results, facility_obj, weather_year, start_date=None, end_date=None):
     """

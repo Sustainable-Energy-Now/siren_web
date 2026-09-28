@@ -284,38 +284,52 @@ def resolve_demand_override(demand_id):
     return None
 
 
-def resolve_baseline_year(scenario, weather_year=None):
+def resolve_baseline_year(scenario, reference_year=None):
     """
     The year that drives the base scenario's OWN supply-side
     SupplyFactorMatrix retrieval (fetch_supplyfactors_data's initial
     load_year_matrix(demand_year) call, which finds this scenario's own
-    wind/solar/storage facility rows). Technology costs are taken from
-    resolve_cost_year instead, which prefers the Demand's forecast year.
+    wind/solar/biomass/storage facility rows). Technology costs are taken
+    from resolve_cost_year instead, which prefers the Demand's forecast year.
 
-    Takes the session-selected weather_year (request.session['weather_year'],
-    set via DemandScenarioSettings/WeatherScenarioSettings) as an explicit
-    argument, rather than reading Scenarios.weather_year as before:
-    Scenarios.forecast_year now means the scenario's build-out/target year
-    (e.g. 2035 for an auto-generated Facilities Take-up scenario, which has
-    no SupplyFactorMatrix data for 2035), not a real weather-trace year, so
-    it can no longer supply this value. Callers pass
-    request.session.get('weather_year').
+    `reference_year` is an explicit parameter, not read from Scenarios:
+    there is no per-scenario weather-year concept any more -- Scenarios.
+    forecast_year means the scenario's build-out/target year (e.g. 2035 for
+    an auto-generated Facilities Take-up scenario, which has no
+    SupplyFactorMatrix data for 2035), not a real weather-trace year.
 
-    Deliberately unrelated to any active demand_override: a demand override
-    gets its own independent load_year_matrix(demand_override.year) lookup
-    inside fetch_supplyfactors_data, scoped to just the Load column. Using
-    the override's year here instead of the session weather_year would make
-    fetch_supplyfactors_data load the WRONG year's matrix for every other
-    technology.
+    Callers must pass the selected Demand forecast's reference_year (see
+    resolve_demand_override / Demand.reference_year -- the real
+    FacilityScada year whose chronological shape the Demand's trace was
+    synthesised from, e.g. 2024 or 2025), so supply and demand line up
+    chronologically -- this mirrors the pattern already used by
+    powermapui.views.power_views's Run Power view. There is no session
+    fallback: session-based weather-year selection isn't a concept in this
+    app any more, so silently trying one would just mask a missing
+    reference_year with a confusing "can't run" further downstream. Raises
+    ValueError instead, with a message safe to show the user directly.
 
-    Returns None if it can't be determined (scenario not found, or
-    weather_year not set) — callers must treat that as "can't run", not
-    silently pick a default.
+    Deliberately unrelated to any active demand_override's own `year`: a
+    demand override gets its own independent load_year_matrix(demand_override.year)
+    lookup inside fetch_supplyfactors_data, scoped to just the Load column.
+    Using the override's `year` here instead would make fetch_supplyfactors_data
+    load the WRONG SupplyFactorMatrix year for every other technology --
+    reference_year (not year) is the correct field to pass in.
+
+    Returns None only if the scenario itself doesn't exist. Raises
+    ValueError if reference_year is falsy (e.g. the selected Demand forecast
+    has no reference_year recorded) -- callers should catch this and show
+    it as a normal validation error, not let it surface as a 500.
     """
     scenario_obj = Scenarios.objects.filter(title=scenario).first()
     if scenario_obj is None:
         return None
-    return int(weather_year) if weather_year else None
+    if not reference_year:
+        raise ValueError(
+            "Could not determine a year to run against — the selected Demand forecast has no "
+            "reference year recorded."
+        )
+    return int(reference_year)
 
 
 def resolve_cost_year(demand_year, demand_override=None):

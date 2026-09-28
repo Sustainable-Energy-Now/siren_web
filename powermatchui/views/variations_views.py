@@ -28,18 +28,25 @@ def setup_variation(request):
         context = {'success_message': success_message}
         return render(request, 'variations.html', context)
 
-    # Derived rather than user-selected -- see resolve_baseline_year.
-    demand_year = resolve_baseline_year(scenario, request.session.get('weather_year'))
-    if demand_year is None:
-        success_message = "Could not determine a year to run against — set a Weather Year."
-        context = {'success_message': success_message}
-        return render(request, 'variations.html', context)
-
     # Variations are dispatched against the same Demand forecast as the
     # baseline, selected on the Baseline Scenario page.
     demand_override = resolve_demand_override(request.session.get('demand_scenario_demand_id'))
     if demand_override is None:
         success_message = "Select a Demand forecast on the Baseline Scenario page first."
+        context = {'success_message': success_message}
+        return render(request, 'variations.html', context)
+
+    # Derived rather than user-selected -- see resolve_baseline_year. Uses
+    # the selected Demand forecast's reference_year (the real FacilityScada
+    # year its trace's shape was synthesised from) so supply and demand line
+    # up chronologically.
+    try:
+        demand_year = resolve_baseline_year(scenario, demand_override.reference_year)
+    except ValueError as exc:
+        context = {'success_message': str(exc)}
+        return render(request, 'variations.html', context)
+    if demand_year is None:
+        success_message = f"Scenario '{scenario}' no longer exists."
         context = {'success_message': success_message}
         return render(request, 'variations.html', context)
 

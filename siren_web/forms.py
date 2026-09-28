@@ -1,6 +1,5 @@
 # forms.py
 from django import forms
-from django.conf import settings
 from django.core.exceptions import ObjectDoesNotExist
 from django.forms.widgets import DateTimeInput
 from siren_web.models import Demand, Scenarios, TechnologyYears
@@ -9,15 +8,6 @@ from crispy_forms.layout import Layout, Div, Field, Submit
 from crispy_forms.bootstrap import FormActions
 from .models import Reference, ReferenceAttribute
 
-
-def get_weather_year_choices():
-    """
-    Weather years that have wind data, newest first: the wind_weather/<year>/ folders that hold
-    at least one file SAM can read (the same rules the weather-file finder applies).
-    """
-    # Imported here: the processor pulls in PySAM, which forms.py shouldn't load at import time.
-    from powermapui.views.sam_resource_processor import WeatherFileFinder
-    return [(year, year) for year in WeatherFileFinder.available_years(settings.WEATHER_DATA_DIR, 'wind')]
 
 class ScenarioForm(forms.ModelForm):
     class Meta:
@@ -35,12 +25,6 @@ class ScenarioForm(forms.ModelForm):
         }
 
 class DemandScenarioSettings(forms.Form):
-    weather_year = forms.ChoiceField(
-        label='Select a Weather Year',
-        initial='2024',
-        required=True,
-        widget=forms.Select(attrs={'class': 'form_input'})
-    )
     demand_year = forms.ChoiceField(
         label='Select a Demand Year',
         initial='2024',
@@ -61,16 +45,15 @@ class DemandScenarioSettings(forms.Form):
         super().__init__(*args, **kwargs)
 
         year_choices = [(year, year) for year in TechnologyYears.objects.values_list('year', flat=True).distinct()]
-        self.fields['weather_year'].choices = get_weather_year_choices()
         self.fields['demand_year'].choices = year_choices
 
 
 class WeatherScenarioSettings(DemandScenarioSettings):
     """
-    Same as DemandScenarioSettings (weather year + scenario) but without
-    the Demand Year field -- used wherever the app derives its own year at
-    run time (see siren_web.database_operations.resolve_baseline_year)
-    rather than having the user pick one up front. Used by
+    Same as DemandScenarioSettings (scenario) but without the Demand Year
+    field -- used wherever the app derives its own year at run time (see
+    siren_web.database_operations.resolve_baseline_year) rather than having
+    the user pick one up front. Used by
     PowermatchUIHomeView, PowerplotUIHomeView and PowermapUIHomeView, plus
     the individual powermapui dashboard views (cel_map,
     infrastructure_network, pipeline_gantt/waterfall) that embed their own

@@ -106,6 +106,7 @@ GROUP_LABELS = {
     'ev_actuals': 'EV actuals (WA DoT)',
     'gencost': 'CSIRO GenCost pipeline',
     'facility': 'Facility attribute analysis',
+    'biomass': 'Biomass dispatch (SCADA traces)',
 }
 
 
@@ -279,6 +280,36 @@ PIPELINE_COMMANDS: dict[str, PipelineCommand] = {c.key: c for c in [
              "capacity_max/min (FacilityGenerators), round-trip efficiency (Storageattributes, "
              "only when the technology isn't shared by another active installation), and "
              "capacity factor (facilities.capacityfactor).",
+    ),
+    PipelineCommand(
+        key='build_biomass_supply_traces',
+        label='Build Biomass supply traces from SCADA',
+        group='biomass',
+        management_command='build_biomass_supply_traces',
+        params=(
+            Param('min_coverage', 'float', '--min-coverage', label='Min interval coverage (0-1)', default=0.9),
+            Param('dry_run', 'flag', '--dry-run', label='Dry run (no writes)', default=False),
+        ),
+        runtime_hint='seconds',
+        note="Builds a real 2024/2025 hourly generation trace per Biomass facility from "
+             "FacilityScadaMatrix SCADA and writes it into SupplyFactorMatrix (kW). A facility "
+             "gets a trace only for the year(s) that individually clear --min-coverage; "
+             "facilities with zero qualifying years are picked up by 'Split Biomass dispatch' instead.",
+    ),
+    PipelineCommand(
+        key='split_biomass_dispatch',
+        label='Split Biomass dispatch (dispatchable twin)',
+        group='biomass',
+        management_command='split_biomass_dispatch',
+        params=(
+            Param('min_coverage', 'float', '--min-coverage', label='Min interval coverage (0-1)', default=0.9),
+            Param('dry_run', 'flag', '--dry-run', label='Dry run (no writes)', default=True),
+        ),
+        cron_safe=False,
+        runtime_hint='seconds',
+        note="Sets Biomass.dispatchable=0 and moves any facility with zero qualifying SCADA-trace "
+             "years onto a new 'Biomass (dispatchable)' technology so it keeps nameplate-optimized "
+             "dispatch. Run 'Build Biomass supply traces' first with the same --min-coverage.",
     ),
 ]}
 
