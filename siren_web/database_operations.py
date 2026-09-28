@@ -771,6 +771,102 @@ def fetch_merit_order_technologies(idscenarios):
 
     return merit_order_data, excluded_resources_data
 
+FOSSIL_FUEL_TYPES = {'COAL', 'GAS', 'DISTILLATE'}
+
+def resolve_scenario_carbon_price(scenario):
+    """
+    The single carbon price ($/tCO2e) this scenario dispatches with -- the
+    per-scenario ScenariosSettings override (set on the Merit Order page) if
+    one exists, otherwise the global 'Powermatch' Settings value. Falls back
+    per-field rather than per-dict, so a scenario with some other setting
+    saved (e.g. discount_rate) but no carbon_price override of its own still
+    picks up the global carbon price instead of silently defaulting to 0.
+    This is the one place carbon price is resolved -- Auto Sort and an
+    actual PowerMatch run (exec_powermatch.py) both call this so they always
+    agree. Returns 0.0 if nothing is set anywhere.
+    """
+    scenario_settings = fetch_scenario_settings_data(scenario) or {}
+    value = scenario_settings.get('carbon_price')
+    if value in (None, ''):
+        module_settings = fetch_module_settings_data('Powermatch') or {}
+        value = module_settings.get('carbon_price', 0.0)
+    try:
+        return float(value or 0.0)
+    except (TypeError, ValueError):
+        return 0.0
+
+def _latest_running_cost(technology_obj):
+    """VOM + fuel cost from the newest TechnologyYears row (at or before the
+    resolved cost year) that has each field, matching the per-field
+    newest-non-null lookup used in fetch_technology_attributes. Returns None
+    if neither field is available.
+    """
+    years = technology_obj.tech_years  # prefetched, already ordered newest-first
+    vom = next((ty.vom for ty in years if ty.vom is not None), None)
+    fuel = next((ty.fuel for ty in years if ty.fuel is not None), None)
+    if vom is None and fuel is None:
+        return None
+    return (vom or 0) + (fuel or 0)
+
+def _fossil_sort_key(technology_obj, carbon_price):
+    """Running cost plus the carbon cost of this technology's emissions
+    (emissions x carbon_price), so a higher-emitting fossil generator is
+    penalised the same way it would be in the actual dispatch economics
+    (see balance_grid_load.py's emissions_cost calculation). Sorts last
+    (inf) only when there's no cost or emissions data at all.
+    """
+    running_cost = _latest_running_cost(technology_obj)
+    carbon_cost = (technology_obj.emissions or 0) * carbon_price
+    if running_cost is None:
+        return carbon_cost if carbon_cost else float('inf')
+    return running_cost + carbon_cost
+
+def compute_auto_sorted_merit_order(idscenarios, cost_year=None, carbon_price=0.0):
+    """
+    Returns the technology ids (as strings) currently in the Merit Order
+    column (merit_order < 100), reordered: non-fossil technologies first
+    (ascending emissions), then fossil-fuel technologies (ascending
+    VOM + fuel + carbon_price*emissions running cost). Excluded Resources
+    are left untouched.
+
+    cost_year: the year to cost technologies at (typically the selected
+    Demand forecast's year -- see resolve_cost_year); TechnologyYears rows
+    after this year are ignored, same as fetch_technology_attributes. None
+    means use whatever the newest available row is for each field.
+    """
+    tech_years_queryset = TechnologyYears.objects.order_by('-year')
+    if cost_year is not None:
+        tech_years_queryset = tech_years_queryset.filter(year__lte=cost_year)
+
+    scenario_techs = ScenariosTechnologies.objects.filter(
+        idscenarios=idscenarios,
+        merit_order__isnull=False,
+        merit_order__lt=100,
+        idtechnologies__category__in=['Generator', 'Storage'],
+    ).select_related('idtechnologies').prefetch_related(
+        Prefetch(
+            'idtechnologies__technologyyears_set',
+            queryset=tech_years_queryset,
+            to_attr='tech_years'
+        )
+    )
+
+    non_fossil = []
+    fossil = []
+    for scenario_tech in scenario_techs:
+        technology_obj = scenario_tech.idtechnologies
+        if technology_obj.fuel_type in FOSSIL_FUEL_TYPES:
+            cost = _fossil_sort_key(technology_obj, carbon_price)
+            fossil.append((technology_obj.idtechnologies, cost))
+        else:
+            emissions = technology_obj.emissions if technology_obj.emissions is not None else 0
+            non_fossil.append((technology_obj.idtechnologies, emissions))
+
+    non_fossil.sort(key=lambda pair: pair[1])
+    fossil.sort(key=lambda pair: pair[1])
+
+    return [str(tech_id) for tech_id, _ in non_fossil] + [str(tech_id) for tech_id, _ in fossil]
+
 def fetch_included_technologies_data(scenario):
     """
     Fetch technologies included in a scenario with their capacities from ScenariosTechnologies
@@ -912,7 +1008,7 @@ def fetch_scenario_settings_data(scenario):
         settings = {}
         settings_query = ScenariosSettings.objects.filter(
             sw_context='Powermatch',
-            scenarios=scenario_obj,
+            idscenarios=scenario_obj,
         )
         for setting in settings_query:
             sw_context = setting.sw_context

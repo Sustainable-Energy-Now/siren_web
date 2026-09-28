@@ -2,9 +2,38 @@
 
 {% block powermatchui_content %}
 
-<form id="merit-order-form">
-    {% csrf_token %}
-    <div class="container">
+<div class="container">
+    <form method="get" action="{% url 'powermatchui:merit_order' %}" id="demand-select-form">
+        <div class="card mb-3">
+            <div class="card-header custom-sen">Demand Forecast</div>
+            <div class="card-body custom-sen">
+                <p class="text-muted">
+                    Select a Demand Forecast Scenario to set the technology cost year.
+                    Carbon Price and the Merit Order technologies for
+                    <strong>{{ scenario }}</strong> are shown once one is selected.
+                </p>
+                {{ demand_scenario_form.demand_scenario_demand.label_tag }}
+                {{ demand_scenario_form.demand_scenario_demand }}
+                <noscript><button type="submit" class="btn btn-secondary mt-2">Select</button></noscript>
+            </div>
+        </div>
+    </form>
+
+    {% if demand_selected %}
+    <form id="merit-order-form">
+        {% csrf_token %}
+        <div class="card mb-3">
+            <div class="card-header custom-sen">Carbon Price</div>
+            <div class="card-body custom-sen">
+                <p class="text-muted">
+                    Defaults to the global Powermatch setting until saved here. This is the
+                    only carbon price PowerMatch uses when a baseline is run for this scenario.
+                </p>
+                <label for="carbon-price-input" class="form-label">Carbon Price ($/tCO2e)</label>
+                <input type="number" step="0.01" min="0" class="form_input" id="carbon-price-input"
+                       value="{{ carbon_price }}">
+            </div>
+        </div>
         <div class="row">
             <div class="col-md-6">
                 <div class="card">
@@ -46,14 +75,23 @@
                 </div>
             </div>
         </div>
-    </div>
-    <button type="button" class="btn btn-primary mt-3" id="save-order-button">Save Merit Order</button>
-</form>
+        <button type="button" class="btn btn-primary mt-3" id="save-order-button">Save Merit Order</button>
+        <button type="button" class="btn btn-secondary mt-3 ms-2" id="auto-sort-button">Auto Sort</button>
+    </form>
+    {% endif %}
+</div>
 <!-- jQuery -->
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script src="https://code.jquery.com/ui/1.13.2/jquery-ui.min.js"></script>
 
 <script>
+    var demandSelectEl = document.getElementById('id_demand_scenario_demand');
+    if (demandSelectEl) {
+        demandSelectEl.addEventListener('change', function() {
+            this.form.submit();
+        });
+    }
+
     document.querySelectorAll('.list-group-item').forEach(item => {
         document.querySelectorAll('.list-group-item').forEach(item => {
             let emissions = item.getAttribute('data-emissions');
@@ -85,10 +123,12 @@
         }).disableSelection();
     });
 
-    document.getElementById('save-order-button').addEventListener('click', async function() {
+    var saveOrderButton = document.getElementById('save-order-button');
+    if (saveOrderButton) {
+    saveOrderButton.addEventListener('click', async function() {
         var meritOrderList = document.getElementById('merit-order-list');
         var excludedResourcesList = document.getElementById('excluded-resources-list');
-    
+
         var meritOrderIds = [];
         var excludedResourcesIds = [];
     
@@ -109,7 +149,8 @@
     
         // Get the CSRF token from a hidden input field in HTML
         var csrfToken = document.querySelector('input[name="csrfmiddlewaretoken"]').value;
-    
+        var carbonPrice = document.getElementById('carbon-price-input').value;
+
         try {
             // Send the data to your Django backend using fetch
             const response = await fetch('', {
@@ -120,7 +161,8 @@
                 },
                 body: JSON.stringify({
                     meritOrderIds: meritOrderIds,
-                    excludedResourcesIds: excludedResourcesIds
+                    excludedResourcesIds: excludedResourcesIds,
+                    carbonPrice: carbonPrice
                 })
             });
     
@@ -136,5 +178,55 @@
             alert('Error saving merit order. Please try again.');
         }
     });
+    }
+
+    var autoSortButton = document.getElementById('auto-sort-button');
+    if (autoSortButton) {
+    autoSortButton.addEventListener('click', async function() {
+        var csrfToken = document.querySelector('input[name="csrfmiddlewaretoken"]').value;
+        var demandSelect = document.getElementById('id_demand_scenario_demand');
+        var demandId = demandSelect ? demandSelect.value : '';
+        var carbonPrice = document.getElementById('carbon-price-input').value;
+
+        try {
+            const response = await fetch("{% url 'powermatchui:auto_sort_merit_order' %}", {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken
+                },
+                body: JSON.stringify({
+                    demandId: demandId,
+                    carbonPrice: carbonPrice
+                })
+            });
+
+            if (!response.ok) {
+                alert('Error auto-sorting merit order. Please try again.');
+                return;
+            }
+
+            const data = await response.json();
+            if (data.status !== 'success') {
+                alert(data.message || 'Error auto-sorting merit order.');
+                return;
+            }
+
+            var meritOrderList = document.getElementById('merit-order-list');
+            meritOrderList.querySelectorAll('.placeholder-item').forEach(function(item) {
+                item.remove();
+            });
+            data.orderedIds.forEach(function(id) {
+                var item = meritOrderList.querySelector('li[data-id="' + id + '"]');
+                if (item) {
+                    meritOrderList.appendChild(item);
+                }
+            });
+        } catch (error) {
+            console.error('An error occurred:', error);
+            alert('Error auto-sorting merit order. Please try again.');
+        }
+    });
+    }
 </script>
 {% endblock %}

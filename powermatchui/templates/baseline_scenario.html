@@ -48,11 +48,10 @@
   <div class="row form-row">
     <div class="col-md-6">
       <div class="form-group">
-        {{ baseline_form.carbon_price.label_tag }}
-        {{ baseline_form.carbon_price }}
-        {% for error in baseline_form.carbon_price.errors %}
-          <div class="alert alert-danger">{{ error }}</div>
-        {% endfor %}
+        <label class="form-label">Carbon Price ($/tCO2e)</label>
+        <p class="text-muted mb-0">
+          {{ carbon_price }} (set on the <a href="{% url 'powermatchui:merit_order' %}">Merit Order</a> page)
+        </p>
       </div>
     </div>
     <div class="col-md-6">

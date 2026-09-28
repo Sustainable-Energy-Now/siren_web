@@ -17,6 +17,7 @@ urlpatterns = [
     path('download-results/', baseline_scenario_views.download_results, name='download_results'),
     path('cancel-analysis/<str:session_id>/', baseline_scenario_views.cancel_analysis, name='cancel_analysis'),
     path('merit_order/save_merit_order/', merit_order_views.set_merit_order, name='save_merit_order'),
+    path('merit_order/auto_sort/', merit_order_views.auto_sort_merit_order, name='auto_sort_merit_order'),
     path('variation/', variations_views.setup_variation, name='setup_variation'),
     path('get_variation_data/', variations_views.get_variation_data, name='get_variation_data'), 
 

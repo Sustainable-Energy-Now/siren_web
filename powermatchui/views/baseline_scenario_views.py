@@ -16,6 +16,7 @@ from siren_web.database_operations import (
     fetch_technologies_with_multipliers, fetch_module_settings_data,
     fetch_scenario_settings_data, update_scenario_settings_data,
     resolve_demand_override, resolve_baseline_year, get_demand_scenario_context,
+    resolve_scenario_carbon_price,
 )
 from siren_web.models import Scenarios, ScenariosTechnologies
 from ..forms import BaselineScenarioForm, RunPowermatchForm
@@ -89,13 +90,10 @@ def baseline_scenario(request):
         baseline_form = BaselineScenarioForm(request.POST, technologies=technologies)
         if baseline_form.is_valid():
             cleaned_data = baseline_form.cleaned_data
-            carbon_price = cleaned_data.get('carbon_price')
             discount_rate = cleaned_data.get('discount_rate')
-            
-            # Update carbon price if changed
-            if (carbon_price != Decimal(scenario_settings['carbon_price'])):
-                update_scenario_settings_data(scenario, 'Powermatch', 'carbon price', carbon_price)
-                    
+
+            # Carbon price is set on the Merit Order page, not here -- see
+            # resolve_scenario_carbon_price.
             # Update discount rate
             if (discount_rate != Decimal(scenario_settings['discount_rate'])):
                 update_scenario_settings_data(scenario, 'Powermatch', 'discount rate', discount_rate)
@@ -142,7 +140,7 @@ def baseline_scenario(request):
                             break
                     for error in errors:
                         messages.error(request, f"Multiplier error for {tech_name}: {error}")
-                elif field_name in ['carbon_price', 'discount_rate']:
+                elif field_name == 'discount_rate':
                     for error in errors:
                         messages.error(request, f"{field_name.replace('_', ' ').title()}: {error}")
                 else:
@@ -156,7 +154,6 @@ def baseline_scenario(request):
             if not scenario_settings:
                 scenario_settings = fetch_module_settings_data('Powermatch')
 
-            carbon_price = scenario_settings.get('carbon_price', None)
             discount_rate = scenario_settings.get('discount_rate', None)
 
             context = {
@@ -169,17 +166,16 @@ def baseline_scenario(request):
                 'config_file': config_file,
                 'success_message': 'Correct errors and resubmit.',
                 'has_existing_analysis': fetch_analysis_scenario(scenario).exists(),
+                'carbon_price': resolve_scenario_carbon_price(scenario),
                 **get_demand_scenario_context(demand_id),
             }
             return render(request, 'baseline_scenario.html', context)
     # Prepare form data for display
     technologies = fetch_technologies_with_multipliers(scenario)
-    carbon_price = scenario_settings.get('carbon_price', None)
     discount_rate = scenario_settings.get('discount_rate', None)
-        
+
     baseline_form = BaselineScenarioForm(
-        technologies=technologies, 
-        carbon_price=carbon_price, 
+        technologies=technologies,
         discount_rate=discount_rate
     )
 
@@ -193,6 +189,7 @@ def baseline_scenario(request):
         'config_file': config_file,
         'success_message': success_message,
         'has_existing_analysis': fetch_analysis_scenario(scenario).exists(),
+        'carbon_price': resolve_scenario_carbon_price(scenario),
         **get_demand_scenario_context(demand_id),
     }
     return render(request, 'baseline_scenario.html', context)

@@ -3,7 +3,8 @@ from django.contrib.auth.decorators import login_required
 import numpy as np
 import re
 from siren_web.database_operations import get_scenario_by_title, delete_analysis_scenario, fetch_module_settings_data, \
-    fetch_scenario_settings_data, fetch_technology_attributes, fetch_supplyfactors_data, resolve_cost_year
+    fetch_scenario_settings_data, fetch_technology_attributes, fetch_supplyfactors_data, resolve_cost_year, \
+    resolve_scenario_carbon_price
 from siren_web.models import Analysis, DemandScenarios, ScenariosSettings
 from typing import Dict, Any, Tuple
 from .balance_grid_load import PowerMatchProcessor, DispatchResults
@@ -452,10 +453,15 @@ def submit_powermatch_with_progress(request, demand_year, scenario, option, stag
     try:
         if progress_handler:
             progress_handler.update(12, "Loading scenario settings...")
-        scenario_settings = fetch_scenario_settings_data(scenario)
-        if not scenario_settings:
-            scenario_settings = fetch_module_settings_data('Powermatch')
-        
+        scenario_settings = fetch_scenario_settings_data(scenario) or fetch_module_settings_data('Powermatch') or {}
+        # Carbon price is set on the Merit Order page and nowhere else -- this
+        # is the one carbon price a baseline run uses, resolved the same way
+        # Auto Sort resolves it (per-field fallback to the global Powermatch
+        # setting), rather than the dict-level fallback above which can miss
+        # it if some other per-scenario setting (e.g. discount_rate) exists
+        # without a carbon_price override alongside it.
+        scenario_settings['carbon_price'] = resolve_scenario_carbon_price(scenario)
+
         # Without save_data the results are normally reloaded from the saved
         # Baseline analysis; if none has been saved yet (or it lacks the load
         # stats) there is nothing to reload, so dispatch fresh instead.

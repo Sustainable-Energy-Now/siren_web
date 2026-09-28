@@ -8,23 +8,17 @@ from crispy_forms.bootstrap import AccordionGroup, FormActions
 
 
 class BaselineScenarioForm(forms.Form):
-    carbon_price = forms.DecimalField(label='Carbon Price', required=False)
     discount_rate = forms.DecimalField(label='Discount Rate', required=False)
 
     def __init__(self, *args, **kwargs):
         self.technologies = kwargs.pop('technologies', [])
-        self.carbon_price = kwargs.pop('carbon_price', None)
         self.discount_rate = kwargs.pop('discount_rate', None)
         super().__init__(*args, **kwargs)
         self.helper = FormHelper()
         self.helper.layout = Layout()
-        
-        # Create fields for Carbon Price and Discount Rate
-        self.fields['carbon_price'] = forms.DecimalField(
-            label='Carbon Price',
-            initial=self.carbon_price,
-            required=False
-        )
+
+        # Create field for Discount Rate. Carbon Price is set on the Merit
+        # Order page instead -- see resolve_scenario_carbon_price.
         self.fields['discount_rate'] = forms.DecimalField(
             label='Discount Rate',
             initial=self.discount_rate,
@@ -34,7 +28,6 @@ class BaselineScenarioForm(forms.Form):
             Div(
                 HTML("<hr>"),
                 Row(
-                    Column('carbon_price', css_class='form-group col-md-6 mb-0'),
                     Column('discount_rate', css_class='form-group col-md-6 mb-0'),
                     css_class='form-row'
                     )
