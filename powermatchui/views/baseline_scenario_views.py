@@ -1,22 +1,22 @@
 # baseline_scenario_views.py
 from django.contrib.auth.decorators import login_required
-from decimal import Decimal
 from django.http import JsonResponse, StreamingHttpResponse, HttpResponse
 from django.shortcuts import render, redirect
 from django.contrib import messages
 from common.decorators import settings_required
 import logging
 import numpy as np
+import pandas as pd
 import json
 import time
 import threading
+from io import BytesIO
 from queue import Empty
 from siren_web.database_operations import (
     fetch_analysis_scenario,
-    fetch_technologies_with_multipliers, fetch_module_settings_data,
-    fetch_scenario_settings_data, update_scenario_settings_data,
+    fetch_technologies_with_multipliers,
     resolve_demand_override, resolve_baseline_year, get_demand_scenario_context,
-    resolve_scenario_carbon_price,
+    resolve_scenario_carbon_price, resolve_scenario_discount_rate,
 )
 from siren_web.models import Scenarios, ScenariosTechnologies
 from ..forms import BaselineScenarioForm, RunPowermatchForm
@@ -60,7 +60,6 @@ def baseline_scenario(request):
     config_file = request.session.get('config_file')
     success_message = ""
     technologies = {}
-    scenario_settings = {}
     # The Demand Forecast selection travels with each request (a field
     # inside configForm, POSTed with every Save/Run) rather than living in
     # the session -- see get_demand_scenario_context.
@@ -79,9 +78,6 @@ def baseline_scenario(request):
 
     request.session['scenario'] = scenario
     technologies = fetch_technologies_with_multipliers(scenario)
-    scenario_settings = fetch_module_settings_data('Powermatch')
-    if not scenario_settings:
-        scenario_settings = fetch_scenario_settings_data(scenario)
 
     baseline_form = BaselineScenarioForm(technologies=technologies)
     runpowermatch_form = RunPowermatchForm()
@@ -90,16 +86,12 @@ def baseline_scenario(request):
         baseline_form = BaselineScenarioForm(request.POST, technologies=technologies)
         if baseline_form.is_valid():
             cleaned_data = baseline_form.cleaned_data
-            discount_rate = cleaned_data.get('discount_rate')
 
-            # Carbon price is set on the Merit Order page, not here -- see
-            # resolve_scenario_carbon_price.
-            # Update discount rate
-            if (discount_rate != Decimal(scenario_settings['discount_rate'])):
-                update_scenario_settings_data(scenario, 'Powermatch', 'discount rate', discount_rate)
-            
+            # Carbon price and discount rate are both set on the Merit
+            # Order page, not here -- see resolve_scenario_carbon_price /
+            # resolve_scenario_discount_rate.
             success_message = "No changes were made."
-            
+
             # Update technology multipliers
             for technology in technologies:
                 idtechnologies = technology.idtechnologies
@@ -140,56 +132,44 @@ def baseline_scenario(request):
                             break
                     for error in errors:
                         messages.error(request, f"Multiplier error for {tech_name}: {error}")
-                elif field_name == 'discount_rate':
-                    for error in errors:
-                        messages.error(request, f"{field_name.replace('_', ' ').title()}: {error}")
                 else:
                     # Handle any other field errors
                     for error in errors:
                         messages.error(request, f"{field_name}: {error}")
-            
+
             # Render the form with errors
             technologies = fetch_technologies_with_multipliers(scenario)
-            scenario_settings = fetch_scenario_settings_data(scenario)
-            if not scenario_settings:
-                scenario_settings = fetch_module_settings_data('Powermatch')
-
-            discount_rate = scenario_settings.get('discount_rate', None)
 
             context = {
                 'baseline_form': baseline_form,
                 'runpowermatch_form': RunPowermatchForm(),
                 'technologies': technologies,
-                'scenario_settings': scenario_settings,
                 'scenario': scenario,
                 'scenario_titles': Scenarios.objects.order_by('title').values_list('title', flat=True),
                 'config_file': config_file,
                 'success_message': 'Correct errors and resubmit.',
                 'has_existing_analysis': fetch_analysis_scenario(scenario).exists(),
                 'carbon_price': resolve_scenario_carbon_price(scenario),
+                'discount_rate': resolve_scenario_discount_rate(scenario),
                 **get_demand_scenario_context(demand_id),
             }
             return render(request, 'baseline_scenario.html', context)
     # Prepare form data for display
     technologies = fetch_technologies_with_multipliers(scenario)
-    discount_rate = scenario_settings.get('discount_rate', None)
 
-    baseline_form = BaselineScenarioForm(
-        technologies=technologies,
-        discount_rate=discount_rate
-    )
+    baseline_form = BaselineScenarioForm(technologies=technologies)
 
     context = {
         'baseline_form': baseline_form,
         'runpowermatch_form': runpowermatch_form,
         'technologies': technologies,
-        'scenario_settings': scenario_settings,
         'scenario': scenario,
         'scenario_titles': Scenarios.objects.order_by('title').values_list('title', flat=True),
         'config_file': config_file,
         'success_message': success_message,
         'has_existing_analysis': fetch_analysis_scenario(scenario).exists(),
         'carbon_price': resolve_scenario_carbon_price(scenario),
+        'discount_rate': resolve_scenario_discount_rate(scenario),
         **get_demand_scenario_context(demand_id),
     }
     return render(request, 'baseline_scenario.html', context)
@@ -422,14 +402,12 @@ def get_results_page(request, session_id):
             # Handle Excel download
             dispatch_results = progress_data['results']
             filename = progress_data['download_filename']
-            
+
             # Clean up progress storage
             del progress_storage[session_id]
-            
+
             # Return Excel file
-            response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-            response['Content-Disposition'] = f"attachment; filename={filename}"
-            return response
+            return _build_detailed_excel_response(dispatch_results, filename)
             
         elif progress_data['status'] == 'error':
             error_msg = progress_data.get('error', 'Unknown error occurred')
@@ -504,16 +482,18 @@ def run_baseline(request):
             save_baseline = runpowermatch_form.cleaned_data['save_baseline']
             option = level_of_detail[0]
 
-            dispatch_results, summary_report = submit_powermatch_with_progress(
-                request, demand_year, scenario, option, 1,
-                None, save_baseline, None,
-                demand_override=demand_override
-                )
+            try:
+                dispatch_results, summary_report = submit_powermatch_with_progress(
+                    request, demand_year, scenario, option, 1,
+                    None, save_baseline, None,
+                    demand_override=demand_override
+                    )
+            except ValueError as exc:
+                messages.error(request, str(exc))
+                return redirect('powermatchui:baseline_scenario')
             if option == 'D':
-                data_file = f"{scenario}-baseline detailed results"
-                response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-                response['Content-Disposition'] = f"attachment; filename={data_file}.xlsx"
-                return response
+                filename = f"{scenario}-baseline detailed results.xlsx"
+                return _build_detailed_excel_response(dispatch_results, filename)
             else:
                 # Process data for display
                 context = process_results_for_template(
@@ -529,20 +509,77 @@ def run_baseline(request):
         technologies = fetch_technologies_with_multipliers(scenario)
         baseline_form = BaselineScenarioForm(technologies=technologies)
 
-        scenario_settings = fetch_scenario_settings_data(scenario)
         context = {
             'baseline_form': baseline_form,
             'runpowermatch_form': runpowermatch_form,
             'technologies': technologies,
-            'scenario_settings': scenario_settings,
             'scenario': scenario,
             'scenario_titles': Scenarios.objects.order_by('title').values_list('title', flat=True),
             'config_file': config_file,
             'success_message': success_message,
             'has_existing_analysis': fetch_analysis_scenario(scenario).exists(),
+            'carbon_price': resolve_scenario_carbon_price(scenario),
+            'discount_rate': resolve_scenario_discount_rate(scenario),
             **get_demand_scenario_context(request.POST.get('demand_scenario_demand')),
         }
         return render(request, 'baseline_scenario.html', context)
+
+def _build_detailed_excel_response(dispatch_results, filename):
+    """Build an .xlsx HttpResponse from a PowerMatch DispatchResults object
+    (the 'Detailed' level_of_detail option)."""
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        summary_df = pd.DataFrame(dispatch_results.summary_data)
+        summary_df.to_excel(writer, sheet_name='Summary', index=False)
+
+        metadata_df = pd.DataFrame([dispatch_results.metadata])
+        metadata_df.to_excel(writer, sheet_name='Metadata', index=False)
+
+        if getattr(dispatch_results, 'hourly_data', None) is not None:
+            hourly_df = pd.DataFrame(dispatch_results.hourly_data)
+            hourly_df.to_excel(writer, sheet_name='Hourly_Data', index=False)
+
+    output.seek(0)
+    response = HttpResponse(
+        output.getvalue(),
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    return response
+
+
+def _build_summary_excel_response(template_data, filename):
+    """Build an .xlsx HttpResponse from processed 'Summary' level_of_detail
+    template data (sp_data/headers, plus summary_report if present)."""
+    sp_data = template_data.get('sp_data', [])
+    headers = template_data.get('headers', [])
+
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        if sp_data and headers:
+            summary_df = pd.DataFrame(sp_data, columns=headers)
+            summary_df.to_excel(writer, sheet_name='Summary', index=False)
+
+        summary_report = template_data.get('summary_report')
+        if summary_report:
+            if 'system_overview' in summary_report:
+                pd.DataFrame([summary_report['system_overview']]).to_excel(
+                    writer, sheet_name='System_Overview', index=False)
+            if 'economic_summary' in summary_report:
+                pd.DataFrame([summary_report['economic_summary']]).to_excel(
+                    writer, sheet_name='Economics', index=False)
+            if 'environmental_summary' in summary_report:
+                pd.DataFrame([summary_report['environmental_summary']]).to_excel(
+                    writer, sheet_name='Environmental', index=False)
+
+    output.seek(0)
+    response = HttpResponse(
+        output.getvalue(),
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    return response
+
 
 def process_results_for_template(dispatch_results, scenario, save_baseline, config_file):
     """Helper function to process results for template"""
@@ -594,98 +631,25 @@ def process_results_for_template(dispatch_results, scenario, save_baseline, conf
         'config_file': config_file,
     }
 
-def download_results(request):
-    """Download results as Excel file"""
-    if request.method == 'POST':
-        session_id = request.POST.get('session_id')
-        
-        if session_id and session_id in progress_storage:
-            progress_data = progress_storage[session_id]
-            
-            if progress_data['status'] == 'completed' and 'template_data' in progress_data:
-                # Get the results data from template_data
-                template_data = progress_data['template_data']
-                sp_data = template_data.get('sp_data', [])
-                headers = template_data.get('headers', [])
-                scenario = template_data.get('scenario', 'unknown')
-                
-                # Create Excel file
-                from io import BytesIO
-                import pandas as pd
-                
-                output = BytesIO()
-                
-                with pd.ExcelWriter(output, engine='openpyxl') as writer:
-                    # Summary sheet
-                    if sp_data and headers:
-                        summary_df = pd.DataFrame(sp_data, columns=headers)
-                        summary_df.to_excel(writer, sheet_name='Summary', index=False)
-                    
-                    # Summary report sheet if available
-                    if 'summary_report' in template_data:
-                        summary_report = template_data['summary_report']
-                        
-                        # System overview sheet
-                        if 'system_overview' in summary_report:
-                            system_df = pd.DataFrame([summary_report['system_overview']])
-                            system_df.to_excel(writer, sheet_name='System_Overview', index=False)
-                        
-                        # Economic summary sheet
-                        if 'economic_summary' in summary_report:
-                            economic_df = pd.DataFrame([summary_report['economic_summary']])
-                            economic_df.to_excel(writer, sheet_name='Economics', index=False)
-                        
-                        # Environmental summary sheet
-                        if 'environmental_summary' in summary_report:
-                            env_df = pd.DataFrame([summary_report['environmental_summary']])
-                            env_df.to_excel(writer, sheet_name='Environmental', index=False)
-                
-                output.seek(0)
-                
-                # Create HTTP response
-                response = HttpResponse(
-                    output.getvalue(),
-                    content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-                )
-                response['Content-Disposition'] = f'attachment; filename="powermatch_results_{scenario}_{session_id}.xlsx"'
-                
-                return response
-                
-            elif progress_data['status'] == 'completed_download' and 'results' in progress_data:
-                # Handle detailed results (option 'D')
-                dispatch_results = progress_data['results']
-                filename = progress_data.get('download_filename', 'powermatch_detailed_results.xlsx')
-                
-                # Create detailed Excel file
-                from io import BytesIO
-                import pandas as pd
-                
-                output = BytesIO()
-                
-                with pd.ExcelWriter(output, engine='openpyxl') as writer:
-                    # Summary sheet
-                    summary_df = pd.DataFrame(dispatch_results.summary_data)
-                    summary_df.to_excel(writer, sheet_name='Summary', index=False)
-                    
-                    # Metadata sheet
-                    metadata_df = pd.DataFrame([dispatch_results.metadata])
-                    metadata_df.to_excel(writer, sheet_name='Metadata', index=False)
-                    
-                    # Hourly data if available
-                    if hasattr(dispatch_results, 'hourly_data') and dispatch_results.hourly_data is not None:
-                        hourly_df = pd.DataFrame(dispatch_results.hourly_data)
-                        hourly_df.to_excel(writer, sheet_name='Hourly_Data', index=False)
-                
-                output.seek(0)
-                
-                response = HttpResponse(
-                    output.getvalue(),
-                    content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-                )
-                response['Content-Disposition'] = f'attachment; filename="{filename}"'
-                
-                return response
-                
+def download_results(request, session_id):
+    """Download the results of a completed background analysis as an Excel file"""
+    progress_data = progress_storage.get(session_id)
+    if not progress_data:
         return JsonResponse({'error': 'Results not available'}, status=404)
-    
-    return JsonResponse({'error': 'Invalid request'}, status=400)
+
+    if progress_data['status'] == 'completed_download' and 'results' in progress_data:
+        # Detailed results (level_of_detail 'Detailed')
+        dispatch_results = progress_data['results']
+        filename = progress_data.get('download_filename', 'powermatch_detailed_results.xlsx')
+        del progress_storage[session_id]
+        return _build_detailed_excel_response(dispatch_results, filename)
+
+    if progress_data['status'] == 'completed' and 'template_data' in progress_data:
+        # Summary results (level_of_detail 'Summary')
+        template_data = progress_data['template_data']
+        scenario = template_data.get('scenario', 'unknown')
+        filename = f"powermatch_results_{scenario}_{session_id}.xlsx"
+        del progress_storage[session_id]
+        return _build_summary_excel_response(template_data, filename)
+
+    return JsonResponse({'error': 'Results not available'}, status=404)

@@ -122,7 +122,17 @@ class PowerMatchProcessor:
         self.setStatus = status_callback or (lambda text: None)
         self.carbon_price = float(scenario_settings.get('carbon_price', 0.0))
         self.carbon_price_max = 200.
-        self.discount_rate = float(scenario_settings.get('discount_rate', 0.0))
+        discount_rate = float(scenario_settings.get('discount_rate', 0.0))
+        # A discount rate is always a small fraction (e.g. 0.075 for 7.5%);
+        # 1.0 (100%) is already an extreme upper bound. A bad value here has
+        # previously overflowed pow(1 + discount_rate, lifetime) in
+        # _annual_cost with a cryptic OverflowError -- fail clearly instead.
+        if not (0 <= discount_rate < 1):
+            raise ValueError(
+                f"Discount rate {discount_rate} is out of range (expected a fraction like "
+                "0.075 for 7.5%). Check the Discount Rate setting on the Merit Order page."
+            )
+        self.discount_rate = discount_rate
         self.load_folder = ''
         self.optimise_choice = 'LCOE'
         self.optimise_generations = 20

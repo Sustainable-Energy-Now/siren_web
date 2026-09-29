@@ -34,6 +34,19 @@
                        value="{{ carbon_price }}">
             </div>
         </div>
+        <div class="card mb-3">
+            <div class="card-header custom-sen">Discount Rate</div>
+            <div class="card-body custom-sen">
+                <p class="text-muted">
+                    Defaults to the global Powermatch setting until saved here. This is the
+                    only discount rate PowerMatch uses when a baseline is run for this scenario.
+                    Enter it as a fraction (e.g. 0.075 for 7.5%).
+                </p>
+                <label for="discount-rate-input" class="form-label">Discount Rate</label>
+                <input type="number" step="0.001" min="0" class="form_input" id="discount-rate-input"
+                       value="{{ discount_rate }}">
+            </div>
+        </div>
         <div class="row">
             <div class="col-md-6">
                 <div class="card">
@@ -150,6 +163,7 @@
         // Get the CSRF token from a hidden input field in HTML
         var csrfToken = document.querySelector('input[name="csrfmiddlewaretoken"]').value;
         var carbonPrice = document.getElementById('carbon-price-input').value;
+        var discountRate = document.getElementById('discount-rate-input').value;
 
         try {
             // Send the data to your Django backend using fetch
@@ -162,7 +176,8 @@
                 body: JSON.stringify({
                     meritOrderIds: meritOrderIds,
                     excludedResourcesIds: excludedResourcesIds,
-                    carbonPrice: carbonPrice
+                    carbonPrice: carbonPrice,
+                    discountRate: discountRate
                 })
             });
     

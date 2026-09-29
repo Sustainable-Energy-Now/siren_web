@@ -56,11 +56,10 @@
     </div>
     <div class="col-md-6">
       <div class="form-group">
-        {{ baseline_form.discount_rate.label_tag }}
-        {{ baseline_form.discount_rate }}
-        {% for error in baseline_form.discount_rate.errors %}
-          <div class="alert alert-danger">{{ error }}</div>
-        {% endfor %}
+        <label class="form-label">Discount Rate</label>
+        <p class="text-muted mb-0">
+          {{ discount_rate }} (set on the <a href="{% url 'powermatchui:merit_order' %}">Merit Order</a> page)
+        </p>
       </div>
     </div>
   </div>
@@ -343,7 +342,7 @@ const CONFIG = {
   urls: {
     start_analysis: '{% url "powermatchui:run_baseline_progress" %}',
     standard_analysis: '{% url "powermatchui:run_baseline" %}',
-    download_results: '{% url "powermatchui:download_results" %}'
+    download_results_base: '{% url "powermatchui:download_results" session_id="__SESSION_ID__" %}'
   }
 };
 
@@ -423,16 +422,16 @@ function runStandardAnalysis() {
   const formData = new FormData(form);
   
   // Add level of detail and save baseline from the form
-  const levelOfDetail = document.querySelector('[name="level_of_detail"]').value;
+  const levelOfDetail = document.querySelector('[name="level_of_detail"]:checked').value;
   const saveBaseline = document.querySelector('[name="save_baseline"]').checked;
-  
+
   formData.append('level_of_detail', levelOfDetail);
   formData.append('save_baseline', saveBaseline);
-  
+
   // Disable buttons
   analysisRunning = true;
   updateButtonStates();
-  
+
   // Submit to standard endpoint
   fetch(CONFIG.urls.standard_analysis, {
     method: 'POST',
@@ -442,7 +441,25 @@ function runStandardAnalysis() {
     body: formData
   })
   .then(response => {
-    if (response.headers.get('content-type').includes('text/html')) {
+    const contentType = response.headers.get('content-type') || '';
+    if (contentType.includes('spreadsheetml')) {
+      // Detailed results: binary .xlsx -- trigger a file save via a Blob URL
+      const disposition = response.headers.get('content-disposition') || '';
+      const match = disposition.match(/filename="?([^"]+)"?/);
+      const filename = match ? match[1] : 'baseline_detailed_results.xlsx';
+      return response.blob().then(blob => {
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+        showToast('Spreadsheet downloaded.', 'success');
+        resetAnalysis();
+      });
+    } else if (contentType.includes('text/html')) {
       // Handle HTML response (redirect to results page)
       return response.text().then(html => {
         document.open();
@@ -471,12 +488,12 @@ function runProgressAnalysis() {
   const formData = new FormData(form);
   
   // Add level of detail and save baseline
-  const levelOfDetail = document.querySelector('[name="level_of_detail"]').value;
+  const levelOfDetail = document.querySelector('[name="level_of_detail"]:checked').value;
   const saveBaseline = document.querySelector('[name="save_baseline"]').checked;
-  
+
   formData.append('level_of_detail', levelOfDetail);
   formData.append('save_baseline', saveBaseline);
-  
+
   // Show progress panel
   document.getElementById('progressPanel').style.display = 'block';
   updateConnectionStatus('connecting', 'Starting analysis...');
@@ -669,7 +686,7 @@ function handleDownloadComplete(data) {
   showToast('Analysis completed! Download will start automatically.', 'success');
   
   // Trigger download
-  const downloadUrl = `/download-results/${sessionId}/`;
+  const downloadUrl = CONFIG.urls.download_results_base.replace('__SESSION_ID__', sessionId);
   const link = document.createElement('a');
   link.href = downloadUrl;
   link.download = data.download_filename;

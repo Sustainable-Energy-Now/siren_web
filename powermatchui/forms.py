@@ -2,38 +2,22 @@
 from django import forms
 from siren_web.models import Scenarios, TechnologyYears, facilities, variations
 from crispy_forms.helper import FormHelper
-from crispy_forms.layout import Layout, Div, Field, Submit, HTML, Row, Column
+from crispy_forms.layout import Layout, Div, Field, Submit, HTML, Row
 from crispy_bootstrap5.bootstrap5 import Accordion
 from crispy_forms.bootstrap import AccordionGroup, FormActions
 
 
 class BaselineScenarioForm(forms.Form):
-    discount_rate = forms.DecimalField(label='Discount Rate', required=False)
-
     def __init__(self, *args, **kwargs):
         self.technologies = kwargs.pop('technologies', [])
-        self.discount_rate = kwargs.pop('discount_rate', None)
         super().__init__(*args, **kwargs)
         self.helper = FormHelper()
         self.helper.layout = Layout()
 
-        # Create field for Discount Rate. Carbon Price is set on the Merit
-        # Order page instead -- see resolve_scenario_carbon_price.
-        self.fields['discount_rate'] = forms.DecimalField(
-            label='Discount Rate',
-            initial=self.discount_rate,
-            required=False
-        )
-        self.helper.layout.fields.append(
-            Div(
-                HTML("<hr>"),
-                Row(
-                    Column('discount_rate', css_class='form-group col-md-6 mb-0'),
-                    css_class='form-row'
-                    )
-                ),
-            )
-       
+        # Carbon Price and Discount Rate are both set on the Merit Order
+        # page instead -- see resolve_scenario_carbon_price /
+        # resolve_scenario_discount_rate.
+
         # Create fields for each technology with capacity, multiplier, and product
         rows = []
         current_row = []
@@ -136,16 +120,6 @@ class BaselineScenarioForm(forms.Form):
 
     def clean(self):
         cleaned_data = super().clean()
-        # Validate carbon_price
-        carbon_price = cleaned_data.get('carbon_price')
-        if carbon_price is None:
-            self.add_error('carbon_price', 'This field is required.')
-
-        # Validate discount_rate
-        discount_rate = cleaned_data.get('discount_rate')
-        if discount_rate is None:
-            self.add_error('discount_rate', 'This field is required.')
-
         # Validate multiplier for each technology
         for technology in self.technologies:
             tech_key = f"{technology.pk}"

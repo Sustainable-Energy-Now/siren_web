@@ -795,6 +795,25 @@ def resolve_scenario_carbon_price(scenario):
     except (TypeError, ValueError):
         return 0.0
 
+def resolve_scenario_discount_rate(scenario):
+    """
+    The single discount rate (a fraction, e.g. 0.075 for 7.5%) this scenario
+    dispatches with -- the per-scenario ScenariosSettings override (set on
+    the Merit Order page) if one exists, otherwise the global 'Powermatch'
+    Settings value. Mirrors resolve_scenario_carbon_price exactly, so
+    Auto Sort and an actual PowerMatch run always agree. Returns 0.0 if
+    nothing is set anywhere.
+    """
+    scenario_settings = fetch_scenario_settings_data(scenario) or {}
+    value = scenario_settings.get('discount_rate')
+    if value in (None, ''):
+        module_settings = fetch_module_settings_data('Powermatch') or {}
+        value = module_settings.get('discount_rate', 0.0)
+    try:
+        return float(value or 0.0)
+    except (TypeError, ValueError):
+        return 0.0
+
 def _latest_running_cost(technology_obj):
     """VOM + fuel cost from the newest TechnologyYears row (at or before the
     resolved cost year) that has each field, matching the per-field

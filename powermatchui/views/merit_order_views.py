@@ -10,7 +10,7 @@ import json
 from siren_web.database_operations import (
     fetch_technology_by_id, fetch_merit_order_technologies, compute_auto_sorted_merit_order,
     get_demand_scenario_context, resolve_demand_override, resolve_scenario_carbon_price,
-    update_scenario_settings_data,
+    resolve_scenario_discount_rate, update_scenario_settings_data,
 )
 from siren_web.models import ScenariosTechnologies, Scenarios
 from urllib.parse import urlencode
@@ -33,6 +33,36 @@ def _save_and_resolve_carbon_price(scenario, carbon_price_raw):
             update_scenario_settings_data(scenario, 'Powermatch', 'carbon_price', carbon_price)
             return carbon_price
     return resolve_scenario_carbon_price(scenario)
+
+def _save_and_resolve_discount_rate(scenario, discount_rate_raw, request=None):
+    """
+    Persists discount_rate_raw as this scenario's discount rate (Merit Order
+    is the only place it's ever written -- see resolve_scenario_discount_rate)
+    when it parses to a sane fraction, and returns the value now in effect.
+    Falls back to the saved/global value without writing anything if
+    discount_rate_raw is blank, not a number, or outside a sane range (a
+    discount rate is always well under 1.0 -- e.g. 0.075 for 7.5%; a value
+    >= 1 is almost always a units mistake, like typing a percentage or a
+    stray extra digit, and previously corrupted this exact setting badly
+    enough to overflow the annualised-cost calculation), so a bad request
+    can't clobber a previously-saved rate. Mirrors _save_and_resolve_carbon_price.
+    """
+    if discount_rate_raw not in (None, ''):
+        try:
+            discount_rate = float(discount_rate_raw)
+        except (TypeError, ValueError):
+            discount_rate = None
+        if discount_rate is not None:
+            if 0 <= discount_rate < 1:
+                update_scenario_settings_data(scenario, 'Powermatch', 'discount_rate', discount_rate)
+                return discount_rate
+            if request is not None:
+                messages.error(
+                    request,
+                    f"Discount rate {discount_rate} looks wrong (expected a fraction like 0.075 "
+                    "for 7.5%) -- not saved."
+                )
+    return resolve_scenario_discount_rate(scenario)
 
 @login_required
 def set_merit_order(request):
@@ -62,11 +92,13 @@ def set_merit_order(request):
             merit_order_ids = data.get('meritOrderIds', [])
             excluded_resources_ids = data.get('excludedResourcesIds', [])
             carbon_price_raw = data.get('carbonPrice')
+            discount_rate_raw = data.get('discountRate')
         except Exception as e:
             messages.error(request, f"Error processing request: {e}")
             return JsonResponse({'status': 'error', 'message': str(e)})
 
         _save_and_resolve_carbon_price(scenario, carbon_price_raw)
+        _save_and_resolve_discount_rate(scenario, discount_rate_raw, request=request)
 
         # Update the merit_order attribute for technologies in the 'Merit Order' column
         updated_count = 0
@@ -97,15 +129,18 @@ def set_merit_order(request):
     demand_id = request.GET.get('demand_scenario_demand')
     demand_selected = bool(demand_id)
     carbon_price = None
+    discount_rate = None
 
-    # Technologies (and Carbon Price) are only shown once a Demand Forecast
-    # Scenario is selected -- the cost year it implies is what Auto Sort
-    # costs fossil technologies at, see compute_auto_sorted_merit_order.
+    # Technologies (Carbon Price and Discount Rate) are only shown once a
+    # Demand Forecast Scenario is selected -- the cost year it implies is
+    # what Auto Sort costs fossil technologies at, see
+    # compute_auto_sorted_merit_order.
     if scenario and demand_selected:
         scenario_obj = Scenarios.objects.get(title=scenario)
         idscenarios = scenario_obj.pk
         merit_order, excluded_resources = fetch_merit_order_technologies(idscenarios)
         carbon_price = resolve_scenario_carbon_price(scenario)
+        discount_rate = resolve_scenario_discount_rate(scenario)
 
         if not len(merit_order) and not len(excluded_resources):
             success_message = "Reload the technologies."
@@ -122,6 +157,7 @@ def set_merit_order(request):
         'config_file': config_file,
         'demand_selected': demand_selected,
         'carbon_price': carbon_price,
+        'discount_rate': discount_rate,
         **get_demand_scenario_context(demand_id),
     }
 
