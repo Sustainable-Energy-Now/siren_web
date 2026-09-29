@@ -269,7 +269,8 @@ class SirenWebHelpGenerator:
                 'powerplot': 'Powerplot Module',
                 'terminal': 'Terminal Management',
                 'aemo_scada': 'AEMO SCADA Data Fetcher',
-                'system_overview': 'System Overview'
+                'system_overview': 'System Overview',
+                'demand_forecasting': 'Demand Forecasting Module'
             }
             page_title = module_titles.get(self.module_name, 'Siren Web Help')
 
