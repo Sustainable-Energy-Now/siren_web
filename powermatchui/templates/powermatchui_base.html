@@ -15,11 +15,32 @@
       <ul class="navbar-nav">
         <li class="nav-item">
           <a class="nav-link" href="/powermatchui/">Powermatch Home</a>
+        </li>
         <li class="nav-item dropdown">
           <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
-            Demand Projection Management
+            Data Take-up
           </a>
           <ul class="dropdown-menu">
+            <li><a class="dropdown-item" href="{% url 'powermatchui:data_pipeline_dashboard' %}">Data Pipelines</a></li>
+            <li><a class="dropdown-item" href="{% url 'powermatchui:gencost_upload' %}">GenCost Data</a></li>
+          </ul>
+        </li>
+        <li class="nav-item dropdown">
+          <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+            Demand Forecasting
+          </a>
+          <ul class="dropdown-menu">
+            <li><a class="dropdown-item" href="{% url 'powermatchui:scenario_summary' %}">Forecast Scenario Summary</a></li>
+            <li><a class="dropdown-item" href="{% url 'powermatchui:esoo_scenario_selector' %}">Create ESOO Demand Scenario</a></li>
+            <li><a class="dropdown-item" href="{% url 'powermatchui:esoo_adjustment_list' %}">ESOO Forecast Adjustments</a></li>
+
+            <li><hr class="dropdown-divider"></li>
+
+            <li><a class="dropdown-item" href="{% url 'powermatchui:ev_scenario_selector' %}">EV Load Scenario</a></li>
+            <li><a class="dropdown-item" href="{% url 'powermatchui:ev_scenario_compare' %}">EV Sensitivity</a></li>
+
+            <li><hr class="dropdown-divider"></li>
+
             <li><a class="dropdown-item" href="{% url 'powermatchui:factor_type_list' %}">List Demand Factor Types</a></li>
             <li><a class="dropdown-item" href="{% url 'powermatchui:factor_type_create' %}">Add Demand Factor Type</a></li>
 
@@ -47,27 +68,6 @@
         </li>
         <li class="nav-item">
           <a class="nav-link" href="/baseline_scenario/">Baseline Scenario</a>
-        </li>
-        <li class="nav-item">
-          <a class="nav-link" href="{% url 'powermatchui:esoo_scenario_selector' %}">ESOO Demand Scenario</a>
-        </li>
-        <li class="nav-item">
-          <a class="nav-link" href="{% url 'powermatchui:esoo_adjustment_list' %}">ESOO Forecast Adjustments</a>
-        </li>
-        <li class="nav-item">
-          <a class="nav-link" href="{% url 'powermatchui:ev_scenario_selector' %}">EV Load Scenario</a>
-        </li>
-        <li class="nav-item">
-          <a class="nav-link" href="{% url 'powermatchui:ev_scenario_compare' %}">EV Sensitivity</a>
-        </li>
-        <li class="nav-item">
-          <a class="nav-link" href="{% url 'powermatchui:scenario_summary' %}">Scenario Summary</a>
-        </li>
-        <li class="nav-item">
-          <a class="nav-link" href="{% url 'powermatchui:data_pipeline_dashboard' %}">Data Pipelines</a>
-        </li>
-        <li class="nav-item">
-          <a class="nav-link" href="{% url 'powermatchui:gencost_upload' %}">GenCost Data</a>
         </li>
         <li class="nav-item">
             <a class="nav-link" href="/variation/">Create Variants</a>
