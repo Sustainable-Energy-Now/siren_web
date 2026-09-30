@@ -10,6 +10,7 @@ from django.db import transaction
 from django.utils import timezone
 import pytz
 from siren_web.models import DailyPeakRE, facilities, Technologies
+from siren_web.services import re_classification as rec
 from siren_web.services.facility_scada_matrix import (
     cell_counts_for_datetime_range,
     set_scada_values,
@@ -457,8 +458,10 @@ class AEMOScadaFetcher:
         """
         Calculate peak 5-minute instantaneous operational RE% from raw records.
 
-        RE sources: fuel_type in (WIND, SOLAR, BIOMASS, HYDRO) or category = Storage.
-        Must match the re_condition in update_ret_dashboard.calculate_best_re_hour().
+        AEMO QED fuel-mix basis: RE = wind + solar + biomass; storage (battery,
+        pumped hydro) is excluded from numerator AND denominator. Uses the
+        shared classifier in siren_web.services.re_classification, as does
+        update_ret_dashboard.calculate_best_re_hour().
 
         Args:
             records: List of 5-min dicts with dispatch_interval, facility_id, quantity
@@ -466,21 +469,21 @@ class AEMOScadaFetcher:
         Returns:
             dict keyed by date with peak RE% data
         """
-        # Build facility_id -> is_re lookup
+        # Build facility_id -> bucket lookup
         facility_ids = {r['facility_id'] for r in records}
         re_facility_ids = set()
+        storage_facility_ids = set()
 
         facility_qs = facilities.objects.filter(
             idfacilities__in=facility_ids
         ).select_related('idtechnologies')
 
         for f in facility_qs:
-            tech = f.idtechnologies
-            if tech:
-                fuel_type = (tech.fuel_type or '').upper()
-                category = (tech.category or '').upper()
-                if fuel_type in ('WIND', 'SOLAR', 'BIOMASS', 'HYDRO') or category == 'STORAGE':
-                    re_facility_ids.add(f.idfacilities)
+            bucket = rec.bucket_for_technology(f.idtechnologies)
+            if rec.is_renewable_bucket(bucket):
+                re_facility_ids.add(f.idfacilities)
+            elif rec.is_storage_bucket(bucket):
+                storage_facility_ids.add(f.idfacilities)
 
         # Group records by dispatch_interval, sum RE and total generation.
         # `quantity` here is raw 5-minute ENERGY (MWh), not power -- see
@@ -491,7 +494,7 @@ class AEMOScadaFetcher:
 
         for record in records:
             qty = float(record['quantity'])
-            if qty <= 0:
+            if qty <= 0 or record['facility_id'] in storage_facility_ids:
                 continue
 
             dt = record['dispatch_interval']
@@ -507,7 +510,11 @@ class AEMOScadaFetcher:
                 continue
             # RE% is a ratio so it's unaffected by the MWh-vs-MW distinction.
             re_pct = (totals['re_mwh'] / totals['total_mwh']) * 100
-            day = dt.date() if hasattr(dt, 'date') else dt
+            # Group by AWST trading date regardless of the record's tzinfo
+            if hasattr(dt, 'tzinfo') and dt.tzinfo is not None:
+                day = dt.astimezone(self.AWST).date()
+            else:
+                day = dt.date() if hasattr(dt, 'date') else dt
 
             if day not in daily_peaks or re_pct > daily_peaks[day]['percentage']:
                 daily_peaks[day] = {
@@ -521,8 +528,18 @@ class AEMOScadaFetcher:
         return daily_peaks
 
     def _store_daily_peak_re(self, daily_peaks):
-        """Store daily peak RE% records in DailyPeakRE table."""
+        """Store daily peak RE% records in DailyPeakRE table.
+
+        An AEMO WEM SCADA file covers a trading day of 08:00-08:00 AWST, so
+        each AWST calendar date is split across two files. Keep the higher
+        of the stored and new peak so the second file's partial day doesn't
+        overwrite the first's. (To reset values after a classification
+        change, use backfill_daily_peak_re(force=True).)
+        """
         for day, peak in daily_peaks.items():
+            existing = DailyPeakRE.objects.filter(trading_date=day).first()
+            if existing and existing.peak_re_percentage >= peak['percentage']:
+                continue
             DailyPeakRE.objects.update_or_create(
                 trading_date=day,
                 defaults={
@@ -549,21 +566,23 @@ class AEMOScadaFetcher:
             dict with percentage, datetime, re_mw, total_mw or None
         """
         import numpy as np
-        from django.db.models import Q
 
         start_dt = self.AWST.localize(datetime.combine(trading_date, datetime.min.time()))
         end_dt = start_dt + timedelta(days=1)
 
-        re_facility_ids = list(
-            facilities.objects.filter(
-                Q(idtechnologies__fuel_type__in=['WIND', 'SOLAR', 'BIOMASS', 'HYDRO']) |
-                Q(idtechnologies__category__iexact='storage')
-            ).values_list('idfacilities', flat=True)
-        )
+        # AEMO QED fuel-mix basis: storage excluded from numerator and denominator
+        re_facility_ids = []
+        gen_facility_ids = []
+        for f in facilities.objects.select_related('idtechnologies'):
+            bucket = rec.bucket_for_technology(f.idtechnologies)
+            if not rec.is_storage_bucket(bucket):
+                gen_facility_ids.append(f.idfacilities)
+                if rec.is_renewable_bucket(bucket):
+                    re_facility_ids.append(f.idfacilities)
 
         # total_gen/re_gen are half-hourly ENERGY (MWh) sums, not power --
         # see compute_annual_demand_actuals.py's module docstring.
-        total_gen = total_for_datetime_range(start_dt, end_dt, positive_only=True)
+        total_gen = total_for_datetime_range(start_dt, end_dt, facility_ids_wanted=gen_facility_ids, positive_only=True)
         re_gen = total_for_datetime_range(start_dt, end_dt, facility_ids_wanted=re_facility_ids, positive_only=True)
 
         if total_gen.size == 0 or not np.any(total_gen > 0):
@@ -581,14 +600,19 @@ class AEMOScadaFetcher:
             'total_mw': float(total_gen[best_idx]) * 2,
         }
 
-    def backfill_daily_peak_re(self, start_date, end_date):
+    def backfill_daily_peak_re(self, start_date, end_date, force=False):
         """
         Backfill DailyPeakRE records from existing half-hourly FacilityScada data
         for days that have SCADA data but no DailyPeakRE record.
 
+        With force=True, existing records are recomputed too. The raw 5-minute
+        data is not retained, so recomputed days fall back to half-hourly
+        resolution (use after a change to the RE classification).
+
         Args:
             start_date: datetime.date
             end_date: datetime.date
+            force: recompute days that already have a record
 
         Returns:
             dict with backfilled and skipped counts
@@ -598,15 +622,17 @@ class AEMOScadaFetcher:
         skipped = 0
 
         while current_date <= end_date:
-            if not DailyPeakRE.objects.filter(trading_date=current_date).exists():
+            if force or not DailyPeakRE.objects.filter(trading_date=current_date).exists():
                 peak = self._calculate_half_hourly_peak_re(current_date)
                 if peak:
-                    DailyPeakRE.objects.create(
+                    DailyPeakRE.objects.update_or_create(
                         trading_date=current_date,
-                        peak_re_percentage=peak['percentage'],
-                        peak_re_datetime=peak['datetime'],
-                        re_generation_mw=peak['re_mw'],
-                        total_generation_mw=peak['total_mw'],
+                        defaults={
+                            'peak_re_percentage': peak['percentage'],
+                            'peak_re_datetime': peak['datetime'],
+                            're_generation_mw': peak['re_mw'],
+                            'total_generation_mw': peak['total_mw'],
+                        },
                     )
                     logger.info(
                         f"Backfilled DailyPeakRE for {current_date}: "

@@ -77,7 +77,7 @@
         <div class="metric-label"><span class="demand-help" tabindex="0"
             data-bs-toggle="popover" data-bs-trigger="click" data-bs-placement="bottom"
             data-bs-html="true" data-bs-title="RE%"
-            data-bs-content='The percentage of renewable energy fuel types of the total.<br><a href="{% url "display_module_help" "ret_dashboard" %}#re-contribution-and-bess" target="_blank">Full details →</a>'
+            data-bs-content='The percentage of renewable energy fuel types of the total. Battery and pumped-hydro discharge is excluded from both sides (AEMO QED basis).<br><a href="{% url "display_module_help" "ret_dashboard" %}#re-contribution-and-bess" target="_blank">Full details →</a>'
             >RE% <sup>ⓘ</sup></span>(<span class="demand-help" tabindex="0"
             data-bs-toggle="popover" data-bs-trigger="click" data-bs-placement="bottom"
             data-bs-html="true" data-bs-title="Operational Demand"
@@ -103,11 +103,11 @@
         <div class="metric-label"><span class="demand-help" tabindex="0"
             data-bs-toggle="popover" data-bs-trigger="click" data-bs-placement="bottom"
             data-bs-html="true" data-bs-title="RE%"
-            data-bs-content='The percentage of renewable energy fuel types of the total.<br><a href="{% url "display_module_help" "ret_dashboard" %}#re-contribution-and-bess" target="_blank">Full details →</a>'
+            data-bs-content='The percentage of renewable energy fuel types of the total. Battery and pumped-hydro discharge is excluded from both sides (AEMO QED basis).<br><a href="{% url "display_module_help" "ret_dashboard" %}#re-contribution-and-bess" target="_blank">Full details →</a>'
             >RE% <sup>ⓘ</sup></span>(<span class="demand-help" tabindex="0"
             data-bs-toggle="popover" data-bs-trigger="click" data-bs-placement="bottom"
             data-bs-html="true" data-bs-title="Underlying Demand"
-            data-bs-content='Total electricity usage by consumers, including grid supply, behind-the-meter rooftop solar (PV), and battery storage.<br><a href="{% url "display_module_help" "ret_dashboard" %}#understanding-demand-measures" target="_blank">Full details →</a>'
+            data-bs-content='Total electricity usage by consumers: grid supply plus behind-the-meter rooftop solar (PV). RE% on this basis matches AEMO QED renewable share of the fuel mix (storage excluded).<br><a href="{% url "display_module_help" "ret_dashboard" %}#understanding-demand-measures" target="_blank">Full details →</a>'
             >Underlying Demand <sup>ⓘ</sup></span>)</div>
         <div class="metric-value">{{ performance.re_percentage_underlying|floatformat:1 }}%</div>
         <div class="metric-sublabel">
@@ -155,7 +155,7 @@
         <div class="metric-label">YTD RE% (<span class="demand-help" tabindex="0"
             data-bs-toggle="popover" data-bs-trigger="click" data-bs-placement="bottom"
             data-bs-html="true" data-bs-title="Underlying Demand"
-            data-bs-content='Total electricity usage by consumers, including grid supply, behind-the-meter rooftop solar (PV), and battery storage.<br><a href="{% url "display_module_help" "ret_dashboard" %}#understanding-demand-measures" target="_blank">Full details →</a>'
+            data-bs-content='Total electricity usage by consumers: grid supply plus behind-the-meter rooftop solar (PV). RE% on this basis matches AEMO QED renewable share of the fuel mix (storage excluded).<br><a href="{% url "display_module_help" "ret_dashboard" %}#understanding-demand-measures" target="_blank">Full details →</a>'
             >Underlying <sup>ⓘ</sup></span>)</div>
         <div class="metric-value">{{ ytd_summary.re_percentage_underlying|floatformat:1 }}%</div>
         <div class="metric-sublabel">Including rooftop solar</div>
@@ -610,7 +610,7 @@
         <tr>
             <td><strong>YTD {{ year }}</strong></td>
             <td class="value">{{ ytd_summary.total_emissions|div:1000|floatformat:1 }} Kt CO₂-e</td>
-            <td class="value">{{ ytd_summary.emissions_intensity|div:1000|floatformat:3 }} kg/kWh</td>
+            <td class="value">{{ ytd_summary.emissions_intensity|floatformat:3 }} kg/kWh</td>
             <td class="value">
                 {% if ytd_emissions_change %}
                     {% if ytd_emissions_change < 0 %}✓{% else %}⚠{% endif %}

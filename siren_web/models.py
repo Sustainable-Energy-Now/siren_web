@@ -2559,11 +2559,11 @@ class MonthlyREPerformance(models.Model):
     gas_generation = models.FloatField(default=0, help_text="Combined Cycle Gas Turbine")
     coal_generation = models.FloatField(default=0)
     
-    # Storage (BESS) - discharge counted as renewable in RE%
+    # Storage (BESS) - excluded from RE% numerator and denominator (AEMO QED basis)
     storage_discharge = models.FloatField(default=0, help_text="Battery discharge in GWh")
     storage_charge = models.FloatField(default=0, help_text="Battery charging in GWh")
 
-    # Hydro (pumped storage) - discharge counted as renewable in RE%
+    # Hydro (pumped storage) - excluded from RE% numerator and denominator
     hydro_discharge = models.FloatField(default=0, help_text="Hydro discharge generation in GWh")
     hydro_charge = models.FloatField(default=0, help_text="Hydro pumping consumption in GWh")
 
@@ -2646,11 +2646,28 @@ class MonthlyREPerformance(models.Model):
     # -------------------------------------------------------------------------
     
     @property
+    def grid_generation_ex_storage(self):
+        """
+        Grid-connected generation excluding Electric Storage Resources (GWh).
+        Equivalent to AEMO's WEM "unscheduled operational demand" basis used
+        in the QED fuel mix: battery and pumped-hydro discharge is excluded
+        because that energy was already counted when it was generated.
+        """
+        return (self.operational_demand
+                - (self.storage_discharge or 0)
+                - (self.hydro_discharge or 0))
+
+    @property
+    def fuel_mix_total(self):
+        """AEMO QED fuel-mix denominator: grid generation excl. storage + DPV (GWh)."""
+        return self.grid_generation_ex_storage + (self.dpv_generation or 0)
+
+    @property
     def renewable_gen_operational(self):
         """
         Renewable generation for operational demand basis.
-        Includes: wind, solar, biomass.
-        Excludes: DPV (behind-the-meter), charging loads, hydro discharge (storage), battery discharge (storage).
+        Includes: wind, solar, biomass (incl. waste-to-energy).
+        Excludes: DPV (behind-the-meter) and storage discharge (BESS, pumped hydro).
         """
         return (self.wind_generation +
                 self.solar_generation +
@@ -2661,39 +2678,41 @@ class MonthlyREPerformance(models.Model):
         """
         Total renewable generation for underlying demand basis.
         Includes: wind, solar, DPV, biomass.
-        Excludes: hydro discharge (storage), battery discharge (storage).
+        Excludes: storage discharge (BESS, pumped hydro).
         """
         return (self.wind_generation +
                 self.solar_generation +
                 self.dpv_generation +
                 self.biomass_generation)
-    
+
     # -------------------------------------------------------------------------
     # RE Percentage Properties
     # -------------------------------------------------------------------------
-    
+
     @property
     def re_percentage_operational(self):
         """
-        Calculate RE% based on operational demand.
-        RE% = (wind + solar + biomass) / operational_demand
-        Excludes storage sources (BESS, hydro) as they are not primary generation.
+        RE% of grid-connected generation.
+        RE% = (wind + solar + biomass) / grid generation excl. storage
+        Storage is excluded from numerator and denominator (AEMO QED basis).
         """
-        if self.operational_demand > 0:
-            return (self.renewable_gen_operational / self.operational_demand) * 100
+        denominator = self.grid_generation_ex_storage
+        if denominator > 0:
+            return (self.renewable_gen_operational / denominator) * 100
         return 0
 
     @property
     def re_percentage_underlying(self):
         """
-        Calculate RE% based on underlying demand (PRIMARY METRIC).
-        RE% = (wind + solar + biomass + DPV) / underlying_demand
-        Excludes storage sources (BESS, hydro) as they are not primary generation.
+        RE% of the whole fuel mix incl. rooftop PV (PRIMARY METRIC).
+        Matches AEMO QED "renewable share of the fuel mix" for the WEM:
+        RE% = (wind + solar + biomass + DPV) / (grid generation excl. storage + DPV)
         """
-        if self.underlying_demand > 0:
-            return (self.total_renewable_generation / self.underlying_demand) * 100
+        denominator = self.fuel_mix_total
+        if denominator > 0:
+            return (self.total_renewable_generation / denominator) * 100
         return 0
-    
+
     @property
     def dpv_percentage_underlying(self):
         """Calculate distributed PV percentage of underlying demand"""
@@ -2824,7 +2843,8 @@ class MonthlyREPerformance(models.Model):
 
         # Calculate YTD RE% to compare against the annual target
         ytd_summary = self.calculate_ytd_summary()
-        ytd_re_percentage = ytd_summary.get('re_percentage_operational', 0) if ytd_summary else 0
+        # Targets are on the underlying (fuel-mix incl. DPV) basis, as AEMO QED reports
+        ytd_re_percentage = ytd_summary.get('re_percentage_underlying', 0) if ytd_summary else 0
 
         # The target is a namedtuple with 'target_percentage' field
         gap = ytd_re_percentage - target.target_percentage
@@ -2890,52 +2910,72 @@ class MonthlyREPerformance(models.Model):
         
         # Wholesale price statistics
         # For multi-month aggregation:
-        # - Averages: simple average of monthly averages
-        # - Std dev: average of monthly std devs (approximation)
+        # - Average: interval-weighted mean of monthly averages (months differ in length)
+        # - Std dev: exact pooled population std dev from monthly (mean, std, n)
         # - Counts: sum of monthly counts
         # - Max/Min: overall max/min across months
-        
-        wholesale_avgs = [r.wholesale_price_avg for r in records if r.wholesale_price_avg is not None]
-        wholesale_std_devs = [r.wholesale_price_std_dev for r in records if r.wholesale_price_std_dev is not None]
+        priced = [r for r in records if r.wholesale_price_avg is not None]
         negative_counts = [r.wholesale_negative_count for r in records if r.wholesale_negative_count is not None]
         spike_counts = [r.wholesale_spike_count for r in records if r.wholesale_spike_count is not None]
-        
-        if wholesale_avgs:
-            avg_wholesale_price = sum(wholesale_avgs) / len(wholesale_avgs)
+
+        if priced:
+            n_total = sum(r.wholesale_total_intervals for r in priced)
+            avg_wholesale_price = sum(r.wholesale_price_avg * r.wholesale_total_intervals for r in priced) / n_total
             max_wholesale = max((r.wholesale_price_max for r in records if r.wholesale_price_max is not None), default=None)
             min_wholesale = min((r.wholesale_price_min for r in records if r.wholesale_price_min is not None), default=None)
+            with_std = [r for r in priced if r.wholesale_price_std_dev is not None]
+            if with_std:
+                n_std = sum(r.wholesale_total_intervals for r in with_std)
+                mean_std = sum(r.wholesale_price_avg * r.wholesale_total_intervals for r in with_std) / n_std
+                second_moment = sum(
+                    (r.wholesale_price_std_dev ** 2 + r.wholesale_price_avg ** 2) * r.wholesale_total_intervals
+                    for r in with_std
+                ) / n_std
+                pooled_std_dev = max(second_moment - mean_std ** 2, 0.0) ** 0.5
+            else:
+                pooled_std_dev = None
         else:
             avg_wholesale_price = None
             max_wholesale = None
             min_wholesale = None
-        
-        avg_std_dev = sum(wholesale_std_devs) / len(wholesale_std_devs) if wholesale_std_devs else None
+            pooled_std_dev = None
+
         total_negative_count = sum(negative_counts) if negative_counts else None
         total_spike_count = sum(spike_counts) if spike_counts else None
-            
-        # Calculate renewable totals
-        # RE includes wind, solar, biomass only — excludes storage (BESS, hydro)
+
+        # Calculate renewable totals (AEMO QED WEM fuel-mix basis)
+        # RE includes wind, solar, biomass (+ DPV for underlying); storage
+        # (BESS, pumped hydro) is excluded from numerator AND denominator.
         renewable_gen_operational = wind + solar + biomass
         renewable_gen_underlying = renewable_gen_operational + dpv
-        
+        grid_generation_ex_storage = operational_demand - storage_discharge - hydro_discharge
+        fuel_mix_total = grid_generation_ex_storage + dpv
+
         # Calculate RE percentages
-        if operational_demand > 0:
-            re_pct_operational = (renewable_gen_operational / operational_demand) * 100
-            emissions_intensity = (total_emissions * 1000) / operational_demand  # kg/MWh
+        if grid_generation_ex_storage > 0:
+            re_pct_operational = (renewable_gen_operational / grid_generation_ex_storage) * 100
         else:
             re_pct_operational = 0
-            emissions_intensity = 0
-        if underlying_demand > 0:
-            re_pct_underlying = (renewable_gen_underlying / underlying_demand) * 100
+        if fuel_mix_total > 0:
+            re_pct_underlying = (renewable_gen_underlying / fuel_mix_total) * 100
         else:
             re_pct_underlying = 0
+
+        # Emissions intensity on AEMO's basis: emissions / operational demand.
+        # tonnes / (GWh * 1000) = t/MWh = kg/kWh.
+        if operational_demand > 0:
+            emissions_intensity = total_emissions / (operational_demand * 1000)
+        else:
+            emissions_intensity = 0
 
         return {
             # Generation totals
             'total_generation': total_generation,
             'operational_demand': operational_demand,
             'underlying_demand': underlying_demand,
-            
+            'grid_generation_ex_storage': grid_generation_ex_storage,
+            'fuel_mix_total': fuel_mix_total,
+
             # Generation by technology
             'wind_generation': wind,
             'solar_generation': solar,
@@ -2972,7 +3012,7 @@ class MonthlyREPerformance(models.Model):
             'wholesale_price_avg': avg_wholesale_price,
             'wholesale_price_max': max_wholesale,
             'wholesale_price_min': min_wholesale,
-            'wholesale_price_std_dev': avg_std_dev,
+            'wholesale_price_std_dev': pooled_std_dev,
             'wholesale_negative_count': total_negative_count,
             'wholesale_spike_count': total_spike_count,
         }

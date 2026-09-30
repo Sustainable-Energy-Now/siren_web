@@ -463,7 +463,7 @@
                 </li></li>
             </ul>
             <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid rgba(255,255,255,0.2); font-size: 0.9em;">
-                <p><strong>Generated:</strong><br>May 24, 2026</p>
+                <p><strong>Generated:</strong><br>September 29, 2026</p>
                 <p><strong>Sections:</strong> 15</p>
             </div>
         </nav>
@@ -523,13 +523,23 @@ Data sources are primarily AEMO data with SEN analysis.</p>
 <p>Whereas previously AEMO counted batteries’ discharge as part of the RE supply, from Q1 2026 this is no longer the case.  This is because batteries are not generators, instead they effectively shift demand. </p>
 <p>In a given interval where batteries are ostensibly contributing to supply, they are in some other interval contributing equally to demand, and thus in summarising overall contributions these two actions cancel out - round-trip inefficiencies in batteries notwithstanding.</p>
 <p>That’s not to say BESS’s impact on energy usage is not significant. </p>
+<p>Storage is therefore left out of <strong>both</strong> sides of the RE% calculation, matching AEMO's WEM supply-mix table (Quarterly Energy Dynamics Q2 2026, Table 8, which has no battery column):</p>
+<ul>
+<li><strong>RE% (Underlying)</strong>, the primary measure, is AEMO's "renewable share of the fuel mix": (wind + grid solar + biomass + rooftop PV) ÷ (grid generation excluding storage + rooftop PV).</li>
+<li><strong>RE% (Operational)</strong> is the grid-only equivalent: (wind + grid solar + biomass) ÷ grid generation excluding storage.</li>
+<li>Battery and pumped-hydro discharge is not counted as renewable, and it is not added to the denominator either, because that energy was already counted once when it was generated.</li>
+<li><strong>Peak Instantaneous RE%</strong> and <strong>Best Renewable Hour</strong> use the same basis.</li>
+<li>Progress against the SWIS targets (82% by 2030, 92% by 2035, 100% by 2040) is measured on RE% (Underlying).</li>
+</ul>
+<p><strong>Emissions intensity</strong> follows AEMO's basis: total emissions ÷ operational demand, in kg CO₂-e/kWh (numerically the same as t CO₂-e/MWh).</p>
+<p>All monthly, quarterly and annual figures cover <strong>AWST calendar periods</strong>, as AEMO reports the WEM. A month is flagged incomplete, with its data coverage recorded, if its SCADA, rooftop PV or price data covers less than 99.5% of the month's half-hours.</p>
 <hr />
             </div>
             <div class="page-section " data-section="3">
                 <h2 id="understanding-demand-measures">Understanding Demand Measures</h2>
 <p>There are references to two demand measures:
-- <strong>Operational Demand</strong>: Total load required from the grid, excluding behind-the-meter rooftop solar and small, non-scheduled generation.
-- <strong>Underlying Demand</strong>: Total electricity usage by consumers, including grid supply, behind-the-meter rooftop solar (PV), and battery storage.</p>
+- <strong>Operational Demand</strong>: Total load required from the grid, excluding behind-the-meter rooftop solar and small, non-scheduled generation. On AEMO's basis ("unscheduled operational demand") this excludes battery charging and discharge.
+- <strong>Underlying Demand</strong>: Total electricity usage by consumers: operational demand plus behind-the-meter rooftop solar (PV).</p>
 <hr />
             </div>
             <div class="page-section " data-section="4">

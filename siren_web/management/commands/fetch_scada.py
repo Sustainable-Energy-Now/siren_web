@@ -59,6 +59,12 @@ class Command(BaseCommand):
             action='store_true',
             help='Backfill DailyPeakRE from existing half-hourly SCADA data for days missing peak RE records',
         )
+        parser.add_argument(
+            '--recompute-peak-re',
+            action='store_true',
+            help='With --backfill-peak-re: recompute existing DailyPeakRE records too '
+                 '(half-hourly resolution; use after an RE classification change)',
+        )
 
         # Output options
         parser.add_argument(
@@ -122,7 +128,7 @@ class Command(BaseCommand):
             end = date.today() - timedelta(days=1)
 
         self.stdout.write(f'Backfilling DailyPeakRE from {start} to {end}...')
-        summary = fetcher.backfill_daily_peak_re(start, end)
+        summary = fetcher.backfill_daily_peak_re(start, end, force=options['recompute_peak_re'])
         self.stdout.write(
             self.style.SUCCESS(
                 f'Backfilled {summary["backfilled"]} days, '

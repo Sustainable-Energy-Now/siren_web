@@ -535,7 +535,7 @@ def publish_quarterly_report(request, year, quarter):
         # Calculate target status
         target_status = None
         if target and ytd_summary:
-            ytd_re_pct = ytd_summary.get('re_percentage_operational', 0)
+            ytd_re_pct = ytd_summary.get('re_percentage_underlying', 0)
             gap = ytd_re_pct - target.target_re_percentage
             target_status = {
                 'status': 'ahead' if gap >= 0 else 'behind',
@@ -650,8 +650,10 @@ def publish_annual_report(request, year):
         total_storage_discharge = sum(r.storage_discharge for r in annual_data)
         total_storage_charge = sum(r.storage_charge for r in annual_data)
 
-        re_pct_operational = (total_renewable_operational / total_operational_demand * 100) if total_operational_demand > 0 else 0
-        re_pct_underlying = (total_renewable / total_underlying_demand * 100) if total_underlying_demand > 0 else 0
+        # RE% on the AEMO QED fuel-mix basis (storage excluded) -- single source of truth
+        _annual_agg = MonthlyREPerformance.aggregate_summary(annual_data)
+        re_pct_operational = _annual_agg['re_percentage_operational']
+        re_pct_underlying = _annual_agg['re_percentage_underlying']
 
         annual_summary = {
             'total_generation': total_generation,
@@ -715,8 +717,9 @@ def publish_annual_report(request, year):
             prev_operational_demand = sum(r.operational_demand for r in prev_annual_data)
             prev_underlying_demand = sum(r.underlying_demand for r in prev_annual_data)
 
-            prev_re_pct_operational = (prev_total_renewable_operational / prev_operational_demand * 100) if prev_operational_demand > 0 else 0
-            prev_re_pct_underlying = (prev_total_renewable / prev_underlying_demand * 100) if prev_underlying_demand > 0 else 0
+            _prev_agg = MonthlyREPerformance.aggregate_summary(prev_annual_data)
+            prev_re_pct_operational = _prev_agg['re_percentage_operational']
+            prev_re_pct_underlying = _prev_agg['re_percentage_underlying']
 
             prev_annual_summary = {
                 'total_generation': prev_total_generation,

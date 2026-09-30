@@ -8,6 +8,7 @@ from django.core.management.base import BaseCommand
 from django.utils import timezone
 from datetime import datetime, timedelta
 from calendar import monthrange
+from zoneinfo import ZoneInfo
 import logging
 
 from siren_web.models import (
@@ -15,7 +16,8 @@ from siren_web.models import (
     NewCapacityCommissioned, facilities,
 )
 from siren_web.services.dpv_matrix import values_for_datetime_range
-from siren_web.services.facility_scada_matrix import facility_matrix_for_datetime_range
+from siren_web.services.facility_scada_matrix import facility_matrix_spanning_range
+from siren_web.services import re_classification as rec
 from siren_web.services.wholesale_price_matrix import values_for_datetime_range as price_values_for_datetime_range
 import numpy as np
 
@@ -23,6 +25,16 @@ logger = logging.getLogger(__name__)
 
 # Price spike threshold ($/MWh)
 PRICE_SPIKE_THRESHOLD = 300.0
+
+# Months are AWST calendar months, as AEMO reports the WEM. settings.TIME_ZONE
+# is UTC, so building month boundaries with timezone.make_aware() would slice
+# the (genuine-UTC) SCADA/price matrices from 08:00 AWST on the 1st while the
+# DPV matrix (AWST wall-clock digits) is sliced from 00:00 AWST.
+AWST = ZoneInfo('Australia/Perth')
+
+# Minimum fraction of a month's half-hours that must be present in each
+# source for the record to be flagged data_complete.
+COVERAGE_THRESHOLD = 0.995
 
 
 class Command(BaseCommand):
@@ -105,14 +117,14 @@ class Command(BaseCommand):
         
         self.stdout.write(f"  Processing {month}/{year}...")
         
-        # Get date range for the month
+        # AWST calendar month [start, end_exclusive)
         _, last_day = monthrange(year, month)
-        start_datetime = timezone.make_aware(datetime(year, month, 1, 0, 0, 0))
-        end_datetime = timezone.make_aware(datetime(year, month, last_day, 23, 59, 59))
+        start_datetime = datetime(year, month, 1, tzinfo=AWST)
         end_exclusive = start_datetime + timedelta(days=last_day)
 
-        # Load the month's slice of the packed SCADA matrix
-        facility_ids, matrix = facility_matrix_for_datetime_range(start_datetime, end_exclusive)
+        # Load the month's slice of the packed SCADA matrix (an AWST January
+        # starts on 31 December UTC, so the range may span two matrix years)
+        facility_ids, matrix = facility_matrix_spanning_range(start_datetime, end_exclusive)
 
         if matrix.size == 0 or np.all(np.isnan(matrix)):
             self.stdout.write(
@@ -125,12 +137,19 @@ class Command(BaseCommand):
         self.stdout.write(f"  Found {int(np.count_nonzero(~np.isnan(matrix))):,} SCADA records")
 
         facility_meta = self._facility_meta(facility_ids)
+        missing = [fid for fid in facility_ids if fid not in facility_meta]
+        if missing:
+            self.stdout.write(self.style.WARNING(
+                f"  SCADA rows with no facility record (ignored): {missing}"
+            ))
+        with np.errstate(invalid='ignore'):
+            scada_coverage = float(np.mean(~np.all(np.isnan(matrix), axis=0))) if matrix.shape[0] else 0.0
 
         # Calculate generation by fuel type
         generation_data = self.calculate_generation(facility_ids, matrix, facility_meta)
 
         # Get rooftop solar from DPVGeneration
-        rooftop_solar = self.get_rooftop_solar(year, month, start_datetime, end_datetime)
+        rooftop_solar, dpv_coverage = self.get_rooftop_solar(year, month, start_datetime, end_exclusive)
         generation_data['solar_rooftop'] = rooftop_solar
         self.stdout.write(f"  Rooftop solar: {rooftop_solar:.1f} GWh")
 
@@ -138,7 +157,7 @@ class Command(BaseCommand):
         operational_demand = generation_data['operational_demand']
 
         # Calculate emissions using facility emission intensities
-        emissions_data = self.calculate_emissions(facility_ids, matrix, facility_meta)
+        emissions_data = self.calculate_emissions(facility_ids, matrix, facility_meta, operational_demand)
 
         # Get peak/minimum demand
         peak_min_data = self.get_peak_minimum(matrix, start_datetime)
@@ -168,7 +187,23 @@ class Command(BaseCommand):
             peak_inst_dt = half_hourly_peak.get('datetime')
 
         # Get wholesale price statistics
-        wholesale_data = self.calculate_wholesale_prices(year, month, start_datetime, end_datetime)
+        wholesale_data = self.calculate_wholesale_prices(year, month, start_datetime, end_exclusive)
+
+        # Data completeness: every source must cover the whole AWST month
+        coverage = {
+            'SCADA': scada_coverage,
+            'DPV': dpv_coverage,
+            'price': wholesale_data.pop('coverage', 0.0),
+        }
+        data_complete = all(c >= COVERAGE_THRESHOLD for c in coverage.values())
+        coverage_note = "Data coverage: " + ", ".join(f"{k} {v:.1%}" for k, v in coverage.items())
+        if not data_complete:
+            self.stdout.write(self.style.WARNING(f"  INCOMPLETE -- {coverage_note}"))
+        if generation_data.get('other'):
+            self.stdout.write(self.style.WARNING(
+                f"  {generation_data['other']:.1f} GWh from facilities with unmapped fuel types "
+                f"(counted in demand, not renewable)"
+            ))
 
         # Calculate underlying demand (operational + rooftop)
         underlying_demand = operational_demand + rooftop_solar
@@ -210,8 +245,9 @@ class Command(BaseCommand):
                 'wholesale_price_std_dev': wholesale_data.get('std_dev'),
                 'wholesale_negative_count': wholesale_data.get('negative_count'),
                 'wholesale_spike_count': wholesale_data.get('spike_count'),
-                'data_complete': True,
+                'data_complete': data_complete,
                 'data_source': 'SCADA',
+                'notes': coverage_note,
             }
         )
         
@@ -249,10 +285,11 @@ class Command(BaseCommand):
                 'category': (tech.category or '').upper() if tech else '',
                 'emission_intensity': f.emission_intensity,
                 'tech_emissions': tech.emissions if tech else None,
+                'bucket': rec.bucket_for_technology(tech),
             }
         return meta
 
-    def calculate_wholesale_prices(self, year, month, start_datetime, end_datetime):
+    def calculate_wholesale_prices(self, year, month, start_datetime, end_exclusive):
         """
         Calculate wholesale price statistics for the month.
         
@@ -275,15 +312,14 @@ class Command(BaseCommand):
             'std_dev': None,
             'negative_count': None,
             'spike_count': None,
+            'coverage': 0.0,
         }
-        
+
         # Pull the month's half-hourly prices from the packed matrix
-        # (end_datetime is the month's last second, 23:59:59 -- compute the
-        # true exclusive end for the matrix lookup).
-        _, last_day = monthrange(year, month)
-        end_exclusive = start_datetime + timedelta(days=last_day)
+        # (the price service converts the AWST bounds to true UTC).
         values = price_values_for_datetime_range(start_datetime, end_exclusive)
         present = values[~np.isnan(values)]
+        result['coverage'] = present.size / values.size if values.size else 0.0
 
         if present.size == 0:
             self.stdout.write(
@@ -350,10 +386,8 @@ class Command(BaseCommand):
             'storage_charge': 0,
             'hydro_discharge': 0,
             'hydro_charge': 0,
+            'other': 0,  # unmapped fuel types
         }
-
-        def _is_storage(fuel_type, category, tech_name):
-            return category == 'STORAGE' or 'BATTERY' in tech_name.upper()
 
         with np.errstate(invalid='ignore'):
             discharge = np.where(matrix > 0, matrix, 0.0)
@@ -363,58 +397,44 @@ class Command(BaseCommand):
         facility_charge_totals = np.sum(charge, axis=1)
 
         for i, fid in enumerate(facility_ids):
-            meta = facility_meta.get(fid, {})
-            fuel_type = meta.get('fuel_type', '')
-            tech_name = meta.get('technology_name', '')
-            category = meta.get('category', '')
+            bucket = facility_meta.get(fid, {}).get('bucket', rec.OTHER)
 
-            # total_mw is already a sum of half-hourly MWh values -- just
-            # convert to GWh, no further * 0.5.
+            # Row totals are sums of half-hourly MWh values -- just convert
+            # to GWh, no further * 0.5.
             gen_gwh = float(facility_discharge_totals[i]) / 1000.0
-
-            if fuel_type == 'WIND':
-                generation['wind'] += gen_gwh
-            elif fuel_type == 'SOLAR':
-                generation['solar_utility'] += gen_gwh
-            elif fuel_type in ['BIOMASS', 'LANDFILL_GAS', 'BIOGAS']:
-                generation['biomass'] += gen_gwh
-            elif fuel_type in ['GAS', 'NATURAL_GAS', 'DISTILLATE']:
-                generation['gas'] += gen_gwh
-            elif fuel_type == 'COAL':
-                generation['coal'] += gen_gwh
-            elif fuel_type == 'HYDRO':
-                generation['hydro_discharge'] += gen_gwh
-            elif _is_storage(fuel_type, category, tech_name):
-                generation['storage_discharge'] += gen_gwh
-
             charge_gwh = abs(float(facility_charge_totals[i])) / 1000.0
 
-            if fuel_type == 'HYDRO':
-                generation['hydro_charge'] += charge_gwh
-            elif _is_storage(fuel_type, category, tech_name):
+            if bucket == rec.STORAGE:
+                generation['storage_discharge'] += gen_gwh
                 generation['storage_charge'] += charge_gwh
+            elif bucket == rec.HYDRO_STORAGE:
+                generation['hydro_discharge'] += gen_gwh
+                generation['hydro_charge'] += charge_gwh
+            else:
+                generation[bucket] += gen_gwh
 
-        # Calculate total operational demand (all grid-connected generation)
+        # Total grid-connected generation incl. storage discharge (stored as
+        # operational_demand; MonthlyREPerformance.grid_generation_ex_storage
+        # derives AEMO's ESR-excluded basis from it)
         generation['operational_demand'] = (
             generation['wind'] +
             generation['solar_utility'] +
             generation['biomass'] +
             generation['gas'] +
             generation['coal'] +
+            generation['other'] +
             generation['hydro_discharge'] +
             generation['storage_discharge']
         )
 
         return generation
 
-    def get_rooftop_solar(self, year, month, start_datetime, end_datetime):
-        """Get rooftop solar generation from DPVGenerationMatrix"""
+    def get_rooftop_solar(self, year, month, start_datetime, end_exclusive):
+        """Return (rooftop solar GWh, coverage fraction) from DPVGenerationMatrix.
 
-        # end_datetime is the month's last second (23:59:59); compute the
-        # true exclusive end (start of next month) for the matrix lookup.
-        _, last_day = monthrange(year, month)
-        end_exclusive = start_datetime + timedelta(days=last_day)
-
+        The DPV service reads wall-clock digits (AWST) and ignores tzinfo, so
+        the AWST-aware month bounds select the AWST calendar month directly.
+        """
         values = values_for_datetime_range(start_datetime, end_exclusive)
 
         if values.size == 0 or np.all(np.isnan(values)):
@@ -423,22 +443,15 @@ class Command(BaseCommand):
                     f"  No DPV data found for {month}/{year}"
                 )
             )
-            return 0
+            return 0, 0.0
 
-        # Sum all estimated generation (in MW) for 30-minute intervals
-        total_mw = np.nansum(values)
+        coverage = float(np.mean(~np.isnan(values)))
+        # Each value is average MW over a 30-minute interval:
+        # MW * 0.5 h / 1000 = GWh per interval.
+        total_gwh = float(np.nansum(values)) * 0.5 / 1000.0
+        return total_gwh, coverage
 
-        if total_mw:
-            # Convert from MW to GWh
-            # Each reading is MW average over 30 minutes (0.5 hours)
-            # So: (MW * 0.5 hours) / 1000 = GWh per interval
-            # Sum of all intervals gives total GWh
-            total_gwh = float(total_mw) * 0.5 / 1000.0
-            return total_gwh
-
-        return 0
-
-    def calculate_emissions(self, facility_ids, matrix, facility_meta):
+    def calculate_emissions(self, facility_ids, matrix, facility_meta, operational_demand_gwh):
         """Calculate total emissions using facility emission intensities.
 
         Falls back to the related technology's emissions value when a facility
@@ -447,29 +460,22 @@ class Command(BaseCommand):
         Units:
           Facilities.emission_intensity : t CO2-e/MWh  (= kg CO2-e/kWh numerically)
           Technologies.emissions        : kg CO2-e/kWh
-        Result intensity is returned in kg CO2-e/kWh.
+        Emissions intensity is reported on AEMO's QED basis -- total emissions
+        / operational demand -- in t/MWh (= kg CO2-e/kWh), the same basis
+        MonthlyREPerformance.aggregate_summary uses for quarters and years.
 
         FacilityScada.quantity is already half-hourly ENERGY (MWh) -- see
         calculate_generation()'s docstring. sum(quantity) is already MWh,
         no further * 0.5.
-
-        Per-facility totals here give the same result as the old grouped-
-        by-intensity query: since the grouping key there WAS the intensity
-        value itself, summing per facility and applying its own intensity
-        is the same linear combination, just computed per row instead of
-        per group.
         """
 
         total_emissions_kg = 0
-        total_generation_kwh = 0
 
         facility_totals = np.nansum(matrix, axis=1)
 
         for i, fid in enumerate(facility_ids):
-            total_mw = float(facility_totals[i])
-
-            # total_mw is already MWh; convert to kWh.
-            generation_kwh = total_mw * 1000
+            # Net MWh for the facility; convert to kWh.
+            generation_kwh = float(facility_totals[i]) * 1000
 
             if generation_kwh > 0:
                 meta = facility_meta.get(fid, {})
@@ -478,21 +484,16 @@ class Command(BaseCommand):
 
                 if facility_intensity is not None:
                     # t CO2-e/MWh == kg CO2-e/kWh; use value directly
-                    emissions_kg = generation_kwh * float(facility_intensity)
-                    total_emissions_kg += emissions_kg
+                    total_emissions_kg += generation_kwh * float(facility_intensity)
                 elif tech_emissions is not None:
                     # kg CO2-e/kWh; use directly
-                    emissions_kg = generation_kwh * float(tech_emissions)
-                    total_emissions_kg += emissions_kg
+                    total_emissions_kg += generation_kwh * float(tech_emissions)
 
-            total_generation_kwh += generation_kwh
-
-        # Convert kg to tonnes
         total_emissions_tonnes = total_emissions_kg / 1000.0
 
-        # Average emissions intensity in kg CO2-e/kWh
-        if total_generation_kwh > 0:
-            emissions_intensity = total_emissions_kg / total_generation_kwh
+        # tonnes / (GWh * 1000) = t/MWh = kg/kWh
+        if operational_demand_gwh > 0:
+            emissions_intensity = total_emissions_tonnes / (operational_demand_gwh * 1000)
         else:
             emissions_intensity = 0
 
@@ -501,7 +502,7 @@ class Command(BaseCommand):
             'emissions_intensity': emissions_intensity  # kg CO2-e/kWh
         }
 
-    def get_peak_minimum(self, matrix, start_utc):
+    def get_peak_minimum(self, matrix, start_dt):
         """Get peak and minimum operational demand (positive generation only, excludes charging)"""
         if matrix.shape[1] == 0:
             return {
@@ -522,26 +523,33 @@ class Command(BaseCommand):
         # interval, not power. Average MW for the half hour = MWh / 0.5h.
         return {
             'peak_mw': float(totals[peak_idx]) * 2,
-            'peak_datetime': start_utc + timedelta(minutes=30 * peak_idx),
+            'peak_datetime': start_dt + timedelta(minutes=30 * peak_idx),
             'min_mw': float(totals[min_idx]) * 2,
-            'min_datetime': start_utc + timedelta(minutes=30 * min_idx),
+            'min_datetime': start_dt + timedelta(minutes=30 * min_idx),
         }
 
-    def _re_row_mask(self, facility_ids, facility_meta):
-        """Boolean mask over facility_ids: fuel_type in WIND/SOLAR/BIOMASS/HYDRO, or category=Storage (BESS)."""
-        return np.array([
-            facility_meta.get(fid, {}).get('fuel_type') in ('WIND', 'SOLAR', 'BIOMASS', 'HYDRO')
-            or facility_meta.get(fid, {}).get('category') == 'STORAGE'
-            for fid in facility_ids
-        ])
+    def _re_and_total_per_interval(self, matrix, facility_ids, facility_meta):
+        """
+        Per-interval (renewable, total) generation on the AEMO fuel-mix basis:
+        storage (battery, pumped hydro) rows are excluded from both, since
+        their discharge is energy already counted when it was generated.
+        Shared classification: siren_web.services.re_classification.
+        """
+        buckets = [facility_meta.get(fid, {}).get('bucket', rec.OTHER) for fid in facility_ids]
+        gen_mask = np.array([not rec.is_storage_bucket(b) for b in buckets], dtype=bool)
+        re_mask = np.array([rec.is_renewable_bucket(b) for b in buckets], dtype=bool)
+        with np.errstate(invalid='ignore'):
+            positive = np.where(matrix > 0, matrix, 0.0)
+        total_gen = np.sum(positive[gen_mask, :], axis=0) if gen_mask.any() else np.zeros(matrix.shape[1])
+        re_gen = np.sum(positive[re_mask, :], axis=0) if re_mask.any() else np.zeros(matrix.shape[1])
+        return re_gen, total_gen
 
-    def calculate_best_re_hour(self, matrix, facility_ids, facility_meta, start_utc):
+    def calculate_best_re_hour(self, matrix, facility_ids, facility_meta, start_dt):
         """
         Calculate the interval with highest RE percentage based on operational demand.
 
-        Operational RE% = (wind + solar + biomass + hydro discharge + battery discharge)
-                          / operational demand
-        Excludes rooftop solar (DPV) as that's not part of operational/grid demand.
+        Operational RE% = (wind + solar + biomass) / grid generation excl. storage
+        Excludes rooftop solar (DPV) and storage discharge (AEMO QED basis).
         """
         best_re = {
             'percentage': None,
@@ -551,11 +559,7 @@ class Command(BaseCommand):
         if matrix.shape[1] < 2:
             return best_re
 
-        re_mask = self._re_row_mask(facility_ids, facility_meta)
-        with np.errstate(invalid='ignore'):
-            positive = np.where(matrix > 0, matrix, 0.0)
-        total_gen = np.sum(positive, axis=0)
-        re_gen = np.sum(positive[re_mask, :], axis=0) if re_mask.any() else np.zeros_like(total_gen)
+        re_gen, total_gen = self._re_and_total_per_interval(matrix, facility_ids, facility_meta)
 
         # Best Renewable Hour - average RE% over pairs of consecutive
         # half-hourly intervals (i.e. full clock hours). Matrix columns are
@@ -569,11 +573,11 @@ class Command(BaseCommand):
         if np.any(hourly_total > 0):
             best_idx = int(np.argmax(hourly_pct))
             best_re['percentage'] = float(hourly_pct[best_idx])
-            best_re['datetime'] = start_utc + timedelta(minutes=30 * best_idx)
+            best_re['datetime'] = start_dt + timedelta(minutes=30 * best_idx)
 
         return best_re
 
-    def calculate_best_single_interval_re(self, matrix, facility_ids, facility_meta, start_utc):
+    def calculate_best_single_interval_re(self, matrix, facility_ids, facility_meta, start_dt):
         """
         Calculate the single half-hourly interval with highest operational RE%.
 
@@ -585,18 +589,14 @@ class Command(BaseCommand):
         if matrix.shape[1] == 0:
             return best
 
-        re_mask = self._re_row_mask(facility_ids, facility_meta)
-        with np.errstate(invalid='ignore'):
-            positive = np.where(matrix > 0, matrix, 0.0)
-        total_gen = np.sum(positive, axis=0)
-        re_gen = np.sum(positive[re_mask, :], axis=0) if re_mask.any() else np.zeros_like(total_gen)
+        re_gen, total_gen = self._re_and_total_per_interval(matrix, facility_ids, facility_meta)
 
         if np.any(total_gen > 0):
             with np.errstate(invalid='ignore', divide='ignore'):
                 pct = np.where(total_gen > 0, (re_gen / total_gen) * 100, -np.inf)
             best_idx = int(np.argmax(pct))
             best['percentage'] = float(pct[best_idx])
-            best['datetime'] = start_utc + timedelta(minutes=30 * best_idx)
+            best['datetime'] = start_dt + timedelta(minutes=30 * best_idx)
 
             self.stdout.write(
                 f"  Best single-interval RE%: {best['percentage']:.1f}% "

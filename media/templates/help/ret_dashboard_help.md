@@ -30,12 +30,24 @@ In a given interval where batteries are ostensibly contributing to supply, they 
 
 That’s not to say BESS’s impact on energy usage is not significant. 
 
+Storage is therefore left out of **both** sides of the RE% calculation, matching AEMO's WEM supply-mix table (Quarterly Energy Dynamics Q2 2026, Table 8, which has no battery column):
+
+- **RE% (Underlying)**, the primary measure, is AEMO's "renewable share of the fuel mix": (wind + grid solar + biomass + rooftop PV) ÷ (grid generation excluding storage + rooftop PV).
+- **RE% (Operational)** is the grid-only equivalent: (wind + grid solar + biomass) ÷ grid generation excluding storage.
+- Battery and pumped-hydro discharge is not counted as renewable, and it is not added to the denominator either, because that energy was already counted once when it was generated.
+- **Peak Instantaneous RE%** and **Best Renewable Hour** use the same basis.
+- Progress against the SWIS targets (82% by 2030, 92% by 2035, 100% by 2040) is measured on RE% (Underlying).
+
+**Emissions intensity** follows AEMO's basis: total emissions ÷ operational demand, in kg CO₂-e/kWh (numerically the same as t CO₂-e/MWh).
+
+All monthly, quarterly and annual figures cover **AWST calendar periods**, as AEMO reports the WEM. A month is flagged incomplete, with its data coverage recorded, if its SCADA, rooftop PV or price data covers less than 99.5% of the month's half-hours.
+
 ---
 
 ## Understanding Demand Measures
 There are references to two demand measures:
-- **Operational Demand**: Total load required from the grid, excluding behind-the-meter rooftop solar and small, non-scheduled generation.
-- **Underlying Demand**: Total electricity usage by consumers, including grid supply, behind-the-meter rooftop solar (PV), and battery storage.
+- **Operational Demand**: Total load required from the grid, excluding behind-the-meter rooftop solar and small, non-scheduled generation. On AEMO's basis ("unscheduled operational demand") this excludes battery charging and discharge.
+- **Underlying Demand**: Total electricity usage by consumers: operational demand plus behind-the-meter rooftop solar (PV).
 
 ---
 

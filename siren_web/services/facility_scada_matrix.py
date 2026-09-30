@@ -200,6 +200,54 @@ def facility_matrix_for_datetime_range(start_dt, end_dt_exclusive, facility_ids_
     return facility_ids, matrix[:, max(start_idx, 0):min(end_idx, matrix.shape[1])]
 
 
+def facility_matrix_spanning_range(start_dt, end_dt_exclusive):
+    """
+    Like facility_matrix_for_datetime_range, but the range may cross a UTC
+    year boundary (e.g. an AWST calendar month: AWST 1 January 00:00 is
+    31 December 16:00 UTC). Facility row sets differ between years, so the
+    result's facility_ids is the union (in first-seen order) and a facility
+    absent from one year's matrix is NaN for that part of the range. A year
+    with no matrix row at all contributes NaN columns.
+    """
+    start_utc = _floor_to_half_hour(start_dt.astimezone(dt_timezone.utc))
+    end_utc = _floor_to_half_hour(end_dt_exclusive.astimezone(dt_timezone.utc))
+    n = round((end_utc - start_utc).total_seconds() / 1800)
+    if n <= 0:
+        return [], np.empty((0, 0), dtype='float32')
+
+    pieces = []  # (dst_start, facility_ids, matrix_slice)
+    first_year, last_year = start_utc.year, (end_utc - timedelta(minutes=30)).year
+    for year in range(first_year, last_year + 1):
+        year_start = datetime(year, 1, 1, tzinfo=dt_timezone.utc)
+        year_end = datetime(year + 1, 1, 1, tzinfo=dt_timezone.utc)
+        overlap_start = max(start_utc, year_start)
+        overlap_end = min(end_utc, year_end)
+        if overlap_start >= overlap_end:
+            continue
+        try:
+            ids, sl = facility_matrix_for_datetime_range(overlap_start, overlap_end)
+        except FacilityScadaMatrix.DoesNotExist:
+            continue
+        pieces.append((round((overlap_start - start_utc).total_seconds() / 1800), ids, sl))
+
+    if len(pieces) == 1 and pieces[0][0] == 0 and pieces[0][2].shape[1] == n:
+        return list(pieces[0][1]), pieces[0][2]
+
+    facility_ids = []
+    seen = {}
+    for _, ids, _ in pieces:
+        for fid in ids:
+            if fid not in seen:
+                seen[fid] = len(facility_ids)
+                facility_ids.append(fid)
+
+    matrix = np.full((len(facility_ids), n), np.nan, dtype='float32')
+    for dst_start, ids, sl in pieces:
+        rows = [seen[fid] for fid in ids]
+        matrix[rows, dst_start:dst_start + sl.shape[1]] = sl
+    return facility_ids, matrix
+
+
 def _stitch_per_interval(start_dt, end_dt_exclusive, year_array_func, fill_value=np.nan):
     """
     Stitch together a 1-D per-interval array for [start_dt, end_dt_exclusive)

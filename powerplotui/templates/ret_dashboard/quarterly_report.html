@@ -529,7 +529,7 @@
 <div class="info-box" style="background: #e3f2fd; border-left-color: #2196f3;">
     <p style="margin-bottom: 0;">
         <strong>Operational Demand:</strong> Represents the total load required from the grid, excluding behind-the-meter rooftop solar and small, non-scheduled generation.<br>
-        <strong>Underlying Demand:</strong> Total electricity usage by consumers, including electricity sourced from the grid, behind-the-meter rooftop solar (PV), and battery storage.<br>
+        <strong>Underlying Demand:</strong> Total electricity usage by consumers: electricity sourced from the grid plus behind-the-meter rooftop solar (PV). Battery and pumped-hydro discharge is excluded from RE% on both measures, as in AEMO's Quarterly Energy Dynamics.<br>
     </p>
 </div>
 <!-- Key Findings -->
@@ -858,13 +858,13 @@
             </tr>
             <tr>
                 <td>Emissions Intensity (kg CO₂-e/kWh)</td>
-                <td class="value">{{ quarterly_summary.emissions_intensity|div:1000|floatformat:3 }}</td>
-                <td class="value">{{ ytd_summary.emissions_intensity|div:1000|floatformat:3 }}</td>
+                <td class="value">{{ quarterly_summary.emissions_intensity|floatformat:3 }}</td>
+                <td class="value">{{ ytd_summary.emissions_intensity|floatformat:3 }}</td>
                 {% if prev_ytd_summary %}
-                <td class="value">{{ prev_ytd_summary.emissions_intensity|div:1000|floatformat:3 }}</td>
+                <td class="value">{{ prev_ytd_summary.emissions_intensity|floatformat:3 }}</td>
                 <td class="value">
                     {% with change=ytd_summary.emissions_intensity|sub:prev_ytd_summary.emissions_intensity %}
-                    {% if change >= 0 %}+{% endif %}{{ change|div:1000|floatformat:3 }}
+                    {% if change >= 0 %}+{% endif %}{{ change|floatformat:3 }}
                     {% endwith %}
                 </td>
                 {% endif %}

@@ -389,19 +389,23 @@ def aggregate_summaries(summaries):
         'solar_generation': sum(s.solar_generation for s in summaries),
     }
 
-    # RE = wind + solar + biomass + hydro discharge + battery discharge
+    # RE = wind + solar + biomass (AEMO QED fuel-mix basis). Storage
+    # (battery, pumped hydro) discharge is excluded from numerator AND
+    # denominator -- that energy was already counted when generated.
     total_re = (total['wind_generation'] + total['solar_generation'] +
-                total['biomass_generation'] + total['hydro_discharge'] +
-                total['storage_discharge'])
+                total['biomass_generation'])
+    grid_ex_storage = (total['operational_demand'] - total['storage_discharge'] -
+                       total['hydro_discharge'])
+    fuel_mix_total = grid_ex_storage + total['dpv_generation']
 
     total['re_percentage_operational'] = (
-        (total_re / total['operational_demand']) * 100
-        if total['operational_demand'] > 0 else 0
+        (total_re / grid_ex_storage) * 100
+        if grid_ex_storage > 0 else 0
     )
 
     total['re_percentage_underlying'] = (
-        ((total_re + total['dpv_generation']) / total['underlying_demand']) * 100
-        if total['underlying_demand'] > 0 else 0
+        ((total_re + total['dpv_generation']) / fuel_mix_total) * 100
+        if fuel_mix_total > 0 else 0
     )
 
     total['dpv_percentage_underlying'] = (

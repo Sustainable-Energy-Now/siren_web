@@ -297,11 +297,14 @@ class Command(BaseCommand):
         self.stdout.write(f'Average: ${sum(prices_values)/len(prices_values):.2f}/MWh')
 
         if force_update:
-            # Clear the whole AWST trading day first, matching the old
+            # Clear the whole WEM trading day first, matching the old
             # delete-then-recreate semantics -- handles AEMO retracting a
             # previously-published interval on a re-fetch, which a plain
             # patch-in-place write (below) would otherwise leave stale.
-            day_start_awst = AWST.localize(datetime.combine(trading_date, datetime.min.time()))
+            # A WEM trading day runs 08:00 -> 08:00 AWST (the file's
+            # intervals); clearing the calendar day would wipe 00:00-08:00,
+            # which belongs to the previous day's file.
+            day_start_awst = AWST.localize(datetime.combine(trading_date, datetime.min.time()) + timedelta(hours=8))
             clear_range(day_start_awst, day_start_awst + timedelta(days=1))
 
         set_price_values(wholesale_prices)

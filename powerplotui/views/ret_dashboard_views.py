@@ -801,10 +801,10 @@ def quarterly_report(request, year, quarter):
     except Exception:
         target = None
 
-    # Calculate target status based on YTD RE% (operational)
+    # Calculate target status based on YTD RE% (underlying / fuel-mix basis)
     target_status = None
     if target and ytd_summary:
-        ytd_re_pct = ytd_summary.get('re_percentage_operational', 0)
+        ytd_re_pct = ytd_summary.get('re_percentage_underlying', 0)
         gap = ytd_re_pct - target.target_re_percentage
         if gap >= 0:
             target_status = {
@@ -894,8 +894,10 @@ def annual_review(request, year):
     total_storage_charge = sum(r.storage_charge for r in annual_data)
 
     # Calculate annual RE percentages
-    re_pct_operational = (total_renewable_operational / total_operational_demand * 100) if total_operational_demand > 0 else 0
-    re_pct_underlying = (total_renewable / total_underlying_demand * 100) if total_underlying_demand > 0 else 0
+    # RE% on the AEMO QED fuel-mix basis (storage excluded) -- single source of truth
+    _annual_agg = MonthlyREPerformance.aggregate_summary(annual_data)
+    re_pct_operational = _annual_agg['re_percentage_operational']
+    re_pct_underlying = _annual_agg['re_percentage_underlying']
 
     # Build annual_summary dictionary for template
     annual_summary = {
@@ -932,10 +934,10 @@ def annual_review(request, year):
     except Exception:
         target = None
     
-    # Calculate target status based on annual operational RE%
+    # Calculate target status based on annual underlying (fuel-mix) RE%
     target_status = None
     if target:
-        diff = re_pct_operational - target.target_re_percentage
+        diff = re_pct_underlying - target.target_re_percentage
         if diff >= 0:
             target_status = {
                 'status': 'ahead',
@@ -971,9 +973,9 @@ def annual_review(request, year):
         prev_total_gas = sum(r.gas_generation for r in prev_annual_data)
         prev_total_coal = sum(r.coal_generation or 0 for r in prev_annual_data)
 
-        prev_re_pct_operational = (prev_total_renewable_operational / prev_operational_demand * 100) if prev_operational_demand > 0 else 0
-        # total_renewable_generation already includes DPV
-        prev_re_pct_underlying = (prev_total_renewable / prev_underlying_demand * 100) if prev_underlying_demand > 0 else 0
+        _prev_agg = MonthlyREPerformance.aggregate_summary(prev_annual_data)
+        prev_re_pct_operational = _prev_agg['re_percentage_operational']
+        prev_re_pct_underlying = _prev_agg['re_percentage_underlying']
 
         prev_annual_summary = {
             'total_generation': prev_total_generation,
