@@ -1,8 +1,9 @@
-{% extends 'powerplotui_base.html' %}
+{% extends 'scada/base.html' %}
+{% load humanize %}
 
 {% block title %}EV Uptake & Charging Load Tracking{% endblock %}
 
-{% block powerplotui_content %}
+{% block content %}
 <style>
     .ev-tracking .info-box { background:#e8f4f8; border-left:4px solid #3498db;
         padding:15px; margin:20px 0; border-radius:4px; }
@@ -12,7 +13,7 @@
 </style>
 <div class="ev-tracking">
 <header style="margin-bottom: 20px;">
-    <h1>EV Uptake Tracking (Outcome B)</h1>
+    <h1>EV Uptake Tracking</h1>
     <p style="color: #7f8c8d; font-size: 1.1em;">
         How WA's accumulating EV fleet actuals compare with CSIRO's Low/Medium/High uptake projections,
         and which trajectory WA is currently tracking toward.
@@ -22,7 +23,7 @@
 <div class="info-box" style="background: #e3f2fd; border-left-color: #2196f3;">
     <p style="margin-bottom: 0;">
         This comparison is deliberately <strong>fleet count vs fleet count</strong> (not consumption), since
-        WA's actuals source only reports vehicle counts (O8) — the sensitivity capability (Outcome A) uses
+        WA's actuals source only reports vehicle counts (O8) — the sensitivity capability uses
         consumption (kWh) as its load driver, but that basis is not available for actuals, so it is never
         mixed into this comparison.
     </p>

@@ -9,6 +9,7 @@ import datetime as dt
 
 import plotly.graph_objects as go
 from django.shortcuts import render
+from django.views.decorators.clickjacking import xframe_options_exempt
 
 from powerplotui.services.ev_uptake_analysis import build_tracking_report
 from siren_web.models import EvActualsQuarter, EvActualsRecord, EvUptakePostcodeFigure
@@ -54,6 +55,7 @@ def _build_tracking_chart(curves, actuals_quarterly=None):
     return fig.to_html(include_plotlyjs='cdn', div_id='ev_tracking_chart', full_html=False)
 
 
+@xframe_options_exempt
 def ev_uptake_tracking(request):
     """FR-13/14 tracking dashboard. Only reads figures/actuals already
     marked validation_status='passed' -- the Section 8 standing principle
