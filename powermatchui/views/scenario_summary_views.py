@@ -5,7 +5,7 @@ their times, load factor, monthly energy, mean daily profile, peak-day
 profile and load-duration curve, plus how the Demand was built and an
 optional side-by-side comparison with a second Demand.
 
-Nothing here writes to the database. The statistics live in
+The only write is delete_scenario (POST, explicit user action). The statistics live in
 powermatchui/utils/scenario_summary.py; this module only finds Demand
 records and their traces (DemandMatrix), calls that, and draws charts.
 """
@@ -13,7 +13,11 @@ from typing import List, Optional
 
 import numpy as np
 from django.contrib.auth.decorators import login_required
-from django.shortcuts import render
+from django.contrib import messages
+from django.db import transaction
+from django.shortcuts import redirect, render
+from django.urls import reverse
+from django.views.decorators.http import require_POST
 
 from powermatchui.utils.scenario_summary import (
     LoadStats,
@@ -23,7 +27,7 @@ from powermatchui.utils.scenario_summary import (
     summarise_load_trace,
 )
 from siren_web.models import Demand, DemandMatrix
-from siren_web.services.demand_matrix import demand_trace
+from siren_web.services.demand_matrix import clear_demand_trace, demand_trace
 
 MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
@@ -179,3 +183,30 @@ def scenario_summary(request):
         'resolution': 'half-hourly' if stats.intervals_per_day == 48 else 'hourly',
     })
     return render(request, 'scenario_summary.html', context)
+
+
+@login_required
+@require_POST
+def delete_scenario(request, demand_id):
+    """Delete a Demand (and its DemandScenarios wrapper, via cascade) and blank its stored traces.
+
+    Refused if EV-derived Demands were built from it, since they would lose their base.
+    """
+    demand = Demand.objects.filter(pk=demand_id).first()
+    if demand is None:
+        messages.error(request, "That Demand doesn't exist.")
+        return redirect('powermatchui:scenario_summary')
+
+    name = demand.name or f"Demand {demand.iddemand}"
+    children = list(demand.ev_derived.values_list('name', flat=True))
+    if children:
+        messages.error(request, f"Can't delete '{name}': EV scenarios were built from it ({', '.join(children)}). "
+                                "Delete those first.")
+        return redirect(f"{reverse('powermatchui:scenario_summary')}?scenario={demand_id}")
+
+    with transaction.atomic():
+        for year in DemandMatrix.objects.defer('data').values_list('year', flat=True):
+            clear_demand_trace(year, demand.iddemand)
+        demand.delete()
+    messages.success(request, f"Deleted '{name}'.")
+    return redirect('powermatchui:scenario_summary')

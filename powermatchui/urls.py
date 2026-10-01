@@ -72,6 +72,7 @@ urlpatterns = [
 
     # Read-only key statistics for a scenario's Load (demand) trace, with optional comparison
     path('scenario-summary/', scenario_summary_views.scenario_summary, name='scenario_summary'),
+    path('scenario-summary/<int:demand_id>/delete/', scenario_summary_views.delete_scenario, name='scenario_summary_delete'),
 
     # Data Pipelines — status + background submission of periodic ESOO/EV/SCADA commands
     path('data-pipelines/', data_pipeline_views.data_pipeline_dashboard, name='data_pipeline_dashboard'),

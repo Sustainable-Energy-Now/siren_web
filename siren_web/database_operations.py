@@ -733,6 +733,8 @@ def fetch_technology_attributes(cost_year, scenario):
     return technology_attributes
 
 def get_emission_color(emissions):
+    if emissions is None:
+        return "#f4b6b6"  # No emissions data: flag in light red
     if emissions < 0.3:
         return "#c8e6da"  # Light green
     elif emissions < 0.5:
