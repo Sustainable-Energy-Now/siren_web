@@ -1037,7 +1037,82 @@ class PowerMatchProcessor:
         
         return hourly_array
     
-    def _compile_metadata(self, start_time, year, energy_balance, 
+    def _analyse_shortfall(self, energy_balance, year, top_n=10) -> Dict:
+        """Describe when and how badly load went unmet.
+
+        Returns plain Python types (JSON-safe). Timestamps assume interval 0 is
+        00:00 on 1 Jan of `year` and that the intervals span the whole year.
+        """
+        import datetime as _dt
+        shortfall = np.asarray(energy_balance.hourly_shortfall, dtype=float)
+        load = np.asarray(energy_balance.hourly_load, dtype=float)
+        n = len(shortfall)
+        if n == 0:
+            return {'unmet_intervals': 0}
+        try:
+            start = _dt.datetime(int(year), 1, 1)
+        except (TypeError, ValueError):
+            start = _dt.datetime(2000, 1, 1)
+        days = 366 if (start.year % 4 == 0 and (start.year % 100 != 0 or start.year % 400 == 0)) else 365
+        step_hours = days * 24 / n
+        if abs(step_hours - round(step_hours)) < 1e-6:
+            step_hours = float(round(step_hours))
+
+        def stamp(i):
+            return (start + _dt.timedelta(hours=i * step_hours)).strftime('%d %b %H:%M')
+
+        tol = 1e-6
+        unmet = shortfall > tol
+        result = {
+            'interval_hours': step_hours,
+            'total_intervals': int(n),
+            'unmet_intervals': int(unmet.sum()),
+            'unmet_hours': float(unmet.sum() * step_hours),
+            'unmet_interval_pct': float(unmet.sum() / n * 100),
+            'events': [],
+            'monthly': [],
+        }
+        if not unmet.any():
+            return result
+
+        peak = int(shortfall.argmax())
+        result['peak_shortfall_mw'] = float(shortfall[peak])
+        result['peak_shortfall_when'] = stamp(peak)
+        result['peak_shortfall_load_mw'] = float(load[peak])
+
+        # Consecutive runs of unmet intervals
+        idx = np.flatnonzero(unmet)
+        breaks = np.flatnonzero(np.diff(idx) > 1) + 1
+        events = []
+        for run in np.split(idx, breaks):
+            s, e = int(run[0]), int(run[-1])
+            events.append({
+                'start': stamp(s),
+                'end': stamp(e),
+                'duration_hours': float((e - s + 1) * step_hours),
+                'unmet_mwh': float(shortfall[s:e + 1].sum() * step_hours),
+                'peak_mw': float(shortfall[s:e + 1].max()),
+            })
+        result['event_count'] = len(events)
+        result['longest_event_hours'] = max(ev['duration_hours'] for ev in events)
+        events.sort(key=lambda ev: ev['unmet_mwh'], reverse=True)
+        result['events'] = events[:top_n]
+
+        # Monthly breakdown
+        month_idx = np.array([
+            (start + _dt.timedelta(hours=int(i) * step_hours)).month - 1 for i in idx
+        ])
+        for m in range(12):
+            sel = idx[month_idx == m]
+            if len(sel):
+                result['monthly'].append({
+                    'month': _dt.date(2000, m + 1, 1).strftime('%b'),
+                    'intervals': int(len(sel)),
+                    'unmet_mwh': float(shortfall[sel].sum() * step_hours),
+                })
+        return result
+
+    def _compile_metadata(self, start_time, year, energy_balance,
                          summary_stats, economic_results, config) -> Dict:
         """Compile comprehensive metadata"""
         # Find max shortfall and when it occurred
@@ -1048,6 +1123,8 @@ class PowerMatchProcessor:
                 max_shortfall = shortfall
                 max_shortfall_hour = h
         
+        shortfall_analysis = self._analyse_shortfall(energy_balance, year)
+
         # Calculate system totals
         system_totals = {
             'total_capacity_mw': sum(econ.capacity for econ in economic_results.values()),
@@ -1077,6 +1154,7 @@ class PowerMatchProcessor:
             'total_shortfall_mwh': summary_stats['total_shortfall'],
             'max_shortfall_mw': max_shortfall,
             'max_shortfall_hour': max_shortfall_hour + 1,  # 1-indexed for display
+            'shortfall_analysis': shortfall_analysis,
             'total_curtailment_mwh': summary_stats['total_curtailment'],
             'curtailment_pct': summary_stats['curtailment_pct'],
             'total_surplus_mwh': summary_stats['total_surplus'],

@@ -42,27 +42,27 @@
             <div class="metric-grid">
                 <div class="metric-item">
                     <div class="metric-label">Total Load</div>
-                    <div class="metric-value">{{ summary_report.system_overview.total_load_gwh|floatformat:1 }} GWh</div>
+                    <div class="metric-value">{{ summary_report.system_overview.total_load_gwh|floatformat:"1g" }} GWh</div>
                 </div>
                 <div class="metric-item">
                     <div class="metric-label">Load Met</div>
-                    <div class="metric-value">{{ summary_report.system_overview.load_met_percentage|floatformat:1 }}%</div>
+                    <div class="metric-value">{{ summary_report.system_overview.load_met_percentage|floatformat:"1g" }}%</div>
                 </div>
                 <div class="metric-item">
                     <div class="metric-label">Renewable Energy</div>
-                    <div class="metric-value">{{ summary_report.system_overview.renewable_percentage|floatformat:1 }}%</div>
+                    <div class="metric-value">{{ summary_report.system_overview.renewable_percentage|floatformat:"1g" }}%</div>
                 </div>
                 <div class="metric-item">
                     <div class="metric-label">Storage Contribution</div>
-                    <div class="metric-value">{{ summary_report.system_overview.storage_contribution_percentage|floatformat:1 }}%</div>
+                    <div class="metric-value">{{ summary_report.system_overview.storage_contribution_percentage|floatformat:"1g" }}%</div>
                 </div>
                 <div class="metric-item">
                     <div class="metric-label">Curtailment</div>
-                    <div class="metric-value">{{ summary_report.system_overview.curtailment_percentage|floatformat:1 }}%</div>
+                    <div class="metric-value">{{ summary_report.system_overview.curtailment_percentage|floatformat:"1g" }}%</div>
                 </div>
                 <div class="metric-item">
                     <div class="metric-label">System LCOE</div>
-                    <div class="metric-value">${{ summary_report.system_overview.system_lcoe_per_mwh|floatformat:2 }}/MWh</div>
+                    <div class="metric-value">${{ summary_report.system_overview.system_lcoe_per_mwh|floatformat:"2g" }}/MWh</div>
                 </div>
             </div>
             
@@ -71,14 +71,89 @@
                     <strong>Warning:</strong> Load is not fully met. Consider adding more generation capacity.
                 </div>
             {% endif %}
+
+            {% with sf=summary_report.system_overview.shortfall_analysis %}
+            {% if sf and sf.unmet_intervals %}
+                <h5 style="margin-top:1em;">Unmet Load</h5>
+                <div class="metric-grid">
+                    <div class="metric-item">
+                        <div class="metric-label">Unmet Energy</div>
+                        <div class="metric-value">{{ summary_report.system_overview.shortfall_gwh|floatformat:"2g" }} GWh</div>
+                    </div>
+                    <div class="metric-item">
+                        <div class="metric-label">Intervals Unmet</div>
+                        <div class="metric-value">{{ sf.unmet_intervals|floatformat:"0g" }} of {{ sf.total_intervals|floatformat:"0g" }} ({{ sf.unmet_interval_pct|floatformat:1 }}%)</div>
+                    </div>
+                    <div class="metric-item">
+                        <div class="metric-label">Separate Events</div>
+                        <div class="metric-value">{{ sf.event_count|floatformat:"0g" }}</div>
+                    </div>
+                    <div class="metric-item">
+                        <div class="metric-label">Longest Event</div>
+                        <div class="metric-value">{{ sf.longest_event_hours|floatformat:"-1g" }} hours</div>
+                    </div>
+                    <div class="metric-item">
+                        <div class="metric-label">Peak Shortfall</div>
+                        <div class="metric-value">{{ sf.peak_shortfall_mw|floatformat:"1g" }} MW</div>
+                        <small>{{ sf.peak_shortfall_when }} (load {{ sf.peak_shortfall_load_mw|floatformat:"0g" }} MW)</small>
+                    </div>
+                </div>
+
+                <h6 style="margin-top:1em;">Worst Events (by unmet energy)</h6>
+                <table class="technology-table">
+                    <thead>
+                        <tr>
+                            <th>Start</th>
+                            <th>End</th>
+                            <th>Duration (hours)</th>
+                            <th>Unmet Energy (MWh)</th>
+                            <th>Peak Shortfall (MW)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for ev in sf.events %}
+                        <tr>
+                            <td>{{ ev.start }}</td>
+                            <td>{{ ev.end }}</td>
+                            <td>{{ ev.duration_hours|floatformat:"-1g" }}</td>
+                            <td>{{ ev.unmet_mwh|floatformat:"1g" }}</td>
+                            <td>{{ ev.peak_mw|floatformat:"1g" }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+
+                <h6 style="margin-top:1em;">Unmet Energy by Month</h6>
+                <table class="technology-table">
+                    <thead>
+                        <tr>
+                            <th>Month</th>
+                            <th>Intervals Unmet</th>
+                            <th>Unmet Energy (MWh)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for m in sf.monthly %}
+                        <tr>
+                            <td>{{ m.month }}</td>
+                            <td>{{ m.intervals|floatformat:"0g" }}</td>
+                            <td>{{ m.unmet_mwh|floatformat:"1g" }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% elif summary_report.system_overview.load_met_percentage < 95 %}
+                <p><small>Interval detail not recorded in this saved baseline &mdash; re-run with "save baseline" to see when load went unmet.</small></p>
+            {% endif %}
+            {% endwith %}
             
             {% if summary_report.system_overview.curtailment_percentage > 10 %}
                 <div class="alert alert-info">
                     <strong>Info:</strong> High curtailment detected.
                     {% if summary_report.system_overview.surplus_absorbed_percentage is not None %}
-                        Storage absorbed {{ summary_report.system_overview.storage_charged_gwh|floatformat:1 }}
-                        of {{ summary_report.system_overview.surplus_gwh|floatformat:1 }} GWh of surplus
-                        ({{ summary_report.system_overview.surplus_absorbed_percentage|floatformat:1 }}%).
+                        Storage absorbed {{ summary_report.system_overview.storage_charged_gwh|floatformat:"1g" }}
+                        of {{ summary_report.system_overview.surplus_gwh|floatformat:"1g" }} GWh of surplus
+                        ({{ summary_report.system_overview.surplus_absorbed_percentage|floatformat:"1g" }}%).
                         {% if summary_report.system_overview.surplus_min_generation_gwh > summary_report.system_overview.surplus_renewable_gwh %}
                             Most of the surplus comes from dispatchable generators held at their minimum
                             output &mdash; review their minimum-generation settings before adding storage.
@@ -99,23 +174,23 @@
             <div class="metric-grid">
                 <div class="metric-item">
                     <div class="metric-label">Surplus</div>
-                    <div class="metric-value">{{ summary_report.system_overview.surplus_gwh|floatformat:1 }} GWh</div>
+                    <div class="metric-value">{{ summary_report.system_overview.surplus_gwh|floatformat:"1g" }} GWh</div>
                 </div>
                 <div class="metric-item">
                     <div class="metric-label">From Renewables</div>
-                    <div class="metric-value">{{ summary_report.system_overview.surplus_renewable_gwh|floatformat:1 }} GWh</div>
+                    <div class="metric-value">{{ summary_report.system_overview.surplus_renewable_gwh|floatformat:"1g" }} GWh</div>
                 </div>
                 <div class="metric-item">
                     <div class="metric-label">From Minimum Generation</div>
-                    <div class="metric-value">{{ summary_report.system_overview.surplus_min_generation_gwh|floatformat:1 }} GWh</div>
+                    <div class="metric-value">{{ summary_report.system_overview.surplus_min_generation_gwh|floatformat:"1g" }} GWh</div>
                 </div>
                 <div class="metric-item">
                     <div class="metric-label">Charged to Storage</div>
-                    <div class="metric-value">{{ summary_report.system_overview.storage_charged_gwh|floatformat:1 }} GWh ({{ summary_report.system_overview.surplus_absorbed_percentage|floatformat:1 }}%)</div>
+                    <div class="metric-value">{{ summary_report.system_overview.storage_charged_gwh|floatformat:"1g" }} GWh ({{ summary_report.system_overview.surplus_absorbed_percentage|floatformat:"1g" }}%)</div>
                 </div>
                 <div class="metric-item">
                     <div class="metric-label">Curtailed</div>
-                    <div class="metric-value">{{ summary_report.system_overview.curtailment_gwh|floatformat:1 }} GWh</div>
+                    <div class="metric-value">{{ summary_report.system_overview.curtailment_gwh|floatformat:"1g" }} GWh</div>
                 </div>
             </div>
             {% else %}
@@ -129,23 +204,23 @@
             <div class="metric-grid">
                 <div class="metric-item">
                     <div class="metric-label">Total Annual Cost</div>
-                    <div class="metric-value">${{ summary_report.economic_summary.total_annual_cost_millions|floatformat:1 }}M/year</div>
+                    <div class="metric-value">${{ summary_report.economic_summary.total_annual_cost_millions|floatformat:"1g" }}M/year</div>
                 </div>
                 <div class="metric-item">
                     <div class="metric-label">Total Capital Cost</div>
-                    <div class="metric-value">${{ summary_report.economic_summary.total_capital_cost_millions|floatformat:1 }}M</div>
+                    <div class="metric-value">${{ summary_report.economic_summary.total_capital_cost_millions|floatformat:"1g" }}M</div>
                 </div>
                 <div class="metric-item">
                     <div class="metric-label">Lifetime Cost</div>
-                    <div class="metric-value">${{ summary_report.economic_summary.total_lifetime_cost_millions|floatformat:1 }}M</div>
+                    <div class="metric-value">${{ summary_report.economic_summary.total_lifetime_cost_millions|floatformat:"1g" }}M</div>
                 </div>
                 <div class="metric-item">
                     <div class="metric-label">Carbon Price</div>
-                    <div class="metric-value">${{ summary_report.economic_summary.carbon_price_per_tco2e|floatformat:2 }}/tCO2e</div>
+                    <div class="metric-value">${{ summary_report.economic_summary.carbon_price_per_tco2e|floatformat:"2g" }}/tCO2e</div>
                 </div>
                 <div class="metric-item">
                     <div class="metric-label">Discount Rate</div>
-                    <div class="metric-value">{{ summary_report.economic_summary.discount_rate_pct|floatformat:1 }}%</div>
+                    <div class="metric-value">{{ summary_report.economic_summary.discount_rate_pct|floatformat:"1g" }}%</div>
                 </div>
             </div>
         </div>
@@ -156,19 +231,19 @@
             <div class="metric-grid">
                 <div class="metric-item">
                     <div class="metric-label">Annual Emissions</div>
-                    <div class="metric-value">{{ summary_report.environmental_summary.total_emissions_ktco2e_per_year|floatformat:1 }} ktCO2e/year</div>
+                    <div class="metric-value">{{ summary_report.environmental_summary.total_emissions_ktco2e_per_year|floatformat:"1g" }} ktCO2e/year</div>
                 </div>
                 <div class="metric-item">
                     <div class="metric-label">Emissions Cost</div>
-                    <div class="metric-value">${{ summary_report.environmental_summary.total_emissions_cost_millions_per_year|floatformat:2 }}M/year</div>
+                    <div class="metric-value">${{ summary_report.environmental_summary.total_emissions_cost_millions_per_year|floatformat:"2g" }}M/year</div>
                 </div>
                 <div class="metric-item">
                     <div class="metric-label">Lifetime Emissions</div>
-                    <div class="metric-value">{{ summary_report.environmental_summary.lifetime_emissions_mtco2e|floatformat:2 }} MtCO2e</div>
+                    <div class="metric-value">{{ summary_report.environmental_summary.lifetime_emissions_mtco2e|floatformat:"2g" }} MtCO2e</div>
                 </div>
                 <div class="metric-item">
                     <div class="metric-label">Total Land Use</div>
-                    <div class="metric-value">{{ summary_report.environmental_summary.total_land_use_km2|floatformat:1 }} km²</div>
+                    <div class="metric-value">{{ summary_report.environmental_summary.total_land_use_km2|floatformat:"1g" }} km²</div>
                 </div>
             </div>
         </div>
@@ -192,12 +267,12 @@
                     {% for tech in summary_report.technology_breakdown %}
                     <tr>
                         <td>{{ tech.technology }}</td>
-                        <td>{{ tech.capacity_mw|floatformat:1 }}</td>
-                        <td>{{ tech.generation_gwh|floatformat:1 }}</td>
-                        <td>{{ tech.capacity_factor_pct|floatformat:1 }}</td>
-                        <td>{{ tech.lcoe_per_mwh|floatformat:2 }}</td>
-                        <td>{{ tech.emissions_ktco2e|floatformat:1 }}</td>
-                        <td>{{ tech.area_km2|floatformat:1 }}</td>
+                        <td>{{ tech.capacity_mw|floatformat:"1g" }}</td>
+                        <td>{{ tech.generation_gwh|floatformat:"1g" }}</td>
+                        <td>{{ tech.capacity_factor_pct|floatformat:"1g" }}</td>
+                        <td>{{ tech.lcoe_per_mwh|floatformat:"2g" }}</td>
+                        <td>{{ tech.emissions_ktco2e|floatformat:"1g" }}</td>
+                        <td>{{ tech.area_km2|floatformat:"1g" }}</td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -224,7 +299,7 @@
                         {% if forloop.first %}
                             {{ field }}
                         {% else %}
-                            {{ field|floatformat:2 }}
+                            {{ field|floatformat:"2g" }}
                         {% endif %}
                     </td>
                   {% endfor %}

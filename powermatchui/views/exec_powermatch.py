@@ -641,6 +641,9 @@ def create_summary_totals(scenario, dispatch_results: DispatchResults, demand_ye
         'surplus_absorbed_percentage': (
             metadata['surplus_absorbed_pct'] * 100 if 'surplus_absorbed_pct' in metadata else None
         ),
+        'shortfall_gwh': _gwh(metadata.get('total_shortfall_mwh')),
+        # Absent from baselines saved before this was recorded -> None
+        'shortfall_analysis': metadata.get('shortfall_analysis'),
         'system_lcoe_per_mwh': metadata['system_lcoe'],
         'system_lcoe_with_co2_per_mwh': metadata['system_lcoe_with_co2']
     }

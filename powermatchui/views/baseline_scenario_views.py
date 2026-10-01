@@ -588,25 +588,27 @@ def process_results_for_template(dispatch_results, scenario, save_baseline, conf
     
     # Header mapping
     header_mapping = {
-        'capacity_mw': 'Capacity',
-        'generation_mwh': 'Generation',
-        'to_meet_load_mwh': 'To Meet Load',
-        'capacity_factor': 'CF',
-        'annual_cost': 'Cost',
-        'lcog_per_mwh': 'LCOG Cost',
-        'lcoe_per_mwh': 'LCOE Cost',
-        'emissions_tco2e': 'Emissions',
-        'emissions_cost': 'Emissions Cost',
-        'lcoe_with_co2_per_mwh': 'LCOE with CO2 Cost',
-        'max_generation_mw': 'Max Generation',
-        'max_balance': 'Max Balance',
-        'capital_cost': 'Capital Cost',
-        'lifetime_cost': 'Lifetime Cost',
-        'lifetime_emissions': 'Lifetime Emissions',
-        'lifetime_emissions_cost': 'Lifetime Emissions Cost',
-        'area_km2': 'Area km²',
-        'reference_lcoe': 'Reference LCOE',
-        'reference_cf': 'Reference CF'
+        'technology': 'Technology',
+        'capacity_mw': 'Capacity (MW)',
+        'generation_mwh': 'Generation (MWh)',
+        'to_meet_load_mwh': 'To Meet Load (MWh)',
+        'capacity_factor': 'CF (ratio)',
+        'annual_cost': 'Annual Cost ($)',
+        'lcog_per_mwh': 'LCOG Cost ($/MWh)',
+        'lcoe_per_mwh': 'LCOE Cost ($/MWh)',
+        'emissions_tco2e': 'Emissions (tCO2e)',
+        'emissions_cost': 'Emissions Cost ($)',
+        'lcoe_with_co2_per_mwh': 'LCOE with CO2 Cost ($/MWh)',
+        'max_generation_mw': 'Max Generation (MW)',
+        'max_balance': 'Max Balance (MWh)',
+        'capital_cost': 'Capital Cost ($)',
+        'lifetime': 'Lifetime (years)',
+        'lifetime_cost': 'Lifetime Cost ($)',
+        'lifetime_emissions': 'Lifetime Emissions (tCO2e)',
+        'lifetime_emissions_cost': 'Lifetime Emissions Cost ($)',
+        'area_km2': 'Area (km²)',
+        'reference_lcoe': 'Reference LCOE ($/MWh)',
+        'reference_cf': 'Reference CF (ratio)'
     }
     
     original_headers = list(sp_output.dtype.names)
