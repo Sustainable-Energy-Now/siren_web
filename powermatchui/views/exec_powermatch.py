@@ -11,10 +11,10 @@ from .balance_grid_load import PowerMatchProcessor, DispatchResults
 from common.decorators import settings_required
 
 
-def save_analysis(i, dispatch_summary, metadata, scenario, variation, stage):
+def save_analysis(i, dispatch_summary, metadata, scenario, variation, stage, demand_scenario):
     """
     Insert power system analysis data into the Analysis model.
-    
+
     Args:
         i: Iteration number (used for static variables insertion)
         dispatch_summary: Numpy structured array with technology data
@@ -22,6 +22,7 @@ def save_analysis(i, dispatch_summary, metadata, scenario, variation, stage):
         scenario_obj: Scenario model instance
         variation: Variation name string
         stage: Stage number
+        demand_scenario: DemandScenarios row the analysis was dispatched against
     """
     
     def parse_variation_name(variation_name):
@@ -127,6 +128,7 @@ def save_analysis(i, dispatch_summary, metadata, scenario, variation, stage):
                 
                 analysis_records.append(Analysis(
                     idscenarios=scenario_obj,
+                    iddemandscenarios=demand_scenario,
                     heading=heading,
                     component=technology_name,
                     variation=variation,
@@ -158,6 +160,7 @@ def save_analysis(i, dispatch_summary, metadata, scenario, variation, stage):
             quantity = float(system_totals[field_name])
             analysis_records.append(Analysis(
                 idscenarios=scenario_obj,
+                iddemandscenarios=demand_scenario,
                 heading=heading,
                 component=component,
                 variation=variation,
@@ -198,6 +201,7 @@ def save_analysis(i, dispatch_summary, metadata, scenario, variation, stage):
             
             analysis_records.append(Analysis(
                 idscenarios=scenario_obj,
+                iddemandscenarios=demand_scenario,
                 heading=heading,
                 component=component,
                 variation=variation,
@@ -213,7 +217,11 @@ def save_analysis(i, dispatch_summary, metadata, scenario, variation, stage):
     if i == 0:
         static_variables = [
             ('carbon_price', metadata.get('carbon_price', 0), '$/tCO2e'),
-            ('discount_rate', metadata.get('discount_rate', 0) * 100, '%'),  # Convert to percentage
+            # Same row the Merit Order page writes and
+            # resolve_scenario_discount_rate reads back, so it must stay a
+            # fraction (0.075) -- storing a percentage here made the next
+            # run fail the discount-rate range check.
+            ('discount_rate', metadata.get('discount_rate', 0), ''),
             ('max_lifetime', metadata.get('max_lifetime', 0), 'years'),
         ]
 
@@ -243,13 +251,16 @@ def fetch_analysis(scenario, variation: str, stage: int) -> Tuple[np.ndarray, Di
         - metadata: Dictionary containing system totals and parameters
     """
     scenario_obj = get_scenario_by_title(scenario)
-    
+
     # Fetch all analysis records for this scenario/variation/stage
     analysis_records = Analysis.objects.filter(
         idscenarios=scenario_obj,
         variation=variation,
         stage=stage
     ).values('heading', 'component', 'quantity', 'units')
+    saved_demand_scenario = DemandScenarios.objects.filter(
+        analysis__idscenarios=scenario_obj, analysis__variation=variation, analysis__stage=stage,
+    ).distinct().first()
     
     # Organize data by component and heading
     data_by_component = {}
@@ -363,7 +374,7 @@ def fetch_analysis(scenario, variation: str, stage: int) -> Tuple[np.ndarray, Di
             if units == '%':
                 metadata['discount_rate'] = float(value) / 100.0
             else:
-                metadata['discount_rate'] = value
+                metadata['discount_rate'] = float(value)
         elif param == 'max_lifetime':
             metadata['max_lifetime'] = value
     
@@ -439,7 +450,8 @@ def fetch_analysis(scenario, variation: str, stage: int) -> Tuple[np.ndarray, Di
     metadata.setdefault('renewable_technologies', ['Onshore Wind', 'Fixed PV', 'Single Axis PV', 'Biomass'])
     metadata.setdefault('generator_technologies', [tech for tech in technology_names])
     metadata.setdefault('underlying_technologies', [])
-    
+    metadata['demand_scenario'] = saved_demand_scenario
+
     return dispatch_summary, metadata
 
 @login_required
@@ -472,6 +484,17 @@ def submit_powermatch_with_progress(request, demand_year, scenario, option, stag
             stage=0, heading='Total Load', component='Load Analysis',
         ).exists():
             run_fresh = True
+
+        demand_scenario = None
+        if save_data:
+            demand_scenario = (
+                DemandScenarios.objects.filter(demand_id=demand_override.demand_id).first()
+                if demand_override is not None else None
+            )
+            if demand_scenario is None:
+                raise ValueError(
+                    "Cannot save: the selected Demand has no Demand Scenario record to link the saved results to."
+                )
 
         if run_fresh:
             if progress_handler:
@@ -560,7 +583,7 @@ def submit_powermatch_with_progress(request, demand_year, scenario, option, stag
                     Stage = 0
                     scenario_obj = get_scenario_by_title(scenario)
                     delete_analysis_scenario(scenario_obj)
-                save_analysis(i, dispatch_summary, metadata, scenario, variation, Stage)
+                save_analysis(i, dispatch_summary, metadata, scenario, variation, Stage, demand_scenario)
         
         if progress_handler:
             progress_handler.update(100, "Analysis complete!")
@@ -656,7 +679,14 @@ def create_summary_totals(scenario, dispatch_results: DispatchResults, demand_ye
     demand_scenario_name = None
     forecast_year = None
     reference_year = None
-    if demand_override is not None:
+    saved_demand = metadata.get('demand_scenario') if from_saved_analysis else None
+    if saved_demand is not None:
+        # Reloaded results: report what the baseline was saved against, not
+        # whatever the page's selector currently holds.
+        demand_scenario_name = saved_demand.name
+        forecast_year = saved_demand.forecast_year
+        reference_year = saved_demand.demand.reference_year
+    elif demand_override is not None:
         reference_year = demand_override.reference_year
         demand_scenario_name = (
             DemandScenarios.objects.filter(demand_id=demand_override.demand_id)

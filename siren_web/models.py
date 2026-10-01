@@ -16,7 +16,10 @@ User = get_user_model()
 class Analysis(models.Model):
     idanalysis = models.AutoField(db_column='idAnalysis', primary_key=True)
     idscenarios = models.ForeignKey('Scenarios', on_delete=models.CASCADE, db_column='idScenarios', blank=True, null=True)
-    variation = models.CharField(max_length=45, blank=True, null=True) 
+    # The Demand the analysis was dispatched against; with idscenarios (the
+    # Facilities scenario) this fully identifies what a saved baseline was run on.
+    iddemandscenarios = models.ForeignKey('DemandScenarios', on_delete=models.CASCADE, db_column='idDemandScenarios')
+    variation = models.CharField(max_length=45, blank=True, null=True)
     heading = models.CharField(max_length=45, blank=True, null=True)
     component = models.CharField(max_length=45, blank=True, null=True)
     stage = models.IntegerField(null=True)
