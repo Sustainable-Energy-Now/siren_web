@@ -1,5 +1,4 @@
 from django.contrib.auth.decorators import login_required
-from common.decorators import settings_required
 from django.shortcuts import render
 from siren_web.forms import WeatherScenarioSettings
 from siren_web.models import facilities, Scenarios
@@ -80,7 +79,6 @@ def _get_pipeline_facilities(scenario):
 
 
 @login_required
-@settings_required(redirect_view='powermapui:powermapui_home', require_demand_year=False)
 def pipeline_gantt(request):
     """Timeline / Gantt chart of facility lifespans."""
     ctx = _get_session_context(request)
@@ -99,7 +97,6 @@ def pipeline_gantt(request):
 
 
 @login_required
-@settings_required(redirect_view='powermapui:powermapui_home', require_demand_year=False)
 def pipeline_waterfall(request):
     """Capacity waterfall / stacked area chart over time."""
     ctx = _get_session_context(request)

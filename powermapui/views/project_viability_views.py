@@ -4,7 +4,6 @@ from django.http import HttpResponse, JsonResponse
 from django.shortcuts import render
 from siren_web.models import facilities, Scenarios, ScenariosFacilities
 
-from common.decorators import settings_required
 
 
 def _get_session_context(request):
@@ -101,7 +100,6 @@ def _build_facility_row(f):
 
 
 @login_required
-@settings_required(redirect_view='powermapui:powermapui_home', require_demand_year=False)
 def project_viability_dashboard(request):
     """Sortable, colour-coded build probability dashboard for proposed/planned facilities."""
     ctx = _get_session_context(request)

@@ -1,5 +1,4 @@
 # run_powermatch.py
-from django.contrib.auth.decorators import login_required
 import numpy as np
 import re
 from siren_web.database_operations import get_scenario_by_title, delete_analysis_scenario, fetch_module_settings_data, \
@@ -8,7 +7,6 @@ from siren_web.database_operations import get_scenario_by_title, delete_analysis
 from siren_web.models import Analysis, DemandScenarios, ScenariosSettings
 from typing import Dict, Any, Tuple
 from .balance_grid_load import PowerMatchProcessor, DispatchResults
-from common.decorators import settings_required
 
 
 def save_analysis(i, dispatch_summary, metadata, scenario, variation, stage, demand_scenario):
@@ -454,9 +452,7 @@ def fetch_analysis(scenario, variation: str, stage: int) -> Tuple[np.ndarray, Di
 
     return dispatch_summary, metadata
 
-@login_required
-@settings_required(redirect_view='powermatchui:powermatchui_home', require_demand_year=False)
-def submit_powermatch_with_progress(request, demand_year, scenario, option, stages,
+def submit_powermatch_with_progress(demand_year, scenario, option, stages,
                                    variation_inst, save_data, progress_handler,
                                    demand_override=None) -> Tuple[DispatchResults, Dict[str, Any]]:
     """ Progress reporting if handler supplied"""

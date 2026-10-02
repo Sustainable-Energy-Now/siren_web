@@ -13,7 +13,6 @@ from siren_web.models import (
     DemandFactorType, DemandFactor,
     Scenarios
 )
-from common.decorators import settings_required
 import json
 
 

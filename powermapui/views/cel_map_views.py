@@ -1,5 +1,4 @@
 from django.contrib.auth.decorators import login_required
-from common.decorators import settings_required
 from django.shortcuts import render
 from siren_web.forms import WeatherScenarioSettings
 from siren_web.models import (
@@ -11,7 +10,6 @@ import json
 
 
 @login_required
-@settings_required(redirect_view='powermapui:powermapui_home', require_demand_year=False)
 def cel_map(request):
     """
     CEL transmission map.

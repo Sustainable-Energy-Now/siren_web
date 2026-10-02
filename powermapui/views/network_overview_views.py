@@ -1,5 +1,4 @@
 from django.contrib.auth.decorators import login_required
-from common.decorators import settings_required
 from django.shortcuts import render
 from siren_web.forms import WeatherScenarioSettings
 from siren_web.database_operations import fetch_module_settings_data, fetch_scenario_settings_data
@@ -8,7 +7,6 @@ import json
 
 
 @login_required
-@settings_required(redirect_view='powermapui:powermapui_home', require_demand_year=False)
 def infrastructure_network(request):
     """Full infrastructure dependency network showing all terminals, facilities, and grid lines."""
     scenario = request.session.get('scenario', '')

@@ -1,5 +1,4 @@
 from django.contrib.auth.decorators import login_required
-from common.decorators import settings_required
 from django.db.models import Max, Q
 from django.http import JsonResponse
 from django.shortcuts import render
@@ -285,7 +284,6 @@ def ajax_update_swis_boundary(request):
         return JsonResponse({'error': str(e)}, status=500)
 
 @login_required
-@settings_required(redirect_view='powermapui:powermapui_home') 
 def add_facility(request):
     if request.method == 'POST':
         try:
@@ -433,7 +431,6 @@ def add_facility(request):
     return JsonResponse({'status': 'error', 'message': 'Invalid request method'}, status=405)
 
 @login_required
-@settings_required(redirect_view='powermapui:powermapui_home')
 def create_grid_line(request):
     """Create a new grid line"""
     if request.method == 'POST':

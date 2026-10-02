@@ -2,7 +2,6 @@ from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.shortcuts import render, redirect
 from django.conf import settings
-from common.decorators import settings_required
 import logging
 import numpy as np
 
@@ -27,7 +26,6 @@ from powermapui.utils.turbine_library import TurbineLibraryError
 logger = logging.getLogger(__name__)
 
 @login_required
-@settings_required(redirect_view='powermapui:powermapui_home', require_demand_year=False)
 def generate_power(request):
     """
     Generate power for all facilities using SAM for renewables

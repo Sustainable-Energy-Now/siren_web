@@ -243,7 +243,7 @@ def handle_variation_submission(request, cleaned_data, technologies, demand_year
     
     # Run the PowerMatch analysis
     dispatch_results, summary_report = submit_powermatch_with_progress(
-        request, demand_year, scenario, option, stages,
+        demand_year, scenario, option, stages,
         variation_inst, True, None,
         demand_override=demand_override
     )

@@ -3,7 +3,6 @@ from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse, StreamingHttpResponse, HttpResponse
 from django.shortcuts import render, redirect
 from django.contrib import messages
-from common.decorators import settings_required
 import logging
 import numpy as np
 import pandas as pd
@@ -44,7 +43,6 @@ def _selected_scenario(request):
 
 
 @login_required
-@settings_required(redirect_view='powermatchui:powermatchui_home', require_demand_year=False, require_scenario=False)
 def baseline_scenario(request):
     if request.user.groups.filter(name='modellers').exists():
         pass
@@ -176,7 +174,6 @@ def baseline_scenario(request):
 
 
 @login_required
-@settings_required(redirect_view='powermatchui:powermatchui_home', require_demand_year=False, require_scenario=False)
 def run_baseline_progress(request):
     """Start analysis with SSE progress tracking"""
     scenario = _selected_scenario(request)
@@ -241,7 +238,7 @@ def run_baseline_progress(request):
                     progress_handler.update(5, "Starting PowerMatch analysis...")
                     
                     dispatch_results, summary_report = submit_powermatch_with_progress(
-                        request, demand_year, scenario, option, 1, None, save_baseline, progress_handler,
+                        demand_year, scenario, option, 1, None, save_baseline, progress_handler,
                         demand_override=demand_override
                     )
                     
@@ -484,7 +481,7 @@ def run_baseline(request):
 
             try:
                 dispatch_results, summary_report = submit_powermatch_with_progress(
-                    request, demand_year, scenario, option, 1,
+                    demand_year, scenario, option, 1,
                     None, save_baseline, None,
                     demand_override=demand_override
                     )
