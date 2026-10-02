@@ -7,20 +7,28 @@ from django.db.models import Avg, Q, F, Sum, Count, When, OuterRef, Subquery
 from django.db.models.functions import TruncDay
 import os
 import numpy as np
-from siren_web.models import Analysis, Demand, DemandMatrix, facilities, FacilityGenerators, FacilityStorage, \
+from siren_web.models import Analysis, Demand, DemandMatrix, DemandScenarios, facilities, FacilityGenerators, FacilityStorage, \
     Generatorattributes, Scenarios, ScenariosTechnologies, ScenariosSettings, Settings, Storageattributes, \
     SupplyFactorMatrix, Technologies, TechnologyYears, variations
 from siren_web.services.supply_matrix import TRACE_KW_PER_MW, facility_row_index, load_year_matrix
 from siren_web.services import demand_matrix
 from powermatchui.views.balance_grid_load import Technology
 
-def delete_analysis_scenario(idscenario):
-    Analysis.objects.filter(
-        idscenarios=idscenario
-    ).delete()
-    variations.objects.filter(
-        idscenarios=idscenario
-    ).delete()
+def delete_analysis_scenario(idscenario, demand_scenario=None):
+    """
+    Delete saved analysis for a Facilities scenario. With demand_scenario,
+    only that baseline (scenario + demand pair) is cleared, leaving baselines
+    for other Demand scenarios intact; the scenario's variation definitions
+    (shared across its baselines) are removed only once no analysis remains.
+    """
+    analysis = Analysis.objects.filter(idscenarios=idscenario)
+    if demand_scenario is not None:
+        analysis = analysis.filter(iddemandscenarios=demand_scenario)
+    analysis.delete()
+    if demand_scenario is None or not Analysis.objects.filter(idscenarios=idscenario).exists():
+        variations.objects.filter(
+            idscenarios=idscenario
+        ).delete()
     return None
 
 def fetch_analysis_scenario(scenario):
@@ -30,13 +38,61 @@ def fetch_analysis_scenario(scenario):
     ).all()[:20]
     return analysis_list
 
-def check_analysis_baseline(scenario):
+def check_analysis_baseline(scenario, demand_scenario=None):
     scenario_obj = get_scenario_by_title(scenario)
     baseline = Analysis.objects.filter(
         idscenarios=scenario_obj,
         variation='Baseline'
-    )[:1]
-    return baseline
+    )
+    if demand_scenario is not None:
+        baseline = baseline.filter(iddemandscenarios=demand_scenario)
+    return baseline[:1]
+
+
+def _demand_scenario_tag(ds):
+    """'[Type — band — year] name' label for a DemandScenarios row."""
+    tag_parts = [ds.scenario_type.name]
+    band = ds.get_probability_band_display()
+    if band:
+        tag_parts.append(band)
+    if ds.forecast_year:
+        tag_parts.append(str(ds.forecast_year))
+    return f"[{' — '.join(tag_parts)}] {ds.name}"
+
+
+def list_baselines():
+    """
+    Existing baselines: a baseline is the set of Analysis rows with
+    variation='Baseline', identified by the Facilities scenario
+    (idscenarios) plus the Demand scenario (iddemandscenarios) it was run on.
+    Returns a list of dicts: key ('<scenario_id>:<demand_scenario_id>'),
+    label, scenario (Scenarios) and demand_scenario (DemandScenarios).
+    """
+    pairs = (
+        Analysis.objects.filter(
+            variation='Baseline', stage=0,
+            heading='Total Load', component='Load Analysis',
+        )
+        .values_list('idscenarios', 'iddemandscenarios')
+        .distinct()
+    )
+    pairs = list(pairs)
+    scenarios = Scenarios.objects.in_bulk({p[0] for p in pairs})
+    demand_scenarios = DemandScenarios.objects.select_related('scenario_type').in_bulk(
+        {p[1] for p in pairs})
+    baselines = []
+    for sid, dsid in pairs:
+        scenario, ds = scenarios.get(sid), demand_scenarios.get(dsid)
+        if scenario is None or ds is None:
+            continue
+        baselines.append({
+            'key': f"{sid}:{dsid}",
+            'label': f"{scenario.title} + {_demand_scenario_tag(ds)}",
+            'scenario': scenario,
+            'demand_scenario': ds,
+        })
+    baselines.sort(key=lambda b: b['label'].lower())
+    return baselines
 
 def fetch_facilities_scenario(scenario):
     scenario_obj = get_scenario_by_title(scenario)

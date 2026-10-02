@@ -160,6 +160,19 @@ class RunPowermatchForm(forms.Form):
             )
         )
 
+class BaselineSelectForm(forms.Form):
+    """Picker over existing baselines (Facilities scenario + Demand scenario)."""
+    baseline = forms.ChoiceField(required=False, label='Baseline')
+
+    def __init__(self, *args, **kwargs):
+        from siren_web.database_operations import list_baselines
+        super().__init__(*args, **kwargs)
+        self.fields['baseline'].choices = (
+            [('', 'Select a baseline')] + [(b['key'], b['label']) for b in list_baselines()]
+        )
+        self.fields['baseline'].widget.attrs['class'] = 'form_input'
+
+
 class CombinedVariationForm(forms.Form):
     def __init__(self, *args, **kwargs):
         DIMENSION_CHOICES = [
@@ -175,8 +188,17 @@ class CombinedVariationForm(forms.Form):
         selected_variation = kwargs.pop('selected_variation', None)
         variation_data = kwargs.pop('variation_data', None)
         demand_id = kwargs.pop('demand_id', None)
+        baseline_key = kwargs.pop('baseline_key', None)
 
         super(CombinedVariationForm, self).__init__(*args, **kwargs)
+
+        # Carries the selected baseline through the POST so the view can
+        # re-resolve the Facilities scenario + Demand scenario pair.
+        self.fields['baseline'] = forms.CharField(
+            required=False,
+            widget=forms.HiddenInput(attrs={'id': 'id_combined_baseline'}),
+            initial=baseline_key,
+        )
 
         # Carries the page's Demand Forecast selection (see
         # get_demand_scenario_context / the variations.html selector)
@@ -332,6 +354,7 @@ class CombinedVariationForm(forms.Form):
         self.helper = FormHelper()
         self.helper.form_action = '/variation/'
         layout_fields = [
+            Field('baseline'),
             Field('demand_scenario_demand'),
             # Variation selection section
             Div(
@@ -403,6 +426,7 @@ class CombinedVariationForm(forms.Form):
             'dimension': dimension_value,
             'idtechnologies': selected_tech_key
         }
+        return updated_data
 
 
 class GencostUploadForm(forms.Form):
@@ -432,5 +456,3 @@ class GencostUploadForm(forms.Form):
         if not f.name.lower().endswith('.xlsx'):
             raise forms.ValidationError('Only .xlsx workbooks are accepted.')
         return f
-        
-        return updated_data

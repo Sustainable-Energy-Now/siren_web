@@ -24,20 +24,22 @@
 </ol>
 <p>The values returned will be saved to the database Analysis table for use in the Plot function.</p>
 
-<!-- Demand Forecast Selection -->
+<!-- Baseline Selection (Facilities scenario + Demand forecast) -->
+{% if baseline_form %}
 <div class="card mb-3">
-  <div class="card-header"><h5>Demand Forecast</h5></div>
+  <div class="card-header"><h5>Baseline</h5></div>
   <div class="card-body">
     <p class="text-muted">
-      Currently selected: <strong>{{ selected_demand_scenario_title|default:"none -- select one to see technology costs" }}</strong>
+      Currently selected: <strong>{{ selected_baseline_title|default:"none -- select one to see technology costs" }}</strong>
     </p>
     <form method="get" action="{% url 'powermatchui:setup_variation' %}">
-      {{ demand_scenario_form.demand_scenario_demand.label_tag }}
-      {{ demand_scenario_form.demand_scenario_demand }}
+      {{ baseline_form.baseline.label_tag }}
+      {{ baseline_form.baseline }}
       <noscript><button type="submit" class="btn btn-secondary mt-2">Select</button></noscript>
     </form>
   </div>
 </div>
+{% endif %}
 
 <h4>To set the step change value for a technology:</h4>
 <ol>
@@ -58,12 +60,12 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // Reload the page against the newly-picked Demand Forecast so the
-    // technology costs (and the hidden field carried into the variation
-    // form below) refresh for that selection.
-    const demandSelect = document.getElementById('id_demand_scenario_demand');
-    if (demandSelect) {
-        demandSelect.addEventListener('change', function() {
+    // Reload the page against the newly-picked baseline so the technology
+    // costs (and the hidden fields carried into the variation form below)
+    // refresh for that selection.
+    const baselineSelect = document.getElementById('id_baseline');
+    if (baselineSelect) {
+        baselineSelect.addEventListener('change', function() {
             this.form.submit();
         });
     }

@@ -582,7 +582,7 @@ def submit_powermatch_with_progress(request, demand_year, scenario, option, stag
                     variation = 'Baseline'
                     Stage = 0
                     scenario_obj = get_scenario_by_title(scenario)
-                    delete_analysis_scenario(scenario_obj)
+                    delete_analysis_scenario(scenario_obj, demand_scenario)
                 save_analysis(i, dispatch_summary, metadata, scenario, variation, Stage, demand_scenario)
         
         if progress_handler:
