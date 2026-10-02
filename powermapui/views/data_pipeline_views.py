@@ -87,7 +87,7 @@ def submit_pipeline_command(request):
     cmd = PIPELINE_COMMANDS.get(command_key)
     if cmd is None or not cmd.runnable_from_ui:
         messages.error(request, f"'{command_key}' is not a runnable pipeline command.")
-        return redirect('powermatchui:data_pipeline_dashboard')
+        return redirect('powermapui:data_pipeline_dashboard')
 
     raw_params = {
         p.name: request.POST.get(f'param_{p.name}', '')
@@ -106,7 +106,7 @@ def submit_pipeline_command(request):
         messages.warning(request, str(e))
     else:
         messages.success(request, f"Started '{run.label}' (run #{run.pk}). It will run in the background.")
-    return redirect('powermatchui:data_pipeline_dashboard')
+    return redirect('powermapui:data_pipeline_dashboard')
 
 
 @login_required

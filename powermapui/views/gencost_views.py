@@ -1,4 +1,4 @@
-# powermatchui/views/gencost_views.py
+# powermapui/views/gencost_views.py
 """
 CSIRO GenCost data pipeline: upload/inspect vintages, trigger parsing,
 review technology-name mappings, and apply a chosen cost case onto the
@@ -87,7 +87,7 @@ def gencost_upload(request):
                 },
             )
             messages.success(request, f"Registered GenCost {edition} {doc_type}.")
-            return redirect('powermatchui:gencost_vintage_detail', vintage_id=vintage.pk)
+            return redirect('powermapui:gencost_vintage_detail', vintage_id=vintage.pk)
     else:
         form = GencostUploadForm()
 
@@ -143,9 +143,9 @@ def gencost_extract(request, vintage_id):
     else:
         messages.success(request, format_html(
             'Started parsing (<a href="{}">run #{}</a>) — see "Recent runs" below, it updates live.',
-            reverse('powermatchui:pipeline_run_detail', args=[run.pk]), run.pk,
+            reverse('powermapui:pipeline_run_detail', args=[run.pk]), run.pk,
         ))
-    return redirect('powermatchui:gencost_vintage_detail', vintage_id=vintage.pk)
+    return redirect('powermapui:gencost_vintage_detail', vintage_id=vintage.pk)
 
 
 @login_required
@@ -166,9 +166,9 @@ def gencost_apply(request, vintage_id):
         premium_note = f' with a {premium_pct}% capex premium' if premium_pct not in ('0', '0.0', '', None) else ''
         messages.success(request, format_html(
             'Started applying \'{}\'{} (<a href="{}">run #{}</a>) — see "Recent runs" below, it updates live.',
-            case, premium_note, reverse('powermatchui:pipeline_run_detail', args=[run.pk]), run.pk,
+            case, premium_note, reverse('powermapui:pipeline_run_detail', args=[run.pk]), run.pk,
         ))
-    return redirect('powermatchui:gencost_vintage_detail', vintage_id=vintage.pk)
+    return redirect('powermapui:gencost_vintage_detail', vintage_id=vintage.pk)
 
 
 IGNORE_SENTINEL = '__ignore__'
@@ -191,7 +191,7 @@ def gencost_mapping_review(request):
             mapping.ignored = False
         mapping.save(update_fields=['technology', 'ignored', 'updated_at'])
         messages.success(request, f"Updated mapping for '{mapping.raw_technology_label}'.")
-        return redirect('powermatchui:gencost_mapping_review')
+        return redirect('powermapui:gencost_mapping_review')
 
     # Pending rows (technology IS NULL, ignored=False) first -- they're the
     # ones that actually need attention -- then mapped, then ignored last.

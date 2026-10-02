@@ -2,9 +2,10 @@ from django.urls import path
 from powermapui.views import crud_scenario_views, facilities_views, facility_generator_views, \
     facility_solar_views, facility_storage_views, crud_terminals_views, gridlines_views, \
     powermapui_home_views, map_views, network_overview_views, pipeline_charts_views, cel_map_views, \
-    power_views, storage_views, table_update_views, technologies_views, \
+    storage_views, table_update_views, technologies_views, \
     terminals_connections_views, terminals_dashboard, terminals_views, wind_turbines_views, \
-    cel_views, zone_views, project_viability_views, ev_boundary_views, facilities_takeup_views
+    cel_views, zone_views, project_viability_views, ev_boundary_views, facilities_takeup_views, \
+    data_pipeline_views, gencost_views
 app_name = 'powermapui'
 
 urlpatterns = [
@@ -160,7 +161,19 @@ urlpatterns = [
 
     path('tableupdate/', table_update_views.select_table, name='table_update'),
     path('tableupdate/process/', table_update_views.update_table, name='table_update_process'),
-    path('power/', power_views.generate_power, name='generate_power'),
+
+    # Data Pipelines — status + background submission of periodic ESOO/EV/SCADA commands
+    path('data-pipelines/', data_pipeline_views.data_pipeline_dashboard, name='data_pipeline_dashboard'),
+    path('data-pipelines/run/', data_pipeline_views.submit_pipeline_command, name='submit_pipeline_command'),
+    path('data-pipelines/run/<int:pk>/', data_pipeline_views.pipeline_run_detail, name='pipeline_run_detail'),
+    path('data-pipelines/run/<int:pk>/status/', data_pipeline_views.pipeline_run_status, name='pipeline_run_status'),
+
+    # CSIRO GenCost data pipeline (primary ingest is auto-fetch, see Data Pipelines; this is the manual upload fallback)
+    path('gencost/upload/', gencost_views.gencost_upload, name='gencost_upload'),
+    path('gencost/mapping/', gencost_views.gencost_mapping_review, name='gencost_mapping_review'),
+    path('gencost/<int:vintage_id>/', gencost_views.gencost_vintage_detail, name='gencost_vintage_detail'),
+    path('gencost/<int:vintage_id>/extract/', gencost_views.gencost_extract, name='gencost_extract'),
+    path('gencost/<int:vintage_id>/apply/', gencost_views.gencost_apply, name='gencost_apply'),
     
     # Wind Turbines URLs
     path('wind_turbines/', wind_turbines_views.wind_turbines_list, name='wind_turbines_list'),

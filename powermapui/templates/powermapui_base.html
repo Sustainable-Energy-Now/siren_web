@@ -94,11 +94,17 @@
         <li class="nav-item">
           <a class="nav-link" href="{% url 'powermapui:swis_boundary_list' %}">SWIS Boundary</a>
         </li>
-        <li class="nav-item">
-          <a class="nav-link" href="/tableupdate/">Table Update</a>
+        <li class="nav-item dropdown">
+          <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+            Data Take-up
+          </a>
+          <ul class="dropdown-menu">
+            <li><a class="dropdown-item" href="{% url 'powermapui:data_pipeline_dashboard' %}">Data Pipelines</a></li>
+            <li><a class="dropdown-item" href="{% url 'powermapui:gencost_upload' %}">GenCost Data</a></li>
+          </ul>
         </li>
         <li class="nav-item">
-          <a class="nav-link" href="/power/">Run Power</a>
+          <a class="nav-link" href="/tableupdate/">Table Update</a>
         </li>
         <li class="nav-item">
             <a class="nav-link" href="/help/powermap/" target="_blank" rel="noopener noreferrer">Powermap Help</a>

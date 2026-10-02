@@ -3,10 +3,23 @@
 {% load static %}
 {% block powermapui_content %}
 
-<p>Powermap is the Siren module that models the renewable energy generation in the South West Interconnected System (SWIS).  
-    Power Map takes as input weather and facilities data. Powermap uses the System Advisor Model (SAM) developed by the National Renewable Energy Laboratory (NREL).
-    Facilities are grid infrastructure that use a particular technology. 
-    A Scenario is a collection of Facilities of different technologies. Output from Powermap
-    is used as input to the Powermatch module.
+<p>Powermap is the Siren module that describes the generation and transmission infrastructure of the South West
+    Interconnected System (SWIS). Facilities are grid infrastructure that use a particular technology, and a Scenario
+    is a collection of Facilities of different technologies. Powermap's output &mdash; Facilities scenarios and the grid
+    they connect to &mdash; is the input to the Powermatch module. Working left to right across the menu:
+</p>
+<ol>
+    <li><strong>Grid Map</strong> &ndash; view, create and edit facilities, grid lines and terminals geographically, and check transmission losses.</li>
+    <li><strong>Scenarios</strong> &ndash; review the Scenarios matrix and build or select the Facilities scenarios (the facility/technology portfolios) to be modelled.</li>
+    <li><strong>Technologies</strong> &ndash; maintain the technology definitions behind the facilities, including wind turbine and storage types.</li>
+    <li><strong>Facilities</strong> &ndash; maintain the individual wind, solar, storage and generator facilities, and review the project pipeline: network view, timeline, capacity outlook and build probability.</li>
+    <li><strong>Transmission</strong> &ndash; maintain terminals (substations) and grid lines, run health checks, and track the Clean Energy Link (CEL) expansion.</li>
+    <li><strong>SWIS Boundary</strong> &ndash; edit the SWIS boundary polygon and apportion postcodes to it. Used to identify EV registrations within the SWIS.</li>
+    <li><strong>Data Take-up</strong> &ndash; monitor and keep the external data feeds (ESOO, EV, SCADA, CSIRO GenCost) up to date through the Data Pipelines dashboard and GenCost Data pages.</li>
+    <li><strong>Table Update</strong> &ndash; make bulk edits to reference tables. Deprecated.</li>
+</ol>
+<p>Once a Facilities scenario is ready, continue in <strong>Powermatch</strong>, where <em>Run Power</em> uses the
+    System Advisor Model (SAM) developed by the National Renewable Energy Laboratory (NREL) and weather data to generate
+    each facility's output.
 </p>
 {% endblock %}

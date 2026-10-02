@@ -1,7 +1,7 @@
-{% extends 'powermatchui_base.html' %}
+{% extends 'powermapui_base.html' %}
 {% load humanize %}
 
-{% block powermatchui_content %}
+{% block powermapui_content %}
 <style>
   .run-wrap { max-width: 1000px; margin: 1.5rem auto; }
   pre.run-out { background:#1e1e1e; color:#eee; padding:1rem; border-radius:.4rem; max-height:600px; overflow:auto; font-size:.82rem; white-space:pre-wrap; }
@@ -10,7 +10,7 @@
 </style>
 
 <div class="run-wrap">
-  <p><a href="{% url 'powermatchui:data_pipeline_dashboard' %}">&larr; Data Pipelines</a></p>
+  <p><a href="{% url 'powermapui:data_pipeline_dashboard' %}">&larr; Data Pipelines</a></p>
   <h3>Run #{{ run.pk }} — {{ run.label }}</h3>
 
   <table class="kv mb-3">

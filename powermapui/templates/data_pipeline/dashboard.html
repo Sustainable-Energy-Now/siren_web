@@ -1,7 +1,7 @@
-{% extends 'powermatchui_base.html' %}
+{% extends 'powermapui_base.html' %}
 {% load humanize %}
 
-{% block powermatchui_content %}
+{% block powermapui_content %}
 <style>
   .pipeline-wrap { max-width: 1100px; margin: 1.5rem auto; }
   .freshness-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 1rem; }
@@ -88,7 +88,7 @@
           </div>
         </div>
         {% if can_run %}
-        <form method="post" action="{% url 'powermatchui:submit_pipeline_command' %}" class="mt-2">
+        <form method="post" action="{% url 'powermapui:submit_pipeline_command' %}" class="mt-2">
           {% csrf_token %}
           <input type="hidden" name="command_key" value="{{ cmd.key }}">
           <div class="row g-2 align-items-end">
@@ -144,7 +144,7 @@
         </td>
         <td class="cmd-meta">{{ run.started_at|default:run.created_at|naturaltime }}</td>
         <td class="cmd-meta js-run-duration">{% if run.duration_seconds %}{{ run.duration_seconds|floatformat:0 }}s{% else %}—{% endif %}</td>
-        <td><a href="{% url 'powermatchui:pipeline_run_detail' run.pk %}" class="btn btn-outline-secondary btn-sm">log</a></td>
+        <td><a href="{% url 'powermapui:pipeline_run_detail' run.pk %}" class="btn btn-outline-secondary btn-sm">log</a></td>
       </tr>
     {% empty %}
       <tr><td colspan="7" class="text-muted">No runs yet.</td></tr>
@@ -157,7 +157,7 @@
 (function () {
   const rows = Array.from(document.querySelectorAll('tr[data-run-id][data-active="1"]'));
   if (!rows.length) return;
-  const base = "{% url 'powermatchui:pipeline_run_status' 0 %}".replace(/0\/status\/$/, '');
+  const base = "{% url 'powermapui:pipeline_run_status' 0 %}".replace(/0\/status\/$/, '');
   let ticks = 0;
   const poll = () => {
     ticks++;

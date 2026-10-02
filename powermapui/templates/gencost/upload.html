@@ -1,7 +1,7 @@
-{% extends 'powermatchui_base.html' %}
+{% extends 'powermapui_base.html' %}
 {% load static %}
 
-{% block powermatchui_content %}
+{% block powermapui_content %}
 <div class="container-fluid mt-4">
     <div class="row">
         <div class="col-md-12">
@@ -9,7 +9,7 @@
             <p class="text-muted">
                 Technology capital-cost projections feeding <code>TechnologyYears</code>. The primary way new
                 editions arrive is the <code>fetch_gencost_vintages</code> auto-fetch job, runnable from
-                <a href="{% url 'powermatchui:data_pipeline_dashboard' %}">Data Pipelines</a> — it pulls every
+                <a href="{% url 'powermapui:data_pipeline_dashboard' %}">Data Pipelines</a> — it pulls every
                 edition straight from CSIRO's Data Access Portal, no login required. Use this form only as a
                 manual fallback (a corrected file emailed outside the portal, or a network-restricted environment).
             </p>
@@ -71,7 +71,7 @@
                                     {% endfor %}
                                 </td>
                                 <td>{{ v.uploaded_by|default:"auto-fetched" }}</td>
-                                <td><a href="{% url 'powermatchui:gencost_vintage_detail' v.pk %}" class="btn btn-sm btn-outline-primary">View</a></td>
+                                <td><a href="{% url 'powermapui:gencost_vintage_detail' v.pk %}" class="btn btn-sm btn-outline-primary">View</a></td>
                             </tr>
                             {% endfor %}
                         </tbody>

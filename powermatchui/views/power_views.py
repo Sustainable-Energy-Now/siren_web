@@ -101,14 +101,14 @@ def generate_power(request):
             "Select a Demand Forecast before running -- it supplies both the year to run "
             "against and the weather year SAM simulates against."
         )
-        return redirect('powermapui:generate_power')
+        return redirect('powermatchui:generate_power')
     if not demand_override.reference_year:
         messages.error(
             request,
             f"The selected Demand forecast '{demand_override.demand_name}' has no reference "
             "year recorded, so a weather year for SAM can't be determined."
         )
-        return redirect('powermapui:generate_power')
+        return redirect('powermatchui:generate_power')
 
     # Check if this is a single facility run
     single_facility_mode = request.GET.get('single_facility') == 'true'

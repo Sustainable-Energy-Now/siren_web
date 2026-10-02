@@ -1,7 +1,7 @@
 <!-- generate_power.html -->
-{% extends 'powermapui_base.html' %}
+{% extends 'powermatchui_base.html' %}
 
-{% block powermapui_content %}
+{% block powermatchui_content %}
 <!DOCTYPE html>
 <html>
 <head>
@@ -56,7 +56,7 @@
             {% else %}
             <p>Select a Demand Forecast below -- it supplies both the year to run against and the weather year SAM simulates against.</p>
             {% endif %}
-            <form method="get" action="{% url 'powermapui:generate_power' %}">
+            <form method="get" action="{% url 'powermatchui:generate_power' %}">
                 <div class="facility-selector">
                     {{ demand_scenario_form.demand_scenario_demand.label_tag }}
                     {{ demand_scenario_form.demand_scenario_demand }}
@@ -77,7 +77,7 @@
             </ul>
             <p><strong>Use this when:</strong> Testing configurations, troubleshooting a specific facility, or updating one facility</p>
 
-            <form method="get" action="{% url 'powermapui:generate_power' %}">
+            <form method="get" action="{% url 'powermatchui:generate_power' %}">
                 <input type="hidden" name="confirm" value="true">
                 <input type="hidden" name="single_facility" value="true">
                 <input type="hidden" name="demand_scenario_demand" value="{{ demand_scenario_form.demand_scenario_demand.value|default:'' }}">
@@ -134,7 +134,7 @@
             </ul>
             <p><strong>Use this when:</strong> Adding new facilities, regular updates, daily operations</p>
 
-            <form method="get" action="{% url 'powermapui:generate_power' %}">
+            <form method="get" action="{% url 'powermatchui:generate_power' %}">
                 <input type="hidden" name="confirm" value="true">
                 <input type="hidden" name="refresh_supply_factors" value="false">
                 <input type="hidden" name="demand_scenario_demand" value="{{ demand_scenario_form.demand_scenario_demand.value|default:'' }}">
@@ -163,7 +163,7 @@
             </ul>
             <p><strong>Use this when:</strong> Configuration changes, parameter updates, troubleshooting data issues</p>
 
-            <form method="get" action="{% url 'powermapui:generate_power' %}"
+            <form method="get" action="{% url 'powermatchui:generate_power' %}"
                   onsubmit="return confirm('⚠️ This will delete and recreate ALL supply factors data for ALL facilities. This may take a long time. Are you sure?')">
                 <input type="hidden" name="confirm" value="true">
                 <input type="hidden" name="refresh_supply_factors" value="true">
@@ -184,7 +184,7 @@
         {% endif %}
 
         <div style="margin-top: 30px; text-align: center;">
-            <a href="{% url 'powermapui:powermapui_home' %}" class="btn btn-secondary">
+            <a href="{% url 'powermatchui:powermatchui_home' %}" class="btn btn-secondary">
                 <span class="icon">← </span>Cancel and Return
             </a>
         </div>

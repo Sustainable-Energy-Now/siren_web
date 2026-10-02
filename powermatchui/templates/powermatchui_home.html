@@ -3,14 +3,18 @@
 {% extends 'powermatchui_base.html' %}
 
 {% block powermatchui_content %}
-    <p>Powermatch is used for matching and balancing Renewable Energy resources to the load on the South West Interconnected system(SWIS).
-    Powermatch takes as input load and generation data from Powermap. Powermatch quantifies and costs the dispatchable energy generation, storage and CO2-e emissions. 
-    The parameters passed to Powermatch are stored in database tables.
-    The objective of Powermatch is to take the raw output from Powermap for a demand year and scenario and 
-    establish a baseline that scenario. Begin by setting the merit order for the technologies, then create a baseline
-    with those settings.  Finally by various means we create variants to the baseline.
-    Variants are created by varying the capacity or other attributes of the various renewable technologies used
-    in a scenario.  The objective of creating variants is to optimise  specified outcomes such as emissions or 
-    levelised cost of energy (LCOE).
+    <p>Powermatch is used for matching and balancing Renewable Energy resources to the load on the South West Interconnected
+    System (SWIS). It takes the Facilities scenarios built in Powermap together with a demand forecast, then quantifies and
+    costs the dispatchable energy generation, storage and CO2-e emissions. The parameters passed to Powermatch are stored in
+    database tables. Working left to right across the menu:
 </p>
+<ol>
+    <li><strong>Demand Forecasting</strong> &ndash; build or select the demand forecast (load trace) for the target year, from ESOO data, EV load, or factor-based projection.</li>
+    <li><strong>Run Power</strong> &ndash; use the System Advisor Model (SAM) developed by the National Renewable Energy Laboratory (NREL) and weather data to generate the hourly output of the wind and solar facilities in a scenario for a reference year's weather.</li>
+    <li><strong>Set Merit Order</strong> &ndash; set the dispatch order of the technologies, plus the carbon price and discount rate.</li>
+    <li><strong>Baseline Scenario</strong> &ndash; choose a Facilities scenario and demand forecast, adjust technology capacities, and run Powermatch to establish the baseline.</li>
+    <li><strong>Create Variants</strong> &ndash; perform sensitivity analysis on a technology's attributes across a numberruns to optimise outcomes such as emissions or levelised cost of energy (LCOE).</li>
+</ol>
+<p>Facilities scenarios and the data feeds they depend on are maintained in Powermap (see its Data Take-up menu).</p>
+<p>Once a Baseline and Variations have been created, continue in <strong>Powerplot</strong>, where <em>Variants Statistics</em> can be used to plot the outcomes.</p>
 {% endblock %}

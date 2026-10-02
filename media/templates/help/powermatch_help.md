@@ -16,9 +16,8 @@ in place of the page.
 | Menu item | URL | Purpose |
 |-----------|-----|---------|
 | **Powermatch Home** | `/powermatchui/` | Landing page describing the workflow (no configuration here) |
-| **Data Take-up → Data Pipelines** | `/data-pipelines/` | Run/monitor the background ESOO/EV/SCADA/GenCost ingest commands |
-| **Data Take-up → GenCost Data** | `/gencost/upload/` | Upload, extract and apply CSIRO GenCost technology-cost vintages |
 | **Demand Forecasting** | `/help/demand_forecasting/` | Build/manage the Demand traces this module runs against — see its own help page |
+| **Run Power** | `/power/` | Run NREL SAM simulations to generate hourly wind/solar traces for facilities |
 | **Set Merit Order** | `/merit_order/` | Order technologies for dispatch, and set carbon price / discount rate |
 | **Baseline Scenario** | `/baseline_scenario/` | Pick a Facilities scenario + Demand forecast, adjust technology capacities, run PowerMatch |
 | **Create Variants** | `/variation/` | Run PowerMatch repeatedly while stepping one technology's parameter |
@@ -40,53 +39,6 @@ where each selection is actually made now).
 
 ---
 
-## Data Take-up
-
-Two tools for keeping the data PowerMatch depends on up to date.
-
-### Data Pipelines (`/data-pipelines/`)
-
-A dashboard for the background commands that ingest external data (WEM ESOO, EV uptake,
-AEMO SCADA, CSIRO GenCost, etc.):
-
-- **Freshness** cards at the top show one card per tracked dataset, each with a coloured
-  dot indicating how stale it is.
-- **Run a job**: each runnable command is listed with its parameters (choice fields, flags,
-  free text) and a **Run** button. Only staff users can actually submit a run — everyone
-  else sees the dashboard read-only. Only one run of a given command can be active at a
-  time; submitting again while one is running is refused.
-- **Recent runs**: the last 25 runs, each with status, duration and a "log" link
-  (`pipeline_run_detail`) showing the command's full captured output.
-- Runs execute in a background thread server-side; the dashboard page itself doesn't need
-  to stay open, and `pipeline_run_status` is polled by the run-detail page for live status.
-
-### GenCost Data (`/gencost/upload/`)
-
-Manages CSIRO GenCost technology cost vintages, which feed the `TechnologyYears` cost data
-used throughout PowerMatch (capex, FOM, VOM, lifetime). The primary way a new vintage
-arrives is the automatic fetch command on the Data Pipelines dashboard; this page is the
-manual fallback plus the review/apply workflow:
-
-1. **Upload & register** (`/gencost/upload/`): upload a GenCost source document for an
-   edition (e.g. "2024-25") and document type; it's archived to disk and registered as a
-   `SourceDocument` against a `GencostVintage`.
-2. **Vintage detail** (`/gencost/<id>/`): shows the vintage's registered documents, the
-   number of extracted cost figures, and one row per cost case (e.g. "Current Policies",
-   "Global NZE 2050") with how many technology labels in that case are still unmapped.
-   - **Extract**: parses the uploaded document(s) into `GencostCostFigure` rows (runs the
-     `extract_gencost_figures` pipeline command in the background).
-   - **Apply** (per cost case): pushes that case's figures onto the live `TechnologyYears`
-     table (`apply_gencost_cost_case`), with an optional capex premium percentage. Disabled
-     until every raw technology label in that case has been mapped or explicitly ignored.
-   - **Recent runs**: the extract/apply command runs for this vintage, same log-link
-     pattern as Data Pipelines.
-3. **Technology Mapping Review** (`/gencost/mapping/`): GenCost's raw technology labels
-   don't match this project's `Technologies` names one-to-one, so each raw label is mapped
-   by hand to a `Technologies` row, or marked "ignore" (not applicable to this project).
-   Pending (unmapped, not ignored) rows are listed first since they're what blocks Apply.
-
----
-
 ## Demand Forecasting
 
 Building and managing the `Demand` records (half-hourly demand traces) that Baseline
@@ -97,6 +49,74 @@ factor-based projection and scenario summary/comparison.
 
 Every page below that mentions "select a Demand Forecast" is choosing one of those `Demand`
 records — you need at least one built before you can run a baseline.
+
+---
+
+## Run Power (SAM Simulation)
+
+The **Run Power** menu item (`/power/`) runs **NREL System Advisor Model (SAM)** simulations to produce hourly generation profiles for wind and solar facilities.
+
+### Workflow
+
+1. Select one or more facilities (or use batch mode for all facilities in a scenario)
+2. Optionally specify a date range to (re)process
+3. Choose **Refresh** mode (overwrite existing) or **Incremental** (new facilities only)
+4. Click **Generate** — the system processes each facility in sequence
+
+### Weather File Lookup
+
+SAM requires weather input files. The system locates the nearest available file for each facility's coordinates using the **Haversine distance formula**:
+
+```
+a = sin²(Δlat/2) + cos(lat1) × cos(lat2) × sin²(Δlon/2)
+distance_km = 2 × 6371 × arcsin(√a)
+```
+
+Supported weather file formats:
+- Wind: `.srz` / `.srw` (legacy SAM), `.csv` (SAM 2023+)
+- Solar: `.smz` / `.smw` (legacy SAM), `.csv` (SAM 2023+)
+
+Files are cached after first use to avoid repeated disk lookups.
+
+### Wind Simulation
+
+For each wind installation:
+1. Load the turbine's **power curve** (wind speed m/s → power output kW) from the turbine model
+2. For each hourly weather record, extract hub-height wind speed
+3. Interpolate power output from the power curve
+4. Multiply by number of turbines, apply availability losses
+5. Aggregate to annual generation
+
+**Capacity Factor:**
+
+```
+Capacity_Factor (%) = Annual_Energy_MWh / (Capacity_MW × 8760) × 100
+```
+
+### Solar Simulation
+
+For each solar installation:
+1. Load GHI (Global Horizontal Irradiance), DNI (Direct Normal Irradiance) and DHI (Diffuse Horizontal Irradiance) from the weather file
+2. SAM computes plane-of-array irradiance using the panel tilt and azimuth
+3. SAM models cell temperature and DC output, applies system losses (soiling, wiring, etc.)
+4. Inverter model converts DC to AC output, applying DC:AC clipping
+5. Annual AC generation is returned
+
+**DC:AC Ratio:**
+
+```
+DC_MW = AC_MW × dc_ac_ratio
+
+If dc_ac_ratio > 1, the array is oversized relative to the inverter
+(common for improved capacity factor at the cost of clipping losses)
+```
+
+### Results Storage
+
+Simulation results are stored in the `supplyfactors` table:
+- One record per facility per hour for the full year (8,760 records for a standard year; 8,784 for a leap year)
+- Each record: `(facility, year, hour, generation_kw)`
+- The facility's `capacity_factor` field is updated with the calculated annual average
 
 ---
 
