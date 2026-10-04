@@ -81,7 +81,7 @@
             >RE% <sup>ⓘ</sup></span>(<span class="demand-help" tabindex="0"
             data-bs-toggle="popover" data-bs-trigger="click" data-bs-placement="bottom"
             data-bs-html="true" data-bs-title="Operational Demand"
-            data-bs-content='Total load required from the grid, excluding behind-the-meter rooftop solar and small, non-scheduled generation.<br><a href="{% url "display_module_help" "ret_dashboard" %}#understanding-demand-measures" target="_blank">Full details →</a>'
+            data-bs-content='Total load required from the grid, net of rooftop solar (DPV) generation and excluding small, non-scheduled generation.<br><a href="{% url "display_module_help" "ret_dashboard" %}#understanding-demand-measures" target="_blank">Full details →</a>'
             >Operational Demand <sup>ⓘ</sup></span>)</div>
         <div class="metric-value">{{ performance.re_percentage_operational|floatformat:1 }}%</div>
         <div class="metric-sublabel">
@@ -107,7 +107,7 @@
             >RE% <sup>ⓘ</sup></span>(<span class="demand-help" tabindex="0"
             data-bs-toggle="popover" data-bs-trigger="click" data-bs-placement="bottom"
             data-bs-html="true" data-bs-title="Underlying Demand"
-            data-bs-content='Total electricity usage by consumers: grid supply plus behind-the-meter rooftop solar (PV). RE% on this basis matches AEMO QED renewable share of the fuel mix (storage excluded).<br><a href="{% url "display_module_help" "ret_dashboard" %}#understanding-demand-measures" target="_blank">Full details →</a>'
+            data-bs-content='Total electricity usage by consumers: grid supply plus total rooftop solar (PV) generation. RE% on this basis matches AEMO QED renewable share of the fuel mix (storage excluded).<br><a href="{% url "display_module_help" "ret_dashboard" %}#understanding-demand-measures" target="_blank">Full details →</a>'
             >Underlying Demand <sup>ⓘ</sup></span>)</div>
         <div class="metric-value">{{ performance.re_percentage_underlying|floatformat:1 }}%</div>
         <div class="metric-sublabel">
@@ -136,7 +136,7 @@
         <div class="metric-label">YTD RE% (<span class="demand-help" tabindex="0"
             data-bs-toggle="popover" data-bs-trigger="click" data-bs-placement="bottom"
             data-bs-html="true" data-bs-title="Operational Demand"
-            data-bs-content='Total load required from the grid, excluding behind-the-meter rooftop solar and small, non-scheduled generation.<br><a href="{% url "display_module_help" "ret_dashboard" %}#understanding-demand-measures" target="_blank">Full details →</a>'
+            data-bs-content='Total load required from the grid, net of rooftop solar (DPV) generation and excluding small, non-scheduled generation.<br><a href="{% url "display_module_help" "ret_dashboard" %}#understanding-demand-measures" target="_blank">Full details →</a>'
             >Operational <sup>ⓘ</sup></span>)</div>
         <div class="metric-value">{{ ytd_summary.re_percentage_operational|floatformat:1 }}%</div>
         {% if prev_ytd_summary %}
@@ -155,7 +155,7 @@
         <div class="metric-label">YTD RE% (<span class="demand-help" tabindex="0"
             data-bs-toggle="popover" data-bs-trigger="click" data-bs-placement="bottom"
             data-bs-html="true" data-bs-title="Underlying Demand"
-            data-bs-content='Total electricity usage by consumers: grid supply plus behind-the-meter rooftop solar (PV). RE% on this basis matches AEMO QED renewable share of the fuel mix (storage excluded).<br><a href="{% url "display_module_help" "ret_dashboard" %}#understanding-demand-measures" target="_blank">Full details →</a>'
+            data-bs-content='Total electricity usage by consumers: grid supply plus total rooftop solar (PV) generation. RE% on this basis matches AEMO QED renewable share of the fuel mix (storage excluded).<br><a href="{% url "display_module_help" "ret_dashboard" %}#understanding-demand-measures" target="_blank">Full details →</a>'
             >Underlying <sup>ⓘ</sup></span>)</div>
         <div class="metric-value">{{ ytd_summary.re_percentage_underlying|floatformat:1 }}%</div>
         <div class="metric-sublabel">Including rooftop solar</div>

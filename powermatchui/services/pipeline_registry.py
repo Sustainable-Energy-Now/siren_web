@@ -176,7 +176,7 @@ PIPELINE_COMMANDS: dict[str, PipelineCommand] = {c.key: c for c in [
         ),
         runtime_hint='seconds–minutes',
         note="FR-F07/D13: derives operational-basis energy figures from published underlying ones as "
-             "(underlying - DPV behind-the-meter) x operational/delivered factor, using AEMO's own "
+             "(underlying - rooftop DPV generation) x operational/delivered factor, using AEMO's own "
              "published consumption components. Only does work when ESOO figures changed.",
     ),
     PipelineCommand(

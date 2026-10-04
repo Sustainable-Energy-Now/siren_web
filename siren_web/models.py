@@ -2292,6 +2292,10 @@ class DPVGenerationMatrix(models.Model):
     but 1-D since DPV has no facility dimension (it's a single WA-wide
     series).
 
+    Values are AEMO's estimate of TOTAL rooftop DPV generation (on-site use
+    plus local export). Operational demand is already net of this, so DPV is
+    not a dispatch supply source in operational modelling.
+
     Index i (0-based) of the unpacked array is trading_date = 1 Jan `year`
     + (i // 48) days, interval_number = (i % 48) + 1 (half-hourly,
     midnight-based). Missing intervals are NaN.
@@ -2670,7 +2674,7 @@ class MonthlyREPerformance(models.Model):
         """
         Renewable generation for operational demand basis.
         Includes: wind, solar, biomass (incl. waste-to-energy).
-        Excludes: DPV (behind-the-meter) and storage discharge (BESS, pumped hydro).
+        Excludes: DPV (rooftop solar) and storage discharge (BESS, pumped hydro).
         """
         return (self.wind_generation +
                 self.solar_generation +

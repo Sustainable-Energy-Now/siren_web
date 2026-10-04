@@ -1385,7 +1385,7 @@ Two sliders allow real-time adjustment:
 - Default: Set by selected scenario
 **Underlying Demand Growth Rate**
 - Range: 0% to 15% per year
-- Controls: Growth of behind-the-meter demand (e.g., distributed solar)
+- Controls: Growth of underlying demand (grid demand plus rooftop solar generation)
 - Default: Set by selected scenario
 **Slider Controls:**
 - **Reset to Scenario Defaults**: Returns sliders to scenario values
@@ -1454,13 +1454,13 @@ To see a shorter or longer projection:
 #### Operational vs Underlying Mode
 **When to use:**
 - Detailed analysis of demand components
-- Understanding behind-the-meter vs grid demand
+- Understanding operational (grid) vs underlying (incl. rooftop DPV) demand
 - Planning for distributed generation impacts
 - Analyzing net load implications
 **What you see:**
 - Stacked area chart with two layers:
   - **Bottom layer (blue)**: Operational demand (grid-supplied)
-  - **Top layer (green)**: Underlying demand (behind-the-meter, DPV)
+  - **Top layer (green)**: Rooftop DPV generation (added to operational demand to give underlying demand)
 - Total = sum of both layers
 **Key insights:**
 - How much is grid demand growing?
@@ -1673,7 +1673,7 @@ The sliders let you override scenario assumptions and test custom growth rates.
 - **Display**: Shows current value as badge
 **Underlying Demand Growth Rate Slider**
 - **Range**: 0% (no growth) to 15% (extremely high growth)
-- **Controls**: Behind-the-meter demand (distributed generation)
+- **Controls**: Rooftop solar (distributed generation) component of underlying demand
 - **Factors**: Solar adoption, battery storage, prosumer behavior
 - **Display**: Shows current value as badge
 #### Using the Sliders
@@ -1934,8 +1934,8 @@ Understanding demand evolution over specific periods:
 - Formula: (End/Start)^(1/years) - 1
 **Distributed Photovoltaic (DPV)**
 - Solar panels on homes and businesses
-- Behind-the-meter generation
-- Offsets grid demand
+- Rooftop generation on the customer side of the meter (used on site or exported to the local network)
+- Offsets grid demand: operational demand is already net of it, so DPV is not a dispatch supply source
 **Duck Curve**
 - Net load pattern with high solar penetration
 - Shape: High morning, low midday, high evening
@@ -1975,7 +1975,7 @@ Understanding demand evolution over specific periods:
 **Operational Demand**
 - Electricity supplied by grid
 - Measured at: Transmission level
-- Does not include: Behind-the-meter generation
+- Does not include: rooftop DPV generation (operational demand is net of it)
 **Peak Demand**
 - Maximum power demanded in any hour
 - Critical for: Capacity planning
@@ -2005,7 +2005,7 @@ Understanding demand evolution over specific periods:
 - Method: Vary one parameter at a time
 - Purpose: Understand uncertainty
 **Underlying Demand**
-- Behind-the-meter demand (DPV)
+- Operational demand plus total rooftop DPV generation
 - Not visible: To grid operators
 - Important for: Total demand projections
 ---
@@ -2054,7 +2054,7 @@ A: Use sliders for custom growth rates. For permanent scenarios, contact system 
 **Q: Why doesn't my projection match other forecasts?**
 A: Different assumptions, methodologies, and data sources. Compare assumptions carefully.
 **Q: What's the difference between operational and underlying demand?**
-A: Operational = grid-supplied. Underlying = behind-the-meter (DPV). Total = both combined.
+A: Operational = grid-supplied. Underlying = operational demand plus total rooftop solar (DPV) generation.
 **Q: How accurate are long-term projections?**
 A: Projections are scenarios, not predictions. Accuracy decreases with time horizon. Use ranges.
 **Q: Can I export data to Excel?**

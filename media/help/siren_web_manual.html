@@ -1273,7 +1273,7 @@
                     </li></ul></li>
             </ul>
             <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid rgba(255,255,255,0.2); font-size: 0.9em;">
-                <p><strong>Generated:</strong><br>September 29, 2026</p>
+                <p><strong>Generated:</strong><br>October 04, 2026</p>
                 <p><strong>Sections:</strong> 83</p>
             </div>
         </nav>
@@ -2905,7 +2905,7 @@ The facility detail page provides comprehensive information organized into secti
 - Default: Set by selected scenario
 <strong>Underlying Demand Growth Rate</strong>
 - Range: 0% to 15% per year
-- Controls: Growth of behind-the-meter demand (e.g., distributed solar)
+- Controls: Growth of underlying demand (grid demand plus rooftop solar generation)
 - Default: Set by selected scenario
 <strong>Slider Controls:</strong>
 - <strong>Reset to Scenario Defaults</strong>: Returns sliders to scenario values
@@ -2974,13 +2974,13 @@ The facility detail page provides comprehensive information organized into secti
 <h4 id="operational-vs-underlying-mode">Operational vs Underlying Mode</h4>
 <p><strong>When to use:</strong>
 - Detailed analysis of demand components
-- Understanding behind-the-meter vs grid demand
+- Understanding operational (grid) vs underlying (incl. rooftop DPV) demand
 - Planning for distributed generation impacts
 - Analyzing net load implications
 <strong>What you see:</strong>
 - Stacked area chart with two layers:
   - <strong>Bottom layer (blue)</strong>: Operational demand (grid-supplied)
-  - <strong>Top layer (green)</strong>: Underlying demand (behind-the-meter, DPV)
+  - <strong>Top layer (green)</strong>: Rooftop DPV generation (added to operational demand to give underlying demand)
 - Total = sum of both layers
 <strong>Key insights:</strong>
 - How much is grid demand growing?
@@ -3203,7 +3203,7 @@ The facility detail page provides comprehensive information organized into secti
 - <strong>Display</strong>: Shows current value as badge
 <strong>Underlying Demand Growth Rate Slider</strong>
 - <strong>Range</strong>: 0% (no growth) to 15% (extremely high growth)
-- <strong>Controls</strong>: Behind-the-meter demand (distributed generation)
+- <strong>Controls</strong>: Rooftop solar (distributed generation) component of underlying demand
 - <strong>Factors</strong>: Solar adoption, battery storage, prosumer behavior
 - <strong>Display</strong>: Shows current value as badge</p>
 <h4 id="using-the-sliders">Using the Sliders</h4>
@@ -3476,8 +3476,8 @@ The facility detail page provides comprehensive information organized into secti
 - Formula: (End/Start)^(1/years) - 1
 <strong>Distributed Photovoltaic (DPV)</strong>
 - Solar panels on homes and businesses
-- Behind-the-meter generation
-- Offsets grid demand
+- Rooftop generation on the customer side of the meter (used on site or exported to the local network)
+- Offsets grid demand: operational demand is already net of it, so DPV is not a dispatch supply source
 <strong>Duck Curve</strong>
 - Net load pattern with high solar penetration
 - Shape: High morning, low midday, high evening
@@ -3517,7 +3517,7 @@ The facility detail page provides comprehensive information organized into secti
 <strong>Operational Demand</strong>
 - Electricity supplied by grid
 - Measured at: Transmission level
-- Does not include: Behind-the-meter generation
+- Does not include: rooftop DPV generation (operational demand is net of it)
 <strong>Peak Demand</strong>
 - Maximum power demanded in any hour
 - Critical for: Capacity planning
@@ -3547,7 +3547,7 @@ The facility detail page provides comprehensive information organized into secti
 - Method: Vary one parameter at a time
 - Purpose: Understand uncertainty
 <strong>Underlying Demand</strong>
-- Behind-the-meter demand (DPV)
+- Operational demand plus total rooftop DPV generation
 - Not visible: To grid operators
 - Important for: Total demand projections</p>
 <hr />
@@ -3667,7 +3667,7 @@ A: Use sliders for custom growth rates. For permanent scenarios, contact system 
 <strong>Q: Why doesn't my projection match other forecasts?</strong>
 A: Different assumptions, methodologies, and data sources. Compare assumptions carefully.
 <strong>Q: What's the difference between operational and underlying demand?</strong>
-A: Operational = grid-supplied. Underlying = behind-the-meter (DPV). Total = both combined.
+A: Operational = grid-supplied. Underlying = operational demand plus total rooftop solar (DPV) generation.
 <strong>Q: How accurate are long-term projections?</strong>
 A: Projections are scenarios, not predictions. Accuracy decreases with time horizon. Use ranges.
 <strong>Q: Can I export data to Excel?</strong>

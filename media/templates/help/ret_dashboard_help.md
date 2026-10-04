@@ -46,8 +46,8 @@ All monthly, quarterly and annual figures cover **AWST calendar periods**, as AE
 
 ## Understanding Demand Measures
 There are references to two demand measures:
-- **Operational Demand**: Total load required from the grid, excluding behind-the-meter rooftop solar and small, non-scheduled generation. On AEMO's basis ("unscheduled operational demand") this excludes battery charging and discharge.
-- **Underlying Demand**: Total electricity usage by consumers: operational demand plus behind-the-meter rooftop solar (PV).
+- **Operational Demand**: Total load required from the grid, net of rooftop solar (DPV) generation and excluding small, non-scheduled generation. On AEMO's basis ("unscheduled operational demand") this excludes battery charging and discharge.
+- **Underlying Demand**: Total electricity usage by consumers: operational demand plus total rooftop solar (PV) generation.
 
 ---
 
@@ -566,7 +566,7 @@ Parameters:
 A: Operational demand measures electricity delivered through the grid. Underlying demand includes operational demand plus rooftop solar generation consumed by households before export. Underlying demand represents total electricity consumption.
 
 **Q: Why are there two RE% measures?**
-A: RE% (Operational) shows renewables contribution to grid electricity, while RE% (Underlying) includes behind-the-meter solar, giving a complete picture of renewable energy in the system.
+A: RE% (Operational) shows renewables contribution to grid electricity, while RE% (Underlying) includes rooftop solar (DPV) generation, giving a complete picture of renewable energy in the system.
 
 **Q: What is the 2040 target?**
 A: The proposed target for WA's Main Grid's is for 100% renewable energy by 2040, measured on an operational consumption basis.

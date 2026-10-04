@@ -30,7 +30,7 @@ IDENTITY_FIELDS = {
 class Command(BaseCommand):
     help = (
         "Derive operational-basis energy figures from published underlying-basis ones "
-        "(FR-F07, D13): (underlying - DPV behind-the-meter) x operational/delivered factor, "
+        "(FR-F07, D13): (underlying - rooftop DPV generation) x operational/delivered factor, "
         "both taken from AEMO's own published Expected-scenario consumption components. "
         "Never extrapolates past a vintage's published horizon and never overwrites a "
         "figure AEMO published directly. Derived rows are always recomputed."

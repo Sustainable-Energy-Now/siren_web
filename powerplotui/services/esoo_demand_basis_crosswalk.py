@@ -22,6 +22,10 @@ forecast_year) as:
 
     DPV_btm = U_expected - D_expected          (both published for that vintage)
     O_s     = (U_s - DPV_btm) * k              (s = Low / Expected / High)
+
+(Naming note: "DPV_btm" / `dpv_behind_the_meter` is historical. U - D is AEMO's
+total rooftop DPV generation, whether consumed on site or exported to the local
+network; operational demand is net of all of it.)
     k       = O_expected / D_expected          (own vintage if it publishes operational
                                                 Expected, else the latest vintage that
                                                 does, for the same forecast year; a year
@@ -167,7 +171,7 @@ def derive_operational_energy_figure(underlying_figure: EsooFigure, crosswalk: O
     )
     adjustment_note = (
         f"D13 crosswalk: operational energy derived as (underlying {underlying_figure.value:,.2f} GWh - DPV "
-        f"behind-the-meter {dpv:,.2f} GWh) x k {loss.value:.4f} = {derived_value:,.2f} GWh. "
+        f"rooftop generation {dpv:,.2f} GWh) x k {loss.value:.4f} = {derived_value:,.2f} GWh. "
         f"DPV = ESOO {vintage_year} Expected underlying {expected_underlying.value:,.2f} - Expected delivered "
         f"{delivered.value:,.2f} ({delivered.table_ref}). k = operational-as-sent-out / delivered from the "
         f"published ESOO {loss.source_vintage_year} Expected figures, forecast year {loss.source_forecast_year}"
