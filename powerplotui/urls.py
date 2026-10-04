@@ -2,7 +2,7 @@
 from django.urls import path
 from django.views.generic import TemplateView
 from .views.variants_views import VariantsView
-from .views.echart_views import eChartView
+from .views.variants_plot_views import VariantsPlotView
 from .views import facility_scada_views, plot3D_views, powerplotui_home_views, ret_dashboard_views, \
     ret_comments_views, ret_targets_views, ret_pdf_views, supplyfactors_views, scada_views, \
     generation_comparison_views, risk_analysis_views, scenario_projections_views, ret_analysis_views, \
@@ -23,8 +23,7 @@ urlpatterns = [
     # Variant-related URLs
     path('variants/', VariantsView.as_view(), name='variants'),
     path('get_valid_choices/', VariantsView.get_valid_choices, name='get_valid_choices'),
-    path('powerplotui/echart', eChartView.as_view(), name='echarts'),
-    path('get_analysis_data/', eChartView.as_view(), name='get_analysis_data'),
+    path('get_analysis_data/', VariantsPlotView.as_view(), name='get_analysis_data'),
 
     # Main SCADA plot view
     path('scada-plot/', facility_scada_views.scada_plot_view, name='scada_plot'),

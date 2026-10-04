@@ -1,0 +1,149 @@
+<!-- powerplotui/templates/variants_plot.html -->
+{% extends 'powerplotui_base.html' %}
+
+{% block powerplotui_content %}
+
+<script src="https://cdn.plot.ly/plotly-3.1.1.min.js"></script>
+{% csrf_token %}
+<div class="mb-3">
+    <button type="button" class="btn btn-secondary" onclick="goBackToForm()">
+        <i class="fas fa-arrow-left"></i> Back to Form
+    </button>
+</div>
+
+<div id="plot-message" class="alert alert-danger" style="display:none;"></div>
+<div id="analysis-plot" style="width: 100%; height: 600px;"></div>
+
+<script>
+    const PLOT_PARAMS = {
+        baseline: '{{ baseline|escapejs }}',
+        variant: '{{ variant|escapejs }}',
+        series_1: '{{ series_1|escapejs }}',
+        series_2: '{{ series_2|escapejs }}',
+        series_1_component: '{{ series_1_component|escapejs }}',
+        series_2_component: '{{ series_2_component|escapejs }}',
+        chart_type: '{{ chart_type|escapejs }}',
+        chart_specialization: '{{ chart_specialization|escapejs }}'
+    };
+
+    // Go back to the form with preserved parameters
+    function goBackToForm() {
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = '/variants/';
+
+        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]');
+        if (csrfToken) {
+            const csrfInput = document.createElement('input');
+            csrfInput.type = 'hidden';
+            csrfInput.name = 'csrfmiddlewaretoken';
+            csrfInput.value = csrfToken.value;
+            form.appendChild(csrfInput);
+        }
+
+        const params = Object.assign({}, PLOT_PARAMS, {back_from_chart: 'true'});
+        for (const [key, value] of Object.entries(params)) {
+            if (value && value !== 'None') {
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = key;
+                input.value = value;
+                form.appendChild(input);
+            }
+        }
+
+        document.body.appendChild(form);
+        form.submit();
+    }
+
+    function showMessage(text) {
+        const box = document.getElementById('plot-message');
+        box.textContent = text;
+        box.style.display = 'block';
+    }
+
+    function fetchAnalysisData() {
+        const url = '/get_analysis_data/?' + new URLSearchParams(PLOT_PARAMS).toString();
+        return fetch(url).then(response => {
+            if (!response.ok) {
+                return response.json().then(
+                    body => { throw new Error(body.error || `HTTP error ${response.status}`); },
+                    () => { throw new Error(`HTTP error ${response.status}`); }
+                );
+            }
+            return response.json();
+        });
+    }
+
+    function axisTitle(name, units) {
+        return units ? `${name} (${units})` : name;
+    }
+
+    // Build the Plotly traces for the selected chart type / specialization
+    function buildTraces(data) {
+        const first = data[0];
+        const spec = first.chart_specialization;
+        const isBar = first.chart_type === 'bar' || spec === 'Basic Bar' || spec === 'Stacked Bar';
+        const stacked = spec === 'Stacked Line' || spec === 'Stacked Bar';
+        const x = data.map(item => item.stage);
+
+        return [1, 2].map(n => {
+            const trace = {
+                x: x,
+                y: data.map(item => item[`series_${n}_value`]),
+                name: first[`series_${n}_name`],
+                // Stacked modes share the primary axis, otherwise stacking is meaningless
+                yaxis: (n === 2 && !stacked) ? 'y2' : 'y',
+            };
+            if (isBar) {
+                trace.type = 'bar';
+            } else {
+                trace.type = 'scatter';
+                trace.mode = 'lines+markers';
+                if (spec === 'Smoothed Line') trace.line = {shape: 'spline'};
+                if (spec === 'Step Line') trace.line = {shape: 'hv'};
+                if (spec === 'Area Chart') trace.fill = n === 1 ? 'tozeroy' : 'tonexty';
+                if (spec === 'Stacked Line') trace.stackgroup = 'one';
+            }
+            return trace;
+        });
+    }
+
+    function createAnalysisPlot(data) {
+        const first = data[0];
+        const spec = first.chart_specialization;
+        const stacked = spec === 'Stacked Line' || spec === 'Stacked Bar';
+        const layout = {
+            title: {text: 'Variants Statistics'},
+            xaxis: {title: {text: 'Stage'}, type: 'category'},
+            yaxis: {title: {text: axisTitle(first.series_1_name, first.series_1_units)}},
+            legend: {orientation: 'h', y: -0.2},
+            barmode: stacked ? 'stack' : 'group',
+            margin: {t: 60},
+        };
+        if (!stacked) {
+            layout.yaxis2 = {
+                title: {text: axisTitle(first.series_2_name, first.series_2_units)},
+                overlaying: 'y',
+                side: 'right',
+            };
+        } else {
+            layout.yaxis.title.text = 'Value';
+        }
+        Plotly.newPlot('analysis-plot', buildTraces(data), layout, {responsive: true});
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        fetchAnalysisData()
+            .then(data => {
+                if (data && data.length > 0) {
+                    createAnalysisPlot(data);
+                } else {
+                    showMessage('No data found for the selected statistics. The two series may not share any stages.');
+                }
+            })
+            .catch(error => showMessage(`Error creating plot: ${error.message}`));
+    });
+</script>
+
+{% endblock %}

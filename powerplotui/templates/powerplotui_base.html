@@ -56,6 +56,15 @@
             <li><a class="dropdown-item" href="{% url 'risk_comparison' %}">Compare Scenarios</a></li>
           </ul>
         </li>
+        <li class="nav-item dropdown">
+          <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+            Transport Electrification
+          </a>
+          <ul class="dropdown-menu">
+            <li><a class="dropdown-item" href="{% url 'ev_uptake_tracking' %}" target="_blank" rel="noopener noreferrer">EV Uptake Tracking</a></li>
+            <li><a class="dropdown-item" href="{% url 'ev_charging_profiles' %}" target="_blank" rel="noopener noreferrer">EV Charging Profiles</a></li>
+          </ul>
+        </li>
         <li class="nav-link" class="nav-item">
           <a href="/wem_prices/">WEM Prices</a>
         </li>
@@ -64,12 +73,6 @@
         </li>
         <li class="nav-item">
           <a class="nav-link" href="{% url 'esoo_bias_tracking' %}">ESOO Bias Tracking</a>
-        </li>
-        <li class="nav-item">
-          <a class="nav-link" href="{% url 'ev_uptake_tracking' %}" target="_blank" rel="noopener noreferrer">EV Uptake Tracking</a>
-        </li>
-        <li class="nav-item">
-          <a class="nav-link" href="{% url 'ev_charging_profiles' %}">EV Charging Profiles</a>
         </li>
         <li class="nav-item">
             <a class="nav-link" href="/help/powerplot/" target="_blank" rel="noopener noreferrer">Powerplot Help</a>

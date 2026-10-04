@@ -3,48 +3,30 @@ from django.contrib import messages
 from django.http import HttpResponse, JsonResponse
 from django.views.generic import TemplateView
 from django.shortcuts import render
-from ..forms import PlotForm
+from ..forms import PlotForm, parse_baseline_key, baseline_variations
 import io
 import logging
 import re
-from siren_web.models import Analysis, Scenarios, variations, Technologies
-from siren_web.database_operations import fetch_analysis_scenario
+from siren_web.models import Analysis, DemandScenarios, Scenarios, variations, Technologies
 import openpyxl
 import pandas as pd
 
 class VariantsView(TemplateView):
     template_name = 'variants.html'
 
-    # Function to fetch data from the database
-    def get_analysis_data(self, analysis_queryset):
-        analysis_data = []
-        for obj in analysis_queryset:
-            obj_data = {}
-            for field in obj._meta.fields:
-                if field.name == 'idanalysis':
-                    continue
-                value = getattr(obj, field.name)
-                if field.name == 'idscenarios':
-                    obj_data['Scenario'] = value.title
-                else:
-                    obj_data[field.name.capitalize()] = value
-            analysis_data.append(obj_data)
-        return analysis_data
-    
     def export_to_excel(self, request):
         # Get the selected parameters from the request.POST
-        idscenarios = request.POST.get('scenario')
+        idscenarios, iddemand = parse_baseline_key(request.POST.get('baseline'))
         idvariant = request.POST.get('variant')
+        variant_name = variations.objects.get(pk=idvariant).variation_name
 
         # Filter the Analysis data based on the selected parameters
         analysis_queryset = Analysis.objects.filter(
             idscenarios_id=idscenarios,
-            variation__in=[variations.objects.get(pk=idvariant).variation_name, 'Baseline'],
+            iddemandscenarios_id=iddemand,
+            variation__in=[variant_name, 'Baseline'],
         ).order_by('idanalysis')
-        stages = Analysis.objects.filter(
-            idscenarios_id=idscenarios,
-            variation__in=[variations.objects.get(pk=idvariant).variation_name, 'Baseline'],
-        ).values_list('stage', flat=True).distinct().order_by('stage')
+        stages = analysis_queryset.values_list('stage', flat=True).distinct().order_by('stage')
         # Create a new workbook and worksheet
         workbook = openpyxl.Workbook()
         worksheet = workbook.active
@@ -73,7 +55,8 @@ class VariantsView(TemplateView):
             row = row + 1
 
         # Set the response headers
-        file_name = Scenarios.objects.get(pk=idscenarios).title + '_' + variations.objects.get(pk=idvariant).variation_name
+        file_name = (f"{Scenarios.objects.get(pk=idscenarios).title}_"
+                     f"{DemandScenarios.objects.get(pk=iddemand).name}_{variant_name}")
         response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
         response['Content-Disposition'] = f"attachment; filename={file_name}.xlsx"
 
@@ -82,12 +65,8 @@ class VariantsView(TemplateView):
         return response
         
     def get(self, request):
-        analysis_queryset = fetch_analysis_scenario('Current')
-        analysis_data = self.get_analysis_data(analysis_queryset)
-            
         plotform = PlotForm()
         context = {
-            'analysis_data' : analysis_data,
             'plotform': plotform,
         }
         return render(request, 'variants.html', context)
@@ -97,8 +76,8 @@ class VariantsView(TemplateView):
         if request.POST.get('back_from_chart') == 'true':
             return self.handle_back_navigation(request)
         
-        plotform = PlotForm(request.POST or None, selected_scenario=request.POST.get('scenario'))
-        idscenarios = request.POST.get('scenario')
+        plotform = PlotForm(request.POST or None, selected_baseline=request.POST.get('baseline'))
+        baseline = request.POST.get('baseline')
         idvariant = request.POST.get('variant')
         
         # Get form data
@@ -111,12 +90,12 @@ class VariantsView(TemplateView):
             # Handle different form actions
             if plot_type:
                 return self.handle_plot_action(
-                    request, plot_type, idscenarios, idvariant, 
+                    request, plot_type, baseline, idvariant, 
                     series_1, series_2, series_1_component, series_2_component
                 )
             
             elif 'export' in request.POST:
-                return self.handle_export_action(request, idscenarios, idvariant)
+                return self.handle_export_action(request, baseline, idvariant)
         else:
             context = {'plotform': plotform}
             return render(request, 'variants.html', context)
@@ -127,7 +106,7 @@ class VariantsView(TemplateView):
     def handle_back_navigation(self, request):
         """Handle when user returns from chart page with preserved parameters"""
         # Extract parameters from POST data
-        scenario = request.POST.get('scenario')
+        baseline = request.POST.get('baseline')
         variant = request.POST.get('variant') 
         series_1 = request.POST.get('series_1')
         series_2 = request.POST.get('series_2')
@@ -138,7 +117,7 @@ class VariantsView(TemplateView):
         
         # Create form with preserved data
         form_data = {
-            'scenario': scenario,
+            'baseline': baseline,
             'variant': variant,
             'series_1': series_1,
             'series_2': series_2,
@@ -149,15 +128,9 @@ class VariantsView(TemplateView):
         }
         
         # Create form instance with the preserved data
-        plotform = PlotForm(form_data=form_data, selected_scenario=scenario)
-        
-        # Get analysis data for display
-        analysis_queryset = Analysis.objects.filter(
-        idscenarios=scenario).all()[:8]
-        analysis_data = self.get_analysis_data(analysis_queryset)
+        plotform = PlotForm(form_data=form_data, selected_baseline=baseline)
         
         context = {
-            'analysis_data': analysis_data,
             'plotform': plotform,
         }
         request.session['chartback'] = variant  # Set session variable to indicate back navigation
@@ -168,20 +141,15 @@ class VariantsView(TemplateView):
         if plotform is None:
             plotform = PlotForm()
         
-        # Get some default analysis data to display
-        analysis_queryset = Analysis.objects.all()[:20]
-        analysis_data = self.get_analysis_data(analysis_queryset)
-        
         context = {
             'plotform': plotform,
-            'analysis_data': analysis_data,
         }
         return render(request, 'variants.html', context)
 
-    def handle_plot_action(self, request, plot_type, idscenarios, idvariant, series_1, series_2, series_1_component, series_2_component):
+    def handle_plot_action(self, request, plot_type, baseline, idvariant, series_1, series_2, series_1_component, series_2_component):
         """Handle plot generation actions"""
         
-        if plot_type == 'Echart':
+        if plot_type == 'Plot':
             chart_type = request.POST.get('chart_type')
             chart_specialization = request.POST.get('chart_specialization')
             
@@ -190,29 +158,31 @@ class VariantsView(TemplateView):
                 'series_2': series_2,
                 'series_1_component': series_1_component,
                 'series_2_component': series_2_component,
-                'scenario': idscenarios,
+                'baseline': baseline,
                 'variant': idvariant,
                 'chart_type': chart_type,
                 'chart_specialization': chart_specialization,
             }
-            return render(request, 'echarts.html', context)
+            return render(request, 'variants_plot.html', context)
         
         else:
             messages.error(request, f'Unknown plot type: {plot_type}')
             return self.render_form_with_error(request)
 
-    def handle_export_action(self, request, idscenarios, idvariant):
+    def handle_export_action(self, request, baseline, idvariant):
         """Handle export to Excel action"""
         try:
-            # Get scenario and variant names for validation
+            # Validate the baseline, scenario and variant exist
+            idscenarios, iddemand = parse_baseline_key(baseline)
             scenario = Scenarios.objects.get(pk=idscenarios)
+            DemandScenarios.objects.get(pk=iddemand)
             variant = variations.objects.get(pk=idvariant)
             
             # Generate and return the file response directly
             return self.export_to_excel(request)
             
-        except Scenarios.DoesNotExist:
-            messages.error(request, 'Selected scenario does not exist.')
+        except (Scenarios.DoesNotExist, DemandScenarios.DoesNotExist):
+            messages.error(request, 'Selected baseline does not exist.')
             return self.render_form_with_error(request)
         except variations.DoesNotExist:
             messages.error(request, 'Selected variant does not exist.')
@@ -223,7 +193,7 @@ class VariantsView(TemplateView):
 
     @staticmethod
     def get_valid_choices(request):
-        scenario_id = request.GET.get('scenario')
+        scenario_id, demand_id = parse_baseline_key(request.GET.get('baseline'))
         variant_id = request.GET.get('variant')
         series_1_heading = request.GET.get('series_1_heading')
         series_2_heading = request.GET.get('series_2_heading')
@@ -248,18 +218,18 @@ class VariantsView(TemplateView):
         try:
             # Handle specific update types for series 2 bidirectional dependencies
             if update_type == 'series_2_headings_for_component':
-                return VariantsView.handle_series_2_headings_for_component(request, scenario_id, variant_id, series_2_component)
+                return VariantsView.handle_series_2_headings_for_component(request, scenario_id, demand_id, variant_id, series_2_component)
             elif update_type == 'series_2_components_for_heading':
-                return VariantsView.handle_series_2_components_for_heading(request, scenario_id, variant_id, series_2_heading)
+                return VariantsView.handle_series_2_components_for_heading(request, scenario_id, demand_id, variant_id, series_2_heading)
             
-            if scenario_id:
-                variants_queryset = variations.objects.filter(idscenarios=scenario_id)
+            if scenario_id is not None:
+                variants_queryset = baseline_variations(scenario_id, demand_id)
                 variant_count = variants_queryset.count()
                 
                 if variant_count == 0:
                     # No variants available
                     response_data['variants'] = [
-                        {'id': '', 'name': 'No variants available for this scenario'}
+                        {'id': '', 'name': 'No variants available for this baseline'}
                     ]
                 elif variant_count == 1:
                     # Only one variant - auto-select it
@@ -278,7 +248,7 @@ class VariantsView(TemplateView):
                     ]
                 
                 # Filter Analysis based on scenario
-                analysis_filter = {'idscenarios': scenario_id}
+                analysis_filter = {'idscenarios': scenario_id, 'iddemandscenarios': demand_id}
                 
                 # If a specific variant is selected, apply technology and dimension constraints
                 if variant_id:
@@ -331,7 +301,7 @@ class VariantsView(TemplateView):
         return JsonResponse(response_data)
 
     @staticmethod
-    def handle_series_2_headings_for_component(request, scenario_id, variant_id, series_2_component):
+    def handle_series_2_headings_for_component(request, scenario_id, demand_id, variant_id, series_2_component):
         """
         Handle updating series 2 headings when series 2 component changes.
         If component is null, return all headings for the scenario/variant.
@@ -341,7 +311,7 @@ class VariantsView(TemplateView):
         }
         
         try:
-            if not scenario_id or not variant_id:
+            if scenario_id is None or not variant_id:
                 return JsonResponse(response_data)
             
             # Get the selected variant to build analysis filter
@@ -351,6 +321,7 @@ class VariantsView(TemplateView):
                 
                 analysis_filter = {
                     'idscenarios': scenario_id,
+                    'iddemandscenarios': demand_id,
                     'variation': variation_name
                 }
                 
@@ -372,7 +343,7 @@ class VariantsView(TemplateView):
         return JsonResponse(response_data)
 
     @staticmethod
-    def handle_series_2_components_for_heading(request, scenario_id, variant_id, series_2_heading):
+    def handle_series_2_components_for_heading(request, scenario_id, demand_id, variant_id, series_2_heading):
         """
         Handle updating series 2 components when series 2 heading changes.
         If heading is null, return all components for the scenario/variant.
@@ -382,7 +353,7 @@ class VariantsView(TemplateView):
         }
         
         try:
-            if not scenario_id or not variant_id:
+            if scenario_id is None or not variant_id:
                 return JsonResponse(response_data)
             
             # Get the selected variant to build analysis filter
@@ -392,6 +363,7 @@ class VariantsView(TemplateView):
                 
                 analysis_filter = {
                     'idscenarios': scenario_id,
+                    'iddemandscenarios': demand_id,
                     'variation': variation_name
                 }
                 

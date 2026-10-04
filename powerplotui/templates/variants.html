@@ -2,29 +2,9 @@
 {% extends 'powerplotui_base.html' %}
 {% load static %}
 {% block powerplotui_content %}
-    <p>Here you can generate various plots and charts to visualize your data.  You can also export a selected Scenario/ Variant to an excel
+    <p>Here you can generate various plots and charts to visualize your data.  You can also export a selected Baseline/ Variant to an excel
         spreadsheet for further processing.
     </p>
-    <div style="height: 300px; overflow-y: scroll;">
-        <table class="table table-striped table-bordered">
-            <thead>
-                <tr>
-                    {% for field in analysis_data.0.keys %}
-                    <th class="px-3 py-2">{{ field }}</th>
-                    {% endfor %}
-                </tr>
-            </thead>
-            <tbody>
-                {% for row in analysis_data %}
-                <tr>
-                    {% for value in row.values %}
-                    <td class="px-3 py-2">{{ value }}</td>
-                    {% endfor %}
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
     {% csrf_token %}
     {% load crispy_forms_tags %}
     {% crispy plotform %}
@@ -53,15 +33,15 @@
         $(document).ready(function() {
             // Function to update variant choices when scenario changes
             function updateVariants() {
-                var scenarioId = $('#id_scenario').val();
+                var baselineId = $('#id_baseline').val();
                 
-                if (!scenarioId) {
+                if (!baselineId) {
                     $('#id_variant').empty().append('<option value="">Select a Variant</option>');
                     clearSeriesChoices();
                     return;
                 }
                 var ajaxData = {
-                    'scenario': scenarioId,
+                    'baseline': baselineId,
                     'update_type': 'updateVariants'
                 };
                 $.ajax({
@@ -80,7 +60,7 @@
                                 .attr('value', '')
                                 .attr('disabled', true)
                                 .css({'font-style': 'italic', 'color': '#6c757d'})
-                                .text('No variants available for this scenario'));
+                                .text('No variants available for this baseline'));
                         } else if (data.variants.length === 1 && data.variants[0].selected) {
                             // Single variant - auto-select it
                             var variant = data.variants[0];
@@ -136,10 +116,10 @@
 
             // Function to update series choices when variant changes
             function updateSeriesForVariant() {
-                var scenarioId = $('#id_scenario').val();
+                var baselineId = $('#id_baseline').val();
                 var variantId = $('#id_variant').val();
                 
-                if (!scenarioId || !variantId) {
+                if (!baselineId || !variantId) {
                     clearSeriesChoices();
                     clearSeries2Choices(); // Add this line
                     return;
@@ -148,7 +128,7 @@
                 $.ajax({
                     url: GET_VALID_CHOICES_URL,
                     data: {
-                        'scenario': scenarioId,
+                        'baseline': baselineId,
                         'variant': variantId
                     },
                     success: function(data) {
@@ -227,16 +207,16 @@
             
             // Function to update components for a specific series based on selected heading
             function updateSeriesComponents(seriesNumber) {
-                var scenarioId = $('#id_scenario').val();
+                var baselineId = $('#id_baseline').val();
                 var variantId = $('#id_variant').val();
                 var headingId = $('#id_series_' + seriesNumber).val();
                 
-                if (!scenarioId || !variantId || !headingId) {
+                if (!baselineId || !variantId || !headingId) {
                     return;
                 }
                 
                 var ajaxData = {
-                    'scenario': scenarioId,
+                    'baseline': baselineId,
                     'variant': variantId,
                     'update_type': 'series_' + seriesNumber + '_components_for_heading'
                 };
@@ -279,11 +259,11 @@
 
             // Combined function to update series 2 headings or components
             function updateSeries2Dependencies(triggerField) {
-                var scenarioId = $('#id_scenario').val();
+                var baselineId = $('#id_baseline').val();
                 var variantId = $('#id_variant').val();
                 var componentId = $('#id_series_2_component').val();
                 var headingId = $('#id_series_2').val();
-                if (!scenarioId || !variantId) return;
+                if (!baselineId || !variantId) return;
                 // Determine what needs to be updated based on what's selected
                 var updateType, ajaxData;
                 var targetField, dataKey, placeholderText, noDataText;
@@ -296,7 +276,7 @@
                     placeholderText = 'Select statistic for series 2';
                     noDataText = 'No statistics available';
                     ajaxData = {
-                        'scenario': scenarioId,
+                        'baseline': baselineId,
                         'variant': variantId,
                         'update_type': updateType
                     };
@@ -311,7 +291,7 @@
                     placeholderText = 'Select component for series 2';
                     noDataText = 'No components available';
                     ajaxData = {
-                        'scenario': scenarioId,
+                        'baseline': baselineId,
                         'variant': variantId,
                         'update_type': updateType
                     };
@@ -370,7 +350,7 @@
             }
 
             // Event handlers
-            $('#id_scenario').change(updateVariants);
+            $('#id_baseline').change(updateVariants);
             $('#id_variant').change(updateSeriesForVariant);
             
             // Event handlers for series heading selections
@@ -388,7 +368,7 @@
             });
             
             // Initialize on page load if a scenario is already selected
-            if ($('#id_scenario').val()) {
+            if ($('#id_baseline').val()) {
                 updateVariants();
             }
         });
