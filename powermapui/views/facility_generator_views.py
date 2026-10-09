@@ -7,8 +7,6 @@ from siren_web.models import Technologies, FacilityGenerators, facilities
 
 def facility_generator_detail(request, pk):
     """Detail view for a specific facility generator installation"""
-    scenario = request.session.get('scenario', '')
-    config_file = request.session.get('config_file')
 
     installation = get_object_or_404(
         FacilityGenerators.objects.select_related('idfacilities', 'idtechnologies'),
@@ -16,8 +14,6 @@ def facility_generator_detail(request, pk):
     )
 
     context = {
-        'scenario': scenario,
-        'config_file': config_file,
         'installation': installation,
         'generator_attrs': installation.generator_attrs,
     }

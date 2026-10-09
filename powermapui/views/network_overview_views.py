@@ -1,7 +1,7 @@
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import render
 from siren_web.forms import WeatherScenarioSettings
-from siren_web.database_operations import fetch_module_settings_data, fetch_scenario_settings_data
+from siren_web.database_operations import fetch_module_settings_data, fetch_scenario_settings_data, get_selected_scenario
 from siren_web.models import facilities, Terminals, Scenarios, GridLines, FacilityGridConnections
 import json
 
@@ -9,16 +9,8 @@ import json
 @login_required
 def infrastructure_network(request):
     """Full infrastructure dependency network showing all terminals, facilities, and grid lines."""
-    scenario = request.session.get('scenario', '')
-    config_file = request.session.get('config_file')
+    scenario = get_selected_scenario(request) or ''
     success_message = ''
-
-    if request.method == 'POST':
-        demand_weather_scenario = WeatherScenarioSettings(request.POST)
-        if demand_weather_scenario.is_valid():
-            scenario = demand_weather_scenario.cleaned_data['scenario']
-            request.session['scenario'] = scenario
-            success_message = "Settings updated."
 
     demand_weather_scenario = WeatherScenarioSettings(initial={
         'scenario': scenario
@@ -144,7 +136,6 @@ def infrastructure_network(request):
     context = {
         'demand_weather_scenario': demand_weather_scenario,
         'scenario': scenario,
-        'config_file': config_file,
         'success_message': success_message,
         'network_data_json': json.dumps(network_data),
         'bottlenecks': bottlenecks,

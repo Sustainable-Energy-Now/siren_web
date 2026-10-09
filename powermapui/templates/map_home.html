@@ -2124,7 +2124,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 technology_id: technologyId,
                 capacity: capacity || 0,
                 latitude: selectedLocation.lat,
-                longitude: selectedLocation.lng
+                longitude: selectedLocation.lng,
+                scenario: getCurrentScenario()
             };
             
             // Handle grid connection option

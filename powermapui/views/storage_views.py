@@ -7,8 +7,6 @@ from siren_web.models import Technologies, Storageattributes
 
 def storage_list(request):
     """List all storage technologies with search and pagination"""
-    scenario = request.session.get('scenario', '')
-    config_file = request.session.get('config_file')
 
     search_query = request.GET.get('search', '')
     technology_filter = request.GET.get('technology', '')
@@ -41,8 +39,6 @@ def storage_list(request):
     page_obj = paginator.get_page(page_number)
     
     context = {
-        'scenario': scenario,
-        'config_file': config_file,
         'page_obj': page_obj,
         'search_query': search_query,
         'technology_filter': technology_filter,
@@ -54,8 +50,6 @@ def storage_list(request):
 
 def storage_detail(request, pk):
     """Detail view for a specific storage technology"""
-    scenario = request.session.get('scenario', '')
-    config_file = request.session.get('config_file')
 
     technology = get_object_or_404(Technologies, pk=pk)
     
@@ -99,8 +93,6 @@ def storage_detail(request, pk):
         derived_values['reserved_soc_pct'] = (1.0 - max_soc) * 100
     
     context = {
-        'scenario': scenario,
-        'config_file': config_file,
         'technology': technology,
         'storage_attrs': storage_attrs,
         'derived_values': derived_values,

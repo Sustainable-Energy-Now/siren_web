@@ -5,6 +5,7 @@ from django.urls import reverse
 from configparser import ConfigParser
 import os
 import json
+from siren_web.constants import DEFAULT_CONFIG_FILE
 
 def get_config_dict(config):
     """Convert ConfigParser object to dictionary."""
@@ -16,12 +17,8 @@ def get_config_dict(config):
 @login_required
 def edit_config(request):
     config_dir = './siren_web/siren_files/preferences/'
-    if request.GET.get('filename'):  # If specific file was requested
-        config_file = request.GET.get('filename')
-    else:
-        config_file= request.session.get('config_file', '')
-    if not config_file:
-        config_file = 'siren.ini'
+    # siren.ini unless a specific file was requested to edit
+    config_file = request.GET.get('filename') or DEFAULT_CONFIG_FILE
     config_path = os.path.join(config_dir, config_file)
     
     # Get list of existing config files
@@ -31,7 +28,7 @@ def edit_config(request):
     config = ConfigParser()
     
     if not os.path.exists(config_path):
-        if config_file != 'siren.ini':
+        if config_file != DEFAULT_CONFIG_FILE:
             messages.error(request, "Configuration file not found!")
             return redirect(reverse('edit_config'))
         else:
@@ -39,7 +36,6 @@ def edit_config(request):
             config.add_section('DEFAULT')
             with open(config_path, 'w') as configfile:
                 config.write(configfile)
-    request.session['config_file'] = config_file
     config.read(config_path)
     
     if request.method == 'POST':

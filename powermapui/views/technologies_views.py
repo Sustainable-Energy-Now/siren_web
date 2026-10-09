@@ -15,9 +15,7 @@ from powermapui.forms import TechnologyForm, TechnologyYearsForm
 
 def technologies(request):
     """Original technologies view - displays read-only table"""
-    demand_year = request.session.get('demand_year', 2024)
-    scenario = request.session.get('scenario')
-    config_file = request.session.get('config_file')
+    demand_year = 2024  # default year until one is chosen on the page
     success_message = ""
     technology_name = request.GET.get('technology_name', '')
 
@@ -26,13 +24,11 @@ def technologies(request):
         demand_year_form = DemandYearForm(request.POST)
         if demand_year_form.is_valid():
             demand_year = demand_year_form.cleaned_data['demand_year']
-            request.session['demand_year'] = demand_year
     else:
         url_demand_year = request.GET.get('demand_year')
         if url_demand_year:
             try:
                 demand_year = int(url_demand_year)
-                request.session['demand_year'] = demand_year
             except ValueError:
                 pass
 
@@ -70,8 +66,6 @@ def technologies(request):
         'technology_queryset': technology_queryset,
         'attribute_explain': attribute_explain,
         'demand_year': demand_year,
-        'scenario': scenario,
-        'config_file': config_file,
         'success_message': success_message
     }
 
@@ -85,9 +79,6 @@ def technologies(request):
 @login_required
 def technology_list(request):
     """List all technologies with search and filtering"""
-    demand_year = request.session.get('demand_year', '')
-    scenario = request.session.get('scenario', '')
-    config_file = request.session.get('config_file')
 
     technologies = Technologies.objects.all().annotate(
         year_count=Count('technologyyears')
@@ -134,9 +125,6 @@ def technology_list(request):
         'fuel_type': fuel_type,
         'categories': categories,
         'fuel_types': fuel_types,
-        'demand_year': demand_year,
-        'scenario': scenario,
-        'config_file': config_file,
     }
     return render(request, 'technologies/list.html', context)
 
@@ -144,9 +132,6 @@ def technology_list(request):
 @login_required
 def technology_detail(request, pk):
     """Show detailed view of a technology with its year data"""
-    demand_year = request.session.get('demand_year', '')
-    scenario = request.session.get('scenario', '')
-    config_file = request.session.get('config_file')
 
     technology = get_object_or_404(Technologies, pk=pk)
     technology_years = TechnologyYears.objects.filter(
@@ -156,9 +141,6 @@ def technology_detail(request, pk):
     context = {
         'technology': technology,
         'technology_years': technology_years,
-        'demand_year': demand_year,
-        'scenario': scenario,
-        'config_file': config_file,
     }
     return render(request, 'technologies/detail.html', context)
 
@@ -166,9 +148,6 @@ def technology_detail(request, pk):
 @login_required
 def technology_create(request):
     """Create a new technology"""
-    demand_year = request.session.get('demand_year', '')
-    scenario = request.session.get('scenario', '')
-    config_file = request.session.get('config_file')
 
     if request.method == 'POST':
         form = TechnologyForm(request.POST)
@@ -186,18 +165,12 @@ def technology_create(request):
     return render(request, 'technologies/form.html', {
         'form': form,
         'title': 'Add New Technology',
-        'demand_year': demand_year,
-        'scenario': scenario,
-        'config_file': config_file,
     })
 
 
 @login_required
 def technology_edit(request, pk):
     """Update an existing technology"""
-    demand_year = request.session.get('demand_year', '')
-    scenario = request.session.get('scenario', '')
-    config_file = request.session.get('config_file')
 
     technology = get_object_or_404(Technologies, pk=pk)
 
@@ -214,9 +187,6 @@ def technology_edit(request, pk):
         'form': form,
         'technology': technology,
         'title': 'Edit Technology',
-        'demand_year': demand_year,
-        'scenario': scenario,
-        'config_file': config_file,
     })
 
 
@@ -272,9 +242,6 @@ def technology_search_api(request):
 @login_required
 def technology_years_create(request, technology_pk=None):
     """Create a new technology year record"""
-    demand_year = request.session.get('demand_year', '')
-    scenario = request.session.get('scenario', '')
-    config_file = request.session.get('config_file')
 
     initial = {}
     technology = None
@@ -311,9 +278,6 @@ def technology_years_create(request, technology_pk=None):
         'form': form,
         'title': 'Add Technology Year Data',
         'technology': technology,
-        'demand_year': demand_year,
-        'scenario': scenario,
-        'config_file': config_file,
     }
 
     return render(request, 'technologies/years_form.html', context)
@@ -322,9 +286,6 @@ def technology_years_create(request, technology_pk=None):
 @login_required
 def technology_years_edit(request, pk):
     """Update an existing technology year record"""
-    demand_year = request.session.get('demand_year', '')
-    scenario = request.session.get('scenario', '')
-    config_file = request.session.get('config_file')
 
     tech_year = get_object_or_404(TechnologyYears, pk=pk)
 
@@ -344,9 +305,6 @@ def technology_years_edit(request, pk):
         'form': form,
         'tech_year': tech_year,
         'title': 'Edit Technology Year Data',
-        'demand_year': demand_year,
-        'scenario': scenario,
-        'config_file': config_file,
     })
 
 

@@ -15,8 +15,9 @@ from siren_web.database_operations import (
     fetch_analysis_scenario,
     fetch_technologies_with_multipliers,
     resolve_demand_override, resolve_baseline_year, get_demand_scenario_context,
-    resolve_scenario_carbon_price, resolve_scenario_discount_rate,
+    resolve_scenario_carbon_price, resolve_scenario_discount_rate, get_selected_scenario,
 )
+from siren_web.constants import DEFAULT_CONFIG_FILE
 from siren_web.models import Scenarios, ScenariosTechnologies
 from ..forms import BaselineScenarioForm, RunPowermatchForm
 from powermatchui.views.exec_powermatch import submit_powermatch_with_progress
@@ -31,15 +32,8 @@ logger = logging.getLogger(__name__)
 
 
 def _selected_scenario(request):
-    """
-    The Facilities scenario (Scenarios.title) chosen for this baseline: the
-    `scenario` field submitted with the request, falling back to the last
-    one chosen this session. Returns None if unset or no longer valid.
-    """
-    title = request.POST.get('scenario') or request.GET.get('scenario')         or request.session.get('scenario')
-    if title and Scenarios.objects.filter(title=title).exists():
-        return title
-    return None
+    """The Facilities scenario chosen for this baseline (see get_selected_scenario)."""
+    return get_selected_scenario(request)
 
 
 @login_required
@@ -55,7 +49,7 @@ def baseline_scenario(request):
 
 
     scenario = _selected_scenario(request)
-    config_file = request.session.get('config_file')
+    config_file = DEFAULT_CONFIG_FILE
     success_message = ""
     technologies = {}
     # The Demand Forecast selection travels with each request (a field
@@ -74,7 +68,6 @@ def baseline_scenario(request):
             **get_demand_scenario_context(demand_id),
         })
 
-    request.session['scenario'] = scenario
     technologies = fetch_technologies_with_multipliers(scenario)
 
     baseline_form = BaselineScenarioForm(technologies=technologies)
@@ -259,7 +252,7 @@ def run_baseline_progress(request):
                         # Process data for display
                         processed_data = process_results_for_template(
                             dispatch_results, scenario, save_baseline,
-                            request.session.get('config_file')
+                            DEFAULT_CONFIG_FILE
                         )
                         processed_data['summary_report'] = summary_report
 
@@ -449,7 +442,7 @@ def run_baseline(request):
     if scenario is None:
         messages.error(request, "Select a Facilities scenario before running.")
         return redirect('powermatchui:baseline_scenario')
-    config_file = request.session.get('config_file')
+    config_file = DEFAULT_CONFIG_FILE
     demand_override = resolve_demand_override(request.POST.get('demand_scenario_demand'))
     success_message = ""
 
@@ -495,7 +488,7 @@ def run_baseline(request):
                 # Process data for display
                 context = process_results_for_template(
                     dispatch_results, scenario, save_baseline,
-                    request.session.get('config_file')
+                    DEFAULT_CONFIG_FILE
                 )
                 # Add summary report to context
                 success_message = "Baseline re-established" if save_baseline else "Baseline run complete"

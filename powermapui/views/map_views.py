@@ -75,7 +75,6 @@ def find_nearest_grid_line(facility_lat, facility_lon, max_distance_km=50):
 
 @login_required
 def home(request):
-    config_file = request.session.get('config_file')
     scenario_filter = request.GET.get('scenario_filter', '')
 
     scenario_settings = fetch_module_settings_data('Power')
@@ -224,7 +223,6 @@ def home(request):
     context = {
         'scenario_filter': scenario_filter,
         'all_scenarios': all_scenarios,
-        'config_file': config_file,
         'facilities_json': facilities_json,
         'grid_lines_json': grid_lines_json,
         'terminals_json': terminals_json,
@@ -311,8 +309,8 @@ def add_facility(request):
             except Technologies.DoesNotExist:
                 return JsonResponse({'status': 'error', 'message': 'Invalid technology ID'}, status=400)
             
-            # Get the current scenario from session
-            scenario_title = request.session.get('scenario')
+            # The Facilities scenario the map currently has selected, sent by the page
+            scenario_title = data.get('scenario')
             if not scenario_title:
                 return JsonResponse({'status': 'error', 'message': 'No scenario selected. Please select a scenario first.'}, status=400)
             
@@ -1072,7 +1070,7 @@ def calculate_facility_performance(request, facility_id):
         facility = facilities.objects.get(pk=facility_id)
         
         # Get parameters from request
-        scenario = request.GET.get('scenario', request.session.get('scenario', ''))
+        scenario = request.GET.get('scenario', '')
 
         performance_data = {
             'facility_id': facility.idfacilities,

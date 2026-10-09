@@ -8,8 +8,6 @@ from siren_web.models import Technologies, FacilityStorage, facilities
 
 def facility_storage_detail(request, pk):
     """Detail view for a specific facility storage installation"""
-    scenario = request.session.get('scenario', '')
-    config_file = request.session.get('config_file')
     
     installation = get_object_or_404(
         FacilityStorage.objects.select_related('idfacilities', 'idtechnologies'),
@@ -28,8 +26,6 @@ def facility_storage_detail(request, pk):
     }
     
     context = {
-        'scenario': scenario,
-        'config_file': config_file,
         'installation': installation,
         'storage_attrs': storage_attrs,
         'derived_values': derived_values,

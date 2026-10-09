@@ -9,9 +9,10 @@ from django.urls import reverse
 import json
 from siren_web.database_operations import (
     fetch_technology_by_id, fetch_merit_order_technologies, compute_auto_sorted_merit_order,
-    get_demand_scenario_context, resolve_demand_override, resolve_scenario_carbon_price,
+    get_demand_scenario_context, get_selected_scenario, resolve_demand_override, resolve_scenario_carbon_price,
     resolve_scenario_discount_rate, update_scenario_settings_data,
 )
+from siren_web.constants import DEFAULT_CONFIG_FILE
 from siren_web.models import ScenariosTechnologies, Scenarios
 from urllib.parse import urlencode
 
@@ -72,8 +73,10 @@ def set_merit_order(request):
         messages.error(request, "Access not allowed.")
         return render(request, 'powermatchui_home.html')
 
-    scenario = request.session.get('scenario')
-    config_file = request.session.get('config_file')
+    # The Facilities scenario is selected on this page (?scenario=, which
+    # the save POST inherits via fetch('')), never held in the session.
+    scenario = get_selected_scenario(request)
+    config_file = DEFAULT_CONFIG_FILE
 
     # Initialize with default values
     success_message = request.GET.get('success_message', '')
@@ -147,9 +150,10 @@ def set_merit_order(request):
     elif scenario:
         success_message = "Select a Demand Forecast Scenario to view technologies."
     else:
-        success_message = "Set a scenario and config first."
+        success_message = "Select a Facilities scenario to set its merit order."
 
     context = {
+        'scenario_titles': Scenarios.objects.order_by('title').values_list('title', flat=True),
         'merit_order': merit_order,
         'excluded_resources': excluded_resources,
         'success_message': success_message,
@@ -168,12 +172,15 @@ def auto_sort_merit_order(request):
     if not request.user.groups.filter(name='modellers').exists():
         return JsonResponse({'status': 'error', 'message': 'Access not allowed.'}, status=403)
 
-    scenario = request.session.get('scenario')
-    if not scenario:
-        return JsonResponse({'status': 'error', 'message': 'Set a scenario and config first.'})
-
     try:
         data = json.loads(request.body) if request.body else {}
+    except ValueError:
+        data = {}
+    scenario = data.get('scenario')
+    if not scenario or not Scenarios.objects.filter(title=scenario).exists():
+        return JsonResponse({'status': 'error', 'message': 'Select a Facilities scenario first.'})
+
+    try:
         demand_id = data.get('demandId')
         carbon_price_override = data.get('carbonPrice')
 

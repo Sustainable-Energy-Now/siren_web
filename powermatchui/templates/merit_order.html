@@ -5,13 +5,21 @@
 <div class="container">
     <form method="get" action="{% url 'powermatchui:merit_order' %}" id="demand-select-form">
         <div class="card mb-3">
-            <div class="card-header custom-sen">Demand Forecast</div>
+            <div class="card-header custom-sen">Facilities Scenario &amp; Demand Forecast</div>
             <div class="card-body custom-sen">
                 <p class="text-muted">
-                    Select a Demand Forecast Scenario to set the technology cost year.
-                    Carbon Price and the Merit Order technologies for
-                    <strong>{{ scenario }}</strong> are shown once one is selected.
+                    Select the Facilities scenario whose merit order you are setting, then a
+                    Demand Forecast Scenario to set the technology cost year.
+                    Carbon Price and the Merit Order technologies are shown once both are selected.
                 </p>
+                <label for="scenarioSelect">Facilities scenario</label>
+                <select name="scenario" id="scenarioSelect" class="form_input mb-2">
+                    <option value="" {% if not scenario %}selected{% endif %}>Select a Facilities scenario</option>
+                    {% for title in scenario_titles %}
+                        <option value="{{ title }}" {% if title == scenario %}selected{% endif %}>{{ title }}</option>
+                    {% endfor %}
+                </select>
+                <br>
                 {{ demand_scenario_form.demand_scenario_demand.label_tag }}
                 {{ demand_scenario_form.demand_scenario_demand }}
                 <noscript><button type="submit" class="btn btn-secondary mt-2">Select</button></noscript>
@@ -101,6 +109,12 @@
     var demandSelectEl = document.getElementById('id_demand_scenario_demand');
     if (demandSelectEl) {
         demandSelectEl.addEventListener('change', function() {
+            this.form.submit();
+        });
+    }
+    var scenarioSelectEl = document.getElementById('scenarioSelect');
+    if (scenarioSelectEl) {
+        scenarioSelectEl.addEventListener('change', function() {
             this.form.submit();
         });
     }
@@ -211,6 +225,7 @@
                     'X-CSRFToken': csrfToken
                 },
                 body: JSON.stringify({
+                    scenario: document.getElementById('scenarioSelect').value,
                     demandId: demandId,
                     carbonPrice: carbonPrice
                 })

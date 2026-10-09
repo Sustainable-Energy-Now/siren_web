@@ -10,8 +10,6 @@ from siren_web.models import Scenarios, facilities, ScenariosFacilities
 import json
 
 def display_scenario(request):
-    scenario = request.session.get('scenario')
-    config_file = request.session.get('config_file')
     all_scenarios = Scenarios.objects.all()
     all_facilities = facilities.objects.all()
     scenario_form = ScenarioForm(request.POST or None)
@@ -40,14 +38,10 @@ def display_scenario(request):
         'all_scenarios': all_scenarios,
         'all_facilities': all_facilities,
         'checkbox_status': checkbox_status,
-        'scenario': scenario,
-        'config_file': config_file,
     }
     return render(request, 'create_scenario.html', context)
 
 def update_scenario(request):
-    scenario = request.session.get('scenario')
-    config_file = request.session.get('config_file')
     all_scenarios = Scenarios.objects.all()
     all_facilities = facilities.objects.all()
     scenario_form = ScenarioForm(request.POST or None)
@@ -96,8 +90,6 @@ def update_scenario(request):
         'all_scenarios': all_scenarios,
         'all_facilities': all_facilities,
         'checkbox_status': checkbox_status,
-        'scenario': scenario,
-        'config_file': config_file,
     }
     return render(request, 'create_scenario.html', context)
 
@@ -124,7 +116,6 @@ def edit_scenario(request, scenario_id):
     context = {
         'form': form,
         'scenario': scenario,
-        'config_file': request.session.get('config_file'),
     }
     return render(request, 'edit_scenario.html', context)
 
@@ -154,7 +145,6 @@ def delete_scenario(request, scenario_id):
     context = {
         'scenario': scenario,
         'facility_count': facility_count,
-        'config_file': request.session.get('config_file'),
     }
     return render(request, 'delete_scenario_confirm.html', context)
 
@@ -194,8 +184,6 @@ def clone_scenario(request):
     """
     View to clone an existing scenario and its facility associations.
     """
-    scenario_session = request.session.get('scenario', '')
-    config_file = request.session.get('config_file', '')
     
     # Get all scenarios for dropdown selection
     all_scenarios = Scenarios.objects.all()
@@ -261,8 +249,6 @@ def clone_scenario(request):
     # Display the form for GET requests
     context = {
         'all_scenarios': all_scenarios,
-        'scenario': scenario_session,
-        'config_file': config_file,
     }
 
     return render(request, 'clone_scenario.html', context)

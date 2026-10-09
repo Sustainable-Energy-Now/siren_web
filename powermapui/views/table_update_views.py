@@ -16,8 +16,6 @@ def get_table_names():
 
 @login_required
 def select_table(request):
-    scenario= request.session.get('scenario', '')  # Get scenario from session or default to empty string
-    config_file = request.session.get('config_file')
     success_message = ""
     table_names = get_table_names()
     selected_table_name = ''
@@ -32,8 +30,6 @@ def select_table(request):
         # Fetch rows for all column names
         table_entries = selected_model.objects.all()
         context = {
-            'scenario': scenario,
-            'config_file': config_file,
             'success_message': success_message,
             'table_names': table_names, 'selected_table_name': selected_table_name,
             'primary_key_name': primary_key_name, 'column_names': column_names, 'table_entries': table_entries,
@@ -42,8 +38,6 @@ def select_table(request):
         return render(request, 'table_update_page.html', context)
     else:
         context = {
-            'scenario': scenario,
-            'config_file': config_file,
             'success_message': success_message,
             'table_names': table_names
         }
@@ -51,8 +45,6 @@ def select_table(request):
 
 @login_required
 def update_table(request):
-    scenario = request.session.get('scenario')
-    config_file = request.session.get('config_file')
     success_message = ""
     if request.method == 'POST':
         action = request.POST.get('action')  # Get the value of the "action" field
@@ -95,8 +87,6 @@ def update_table(request):
         table_names = get_table_names()
         context = {
             'column_names': column_names, 'table_entries': table_entries,
-            'scenario': scenario,
-            'config_file': config_file,
             'success_message': success_message,
             'table_names': table_names, 'selected_table_name' : selected_table_name,
         }

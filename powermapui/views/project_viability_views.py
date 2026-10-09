@@ -7,11 +7,7 @@ from siren_web.models import facilities, Scenarios, ScenariosFacilities
 
 
 def _get_session_context(request):
-    scenario = request.session.get('scenario', '')
-    config_file = request.session.get('config_file')
     return {
-        'scenario': scenario,
-        'config_file': config_file,
     }
 
 

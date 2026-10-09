@@ -70,7 +70,7 @@ class WeatherScenarioSettings(DemandScenarioSettings):
 class DemandScenarioOverrideForm(forms.Form):
     """
     Lets the user pick which Demand's trace to dispatch against,
-    independently of session['scenario'] (the supply/facilities Scenario)
+    independently of the Facilities scenario (the supply-side Scenario)
     -- there is no schema-level link between the two. Used by
     powermatchui's Baseline Scenario and Variations pages (a per-run
     dispatch selection -- see siren_web.database_operations.

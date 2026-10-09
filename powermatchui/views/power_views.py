@@ -7,8 +7,6 @@ import numpy as np
 
 from siren_web.database_operations import (
     fetch_full_facilities_data,
-    fetch_module_settings_data,
-    fetch_scenario_settings_data,
     resolve_demand_override,
     get_demand_scenario_context,
 )
@@ -30,8 +28,6 @@ def generate_power(request):
     """
     Generate power for all facilities using SAM for renewables
     """
-    scenario = request.session.get('scenario', '')
-    config_file = request.session.get('config_file')
     # Both the year TechnologyYears data is read for (via
     # fetch_full_facilities_data) and the weather year SAM simulates against
     # come from whichever Demand forecast is selected on this page's own
@@ -57,7 +53,7 @@ def generate_power(request):
         # fetch_full_facilities_data reads TechnologyYears for.
         renewable_facilities = []
         if demand_year is not None:
-            facilities_list = fetch_full_facilities_data(demand_year, scenario)
+            facilities_list = fetch_full_facilities_data(demand_year)
             for facility_data in facilities_list:
                 try:
                     facility_obj = facilities.objects.get(
@@ -84,8 +80,6 @@ def generate_power(request):
         context = {
             'weather_year': weather_year,
             'demand_year': demand_year,
-            'scenario': scenario,
-            'config_file': config_file,
             'renewable_facilities': renewable_facilities,
             'biomass_min_coverage_default': BIOMASS_MIN_COVERAGE_DEFAULT,
             **get_demand_scenario_context(demand_id),
@@ -145,10 +139,6 @@ def generate_power(request):
     
     try:
         # Get configuration and settings
-        scenario_settings = fetch_module_settings_data('Powermap')
-        if not scenario_settings:
-            scenario_settings = fetch_scenario_settings_data(scenario)
-
         # Only fetch the specific facility if in single facility mode
         if single_facility_mode and facility_code:
             try:
@@ -160,13 +150,12 @@ def generate_power(request):
             except facilities.DoesNotExist:
                 raise Exception(f"Facility '{facility_code}' not found")
         else:
-            facilities_list = fetch_full_facilities_data(demand_year, scenario)
+            facilities_list = fetch_full_facilities_data(demand_year)
 
         # Process facilities - pass single facility parameters and date range
         sam_processed_count, skipped_count, skip_reason = process_facilities(
             facilities_list,
             weather_year,
-            scenario,
             refresh_supply_factors,
             single_facility_code=facility_code if single_facility_mode else None,
             start_date=start_date,
@@ -231,7 +220,7 @@ def generate_power(request):
         # Render the same page with success message instead of redirecting
         # Get list of renewable facilities for the dropdown (if needed again)
         renewable_facilities = []
-        all_facilities = fetch_full_facilities_data(demand_year, scenario) or []
+        all_facilities = fetch_full_facilities_data(demand_year) or []
         for facility_data in all_facilities:
             try:
                 facility_obj = facilities.objects.get(
@@ -250,8 +239,6 @@ def generate_power(request):
         context = {
             'weather_year': weather_year,
             'demand_year': demand_year,
-            'scenario': scenario,
-            'config_file': config_file,
             'renewable_facilities': renewable_facilities,
             'success_message': success_message,
             'biomass_min_coverage_default': biomass_min_coverage,
@@ -266,7 +253,7 @@ def generate_power(request):
         # Get list of renewable facilities for the dropdown
         renewable_facilities = []
         try:
-            all_facilities = fetch_full_facilities_data(demand_year, scenario) or []
+            all_facilities = fetch_full_facilities_data(demand_year) or []
             for facility_data in all_facilities:
                 try:
                     facility_obj = facilities.objects.get(
@@ -287,8 +274,6 @@ def generate_power(request):
         context = {
             'weather_year': weather_year,
             'demand_year': demand_year,
-            'scenario': scenario,
-            'config_file': config_file,
             'renewable_facilities': renewable_facilities,
             'error_message': error_message,
             'biomass_min_coverage_default': biomass_min_coverage,
@@ -296,7 +281,7 @@ def generate_power(request):
         }
         return render(request, 'generate_power.html', context)
 
-def process_facilities(facilities_list, weather_year, scenario, refresh_supply_factors=False, single_facility_code=None, start_date=None, end_date=None, biomass_min_coverage=BIOMASS_MIN_COVERAGE_DEFAULT):
+def process_facilities(facilities_list, weather_year, refresh_supply_factors=False, single_facility_code=None, start_date=None, end_date=None, biomass_min_coverage=BIOMASS_MIN_COVERAGE_DEFAULT):
     """
     Process renewable facilities using SAM
 

@@ -1,5 +1,6 @@
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import render
+from siren_web.database_operations import get_selected_scenario
 from siren_web.forms import WeatherScenarioSettings
 from siren_web.models import (
     facilities, Terminals, Scenarios, GridLines,
@@ -18,16 +19,8 @@ def cel_map(request):
     or by CEL viability tier — toggled by the user on the map.
     CEL stage routes are always available as a separate overlay layer.
     """
-    scenario     = request.session.get('scenario', '')
-    config_file  = request.session.get('config_file')
+    scenario     = get_selected_scenario(request) or ''
     success_message = ''
-
-    if request.method == 'POST':
-        demand_weather_scenario = WeatherScenarioSettings(request.POST)
-        if demand_weather_scenario.is_valid():
-            scenario = demand_weather_scenario.cleaned_data['scenario']
-            request.session['scenario'] = scenario
-            success_message = 'Settings updated.'
 
     demand_weather_scenario = WeatherScenarioSettings(initial={
         'scenario': scenario,
@@ -191,7 +184,6 @@ def cel_map(request):
     context = {
         'demand_weather_scenario': demand_weather_scenario,
         'scenario': scenario,
-        'config_file': config_file,
         'success_message': success_message,
         'pipeline_facilities_json': json.dumps(pipeline_facilities),
         'grid_lines_json': json.dumps(grid_lines_data),

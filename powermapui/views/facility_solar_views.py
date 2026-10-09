@@ -8,8 +8,6 @@ from siren_web.models import Technologies, FacilitySolar, facilities
 
 def facility_solar_detail(request, pk):
     """Detail view for a specific facility solar installation"""
-    scenario = request.session.get('scenario', '')
-    config_file = request.session.get('config_file')
     
     installation = get_object_or_404(
         FacilitySolar.objects.select_related('idfacilities', 'idtechnologies'),
@@ -37,8 +35,6 @@ def facility_solar_detail(request, pk):
         derived_values['total_inverter_capacity'] = None
     
     context = {
-        'scenario': scenario,
-        'config_file': config_file,
         'installation': installation,
         'solar_attrs': solar_attrs,
         'derived_values': derived_values,

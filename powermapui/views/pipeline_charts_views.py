@@ -1,5 +1,6 @@
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import render
+from siren_web.database_operations import get_selected_scenario
 from siren_web.forms import WeatherScenarioSettings
 from siren_web.models import facilities, Scenarios
 from collections import defaultdict
@@ -7,17 +8,9 @@ import json
 
 
 def _get_session_context(request):
-    """Shared session/scenario handling for pipeline chart views."""
-    scenario = request.session.get('scenario', '')
-    config_file = request.session.get('config_file')
+    """Shared Facilities-scenario handling for pipeline chart views (?scenario=<title>)."""
+    scenario = get_selected_scenario(request) or ''
     success_message = ''
-
-    if request.method == 'POST':
-        form = WeatherScenarioSettings(request.POST)
-        if form.is_valid():
-            scenario = form.cleaned_data['scenario']
-            request.session['scenario'] = scenario
-            success_message = "Settings updated."
 
     form = WeatherScenarioSettings(initial={
         'scenario': scenario
@@ -26,7 +19,6 @@ def _get_session_context(request):
     return {
         'demand_weather_scenario': form,
         'scenario': scenario,
-        'config_file': config_file,
         'success_message': success_message,
     }
 

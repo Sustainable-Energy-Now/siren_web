@@ -18,7 +18,7 @@ from django.contrib.auth.decorators import login_required
 logger = logging.getLogger(__name__)
 
 CONFIG_DIR = './siren_web/siren_files/preferences/'
-DEFAULT_CONFIG_FILE = 'siren.ini'
+from siren_web.constants import DEFAULT_CONFIG_FILE
 SECTION = 'ret_analysis'
 RET_LEVELS = [55, 60, 65, 70, 75, 80, 85]
 
@@ -44,8 +44,7 @@ DEFAULTS = {
 
 
 def _get_config_path(request):
-    config_file = request.session.get('config_file') or DEFAULT_CONFIG_FILE
-    return os.path.join(CONFIG_DIR, config_file)
+    return os.path.join(CONFIG_DIR, DEFAULT_CONFIG_FILE)
 
 
 def get_ret_config(config_path):
@@ -310,7 +309,7 @@ def ret_analysis_dashboard(request):
         'chart_expected_json': json.dumps(chart_expected),
         'chart_high_json': json.dumps(chart_high),
         'curtailment_pct': ret_config['curtailment_rate'] * 100,
-        'config_file': request.session.get('config_file', DEFAULT_CONFIG_FILE),
+        'config_file': DEFAULT_CONFIG_FILE,
     }
     return render(request, 'ret_analysis/dashboard.html', context)
 
@@ -331,6 +330,6 @@ def ret_analysis_config(request):
     ret_config = get_ret_config(config_path)
     context = {
         'ret_config': ret_config,
-        'config_file': request.session.get('config_file', DEFAULT_CONFIG_FILE),
+        'config_file': DEFAULT_CONFIG_FILE,
     }
     return render(request, 'ret_analysis/config.html', context)

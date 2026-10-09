@@ -147,21 +147,33 @@ def fetch_facilities_generator_storage_data(demand_year):
     except Exception as e:
         print("Error executing query:", e)
         
-def fetch_full_facilities_data(demand_year, scenario):
-    idscenarios = Scenarios.objects.get(title=scenario).idscenarios
+def fetch_full_facilities_data(demand_year, scenario=None):
+    """
+    Facilities (with technology/storage columns) that have a TechnologyYears
+    row for demand_year. With a Facilities Take-up `scenario` title the list
+    is restricted to that scenario's facilities; without one it covers every
+    facility.
+    """
+    params = [demand_year]
+    scenario_join = ''
+    scenario_filter = ''
+    if scenario:
+        idscenarios = Scenarios.objects.get(title=scenario).idscenarios
+        scenario_join = 'INNER JOIN ScenariosFacilities sf ON f.idfacilities = sf.idfacilities'
+        scenario_filter = 'sf.idscenarios = %s AND'
+        params.insert(0, idscenarios)
     facilities_query = \
     f"""
-    SELECT 
+    SELECT
         f.*,  -- Select all fields from facilities
         t.technology_name,  -- Select all fields from Technologies
         ty.fuel, sa.discharge_loss,
         ty.year,
         t.area
-    FROM 
+    FROM
         facilities f
-    INNER JOIN 
-        ScenariosFacilities sf ON f.idfacilities = sf.idfacilities
-    INNER JOIN 
+    {scenario_join}
+    INNER JOIN
         Technologies t ON f.idTechnologies = t.idTechnologies
     INNER JOIN 
         TechnologyYears ty ON t.idTechnologies = ty.idtechnologies_id
@@ -171,13 +183,13 @@ def fetch_full_facilities_data(demand_year, scenario):
     LEFT JOIN 
         GeneratorAttributes ga ON t.idTechnologies = ga.idTechnologies
         AND t.category = 'Generator'
-    WHERE 
-        sf.idscenarios = %s
-        AND ty.year = %s;
+    WHERE
+        {scenario_filter}
+        ty.year = %s;
     """
     try:
-        with connection.cursor() as cursor:  
-            cursor.execute(facilities_query, (idscenarios, demand_year) )
+        with connection.cursor() as cursor:
+            cursor.execute(facilities_query, params)
             # Fetch the results
             facilities_result = cursor.fetchall()
             if facilities_result is None:
@@ -190,6 +202,18 @@ def fetch_full_facilities_data(demand_year, scenario):
                     
     except Exception as e:
         print("Error executing query:", e)
+
+def get_selected_scenario(request):
+    """
+    The Facilities Take-up scenario (Scenarios.title) the user selected for
+    this request -- the `scenario` POST/GET field. Never read from the
+    session. Returns None if unset or no longer valid.
+    """
+    title = request.POST.get('scenario') or request.GET.get('scenario')
+    if title and Scenarios.objects.filter(title=title).exists():
+        return title
+    return None
+
 
 def get_scenario_by_title(scenario):
     try:

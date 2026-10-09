@@ -45,6 +45,5 @@ def facilities_scenarios(request):
         'selected_bands': selected_bands,
         'threshold': threshold_text,
         'band_choices': [(b, b.title()) for b in BAND_CHOICES],
-        'config_file': request.session.get('config_file'),
     }
     return render(request, 'facilities_scenarios.html', context)

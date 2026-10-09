@@ -107,8 +107,6 @@ def facilities_list(request):
     page_obj = paginator.get_page(page_number)
     
     # Session variables for other pages
-    scenario = request.session.get('scenario', '')
-    config_file = request.session.get('config_file', '')
 
     context = {
         'page_obj': page_obj,
@@ -122,8 +120,6 @@ def facilities_list(request):
         'zones': zones,
         'installation_types': installation_types,
         'total_count': facs.count(),
-        'scenario': scenario,
-        'config_file': config_file,
     }
 
     return render(request, 'facilities/list.html', context)

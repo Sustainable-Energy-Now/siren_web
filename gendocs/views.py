@@ -37,7 +37,11 @@ class BaseDocumentHandler:
     
     def __init__(self, request):
         self.request = request
-        self.demand_year = request.session.get('demand_year', 2024)
+        # The year to report on comes from the request (?demand_year=); 2024 if absent/invalid.
+        try:
+            self.demand_year = int(request.GET.get('demand_year') or 2024)
+        except ValueError:
+            self.demand_year = 2024
     
     def get_base_context(self):
         """Common context data for all documents"""

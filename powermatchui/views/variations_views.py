@@ -6,6 +6,7 @@ from django.shortcuts import render
 from django.http import HttpResponse, JsonResponse
 from django.views.decorators.http import require_http_methods
 import json
+from siren_web.constants import DEFAULT_CONFIG_FILE
 from siren_web.models import Analysis, Scenarios, variations  # Import the Scenario model
 from ..forms import CombinedVariationForm, BaselineSelectForm
 from powermatchui.views.exec_powermatch import submit_powermatch_with_progress
@@ -19,13 +20,13 @@ def setup_variation(request):
         context = {'success_message': success_message}
         return render(request, 'powermatchui_home.html', context)
 
-    config_file = request.session.get('config_file')
+    config_file = DEFAULT_CONFIG_FILE
     success_message = ""
 
     # A baseline is a Facilities scenario + Demand scenario pair, picked from
     # the existing baselines. It is carried per-request (GET query param from
-    # the selector, or POSTed with the variation form); choosing one makes its
-    # Facilities scenario the session scenario and its Demand the dispatch demand.
+    # the selector, or POSTed with the variation form); choosing one fixes its
+    # Facilities scenario and its Demand as the dispatch demand.
     baselines = list_baselines()
     baseline_key = request.POST.get('baseline') or request.GET.get('baseline')
     selected = next((b for b in baselines if b['key'] == baseline_key), None)
@@ -43,7 +44,6 @@ def setup_variation(request):
         return render(request, 'variations.html', context)
 
     scenario = selected['scenario'].title
-    request.session['scenario'] = scenario
     baseline_key = selected['key']
     demand_id = selected['demand_scenario'].demand_id
     demand_override = resolve_demand_override(demand_id)
