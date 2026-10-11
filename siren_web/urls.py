@@ -12,14 +12,19 @@ Class-based views
     2. Add a URL to urlpatterns:  path('', Home.as_view(), name='home')
 Including another URLconf
     1. Import the include() function: from django.urls import include, path
+from django.templatetags.static import static
+from django.views.generic import RedirectView
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 from django.contrib import admin
 from django.urls import include, path
 from django.contrib.staticfiles.urls import staticfiles_urlpatterns
+from django.templatetags.static import static
+from django.views.generic import RedirectView
 from .views import home_views, config_views, help_views, reference_views
 
 urlpatterns = [
+    path('favicon.ico', RedirectView.as_view(url=static('img/favicon-32x32.png'), permanent=True)),
     path('', home_views.home_view, name='home'),
     path('release-notes/', home_views.release_notes, name='release_notes'),
     path("", include("powermapui.urls")),
