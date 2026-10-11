@@ -77,7 +77,10 @@
         <tbody>
             {% for facility in all_facilities %}
             <tr>
-                <td>{{ facility.facility_name }}</td>
+                <td>
+                    <a href="{% url 'powermapui:facility_detail' facility.pk %}" class="text-decoration-none"
+                       target="_blank" rel="noopener">{{ facility.facility_name }}</a>
+                </td>
                 {% for scenario in all_scenarios %}
                 <td class="text-center">
                     {% if scenario.title == 'Current' %}

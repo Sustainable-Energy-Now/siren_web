@@ -1,4 +1,8 @@
+from urllib.parse import urlencode
+
+import openpyxl
 from django.contrib import messages
+from django.http import HttpResponse
 from django.core.paginator import Paginator
 from django.shortcuts import render, get_object_or_404, redirect
 from django.db.models import Q, Prefetch
@@ -86,6 +90,21 @@ def facilities_list(request):
             ).values_list('idfacilities', flat=True).distinct()
             facs = facs.filter(idfacilities__in=storage_facility_ids)
 
+    # Excel export of the full filtered list (all pages)
+    if request.GET.get('export') == 'xlsx':
+        return _export_facilities_xlsx(facs)
+
+    # Query string carrying the active filters, for the export button
+    export_query = urlencode({
+        k: v for k, v in (
+            ('search', search_query),
+            ('scenario', scenario_filter),
+            ('technology', technology_filter),
+            ('zone', zone_filter),
+            ('installation_type', installation_type_filter),
+        ) if v
+    })
+
     # Get filter options
     scenarios = Scenarios.objects.all().order_by('title')
     technologies = Technologies.objects.values_list('technology_name', flat=True).distinct().order_by('technology_name')
@@ -120,9 +139,38 @@ def facilities_list(request):
         'zones': zones,
         'installation_types': installation_types,
         'total_count': facs.count(),
+        'export_query': export_query,
     }
 
     return render(request, 'facilities/list.html', context)
+
+
+def _export_facilities_xlsx(facs):
+    """Return the given facilities queryset as an Excel download."""
+    workbook = openpyxl.Workbook()
+    worksheet = workbook.active
+    worksheet.title = 'Facilities'
+    worksheet.append(['Facility Name', 'Technology', 'Zone', 'Capacity',
+                      'Capacity Factor', 'Latitude', 'Longitude'])
+    for facility in facs:
+        worksheet.append([
+            facility.facility_name,
+            ', '.join(t.technology_name for t in facility.technologies if t.technology_name),
+            facility.idzones.name if facility.idzones else '',
+            facility.capacity,
+            facility.capacityfactor,
+            facility.latitude,
+            facility.longitude,
+        ])
+    for column in worksheet.columns:
+        width = max(len(str(c.value)) if c.value is not None else 0 for c in column)
+        worksheet.column_dimensions[column[0].column_letter].width = min(width + 2, 60)
+
+    response = HttpResponse(
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    response['Content-Disposition'] = 'attachment; filename=facilities.xlsx'
+    workbook.save(response)
+    return response
 
 def facility_detail(request, pk):
     """Detail view for a specific facility"""

@@ -4,7 +4,13 @@
 {% block powermapui_content %}
   <div class="d-flex justify-content-between align-items-center mb-4">
     <h3>Facilities</h3>
-    <a href="{% url 'powermapui:facility_create' %}" class="btn btn-primary">Add New Facility</a>
+    <div>
+      <a href="{% url 'powermapui:facilities_list' %}?{% if export_query %}{{ export_query }}&{% endif %}export=xlsx"
+         class="btn btn-outline-success me-2" title="Download the filtered list as an Excel spreadsheet">
+        Download Excel
+      </a>
+      <a href="{% url 'powermapui:facility_create' %}" class="btn btn-primary">Add New Facility</a>
+    </div>
   </div>
 
   <p>
