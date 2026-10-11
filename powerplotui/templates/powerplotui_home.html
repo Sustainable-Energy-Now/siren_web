@@ -3,7 +3,23 @@
 {% extends 'powerplotui_base.html' %}
 
 {% block powerplotui_content %}
-    <p>Powerplot is used to create charts of the various statistics derived from the Powermap and Powermatch
-    processes.
+    <p>Powerplot is used to chart and review the statistics derived from the Powermap and Powermatch processes, and to
+    and actual (SCADA) performance of the South West Interconnected System (SWIS). Working left to right across the menu:
+</p>
+<ol>
+    <li><strong>Variants Statistics</strong> &ndash; show plots of Baseline Variant sensitivity analysese, or export to Excel.</li>
+    <li><strong>Renewable Energy Target</strong> &ndash; the RET Dashboard (monthly, quarterly and annual reports), Scenario Projections to 2040, Manage Targets, and the RET Replacement Scenarios analysis and its configuration.</li>
+    <li><strong>Facility Generation</strong> &ndash; plot actual (SCADA) and simulated (SAM) output for facilities and technologies, analyse SCADA load by period, and compare actual with simulated generation.</li>
+    <li><strong>Risk Analysis</strong> &ndash; record risk events against a Facilities scenario, review the 6x6 risk matrix and compare the risk profile of scenarios.</li>
+    <li><strong>Transport Electrification</strong> &ndash; track EV uptake against the CSIRO projections, and view the AEMO EV charging profiles that drive the EV load model.</li>
+    <li><strong>WEM Prices</strong> &ndash; 3D history of wholesale energy prices in the Wholesale Electricity Market (WEM).</li>
+    <li><strong>SWIS Demand</strong> &ndash; 3D history of operational and underlying demand.</li>
+    <li><strong>ESOO Bias Tracking</strong> &ndash; check the AEMO ESOO demand forecasts against what actually happened, to see whether they have been systematically high or low.</li>
+    <li><strong>Powerplot Help</strong> &ndash; detailed instructions for every page (use <em>Powerplot Help Edit</em> to maintain it).</li>
+</ol>
+<p>Most pages draw on data prepared earlier in the workflow: Variants Statistics needs a Baseline and Variants run in
+    <strong>Powermatch</strong>; the Simulated (SAM) plots need <em>Run Power</em> to have been run for the scenario;
+    and the Actual (SCADA) pages and trackers depend on the data feeds maintained in
+    <strong>Powermap</strong> (<em>Data Take-up</em> menu).
 </p>
 {% endblock %}
