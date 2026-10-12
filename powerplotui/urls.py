@@ -97,6 +97,7 @@ urlpatterns = [
     path('get_technology_scada_vs_supply/', generation_comparison_views.get_technology_scada_vs_supply, name='scada_vs_supply_technology'),
     path('get_technology_group_scada_vs_supply/', generation_comparison_views.get_technology_group_scada_vs_supply, name='scada_vs_supply_technology_group'),
     path('export_generation_comparison_to_excel/', generation_comparison_views.export_generation_comparison_to_excel, name='export_generation_comparison_to_excel'),
+    path('facility_generation_bias/', generation_comparison_views.facility_generation_bias, name='facility_generation_bias'),
 
     # Miscellaneous URLs
     path('wem_prices/', plot3D_views.wem_price_history, name='wem_price_history'),

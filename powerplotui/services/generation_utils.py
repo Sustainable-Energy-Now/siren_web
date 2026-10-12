@@ -444,8 +444,13 @@ def get_x_label(aggregation: str) -> str:
     return labels.get(aggregation, 'Period')
 
 
+# The SCADA and supply traces are indexed by UTC hour; the SWIS keeps AWST (UTC+8,
+# no daylight saving). Peak-hour windows are defined in local time.
+LOCAL_UTC_OFFSET_HOURS = 8
+
+
 def get_hour_of_day(hour_of_year: int) -> int:
-    """Get the hour of day (0-23) from hour of year.
+    """Get the UTC hour of day (0-23) from a UTC hour of year.
 
     Args:
         hour_of_year: Hour of year (1-based, 1-8760)
@@ -454,6 +459,18 @@ def get_hour_of_day(hour_of_year: int) -> int:
         Hour of day (0-23)
     """
     return (hour_of_year - 1) % 24
+
+
+def get_local_hour_of_day(hour_of_year: int) -> int:
+    """AWST hour of day (0-23) for a UTC hour of year (1-based)."""
+    return (hour_of_year - 1 + LOCAL_UTC_OFFSET_HOURS) % 24
+
+
+def in_hour_window(local_hour: int, start: int, end: int) -> bool:
+    """Whether a local hour of day is in [start, end), wrapping past midnight when start > end."""
+    if start > end:
+        return local_hour >= start or local_hour < end
+    return start <= local_hour < end
 
 
 def is_peak_hour(hour_of_year: int, peak_start: int = 16, peak_end: int = 21) -> bool:
@@ -472,8 +489,7 @@ def is_peak_hour(hour_of_year: int, peak_start: int = 16, peak_end: int = 21) ->
     Returns:
         True if the hour falls within peak hours
     """
-    hour_of_day = get_hour_of_day(hour_of_year)
-    return peak_start <= hour_of_day < peak_end
+    return in_hour_window(get_local_hour_of_day(hour_of_year), peak_start, peak_end)
 
 
 def filter_to_peak_hours(hours: list, values: list,
@@ -508,4 +524,12 @@ PEAK_HOUR_PRESETS = {
     'off_peak': {'start': 21, 'end': 7, 'label': 'Off-Peak (9pm-7am)'},
     'daytime': {'start': 6, 'end': 20, 'label': 'Daytime (6am-8pm)'},
     'solar_peak': {'start': 10, 'end': 15, 'label': 'Solar Peak (10am-3pm)'},
+    # Leaves out the midday hours when SWIS curtailment of wind and solar concentrates,
+    # while keeping most of the day -- the recommended window for fitting wind bias.
+    'excl_midday': {'start': 16, 'end': 9, 'label': 'Excluding Midday (4pm-9am)'},
 }
+
+# Windows offered by the bias fit, and the recommended one per technology. Solar
+# cannot avoid midday (its output is there), so it is fitted on all hours with the
+# curtailment mask; wind is fitted outside midday.
+BIAS_FIT_DEFAULT_WINDOW = {'wind': 'excl_midday', 'solar': 'all'}

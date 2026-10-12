@@ -13,6 +13,7 @@ from siren_web.database_operations import (
 from siren_web.models import facilities, Scenarios, Technologies
 from siren_web.services.supply_matrix import set_facility_trace, clear_facility_trace, facility_has_trace
 from siren_web.services.biomass_trace_from_scada import MIN_COVERAGE_DEFAULT as BIOMASS_MIN_COVERAGE_DEFAULT
+from siren_web.services.generation_bias import apply_factor as apply_bias_factor, get_factor as get_bias_factor
 
 # Import the SAM processor
 from powermapui.views.sam_resource_processor import SAMResourceProcessor, SAMError, WeatherFileError, SimulationResults
@@ -357,7 +358,7 @@ def process_facilities(facilities_list, weather_year, refresh_supply_factors=Fal
 
     return sam_processed_count, skipped_count, skip_reason
 
-def process_hybrid_facility(sam_processor, facility_obj, weather_year, start_date=None, end_date=None, biomass_min_coverage=BIOMASS_MIN_COVERAGE_DEFAULT):
+def process_hybrid_facility(sam_processor, facility_obj, weather_year, start_date=None, end_date=None, biomass_min_coverage=BIOMASS_MIN_COVERAGE_DEFAULT, apply_bias=True):
     """
     Process a facility that may have multiple renewable technologies (hybrid).
     Handles wind, solar, and combinations of both.
@@ -369,6 +370,9 @@ def process_hybrid_facility(sam_processor, facility_obj, weather_year, start_dat
         start_date: Optional start date to filter results
         end_date: Optional end date to filter results
         biomass_min_coverage: see process_facilities
+        apply_bias: multiply SAM output by the facility's stored bias factor for the
+            processor's weather source (FacilityGenerationBias), if it has one. The
+            SCADA comparison passes False so it fits against the raw simulation.
 
     Returns:
         (SimulationResults, None) -- combined results for all technologies
@@ -384,6 +388,7 @@ def process_hybrid_facility(sam_processor, facility_obj, weather_year, start_dat
     technologies_processed = []
     skip_reason = None
     assumed_turbines = []
+    sam_simulated = False  # True once any output came from SAM (not the Biomass SCADA path)
 
     # Process wind installations
     wind_installations = FacilityWindTurbines.objects.filter(
@@ -407,6 +412,7 @@ def process_hybrid_facility(sam_processor, facility_obj, weather_year, start_dat
                 )
 
                 if results:
+                    sam_simulated = True
                     technologies_processed.append(f"Wind-{turbine.name}")
                     total_annual_energy += results.annual_energy
                     if turbine.kind == 'assumed':
@@ -444,6 +450,7 @@ def process_hybrid_facility(sam_processor, facility_obj, weather_year, start_dat
                 )
 
                 if results:
+                    sam_simulated = True
                     technologies_processed.append(f"Solar-{technology.technology_name}")
                     total_annual_energy += results.annual_energy
                     total_capacity += solar_install.nameplate_capacity or solar_install.ac_capacity or 0
@@ -474,6 +481,7 @@ def process_hybrid_facility(sam_processor, facility_obj, weather_year, start_dat
                 )
             else:
                 results = process_renewable_facility(sam_processor, facility_obj, fuel_type, weather_year)
+                sam_simulated = bool(results)
             if results:
                 combined_hourly_generation = list(results.hourly_generation)
                 total_annual_energy = results.annual_energy
@@ -496,6 +504,19 @@ def process_hybrid_facility(sam_processor, facility_obj, weather_year, start_dat
         else:
             logger.warning(f"No renewable technologies found for {facility_obj.facility_name}")
         return None, skip_reason
+
+    # Per-facility SCADA-fitted bias for this weather source, applied to the SAM output
+    bias_factor = None
+    if apply_bias and sam_simulated:
+        weather_source = getattr(sam_processor, 'weather_source', None)
+        bias_factor = get_bias_factor(facility_obj.idfacilities, weather_source) if weather_source else None
+        if bias_factor is not None and bias_factor != 1.0:
+            capacity_kw = total_capacity * 1000 if total_capacity else None
+            combined_hourly_generation = apply_bias_factor(
+                combined_hourly_generation, bias_factor, capacity_kw).tolist()
+            total_annual_energy = float(np.nansum(combined_hourly_generation))
+            logger.info(f"{facility_obj.facility_name}: applied {weather_source} bias factor "
+                        f"{bias_factor:.3f}")
 
     # Apply date filtering if requested
     if start_date or end_date:
@@ -525,6 +546,7 @@ def process_hybrid_facility(sam_processor, facility_obj, weather_year, start_dat
             'technologies': technologies_processed,
             'total_capacity_mw': total_capacity,
             'assumed_turbines': assumed_turbines,
+            'bias_factor': bias_factor,
         }
     ), None
 
@@ -600,7 +622,7 @@ def process_solar_installation(sam_processor, facility_obj, solar_install, weath
 
         # Create a temporary facility-like object with solar installation parameters
         # Process using solar-specific parameters from the installation
-        results = sam_processor.process_solar_facility(facility_obj, weather_data)
+        results = sam_processor.process_solar_facility(facility_obj, weather_data, solar_install)
 
         # Scale results by the installation's capacity vs facility's total capacity
         if solar_install.nameplate_capacity and facility_obj.capacity:

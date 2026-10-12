@@ -96,6 +96,7 @@
                                 <option value="off_peak">Off-Peak (9pm-7am)</option>
                                 <option value="daytime">Daytime (6am-8pm)</option>
                                 <option value="solar_peak">Solar Peak (10am-3pm)</option>
+                                <option value="excl_midday">Excluding Midday (4pm-9am)</option>
                             </select>
                         </div>
 
@@ -252,6 +253,7 @@
                                 <option value="off_peak">Off-Peak (9pm-7am)</option>
                                 <option value="daytime">Daytime (6am-8pm)</option>
                                 <option value="solar_peak">Solar Peak (10am-3pm)</option>
+                                <option value="excl_midday">Excluding Midday (4pm-9am)</option>
                             </select>
                         </div>
 
@@ -321,6 +323,7 @@
                                 <option value="off_peak">Off-Peak (9pm-7am)</option>
                                 <option value="daytime">Daytime (6am-8pm)</option>
                                 <option value="solar_peak">Solar Peak (10am-3pm)</option>
+                                <option value="excl_midday">Excluding Midday (4pm-9am)</option>
                             </select>
                         </div>
 
@@ -431,6 +434,45 @@
                                 <strong>Overlap:</strong> <span id="infoOverlap"></span>%
                             </div>
                         </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Bias factor (single facility) -->
+        <div class="row mt-3" id="biasPanel" style="display: none;">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">Bias Factor <small class="text-white-50" id="biasSource"></small></h5>
+                        <span>Stored: <strong id="biasStored">-</strong></span>
+                    </div>
+                    <div class="card-body">
+                        {% csrf_token %}
+                        <p class="mb-2 small text-muted">
+                            Fits a multiplier so simulated energy matches SCADA. It uses a fresh SAM run
+                            with the current weather source and no bias, over the hours chosen in
+                            <em>Peak Hours</em> (local time), with likely curtailment and outage hours left out.
+                            A saved factor is applied in later SAM simulation runs. The chart above only
+                            changes once the facility's supply trace is regenerated.
+                            <span id="biasRecommend"></span>
+                        </p>
+                        <div class="d-flex flex-wrap gap-2 align-items-center">
+                            <button type="button" class="btn btn-outline-primary btn-sm" id="biasFitBtn">
+                                <i class="bi bi-calculator"></i> Fit bias
+                            </button>
+                            <button type="button" class="btn btn-primary btn-sm" id="biasSaveBtn" disabled>
+                                <i class="bi bi-save"></i> Save bias
+                            </button>
+                            <button type="button" class="btn btn-outline-danger btn-sm" id="biasClearBtn">
+                                <i class="bi bi-x-circle"></i> Clear stored bias
+                            </button>
+                            <span id="biasBusy" class="small text-muted" style="display: none;">
+                                <span class="spinner-border spinner-border-sm"></span>
+                                Running SAM. A cell not yet fetched from BARRA-C2 takes about 3 minutes.
+                            </span>
+                        </div>
+                        <div id="biasResult" class="mt-3 small" style="display: none;"></div>
                     </div>
                 </div>
             </div>
@@ -739,6 +781,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Display results for single/group/technology modes
     function displayResults(data, chartType, mode) {
+        if (mode === 'single') {
+            showBiasPanel();
+        } else {
+            document.getElementById('biasPanel').style.display = 'none';
+        }
         // Info section
         let selectionText = '';
         if (mode === 'single') {
@@ -1064,5 +1111,104 @@ document.addEventListener('DOMContentLoaded', function() {
         return originalFetchAndDisplayData(url, chartType, mode);
     };
 });
+
+    // ---- Bias factor (single facility) ----
+    const biasUrl = '/facility_generation_bias/';
+    const csrfToken = document.querySelector('#biasPanel [name=csrfmiddlewaretoken]').value;
+    let biasFitOk = false;
+
+    function biasSelection() {
+        return {
+            facility_id: document.getElementById('facilitySelect').value,
+            year: document.getElementById('yearSelect').value,
+            peak_filter: document.getElementById('peakFilterSelect').value,
+        };
+    }
+
+    function fmtFactor(v) {
+        return (v === null || v === undefined) ? 'none' : '\u00d7' + Number(v).toFixed(3);
+    }
+
+    function setStored(data) {
+        document.getElementById('biasStored').textContent = fmtFactor(data.stored_factor);
+        document.getElementById('biasSource').textContent = data.weather_source ? `(${data.weather_source})` : '';
+        document.getElementById('biasRecommend').textContent = data.recommended_window_label
+            ? `Recommended window for this ${data.technology} facility: ${data.recommended_window_label}.` : '';
+    }
+
+    function showBiasPanel() {
+        const sel = biasSelection();
+        document.getElementById('biasPanel').style.display = 'block';
+        document.getElementById('biasResult').style.display = 'none';
+        document.getElementById('biasSaveBtn').disabled = true;
+        biasFitOk = false;
+        fetch(`${biasUrl}?facility_id=${sel.facility_id}`)
+            .then(r => r.json())
+            .then(data => { if (!data.error) setStored(data); })
+            .catch(() => {});
+    }
+
+    function showBiasResult(data, isError) {
+        const box = document.getElementById('biasResult');
+        box.style.display = 'block';
+        if (isError && data.factor === undefined) {
+            box.innerHTML = `<div class="alert alert-danger mb-0">${data.error}</div>`;
+            return;
+        }
+        const pct = v => (v === null || v === undefined) ? '-' : (100 * v).toFixed(0) + '%';
+        const ok = data.status === 'ok';
+        box.innerHTML = `
+            <div class="alert ${data.saved ? 'alert-success' : (ok ? 'alert-info' : 'alert-warning')} mb-0">
+                <strong>${data.saved ? 'Saved' : 'Fitted'} ${fmtFactor(data.factor)}</strong>
+                for ${data.facility_name}, ${data.year}, ${data.weather_source}, ${data.window_label}.
+                <br>Hours used ${data.hours} (${data.masked_hours} curtailment/outage hours masked),
+                holding ${pct(data.window_energy_share)} of the simulated energy.
+                Hourly correlation ${data.r_hour === null ? '-' : Number(data.r_hour).toFixed(3)}.
+                Raw simulated / SCADA energy, all hours: ${data.annual_energy_ratio === null ? '-' : Number(data.annual_energy_ratio).toFixed(2)}.
+                ${ok ? '' : '<br><strong>' + data.status + '</strong>'}
+            </div>`;
+    }
+
+    function postBias(action) {
+        const sel = biasSelection();
+        if (!sel.facility_id || !sel.year) return;
+        const body = new URLSearchParams({...sel, action});
+        const busy = document.getElementById('biasBusy');
+        ['biasFitBtn', 'biasSaveBtn', 'biasClearBtn'].forEach(id => document.getElementById(id).disabled = true);
+        if (action !== 'clear') busy.style.display = 'inline';
+        fetch(biasUrl, {method: 'POST', headers: {'X-CSRFToken': csrfToken}, body})
+            .then(r => r.json().then(data => ({ok: r.ok, data})))
+            .then(({ok, data}) => {
+                setStored(data);
+                if (action === 'clear') {
+                    document.getElementById('biasResult').style.display = 'block';
+                    document.getElementById('biasResult').innerHTML =
+                        `<div class="alert alert-secondary mb-0">${data.cleared ? 'Stored bias cleared.' : 'There was no stored bias.'}</div>`;
+                    biasFitOk = false;
+                } else {
+                    showBiasResult(data, !ok);
+                    biasFitOk = ok && data.status === 'ok' && !data.saved;
+                }
+            })
+            .catch(err => showBiasResult({error: 'Request failed: ' + err.message}, true))
+            .finally(() => {
+                busy.style.display = 'none';
+                document.getElementById('biasFitBtn').disabled = false;
+                document.getElementById('biasClearBtn').disabled = false;
+                document.getElementById('biasSaveBtn').disabled = !biasFitOk;
+            });
+    }
+
+    document.getElementById('biasFitBtn').addEventListener('click', () => postBias('fit'));
+    document.getElementById('biasSaveBtn').addEventListener('click', () => postBias('save'));
+    document.getElementById('biasClearBtn').addEventListener('click', () => {
+        if (confirm('Delete the stored bias factor for this facility and weather source?')) postBias('clear');
+    });
+    // A fit is only valid for the selection it was made on
+    ['facilitySelect', 'yearSelect', 'peakFilterSelect'].forEach(id =>
+        document.getElementById(id).addEventListener('change', () => {
+            biasFitOk = false;
+            document.getElementById('biasSaveBtn').disabled = true;
+        }));
 </script>
 {% endblock %}

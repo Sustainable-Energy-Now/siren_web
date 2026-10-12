@@ -5,8 +5,13 @@ This module provides views to overlay and compare actual SCADA generation data
 with simulated SupplyFactors data for facilities, facility groups, and technologies.
 """
 
+import logging
+
+from django.conf import settings
+from django.contrib.auth.decorators import login_required
 from django.shortcuts import render
 from django.http import JsonResponse, HttpResponse
+from django.views.decorators.http import require_http_methods
 from siren_web.models import facilities, Technologies
 import openpyxl
 from openpyxl.utils import get_column_letter
@@ -18,12 +23,94 @@ from ..services.generation_utils import (
     calculate_correlation_metrics,
     calculate_error_metrics,
     get_x_label,
-    PEAK_HOUR_PRESETS
+    PEAK_HOUR_PRESETS,
+    BIAS_FIT_DEFAULT_WINDOW,
 )
 from ..services.time_series_aligner import TimeSeriesAligner
 
+logger = logging.getLogger(__name__)
+
 # Initialize the time series aligner
 aligner = TimeSeriesAligner()
+
+
+def _facility_bias_technology(facility):
+    """'wind' if the facility has any wind (its default fit window), else 'solar'."""
+    from siren_web.management.commands.fetch_barra_c2_weather import facility_technologies
+    techs = facility_technologies(facility)
+    return 'wind' if 'wind' in techs else ('solar' if techs else None)
+
+
+@login_required
+@require_http_methods(['GET', 'POST'])
+def facility_generation_bias(request):
+    """
+    The facility's SCADA-fitted bias factor for the current weather source.
+
+    GET  ?facility_id=   stored factor and the recommended fit window.
+    POST facility_id, year, peak_filter, action=fit|save|clear
+         fit   runs a fresh SAM simulation (no bias) and fits it to SCADA over the
+               chosen window with likely curtailment hours masked; nothing is stored.
+         save  repeats the fit and stores it, if it passes the checks.
+         clear deletes the stored factor.
+    The factor is applied in later SAM simulation runs, so the plotted trace only
+    changes once the facility's supply trace is regenerated.
+    """
+    from siren_web.services import generation_bias
+
+    data = request.POST if request.method == 'POST' else request.GET
+    try:
+        facility = facilities.objects.get(idfacilities=int(data.get('facility_id', '')))
+    except (ValueError, facilities.DoesNotExist):
+        return JsonResponse({'error': 'Facility not found'}, status=404)
+    source = getattr(settings, 'WEATHER_SOURCE', 'era5')
+    tech = _facility_bias_technology(facility)
+    recommended = BIAS_FIT_DEFAULT_WINDOW.get(tech, 'all')
+    base = {
+        'facility_name': facility.facility_name, 'weather_source': source,
+        'stored_factor': generation_bias.get_factor(facility.idfacilities, source),
+        'technology': tech, 'recommended_window': recommended,
+        'recommended_window_label': PEAK_HOUR_PRESETS[recommended]['label'],
+    }
+    if request.method == 'GET':
+        return JsonResponse(base)
+    if tech is None:
+        return JsonResponse({**base, 'error': 'Only wind and solar facilities are simulated by SAM'}, status=400)
+
+    action = data.get('action', 'fit')
+    if action == 'clear':
+        cleared = generation_bias.clear_factor(facility.idfacilities, source)
+        return JsonResponse({**base, 'stored_factor': None, 'cleared': cleared})
+    if action not in ('fit', 'save'):
+        return JsonResponse({'error': f'Unknown action {action!r}'}, status=400)
+
+    try:
+        year = int(data.get('year', ''))
+    except ValueError:
+        return JsonResponse({'error': 'year is required'}, status=400)
+    window_name = data.get('peak_filter') or recommended
+    preset = PEAK_HOUR_PRESETS.get(window_name)
+    if preset is None:
+        return JsonResponse({'error': f'Unknown hours window {window_name!r}'}, status=400)
+
+    try:
+        fit = generation_bias.fit_facility(facility, year, (preset['start'], preset['end']),
+                                           weather_source=source, window_name=window_name)
+    except ValueError as e:
+        return JsonResponse({**base, 'error': str(e)}, status=400)
+    except Exception as e:  # SAM or weather fetch failure
+        logger.exception(f'Bias fit failed for {facility.facility_name}')
+        return JsonResponse({**base, 'error': f'Fit failed: {e}'}, status=500)
+
+    fit['window_label'] = preset['label']
+    saved = False
+    if action == 'save':
+        if fit['status'] != 'ok':
+            return JsonResponse({**base, **fit, 'saved': False, 'error': fit['status']}, status=400)
+        generation_bias.store_fit(fit)
+        saved = True
+        fit['stored_factor'] = fit['factor']
+    return JsonResponse({**base, **fit, 'saved': saved})
 
 
 def generation_comparison_view(request):

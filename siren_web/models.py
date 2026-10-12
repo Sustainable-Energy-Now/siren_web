@@ -2345,6 +2345,43 @@ class FacilityScadaMatrix(models.Model):
         matrix = np.frombuffer(self.data, dtype=self.dtype).reshape(len(self.facility_ids), self.n_intervals)
         return self.facility_ids, matrix
 
+class FacilityGenerationBias(models.Model):
+    """
+    Multiplicative correction for a facility's SAM-simulated generation, fitted
+    against its SCADA by `manage.py compare_weather_sources --set-bias`.
+
+    The factor belongs to one weather source: a factor fitted on BARRA-C2 output is
+    never applied to an ERA5 run. It is applied inside the SAM simulation run
+    (powermatchui.views.power_views.process_hybrid_facility) to the facility's
+    combined hourly output, so stored generation traces already carry it. Hours
+    pushed above installed capacity by a factor > 1 are capped at capacity.
+    """
+    idfacilities = models.ForeignKey(
+        'facilities', on_delete=models.CASCADE, db_column='idfacilities',
+        related_name='generation_biases')
+    weather_source = models.CharField(
+        max_length=20, help_text="Weather source the factor was fitted for, e.g. 'barra_c2'")
+    factor = models.FloatField(help_text='Simulated hourly generation is multiplied by this')
+    fitted_year = models.PositiveIntegerField(null=True, blank=True,
+                                              help_text='SCADA year the factor was fitted on')
+    method = models.CharField(max_length=40, default='energy_masked',
+                              help_text='How the factor was derived')
+    fitted_hours = models.PositiveIntegerField(null=True, blank=True)
+    scada_energy_mwh = models.FloatField(null=True, blank=True)
+    simulated_energy_mwh = models.FloatField(null=True, blank=True)
+    r_hour = models.FloatField(null=True, blank=True,
+                               help_text='Hourly correlation of the fit, before correction')
+    notes = models.TextField(blank=True, default='')
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'facility_generation_bias'
+        unique_together = (('idfacilities', 'weather_source'),)
+
+    def __str__(self):
+        return f'{self.idfacilities_id} {self.weather_source} x{self.factor:.3f}'
+
+
 class DailyPeakRE(models.Model):
     """Store daily peak instantaneous (5-minute) operational RE% calculated during SCADA fetch"""
     trading_date = models.DateField(unique=True, db_index=True)

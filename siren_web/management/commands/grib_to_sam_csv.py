@@ -8,6 +8,8 @@ Handles the multi-dataset structure of ERA5 GRIB files:
 
 Usage:
 python manage.py grib_to_sam_csv --input-dir=weather_data --output-dir=weather_output --resource-type=solar --year=2025
+
+Every CSV row is one UTC hour, labelled by the start of that hour.
 """
 
 import os
@@ -15,6 +17,8 @@ import numpy as np
 import math
 from datetime import datetime, timedelta
 from django.core.management.base import BaseCommand, CommandError
+
+from siren_web.utilities.solar_geometry import hour_midpoints_utc, split_ghi_erbs
 
 
 class Command(BaseCommand):
@@ -59,8 +63,8 @@ class Command(BaseCommand):
         parser.add_argument(
             '--timezone',
             type=int,
-            default=8,
-            help='Timezone offset from UTC (default: 8 for AWST)'
+            default=0,
+            help='Deprecated and ignored: rows are always UTC and the files say time zone 0'
         )
 
     def handle(self, *args, **options):
@@ -160,63 +164,57 @@ class Command(BaseCommand):
 
     def process_accumulated_radiation(self, accum_datasets):
         """
-        Convert accumulated radiation data to hourly instantaneous values.
+        Place ERA5 hourly radiation onto the hourly rows.
 
-        ERA5 radiation is accumulated since the start of each forecast (00:00 or 12:00 UTC).
-        We need to difference consecutive steps to get hourly values.
+        In ERA5 (as delivered by the current CDS) every forecast step of `ssrd`/`ssr`
+        is already the accumulation over the ONE hour ending at that step's valid time
+        -- it is not cumulative since the forecast start, so it must not be differenced.
+        (Differencing it produced files with roughly a quarter of the real annual
+        irradiance, all in the wrong hours.)
+
+        Rows are labelled by the START of the hour they cover, so the value valid at
+        time V goes in the row for V - 1 h. The final row of the year needs a value
+        valid at 00:00 on 1 January of the next year, which is in the next year's
+        files; when that is missing it is filled from the same hour a day earlier.
         """
-        # Combine all accumulated datasets
         combined = self.xr.concat(accum_datasets, dim='time')
         combined = combined.sortby('time')
 
-        # Initialize storage for hourly radiation values
-        # Match the time dimension of instantaneous data
         n_times = len(self.times)
         n_lats = len(self.lats)
         n_lons = len(self.lons)
 
-        self.ssrd_hourly = np.zeros((n_times, n_lats, n_lons))
-        self.ssr_hourly = np.zeros((n_times, n_lats, n_lons))
+        self.ssrd_hourly = np.full((n_times, n_lats, n_lons), np.nan)
+        self.ssr_hourly = np.full((n_times, n_lats, n_lons), np.nan)
 
-        # Get step values (hours since forecast start)
-        steps = combined.step.values
+        row_of_hour = {t: i for i, t in enumerate(self.times.astype('datetime64[h]'))}
+        valid_times = combined.valid_time.values.astype('datetime64[h]')  # (time, step)
+        ssrd = combined.ssrd.values  # (time, step, lat, lon)
+        ssr = combined.ssr.values
 
-        # Process each forecast initialization time
-        for time_idx, forecast_time in enumerate(combined.time.values):
-            forecast_dt = np.datetime64(forecast_time, 'ns').astype('datetime64[h]')
+        for t_idx in range(valid_times.shape[0]):
+            for s_idx in range(valid_times.shape[1]):
+                row = row_of_hour.get(valid_times[t_idx, s_idx] - np.timedelta64(1, 'h'))
+                if row is None:
+                    continue
+                value = ssrd[t_idx, s_idx]
+                if np.all(np.isnan(value)):
+                    continue  # steps before the first forecast in the files
+                self.ssrd_hourly[row] = value
+                self.ssr_hourly[row] = ssr[t_idx, s_idx]
 
-            # Get data for this forecast
-            ssrd_accum = combined.ssrd.isel(time=time_idx).values  # shape: (step, lat, lon)
-            ssr_accum = combined.ssr.isel(time=time_idx).values
-
-            # Difference consecutive steps to get hourly values
-            for step_idx in range(len(steps)):
-                step_hours = int(steps[step_idx] / np.timedelta64(1, 'h'))
-                valid_time = forecast_dt + np.timedelta64(step_hours, 'h')
-
-                # Find matching index in our hourly time array
-                try:
-                    hour_idx = np.where(
-                        self.times.astype('datetime64[h]') == valid_time
-                    )[0]
-
-                    if len(hour_idx) > 0:
-                        hour_idx = hour_idx[0]
-
-                        if step_idx == 0:
-                            # First step: accumulation is the hourly value
-                            self.ssrd_hourly[hour_idx] = ssrd_accum[step_idx]
-                            self.ssr_hourly[hour_idx] = ssr_accum[step_idx]
-                        else:
-                            # Subsequent steps: difference from previous
-                            self.ssrd_hourly[hour_idx] = (
-                                ssrd_accum[step_idx] - ssrd_accum[step_idx - 1]
-                            )
-                            self.ssr_hourly[hour_idx] = (
-                                ssr_accum[step_idx] - ssr_accum[step_idx - 1]
-                            )
-                except Exception:
-                    pass
+        for name, arr in (('ssrd', self.ssrd_hourly), ('ssr', self.ssr_hourly)):
+            missing = np.flatnonzero(np.all(np.isnan(arr), axis=(1, 2)))
+            for row in missing:
+                if row >= 24:
+                    arr[row] = arr[row - 24]
+            still_missing = np.all(np.isnan(arr), axis=(1, 2)).sum()
+            if len(missing):
+                self.stdout.write(
+                    f'  {name}: {len(missing)} hour(s) had no ERA5 value; filled from the day '
+                    f'before ({still_missing} left as zero)'
+                )
+            np.nan_to_num(arr, copy=False)
 
         self.stdout.write(f'Radiation data processed: {n_times} hourly values')
 
@@ -277,10 +275,16 @@ class Command(BaseCommand):
             f'solar_{lat:.4f}_{lon:.4f}_{self.year}.csv'
         )
 
+        # GHI: J/m² accumulated over the hour -> mean W/m² over the hour
+        ghi_all = np.clip(np.asarray(data['ssrd'], dtype=float) / 3600.0, 0.0, None)
+        # Each row is labelled by the start of its hour; the sun is taken at mid-hour
+        midpoints = hour_midpoints_utc(data['times'])
+        dni_all, dhi_all = split_ghi_erbs(ghi_all, midpoints, lat, lon)
+
         with open(output_file, 'w') as f:
-            # SAM header format
+            # SAM header format. Rows are UTC, so the time zone written is 0.
             f.write('Latitude,Longitude,Time Zone,Elevation\n')
-            f.write(f'{lat:.4f},{lon:.4f},{self.timezone},0\n')
+            f.write(f'{lat:.4f},{lon:.4f},0,0\n')
             f.write('Year,Month,Day,Hour,Minute,GHI,DNI,DHI,Tdry,Tdew,RH,Pres,Wspd,Wdir\n')
 
             # Data rows - one per hour
@@ -288,9 +292,9 @@ class Command(BaseCommand):
                 # Convert numpy datetime64 to Python datetime
                 dt = self.np_datetime_to_python(time_val)
 
-                # GHI: Convert J/m² (hourly accumulation) to W/m² (average power)
-                # For hourly data, divide by 3600 seconds
-                ghi = max(0.0, data['ssrd'][i] / 3600.0)
+                ghi = float(ghi_all[i])
+                dni = float(dni_all[i])
+                dhi = float(dhi_all[i])
 
                 # Temperature: Kelvin to Celsius
                 tdry = data['t2m'][i] - 273.15
@@ -304,12 +308,6 @@ class Command(BaseCommand):
 
                 # Wind speed and direction
                 wspd, wdir = self.calc_wind(data['u10'][i], data['v10'][i])
-
-                # Cloud cover (0-1)
-                cloud = data['tcc'][i]
-
-                # Calculate DNI and DHI from GHI
-                dni, dhi = self.calc_dni_dhi(ghi, lat, dt, cloud)
 
                 f.write(
                     f'{dt.year},{dt.month},{dt.day},{dt.hour},{dt.minute},'
@@ -330,8 +328,8 @@ class Command(BaseCommand):
         with open(output_file, 'w') as f:
             # SAM wind header
             f.write(
-                f'SiteID,{site_name},Site Timezone,{self.timezone},'
-                f'Data Timezone,{self.timezone},Longitude,{lon:.4f},'
+                f'SiteID,{site_name},Site Timezone,8,'
+                f'Data Timezone,0,Longitude,{lon:.4f},'
                 f'Latitude,{lat:.4f},Elevation,0\n'
             )
             f.write('Temperature,Pressure,Speed,Direction,'
@@ -372,64 +370,3 @@ class Command(BaseCommand):
         speed = math.sqrt(u**2 + v**2)
         direction = (270.0 - math.degrees(math.atan2(v, u))) % 360.0
         return speed, direction
-
-    def calc_dni_dhi(self, ghi, lat, dt, cloud_cover):
-        """Calculate DNI and DHI from GHI using simplified model"""
-        if ghi <= 0:
-            return 0.0, 0.0
-
-        zenith = self.solar_zenith(lat, dt)
-        if zenith >= 90:
-            return 0.0, ghi  # All diffuse when sun is below horizon
-
-        cos_zenith = math.cos(math.radians(zenith))
-
-        # Extraterrestrial radiation
-        etr = 1367.0 * cos_zenith
-
-        # Clearness index
-        kt = min(ghi / max(etr, 1.0), 1.0) if etr > 0 else 0.0
-
-        # Simplified decomposition based on clearness and cloud cover
-        # Higher kt and lower clouds = more DNI
-        cloud_factor = max(0.0, 1.0 - cloud_cover)
-
-        # Diffuse fraction estimation (Erbs correlation simplified)
-        if kt <= 0.22:
-            df = 1.0 - 0.09 * kt
-        elif kt <= 0.80:
-            df = 0.9511 - 0.1604 * kt + 4.388 * kt**2 - 16.638 * kt**3 + 12.336 * kt**4
-        else:
-            df = 0.165
-
-        # Adjust for cloud cover
-        df = df + (1 - df) * cloud_cover * 0.5
-
-        dhi = ghi * df
-        dni = (ghi - dhi) / max(cos_zenith, 0.05)
-
-        # Cap values
-        dni = max(0.0, min(dni, 1200.0))
-        dhi = max(0.0, min(dhi, ghi))
-
-        return dni, dhi
-
-    def solar_zenith(self, lat, dt):
-        """Calculate solar zenith angle"""
-        day_of_year = dt.timetuple().tm_yday
-        declination = 23.45 * math.sin(math.radians(360.0 * (284 + day_of_year) / 365.0))
-
-        hour_decimal = dt.hour + dt.minute / 60.0
-        hour_angle = 15.0 * (hour_decimal - 12.0)
-
-        lat_rad = math.radians(lat)
-        decl_rad = math.radians(declination)
-        ha_rad = math.radians(hour_angle)
-
-        cos_zenith = (
-            math.sin(lat_rad) * math.sin(decl_rad) +
-            math.cos(lat_rad) * math.cos(decl_rad) * math.cos(ha_rad)
-        )
-        cos_zenith = max(-1.0, min(1.0, cos_zenith))
-
-        return math.degrees(math.acos(cos_zenith))

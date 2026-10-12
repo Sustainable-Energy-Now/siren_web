@@ -9,7 +9,7 @@ from .models import (
     EvChargingProfile, SwisBoundaryMembership, EvActualsRecord, EvLoadTrace,
     V2gInterfaceStub, SwisBoundary, PostcodeBoundary,
     EvActualsDocument, EvActualsQuarter, CommandRun, EsooForecastAdjustment,
-    GencostVintage, GencostCostFigure, GencostTechnologyMapping,
+    GencostVintage, GencostCostFigure, GencostTechnologyMapping, FacilityGenerationBias,
 )
 
 
@@ -33,6 +33,17 @@ class CommandRunAdmin(admin.ModelAdmin):
 
     def has_add_permission(self, request):
         return False
+
+@admin.register(FacilityGenerationBias)
+class FacilityGenerationBiasAdmin(admin.ModelAdmin):
+    """SCADA-fitted multipliers applied to SAM output; set by compare_weather_sources --set-bias."""
+    list_display = ['idfacilities', 'weather_source', 'factor', 'fitted_year', 'r_hour',
+                    'fitted_hours', 'method', 'updated_at']
+    list_filter = ['weather_source', 'fitted_year', 'method']
+    search_fields = ['idfacilities__facility_name', 'idfacilities__facility_code']
+    raw_id_fields = ['idfacilities']
+    readonly_fields = ['updated_at']
+
 
 # EV Uptake & Charging Load Modelling (Phase 0 governance scaffold, GR-01)
 @admin.register(EvVintage)

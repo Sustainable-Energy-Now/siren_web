@@ -251,6 +251,10 @@ CRISPY_TEMPLATE_PACK = "bootstrap5"
 CRISPY_RENDERER_CLASS = "crispy_bootstrap5.renderers.AccordionJsRenderer"
 # Powermap settings
 WEATHER_DATA_DIR = BASE_DIR / 'siren_web' / 'siren_files' / 'SWIS' / 'siren_data' / 'weather_files'
+# Weather source for SAM wind/solar runs: 'era5' (nearest stored 0.25-degree grid-point
+# file) or 'barra_c2' (BoM BARRA-C2 4.4 km reanalysis for the facility's own cell,
+# fetched from NCI THREDDS on first use and cached under WEATHER_DATA_DIR/barra_c2).
+WEATHER_SOURCE = 'barra_c2'
 # CSV wind-turbine library (index.csv + curves/<slug>.csv), the run-time source
 # of turbine power curves for SAM. Built by `manage.py import_turbine_library`.
 TURBINE_LIBRARY_DIR = BASE_DIR / 'siren_web' / 'siren_files' / 'siren_data' / 'turbine_library'

@@ -24,6 +24,9 @@ WIND_SHEAR_EXPONENT = 0.14
 # SAM's windpower module refuses farms of more than this many turbines.
 MAX_TURBINES_PER_SAM_RUN = 300
 
+WEATHER_SOURCES = ('era5', 'barra_c2')
+WIND_PROFILES = ('bracket', '10-100')
+
 
 def split_into_blocks(no_turbines: int, limit: int = MAX_TURBINES_PER_SAM_RUN) -> List[int]:
     """Split a farm into the fewest equal-as-possible blocks of at most `limit` turbines."""
@@ -45,6 +48,12 @@ class WeatherData:
     dhi: List[float] = None  # Diffuse Horizontal Irradiance
     humidity: List[float] = None
     wind_speed_10m: List[float] = None  # Speed at 10 m, when the file has it (wind_speed is at 100 m)
+    wind_speed_50m: List[float] = None   # Extra levels some sources provide (BARRA-C2); used to
+    wind_speed_150m: List[float] = None  # bracket the hub instead of extrapolating past 100 m
+    # Hours the rows are ahead of UTC. 0 for the ERA5/BARRA CSVs (UTC rows); None means the
+    # legacy local-time (AWST) files.
+    utc_offset_hours: Optional[float] = None
+    year: Optional[int] = None  # calendar year of the first row, when the file says
 
 class WeatherFileFinder:
     """Helper class for finding nearest weather files"""
@@ -281,17 +290,32 @@ class SAMResourceProcessor:
     Handles SAM SSC integration for wind and solar resource processing
     """
     
-    def __init__(self, weather_data_dir: str = "weather_data"):
+    def __init__(self, weather_data_dir: str = "weather_data",
+                 weather_source: Optional[str] = None, wind_profile: Optional[str] = None):
         """
         Initialize SAM Resource Processor
 
         Args:
             weather_data_dir: Directory containing weather files
+            weather_source: 'era5' (nearest stored grid-point file) or 'barra_c2' (the
+                facility's own BARRA-C2 cell, fetched from NCI and cached on first use).
+                Defaults to settings.WEATHER_SOURCE.
+            wind_profile: 'bracket' (default) takes hub-height speeds between the two
+                file heights either side of the hub when the file has extra levels;
+                '10-100' always uses the 10 m / 100 m pair, as for ERA5.
         """
         self.weather_data_dir = Path(weather_data_dir)
         # Use Django settings if no explicit path provided
         from django.conf import settings
         self.weather_data_dir = Path(weather_data_dir or settings.WEATHER_DATA_DIR)
+        self.weather_source = (weather_source or getattr(settings, 'WEATHER_SOURCE', 'era5')).lower()
+        if self.weather_source not in WEATHER_SOURCES:
+            raise ValueError(f"Unknown weather source {self.weather_source!r}; "
+                             f"expected one of {', '.join(WEATHER_SOURCES)}")
+        self.wind_profile = (wind_profile or 'bracket').lower()
+        if self.wind_profile not in WIND_PROFILES:
+            raise ValueError(f"Unknown wind profile {self.wind_profile!r}; "
+                             f"expected one of {', '.join(WIND_PROFILES)}")
 
         # Initialize weather file finder
         self.weather_finder = WeatherFileFinder(self.weather_data_dir)
@@ -378,6 +402,19 @@ class SAMResourceProcessor:
         Returns:
             Path to nearest weather file or None if not found
         """
+        if self.weather_source == 'barra_c2':
+            from siren_web.services import barra_c2
+            tech = technology.lower()
+            if tech not in ('wind', 'solar'):
+                logger.warning(f"Unknown technology type: {technology}")
+                return None
+            try:
+                return barra_c2.get_or_fetch(tech, float(latitude), float(longitude),
+                                             int(weather_year), self.weather_data_dir)
+            except barra_c2.BarraError as e:
+                logger.error(f"BARRA-C2 {tech} weather for ({latitude}, {longitude}) "
+                             f"{weather_year} unavailable: {e}")
+                return None
         return self.weather_finder.get_weather_file_path(
             latitude, longitude, technology, weather_year
         )
@@ -444,9 +481,7 @@ class SAMResourceProcessor:
             # at the resource height. With a 10 m series each hour's speed at hub height comes
             # from a profile through that hour's 10 m and 100 m speeds; without one, the fixed
             # power law SAM itself uses (verified identical to its own extrapolation).
-            hub_speeds, shear_method = hub_height_speeds(
-                weather_data.wind_speed, weather_data.wind_speed_10m, hub_height,
-                high_height=WIND_RESOURCE_HEIGHT_M, fixed_shear=WIND_SHEAR_EXPONENT)
+            hub_speeds, shear_method = self._hub_speeds(weather_data, hub_height)
             weather_data = replace(weather_data, wind_speed=hub_speeds)
             logger.info(f"{facility.facility_name}: wind speeds taken to {hub_height:.0f} m hub "
                         f"by {shear_method}")
@@ -496,6 +531,35 @@ class SAMResourceProcessor:
                     os.remove(temp_weather_file)
                 except:
                     pass
+
+    def _hub_speeds(self, weather_data: WeatherData, hub_height: float):
+        """
+        Hub-height speeds from the file's levels. With the 'bracket' profile and a file
+        that has levels either side of the hub (BARRA-C2: 10, 50, 100, 150 m), the profile
+        runs through the nearest level below and above the hub, so a 130 m hub is
+        interpolated between 100 m and 150 m instead of extrapolated from 10 m and 100 m.
+        """
+        levels = {10.0: weather_data.wind_speed_10m, WIND_RESOURCE_HEIGHT_M: weather_data.wind_speed}
+        if self.wind_profile == 'bracket':
+            for height, series in ((50.0, weather_data.wind_speed_50m),
+                                   (150.0, weather_data.wind_speed_150m)):
+                if series and len(series) == len(weather_data.wind_speed):
+                    levels[height] = series
+        heights = sorted(h for h, v in levels.items() if v is not None)
+        if self.wind_profile == 'bracket' and len(heights) > 2:
+            below = [h for h in heights if h <= hub_height]
+            above = [h for h in heights if h > hub_height]
+            low = below[-1] if below else heights[0]
+            high = above[0] if above else heights[-1]
+            if low == high:
+                low = heights[heights.index(high) - 1]
+            speeds, method = hub_height_speeds(
+                levels[high], levels[low], hub_height,
+                low_height=low, high_height=high, fixed_shear=WIND_SHEAR_EXPONENT)
+            return speeds, f"{method} {low:g}-{high:g} m"
+        return hub_height_speeds(
+            weather_data.wind_speed, weather_data.wind_speed_10m, hub_height,
+            high_height=WIND_RESOURCE_HEIGHT_M, fixed_shear=WIND_SHEAR_EXPONENT)
 
     def _run_windpower(self, temp_weather_file, turbine: ResolvedTurbine,
                        no_turbines: int, rotor_diameter: float) -> SimulationResults:
@@ -655,7 +719,8 @@ class SAMResourceProcessor:
         try:
             # Try the simple SAM CSV format first
             temp_weather_file = self._create_sam_csv_weather_file(
-                ghi_data, dni_data, dhi_data, temp_data, wind_data, facility
+                ghi_data, dni_data, dhi_data, temp_data, wind_data, facility,
+                utc_offset_hours=weather_data.utc_offset_hours, year=weather_data.year,
             )
             
             # Set the weather file path
@@ -664,15 +729,22 @@ class SAMResourceProcessor:
         except Exception as e:
             logger.warning(f"CSV format failed: {e}")
 
-    def _create_sam_csv_weather_file(self, ghi_data, dni_data, dhi_data, temp_data, wind_data, facility):
+    def _create_sam_csv_weather_file(self, ghi_data, dni_data, dhi_data, temp_data, wind_data, facility,
+                                     utc_offset_hours=None, year=None):
         """
         Create SAM CSV weather file using the EXACT format that SAM expects
         Based on the SAM documentation and forum posts
+
+        The Time Zone must describe the rows: 0 for the UTC rows of the ERA5/BARRA CSVs,
+        8 (AWST) for the legacy local-time files. PVWatts places the sun from the stamps
+        and that zone, so a wrong zone shifts the sun by hours. Each row covers the hour
+        starting at its stamp; Minute 30 puts the sun at mid-hour.
         """
+        time_zone = 8 if utc_offset_hours is None else utc_offset_hours
         import tempfile
         import os
-        import datetime
-        
+        import calendar
+
         temp_dir = tempfile.gettempdir()
         temp_filename = f"sam_solar_{facility.facility_code}_{os.getpid()}.csv"
         temp_path = Path(temp_dir) / temp_filename
@@ -684,13 +756,17 @@ class SAMResourceProcessor:
             with open(temp_path, 'w', newline='') as f:
                 # SAM CSV header format (exactly as SAM expects)
                 f.write("Source,Location ID,City,State,Country,Latitude,Longitude,Time Zone,Elevation\n")
-                f.write(f"SIREN Generated,,{facility.facility_name},,Australia,{facility.latitude},{facility.longitude},8,0\n")
+                f.write(f"SIREN Generated,,{facility.facility_name},,Australia,{facility.latitude},{facility.longitude},{time_zone:g},0\n")
                 
                 # Data column headers (exact SAM format)
                 f.write("Year,Month,Day,Hour,Minute,GHI,DNI,DHI,Tdry,Twet,Wspd,Wdir,Pres\n")
                 
-                # Write data for a complete year (use 2020 - not a leap year affecting 8760 hours)
-                year = 2020  # Non-leap year
+                # Stamp the data's own year so the sun's declination matches the dates. The
+                # rows are written as one 8760-hour calendar, so a leap year (or an unknown
+                # one) is stamped as a non-leap year instead.
+                if year is None or calendar.isleap(int(year)):
+                    year = 2019
+                minute = 30 if utc_offset_hours is not None else 0
                 hour = 0
                 
                 for month in range(1, 13):  # Months 1-12
@@ -723,7 +799,6 @@ class SAMResourceProcessor:
                             twet = tdry - 5.0
                             
                             # Fixed values
-                            minute = 0
                             wdir = 180
                             pres = 1013
                             
@@ -753,7 +828,8 @@ class SAMResourceProcessor:
         except Exception as e:
             raise WeatherFileError(f"Error creating SAM CSV file: {e}")
    
-    def process_solar_facility(self, facility, weather_data: WeatherData) -> SimulationResults:
+    def process_solar_facility(self, facility, weather_data: WeatherData,
+                               installation=None) -> SimulationResults:
         """
         Process solar facility using SAM PV module with weather file
         """
@@ -767,7 +843,7 @@ class SAMResourceProcessor:
             self._set_solar_weather_data(data, weather_data, facility)
             
             # Set system parameters
-            self._set_solar_system_parameters(data, facility)
+            self._set_solar_system_parameters(data, facility, installation)
             
             # Create PVWatts v5 module
             pv_module = Module(b'pvwattsv5')
@@ -989,7 +1065,9 @@ class SAMResourceProcessor:
         Row 2: Temperature,Pressure,Speed,Direction,Speed,Direction
         Row 3+: Data rows
         """
-        weather_data = WeatherData()
+        # Every CSV this project writes (ERA5 converters, BARRA-C2) holds UTC rows,
+        # whatever time zone an older file's header claims.
+        weather_data = WeatherData(utc_offset_hours=0)
 
         try:
             content = self._read_weather_file(file_path)
@@ -1030,6 +1108,8 @@ class SAMResourceProcessor:
                         # Expected columns: Year,Month,Day,Hour,Minute,GHI,DNI,DHI,Tdry,Tdew,RH,Pres,Wspd,Wdir
                         if len(parts) < 14:
                             continue
+                        if weather_data.year is None:
+                            weather_data.year = int(parts[0])
 
                         # Parse values (indices: 5=GHI, 6=DNI, 7=DHI, 8=Tdry, 9=Tdew, 10=RH, 11=Pres, 12=Wspd, 13=Wdir)
                         ghi = float(parts[5])
@@ -1076,6 +1156,15 @@ class SAMResourceProcessor:
                 weather_data.temperature = []
                 weather_data.pressure = []
 
+                # Optional extra speed levels, located by header name ("Speed at 50m")
+                header = [c.strip().lower() for c in lines[1].split(',')]
+                extra_cols = {}
+                for height in (50, 150):
+                    name = f'speed at {height}m'
+                    if name in header:
+                        extra_cols[height] = header.index(name)
+                extra_series = {height: [] for height in extra_cols}
+
                 # Data starts at row 3 (index 2)
                 data_lines = lines[2:]
 
@@ -1107,12 +1196,17 @@ class SAMResourceProcessor:
                         weather_data.wind_speed.append(wind_speed_100m)
                         weather_data.wind_speed_10m.append(wind_speed_10m)
                         weather_data.wind_direction.append(wind_direction_100m)
+                        for height, col in extra_cols.items():
+                            extra_series[height].append(float(parts[col]))
 
                     except (ValueError, IndexError) as e:
                         logger.debug(f"Line {line_num}: error parsing - {e}")
                         continue
 
                 total_records = len(weather_data.wind_speed)
+                for height, series in extra_series.items():
+                    if len(series) == total_records:
+                        setattr(weather_data, f'wind_speed_{height}m', series)
                 logger.info(f"Successfully parsed wind CSV: {total_records} records")
 
                 if total_records > 0:
@@ -1128,9 +1222,16 @@ class SAMResourceProcessor:
 
         return weather_data
 
-    def _set_solar_system_parameters(self, data: Data, facility):
+    def _set_solar_system_parameters(self, data: Data, facility, installation=None):
         """
         Set solar system parameters for PVWatts v5 with correct parameter names
+
+        Tilt and azimuth come from the installation (FacilitySolar.tilt_angle /
+        azimuth_angle) or the facility when set. Otherwise: a single-axis tracker has a
+        horizontal north-south axis (tilt 0), the usual utility layout; a fixed array is
+        tilted at the latitude and faces the equator -- north (azimuth 0) in the southern
+        hemisphere. (The old default faced every array south and tilted tracker axes at
+        the latitude, which in WA overstated summer output and roughly thirded winter's.)
         """
         try:
             # Required parameters for PVWatts v5
@@ -1150,14 +1251,26 @@ class SAMResourceProcessor:
                 
             data.set_number(b'array_type', array_type)
             
-            # Tilt angle (degrees from horizontal)
-            tilt = float(facility.tilt) if hasattr(facility, 'tilt') and facility.tilt else abs(float(facility.latitude))
+            def first_set(*values):
+                for value in values:
+                    if value is not None:
+                        return float(value)
+                return None
+
+            latitude = float(facility.latitude)
+            tracking = array_type in (2, 3, 4)
+            equator_facing = 0.0 if latitude < 0 else 180.0
+
+            # Tilt angle (degrees from horizontal); for a tracker, the axis tilt
+            tilt = first_set(getattr(installation, 'tilt_angle', None), getattr(facility, 'tilt', None))
+            if tilt is None:
+                tilt = 0.0 if tracking else abs(latitude)
             data.set_number(b'tilt', tilt)
-            
-            # Azimuth angle (degrees from north) - PVWatts v5 uses 'azimuth'
-            azimuth = 180.0  # South-facing default
-            if hasattr(facility, 'azimuth') and facility.azimuth:
-                azimuth = float(facility.azimuth)
+
+            # Azimuth angle (degrees from north, 0 = north) - PVWatts v5 uses 'azimuth'
+            azimuth = first_set(getattr(installation, 'azimuth_angle', None), getattr(facility, 'azimuth', None))
+            if azimuth is None:
+                azimuth = equator_facing
             data.set_number(b'azimuth', azimuth)
             
             # System losses (%) - PVWatts v5 uses 'losses'
