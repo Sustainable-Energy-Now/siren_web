@@ -379,6 +379,12 @@ def _write_atomic(path: Path, lines) -> None:
 
 # ---------------------------------------------------------------------- entry point
 
+def is_cached(technology: str, lat: float, lon: float, year: int, weather_data_dir) -> bool:
+    """Whether the SAM CSV for the point's cell is already in the cache."""
+    _, _, cell_lat, cell_lon = grid_cell(lat, lon, weather_data_dir)
+    return csv_path(technology, cell_lat, cell_lon, year, weather_data_dir).exists()
+
+
 def get_or_fetch(technology: str, lat: float, lon: float, year: int, weather_data_dir,
                  progress: Optional[Callable[[str], None]] = None) -> Path:
     """

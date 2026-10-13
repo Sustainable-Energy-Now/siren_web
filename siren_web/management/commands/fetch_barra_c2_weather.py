@@ -2,13 +2,19 @@
 Fetch and cache BARRA-C2 weather for facilities' own grid cells.
 
 SAM runs with WEATHER_SOURCE = 'barra_c2' fetch on first use anyway; this command
-does it ahead of time (a wind cell-year takes ~8 minutes, a solar one ~5), so a
-baseline run or a comparison does not stall on the network.
+does it ahead of time (a new cell-year takes ~3 minutes), so a baseline run or a
+comparison does not stall on the network. Cells already cached are skipped, so it is
+safe to re-run or schedule. Registered on the Data Pipelines page.
 
 Usage:
     python manage.py fetch_barra_c2_weather --facility YANDIN_WF1 --year 2025
+    python manage.py fetch_barra_c2_weather --all --year 2025 --max-new 15
     python manage.py fetch_barra_c2_weather --all-with-scada --year 2025
     python manage.py fetch_barra_c2_weather --lat -31.65 --lon 117.30 --technology solar --year 2025
+
+--max-new caps how many cells are downloaded in one run (cached cells don't count);
+re-run to continue. The Data Pipelines runner treats a run still going after an hour
+as stopped, so keep a web-started run to about 15 new cells.
 """
 
 from django.conf import settings
@@ -34,15 +40,25 @@ def facility_technologies(facility):
     return techs
 
 
+def wind_solar_facilities():
+    """Every facility with a location and wind or solar generation (existing or proposed)."""
+    from siren_web.models import facilities
+    return [f for f in facilities.objects.filter(latitude__isnull=False, longitude__isnull=False)
+            .select_related('idtechnologies').order_by('facility_name')
+            if facility_technologies(f)]
+
+
+def wind_solar_facility_codes():
+    """Facility codes for the Data Pipelines facility picker."""
+    return [f.facility_code for f in wind_solar_facilities() if f.facility_code]
+
+
 def facilities_with_scada(year):
     """Wind/solar facilities with any SCADA in the year."""
     import numpy as np
-    from siren_web.models import facilities
     from siren_web.services.facility_scada_matrix import facility_trace
     found = []
-    for f in facilities.objects.filter(latitude__isnull=False).select_related('idtechnologies'):
-        if not facility_technologies(f):
-            continue
+    for f in wind_solar_facilities():
         trace = facility_trace(year, f.idfacilities)
         if trace is not None and np.any(~np.isnan(trace)):
             found.append(f)
@@ -56,11 +72,15 @@ class Command(BaseCommand):
         parser.add_argument('--year', type=int, required=True)
         parser.add_argument('--facility', action='append', default=[],
                             help='Facility code (repeatable)')
+        parser.add_argument('--all', action='store_true',
+                            help='Every wind/solar facility with a location, existing or proposed')
         parser.add_argument('--all-with-scada', action='store_true',
                             help='Every wind/solar facility with SCADA in --year')
         parser.add_argument('--lat', type=float)
         parser.add_argument('--lon', type=float)
         parser.add_argument('--technology', choices=['wind', 'solar'])
+        parser.add_argument('--max-new', type=int, default=0,
+                            help='Download at most this many new cells this run (0 = no limit)')
 
     def handle(self, *args, **opts):
         from siren_web.models import facilities
@@ -80,25 +100,39 @@ class Command(BaseCommand):
                 chosen.append(facilities.objects.get(facility_code=code))
             except facilities.DoesNotExist:
                 raise CommandError(f'No facility with code {code}')
-        if opts['all_with_scada']:
+        if opts['all']:
+            chosen.extend(f for f in wind_solar_facilities() if f not in chosen)
+        elif opts['all_with_scada']:
             chosen.extend(f for f in facilities_with_scada(year) if f not in chosen)
         for f in chosen:
-            for tech in facility_technologies(f):
+            techs = facility_technologies(f)
+            if not techs:
+                self.stdout.write(self.style.WARNING(f'{f.facility_name}: not a wind or solar facility'))
+            for tech in techs:
                 jobs.append((f.facility_name, tech, float(f.latitude), float(f.longitude)))
 
         if not jobs:
-            raise CommandError('Nothing to fetch: give --facility, --all-with-scada or --lat/--lon')
+            raise CommandError('Nothing to fetch: give --facility, --all, --all-with-scada or --lat/--lon')
 
-        failures = 0
+        progress = (lambda step: self.stdout.write(f'    {step}')) if opts['verbosity'] > 1 else None
+        fetched = cached = deferred = failures = 0
         for label, tech, lat, lon in jobs:
-            self.stdout.write(f'{label}: {tech} {year}')
             try:
-                path = barra_c2.get_or_fetch(
-                    tech, lat, lon, year, weather_dir,
-                    progress=lambda step: self.stdout.write(f'    {step}'))
+                if barra_c2.is_cached(tech, lat, lon, year, weather_dir):
+                    cached += 1
+                    continue
+                if opts['max_new'] and fetched >= opts['max_new']:
+                    deferred += 1
+                    continue
+                self.stdout.write(f'{label}: fetching {tech} {year}')
+                path = barra_c2.get_or_fetch(tech, lat, lon, year, weather_dir, progress=progress)
+                fetched += 1
                 self.stdout.write(self.style.SUCCESS(f'  {path}'))
             except barra_c2.BarraError as e:
                 failures += 1
-                self.stdout.write(self.style.ERROR(f'  failed: {e}'))
+                self.stdout.write(self.style.ERROR(f'{label}: {tech} {year} failed: {e}'))
+
+        self.stdout.write(f'{fetched} fetched, {cached} already cached, {deferred} left for a later run, '
+                          f'{failures} failed ({len(jobs)} facility-technologies)')
         if failures:
             raise CommandError(f'{failures} of {len(jobs)} fetches failed')

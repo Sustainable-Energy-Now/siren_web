@@ -56,6 +56,16 @@ def gencost_vintage_editions() -> list[str]:
     return list(GencostVintage.objects.order_by('-edition').values_list('edition', flat=True))
 
 
+def last_full_year() -> int:
+    """The latest complete calendar year (BARRA-C2 runs a few months behind)."""
+    return _dt.date.today().year - 1
+
+
+def wind_solar_facility_codes() -> list[str]:
+    from siren_web.management.commands.fetch_barra_c2_weather import wind_solar_facility_codes as codes
+    return codes()
+
+
 def gencost_cost_cases() -> list[str]:
     from siren_web.models import GENCOST_COST_CASE_CHOICES
     return [key for key, _ in GENCOST_COST_CASE_CHOICES]
@@ -107,6 +117,7 @@ GROUP_LABELS = {
     'gencost': 'CSIRO GenCost pipeline',
     'facility': 'Facility attribute analysis',
     'biomass': 'Biomass dispatch (SCADA traces)',
+    'weather': 'SAM weather (BARRA-C2)',
 }
 
 
@@ -310,6 +321,40 @@ PIPELINE_COMMANDS: dict[str, PipelineCommand] = {c.key: c for c in [
         note="Sets Biomass.dispatchable=0 and moves any facility with zero qualifying SCADA-trace "
              "years onto a new 'Biomass (dispatchable)' technology so it keeps nameplate-optimized "
              "dispatch. Run 'Build Biomass supply traces' first with the same --min-coverage.",
+    ),
+    PipelineCommand(
+        key='fetch_barra_c2_all',
+        label='Fetch BARRA-C2 weather (all wind & solar facilities)',
+        group='weather',
+        management_command='fetch_barra_c2_weather',
+        fixed_args=('--all',),
+        params=(
+            Param('year', 'year', '--year', label='Weather year', default=last_full_year,
+                  help_text='Default: the last full calendar year. BARRA-C2 runs 3-4 months behind.'),
+            Param('max_new', 'int', '--max-new', label='Max new cells this run', default=15,
+                  help_text='About 3 minutes per new cell; cached cells are skipped and free. '
+                            'Re-run to continue. 0 = no limit (CLI only: the runner stops '
+                            'tracking a run after an hour).'),
+        ),
+        runtime_hint='seconds if cached; ~3 min per new cell',
+        note="Downloads and caches the BARRA-C2 SAM weather file for each wind and solar facility's "
+             "own 4.4 km grid cell (existing and proposed), so SAM simulation runs don't wait on NCI. "
+             "Idempotent; safe to schedule, e.g. after a new year becomes available or new facilities "
+             "are added.",
+    ),
+    PipelineCommand(
+        key='fetch_barra_c2_facility',
+        label='Fetch BARRA-C2 weather (one facility)',
+        group='weather',
+        management_command='fetch_barra_c2_weather',
+        params=(
+            Param('facility', 'choice', '--facility', label='Facility', required=True,
+                  choices=wind_solar_facility_codes),
+            Param('year', 'year', '--year', label='Weather year', default=last_full_year),
+        ),
+        cron_safe=False,
+        runtime_hint='seconds if cached; ~3 min per technology if not',
+        note="Fetches and caches one facility's BARRA-C2 wind and/or solar weather for a year.",
     ),
 ]}
 
