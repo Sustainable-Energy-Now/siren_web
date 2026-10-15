@@ -3,7 +3,8 @@ from django.urls import path, include
 from .views import variations_views, baseline_scenario_views, demand_projection_views, \
     merit_order_views, \
     powermatchui_home_views, under_construction_views, demand_factor_views, esoo_scenario_views, \
-    ev_scenario_views, esoo_export_views, esoo_adjustment_views, scenario_summary_views, power_views
+    ev_scenario_views, esoo_export_views, esoo_adjustment_views, scenario_summary_views, power_views, \
+    supply_matrix_views
 app_name = 'powermatchui'
 
 urlpatterns = [
@@ -74,4 +75,9 @@ urlpatterns = [
     path('scenario-summary/', scenario_summary_views.scenario_summary, name='scenario_summary'),
     path('scenario-summary/<int:demand_id>/delete/', scenario_summary_views.delete_scenario, name='scenario_summary_delete'),
     path('power/', power_views.generate_power, name='generate_power'),
+
+    # List / download / delete the per-weather-year SupplyFactorMatrix rows Run Power writes
+    path('supply-trace-years/', supply_matrix_views.supply_matrix_years, name='supply_matrix_years'),
+    path('supply-trace-years/<int:year>/delete/', supply_matrix_views.delete_supply_matrix_year,
+         name='supply_matrix_year_delete'),
 ]

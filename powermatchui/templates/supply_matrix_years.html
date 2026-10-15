@@ -1,0 +1,131 @@
+{% extends 'powermatchui_base.html' %}
+
+{% block powermatchui_content %}
+<div class="container-fluid mt-4">
+  <div class="row">
+    <div class="col-md-11 offset-md-1">
+      <h3>Supply Trace Years</h3>
+      <p class="text-muted">
+        Facility generation traces are stored once per weather year. Run Power writes them under the selected
+        Demand forecast's reference year. Years no active forecast uses, or whose facilities have all been deleted,
+        are stale and can be deleted here. Download a year first if you might want it back.
+      </p>
+
+      {% for m in messages %}
+      <div class="alert alert-{% if m.tags == 'error' %}danger{% else %}{{ m.tags }}{% endif %} mt-3">{{ m }}</div>
+      {% endfor %}
+      {% if error %}
+      <div class="alert alert-warning mt-3">{{ error }}</div>
+      {% endif %}
+
+      {% if years %}
+      <div class="table-responsive mt-3">
+        <table class="table table-sm table-bordered table-hover align-middle">
+          <thead class="table-light">
+            <tr>
+              <th>Year</th>
+              <th class="text-end">Facilities</th>
+              <th class="text-end">Deleted facilities</th>
+              <th>Resolution</th>
+              <th class="text-end">Data coverage</th>
+              <th class="text-end">Size</th>
+              <th>Last written</th>
+              <th>Used by active forecasts</th>
+              <th>Status</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for y in years %}
+            <tr {% if y.year == selected_year %}class="table-active"{% endif %}>
+              <td><a href="?year={{ y.year }}"><strong>{{ y.year }}</strong></a></td>
+              <td class="text-end">{{ y.n_facilities }}</td>
+              <td class="text-end">{% if y.n_deleted %}<span class="text-danger">{{ y.n_deleted }}</span>{% else %}0{% endif %}</td>
+              <td>{{ y.resolution }}</td>
+              <td class="text-end">{{ y.coverage_pct|floatformat:1 }}%</td>
+              <td class="text-end">{{ y.size_mb|floatformat:2 }} MB</td>
+              <td>{{ y.updated_at|date:"j M Y H:i" }}</td>
+              <td>
+                {% for d in y.demands %}{{ d.name }}{% if not forloop.last %}<br>{% endif %}{% empty %}<span class="text-muted">None</span>{% endfor %}
+              </td>
+              <td>
+                {% if y.in_use %}<span class="badge bg-success">{{ y.status }}</span>
+                {% else %}<span class="badge bg-warning text-dark">{{ y.status }}</span>{% endif %}
+              </td>
+              <td class="text-nowrap">
+                <a class="btn btn-outline-secondary btn-sm" href="?year={{ y.year }}">Details</a>
+                <a class="btn btn-outline-secondary btn-sm" href="?year={{ y.year }}&download=csv">Download CSV</a>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="alert alert-info mt-3">No supply trace years are stored.</div>
+      {% endif %}
+
+      {% if breakdown is not None %}
+      <h4 class="mt-4">{{ selected_year }} <small class="text-muted">({{ breakdown_resolution }}, {{ breakdown|length }} facilities)</small></h4>
+
+      <div class="card border-danger mt-2 mb-3">
+        <div class="card-body">
+          <form method="post" action="{% url 'powermatchui:supply_matrix_year_delete' selected_year %}"
+                onsubmit="return confirm('Permanently delete every facility trace stored for {{ selected_year }}? This cannot be undone.');">
+            {% csrf_token %}
+            {% if selected.in_use %}
+            <div class="alert alert-warning mb-2">
+              {{ selected_year }} is the weather year for
+              {% for d in selected.demands %}<strong>{{ d.name }}</strong>{% if not forloop.last %}, {% endif %}{% endfor %}.
+              Deleting it leaves {% if selected.demands|length == 1 %}that forecast{% else %}those forecasts{% endif %}
+              with no supply traces until Run Power is run again.
+            </div>
+            <div class="form-check mb-2">
+              <input class="form-check-input" type="checkbox" name="confirm_in_use" value="1" id="confirm_in_use">
+              <label class="form-check-label" for="confirm_in_use">Delete it anyway</label>
+            </div>
+            {% endif %}
+            <button type="submit" class="btn btn-danger btn-sm">Delete year {{ selected_year }}</button>
+            <a class="btn btn-outline-secondary btn-sm" href="?year={{ selected_year }}&download=csv">Download CSV first</a>
+          </form>
+        </div>
+      </div>
+
+      <div class="table-responsive">
+        <table class="table table-sm table-bordered table-striped align-middle">
+          <thead class="table-light">
+            <tr>
+              <th class="text-end">ID</th>
+              <th>Facility</th>
+              <th>Technology</th>
+              <th class="text-end">Capacity (MW)</th>
+              <th class="text-end">Hours with data</th>
+              <th class="text-end">Energy (GWh)</th>
+              <th class="text-end">Capacity factor</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for f in breakdown %}
+            <tr {% if f.deleted %}class="table-danger"{% endif %}>
+              <td class="text-end">{{ f.id }}</td>
+              <td>{% if f.deleted %}<em>Deleted facility</em>{% else %}{{ f.name }}{% endif %}</td>
+              <td>{{ f.technology }}</td>
+              <td class="text-end">{% if f.capacity_mw %}{{ f.capacity_mw|floatformat:1 }}{% endif %}</td>
+              <td class="text-end">{{ f.hours_with_data|floatformat:"-1" }}</td>
+              <td class="text-end">{% if not f.deleted %}{{ f.energy_gwh|floatformat:1 }}{% endif %}</td>
+              <td class="text-end">{% if f.capacity_factor_pct is not None %}{{ f.capacity_factor_pct|floatformat:1 }}%{% endif %}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <p class="text-muted small">
+        Capacity factor is worked out from the stored trace and the facility's listed capacity, over the hours that have data.
+        Energy and capacity factor are left blank for deleted facilities. Their units can't be confirmed, since some
+        were old demand traces stored in MW rather than generation in kW.
+      </p>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -54,8 +54,14 @@
             </li>
           </ul>
         </li>
-        <li class="nav-item">
-          <a class="nav-link" href="/power/">Run Power</a>
+        <li class="nav-item dropdown">
+          <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+            Run Power
+          </a>
+          <ul class="dropdown-menu">
+            <li><a class="dropdown-item" href="{% url 'powermatchui:generate_power' %}">Run Power</a></li>
+            <li><a class="dropdown-item" href="{% url 'powermatchui:supply_matrix_years' %}">Supply Trace Years</a></li>
+          </ul>
         </li>
         <li class="nav-item">
           <a class="nav-link" href="/merit_order/">Set Merit Order</a>
