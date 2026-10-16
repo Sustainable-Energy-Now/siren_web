@@ -10,6 +10,8 @@ from django.views.decorators.http import require_POST
 
 from siren_web.models import (
     CELProgram,
+    CELProposedUpdate,
+    CELSourceWatch,
     CELStage,
     CELStageGridLine,
     CELStageTerminal,
@@ -35,6 +37,7 @@ def cel_program_list(request):
         'programs': programs,
         'total_programs': programs.count(),
         'active_programs': programs.filter(is_active=True).count(),
+        'pending_proposals': CELProposedUpdate.objects.filter(status='pending').count(),
     }
     return render(request, 'cel/program_list.html', context)
 
@@ -535,6 +538,104 @@ def cel_alignment_set_exception(request, pk):
         'alignment': alignment,
         'exception_reason_choices': exception_reason_choices,
     })
+
+
+# ---------------------------------------------------------------------------
+# Automated progress: proposed updates and watched sources
+# ---------------------------------------------------------------------------
+
+def cel_proposals(request):
+    """Review queue for CEL stage updates raised by check_cel_sources /
+    sync_cel_gis, plus the list of watched sources."""
+    pending = (
+        CELProposedUpdate.objects.filter(status='pending')
+        .select_related('cel_program', 'cel_stage', 'snapshot__watch')
+        .order_by('cel_program__name', 'cel_stage__stage_number', 'field_name', '-created_at')
+    )
+    stages_by_program = {}
+    for stage in CELStage.objects.filter(is_active=True).order_by('stage_number'):
+        stages_by_program.setdefault(stage.cel_program_id, []).append(stage)
+    status_labels = dict(CEL_FUNDING_STATUS_CHOICES)
+
+    def _label(p, value):
+        return status_labels.get(value, value) if p.field_name == 'funding_status' else value
+
+    pending_rows = [
+        {'proposal': p, 'stage_choices': stages_by_program.get(p.cel_program_id, []),
+         'current_label': _label(p, p.current_value), 'proposed_label': _label(p, p.proposed_value)}
+        for p in pending
+    ]
+    context = {
+        'pending_rows': pending_rows,
+        'reviewed': (
+            CELProposedUpdate.objects.exclude(status='pending')
+            .select_related('cel_program', 'cel_stage', 'reviewed_by')
+            .order_by('-reviewed_at', '-created_at')[:25]
+        ),
+        'watches': CELSourceWatch.objects.select_related('cel_program').order_by(
+            '-is_active', '-last_changed_at', 'label'),
+        'programs': CELProgram.objects.filter(is_active=True).order_by('name'),
+    }
+    return render(request, 'cel/proposals.html', context)
+
+
+@require_POST
+def cel_proposal_accept(request, pk):
+    from powermapui.utils.cel_proposals import accept_proposal
+    proposal = get_object_or_404(CELProposedUpdate, pk=pk, status='pending')
+    stage = None
+    if proposal.cel_stage_id is None and request.POST.get('cel_stage'):
+        stage = CELStage.objects.filter(pk=request.POST['cel_stage']).first()
+    try:
+        target = accept_proposal(proposal, user=request.user, stage=stage)
+    except ValueError as e:
+        messages.error(request, str(e))
+    else:
+        messages.success(
+            request,
+            f'{target.name}: {proposal.get_field_name_display()} set to {proposal.proposed_value}.'
+        )
+    return redirect('powermapui:cel_proposals')
+
+
+@require_POST
+def cel_proposal_reject(request, pk):
+    from powermapui.utils.cel_proposals import reject_proposal
+    proposal = get_object_or_404(CELProposedUpdate, pk=pk, status='pending')
+    reject_proposal(proposal, user=request.user)
+    messages.info(request, 'Proposal rejected — the same value won\'t be proposed again.')
+    return redirect('powermapui:cel_proposals')
+
+
+@require_POST
+def cel_source_add(request):
+    from powermapui.utils.cel_source_watcher import clean_url
+    url = clean_url(request.POST.get('url', ''))
+    if not url.startswith(('http://', 'https://')):
+        messages.error(request, 'Enter a full http(s) URL.')
+        return redirect('powermapui:cel_proposals')
+    program = CELProgram.objects.filter(pk=request.POST.get('cel_program') or None).first()
+    watch, created = CELSourceWatch.objects.get_or_create(url=url, defaults={
+        'label': request.POST.get('label', '').strip()[:200] or url,
+        'origin': 'manual',
+        'cel_program': program,
+        'discover_links': request.POST.get('discover_links') == 'on',
+        'source_kind': 'pdf' if url.lower().split('?')[0].endswith('.pdf') else 'html',
+    })
+    if created:
+        messages.success(request, f'Now watching {watch}. It is read on the next "Check CEL publications" run.')
+    else:
+        messages.info(request, f'{watch} is already watched.')
+    return redirect('powermapui:cel_proposals')
+
+
+@require_POST
+def cel_source_toggle(request, pk):
+    watch = get_object_or_404(CELSourceWatch, pk=pk)
+    watch.is_active = not watch.is_active
+    watch.save(update_fields=['is_active'])
+    messages.success(request, f'{"Resumed" if watch.is_active else "Paused"} watching {watch}.')
+    return redirect('powermapui:cel_proposals')
 
 
 # ---------------------------------------------------------------------------

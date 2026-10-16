@@ -7,7 +7,10 @@
     <h3>Clean Energy Link Programs</h3>
     <p class="text-muted mb-0">{{ total_programs }} program(s) — {{ active_programs }} active</p>
   </div>
-  <a href="{% url 'powermapui:cel_program_create' %}" class="btn btn-primary">+ Add Program</a>
+  <div>
+    <a href="{% url 'powermapui:cel_proposals' %}" class="btn btn-outline-primary">Proposed updates{% if pending_proposals %} <span class="badge bg-danger">{{ pending_proposals }}</span>{% endif %}</a>
+    <a href="{% url 'powermapui:cel_program_create' %}" class="btn btn-primary">+ Add Program</a>
+  </div>
 </div>
 
 {% if programs %}

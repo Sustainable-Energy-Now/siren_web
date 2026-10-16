@@ -1629,6 +1629,133 @@ class FacilityCELAlignment(models.Model):
             return 'medium'
         return 'low'
 
+class CELSourceWatch(models.Model):
+    """
+    A published CEL source (web page or PDF) that `check_cel_sources` polls
+    for changes.  No authority publishes CEL progress as data, so changes in
+    these documents are the trigger for CELProposedUpdate rows.
+
+    origin='seed' rows come from powermapui.services.cel_source_watcher's
+    DEFAULT_SOURCES; origin='discovered' rows are CEL-looking links found one
+    hop away on a watch with discover_links=True.
+    """
+    KIND_CHOICES = [('html', 'Web page'), ('pdf', 'PDF')]
+    ORIGIN_CHOICES = [('seed', 'Seed list'), ('discovered', 'Discovered link'), ('manual', 'Added by hand')]
+
+    idcelsourcewatch = models.AutoField(primary_key=True)
+    url = models.CharField(max_length=500, unique=True)
+    label = models.CharField(max_length=200, blank=True)
+    source_kind = models.CharField(max_length=10, choices=KIND_CHOICES, default='html')
+    origin = models.CharField(max_length=12, choices=ORIGIN_CHOICES, default='manual')
+    cel_program = models.ForeignKey(
+        'CELProgram', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='source_watches',
+        help_text="Program this source is about, used when its text doesn't name one",
+    )
+    discover_links = models.BooleanField(
+        default=False,
+        help_text="Add CEL-looking links on this page as new watches (one hop only)",
+    )
+    is_active = models.BooleanField(default=True)
+    content_hash = models.CharField(max_length=64, blank=True)
+    last_checked_at = models.DateTimeField(null=True, blank=True)
+    last_changed_at = models.DateTimeField(null=True, blank=True)
+    last_status_code = models.IntegerField(null=True, blank=True)
+    last_error = models.CharField(max_length=500, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'cel_source_watch'
+        ordering = ['-last_changed_at', 'label']
+
+    def __str__(self):
+        return self.label or self.url
+
+
+class CELSourceSnapshot(models.Model):
+    """Normalised text of a CELSourceWatch each time its content changed."""
+    idcelsourcesnapshot = models.AutoField(primary_key=True)
+    watch = models.ForeignKey('CELSourceWatch', on_delete=models.CASCADE, related_name='snapshots')
+    retrieved_at = models.DateTimeField(auto_now_add=True)
+    content_hash = models.CharField(max_length=64)
+    text = models.TextField()
+    added_text = models.TextField(
+        blank=True, help_text="Lines new since the previous snapshot (all text on the first one)",
+    )
+    is_initial = models.BooleanField(default=False)
+
+    class Meta:
+        db_table = 'cel_source_snapshot'
+        ordering = ['-retrieved_at']
+
+    def __str__(self):
+        return f"{self.watch} @ {self.retrieved_at:%Y-%m-%d}"
+
+
+class CELProposedUpdate(models.Model):
+    """
+    A suggested change to one CELStage field, raised by the document watcher
+    (rule-based extraction), the Western Power GIS sync, or a derived
+    calculation.  Nothing is written to CELStage until a person accepts it.
+
+    cel_stage is null when the evidence names a program with several stages
+    and the extractor couldn't tell which; the reviewer picks the stage.
+    """
+    SOURCE_CHOICES = [
+        ('document', 'Published document'),
+        ('gis', 'Western Power GIS'),
+        ('derived', 'Derived from facilities'),
+    ]
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('accepted', 'Accepted'),
+        ('rejected', 'Rejected'),
+        ('superseded', 'Superseded'),
+    ]
+    FIELD_CHOICES = [
+        ('funding_status', 'Funding status'),
+        ('expected_operational_date', 'Expected operational date'),
+        ('actual_operational_date', 'Actual operational date'),
+        ('capacity_new_mw', 'New capacity (MW)'),
+        ('capacity_unlocked_existing_mw', 'Unlocked existing capacity (MW)'),
+        ('reserved_capacity_mw', 'Reserved capacity (MW)'),
+    ]
+
+    idcelproposedupdate = models.AutoField(primary_key=True)
+    cel_program = models.ForeignKey(
+        'CELProgram', on_delete=models.CASCADE, related_name='proposed_updates',
+    )
+    cel_stage = models.ForeignKey(
+        'CELStage', on_delete=models.CASCADE, null=True, blank=True,
+        related_name='proposed_updates',
+    )
+    source = models.CharField(max_length=10, choices=SOURCE_CHOICES)
+    snapshot = models.ForeignKey(
+        'CELSourceSnapshot', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='proposals',
+    )
+    source_url = models.CharField(max_length=500, blank=True)
+    field_name = models.CharField(max_length=40, choices=FIELD_CHOICES)
+    current_value = models.CharField(max_length=100, blank=True)
+    proposed_value = models.CharField(max_length=100)
+    evidence = models.TextField(help_text="Quoted sentence or matched-asset summary behind the proposal")
+    status = models.CharField(max_length=12, choices=STATUS_CHOICES, default='pending')
+    created_at = models.DateTimeField(auto_now_add=True)
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    reviewed_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='cel_proposal_reviews',
+        db_constraint=False,  # Avoids FK constraint issues with unmanaged MyISAM auth_user table
+    )
+
+    class Meta:
+        db_table = 'cel_proposed_update'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        target = self.cel_stage or self.cel_program
+        return f"{target}: {self.field_name} → {self.proposed_value} ({self.status})"
+
 class FacilitySolar(models.Model):
     """
     Installation-specific solar PV system data.

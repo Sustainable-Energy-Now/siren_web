@@ -393,6 +393,9 @@
                     </li>
                     <li class="toc-subitem">
                         <a href="#" class="toc-sublink" data-section="2" data-subsection="cel-alignment-exceptions">CEL Alignment Exceptions</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="2" data-subsection="automated-cel-progress-tracking">Automated CEL Progress Tracking</a>
                     </li></ul></li>
                 <li class="toc-item">
                     <a href="#" class="toc-link " data-section="3">Network Overview</a>
@@ -480,7 +483,7 @@
                 </li></li>
             </ul>
             <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid rgba(255,255,255,0.2); font-size: 0.9em;">
-                <p><strong>Generated:</strong><br>October 04, 2026</p>
+                <p><strong>Generated:</strong><br>October 16, 2026</p>
                 <p><strong>Sections:</strong> 12</p>
             </div>
         </nav>
@@ -807,7 +810,7 @@ A terminal is flagged as a <strong>bottleneck</strong> when the total capacity o
 <li><strong>Facility Alignment</strong>: Each facility within a configurable radius of a CEL stage route is scored for viability</li>
 </ul>
 <h3 id="cel-map">CEL Map</h3>
-<p>The CEL Map (<code>/powermapui/cel_map/</code>) overlays CEL stage routes on the grid map and colour-codes facilities by their viability score. Use the program and stage selectors to filter the view.</p>
+<p>The CEL Map (<code>/cel-map/</code>) overlays CEL stage routes on the grid map and colour-codes facilities by their viability score. Use the program and stage selectors to filter the view.</p>
 <h3 id="viability-scoring">Viability Scoring</h3>
 <p>Each facility's viability against a CEL stage is scored on a 0–1 scale, combining three factors:</p>
 <p><strong>1. CEL Stage Status Weight</strong> (reflects how far along the transmission project is):</p>
@@ -924,11 +927,70 @@ If facility has no capacity data:
 <p><strong>Alignment Radius:</strong> Facilities are only aligned to a CEL stage if they fall within the configured <code>alignment_radius_km</code> (typically 50 km) of the stage route.</p>
 <h3 id="cel-alignment-exceptions">CEL Alignment Exceptions</h3>
 <p>An administrator can manually mark a facility–stage alignment as an <strong>Exception</strong> when the standard scoring does not apply (e.g., a special connection agreement or non-geographic relationship). Exceptions are displayed distinctly on the CEL map.</p>
+<h3 id="automated-cel-progress-tracking">Automated CEL Progress Tracking</h3>
+<p>No authority publishes CEL progress as data. Status, dates and capacities appear only in web pages and PDFs from Energy Policy WA, the Department of the Premier and Cabinet, and Western Power. Two background commands now read those sources and <strong>propose</strong> updates to CEL stages. <strong>Nothing changes on a stage until someone accepts the proposal.</strong></p>
+<table>
+<thead>
+<tr>
+<th>Command (Data Pipelines → <em>Clean Energy Link progress</em>)</th>
+<th>Source</th>
+<th>Suggested schedule</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Check CEL publications for changes</strong> (<code>check_cel_sources</code>)</td>
+<td>Watched CEL web pages and PDFs</td>
+<td>Weekly</td>
+</tr>
+<tr>
+<td><strong>Sync CEL progress from Western Power GIS</strong> (<code>sync_cel_gis</code>)</td>
+<td>Western Power's network layers on data.wa.gov.au (SLIP), plus the facilities aligned to each stage</td>
+<td>Monthly</td>
+</tr>
+</tbody>
+</table>
+<p>Both commands have a <strong>Dry run</strong> option that reports what they would propose without writing anything.</p>
+<h4 id="proposed-updates-page-celproposals">Proposed Updates page (<code>/cel/proposals/</code>)</h4>
+<p>Open it from <strong>CEL Update Proposals</strong> in the CEL Planner menu, or from the <strong>Proposed updates</strong> button on the CEL Programs list. The red badge on that button counts the pending proposals.</p>
+<ul>
+<li><strong>Pending</strong>: each proposal shows the stage, the field, its current and proposed values, where the proposal came from (<em>Published document</em>, <em>Western Power GIS</em> or <em>Derived from facilities</em>) and the evidence: the quoted sentence, or a summary of the matched assets, with a link to the source.</li>
+<li><strong>Accept</strong> writes the value to the stage. It also adds a dated line to the stage's notes recording the change and its source, and marks any other pending proposals for the same field as <em>Superseded</em>. If the field affects viability (funding status or any MW figure), the stage's viability scores are recalculated.</li>
+<li><strong>Reject</strong> discards the proposal. The same value is never proposed again for that field.</li>
+<li>Sometimes a document names a program with several stages but not the specific stage (for example, CEL-East wording such as "Stage 1"). The proposal then shows <em>stage not identified</em>, and you choose the stage from a drop-down before accepting.</li>
+<li><strong>Watched sources</strong>: every page or PDF being watched, with when it was last checked and last changed, and any fetch error. Use <strong>Pause/Resume</strong> to stop or restart watching a source. Use the form at the bottom to watch another URL; tick <strong>Find links</strong> to also pick up CEL-related links on that page.</li>
+<li><strong>Recently reviewed</strong>: the last 25 accepted, rejected or superseded proposals.</li>
+</ul>
+<p>The fields that can be proposed are funding status, expected operational date, actual operational date, new capacity (MW), unlocked existing capacity (MW) and reserved capacity (MW).</p>
+<h4 id="how-the-document-watcher-works">How the document watcher works</h4>
+<ol>
+<li>The first run adds a starting list of sources: the State of Energy CEL page, the EPWA SWIS Transmission Plan pages, the DPC priority-project pages for CEL North, East Stage 1 and Kwinana, Western Power's <em>Let's Talk</em> pages for CEL North and East, and the CEL-East Stage One priority-determination PDF.</li>
+<li>Each run downloads every active source and reduces it to plain text. For web pages it uses the main content only, so menus and footers don't count as changes. If the text has changed, a snapshot is saved and only the <strong>new lines</strong> are examined.</li>
+<li>Sources marked <em>finds links</em> add CEL-related links they contain (fact sheets, gazette notices, project sub-pages) as new sources. This goes one level deep only, and only on government, Western Power and AEMO sites.</li>
+<li>Each sentence is matched to a program or stage by name, using forms such as "Clean Energy Link – North" and "CEL-North". If a page is clearly about a single program, sentences that name none are attributed to that program. Narrow phrase rules then pick out:</li>
+<li><strong>Funding status</strong>, e.g. "construction has started" → Under Construction, "$584 million committed" → Funded, "has been energised" → Operational. A status is only proposed if it is <em>further along</em> than the stage's current status. A sentence written in the future tense ("will be energised by…") is never taken as evidence that the stage is Operational.</li>
+<li><strong>Dates</strong>, e.g. "delivered by the end of 2027" → 31 Dec 2027, "mid-2028" → 30 Jun 2028, "Q3 2026" → 30 Sep 2026.</li>
+<li><strong>Capacity</strong>, e.g. "400 MW of existing wind" → unlocked existing capacity, "another 1 GW of new renewable" → new capacity. MVA transformer ratings are ignored.</li>
+</ol>
+<p>The rules are deliberately conservative: a missed fact is cheaper than a wrong proposal. Sentences that name two programs at once are skipped.</p>
+<h4 id="how-the-gis-sync-works">How the GIS sync works</h4>
+<p>Western Power publishes its <strong>existing</strong> network monthly: WP-051 <em>HV Overhead Transmission Lines</em> (route and kV) and WP-049 <em>Existing Substations/Terminals/Power Stations</em>. These layers contain no planned assets, so they can only confirm that something has been <strong>built</strong>. Funding status and expected dates still come from documents.</p>
+<p>For each active stage:</p>
+<ul>
+<li><strong>Linked grid lines</strong> (added on the stage page) are tested at 12 points along the line's stored KML route.</li>
+<li>A <strong>new</strong> line is confirmed when an in-service GIS line at or above the line's <code>voltage_level</code> lies within 1 km of at least 80% of those points.</li>
+<li>An <strong>upgrade</strong> line keeps its <em>pre-CEL</em> <code>voltage_level</code> (e.g. 132 kV for CEL-North's 132 → 330 kV conversions). It is confirmed only where GIS shows a <strong>higher</strong> voltage <strong>and no in-service line at the old voltage remains</strong>. The second condition matters because existing higher-voltage circuits share these corridors, often 0–50 m apart. As a result, a capacity-only upgrade, or one that leaves the old circuit in place, can't be detected and stays <em>not built</em>.</li>
+<li>A grid line without KML route geometry can't be tested and is reported as <em>unknown</em>.</li>
+<li><strong>New terminals</strong> (terminal role <em>New</em>) are confirmed when an existing substation lies within 1.5 km of the terminal's coordinates. Upgraded terminals can't be checked, because the layer carries no capacity.</li>
+<li>If at least one asset is confirmed, the command proposes <strong>Under Construction</strong>. If all are confirmed, it proposes <strong>Operational</strong>, with an actual operational date of the day it was first seen. Western Power refreshes the layers monthly, so that date can be up to about a month late.</li>
+<li><strong>Reserved capacity</strong> is also derived: the total capacity of facilities aligned to the stage (not exceptions) whose status is <em>Under Construction</em>. The evidence lists those facilities.</li>
+</ul>
+<p><strong>SLIP account required:</strong> the Western Power layers need a free SLIP login from data.wa.gov.au. Set <code>username</code> and <code>password</code> under <code>[slip]</code> in <code>.django/secrets.toml</code>, or set the <code>SLIP_USERNAME</code> / <code>SLIP_PASSWORD</code> environment variables. Without credentials, the GIS checks are skipped with a warning and only reserved capacity is derived. From the command line, you can instead pass GeoJSON files you've downloaded yourself with <code>--lines-file</code> and <code>--substations-file</code>.</p>
 <hr />
             </div>
             <div class="page-section " data-section="3">
                 <h2 id="network-overview">Network Overview</h2>
-<p>The Network Overview (<code>/powermapui/network_overview/</code>) displays the full infrastructure as an interactive node-link diagram rendered using <strong>D3.js</strong>.</p>
+<p>The Network Overview (<code>/infrastructure-network/</code>) displays the full infrastructure as an interactive node-link diagram rendered using <strong>D3.js</strong>.</p>
 <h3 id="visual-encoding">Visual Encoding</h3>
 <table>
 <thead>
@@ -985,14 +1047,14 @@ If facility has no capacity data:
             <div class="page-section " data-section="4">
                 <h2 id="pipeline-charts">Pipeline Charts</h2>
 <h3 id="gantt-chart">Gantt Chart</h3>
-<p>The Gantt chart (<code>/powermapui/pipeline_gantt/</code>) shows each facility as a horizontal bar spanning from commissioning date to decommissioning (or assumed retirement) date.</p>
+<p>The Gantt chart (<code>/pipeline-gantt/</code>) shows each facility as a horizontal bar spanning from commissioning date to decommissioning (or assumed retirement) date.</p>
 <ul>
 <li><strong>Sorted by</strong>: technology category → commissioning date → facility name</li>
 <li><strong>Filtered by</strong>: scenario</li>
 <li><strong>Hover</strong> for facility details (name, capacity, technology, status)</li>
 </ul>
 <h3 id="waterfall-capacity-buildup-chart">Waterfall / Capacity Buildup Chart</h3>
-<p>The waterfall chart (<code>/powermapui/pipeline_waterfall/</code>) shows cumulative installed capacity year by year, stacked by technology category.</p>
+<p>The waterfall chart (<code>/pipeline-waterfall/</code>) shows cumulative installed capacity year by year, stacked by technology category.</p>
 <p>Three series are displayed:</p>
 <table>
 <thead>
@@ -1028,7 +1090,7 @@ If facility has no capacity data:
 <p>Two tools for keeping the external data that Powermap and Powermatch depend on up to date. The menu item sits after <strong>SWIS Boundary</strong>.</p>
 <h3 id="data-pipelines-data-pipelines">Data Pipelines (<code>/data-pipelines/</code>)</h3>
 <p>A dashboard for the background commands that ingest external data (WEM ESOO, EV uptake,
-AEMO SCADA, CSIRO GenCost, etc.):</p>
+AEMO SCADA, CSIRO GenCost, Clean Energy Link progress, etc.):</p>
 <ul>
 <li><strong>Freshness</strong> cards at the top show one card per tracked dataset, each with a coloured
   dot indicating how stale it is.</li>
@@ -1070,7 +1132,7 @@ manual fallback plus the review/apply workflow:</p>
             <div class="page-section " data-section="6">
                 <h2 id="facilities-management">Facilities Management</h2>
 <h3 id="facilities-list">Facilities List</h3>
-<p>The facilities list (<code>/powermapui/facilities/</code>) shows all facilities in the system with filtering by:
+<p>The facilities list (<code>/facilities/</code>) shows all facilities in the system with filtering by:
 - Technology category
 - Development status
 - Scenario
@@ -1089,7 +1151,7 @@ manual fallback plus the review/apply workflow:</p>
             </div>
             <div class="page-section " data-section="7">
                 <h2 id="technologies">Technologies</h2>
-<p>Technologies (<code>/powermapui/technologies/</code>) define reusable technology specifications:</p>
+<p>Technologies (<code>/technologies/</code> for the full table, <code>/technologies/list/</code> to manage them) define reusable technology specifications:</p>
 <h3 id="generator-technologies">Generator Technologies</h3>
 <table>
 <thead>
@@ -1147,7 +1209,7 @@ manual fallback plus the review/apply workflow:</p>
 </table>
 <p>Year-by-year cost trajectories are stored in <strong>TechnologyYears</strong> records, allowing cost projections to change over the planning horizon.</p>
 <h3 id="storage-technologies">Storage Technologies</h3>
-<p>Storage technologies add:</p>
+<p>Storage technologies (<code>/storage/</code>) add:</p>
 <table>
 <thead>
 <tr>
@@ -1203,7 +1265,7 @@ manual fallback plus the review/apply workflow:</p>
 </tbody>
 </table>
 <h3 id="wind-turbine-models">Wind Turbine Models</h3>
-<p>Wind turbine models (<code>/powermapui/wind_turbines/</code>) store:
+<p>Wind turbine models (<code>/wind_turbines/</code>) store:
 - Manufacturer and model name
 - Rated capacity (MW), hub height(s) (m), rotor diameter (m)
 - Power curve: wind speed (m/s) → power output (kW) at each speed step
@@ -1399,6 +1461,7 @@ manual fallback plus the review/apply workflow:</p>
 <p><strong>Calendar Life</strong>: Expected operational life in years, independent of how often the system cycles.</p>
 <p><strong>Capacity Factor</strong>: Ratio of actual annual energy output to the maximum possible output at rated capacity. <code>CF = Energy_MWh / (Capacity_MW × 8760)</code>.</p>
 <p><strong>CEL (Clean Energy Link)</strong>: A transmission expansion program comprising stages (routes) that enable new generation to connect to the grid.</p>
+<p><strong>CEL Proposed Update</strong>: A suggested change to one CEL stage field, raised automatically from a published document, Western Power's network GIS or the facilities aligned to the stage. It is applied only when accepted on the Proposed Updates page (<code>/cel/proposals/</code>).</p>
 <p><strong>Commissioning Probability</strong>: A value 0.0–1.0 expressing the likelihood that a proposed or planned facility will proceed. Used to weight capacity in the pipeline waterfall chart.</p>
 <p><strong>Cycle Life</strong>: Number of full charge-discharge cycles before a storage system loses a defined percentage of its original capacity.</p>
 <p><strong>DC:AC Ratio</strong>: The ratio of a solar array's DC panel capacity to its inverter's AC output capacity. Values &gt; 1.0 mean the array is oversized ("clipping" occurs at peak irradiance).</p>

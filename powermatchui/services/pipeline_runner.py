@@ -76,7 +76,8 @@ def execute_run(run_id: int) -> int:
     buf = io.StringIO()
     return_code = 1
     try:
-        call_command(run.management_command, *run.args, stdout=buf, stderr=buf)
+        # no_color: captured output is shown as text, so ANSI style codes would appear literally
+        call_command(run.management_command, *run.args, stdout=buf, stderr=buf, no_color=True)
         return_code = 0
         run.status = 'success'
     except SystemExit as exc:  # some commands sys.exit(non-zero) on failure

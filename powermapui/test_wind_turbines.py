@@ -418,7 +418,7 @@ class ResolveInstallationTests(TestCase):
             rt.resolve_wind_facility(self.facility)
 
     def test_wind_technology_falls_back_to_the_facility_then_onshore_wind(self):
-        from powermapui.views.power_views import wind_technology_for
+        from powermatchui.views.power_views import wind_technology_for
         inst = self.installation()                              # created with no technology
         self.assertEqual(wind_technology_for(inst, self.facility), self.tech)
         self.facility.idtechnologies = None

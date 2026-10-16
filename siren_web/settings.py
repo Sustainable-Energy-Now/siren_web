@@ -265,6 +265,11 @@ ESOO_ARCHIVE_DIR = BASE_DIR / 'siren_web' / 'siren_files' / 'esoo_archive'
 EV_ARCHIVE_DIR = BASE_DIR / 'siren_web' / 'siren_files' / 'ev_archive'
 EV_TRACE_DIR = BASE_DIR / 'siren_web' / 'siren_files' / 'ev_traces'
 GENCOST_ARCHIVE_DIR = BASE_DIR / 'siren_web' / 'siren_files' / 'gencost_archive'
+# SLIP (data.wa.gov.au) account for Western Power's network GIS layers, read by
+# `manage.py sync_cel_gis`. Free sign-up; set [slip] username/password in
+# .django/secrets.toml or the SLIP_USERNAME / SLIP_PASSWORD environment variables.
+SLIP_USERNAME = secrets.get('slip', {}).get('username') or os.environ.get('SLIP_USERNAME', '')
+SLIP_PASSWORD = secrets.get('slip', {}).get('password') or os.environ.get('SLIP_PASSWORD', '')
 # ABS Postal Area (POA 2021) boundary shapefile for SWIS-boundary postcode
 # apportionment. Drop the ASGS Ed.3 file set (.shp/.shx/.dbf/.prj) here; see
 # siren_web/siren_files/gis/README.md.

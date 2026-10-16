@@ -7,6 +7,7 @@ from siren_web.models import (
     GridLines, FacilityGridConnections, facilities, WindTurbines,
     TurbinePowerCurves, FacilityWindTurbines,
     CELProgram, CELStage, CELStageGridLine, CELStageTerminal, FacilityCELAlignment,
+    CELSourceWatch, CELSourceSnapshot, CELProposedUpdate,
 )
 
 @admin.register(GridLines)
@@ -820,3 +821,31 @@ class FacilityCELAlignmentAdmin(admin.ModelAdmin):
             colours.get(label, '#000'), label.upper(),
         )
     viability_label_display.short_description = 'Viability'
+
+@admin.register(CELSourceWatch)
+class CELSourceWatchAdmin(admin.ModelAdmin):
+    """Published CEL sources polled by check_cel_sources."""
+    list_display = ['__str__', 'source_kind', 'origin', 'cel_program', 'discover_links',
+                    'is_active', 'last_checked_at', 'last_changed_at', 'last_status_code']
+    list_filter = ['is_active', 'origin', 'source_kind', 'cel_program']
+    search_fields = ['url', 'label']
+    readonly_fields = ['content_hash', 'last_checked_at', 'last_changed_at',
+                       'last_status_code', 'last_error', 'created_at']
+
+
+@admin.register(CELSourceSnapshot)
+class CELSourceSnapshotAdmin(admin.ModelAdmin):
+    list_display = ['watch', 'retrieved_at', 'is_initial', 'content_hash']
+    list_filter = ['is_initial']
+    raw_id_fields = ['watch']
+    readonly_fields = [f.name for f in CELSourceSnapshot._meta.fields]
+
+
+@admin.register(CELProposedUpdate)
+class CELProposedUpdateAdmin(admin.ModelAdmin):
+    """Review normally happens on /cel/proposals/, which also applies the value."""
+    list_display = ['cel_program', 'cel_stage', 'field_name', 'current_value', 'proposed_value',
+                    'source', 'status', 'created_at', 'reviewed_at']
+    list_filter = ['status', 'source', 'field_name', 'cel_program']
+    search_fields = ['evidence', 'source_url', 'cel_stage__name']
+    raw_id_fields = ['cel_stage', 'snapshot']

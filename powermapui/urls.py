@@ -124,6 +124,11 @@ urlpatterns = [
     # ========== CEL (Clean Energy Link) CRUD ==========
     path('cel/', cel_views.cel_program_list, name='cel_program_list'),
     path('cel/create/', cel_views.cel_program_create, name='cel_program_create'),
+    path('cel/proposals/', cel_views.cel_proposals, name='cel_proposals'),
+    path('cel/proposals/<int:pk>/accept/', cel_views.cel_proposal_accept, name='cel_proposal_accept'),
+    path('cel/proposals/<int:pk>/reject/', cel_views.cel_proposal_reject, name='cel_proposal_reject'),
+    path('cel/sources/add/', cel_views.cel_source_add, name='cel_source_add'),
+    path('cel/sources/<int:pk>/toggle/', cel_views.cel_source_toggle, name='cel_source_toggle'),
     path('cel/<int:pk>/', cel_views.cel_program_detail, name='cel_program_detail'),
     path('cel/<int:pk>/edit/', cel_views.cel_program_edit, name='cel_program_edit'),
     path('cel/<int:pk>/delete/', cel_views.cel_program_delete, name='cel_program_delete'),

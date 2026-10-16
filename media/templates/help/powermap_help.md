@@ -298,7 +298,7 @@ The CEL Planner allows assessment of which proposed generation facilities can be
 
 ### CEL Map
 
-The CEL Map (`/powermapui/cel_map/`) overlays CEL stage routes on the grid map and colour-codes facilities by their viability score. Use the program and stage selectors to filter the view.
+The CEL Map (`/cel-map/`) overlays CEL stage routes on the grid map and colour-codes facilities by their viability score. Use the program and stage selectors to filter the view.
 
 ### Viability Scoring
 
@@ -362,11 +362,63 @@ Viability Score = CEL_Stage_Weight × Facility_Status_Weight × Capacity_Feasibi
 
 An administrator can manually mark a facility–stage alignment as an **Exception** when the standard scoring does not apply (e.g., a special connection agreement or non-geographic relationship). Exceptions are displayed distinctly on the CEL map.
 
+### Automated CEL Progress Tracking
+
+No authority publishes CEL progress as data. Status, dates and capacities appear only in web pages and PDFs from Energy Policy WA, the Department of the Premier and Cabinet, and Western Power. Two background commands now read those sources and **propose** updates to CEL stages. **Nothing changes on a stage until someone accepts the proposal.**
+
+| Command (Data Pipelines → *Clean Energy Link progress*) | Source | Suggested schedule |
+|---|---|---|
+| **Check CEL publications for changes** (`check_cel_sources`) | Watched CEL web pages and PDFs | Weekly |
+| **Sync CEL progress from Western Power GIS** (`sync_cel_gis`) | Western Power's network layers on data.wa.gov.au (SLIP), plus the facilities aligned to each stage | Monthly |
+
+Both commands have a **Dry run** option that reports what they would propose without writing anything.
+
+#### Proposed Updates page (`/cel/proposals/`)
+
+Open it from **CEL Update Proposals** in the CEL Planner menu, or from the **Proposed updates** button on the CEL Programs list. The red badge on that button counts the pending proposals.
+
+- **Pending**: each proposal shows the stage, the field, its current and proposed values, where the proposal came from (*Published document*, *Western Power GIS* or *Derived from facilities*) and the evidence: the quoted sentence, or a summary of the matched assets, with a link to the source.
+  - **Accept** writes the value to the stage. It also adds a dated line to the stage's notes recording the change and its source, and marks any other pending proposals for the same field as *Superseded*. If the field affects viability (funding status or any MW figure), the stage's viability scores are recalculated.
+  - **Reject** discards the proposal. The same value is never proposed again for that field.
+  - Sometimes a document names a program with several stages but not the specific stage (for example, CEL-East wording such as "Stage 1"). The proposal then shows *stage not identified*, and you choose the stage from a drop-down before accepting.
+- **Watched sources**: every page or PDF being watched, with when it was last checked and last changed, and any fetch error. Use **Pause/Resume** to stop or restart watching a source. Use the form at the bottom to watch another URL; tick **Find links** to also pick up CEL-related links on that page.
+- **Recently reviewed**: the last 25 accepted, rejected or superseded proposals.
+
+The fields that can be proposed are funding status, expected operational date, actual operational date, new capacity (MW), unlocked existing capacity (MW) and reserved capacity (MW).
+
+#### How the document watcher works
+
+1. The first run adds a starting list of sources: the State of Energy CEL page, the EPWA SWIS Transmission Plan pages, the DPC priority-project pages for CEL North, East Stage 1 and Kwinana, Western Power's *Let's Talk* pages for CEL North and East, and the CEL-East Stage One priority-determination PDF.
+2. Each run downloads every active source and reduces it to plain text. For web pages it uses the main content only, so menus and footers don't count as changes. If the text has changed, a snapshot is saved and only the **new lines** are examined.
+3. Sources marked *finds links* add CEL-related links they contain (fact sheets, gazette notices, project sub-pages) as new sources. This goes one level deep only, and only on government, Western Power and AEMO sites.
+4. Each sentence is matched to a program or stage by name, using forms such as "Clean Energy Link – North" and "CEL-North". If a page is clearly about a single program, sentences that name none are attributed to that program. Narrow phrase rules then pick out:
+   - **Funding status**, e.g. "construction has started" → Under Construction, "$584 million committed" → Funded, "has been energised" → Operational. A status is only proposed if it is *further along* than the stage's current status. A sentence written in the future tense ("will be energised by…") is never taken as evidence that the stage is Operational.
+   - **Dates**, e.g. "delivered by the end of 2027" → 31 Dec 2027, "mid-2028" → 30 Jun 2028, "Q3 2026" → 30 Sep 2026.
+   - **Capacity**, e.g. "400 MW of existing wind" → unlocked existing capacity, "another 1 GW of new renewable" → new capacity. MVA transformer ratings are ignored.
+
+The rules are deliberately conservative: a missed fact is cheaper than a wrong proposal. Sentences that name two programs at once are skipped.
+
+#### How the GIS sync works
+
+Western Power publishes its **existing** network monthly: WP-051 *HV Overhead Transmission Lines* (route and kV) and WP-049 *Existing Substations/Terminals/Power Stations*. These layers contain no planned assets, so they can only confirm that something has been **built**. Funding status and expected dates still come from documents.
+
+For each active stage:
+
+- **Linked grid lines** (added on the stage page) are tested at 12 points along the line's stored KML route.
+  - A **new** line is confirmed when an in-service GIS line at or above the line's `voltage_level` lies within 1 km of at least 80% of those points.
+  - An **upgrade** line keeps its *pre-CEL* `voltage_level` (e.g. 132 kV for CEL-North's 132 → 330 kV conversions). It is confirmed only where GIS shows a **higher** voltage **and no in-service line at the old voltage remains**. The second condition matters because existing higher-voltage circuits share these corridors, often 0–50 m apart. As a result, a capacity-only upgrade, or one that leaves the old circuit in place, can't be detected and stays *not built*.
+  - A grid line without KML route geometry can't be tested and is reported as *unknown*.
+- **New terminals** (terminal role *New*) are confirmed when an existing substation lies within 1.5 km of the terminal's coordinates. Upgraded terminals can't be checked, because the layer carries no capacity.
+- If at least one asset is confirmed, the command proposes **Under Construction**. If all are confirmed, it proposes **Operational**, with an actual operational date of the day it was first seen. Western Power refreshes the layers monthly, so that date can be up to about a month late.
+- **Reserved capacity** is also derived: the total capacity of facilities aligned to the stage (not exceptions) whose status is *Under Construction*. The evidence lists those facilities.
+
+**SLIP account required:** the Western Power layers need a free SLIP login from data.wa.gov.au. Set `username` and `password` under `[slip]` in `.django/secrets.toml`, or set the `SLIP_USERNAME` / `SLIP_PASSWORD` environment variables. Without credentials, the GIS checks are skipped with a warning and only reserved capacity is derived. From the command line, you can instead pass GeoJSON files you've downloaded yourself with `--lines-file` and `--substations-file`.
+
 ---
 
 ## Network Overview
 
-The Network Overview (`/powermapui/network_overview/`) displays the full infrastructure as an interactive node-link diagram rendered using **D3.js**.
+The Network Overview (`/infrastructure-network/`) displays the full infrastructure as an interactive node-link diagram rendered using **D3.js**.
 
 ### Visual Encoding
 
@@ -400,7 +452,7 @@ The panel alongside the diagram shows:
 
 ### Gantt Chart
 
-The Gantt chart (`/powermapui/pipeline_gantt/`) shows each facility as a horizontal bar spanning from commissioning date to decommissioning (or assumed retirement) date.
+The Gantt chart (`/pipeline-gantt/`) shows each facility as a horizontal bar spanning from commissioning date to decommissioning (or assumed retirement) date.
 
 - **Sorted by**: technology category → commissioning date → facility name
 - **Filtered by**: scenario
@@ -408,7 +460,7 @@ The Gantt chart (`/powermapui/pipeline_gantt/`) shows each facility as a horizon
 
 ### Waterfall / Capacity Buildup Chart
 
-The waterfall chart (`/powermapui/pipeline_waterfall/`) shows cumulative installed capacity year by year, stacked by technology category.
+The waterfall chart (`/pipeline-waterfall/`) shows cumulative installed capacity year by year, stacked by technology category.
 
 Three series are displayed:
 
@@ -435,7 +487,7 @@ Two tools for keeping the external data that Powermap and Powermatch depend on u
 ### Data Pipelines (`/data-pipelines/`)
 
 A dashboard for the background commands that ingest external data (WEM ESOO, EV uptake,
-AEMO SCADA, CSIRO GenCost, etc.):
+AEMO SCADA, CSIRO GenCost, Clean Energy Link progress, etc.):
 
 - **Freshness** cards at the top show one card per tracked dataset, each with a coloured
   dot indicating how stale it is.
@@ -479,7 +531,7 @@ manual fallback plus the review/apply workflow:
 
 ### Facilities List
 
-The facilities list (`/powermapui/facilities/`) shows all facilities in the system with filtering by:
+The facilities list (`/facilities/`) shows all facilities in the system with filtering by:
 - Technology category
 - Development status
 - Scenario
@@ -503,7 +555,7 @@ Each facility can have one or more technology sub-records that store detailed te
 
 ## Technologies
 
-Technologies (`/powermapui/technologies/`) define reusable technology specifications:
+Technologies (`/technologies/` for the full table, `/technologies/list/` to manage them) define reusable technology specifications:
 
 ### Generator Technologies
 
@@ -525,7 +577,7 @@ Year-by-year cost trajectories are stored in **TechnologyYears** records, allowi
 
 ### Storage Technologies
 
-Storage technologies add:
+Storage technologies (`/storage/`) add:
 
 | Parameter | Description |
 |---|---|
@@ -543,7 +595,7 @@ Storage technologies add:
 
 ### Wind Turbine Models
 
-Wind turbine models (`/powermapui/wind_turbines/`) store:
+Wind turbine models (`/wind_turbines/`) store:
 - Manufacturer and model name
 - Rated capacity (MW), hub height(s) (m), rotor diameter (m)
 - Power curve: wind speed (m/s) → power output (kW) at each speed step
@@ -650,6 +702,8 @@ Zones define geographic sub-regions of the SWIS used for planning and filtering.
 **Capacity Factor**: Ratio of actual annual energy output to the maximum possible output at rated capacity. `CF = Energy_MWh / (Capacity_MW × 8760)`.
 
 **CEL (Clean Energy Link)**: A transmission expansion program comprising stages (routes) that enable new generation to connect to the grid.
+
+**CEL Proposed Update**: A suggested change to one CEL stage field, raised automatically from a published document, Western Power's network GIS or the facilities aligned to the stage. It is applied only when accepted on the Proposed Updates page (`/cel/proposals/`).
 
 **Commissioning Probability**: A value 0.0–1.0 expressing the likelihood that a proposed or planned facility will proceed. Used to weight capacity in the pipeline waterfall chart.
 

@@ -118,6 +118,7 @@ GROUP_LABELS = {
     'facility': 'Facility attribute analysis',
     'biomass': 'Biomass dispatch (SCADA traces)',
     'weather': 'SAM weather (BARRA-C2)',
+    'cel': 'Clean Energy Link progress',
 }
 
 
@@ -355,6 +356,34 @@ PIPELINE_COMMANDS: dict[str, PipelineCommand] = {c.key: c for c in [
         cron_safe=False,
         runtime_hint='seconds if cached; ~3 min per technology if not',
         note="Fetches and caches one facility's BARRA-C2 wind and/or solar weather for a year.",
+    ),
+    PipelineCommand(
+        key='check_cel_sources',
+        label='Check CEL publications for changes',
+        group='cel',
+        management_command='check_cel_sources',
+        params=(
+            Param('dry_run', 'flag', '--dry-run', label='Dry run (no writes)', default=False),
+        ),
+        runtime_hint='seconds–a minute',
+        note="Polls the watched Clean Energy Link pages and PDFs (EPWA, DPC priority projects, "
+             "Western Power), snapshots any that changed and raises proposed CEL stage updates "
+             "(status, dates, MW) for review on the CEL Proposals page. Built for a weekly schedule.",
+    ),
+    PipelineCommand(
+        key='sync_cel_gis',
+        label='Sync CEL progress from Western Power GIS',
+        group='cel',
+        management_command='sync_cel_gis',
+        params=(
+            Param('skip_gis', 'flag', '--skip-gis', label='Derived reserved capacity only', default=False),
+            Param('dry_run', 'flag', '--dry-run', label='Dry run (no writes)', default=False),
+        ),
+        runtime_hint='seconds–minutes',
+        note="Checks CEL stages' linked grid lines and new terminals against Western Power's monthly "
+             "network layers (data.wa.gov.au WP-051/WP-049; needs SLIP_USERNAME/PASSWORD) and proposes "
+             "under-construction/operational status, plus reserved capacity from aligned facilities "
+             "under construction. Built for a monthly schedule.",
     ),
 ]}
 
