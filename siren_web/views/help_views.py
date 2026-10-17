@@ -530,7 +530,8 @@ def edit_module_help_markdown(request, module_name):
                 'powerplot': 'Powerplot Module',
                 'terminal': 'Terminal Management',
                 'aemo_scada': 'AEMO SCADA Data Fetcher',
-                'system_overview': 'System Overview'
+                'system_overview': 'System Overview',
+                'grid_map': 'Grid Map',
             }
             module_title = module_titles.get(module_name, module_name.title())
 

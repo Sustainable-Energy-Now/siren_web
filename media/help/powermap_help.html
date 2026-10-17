@@ -345,40 +345,7 @@
                     </li></ul></li>
                 <li class="toc-item">
                     <a href="#" class="toc-link " data-section="1">Grid Map</a>
-                </li><ul class="toc-subsections">
-                    <li class="toc-subitem">
-                        <a href="#" class="toc-sublink" data-section="1" data-subsection="scenario-and-year-filtering">Scenario and Year Filtering</a>
-                    </li>
-                    <li class="toc-subitem">
-                        <a href="#" class="toc-sublink" data-section="1" data-subsection="map-interface">Map Interface</a>
-                    </li>
-                    <li class="toc-subitem">
-                        <a href="#" class="toc-sublink" data-section="1" data-subsection="facility-icons-and-status-colours">Facility Icons and Status Colours</a>
-                    </li>
-                    <li class="toc-subitem">
-                        <a href="#" class="toc-sublink" data-section="1" data-subsection="grid-line-colours">Grid Line Colours</a>
-                    </li>
-                    <li class="toc-subitem">
-                        <a href="#" class="toc-sublink" data-section="1" data-subsection="viewing-facility-details">Viewing Facility Details</a>
-                    </li>
-                    <li class="toc-subitem">
-                        <a href="#" class="toc-sublink" data-section="1" data-subsection="viewing-grid-line-details">Viewing Grid Line Details</a>
-                    </li>
-                    <li class="toc-subitem">
-                        <a href="#" class="toc-sublink" data-section="1" data-subsection="transmission-loss-calculations">Transmission Loss Calculations</a>
-                    </li>
-                    <li class="toc-subitem">
-                        <a href="#" class="toc-sublink" data-section="1" data-subsection="adding-facilities">Adding Facilities</a>
-                    </li>
-                    <li class="toc-subitem">
-                        <a href="#" class="toc-sublink" data-section="1" data-subsection="editing-and-moving-facilities">Editing and Moving Facilities</a>
-                    </li>
-                    <li class="toc-subitem">
-                        <a href="#" class="toc-sublink" data-section="1" data-subsection="adding-grid-lines">Adding Grid Lines</a>
-                    </li>
-                    <li class="toc-subitem">
-                        <a href="#" class="toc-sublink" data-section="1" data-subsection="terminals-substations">Terminals (Substations)</a>
-                    </li></ul></li>
+                </li></li>
                 <li class="toc-item">
                     <a href="#" class="toc-link " data-section="2">CEL Planner</a>
                 </li><ul class="toc-subsections">
@@ -483,7 +450,7 @@
                 </li></li>
             </ul>
             <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid rgba(255,255,255,0.2); font-size: 0.9em;">
-                <p><strong>Generated:</strong><br>October 16, 2026</p>
+                <p><strong>Generated:</strong><br>October 17, 2026</p>
                 <p><strong>Sections:</strong> 12</p>
             </div>
         </nav>
@@ -500,7 +467,7 @@
 <hr />
 <p>Powermap is an interactive mapping and analysis tool for modelling renewable and conventional energy infrastructure in the South West Interconnected System (SWIS). It provides scenario-based planning, transmission network analysis, SAM-based generation simulation, and a pipeline of proposed and committed projects.</p>
 <p>The module consists of several integrated sub-systems:
-- <strong>Grid Map</strong> — Interactive Leaflet map of facilities, grid lines and terminals
+- <strong>Grid Map</strong> — Interactive Leaflet map of facilities, grid lines and terminals (see <a href="/help/grid_map/" target="_blank" rel="noopener noreferrer">Grid Map Help</a>)
 - <strong>CEL Planner</strong> — Transmission expansion planning with viability scoring
 - <strong>Network Overview</strong> — Node-link diagram of the full infrastructure network
 - <strong>Pipeline Charts</strong> — Gantt and waterfall charts for project timelines and capacity buildup
@@ -511,292 +478,16 @@
             </div>
             <div class="page-section " data-section="1">
                 <h2 id="grid-map">Grid Map</h2>
-<h3 id="scenario-and-year-filtering">Scenario and Year Filtering</h3>
-<p>The map displays infrastructure filtered by a selected scenario and demand year.</p>
-<ol>
-<li>Use the <strong>Scenario</strong> dropdown to select the planning scenario</li>
-<li>Use the <strong>Demand Year</strong> (or timeline slider) to set the reference year</li>
-<li>Only facilities commissioned before and not yet decommissioned by that year are shown</li>
-</ol>
-<h4 id="scenario-types">Scenario Types</h4>
+<p>The Grid Map is the interactive map of facilities, grid lines and terminals in the SWIS. Use it to:</p>
 <ul>
-<li><strong>Current</strong>: Existing infrastructure — read-only; new facilities and grid lines cannot be added</li>
-<li><strong>Planning/Custom Scenarios</strong>: Modifiable — supports adding, editing and deleting infrastructure</li>
+<li>filter facilities by scenario, status, technology and timeline year</li>
+<li>view facility, grid line and terminal details</li>
+<li>add facilities, terminals and grid lines by clicking on the map</li>
+<li>move facilities and terminals, and manage grid connections</li>
+<li>draw zones and edit the SWIS boundary</li>
 </ul>
-<blockquote>
-<p><strong>Note</strong>: To add facilities or grid lines you must select a modifiable scenario (not "Current").</p>
-</blockquote>
-<hr />
-<h3 id="map-interface">Map Interface</h3>
-<p>The map is built on <strong>Leaflet.js</strong> with OpenStreetMap tiles.</p>
-<h4 id="navigation">Navigation</h4>
-<ul>
-<li><strong>Pan</strong>: Click and drag</li>
-<li><strong>Zoom</strong>: Mouse wheel or the +/− controls</li>
-<li><strong>Find Location</strong>: Use the search/locate control to jump to a named place</li>
-</ul>
-<h4 id="map-layers">Map Layers</h4>
-<p>Use the layer control (top-right of map) to toggle visibility:</p>
-<table>
-<thead>
-<tr>
-<th>Layer</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>SWIS Boundary</td>
-<td>Outer boundary of the interconnected system</td>
-</tr>
-<tr>
-<td>Zones</td>
-<td>Geographic planning zones within SWIS</td>
-</tr>
-<tr>
-<td>Grid Facilities</td>
-<td>Power generation and storage facilities</td>
-</tr>
-<tr>
-<td>Grid Lines</td>
-<td>Transmission and distribution network</td>
-</tr>
-<tr>
-<td>Terminals</td>
-<td>Substations and switching stations</td>
-</tr>
-</tbody>
-</table>
-<hr />
-<h3 id="facility-icons-and-status-colours">Facility Icons and Status Colours</h3>
-<p>Facility icons reflect their technology type. The <strong>colour</strong> of each icon reflects the facility's development status:</p>
-<table>
-<thead>
-<tr>
-<th>Status</th>
-<th>Colour</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>Commissioned</td>
-<td>Green</td>
-</tr>
-<tr>
-<td>Under Construction</td>
-<td>Blue</td>
-</tr>
-<tr>
-<td>Planned</td>
-<td>Yellow/Amber</td>
-</tr>
-<tr>
-<td>Proposed</td>
-<td>Orange</td>
-</tr>
-<tr>
-<td>Decommissioned</td>
-<td>Grey</td>
-</tr>
-</tbody>
-</table>
-<p>Technology icons include: Wind, Solar PV, Battery Storage (BESS), Pumped Hydro (PHES), Gas (CCGT/OCGT), Reciprocating Engine, Coal, Biomass, and a default icon for other technologies.</p>
-<p><strong>Commissioning Probability</strong>: Where a facility has a probability value less than 1.0, its icon is rendered at reduced opacity to signal uncertainty.</p>
-<hr />
-<h3 id="grid-line-colours">Grid Line Colours</h3>
-<p>Grid lines are colour-coded by operating voltage level:</p>
-<table>
-<thead>
-<tr>
-<th>Voltage</th>
-<th>Colour</th>
-<th>Hex</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>≥ 330 kV</td>
-<td>Dark Red</td>
-<td><code>#8B0000</code></td>
-</tr>
-<tr>
-<td>≥ 220 kV</td>
-<td>Orange-Red</td>
-<td><code>#FF4500</code></td>
-</tr>
-<tr>
-<td>≥ 132 kV</td>
-<td>Orange</td>
-<td><code>#FFA500</code></td>
-</tr>
-<tr>
-<td>≥ 66 kV</td>
-<td>Gold</td>
-<td><code>#FFD700</code></td>
-</tr>
-<tr>
-<td>&lt; 66 kV</td>
-<td>Yellow</td>
-<td><code>#FFFF00</code></td>
-</tr>
-</tbody>
-</table>
-<p>Line <strong>width</strong> scales with voltage:</p>
-<div class="codehilite"><pre><span></span><code>Weight = max(2, min(8, voltage_level / 50))
-</code></pre></div>
-
-<p>Higher-voltage lines appear thicker for visual emphasis. Line labels (showing line name) can be toggled with the <strong>Toggle Grid Line Labels</strong> button.</p>
-<hr />
-<h3 id="viewing-facility-details">Viewing Facility Details</h3>
-<ul>
-<li><strong>Hover</strong> over a facility icon to see a tooltip with name and capacity</li>
-<li><strong>Click</strong> a facility icon to open the detailed modal</li>
-</ul>
-<p>The facility modal displays:</p>
-<p><strong>Basic Information</strong>
-- Name, code, technology type
-- Capacity (MW), status, commissioning probability
-- Commissioning and decommissioning dates
-- Coordinates (latitude, longitude)</p>
-<p><strong>Technology-Specific Parameters</strong></p>
-<p><em>Wind Facilities:</em>
-- Turbine model, hub height (m), number of turbines
-- Rotor diameter (m), tilt angle
-- Capacity per turbine (MW)</p>
-<p><em>Solar Facilities:</em>
-- Panel tilt angle and azimuth
-- Tracking system type (fixed, single-axis, dual-axis)
-- DC capacity (MW), AC capacity (MW), DC:AC ratio
-- System losses (%)</p>
-<p><em>Battery Storage (BESS):</em>
-- Power capacity (MW), energy capacity (MWh), duration (h)
-- Round-trip efficiency (%); calculated as: <code>RTE = charge_efficiency × discharge_efficiency</code>
-- Minimum and maximum state of charge (%)
-- Cycle life, calendar life (years)</p>
-<p><em>Pumped Hydro (PHES):</em>
-- Upper and lower reservoir capacity (MWh)
-- Generation and pumping power (MW)
-- Round-trip efficiency</p>
-<p><strong>Grid Connections</strong>
-- Connected grid lines with distance to connection point (km)
-- Primary vs secondary connection flag
-- Calculated connection losses (see Transmission Loss Calculations)</p>
-<p><strong>Economic Data</strong>
-- Capital expenditure (CAPEX, $/MW or $M)
-- Fixed operating cost (FOM, $/MW/year)
-- Variable operating cost (VOM, $/MWh)
-- Project lifetime (years) and discount rate (%)</p>
-<hr />
-<h3 id="viewing-grid-line-details">Viewing Grid Line Details</h3>
-<p>Click any grid line to open the grid line modal:</p>
-<p><strong>Technical Specifications</strong>
-- Name, code, voltage level (kV)
-- Line type (transmission, sub-transmission, distribution)
-- Length (km), thermal capacity (MVA), emergency capacity (MVA)
-- Resistance per km (Ω/km), reactance per km (Ω/km)
-- Total impedance: <code>Z = √(R² + X²)</code> where <code>R = r_per_km × length</code>, <code>X = x_per_km × length</code></p>
-<p><strong>Calculated Losses at Full Capacity</strong>
-See <em>Transmission Loss Calculations</em> below.</p>
-<p><strong>Connected Facilities</strong>
-List of all facilities with connections to this line and their connection distances.</p>
-<hr />
-<h3 id="transmission-loss-calculations">Transmission Loss Calculations</h3>
-<h4 id="line-losses">Line Losses</h4>
-<p>Power losses on a transmission line are calculated using:</p>
-<div class="codehilite"><pre><span></span><code>P_loss = (P² × R) / (V² × cos²φ)
-</code></pre></div>
-
-<p>Where:
-- <code>P</code> = power flow (MW)
-- <code>R</code> = total line resistance = <code>resistance_per_km × length_km</code> (Ω)
-- <code>V</code> = operating voltage (kV)
-- <code>cos(φ)</code> = power factor = 0.95 (assumed)</p>
-<p>Equivalently expressed via line current:</p>
-<div class="codehilite"><pre><span></span><code>I = P / (V × √3 × pf)          [current in kA]
-P_loss = I² × R × V²            [losses in MW]
-</code></pre></div>
-
-<p><strong>Utilisation Percentage:</strong></p>
-<div class="codehilite"><pre><span></span><code>Utilisation (%) = (current_flow_MW / thermal_capacity_MVA) × 100
-</code></pre></div>
-
-<h4 id="connection-losses">Connection Losses</h4>
-<p>Losses on the spur connection between a facility and its grid connection point are calculated the same way, using the connection distance as the effective line length and assuming standard cable specifications for the voltage class.</p>
-<h4 id="impedance">Impedance</h4>
-<div class="codehilite"><pre><span></span><code>R_total = resistance_per_km × length_km   (Ω)
-X_total = reactance_per_km × length_km    (Ω)
-Z_total = √(R_total² + X_total²)          (Ω)
-</code></pre></div>
-
-<hr />
-<h3 id="adding-facilities">Adding Facilities</h3>
-<blockquote>
-<p><strong>Prerequisite</strong>: Select a modifiable scenario (not "Current").</p>
-</blockquote>
-<ol>
-<li>Click <strong>Add New Facility</strong> — the cursor changes to a crosshair</li>
-<li>Click on the map to set the facility location (coordinates are captured automatically)</li>
-<li>Complete the facility form:</li>
-<li><strong>Name</strong> and optional <strong>Code</strong></li>
-<li><strong>Technology</strong>: select from the technology list</li>
-<li><strong>Capacity (MW)</strong></li>
-<li><strong>Status</strong> and <strong>Commissioning Probability</strong> (0.0–1.0)</li>
-<li><strong>Commissioning / Decommissioning Dates</strong></li>
-<li>Technology-specific parameters (turbine model and count for wind; tilt and tracking for solar)</li>
-<li>Select a <strong>Grid Connection</strong>:</li>
-<li><em>Auto-connect</em> — system finds the nearest suitable grid line</li>
-<li><em>Select existing grid line</em> — choose from a dropdown</li>
-<li><em>No connection</em> — standalone or off-grid facility</li>
-<li>Click <strong>Save Facility</strong></li>
-</ol>
-<p>To cancel at any time, click <strong>Cancel Add Facility</strong>.</p>
-<hr />
-<h3 id="editing-and-moving-facilities">Editing and Moving Facilities</h3>
-<ul>
-<li>Open a facility modal and click <strong>Edit</strong> to modify parameters</li>
-<li>Drag the facility marker on the map to update its location</li>
-<li>Location changes update the stored latitude and longitude immediately</li>
-</ul>
-<hr />
-<h3 id="adding-grid-lines">Adding Grid Lines</h3>
-<blockquote>
-<p><strong>Prerequisite</strong>: Select a modifiable scenario (not "Current").</p>
-</blockquote>
-<ol>
-<li>Click <strong>Add New Grid Line</strong> — the cursor changes to a crosshair</li>
-<li>Click the <strong>first endpoint</strong> (a "Start Point" marker appears)</li>
-<li>Click the <strong>second endpoint</strong> (an "End Point" marker appears and a dashed line connects them)</li>
-<li>Complete the grid line form:</li>
-<li><strong>Name</strong> and <strong>Code</strong></li>
-<li><strong>Voltage Level (kV)</strong></li>
-<li><strong>Thermal Capacity (MVA)</strong></li>
-<li><strong>Resistance and Reactance per km</strong> (Ω/km)</li>
-<li><strong>From Terminal</strong> and <strong>To Terminal</strong> (optional)</li>
-<li>Line <strong>length</strong> is automatically calculated from the two clicked points using the Haversine formula:</li>
-</ol>
-<div class="codehilite"><pre><span></span><code>a = sin²(Δlat/2) + cos(lat1) × cos(lat2) × sin²(Δlon/2)
-distance_km = 2 × R_earth × arcsin(√a)       [R_earth ≈ 6371 km]
-</code></pre></div>
-
-<ol>
-<li>Click <strong>Save Grid Line</strong></li>
-</ol>
-<p>To cancel, click <strong>Cancel Add Grid Line</strong>.</p>
-<hr />
-<h3 id="terminals-substations">Terminals (Substations)</h3>
-<p>Terminals represent substations and switching stations. They connect grid lines in the network topology.</p>
-<p><strong>Parameters:</strong>
-- Name, code, type (substation, switching station, etc.)
-- Voltage class: Low / Medium / High / Extra High / Ultra High
-- Primary voltage (kV) — voltage class is auto-assigned from this value
-- Transformer capacity (MVA)
-- Bay count</p>
-<p><strong>Viewing Terminals:</strong>
-- Click a terminal marker on the map to view connections and capacity
-- The terminal detail page shows all connected grid lines and facilities, load, and available capacity
-- A <strong>Node Diagram</strong> is available showing the terminal's local network topology (D3.js force-directed graph)</p>
-<p><strong>Bottleneck Detection:</strong>
-A terminal is flagged as a <strong>bottleneck</strong> when the total capacity of connected facilities exceeds the terminal's transformer capacity (MVA). Bottlenecks are highlighted in red in the Network Overview.</p>
+<p>Open it from <strong>Grid Map → Display Map</strong>.</p>
+<p>Full instructions, including the line-loss and utilisation calculations, are in the <a href="/help/grid_map/" target="_blank" rel="noopener noreferrer">Grid Map Help</a>, which opens in a new tab. You can also reach it from the <strong>❓ Help</strong> button on the map, or <strong>Grid Map → Grid Map Help</strong>.</p>
 <hr />
             </div>
             <div class="page-section " data-section="2">

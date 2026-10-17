@@ -1,0 +1,920 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Grid Map</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 0;
+            background: #f8f9fa;
+            color: #333;
+        }
+        
+        .container {
+            display: flex;
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            min-height: 100vh;
+            box-shadow: 0 0 20px rgba(0,0,0,0.1);
+        }
+        
+        .sidebar {
+            width: 350px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px 25px;
+            position: sticky;
+            top: 0;
+            height: 100vh;
+            overflow-y: auto;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+        }
+        
+        .sidebar h2 {
+            margin-top: 0;
+            color: #ffffff;
+            border-bottom: 2px solid rgba(255,255,255,0.3);
+            padding-bottom: 15px;
+            font-size: 1.4em;
+            font-weight: 600;
+        }
+        
+        .toc-list {
+            list-style: none;
+            padding: 0;
+            margin: 20px 0;
+        }
+        
+        .toc-item {
+            margin: 5px 0;
+        }
+        
+        .toc-link {
+            color: rgba(255,255,255,0.8);
+            text-decoration: none;
+            padding: 12px 15px;
+            display: block;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+            font-weight: 500;
+            border-left: 3px solid transparent;
+        }
+        
+        .toc-link:hover {
+            background: rgba(255,255,255,0.1);
+            color: white;
+            transform: translateX(5px);
+            border-left-color: rgba(255,255,255,0.5);
+        }
+        
+        .toc-link.active {
+            background: rgba(255,255,255,0.2);
+            color: white;
+            border-left-color: #ffd700;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+        }
+        .toc-subsections {
+            list-style: none;
+            padding: 0;
+            margin: 5px 0 0 20px;
+        }
+
+        .toc-subitem {
+            margin: 3px 0;
+        }
+
+        .toc-sublink {
+            color: rgba(255,255,255,0.6);
+            text-decoration: none;
+            padding: 6px 12px;
+            display: block;
+            border-radius: 5px;
+            transition: all 0.3s ease;
+            font-size: 0.9em;
+            border-left: 2px solid transparent;
+        }
+
+        .toc-sublink:hover {
+            background: rgba(255,255,255,0.05);
+            color: rgba(255,255,255,0.8);
+            border-left-color: rgba(255,255,255,0.3);
+        }
+        .content {
+            flex: 1;
+            padding: 40px 50px;
+            position: relative;
+            max-width: none;
+        }
+        
+        .page-section {
+            display: none;
+            animation: fadeIn 0.4s ease-in;
+        }
+        
+        .page-section.active {
+            display: block !important;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .navigation {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            display: flex;
+            gap: 15px;
+            z-index: 1000;
+        }
+        
+        .nav-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px 20px;
+            border-radius: 50px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+            min-width: 120px;
+        }
+        
+        .nav-btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+        }
+        
+        .nav-btn:disabled {
+            background: #cbd5e0;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        
+        .back-to-top {
+            position: fixed;
+            bottom: 120px;
+            right: 30px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px;
+            border-radius: 50%;
+            cursor: pointer;
+            width: 55px;
+            height: 55px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+            font-size: 18px;
+        }
+        
+        .back-to-top:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+        }
+        
+        .page-indicator {
+            position: fixed;
+            top: 30px;
+            right: 30px;
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 10px 15px;
+            border-radius: 25px;
+            font-size: 14px;
+            font-weight: 600;
+            z-index: 1000;
+            backdrop-filter: blur(10px);
+        }
+        
+        /* Content Styling */
+        h1, h2, h3, h4, h5, h6 {
+            color: #2d3748;
+            margin-top: 2em;
+            margin-bottom: 1em;
+        }
+        
+        h1 {
+            font-size: 2.5em;
+            border-bottom: 3px solid #667eea;
+            padding-bottom: 0.5em;
+            margin-top: 0;
+        }
+        
+        h2 {
+            font-size: 2em;
+            color: #4a5568;
+            border-bottom: 2px solid #e2e8f0;
+            padding-bottom: 0.3em;
+        }
+        
+        h3 {
+            font-size: 1.5em;
+            color: #667eea;
+        }
+        
+        p {
+            margin-bottom: 1.2em;
+            text-align: justify;
+        }
+        
+        ul, ol {
+            margin-bottom: 1.2em;
+            padding-left: 2em;
+        }
+        
+        li {
+            margin-bottom: 0.5em;
+        }
+        
+        code {
+            background: #f7fafc;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'Monaco', 'Consolas', monospace;
+            color: #e53e3e;
+            border: 1px solid #e2e8f0;
+        }
+        
+        pre {
+            background: #2d3748;
+            color: #e2e8f0;
+            padding: 20px;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin: 1.5em 0;
+        }
+        
+        pre code {
+            background: none;
+            padding: 0;
+            border: none;
+            color: inherit;
+        }
+        
+        strong {
+            color: #2d3748;
+            font-weight: 600;
+        }
+        
+        /* Mobile Responsive */
+        @media (max-width: 768px) {
+            .container {
+                flex-direction: column;
+            }
+            
+            .sidebar {
+                width: 100%;
+                height: auto;
+                position: relative;
+                padding: 20px;
+            }
+            
+            .content {
+                padding: 30px 20px;
+            }
+            
+            .navigation {
+                position: relative;
+                bottom: auto;
+                right: auto;
+                justify-content: center;
+                margin-top: 30px;
+            }
+            
+            .page-indicator {
+                position: relative;
+                top: auto;
+                right: auto;
+                margin-bottom: 20px;
+                display: inline-block;
+            }
+            
+            .back-to-top {
+                display: none;
+            }
+        }
+        
+        /* Print Styles */
+        @media print {
+            .sidebar, .navigation, .back-to-top, .page-indicator {
+                display: none;
+            }
+            
+            .page-section {
+                display: block !important;
+                page-break-after: always;
+            }
+            
+            .content {
+                width: 100%;
+                padding: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <nav class="sidebar">
+            <h2>📖 Table of Contents</h2>
+            
+            <div style="margin-bottom: 20px; padding-bottom: 15px; border-bottom: 1px solid rgba(255,255,255,0.2);">
+                <a href="/help/" style="color: rgba(255,255,255,0.9); text-decoration: none; padding: 10px 15px; display: block; border-radius: 8px; background: rgba(255,255,255,0.1); transition: all 0.3s ease;">
+                    ← Back to Main Help
+                </a>
+            </div>
+            <ul class="toc-list" id="tocList">
+                
+                <li class="toc-item">
+                    <a href="#" class="toc-link active" data-section="0">Grid Map</a>
+                </li><ul class="toc-subsections">
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="0" data-subsection="overview">Overview</a>
+                    </li></ul></li>
+                <li class="toc-item">
+                    <a href="#" class="toc-link " data-section="1">Map Interface</a>
+                </li><ul class="toc-subsections">
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="1" data-subsection="navigation">Navigation</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="1" data-subsection="map-layers">Map Layers</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="1" data-subsection="facility-icons">Facility Icons</a>
+                    </li></ul></li>
+                <li class="toc-item">
+                    <a href="#" class="toc-link " data-section="2">Filtering Facilities</a>
+                </li><ul class="toc-subsections">
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="2" data-subsection="scenario">Scenario</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="2" data-subsection="status-filter">Status Filter</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="2" data-subsection="timeline">Timeline</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="2" data-subsection="technology">Technology</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="2" data-subsection="summary">Summary</a>
+                    </li></ul></li>
+                <li class="toc-item">
+                    <a href="#" class="toc-link " data-section="3">Viewing Details</a>
+                </li><ul class="toc-subsections">
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="3" data-subsection="facilities">Facilities</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="3" data-subsection="grid-lines">Grid Lines</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="3" data-subsection="terminals">Terminals</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="3" data-subsection="grid-utilisation">Grid Utilisation</a>
+                    </li></ul></li>
+                <li class="toc-item">
+                    <a href="#" class="toc-link " data-section="4">Adding Infrastructure</a>
+                </li><ul class="toc-subsections">
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="4" data-subsection="adding-a-facility">Adding a Facility</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="4" data-subsection="adding-a-terminal">Adding a Terminal</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="4" data-subsection="adding-a-grid-line">Adding a Grid Line</a>
+                    </li></ul></li>
+                <li class="toc-item">
+                    <a href="#" class="toc-link " data-section="5">Editing on the Map</a>
+                </li><ul class="toc-subsections">
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="5" data-subsection="moving-facilities-and-terminals">Moving Facilities and Terminals</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="5" data-subsection="grid-connections">Grid Connections</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="5" data-subsection="zones">Zones</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="5" data-subsection="swis-boundary">SWIS Boundary</a>
+                    </li></ul></li>
+                <li class="toc-item">
+                    <a href="#" class="toc-link " data-section="6">Calculations</a>
+                </li><ul class="toc-subsections">
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="6" data-subsection="grid-line-utilisation">Grid Line Utilisation</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="6" data-subsection="line-losses">Line Losses</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="6" data-subsection="impedance">Impedance</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="6" data-subsection="grid-line-length">Grid Line Length</a>
+                    </li>
+                    <li class="toc-subitem">
+                        <a href="#" class="toc-sublink" data-section="6" data-subsection="terminal-bottlenecks">Terminal Bottlenecks</a>
+                    </li></ul></li>
+                <li class="toc-item">
+                    <a href="#" class="toc-link " data-section="7">Related Help</a>
+                </li></li>
+            </ul>
+            <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid rgba(255,255,255,0.2); font-size: 0.9em;">
+                <p><strong>Generated:</strong><br>October 17, 2026</p>
+                <p><strong>Sections:</strong> 8</p>
+            </div>
+        </nav>
+        
+        <main class="content">
+            <div class="page-indicator">
+                Page <span id="currentPage">1</span> of <span id="totalPages">8</span>
+            </div>
+            
+            
+            <div class="page-section active" data-section="0">
+                <h1 id="grid-map">Grid Map</h1>
+<h2 id="overview">Overview</h2>
+<p>The Grid Map is an interactive map of the South West Interconnected System (SWIS). It shows generation and storage <strong>facilities</strong>, <strong>grid lines</strong> and <strong>terminals</strong> (substations), together with the SWIS boundary and planning zones.</p>
+<p>From the Grid Map you can:</p>
+<ul>
+<li>Filter facilities by <strong>scenario</strong>, <strong>status</strong>, <strong>technology</strong> and <strong>year</strong></li>
+<li>View details of any facility, grid line or terminal</li>
+<li>Add new facilities, terminals and grid lines by clicking on the map</li>
+<li>Move facilities and terminals, and manage facility grid connections</li>
+<li>Draw zone boundaries and edit the SWIS boundary</li>
+<li>Review grid line utilisation</li>
+</ul>
+<p>Open the map from <strong>Powermap → Grid Map → Display Map</strong>. The <strong>❓ Help</strong> button at the top of the map opens this guide in a new tab.</p>
+<hr />
+            </div>
+            <div class="page-section " data-section="1">
+                <h2 id="map-interface">Map Interface</h2>
+<p>The map uses <strong>Leaflet.js</strong> over a vector basemap.</p>
+<h3 id="navigation">Navigation</h3>
+<ul>
+<li><strong>Pan</strong>: click and drag</li>
+<li><strong>Zoom</strong>: mouse wheel or the <strong>+ / −</strong> controls</li>
+<li><strong>Find on Map</strong>: click <strong>Find on Map</strong>, choose a type (Facility, Terminal or Grid Line), type part of the name and pick an entry to zoom to it</li>
+</ul>
+<h3 id="map-layers">Map Layers</h3>
+<p>Use the layer control at the top right of the map to show or hide each layer:</p>
+<table>
+<thead>
+<tr>
+<th>Layer</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>SWIS Boundary</td>
+<td>Outer boundary of the interconnected system</td>
+</tr>
+<tr>
+<td>Zones</td>
+<td>Geographic planning zones within the SWIS</td>
+</tr>
+<tr>
+<td>Grid Facilities</td>
+<td>Generation and storage facilities</td>
+</tr>
+<tr>
+<td>Terminals</td>
+<td>Substations and switching stations</td>
+</tr>
+<tr>
+<td>Grid Lines</td>
+<td>Transmission and distribution lines</td>
+</tr>
+</tbody>
+</table>
+<h3 id="facility-icons">Facility Icons</h3>
+<p>Each facility icon shows its technology: Wind, Solar PV, Battery Storage (BESS), Pumped Hydro (PHES), Gas (CCGT/OCGT), Reciprocating Engine, Coal, Biomass, Solar Thermal (CST) and Nuclear. Other technologies use a default icon.</p>
+<hr />
+            </div>
+            <div class="page-section " data-section="2">
+                <h2 id="filtering-facilities">Filtering Facilities</h2>
+<p>All facilities are loaded when the page opens, and the filters are applied straight away in the browser. A facility is shown only if it passes <strong>every</strong> filter. The <strong>Summary</strong> panel always reflects the facilities currently visible.</p>
+<h3 id="scenario">Scenario</h3>
+<p>The <strong>Scenario</strong> dropdown above the map limits the map to the facilities in that scenario. <strong>All Facilities</strong> shows every facility. Changing scenario is instant; the page doesn't reload.</p>
+<p>Adding facilities, terminals and grid lines requires a scenario to be selected. New facilities are added to that scenario.</p>
+<h3 id="status-filter">Status Filter</h3>
+<p>Tick or untick each development status:</p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Legend colour</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Proposed</td>
+<td>Grey</td>
+</tr>
+<tr>
+<td>Planned</td>
+<td>Blue</td>
+</tr>
+<tr>
+<td>Under Construction</td>
+<td>Orange</td>
+</tr>
+<tr>
+<td>Commissioned</td>
+<td>Green</td>
+</tr>
+<tr>
+<td>Decommissioned</td>
+<td>Red</td>
+</tr>
+</tbody>
+</table>
+<h3 id="timeline">Timeline</h3>
+<p>Tick <strong>Enable timeline</strong> and drag the year slider to see the fleet as it would stand in that year:</p>
+<ul>
+<li>A facility counts as <strong>Commissioned</strong> from its commissioning year.</li>
+<li>It becomes <strong>Decommissioned</strong> once the year reaches its commissioning year plus its technology's lifetime.</li>
+<li>Facilities with no commissioning date keep their recorded status.</li>
+</ul>
+<p>With the timeline off, each facility's recorded status is used.</p>
+<h3 id="technology">Technology</h3>
+<p>The <strong>Technology</strong> panel lists every facility technology on the map (for example <em>Onshore Wind</em>, <em>Single Axis PV</em>, <em>Battery</em>, <em>Gas OCGT</em>). Technologies are grouped under their category (Generator / Storage), and each shows its number of facilities in brackets.</p>
+<ul>
+<li>Untick a technology to hide those facilities.</li>
+<li><strong>All</strong> / <strong>None</strong> in the panel header tick or untick every technology at once.</li>
+<li>Your selections are kept when the map refreshes after an edit. Any new technology is ticked by default.</li>
+</ul>
+<h3 id="summary">Summary</h3>
+<p>The <strong>Summary</strong> panel shows the number of visible facilities (<strong>N</strong>) and their total capacity (<strong>MW</strong>) for each status, with an overall total.</p>
+<hr />
+            </div>
+            <div class="page-section " data-section="3">
+                <h2 id="viewing-details">Viewing Details</h2>
+<h3 id="facilities">Facilities</h3>
+<ul>
+<li><strong>Hover</strong> over a facility for a tooltip showing its name, technology, capacity and number of grid connections.</li>
+<li><strong>Click</strong> a facility to open a popup with its technology, capacity, grid connection status and primary line, plus these buttons:</li>
+<li><strong>Details</strong>: opens the facility detail page in a new tab</li>
+<li><strong>Edit</strong>: opens the facility edit page in a new tab</li>
+<li><strong>Connections</strong>: manage the facility's grid connections (see <em>Grid Connections</em>)</li>
+<li><strong>Move</strong>: drag the facility to a new location (see <em>Editing on the Map</em>)</li>
+</ul>
+<h3 id="grid-lines">Grid Lines</h3>
+<p>Click a grid line to see its name, voltage, thermal capacity and number of connected facilities, with <strong>Details</strong> and <strong>Edit</strong> buttons that open in a new tab. Hover over a line to see its connected capacity and utilisation.</p>
+<p>Grid lines are coloured by voltage, and thicker lines are higher voltage:</p>
+<table>
+<thead>
+<tr>
+<th>Voltage</th>
+<th>Colour</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>≥ 330 kV</td>
+<td>Dark Red</td>
+</tr>
+<tr>
+<td>≥ 220 kV</td>
+<td>Orange-Red</td>
+</tr>
+<tr>
+<td>≥ 132 kV</td>
+<td>Orange</td>
+</tr>
+<tr>
+<td>≥ 66 kV</td>
+<td>Gold</td>
+</tr>
+<tr>
+<td>&lt; 66 kV</td>
+<td>Yellow</td>
+</tr>
+</tbody>
+</table>
+<p>The colour changes to show heavily loaded lines (connected capacity ÷ thermal capacity):</p>
+<table>
+<thead>
+<tr>
+<th>Utilisation</th>
+<th>Display</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>&gt; 80%</td>
+<td>Red, thicker</td>
+</tr>
+<tr>
+<td>&gt; 60%</td>
+<td>Orange, slightly thicker</td>
+</tr>
+<tr>
+<td>&gt; 30%</td>
+<td>Yellow</td>
+</tr>
+</tbody>
+</table>
+<h3 id="terminals">Terminals</h3>
+<p>Click a terminal to see its type, primary voltage and number of connected lines, with <strong>Details</strong> and <strong>Edit</strong> buttons (opening in a new tab) and a <strong>Move</strong> button. Hover over a terminal to see its utilisation. Terminals that are not yet commissioned are shown faded.</p>
+<h3 id="grid-utilisation">Grid Utilisation</h3>
+<p><strong>Show Grid Utilization</strong> opens a summary of how many grid lines have high (&gt; 80%), medium (50–80%) and low utilisation. <strong>Connections Overview</strong> opens the infrastructure network diagram in a new tab.</p>
+<hr />
+            </div>
+            <div class="page-section " data-section="4">
+                <h2 id="adding-infrastructure">Adding Infrastructure</h2>
+<blockquote>
+<p><strong>Prerequisite</strong>: select a scenario first.</p>
+</blockquote>
+<h3 id="adding-a-facility">Adding a Facility</h3>
+<ol>
+<li>Click <strong>Add New Facility</strong>. The cursor changes to a crosshair and the form opens.</li>
+<li>Click on the map to set the location.</li>
+<li>Enter the <strong>Facility Name</strong>, <strong>Technology</strong> and <strong>Capacity (MW)</strong>.</li>
+<li>Choose a <strong>Grid Connection Strategy</strong>:</li>
+<li><em>Auto-connect to optimal grid line</em>: picks the best nearby line by distance, capacity and utilisation, within the <strong>Minimum Voltage</strong> and <strong>Max Distance</strong> you set</li>
+<li><em>Select specific grid line</em>: choose a line from the list. Recommended nearby lines are shown.</li>
+<li><em>Create new dedicated grid line</em>: creates a new line for this facility</li>
+<li>Click <strong>Save Facility</strong>. A notice links to the facility page, where you can add installations (turbines, panels, storage).</li>
+</ol>
+<p>Click <strong>Cancel</strong> (or the button again) to stop.</p>
+<h3 id="adding-a-terminal">Adding a Terminal</h3>
+<ol>
+<li>Click <strong>Add New Terminal</strong> and click on the map to set the location.</li>
+<li>Enter the name, code, type, primary and secondary voltage, transformer capacity, number of bays, owner and description.</li>
+<li>Click <strong>Save Terminal</strong>.</li>
+</ol>
+<h3 id="adding-a-grid-line">Adding a Grid Line</h3>
+<ol>
+<li>Click <strong>Add New Grid Line</strong>.</li>
+<li>Click on the map to set the start point, then click again for each waypoint along the route. At least two points are needed.</li>
+<li><strong>Undo Last Point</strong> removes the last click. The running length is shown as you go.</li>
+<li>Click <strong>Continue to Full Form →</strong> to finish the line details (voltage, capacity, impedance, terminals) on the grid line form.</li>
+</ol>
+<hr />
+            </div>
+            <div class="page-section " data-section="5">
+                <h2 id="editing-on-the-map">Editing on the Map</h2>
+<h3 id="moving-facilities-and-terminals">Moving Facilities and Terminals</h3>
+<ol>
+<li>Click the marker, then <strong>Move</strong>.</li>
+<li>Drag the marker to the new position. A banner shows the coordinates.</li>
+<li>Click <strong>Save</strong> on the banner to store the new location, or <strong>Cancel</strong> to put it back.</li>
+</ol>
+<h3 id="grid-connections">Grid Connections</h3>
+<p><strong>Connections</strong> in a facility popup opens the connection manager. There you can:</p>
+<ul>
+<li>add a connection to another grid line</li>
+<li>set the <strong>primary</strong> connection</li>
+<li>remove a connection</li>
+</ul>
+<p>The map refreshes after each change.</p>
+<h3 id="zones">Zones</h3>
+<p><strong>Draw Zone Boundary</strong> lets you click waypoints to outline a zone, then <strong>Continue to Zone Form →</strong> to name and save it. The <strong>Zones</strong> button lists the existing zones.</p>
+<h3 id="swis-boundary">SWIS Boundary</h3>
+<p><strong>Edit SWIS Boundary</strong> (shown once the boundary has loaded) lets you change the boundary polygon:</p>
+<ul>
+<li><strong>Drag</strong> a vertex to move it</li>
+<li><strong>Click</strong> a line segment to insert a vertex</li>
+<li><strong>Right-click</strong> a vertex to delete it</li>
+</ul>
+<p>Zoom in first, because handles are only shown for the visible part of the boundary. Click <strong>Save Boundary</strong> to store the changes, or <strong>Cancel</strong> to discard them.</p>
+<hr />
+            </div>
+            <div class="page-section " data-section="6">
+                <h2 id="calculations">Calculations</h2>
+<h3 id="grid-line-utilisation">Grid Line Utilisation</h3>
+<div class="codehilite"><pre><span></span><code>Utilisation (%) = (total connected facility capacity MW / thermal capacity MW) × 100
+</code></pre></div>
+
+<h3 id="line-losses">Line Losses</h3>
+<p>Power losses on a transmission line are calculated using:</p>
+<div class="codehilite"><pre><span></span><code>P_loss = (P² × R) / (V² × cos²φ)
+</code></pre></div>
+
+<p>Where:
+- <code>P</code> = power flow (MW)
+- <code>R</code> = total line resistance = <code>resistance_per_km × length_km</code> (Ω)
+- <code>V</code> = operating voltage (kV)
+- <code>cos(φ)</code> = power factor = 0.95 (assumed)</p>
+<p>Losses on the spur connection between a facility and its grid connection point are calculated the same way, using the connection distance as the line length and standard cable specifications for the voltage class.</p>
+<h3 id="impedance">Impedance</h3>
+<div class="codehilite"><pre><span></span><code>R_total = resistance_per_km × length_km   (Ω)
+X_total = reactance_per_km × length_km    (Ω)
+Z_total = √(R_total² + X_total²)          (Ω)
+</code></pre></div>
+
+<h3 id="grid-line-length">Grid Line Length</h3>
+<p>When you draw a grid line, its length is the sum of the great-circle (Haversine) distances between consecutive points:</p>
+<div class="codehilite"><pre><span></span><code>a = sin²(Δlat/2) + cos(lat1) × cos(lat2) × sin²(Δlon/2)
+distance_km = 2 × R_earth × arcsin(√a)       [R_earth ≈ 6371 km]
+</code></pre></div>
+
+<h3 id="terminal-bottlenecks">Terminal Bottlenecks</h3>
+<p>A terminal is a <strong>bottleneck</strong> when the total capacity of its connected facilities exceeds its transformer capacity (MVA). Bottlenecks are highlighted in red in the Network Overview.</p>
+<hr />
+            </div>
+            <div class="page-section " data-section="7">
+                <h2 id="related-help">Related Help</h2>
+<ul>
+<li><a href="/help/powermap/" target="_blank" rel="noopener noreferrer">Powermap Help</a>: the rest of the Powermap module</li>
+<li><a href="/help/transmission/" target="_blank" rel="noopener noreferrer">Transmission Help</a>: terminals, grid lines, losses and the Clean Energy Link (CEL)</li>
+</ul>
+            </div>
+        </main>
+    </div>
+    
+    <div class="navigation">
+        <button class="nav-btn" id="prevBtn" onclick="previousPage()">← Previous</button>
+        <button class="nav-btn" id="nextBtn" onclick="nextPage()">Next →</button>
+    </div>
+    
+    <button class="back-to-top" onclick="scrollToTop()" title="Back to top">↑</button>
+    
+    <script>
+        let currentSection = 0;
+        const totalSections = 8;
+        
+        function showSection(sectionIndex) {
+            // Hide all sections
+            document.querySelectorAll('.page-section').forEach(section => {
+                section.classList.remove('active');
+            });
+            
+            // Show selected section
+            const targetSection = document.querySelector(`.content .page-section[data-section="${sectionIndex}"]`);
+            if (targetSection) {
+                targetSection.classList.add('active');
+            }
+            
+            // Update TOC active state
+            document.querySelectorAll('.toc-link').forEach(link => {
+                link.classList.remove('active');
+            });
+            const activeLink = document.querySelector(`[data-section="${sectionIndex}"]`);
+            if (activeLink) {
+                activeLink.classList.add('active');
+            }
+            
+            // Update current section
+            currentSection = sectionIndex;
+            
+            // Update page indicator
+            document.getElementById('currentPage').textContent = sectionIndex + 1;
+            
+            // Update navigation buttons
+            updateNavigationButtons();
+            
+            // Scroll to top of content
+            document.querySelector('.content').scrollTop = 0;
+            window.scrollTo(0, 0);
+        }
+        
+        function updateNavigationButtons() {
+            const prevBtn = document.getElementById('prevBtn');
+            const nextBtn = document.getElementById('nextBtn');
+            
+            prevBtn.disabled = currentSection === 0;
+            nextBtn.disabled = currentSection === totalSections - 1;
+        }
+        
+        function nextPage() {
+            if (currentSection < totalSections - 1) {
+                showSection(currentSection + 1);
+            }
+        }
+        
+        function previousPage() {
+            if (currentSection > 0) {
+                showSection(currentSection - 1);
+            }
+        }
+        
+        function scrollToTop() {
+            showSection(0);
+        }
+        
+        // Keyboard navigation
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'ArrowRight' || e.key === 'PageDown') {
+                nextPage();
+                e.preventDefault();
+            } else if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
+                previousPage();
+                e.preventDefault();
+            }
+        });
+        
+                // TOC click handlers
+        document.addEventListener("DOMContentLoaded", function () {
+            const tocLinks = document.querySelectorAll(".toc-link");
+            const tocSubLinks = document.querySelectorAll(".toc-sublink");
+            const pageSections = document.querySelectorAll(".page-section");
+            const currentPage = document.getElementById("currentPage");
+
+            // Handle main section navigation
+            tocLinks.forEach(link => {
+                link.addEventListener("click", function (e) {
+                    e.preventDefault();
+
+                    const sectionIndex = this.dataset.section;
+
+                    // Activate the correct section
+                    pageSections.forEach(sec => {
+                        sec.classList.toggle("active", sec.dataset.section === sectionIndex);
+                    });
+
+                    // Update TOC link active state
+                    tocLinks.forEach(l => l.classList.remove("active"));
+                    this.classList.add("active");
+
+                    // Update page number
+                    if (currentPage) currentPage.textContent = parseInt(sectionIndex) + 1;
+
+                    // Scroll to top smoothly
+                    window.scrollTo({ top: 0, behavior: "smooth" });
+                });
+            });
+
+            // Handle subsection navigation
+            tocSubLinks.forEach(link => {
+                link.addEventListener("click", function (e) {
+                    e.preventDefault();
+
+                    const sectionIndex = this.dataset.section;
+                    const subsectionId = this.dataset.subsection;
+
+                    // 1️⃣ Activate correct section first
+                    pageSections.forEach(sec => {
+                        sec.classList.toggle("active", sec.dataset.section === sectionIndex);
+                    });
+
+                    // 2️⃣ Delay scroll until browser has rendered section
+                    setTimeout(() => {
+                        const target = document.getElementById(subsectionId);
+                        if (target) {
+                            target.scrollIntoView({ behavior: "smooth", block: "center" });
+
+                            // 3️⃣ Temporary highlight
+                            target.style.transition = "background-color 0.5s ease";
+                            const originalBg = target.style.backgroundColor;
+                            target.style.backgroundColor = "#fffa9e"; // light yellow
+                            setTimeout(() => {
+                                target.style.backgroundColor = originalBg;
+                            }, 1200);
+                        }
+                    }, 100); // wait a bit to ensure section is visible
+                });
+            });
+
+            // Handle fragment/hash navigation from external links (e.g. modal "Full details" links)
+            const hash = window.location.hash;
+            if (hash) {
+                try {
+                    const targetEl = document.querySelector(hash);
+                    if (targetEl) {
+                        const parentSection = targetEl.closest('.page-section');
+                        if (parentSection) {
+                            const sectionIndex = parentSection.dataset.section;
+                            pageSections.forEach(sec => {
+                                sec.classList.toggle("active", sec.dataset.section === sectionIndex);
+                            });
+                            tocLinks.forEach(l => l.classList.remove("active"));
+                            const activeLink = document.querySelector(`.toc-link[data-section="${sectionIndex}"]`);
+                            if (activeLink) activeLink.classList.add("active");
+                            if (currentPage) currentPage.textContent = parseInt(sectionIndex) + 1;
+                            setTimeout(() => {
+                                targetEl.scrollIntoView({ behavior: "smooth", block: "start" });
+                                targetEl.style.transition = "background-color 0.5s ease";
+                                const originalBg = targetEl.style.backgroundColor;
+                                targetEl.style.backgroundColor = "#fffa9e";
+                                setTimeout(() => { targetEl.style.backgroundColor = originalBg; }, 1200);
+                            }, 100);
+                        }
+                    }
+                } catch (e) {}
+            }
+        });
+
+    </script>
+</body>
+</html>

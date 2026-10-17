@@ -3,13 +3,6 @@
 {% load static %}
 {% block powermapui_content %}
 
-<p>Powermap is the Siren module that models the renewable energy generation in the South West Interconnected System (SWIS).
-    Power Map takes as input weather and facilities data. Powermap uses the System Advisor Model (SAM) developed by the National Renewable Energy Laboratory (NREL).
-    Facilities are grid infrastructure that use a particular technology.
-    A Scenario is a collection of Facilities of different technologies. Output from Powermap
-    is used as input to the Powermatch module.
-</p>
-
 <div class="map-controls" style="margin-bottom: 10px;">
     <div style="display: inline-flex; align-items: center; gap: 8px; margin-bottom: 8px;">
         <label for="scenario-filter-select" style="margin: 0; font-weight: 500;">Scenario:</label>
@@ -43,6 +36,8 @@
     <button id="editSwisBoundaryBtn" class="btn btn-outline-danger" type="button" style="display:none;">
         Edit SWIS Boundary
     </button>
+    <a href="{% url 'display_module_help' 'grid_map' %}" target="_blank" rel="noopener noreferrer"
+       class="btn btn-outline-info" title="Grid Map Help (opens in a new tab)">❓ Help</a>
 
     <!-- Grid Line Controls -->
     <div style="margin-top: 10px; text-align: center;">
@@ -404,10 +399,15 @@
       </div>
     </div>
 
-    <!-- Category Filter -->
+    <!-- Technology Filter -->
     <div class="card mb-2">
-      <div class="card-header py-1"><h6 class="mb-0">Technology</h6></div>
-      <div class="card-body py-1 px-2" id="sf-category-filters">
+      <div class="card-header py-1 d-flex justify-content-between align-items-center">
+        <h6 class="mb-0">Technology</h6>
+        <small>
+          <a href="#" id="sf-tech-all">All</a> / <a href="#" id="sf-tech-none">None</a>
+        </small>
+      </div>
+      <div class="card-body py-1 px-2" id="sf-technology-filters" style="max-height:220px; overflow-y:auto;">
         <!-- Populated by JS -->
       </div>
     </div>
@@ -438,9 +438,6 @@
   </div>
 
 </div><!-- /row -->
-
-<!-- Safe JSON data element (avoids </script> injection risk in inline JS) -->
-<script type="application/json" id="categories-json-data">{{ categories_json|safe }}</script>
 
 <!-- Leaflet.js Library -->
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
@@ -785,7 +782,6 @@ var gridLines = JSON.parse('{{ grid_lines_json|escapejs }}');
 
 // Filter-related globals
 var facilityMarkers = [];  // [{data, marker}] populated by loadFacilitiesOnMap
-var sfCategories = JSON.parse(document.getElementById('categories-json-data').textContent || '[]');
 var sfStatusColors = {
     proposed: '#9e9e9e', planned: '#2196f3', under_construction: '#ff9800',
     commissioned: '#4caf50', decommissioned: '#f44336'
@@ -1138,8 +1134,8 @@ function loadFacilitiesOnMap(facilitiesData) {
     facilityLayer.addTo(map);
     map.invalidateSize();
 
-    // Populate category filters (first load only)
-    sfBuildCategoryFilters();
+    // (Re)build technology filters from the loaded facilities
+    sfBuildTechnologyFilters(facilitiesData);
     applyFacilityFilters();
 }
 
@@ -1159,7 +1155,8 @@ function sfGetEffectiveStatus(f, year) {
 
 function applyFacilityFilters() {
     var activeStatuses = Array.from(document.querySelectorAll('.facility-status-filter:checked')).map(function(cb){ return cb.value; });
-    var activeCategories = Array.from(document.querySelectorAll('.sf-category-filter:checked')).map(function(cb){ return cb.value; });
+    var activeTechnologies = Array.from(document.querySelectorAll('.sf-technology-filter:checked')).map(function(cb){ return cb.value; });
+    var scenario = getCurrentScenario();
     var year = parseInt(document.getElementById('sf-year-slider').value);
     var timelineEnabled = document.getElementById('sf-enable-timeline').checked;
 
@@ -1171,8 +1168,10 @@ function applyFacilityFilters() {
 
     facilityMarkers.forEach(function(item) {
         var effStatus = sfGetEffectiveStatus(item.data, year);
-        var cat = item.data.technology_category || 'Unknown';
-        var visible = activeStatuses.indexOf(effStatus) !== -1 && activeCategories.indexOf(cat) !== -1;
+        var inScenario = !scenario || (item.data.scenarios || []).indexOf(scenario) !== -1;
+        var visible = inScenario &&
+                      activeStatuses.indexOf(effStatus) !== -1 &&
+                      activeTechnologies.indexOf(item.data.technology_name) !== -1;
 
         if (visible) {
             if (!facilityLayer.hasLayer(item.marker)) facilityLayer.addLayer(item.marker);
@@ -1202,17 +1201,58 @@ function applyFacilityFilters() {
     document.getElementById('sf-total-mw').textContent = totalMW.toFixed(0);
 }
 
-function sfBuildCategoryFilters() {
-    var container = document.getElementById('sf-category-filters');
-    if (!container || container.children.length > 0) return; // already built
-    sfCategories.forEach(function(cat) {
-        var div = document.createElement('div');
-        div.className = 'form-check form-check-sm';
-        div.innerHTML = '<input class="form-check-input sf-category-filter" type="checkbox" value="' + cat + '" id="sf-cat-' + cat.replace(/\s+/g, '-') + '" checked>' +
-                        '<label class="form-check-label small" for="sf-cat-' + cat.replace(/\s+/g, '-') + '">' + cat + '</label>';
-        container.appendChild(div);
-        div.querySelector('input').addEventListener('change', applyFacilityFilters);
+// Build one checkbox per technology, grouped by category. Rebuilt on every load;
+// technologies already listed keep their checked state, new ones start checked.
+function sfBuildTechnologyFilters(facilitiesData) {
+    var container = document.getElementById('sf-technology-filters');
+    if (!container) return;
+
+    var previous = {};
+    container.querySelectorAll('.sf-technology-filter').forEach(function(cb) {
+        previous[cb.value] = cb.checked;
     });
+
+    var groups = {};  // category -> {technology_name: count}
+    facilitiesData.forEach(function(f) {
+        if (!f.technology_name) return;
+        var cat = f.technology_category || 'Unknown';
+        if (!groups[cat]) groups[cat] = {};
+        groups[cat][f.technology_name] = (groups[cat][f.technology_name] || 0) + 1;
+    });
+
+    container.innerHTML = '';
+    var idx = 0;
+    Object.keys(groups).sort().forEach(function(cat) {
+        var heading = document.createElement('div');
+        heading.className = 'small fw-bold text-muted mt-1';
+        heading.textContent = cat;
+        container.appendChild(heading);
+
+        Object.keys(groups[cat]).sort().forEach(function(tech) {
+            var id = 'sf-tech-' + (idx++);
+            var div = document.createElement('div');
+            div.className = 'form-check form-check-sm';
+            var input = document.createElement('input');
+            input.className = 'form-check-input sf-technology-filter';
+            input.type = 'checkbox';
+            input.id = id;
+            input.value = tech;
+            input.checked = previous.hasOwnProperty(tech) ? previous[tech] : true;
+            input.addEventListener('change', applyFacilityFilters);
+            var label = document.createElement('label');
+            label.className = 'form-check-label small';
+            label.htmlFor = id;
+            label.textContent = tech + ' (' + groups[cat][tech] + ')';
+            div.appendChild(input);
+            div.appendChild(label);
+            container.appendChild(div);
+        });
+    });
+}
+
+function sfSetAllTechnologies(checked) {
+    document.querySelectorAll('.sf-technology-filter').forEach(function(cb) { cb.checked = checked; });
+    applyFacilityFilters();
 }
 
 // Wire up status / timeline filter events (after DOM ready)
@@ -1222,6 +1262,8 @@ document.addEventListener('DOMContentLoaded', function() {
     });
     document.getElementById('sf-year-slider').addEventListener('input', applyFacilityFilters);
     document.getElementById('sf-enable-timeline').addEventListener('change', applyFacilityFilters);
+    document.getElementById('sf-tech-all').addEventListener('click', function(e) { e.preventDefault(); sfSetAllTechnologies(true); });
+    document.getElementById('sf-tech-none').addEventListener('click', function(e) { e.preventDefault(); sfSetAllTechnologies(false); });
 });
 
 function getLineWeightFromVoltage(voltageLevel) {
@@ -2309,12 +2351,12 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
     
-    // Scenario filter dropdown — refresh facilities on change and toggle edit buttons
+    // Scenario filter dropdown — filter facilities client-side and toggle edit buttons
     const scenarioFilterSelect = document.getElementById('scenario-filter-select');
     if (scenarioFilterSelect) {
         scenarioFilterSelect.addEventListener('change', function() {
             const selectedScenario = this.value;
-            refreshFacilities(selectedScenario);
+            applyFacilityFilters();
             const editBtns = [
                 document.getElementById('addFacilityBtn'),
                 document.getElementById('addTerminalBtn'),
@@ -2553,6 +2595,8 @@ function closeGridUtilization() {
 }
 
 
+// Reload all facilities (e.g. after an edit); the scenario filter is applied
+// client-side in applyFacilityFilters, so scenarioTitle is no longer sent.
 function refreshFacilities(scenarioTitle) {
     const loadingMessage = document.createElement('div');
     loadingMessage.id = 'loading-facilities';
@@ -2560,11 +2604,7 @@ function refreshFacilities(scenarioTitle) {
     loadingMessage.textContent = 'Loading facilities...';
     document.body.appendChild(loadingMessage);
 
-    const url = scenarioTitle
-        ? `/get_facilities/?scenario=${encodeURIComponent(scenarioTitle)}`
-        : '/get_facilities/';
-    
-    fetch(url)
+    fetch('/get_facilities/')
         .then(response => {
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);

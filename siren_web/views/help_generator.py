@@ -270,7 +270,8 @@ class SirenWebHelpGenerator:
                 'terminal': 'Terminal Management',
                 'aemo_scada': 'AEMO SCADA Data Fetcher',
                 'system_overview': 'System Overview',
-                'demand_forecasting': 'Demand Forecasting Module'
+                'demand_forecasting': 'Demand Forecasting Module',
+                'grid_map': 'Grid Map',
             }
             page_title = module_titles.get(self.module_name, 'Siren Web Help')
 

@@ -73,36 +73,20 @@ def find_nearest_grid_line(facility_lat, facility_lon, max_distance_km=50):
     
     return nearest_line, min_distance, connection_point
 
-@login_required
-def home(request):
-    scenario_filter = request.GET.get('scenario_filter', '')
-
-    scenario_settings = fetch_module_settings_data('Power')
-    if not scenario_settings and scenario_filter:
-        scenario_settings = fetch_scenario_settings_data(scenario_filter)
-
-    # Query facilities - all by default, filtered by scenario if specified
-    if scenario_filter:
-        try:
-            scenario_obj = Scenarios.objects.get(title=scenario_filter)
-            facilities_queryset = facilities.objects.filter(
-                scenarios=scenario_obj,
-                latitude__isnull=False,
-                longitude__isnull=False
-            ).select_related('idtechnologies', 'primary_grid_line').prefetch_related('grid_connections')
-        except Scenarios.DoesNotExist:
-            facilities_queryset = facilities.objects.none()
-    else:
-        facilities_queryset = facilities.objects.filter(
-            latitude__isnull=False,
-            longitude__isnull=False
-        ).select_related('idtechnologies', 'primary_grid_line').prefetch_related('grid_connections')
+def _facility_map_data():
+    """Marker data for every facility with coordinates, including the titles of
+    the scenarios each belongs to (the Grid Map filters by scenario client-side)."""
+    facilities_queryset = facilities.objects.filter(
+        latitude__isnull=False,
+        longitude__isnull=False
+    ).select_related('idtechnologies', 'primary_grid_line').prefetch_related('grid_connections', 'scenarios')
 
     facilities_data = []
     for facility in facilities_queryset:
         retirement_year = None
         if facility.commissioning_date and facility.idtechnologies and facility.idtechnologies.lifetime:
             retirement_year = facility.commissioning_date.year + int(facility.idtechnologies.lifetime)
+        connections = facility.grid_connections.all()
         facility_dict = {
             'facility_name': facility.facility_name,
             'idtechnologies': facility.idtechnologies.idtechnologies,
@@ -111,25 +95,36 @@ def home(request):
             'idfacilities': facility.idfacilities,
             'capacity': float(facility.capacity) if facility.capacity else 0,
             'technology_name': facility.idtechnologies.technology_name,
-            'has_grid_connection': facility.grid_connections.exists(),
+            'has_grid_connection': len(connections) > 0,
             'primary_grid_line_id': facility.primary_grid_line.idgridlines if facility.primary_grid_line else None,
             'primary_grid_line_name': facility.primary_grid_line.line_name if facility.primary_grid_line else None,
-            'connection_count': facility.grid_connections.count(),
+            'connection_count': len(connections),
             'status': facility.status if facility.status else 'commissioned',
             'commissioning_probability': float(facility.commissioning_probability) if facility.commissioning_probability is not None else 1.0,
             'commissioning_date': facility.commissioning_date.isoformat() if facility.commissioning_date else None,
             'decommissioning_date': facility.decommissioning_date.isoformat() if facility.decommissioning_date else None,
             'technology_category': facility.idtechnologies.category if facility.idtechnologies and facility.idtechnologies.category else 'Unknown',
             'retirement_year': retirement_year,
+            'scenarios': [s.title for s in facility.scenarios.all()],
         }
         facilities_data.append(facility_dict)
+    return facilities_data
 
-    # Compute year range and categories for filter controls
-    categories = set()
+@login_required
+def home(request):
+    scenario_filter = request.GET.get('scenario_filter', '')
+
+    scenario_settings = fetch_module_settings_data('Power')
+    if not scenario_settings and scenario_filter:
+        scenario_settings = fetch_scenario_settings_data(scenario_filter)
+
+    # All facilities are loaded; the scenario filter is applied client-side
+    facilities_data = _facility_map_data()
+
+    # Compute year range for the timeline control
     year_min = None
     year_max = None
     for fd in facilities_data:
-        categories.add(fd['technology_category'])
         if fd['commissioning_date']:
             cy = int(fd['commissioning_date'][:4])
             if year_min is None or cy < year_min:
@@ -226,7 +221,6 @@ def home(request):
         'facilities_json': facilities_json,
         'grid_lines_json': grid_lines_json,
         'terminals_json': terminals_json,
-        'categories_json': json.dumps(sorted(categories)),
         'year_min': year_min,
         'year_max': year_max,
         'zones_kml_json': zones_kml_json,
@@ -707,54 +701,11 @@ def get_facility_grid_connections(request, facility_id):
         return JsonResponse({'error': str(e)}, status=500)
 
 @login_required
-# Refresh facilities when the scenario is changed
+# Refresh facilities after edits; the Grid Map applies the scenario filter client-side
 def get_facilities_for_scenario(request):
-    """Return facilities data for the selected scenario, or all facilities if none specified."""
-    scenario_title = request.GET.get('scenario', '')
-
+    """Return all facilities with coordinates (each tagged with its scenario titles)."""
     try:
-        if scenario_title and scenario_title != 'all':
-            scenario_obj = Scenarios.objects.get(title=scenario_title)
-            facilities_queryset = facilities.objects.filter(
-                scenarios=scenario_obj,
-                latitude__isnull=False,
-                longitude__isnull=False
-            ).select_related('idtechnologies', 'primary_grid_line').prefetch_related('grid_connections')
-        else:
-            facilities_queryset = facilities.objects.filter(
-                latitude__isnull=False,
-                longitude__isnull=False
-            ).select_related('idtechnologies', 'primary_grid_line').prefetch_related('grid_connections')
-
-        facilities_data = []
-        for facility in facilities_queryset:
-            retirement_year = None
-            if facility.commissioning_date and facility.idtechnologies and facility.idtechnologies.lifetime:
-                retirement_year = facility.commissioning_date.year + int(facility.idtechnologies.lifetime)
-            facility_dict = {
-                'facility_name': facility.facility_name,
-                'idtechnologies': facility.idtechnologies.idtechnologies,
-                'latitude': facility.latitude,
-                'longitude': facility.longitude,
-                'idfacilities': facility.idfacilities,
-                'capacity': float(facility.capacity) if facility.capacity else 0,
-                'technology_name': facility.idtechnologies.technology_name,
-                'has_grid_connection': facility.grid_connections.exists(),
-                'primary_grid_line_id': facility.primary_grid_line.idgridlines if facility.primary_grid_line else None,
-                'primary_grid_line_name': facility.primary_grid_line.line_name if facility.primary_grid_line else None,
-                'connection_count': facility.grid_connections.count(),
-                'status': facility.status if facility.status else 'commissioned',
-                'commissioning_probability': float(facility.commissioning_probability) if facility.commissioning_probability is not None else 1.0,
-                'commissioning_date': facility.commissioning_date.isoformat() if facility.commissioning_date else None,
-                'decommissioning_date': facility.decommissioning_date.isoformat() if facility.decommissioning_date else None,
-                'technology_category': facility.idtechnologies.category if facility.idtechnologies and facility.idtechnologies.category else 'Unknown',
-                'retirement_year': retirement_year,
-            }
-            facilities_data.append(facility_dict)
-
-        return JsonResponse(facilities_data, safe=False)
-    except Scenarios.DoesNotExist:
-        return JsonResponse({'error': 'Scenario not found'}, status=404)
+        return JsonResponse(_facility_map_data(), safe=False)
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
 
