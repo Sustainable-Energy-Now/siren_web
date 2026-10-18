@@ -1,10 +1,14 @@
 from django.contrib.auth.decorators import login_required
+from django.contrib.auth.views import redirect_to_login
 from django.db.models import Max, Q
 from django.http import JsonResponse
 from django.shortcuts import render
+from django.views.decorators.clickjacking import xframe_options_exempt
 from django.views.decorators.csrf import csrf_exempt
 from siren_web.database_operations import fetch_module_settings_data, fetch_scenario_settings_data
 from siren_web.models import facilities, Technologies, Terminals, Scenarios, GridLines, FacilityGridConnections, Zones, SwisBoundary
+from powermapui.utils.permissions import is_embedded, is_modeller, modellers_required
+from siren_web.views.home_views import login_from_membership_params
 from powermapui.utils.swis_boundary import (
     swis_boundary_geojson_str, geojson_to_shapely, polygon_vertex_count,
 )
@@ -110,8 +114,17 @@ def _facility_map_data():
         facilities_data.append(facility_dict)
     return facilities_data
 
-@login_required
+@xframe_options_exempt
 def home(request):
+    # Embeddable in the SEN website iframe: log in from the website's membership
+    # link; menus are hidden when embedded and updates are limited to modellers.
+    login_from_membership_params(request)
+    embed = is_embedded(request)
+    if not request.user.is_authenticated:
+        if embed:
+            return render(request, 'map_login_required.html', {'embed': True})
+        return redirect_to_login(request.get_full_path())
+
     scenario_filter = request.GET.get('scenario_filter', '')
 
     scenario_settings = fetch_module_settings_data('Power')
@@ -225,6 +238,8 @@ def home(request):
         'year_max': year_max,
         'zones_kml_json': zones_kml_json,
         'swis_boundary_json': swis_boundary_geojson_str(),
+        'embed': embed,
+        'can_edit': is_modeller(request.user),
     }
     return render(request, 'map_home.html', context)
 
@@ -246,6 +261,7 @@ def _polygon_from_payload(data):
     return geom, None
 
 
+@modellers_required
 def ajax_update_swis_boundary(request):
     """Persist a hand-edited SWIS boundary polygon from the grid map."""
     if request.method != 'POST':
@@ -276,6 +292,7 @@ def ajax_update_swis_boundary(request):
         return JsonResponse({'error': str(e)}, status=500)
 
 @login_required
+@modellers_required
 def add_facility(request):
     if request.method == 'POST':
         try:
@@ -423,6 +440,7 @@ def add_facility(request):
     return JsonResponse({'status': 'error', 'message': 'Invalid request method'}, status=405)
 
 @login_required
+@modellers_required
 def create_grid_line(request):
     """Create a new grid line"""
     if request.method == 'POST':
@@ -480,6 +498,7 @@ def create_grid_line(request):
     return JsonResponse({'status': 'error', 'message': 'Invalid request method'}, status=405)
 
 @login_required
+@modellers_required
 def manage_facility_grid_connections(request, facility_id):
     """Add, update, or remove grid connections for a facility"""
     if request.method == 'POST':
@@ -1158,6 +1177,7 @@ def find_nearest_grid_lines(request):
     return JsonResponse(nearby_lines, safe=False)
 
 
+@modellers_required
 def ajax_move_facility(request, facility_id):
     """AJAX endpoint to update only the lat/lng of a facility (drag-and-drop)"""
     if request.method != 'POST':
@@ -1180,6 +1200,7 @@ def ajax_move_facility(request, facility_id):
         return JsonResponse({'error': str(e)}, status=500)
 
 
+@modellers_required
 def ajax_move_terminal(request, terminal_id):
     """AJAX endpoint to update only the lat/lng of a terminal (drag-and-drop)"""
     if request.method != 'POST':
@@ -1202,6 +1223,7 @@ def ajax_move_terminal(request, terminal_id):
         return JsonResponse({'error': str(e)}, status=500)
 
 
+@modellers_required
 def ajax_update_terminal(request, terminal_id):
     """AJAX endpoint to update a terminal's attributes from the map"""
     if request.method != 'POST':
@@ -1266,6 +1288,7 @@ def ajax_update_terminal(request, terminal_id):
         return JsonResponse({'error': str(e)}, status=500)
 
 
+@modellers_required
 def ajax_update_gridline(request, gridline_id):
     """AJAX endpoint to update a grid line's attributes from the map"""
     if request.method != 'POST':

@@ -1,6 +1,7 @@
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
+from powermapui.utils.permissions import modellers_required
 from siren_web.models import GridLines
 import json
 from siren_web.models import Terminals
@@ -20,6 +21,7 @@ def calculate_distance_km(lat1, lon1, lat2, lon2):
     return R * c
 
 @login_required
+@modellers_required
 @csrf_exempt
 def add_terminal(request):
     """Add a new terminal to the system"""
@@ -231,6 +233,7 @@ def find_nearest_terminals(request):
 
 # Enhanced create_grid_line function to handle terminal connections
 @login_required
+@modellers_required
 @csrf_exempt
 def create_grid_line_with_terminals(request):
     """Create a new grid line with terminal connections"""

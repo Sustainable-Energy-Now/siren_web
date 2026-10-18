@@ -14,7 +14,8 @@
         </select>
     </div>
 
-    <!-- Add New Facility / Edit buttons -->
+    <!-- Add New Facility / Edit buttons (modellers only) -->
+    {% if can_edit %}
     <button id="addFacilityBtn" class="btn btn-primary" type="button">
         Add New Facility
     </button>
@@ -24,9 +25,11 @@
     <button id="addGridLineBtn" class="btn btn-success" type="button">
         Add New Grid Line
     </button>
+    {% endif %}
     <button id="findOnMapBtn" class="btn btn-outline-dark" type="button" onclick="openFindOnMap()">
         Find on Map
     </button>
+    {% if can_edit %}
     <a href="{% url 'powermapui:zones_list' %}" class="btn btn-outline-secondary" type="button">
         Zones
     </a>
@@ -36,9 +39,11 @@
     <button id="editSwisBoundaryBtn" class="btn btn-outline-danger" type="button" style="display:none;">
         Edit SWIS Boundary
     </button>
+    {% endif %}
     <a href="{% url 'display_module_help' 'grid_map' %}" target="_blank" rel="noopener noreferrer"
        class="btn btn-outline-info" title="Grid Map Help (opens in a new tab)">❓ Help</a>
 
+    {% if can_edit %}
     <!-- Grid Line Controls -->
     <div style="margin-top: 10px; text-align: center;">
         <button onclick="showGridUtilization()" class="btn btn-secondary btn-sm" style="margin: 2px;">
@@ -48,6 +53,7 @@
             Connections Overview
         </a>
     </div>
+    {% endif %}
 </div>
 
 <!-- Connection Management Modal -->
@@ -777,6 +783,7 @@ crossorigin=""></script>
 var map;
 
 // Data passed from view
+var CAN_EDIT = {{ can_edit|yesno:"true,false" }};  // modellers only; others get a view-only map
 var facilities = {{ facilities_json|safe }};
 var gridLines = JSON.parse('{{ grid_lines_json|escapejs }}');
 
@@ -1009,9 +1016,13 @@ function loadTerminalsOnMap(terminalsData) {
                 <p><strong>Voltage:</strong> ${terminal.primary_voltage_kv} kV</p>
                 <p><strong>Connected Lines:</strong> ${terminal.connected_lines_count}</p>
                 <div style="margin-top:10px; display:flex; gap:6px; flex-wrap:wrap;">
+                    ${CAN_EDIT ? `
                     <button onclick="window.open('/terminals/${terminal.idterminals}/', '_blank')" class="btn btn-sm btn-primary">Details</button>
                     <button onclick="window.open('/terminals/${terminal.idterminals}/edit/', '_blank')" class="btn btn-sm btn-warning">Edit</button>
                     <button onclick="startTerminalDrag(${terminal.idterminals})" class="btn btn-sm btn-success">Move</button>
+                    ` : `
+                    <button onclick="showTerminalDetails(${terminal.idterminals})" class="btn btn-sm btn-primary">Details</button>
+                    `}
                 </div>
             </div>`;
         marker.bindPopup(termPopup);
@@ -1092,10 +1103,14 @@ function loadFacilitiesOnMap(facilitiesData) {
                 <p><strong>Grid Connection:</strong> <span style="color: ${connectionColor};">${connectionStatus}</span></p>
                 ${facility.primary_grid_line_name ? `<p><strong>Primary Line:</strong> ${facility.primary_grid_line_name}</p>` : ''}
                 <div style="margin-top:10px; display:flex; gap:6px; flex-wrap:wrap;">
+                    ${CAN_EDIT ? `
                     <button onclick="window.open('/facilities/${facility.idfacilities}/', '_blank')" class="btn btn-sm btn-primary">Details</button>
                     <button onclick="window.open('/facilities/${facility.idfacilities}/edit/', '_blank')" class="btn btn-sm btn-warning">Edit</button>
                     <button onclick="manageFacilityConnections(${facility.idfacilities})" class="btn btn-sm btn-info">Connections</button>
                     <button onclick="startFacilityDrag(${facility.idfacilities})" class="btn btn-sm btn-success">Move</button>
+                    ` : `
+                    <button onclick="showFacilityDetails(${facility.idfacilities})" class="btn btn-sm btn-primary">Details</button>
+                    `}
                 </div>
             </div>
         `;
@@ -1344,8 +1359,12 @@ function loadGridLinesOnMap(gridLinesData) {
                 <p><strong>Capacity:</strong> ${gridLine.thermal_capacity_mw} MW</p>
                 <p><strong>Connected Facilities:</strong> ${gridLine.connected_facilities_count}</p>
                 <div style="margin-top:10px; display:flex; gap:6px; flex-wrap:wrap;">
+                    ${CAN_EDIT ? `
                     <button onclick="window.open('/gridlines/${gridLine.idgridlines}/', '_blank')" class="btn btn-sm btn-primary">Details</button>
                     <button onclick="window.open('/gridlines/${gridLine.idgridlines}/edit/', '_blank')" class="btn btn-sm btn-warning">Edit</button>
+                    ` : `
+                    <button onclick="showGridLineDetails(${gridLine.idgridlines})" class="btn btn-sm btn-primary">Details</button>
+                    `}
                 </div>
             </div>`;
         polyline.bindPopup(glPopup);
@@ -2389,8 +2408,9 @@ document.addEventListener('DOMContentLoaded', function() {
         map.addLayer(boundaryLayer);
         boundaryLayer.bringToBack();
         try { map.fitBounds(boundaryLayer.getBounds()); } catch (e) {}
-        if (window.L && L.PM && boundaryPolygon) {
-            document.getElementById('editSwisBoundaryBtn').style.display = '';
+        var editSwisBtn = document.getElementById('editSwisBoundaryBtn');  // absent for non-modellers
+        if (editSwisBtn && window.L && L.PM && boundaryPolygon) {
+            editSwisBtn.style.display = '';
         }
     }
 
@@ -2722,9 +2742,11 @@ function showGridLineDetails(gridLineId) {
                         `).join('')}
                     </div>
                     ` : '<p>No facilities connected to this line.</p>'}
+                    ${CAN_EDIT ? `
                     <div style="margin-top:16px; padding-top:12px; border-top:1px solid #dee2e6; display:flex; gap:10px; justify-content:flex-end;">
                             <button onclick="window.open('/gridlines/${data.idgridlines}/', '_blank')" class="btn btn-sm btn-warning">Edit Grid Line</button>
                     </div>
+                    ` : ''}
                 </div>
             `;
 
@@ -3220,6 +3242,7 @@ function createTerminalDetailsHtml(data) {
     }
     
     html += `
+            ${CAN_EDIT ? `
             <div style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #dee2e6;">
                 <div style="display: flex; gap: 10px; justify-content: flex-end;">
                     <button onclick="window.open('/terminals/${data.idterminals}/', '_blank')" class="btn btn-sm btn-warning">
@@ -3227,6 +3250,7 @@ function createTerminalDetailsHtml(data) {
                     </button>
                 </div>
             </div>
+            ` : ''}
         </div>
     `;
 

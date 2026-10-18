@@ -20,37 +20,32 @@ def get_description(name, sirensystem_model):
         description = "No description available."  # Or set a custom error message
     return description
 
+# Website membership status -> (shared Siren Web account, USER_PASS key)
+MEMBERSHIP_ACCOUNTS = {
+    'Active': ('member', 'member_pass'),          # full access
+    'Lapsed': ('lapsed', 'lapsed_pass'),          # limited access
+    'Non member': ('subscriber', 'subscriber_pass'),  # no access
+}
+
+def login_from_membership_params(request):
+    """Log in the shared account matching the website's ?membership_status=
+    parameter (the website embeds it in links to Siren Web). Does nothing if
+    the user is already logged in or the status is missing/unknown."""
+    if request.user.is_authenticated:
+        return
+    account = MEMBERSHIP_ACCOUNTS.get(request.GET.get('membership_status', ''))
+    if not account:
+        return
+    user_name, pass_key = account
+    user = authenticate(request, username=user_name, password=settings.USER_PASS[pass_key])
+    if user is not None:
+        login(request, user)
+
 def home_view(request):
     success_message = ""
     member_name = request.GET.get('member_name', '')
     email_address = request.GET.get('email_address', '')
-    membership_status = request.GET.get('membership_status', '')
-    if not request.user.is_authenticated:
-        if (membership_status):
-            if membership_status == 'Active':
-                # Grant full access
-                user_name = 'member'
-                user_password = settings.USER_PASS['member_pass']
-            elif membership_status == 'Lapsed':
-                # Grant limited access
-                user_name = 'lapsed'
-                user_password = settings.USER_PASS['lapsed_pass']
-            elif membership_status == 'Non member':
-                # Grant no access (non-member)
-                user_name = 'subscriber'
-                user_password = settings.USER_PASS['subscriber_pass']
-            else:
-            # Handle authentication failure
-                pass
-            try:
-                if user_name is not None:
-                    # Authenticate the user
-                    user = authenticate(request, username=user_name, password=user_password)
-            except UnboundLocalError:
-                # Handle the case where user_name isn't defined
-                user = None
-            if user is not None:
-                login(request, user)
+    login_from_membership_params(request)
     # Handle the membership status and grant access accordingly
     #     context = {
     #         'member_name': member_name,

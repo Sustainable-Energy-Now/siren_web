@@ -8,9 +8,11 @@
     <link rel="icon" type="image/png" sizes="32x32" href="{% static 'img/favicon-32x32.png' %}">
     <link rel="shortcut icon" href="{% static 'img/favicon-32x32.png' %}">
     <title>Siren Web</title>
+    {% if not embed %}
     <figure class="size-full header-logo">
         <a href="/"><img decoding="async" src="{% static 'img/SEN_LOGO_HERO.png' %}" alt="Logo" style="width: 200px; height: auto;"></a>
     </figure>
+    {% endif %}
     <!-- Common CSS stylesheets -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <!-- jQuery -->
@@ -31,6 +33,7 @@
     </style>
 </head>
 <body>
+{% if not embed %}
 <!-- Header -->
 <div class="container mt-4">
     <h1>Siren Web</h1>
@@ -52,6 +55,7 @@
         </div>
     </div>
 </nav>
+{% endif %}
 
 <!-- Django Messages -->
 {% if messages %}
@@ -89,6 +93,7 @@
             </div>
         </div>
     </footer>
+    {% if not embed %}
     <div class="top-right">
         {% if user.is_authenticated %}
             <p>Welcome, {{ user.username }}!</p>
@@ -101,5 +106,6 @@
             <a href="/accounts/login/">Login</a>
         {% endif %}
     </div>
+    {% endif %}
 </body>
 {% block extra_js %}{% endblock %}
