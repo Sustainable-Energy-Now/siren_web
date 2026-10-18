@@ -18,7 +18,9 @@ def add_comment(request):
     Expects POST data: report_type, year, month (optional), quarter (optional), content, category
     """
     form = ReportCommentForm(request.POST)
-    
+    if request.POST.get('report_type') not in dict(ReportComment.REPORT_TYPE_CHOICES):
+        return JsonResponse({'success': False, 'errors': {'report_type': ['Unknown report type']}}, status=400)
+
     if form.is_valid():
         comment = form.save(commit=False)
         comment.author = request.user

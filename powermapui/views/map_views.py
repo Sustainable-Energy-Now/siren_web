@@ -6,7 +6,8 @@ from django.shortcuts import render
 from django.views.decorators.clickjacking import xframe_options_exempt
 from django.views.decorators.csrf import csrf_exempt
 from siren_web.database_operations import fetch_module_settings_data, fetch_scenario_settings_data
-from siren_web.models import facilities, Technologies, Terminals, Scenarios, GridLines, FacilityGridConnections, Zones, SwisBoundary
+from siren_web.models import facilities, Technologies, Terminals, Scenarios, GridLines, FacilityGridConnections, Zones, SwisBoundary, \
+    ReportComment
 from powermapui.utils.permissions import is_embedded, is_modeller, modellers_required
 from siren_web.views.home_views import login_from_membership_params
 from powermapui.utils.swis_boundary import (
@@ -240,6 +241,8 @@ def home(request):
         'swis_boundary_json': swis_boundary_geojson_str(),
         'embed': embed,
         'can_edit': is_modeller(request.user),
+        'comments': ReportComment.get_comments_for_page('grid_map'),
+        'comment_year': date.today().year,
     }
     return render(request, 'map_home.html', context)
 

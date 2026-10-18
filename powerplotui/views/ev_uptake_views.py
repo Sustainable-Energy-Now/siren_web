@@ -12,7 +12,7 @@ from django.shortcuts import render
 from django.views.decorators.clickjacking import xframe_options_exempt
 
 from powerplotui.services.ev_uptake_analysis import build_tracking_report
-from siren_web.models import EvActualsQuarter, EvActualsRecord, EvUptakePostcodeFigure
+from siren_web.models import EvActualsQuarter, EvActualsRecord, EvUptakePostcodeFigure, ReportComment
 
 SCENARIO_COLORS = {'low': '#3498db', 'medium': '#f39c12', 'high': '#e74c3c'}
 SCENARIO_LABELS = {'low': 'Low', 'medium': 'Medium', 'high': 'High'}
@@ -79,4 +79,6 @@ def ev_uptake_tracking(request):
         'n_figures': len(figures),
         'n_actuals': len(actuals),
         'n_actuals_quarters': len(actuals_quarterly),
+        'comments': ReportComment.get_comments_for_page('ev_uptake'),
+        'comment_year': dt.date.today().year,
     })

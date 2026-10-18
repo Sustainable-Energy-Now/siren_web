@@ -51,6 +51,8 @@ urlpatterns = [
     path('help/<str:module_name>/generate/', help_views.generate_module_help, name='generate_module_help'),
     path('help/<str:module_name>/edit/', help_views.edit_module_help_markdown, name='edit_module_help_markdown'),
     path("admin/", admin.site.urls),
+    # Accepts the website's membership credentials in `next` before the stock login form
+    path('accounts/login/', home_views.membership_login_view, name='login'),
     path('accounts/', include('django.contrib.auth.urls')),
 ]
 urlpatterns += staticfiles_urlpatterns()
