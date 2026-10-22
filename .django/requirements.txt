@@ -1,9 +1,0 @@
-celery=5.3.6
-crispy-bootstrap5=2024.2
-django-crispy-forms=2.1
-matplotlib==3.8.0
-mysqlclient==2.1.1
-numpy==1.24.3
-openpyxl==3.0.9
-pandas==2.0.1
-pymysql==1.1.0

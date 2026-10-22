@@ -34,12 +34,18 @@ logger = logging.getLogger(__name__)
 
 # Try to import WeasyPrint, log warning if not available
 try:
-    from weasyprint import HTML, CSS
-    from weasyprint.fonts import FontConfiguration
+    from weasyprint import HTML, CSS, URLFetcher
+    from weasyprint.text.fonts import FontConfiguration
+    from weasyprint.urls import URLFetcherResponse
     WEASYPRINT_AVAILABLE = True
 except ImportError:
     WEASYPRINT_AVAILABLE = False
     logger.warning("WeasyPrint not installed. PDF generation will not work. Install with: pip install WeasyPrint")
+except OSError:
+    # WeasyPrint is installed but its native Pango libraries could not be loaded
+    WEASYPRINT_AVAILABLE = False
+    logger.warning("WeasyPrint could not load Pango. PDF generation will not work. "
+                   "See https://doc.courtbouillon.org/weasyprint/stable/first_steps.html#windows")
 
 # Try to import Plotly for chart generation
 try:
@@ -349,6 +355,7 @@ def generate_pdf_from_html(html_content, base_url):
 
     from django.conf import settings
     from django.contrib.staticfiles import finders
+    import mimetypes
     import os
     from urllib.parse import urlparse, unquote
 
@@ -356,31 +363,35 @@ def generate_pdf_from_html(html_content, base_url):
     font_config = FontConfiguration()
 
     # Custom URL fetcher to handle static files
-    def url_fetcher(url):
+    class StaticFileURLFetcher(URLFetcher):
         """Custom fetcher to resolve Django static files"""
-        parsed = urlparse(url)
+        def fetch(self, url, headers=None):
+            parsed = urlparse(url)
 
-        # Handle static files
-        if parsed.path.startswith(settings.STATIC_URL):
-            # Remove STATIC_URL prefix to get the relative path
-            relative_path = parsed.path[len(settings.STATIC_URL):]
-            relative_path = unquote(relative_path)
+            # Handle static files
+            if parsed.path.startswith(settings.STATIC_URL):
+                # Remove STATIC_URL prefix to get the relative path
+                relative_path = parsed.path[len(settings.STATIC_URL):]
+                relative_path = unquote(relative_path)
 
-            # Try to find the static file
-            if hasattr(settings, 'STATIC_ROOT') and settings.STATIC_ROOT:
-                # In production, use STATIC_ROOT
-                full_path = os.path.join(settings.STATIC_ROOT, relative_path)
-            else:
-                # In development, use finders
-                full_path = finders.find(relative_path)
+                # Try to find the static file
+                if hasattr(settings, 'STATIC_ROOT') and settings.STATIC_ROOT:
+                    # In production, use STATIC_ROOT
+                    full_path = os.path.join(settings.STATIC_ROOT, relative_path)
+                else:
+                    # In development, use finders
+                    full_path = finders.find(relative_path)
 
-            if full_path and os.path.exists(full_path):
-                with open(full_path, 'rb') as f:
-                    return {'string': f.read(), 'mime_type': None}
+                if full_path and os.path.exists(full_path):
+                    mime_type = mimetypes.guess_type(full_path)[0] or 'application/octet-stream'
+                    with open(full_path, 'rb') as f:
+                        return URLFetcherResponse(
+                            url, body=f.read(), headers={'Content-Type': mime_type})
 
-        # Fall back to default fetcher for other URLs
-        from weasyprint import default_url_fetcher
-        return default_url_fetcher(url)
+            # Fall back to default fetcher for other URLs
+            return super().fetch(url, headers)
+
+    url_fetcher = StaticFileURLFetcher()
 
     # Additional CSS for PDF-specific styling
     pdf_css = CSS(string='''
