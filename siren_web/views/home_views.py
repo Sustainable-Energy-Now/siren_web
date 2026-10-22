@@ -1,9 +1,12 @@
 from django.conf import settings
 from django.contrib.auth import authenticate, login
+from django.contrib.auth.views import LoginView
 from django.db.models import Model
-from django.shortcuts import render, get_object_or_404
+from django.shortcuts import redirect, render, get_object_or_404
 from django.urls import reverse
-from django.http import JsonResponse
+from django.http import JsonResponse, QueryDict
+from django.utils.http import url_has_allowed_host_and_scheme
+from urllib.parse import urlsplit
 from siren_web.models import Analysis, facilities, Generatorattributes, \
     sirensystem, Scenarios, Settings, Storageattributes, SupplyFactorMatrix, Technologies, Zones
 import markdown
@@ -20,26 +23,44 @@ def get_description(name, sirensystem_model):
         description = "No description available."  # Or set a custom error message
     return description
 
-# Website membership status -> (shared Siren Web account, USER_PASS key)
+# Website membership status (normalised: lower case, single spaces)
+#   -> (shared Siren Web account, USER_PASS key)
 MEMBERSHIP_ACCOUNTS = {
-    'Active': ('member', 'member_pass'),          # full access
-    'Lapsed': ('lapsed', 'lapsed_pass'),          # limited access
-    'Non member': ('subscriber', 'subscriber_pass'),  # no access
+    'active': ('member', 'member_pass'),               # full access
+    'lapsed': ('lapsed', 'lapsed_pass'),               # limited access
+    'non member': ('subscriber', 'subscriber_pass'),   # no access
 }
 
-def login_from_membership_params(request):
+def login_from_membership_params(request, params=None):
     """Log in the shared account matching the website's ?membership_status=
-    parameter (the website embeds it in links to Siren Web). Does nothing if
-    the user is already logged in or the status is missing/unknown."""
+    parameter (the website embeds it in links to Siren Web). `params` defaults
+    to request.GET. Does nothing if the user is already logged in or the
+    status is missing/unknown. Matching ignores case ('Non Member' == 'Non member')."""
     if request.user.is_authenticated:
         return
-    account = MEMBERSHIP_ACCOUNTS.get(request.GET.get('membership_status', ''))
+    params = request.GET if params is None else params
+    status = ' '.join(params.get('membership_status', '').split()).lower()
+    account = MEMBERSHIP_ACCOUNTS.get(status)
     if not account:
         return
     user_name, pass_key = account
     user = authenticate(request, username=user_name, password=settings.USER_PASS[pass_key])
     if user is not None:
         login(request, user)
+
+def membership_login_view(request):
+    """/accounts/login/ — when the `next` URL carries the website's membership
+    credentials, log in from them and go straight to `next`; otherwise show
+    the normal login form."""
+    next_url = request.POST.get('next') or request.GET.get('next') or ''
+    if not url_has_allowed_host_and_scheme(next_url, allowed_hosts={request.get_host()},
+                                           require_https=request.is_secure()):
+        next_url = ''
+    if next_url:
+        login_from_membership_params(request, QueryDict(urlsplit(next_url).query))
+        if request.user.is_authenticated:
+            return redirect(next_url)
+    return LoginView.as_view()(request)
 
 def home_view(request):
     success_message = ""

@@ -273,8 +273,8 @@
     font-weight: 500;
 }
 
-/* Button Styles */
-.btn {
+/* Button / modal styles are scoped so the partial can sit on Bootstrap pages (e.g. the grid map) */
+.comments-section .btn, #edit-comment-modal .btn {
     padding: 10px 20px;
     border: none;
     border-radius: 6px;
@@ -284,26 +284,26 @@
     transition: background-color 0.2s;
 }
 
-.btn-primary {
+.comments-section .btn-primary, #edit-comment-modal .btn-primary {
     background: #3498db;
     color: white;
 }
 
-.btn-primary:hover {
+.comments-section .btn-primary:hover, #edit-comment-modal .btn-primary:hover {
     background: #2980b9;
 }
 
-.btn-secondary {
+.comments-section .btn-secondary, #edit-comment-modal .btn-secondary {
     background: #95a5a6;
     color: white;
 }
 
-.btn-secondary:hover {
+.comments-section .btn-secondary:hover, #edit-comment-modal .btn-secondary:hover {
     background: #7f8c8d;
 }
 
 /* Modal Styles */
-.modal {
+#edit-comment-modal.modal {
     position: fixed;
     top: 0;
     left: 0;
@@ -313,10 +313,10 @@
     display: flex;
     justify-content: center;
     align-items: center;
-    z-index: 1000;
+    z-index: 10001;
 }
 
-.modal-content {
+#edit-comment-modal .modal-content {
     background: white;
     padding: 25px;
     border-radius: 12px;
@@ -325,19 +325,19 @@
     box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
 }
 
-.modal-header {
+#edit-comment-modal .modal-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
     margin-bottom: 20px;
 }
 
-.modal-header h3 {
+#edit-comment-modal .modal-header h3 {
     margin: 0;
     color: #2c3e50;
 }
 
-.modal-close {
+#edit-comment-modal .modal-close {
     background: none;
     border: none;
     font-size: 1.5em;
@@ -345,7 +345,7 @@
     color: #7f8c8d;
 }
 
-.modal-close:hover {
+#edit-comment-modal .modal-close:hover {
     color: #2c3e50;
 }
 
@@ -365,7 +365,7 @@
     color: #555;
 }
 
-.modal-actions {
+#edit-comment-modal .modal-actions {
     display: flex;
     justify-content: flex-end;
     gap: 10px;
@@ -400,8 +400,8 @@ function getCsrfToken() {
     return document.querySelector('[name=csrfmiddlewaretoken]').value;
 }
 
-// Add comment via AJAX
-document.getElementById('comment-form').addEventListener('submit', function(e) {
+// Add comment via AJAX (the form is only rendered for logged-in users)
+document.getElementById('comment-form')?.addEventListener('submit', function(e) {
     e.preventDefault();
     
     const form = this;

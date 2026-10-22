@@ -3240,13 +3240,19 @@ class NewCapacityCommissioned(models.Model):
 
 class ReportComment(models.Model):
     """
-    Comments for RET dashboard reports (monthly, quarterly, annual).
+    Comments for RET dashboard reports (monthly, quarterly, annual) and for
+    single-page dashboards (EV uptake tracker, grid map), which keep one
+    running thread per page rather than one per period.
     """
     REPORT_TYPE_CHOICES = [
         ('monthly', 'Monthly Dashboard'),
         ('quarterly', 'Quarterly Report'),
         ('annual', 'Annual Review'),
+        ('ev_uptake', 'EV Uptake Tracker'),
+        ('grid_map', 'Grid Map'),
     ]
+    # Page-wide threads: `year` just records when the comment was made
+    PAGE_REPORT_TYPES = ('ev_uptake', 'grid_map')
     
     # Report identification
     report_type = models.CharField(max_length=20, choices=REPORT_TYPE_CHOICES)
@@ -3322,9 +3328,16 @@ class ReportComment(models.Model):
             return f"{month_name[self.month]} {self.year}"
         elif self.report_type == 'quarterly':
             return f"Q{self.quarter} {self.year}"
+        elif self.report_type in self.PAGE_REPORT_TYPES:
+            return self.get_report_type_display()
         else:
             return f"{self.year} Annual Review"
-    
+
+    @classmethod
+    def get_comments_for_page(cls, report_type):
+        """Retrieve the whole comment thread for a single-page dashboard."""
+        return cls.objects.filter(report_type=report_type).select_related('author')
+
     @classmethod
     def get_comments_for_report(cls, report_type, year, month=None, quarter=None):
         """
