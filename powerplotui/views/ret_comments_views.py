@@ -7,6 +7,7 @@ from django.http import JsonResponse
 from django.views.decorators.http import require_POST, require_http_methods
 from django.template.loader import render_to_string
 from siren_web.models import ReportComment
+from siren_web.views.home_views import can_manage_comment, member_identity
 from ..forms import ReportCommentForm, CommentEditForm
 
 
@@ -24,6 +25,8 @@ def add_comment(request):
     if form.is_valid():
         comment = form.save(commit=False)
         comment.author = request.user
+        # Website members share one account: sign with their own name/email
+        comment.author_name = member_identity(request) or ''
         comment.report_type = request.POST.get('report_type')
         comment.year = int(request.POST.get('year'))
         
@@ -73,7 +76,7 @@ def edit_comment(request, comment_id):
     comment = get_object_or_404(ReportComment, id=comment_id)
     
     # Check permissions: only author or staff can edit
-    if comment.author != request.user and not request.user.is_staff:
+    if not can_manage_comment(request, comment):
         return JsonResponse({'success': False, 'error': 'Permission denied'}, status=403)
     
     form = CommentEditForm(request.POST, instance=comment)
@@ -103,7 +106,7 @@ def delete_comment(request, comment_id):
     comment = get_object_or_404(ReportComment, id=comment_id)
     
     # Check permissions: only author or staff can delete
-    if comment.author != request.user and not request.user.is_staff:
+    if not can_manage_comment(request, comment):
         return JsonResponse({'success': False, 'error': 'Permission denied'}, status=403)
     
     comment.delete()
@@ -138,7 +141,7 @@ def toggle_resolve_comment(request, comment_id):
     comment = get_object_or_404(ReportComment, id=comment_id)
     
     # Only author, staff, or users who can manage the report can resolve
-    if comment.author != request.user and not request.user.is_staff:
+    if not can_manage_comment(request, comment):
         return JsonResponse({'success': False, 'error': 'Permission denied'}, status=403)
     
     comment.is_resolved = not comment.is_resolved

@@ -31,22 +31,53 @@ MEMBERSHIP_ACCOUNTS = {
     'non member': ('subscriber', 'subscriber_pass'),   # no access
 }
 
+SHARED_ACCOUNTS = {user_name for user_name, _ in MEMBERSHIP_ACCOUNTS.values()}
+# The website member behind a shared account, e.g. "Rob (rob@example.net)"
+MEMBER_IDENTITY_SESSION_KEY = 'member_identity'
+
 def login_from_membership_params(request, params=None):
     """Log in the shared account matching the website's ?membership_status=
     parameter (the website embeds it in links to Siren Web). `params` defaults
-    to request.GET. Does nothing if the user is already logged in or the
-    status is missing/unknown. Matching ignores case ('Non Member' == 'Non member')."""
-    if request.user.is_authenticated:
-        return
+    to request.GET. Matching ignores case ('Non Member' == 'Non member').
+    Does not log in if the user is already logged in or the status is
+    missing/unknown. For shared accounts, the website's member_name and
+    email_address are remembered in the session to sign comments with."""
     params = request.GET if params is None else params
-    status = ' '.join(params.get('membership_status', '').split()).lower()
-    account = MEMBERSHIP_ACCOUNTS.get(status)
-    if not account:
-        return
-    user_name, pass_key = account
-    user = authenticate(request, username=user_name, password=settings.USER_PASS[pass_key])
-    if user is not None:
+    if not request.user.is_authenticated:
+        status = ' '.join(params.get('membership_status', '').split()).lower()
+        account = MEMBERSHIP_ACCOUNTS.get(status)
+        if not account:
+            return
+        user_name, pass_key = account
+        user = authenticate(request, username=user_name, password=settings.USER_PASS[pass_key])
+        if user is None:
+            return
         login(request, user)
+    if request.user.username in SHARED_ACCOUNTS:
+        name = params.get('member_name', '').strip()
+        email = params.get('email_address', '').strip()
+        identity = f'{name} ({email})' if name and email else (name or email)
+        if identity:
+            request.session[MEMBER_IDENTITY_SESSION_KEY] = identity[:100]  # author_name max_length
+
+def member_identity(request):
+    """The website member using a shared account, or None for named accounts."""
+    if request.user.is_authenticated and request.user.username in SHARED_ACCOUNTS:
+        return request.session.get(MEMBER_IDENTITY_SESSION_KEY)
+    return None
+
+def can_manage_comment(request, comment):
+    """Who may edit/delete/resolve a comment: staff, or its author. Members on
+    a shared account only manage comments signed with their own identity."""
+    user = request.user
+    if not user.is_authenticated:
+        return False
+    if user.is_staff:
+        return True
+    if user.username in SHARED_ACCOUNTS:
+        identity = member_identity(request)
+        return identity is not None and comment.author_name == identity
+    return comment.author_id == user.id
 
 def membership_login_view(request):
     """/accounts/login/ — when the `next` URL carries the website's membership

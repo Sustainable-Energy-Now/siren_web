@@ -13,6 +13,7 @@ from django.views.decorators.clickjacking import xframe_options_exempt
 
 from powerplotui.services.ev_uptake_analysis import build_tracking_report
 from siren_web.models import EvActualsQuarter, EvActualsRecord, EvUptakePostcodeFigure, ReportComment
+from siren_web.views.home_views import login_from_membership_params
 
 SCENARIO_COLORS = {'low': '#3498db', 'medium': '#f39c12', 'high': '#e74c3c'}
 SCENARIO_LABELS = {'low': 'Low', 'medium': 'Medium', 'high': 'High'}
@@ -60,6 +61,9 @@ def ev_uptake_tracking(request):
     """FR-13/14 tracking dashboard. Only reads figures/actuals already
     marked validation_status='passed' -- the Section 8 standing principle
     also applies to this Outcome B view, not just Outcome A."""
+    # Embedded on the SEN website, which passes membership credentials in the
+    # URL; logging in from them enables commenting. The page itself stays public.
+    login_from_membership_params(request)
     figures = list(
         EvUptakePostcodeFigure.objects.filter(validation_status='passed')
         .values('csiro_scenario', 'forecast_year', 'fleet_count')
